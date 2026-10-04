@@ -11,15 +11,20 @@
 //! error. Most games want a SIMPLEBLOB; KOF XIII Climax wants a PLAINTEXTKEYBLOB encrypted
 //! with the game's key (`WAL_NESICA_CRYPT_REPLY=plaintext`).
 //!
+//! Wine fix: games import the reply with `CryptImportKey(SIMPLEBLOB, hPubKey = 0)`, which on
+//! Windows decrypts with the container's key exchange key; Wine fails with
+//! NTE_BAD_PUBLIC_KEY. The game's import is hooked to pass that key explicitly.
+//!
 //! Options: `WAL_NESICA_KEY` = built-in key name (see `keys.rs`) or key file (PRIVATEKEYBLOB,
 //! relative to the game directory, e.g. `303002.key`); default `usf4` like WindowsLoader.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
-use wal_payload_common::log;
+use wal_payload_common::{iat, log};
 use windows_sys::Win32::Foundation::{GetLastError, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Security::Cryptography::{
-    CRYPT_EXPORTABLE, CRYPT_NEWKEYSET, CryptAcquireContextA, CryptDestroyKey, CryptEncrypt, CryptExportKey,
+    AT_KEYEXCHANGE, CRYPT_EXPORTABLE, CRYPT_NEWKEYSET, CryptGetUserKey, CryptAcquireContextA, CryptDestroyKey, CryptEncrypt, CryptExportKey,
     CryptGetKeyParam, CryptImportKey, KP_KEYLEN, PLAINTEXTKEYBLOB, PROV_RSA_FULL, SIMPLEBLOB,
 };
 use windows_sys::Win32::Storage::FileSystem::{PIPE_ACCESS_DUPLEX, ReadFile, WriteFile};
@@ -72,7 +77,33 @@ pub(crate) fn start() {
         _ => Reply::SimpleBlob,
     };
     let Some(blob) = load_key() else { return };
+    if let Some(o) = unsafe { iat::hook("advapi32.dll", "CryptImportKey", game_import_key as *const () as usize) } {
+        ORIG_IMPORT.store(o, Ordering::Relaxed);
+    }
     thread::spawn(move || serve(&blob, reply));
+}
+
+static ORIG_IMPORT: AtomicUsize = AtomicUsize::new(0);
+
+type ImportKeyFn = unsafe extern "system" fn(usize, *const u8, u32, usize, u32, *mut usize) -> i32;
+
+/// The game's `CryptImportKey`: a SIMPLEBLOB without import key uses the container's key
+/// exchange key (Wine does not).
+unsafe extern "system" fn game_import_key(prov: usize, data: *const u8, len: u32, pubkey: usize, flags: u32, key: *mut usize) -> i32 {
+    let original: ImportKeyFn = unsafe { std::mem::transmute(ORIG_IMPORT.load(Ordering::Relaxed)) };
+    let simple_blob = !data.is_null() && len > 0 && unsafe { *data } as u32 == SIMPLEBLOB;
+    if pubkey != 0 || !simple_blob {
+        return unsafe { original(prov, data, len, pubkey, flags, key) };
+    }
+    let mut exchange = 0usize;
+    if unsafe { CryptGetUserKey(prov, AT_KEYEXCHANGE, &mut exchange) } == 0 {
+        log!("crypto: game has no key exchange key: {:#x}", unsafe { GetLastError() });
+        return unsafe { original(prov, data, len, pubkey, flags, key) };
+    }
+    let ok = unsafe { original(prov, data, len, exchange, flags, key) };
+    log!("crypto: game imported the content key: {}", if ok != 0 { "ok".into() } else { format!("failed {:#x}", unsafe { GetLastError() }) });
+    unsafe { CryptDestroyKey(exchange) };
+    ok
 }
 
 fn acquire() -> Option<usize> {

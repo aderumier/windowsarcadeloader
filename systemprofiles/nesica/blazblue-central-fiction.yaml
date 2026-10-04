@@ -1,0 +1,18 @@
+# BlazBlue Central Fiction 2.01 (NESiCAxLive) - template, override values in
+# userprofiles/nesica/blazblue-central-fiction.yaml.
+system: nesica
+name: BlazBlue Central Fiction 2.01
+exe: 'Z:\userdata\roms\nesica\BlazBlue Central Fiction 2.01.00\game.exe'
+
+# Direct3D 9 game: through DXVK (default).
+
+# Buttons A B C D = b1-b4 (default mapping).
+
+env:
+  # encrypted data: crypto service with the BlazBlue Central Fiction key
+  WAL_NESICA_KEY: bbcf
+  # D:\ data of WindowsLoader dumps
+  WAL_NESICA_DDRIVE: WindowsLoader
+  # shop hours check (test menu OPEN/CLOSE TIME) always "open": otherwise NESiCA is
+  # disabled after closing time with a red "closing time has passed" banner
+  WAL_PATCHES: "0x7EA80:B801000000C3"

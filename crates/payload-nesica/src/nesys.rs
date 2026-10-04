@@ -14,7 +14,7 @@ use std::thread;
 use std::time::Duration;
 
 use wal_payload_common::log;
-use windows_sys::Win32::Foundation::{CloseHandle, ERROR_PIPE_CONNECTED, GetLastError, HANDLE, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Foundation::{CloseHandle, ERROR_MORE_DATA, ERROR_PIPE_CONNECTED, GetLastError, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Storage::FileSystem::{PIPE_ACCESS_DUPLEX, ReadFile, WriteFile};
 use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, PIPE_READMODE_MESSAGE, PIPE_TYPE_MESSAGE, PIPE_UNLIMITED_INSTANCES,
@@ -112,12 +112,8 @@ pub(crate) fn start() {
 fn serve(pipe: Pipe) {
     let mut buf = vec![0u8; BUFFER];
     loop {
-        let mut read = 0u32;
-        let ok = unsafe { ReadFile(pipe.0, buf.as_mut_ptr(), BUFFER as u32, &mut read, std::ptr::null_mut()) };
-        if ok == 0 || read == 0 {
-            break;
-        }
-        let mut data = &buf[..read as usize];
+        let Some(message) = read_message(&pipe, &mut buf) else { break };
+        let mut data = &message[..];
         while data.len() >= 8 {
             let command = u32_at(data, 0);
             let len = (u32_at(data, 4) as usize).min(data.len() - 8);
@@ -130,6 +126,25 @@ fn serve(pipe: Pipe) {
     }
     unsafe { CloseHandle(pipe.0) };
     log!("nesys: client disconnected");
+}
+
+/// Reads one pipe message, whatever its size (BBCF uploads ~60 KB messages).
+fn read_message(pipe: &Pipe, buf: &mut [u8]) -> Option<Vec<u8>> {
+    let mut message = Vec::new();
+    loop {
+        let mut read = 0u32;
+        let ok = unsafe { ReadFile(pipe.0, buf.as_mut_ptr(), buf.len() as u32, &mut read, std::ptr::null_mut()) };
+        message.extend_from_slice(&buf[..read as usize]);
+        if ok != 0 && read > 0 {
+            return Some(message);
+        }
+        let error = unsafe { GetLastError() };
+        if ok == 0 && error == ERROR_MORE_DATA {
+            continue;
+        }
+        log!("nesys: read ended: ok {ok} read {read} error {error}");
+        return None;
+    }
 }
 
 fn u32_at(d: &[u8], off: usize) -> u32 {

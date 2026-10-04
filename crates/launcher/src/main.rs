@@ -8,6 +8,7 @@ mod config;
 mod input;
 mod mapping;
 mod rundir;
+mod script;
 mod server;
 mod systems;
 mod wine;
@@ -24,10 +25,11 @@ use wal_protocol::{InputFrame, env};
 
 const USAGE: &str = "\
 usage:
-  arcade-launcher [run] <profile> [--root DIR] [--dry-run]
+  arcade-launcher [run] <profile> [--root DIR] [--dry-run] [--input-script FILE]
       Launch a game. <profile> is a YAML file in systemprofiles/ or userprofiles/
       (both layers are merged), or an id <system>/<game> looked up in --root
-      (default: current directory).
+      (default: current directory). --input-script replays timed virtual stick
+      inputs (`<seconds> p<N> <inputs...>` per line, `-` releases), for tests.
   arcade-launcher input-test [<profile>] [--root DIR]
       Print the virtual arcade sticks while you press buttons.
   arcade-launcher show <profile> [--root DIR]
@@ -38,16 +40,18 @@ struct Args {
     profile: Option<String>,
     root: Option<PathBuf>,
     dry_run: bool,
+    script: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Args> {
-    let mut args = Args { command: "run".into(), profile: None, root: None, dry_run: false };
+    let mut args = Args { command: "run".into(), profile: None, root: None, dry_run: false, script: None };
     let mut positional = Vec::new();
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
             "--root" => args.root = Some(it.next().context("--root needs a directory")?.into()),
             "--dry-run" => args.dry_run = true,
+            "--input-script" => args.script = Some(it.next().context("--input-script needs a file")?.into()),
             "-h" | "--help" => {
                 println!("{USAGE}");
                 std::process::exit(0);
@@ -93,7 +97,10 @@ fn real_main() -> Result<()> {
             };
             input_test(&profile)
         }
-        _ => run(&load()?, args.dry_run),
+        _ => {
+            let script = args.script.as_deref().map(script::Script::load).transpose()?;
+            run(&load()?, args.dry_run, script)
+        }
     }
 }
 
@@ -142,7 +149,7 @@ fn input_test(profile: &Profile) -> Result<()> {
     Ok(())
 }
 
-fn run(profile: &Profile, dry_run: bool) -> Result<()> {
+fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Result<()> {
     let system = systems::by_name(&profile.system)?;
     let mut wine = wine::Wine::new(profile, dry_run)?;
 
@@ -154,8 +161,11 @@ fn run(profile: &Profile, dry_run: bool) -> Result<()> {
     let exe_name = exe.file_name().context("executable without name")?;
 
     let payload_dir = profile.path(&profile.payloads_dir);
-    let payloads: Vec<(PathBuf, &str)> =
+    let mut payloads: Vec<(PathBuf, &str)> =
         system.payloads().iter().map(|p| (payload_dir.join(p.file), p.install_as)).collect();
+    if system.loader().is_some() {
+        payloads.push((payload_dir.join("wal-loader.exe"), "wal-loader.exe"));
+    }
     for (src, _) in &payloads {
         if !src.exists() {
             bail!("payload {} missing: build it with ./build.sh", src.display());
@@ -194,7 +204,15 @@ fn run(profile: &Profile, dry_run: bool) -> Result<()> {
     }
 
     let game_exe = wine.windows_path(&run_dir.join(exe_name));
-    let mut cmd = wine.command(&game_exe);
+    let mut cmd = match system.loader() {
+        // wal-loader <payload> <game> [args]: payload loaded before the game entry point
+        Some(payload) => {
+            let mut cmd = wine.command(wine.windows_path(&run_dir.join("wal-loader.exe")));
+            cmd.arg(wine.windows_path(&run_dir.join(payload))).arg(&game_exe);
+            cmd
+        }
+        None => wine.command(&game_exe),
+    };
     cmd.args(&profile.args).current_dir(&run_dir);
 
     eprintln!("game: {} ({})", profile.name.as_deref().unwrap_or(&profile.id), profile.id);
@@ -219,7 +237,12 @@ fn run(profile: &Profile, dry_run: bool) -> Result<()> {
     let mut killing = false;
     let status = loop {
         hub.poll(Duration::from_millis(4));
-        let frame = hub.frame();
+        let mut frame = hub.frame();
+        if let Some(script) = &script {
+            for (p, stick) in frame.players.iter_mut().enumerate() {
+                stick.buttons |= script.buttons(p);
+            }
+        }
         // on change, plus a periodic refresh
         if frame != last || last_sent.elapsed() > Duration::from_millis(100) {
             server.broadcast(&frame);

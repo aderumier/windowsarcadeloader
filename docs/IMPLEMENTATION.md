@@ -43,6 +43,8 @@ crates/
     src/rundir.rs          symlinked run directory
     src/systems/           Linux-side description of each system (payload file, hidden files)
   payload-common/          shared by every payload DLL: TCP client, log, mapping, IAT hooks, paths
+  loader/                  wal-loader.exe: starts a game with a payload loaded before its entry point
+  payload-typex/           Taito Type X payload (JVS I/O board on COM2), loaded by wal-loader
   payload-nesica/          NESiCAxLive payload = replacement iDmacDrv32.dll
     iDmacDrv32.def         export ordinals of the original driver (see §6.2)
     src/keys.rs            built-in crypto service keys (from WindowsLoader)
@@ -51,6 +53,7 @@ crates/
 systemprofiles/<system>/<game>.yaml   game templates (shipped)
 userprofiles/<system>/<game>.yaml     user overrides (git-ignored)
 tools/fake_launcher.py     scripted stand-in for the launcher (payload tests)
+tools/scripts/             input scripts for `--input-script` (coin-start-mash.txt)
 dist/                      build output: arcade-launcher, payloads/*.dll
 games/, wine-runners/, wine-prefix/   local data (git-ignored)
 ```
@@ -255,6 +258,21 @@ profile), `show` (merged profile).
   * `WAL_DSHOW_TRACE=1`: logs FindFilterByName and IGraphBuilder::Connect calls.
   GE-Proton 11 has no GStreamer backend: winedmo (FFmpeg) is the only media path; its
   `demuxer_destroy` faults during probing are caught by Wine.
+* `serial`: emulated serial device (IAT hooks of CreateFile/ReadFile/WriteFile/comm calls,
+  fake handle, reply queue); used by the NESiCA card reader and the Type X JVS board. Logs the
+  first 40 packets and any other COM port the game opens.
+* `drive`: `D:\` redirection (moved from NESiCA), folder variable chosen by the system
+  (`WAL_NESICA_DDRIVE`, `WAL_TYPEX_DDRIVE`).
+* `patches`: `WAL_PATCHES=<rva>:<hex>,...` game code patches from the profile (keeps game
+  knowledge in profiles, e.g. WindowsLoader's per-game patches).
+* `crash`: vectored exception handler logging the first access violations: address as
+  `module+offset`, registers, EBP frame chain, stack scan, and for write overruns the text
+  being written (found Cosplay Mahjong's overflow of a D3DX error message).
+* `screenshot` (d3d9 shims): `WAL_SCREENSHOT=<s>` writes the back buffer every s seconds
+  (`shot-NNNN.bmp` in the run dir, for automated tests); `WAL_D3D9_FULLSCREEN_SIZE=WxH`
+  creates/resets fullscreen devices with that size (Type X games ask 1280x768, which Wine does
+  not emulate: 1280x800 + Wine's fullscreen scaling). Logs the parameters of failing
+  CreateDevice calls.
 * `jvs`: JVS packet framing (`E0` sync, `D0` escaping, size, checksum) for emulated I/O
   boards on serial ports (unit tested; output identical to WindowsLoader/ttx_monitor).
 * IAT hooks chain: hooking the same import twice makes the second hook call the first one.
@@ -310,6 +328,17 @@ import it statically, so it loads before the game entry point: no injector neede
   ships `303002.key`, identical to the built-in one). Replies `<u32 len><blob>` (`<u32 0>` on
   error): SIMPLEBLOB for the game key, or for KOF XIII Climax (`WAL_NESICA_CRYPT_REPLY=plaintext`)
   a PLAINTEXTKEYBLOB RSA-encrypted with the game key. Uses CryptoAPI (Wine rsaenh).
+  Wine fix: BBCF imports the reply with `CryptImportKey(SIMPLEBLOB, hPubKey = 0)`, which Windows
+  resolves to the container's AT_KEYEXCHANGE key but Wine rejects (NTE_BAD_PUBLIC_KEY, then the
+  game asserts "Decrypt failed" when a match starts; WindowsLoader under Wine has the same bug).
+  The game's `CryptImportKey` is IAT-hooked to pass `CryptGetUserKey(AT_KEYEXCHANGE)`.
+* **NESYS message size**: requests are read whole (`ERROR_MORE_DATA` loop); BBCF uploads a
+  ~60 KB play log (`UPLOAD_CONFIG`), which used to break the pipe and show "NESiCA offline".
+* **BBCF shop hours**: NESiCA is disabled outside the test menu OPEN/CLOSE TIME (red
+  "閉店時間を過ぎました" banner); the profile patches the check (`0x7EA80`) to always open.
+  `WAL_TRACE_CRYPT=1` logs the game's CryptoAPI calls (`crypttrace.rs`); `WAL_TRACE_FILES=1`
+  logs every file the game opens. BBCF data (`TXAC` .pac): `TXAC`, u32 0x10, u32 0x4C, u32 0,
+  76-byte SIMPLEBLOB (RC4 40-bit, 11 zero salt bytes), RC4 data from 0x60 (`FPAC`).
   `WAL_NESICA_CRYPT=0` disables it. Verified with KOF XIII: the game decrypts the 17-byte RC4
   content key and loads its resources.
 * **Card reader** (`rfid.rs`, port of WindowsLoader `RfidEmu.cpp`): Taito RFID board on `COM2`
@@ -344,6 +373,25 @@ import it statically, so it loads before the game entry point: no injector neede
 * Not ported (yet): `GetIfEntry` hook, NESYS HTTP access (Groove Coaster), game-specific
   patches from `NesicaGeneric.cpp`. Games also try the NESiCAxLive launcher pipe
   (`\\.\pipe\NxLPipe...`); nobody emulates it and the games tested do not need it. Game detection by CRC is not needed: the profile says which game it is.
+
+### 6.3 Type X (`crates/payload-typex`, `crates/loader`)
+
+Type X / X2 games (and NESiCA games built on Type X I/O like 3D Cosplay Mahjong) talk to a
+JVS I/O board on `COM2` and import no driver DLL, so the payload is injected by
+**`wal-loader.exe`** (`wal-loader <payload> <game.exe> [args]`): the game is created
+suspended, its entry point (from the PEB image base) is replaced by a jump to a stub allocated
+in the game that calls `LoadLibraryW(payload)` (address taken locally: Wine maps kernel32 at
+the same address), restores the 5 entry bytes and jumps back. No remote thread. The launcher
+uses it for systems whose `System::loader()` is set (run dir gets `wal-loader.exe`).
+
+JVS board (`jvs.rs`): port of WindowsLoader's `JvsPackageEmulator` with its
+`TaitoTypeXGeneric` settings: Taito stick mode (features `01 02 10 00 02 02 00 ...`: 2 players,
+16 switches, 2 coin slots), JVS version 0x30, identifier
+`SEGA CORPORATION;I/O BD JVS;837-14572;Ver1.00;2005/10`, WindowsLoader's report-byte quirks.
+Switches: start 0x80, service 0x40, up/down/left/right 0x20/0x10/0x08/0x04, btn1 0x02, btn2 0x01,
+second byte btn3-6 0x80..0x10, system byte test 0x80; coins counted on release, `30`/`31`
+decrease/increase. Native names for `native_map`: `start service test coin up down left right
+btn1..btn6`.
 
 ## 7. Adding a system
 
@@ -410,6 +458,22 @@ Verified (GE-Proton11-7, WoW64 mode):
   because this dump's `opening.wmv` is badly interleaved (first audio packet 26 MB into the file;
   Wine's splitter and WM ASF Reader read in file order, VLC reads ahead): remuxed once with
   `ffmpeg -c copy`, original kept as `opening.wmv.orig`. Card play to verify.
+
+Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` + screenshots):
+
+| Profile | System | Result | Needed |
+|---|---|---|---|
+| nesica/arcana-heart-2 | nesica | in game (user) | - |
+| nesica/arcana-heart-3-lmss | nesica | in game (user, GAME_START) | D: WindowsLoader folder |
+| nesica/kof-xiii-climax | nesica | in game, movies | key file 303002.key, crypto plaintext reply, dshow find-filter, xact, remuxed opening.wmv |
+| nesica/akai-katana-shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
+| nesica/blazblue-central-fiction | nesica | in game, NESiCA online | key bbcf, D: WindowsLoader, shop hours patch |
+| typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, WindowsLoader patches |
+| typex/3d-cosplay-mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
+| nesica/aquapazza | nesica | template only, game not available | - |
+
+Launcher test helper: `--input-script FILE` replays `<seconds> p<N> <inputs>` lines (OR-ed with
+real devices); NESYS `GAME_START` (0x04) in the payload log means a credit started.
 
 TODO, roughly by priority:
 

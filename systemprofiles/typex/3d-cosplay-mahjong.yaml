@@ -1,0 +1,18 @@
+# 3D Cosplay Mahjong (NESiCAxLive, Type X JVS I/O) - template, override values in
+# userprofiles/typex/3d-cosplay-mahjong.yaml.
+system: typex
+name: 3D Cosplay Mahjong
+exe: 'Z:\userdata\roms\nesica\3D Cosplay Mahjong\game.exe'
+
+# Its effects do not compile with Wine's d3dx9_33 (E5017 ... ZWriteEnable), and the game
+# overflows a stack buffer printing the error: native d3dx9_33.
+tricks: [d3dx9_33]
+
+# dsound.dll and Dinput8.dll of the dump are Microsoft's: use wine's.
+hide: [dsound.dll, Dinput8.dll]
+
+# Buttons 1-3 = b1-b3 (default mapping).
+
+env:
+  # Type X 1280x768 fullscreen is not a mode Wine emulates: 1280x800, scaled to the screen.
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800

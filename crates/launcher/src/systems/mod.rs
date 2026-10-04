@@ -2,6 +2,7 @@
 //! matching `payload-<system>` crate; both only share the common protocol.
 
 mod nesica;
+mod typex;
 
 use anyhow::{Result, bail};
 
@@ -26,11 +27,17 @@ pub trait System {
     fn data_dirs(&self) -> &'static [&'static str] {
         &[]
     }
+    /// Payload the game is started with through `wal-loader` (games without a driver DLL
+    /// to replace). None: the payload replaces a DLL the game imports.
+    fn loader(&self) -> Option<&'static str> {
+        None
+    }
 }
 
 pub fn by_name(name: &str) -> Result<Box<dyn System>> {
     Ok(match name.to_ascii_lowercase().as_str() {
         "nesica" | "nesicax" | "nesicaxlive" => Box::new(nesica::Nesica),
-        _ => bail!("unknown system '{name}' (supported: nesica)"),
+        "typex" | "typex2" => Box::new(typex::TypeX),
+        _ => bail!("unknown system '{name}' (supported: nesica, typex)"),
     })
 }
