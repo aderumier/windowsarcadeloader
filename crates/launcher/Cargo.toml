@@ -1,0 +1,19 @@
+[package]
+name = "wal-launcher"
+description = "Linux launcher: physical inputs -> virtual arcade sticks -> game payload, wine setup and launch"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "arcade-launcher"
+path = "src/main.rs"
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+anyhow = "1"
+evdev = "0.13"
+sdl3 = "0.20"
+serde = { version = "1", features = ["derive"] }
+serde_yaml_ng = "0.10"
+ctrlc = { version = "3", features = ["termination"] }

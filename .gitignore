@@ -1,0 +1,7 @@
+/target
+/games
+/wine-runners
+/wine-prefix
+/dist
+/userprofiles
+__pycache__/

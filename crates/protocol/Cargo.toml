@@ -1,0 +1,8 @@
+[package]
+name = "wal-protocol"
+description = "Common TCP protocol between the Linux launcher and the in-game payloads"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]

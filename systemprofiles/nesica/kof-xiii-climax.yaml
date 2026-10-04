@@ -1,0 +1,26 @@
+# The King of Fighters XIII Climax (NESiCAxLive) - template, override values in
+# userprofiles/nesica/kof-xiii-climax.yaml.
+system: nesica
+name: The King of Fighters XIII Climax
+exe: 'Z:\userdata\roms\nesica\The King of Fighters XIII Climax (nesica)\game.exe'
+
+# Direct3D 9 game: through DXVK (default).
+
+# Native XACT/XAudio2 in the prefix.
+tricks: [xact]
+
+# Known dump issue: media/video/opening.wmv may store the audio ~26 MB after the video
+# (first audio packet at byte 26066951): Wine's FFmpeg splitter reads in file order and the
+# intro has no sound for ~20 s. Fix the file once (no re-encode):
+#   ffmpeg -i opening.wmv.orig -map 0 -c copy opening.wmv
+
+# Buttons A B C D = b1 b2 b3 b4 (virtual top row) = FastIO btn1-btn4 (default mapping).
+
+env:
+  # The content key comes from the crypto service: RSA key shipped with the game,
+  # KOF XIII Climax wants the key as a plaintext blob encrypted for the game.
+  WAL_NESICA_KEY: 303002.key
+  WAL_NESICA_CRYPT_REPLY: plaintext
+  # Movies: the game looks the video decoder up by name ("WMVideo Decoder DMO") to splice
+  # its SampleGrabber on its out0; Wine's FindFilterByName returns the file reader instead.
+  WAL_DSHOW_FIND_FILTER: "1"
