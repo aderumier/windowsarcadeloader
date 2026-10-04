@@ -310,6 +310,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-loader"
+version = "0.1.0"
+dependencies = [
+ "windows-sys",
+]
+
+[[package]]
 name = "wal-payload-common"
 version = "0.1.0"
 dependencies = [
@@ -319,6 +326,15 @@ dependencies = [
 
 [[package]]
 name = "wal-payload-nesica"
+version = "0.1.0"
+dependencies = [
+ "wal-payload-common",
+ "wal-protocol",
+ "windows-sys",
+]
+
+[[package]]
+name = "wal-payload-typex"
 version = "0.1.0"
 dependencies = [
  "wal-payload-common",

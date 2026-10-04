@@ -1,0 +1,15 @@
+[package]
+name = "wal-payload-typex"
+description = "Taito Type X payload: JVS I/O board on the serial port, loaded by wal-loader"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_typex"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_SystemServices"] }

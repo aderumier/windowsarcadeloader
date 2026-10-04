@@ -1,0 +1,14 @@
+# Akai Katana Shin (NESiCAxLive) - template, override values in
+# userprofiles/nesica/akai-katana-shin.yaml.
+system: nesica
+name: Akai Katana Shin
+exe: 'Z:\userdata\roms\nesica\Akai Katana Shin\Game.exe'
+
+# Direct3D 9 game: through DXVK (default). No crypto key.
+# Its sprite effects (Sprite_i*.cfx) are HLSL source compiled at load: Wine's d3dx9_37 fails
+# ("Failed to compile ASCII effect") and the renderer crashes on the missing effect.
+tricks: [d3dx9_37]
+# Dinput8.dll of the dump is Microsoft's: use wine's.
+hide: [Dinput8.dll]
+
+# Buttons 1-4 = b1-b4 (default mapping).

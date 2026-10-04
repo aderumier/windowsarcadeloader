@@ -5,6 +5,8 @@ members = [
     "crates/launcher",
     "crates/payload-common",
     "crates/payload-nesica",
+    "crates/payload-typex",
+    "crates/loader",
 ]
 # Payloads are Windows DLLs: build them with --target i686-pc-windows-gnu (see build.sh)
 default-members = ["crates/protocol", "crates/launcher"]

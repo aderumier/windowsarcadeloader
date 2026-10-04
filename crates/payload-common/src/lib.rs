@@ -5,6 +5,10 @@
 //! reports game outputs with [`send_output`].
 
 #[cfg(windows)]
+pub mod crash;
+#[cfg(windows)]
+pub mod drive;
+#[cfg(windows)]
 pub mod dshow;
 #[cfg(windows)]
 pub mod iat;
@@ -12,6 +16,12 @@ pub mod jvs;
 pub mod log;
 pub mod mapping;
 pub mod paths;
+#[cfg(windows)]
+pub mod patches;
+#[cfg(windows)]
+pub mod serial;
+#[cfg(windows)]
+pub mod screenshot;
 
 use std::io::Write;
 use std::net::TcpStream;
@@ -50,7 +60,11 @@ pub fn start(name: &'static str) {
             .unwrap_or(wal_protocol::DEFAULT_PORT);
         log!("{name}: payload loaded, launcher port {port}");
         #[cfg(windows)]
-        dshow::init();
+        {
+            crash::init();
+            dshow::init();
+            screenshot::init();
+        }
         std::thread::spawn(move || connection_loop(name, port));
     });
 }
