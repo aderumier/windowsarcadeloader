@@ -1,0 +1,130 @@
+# Built-in defaults of every game profile.
+#
+# Layers, each one deep-merged over the previous (maps are merged key by key, other
+# values replaced):
+#   1. this file
+#   2. <root>/launcher.yaml                         (optional, machine wide settings)
+#   3. <root>/systemprofiles/<system>/<game>.yaml   (game template)
+#   4. <root>/userprofiles/<system>/<game>.yaml     (user overrides, optional)
+# Relative paths are relative to <root>.
+
+# Emulated arcade system (nesica, ...). Required.
+system: null
+name: null
+# Game executable, Windows path: C:\... (prefix drive_c), Z:\... (unix /), or any
+# drive letter configured in the prefix dosdevices. Required.
+exe: null
+args: []
+
+runner: GE-Proton11-7-x86_64
+runners_dir: wine-runners
+prefix: wine-prefix/common
+# New WoW64 mode (WINEARCH=wow64): 32-bit games use the 64-bit host libraries, no lib32
+# packages needed. false: classic mode, 32-bit games need 32-bit host libraries
+# (pulse, alsa, freetype... in lib32_dirs).
+wow64: true
+# Built payload DLLs (build.sh output).
+payloads_dir: dist/payloads
+wine_debug: "-all"
+# d3d8-11/dxgi through the runner's DXVK (false: wine builtin wined3d).
+dxvk: true
+# DirectDraw: wine (builtin), d7vk (runner's ddraw->vulkan), dgvoodoo (the game's DDraw.dll).
+graphics: wine
+# System library directories, before the runner's i386-unix / x86_64-unix ones
+# (empty: auto, /lib32 or /usr/lib32 and /lib, /usr/lib).
+lib32_dirs: []
+lib64_dirs: []
+# winetricks verbs applied once to the prefix (recorded in <prefix>/.wal-tricks). The prefix
+# is shared by the games using it, keep this list short.
+tricks: []
+# Game files hidden from the run directory (case insensitive).
+hide: []
+# Extra environment variables of the game process (system options, wine settings).
+env: {}
+# Virtual stick -> native inputs of the system, for the payload (none = unmapped).
+native_map: {}
+
+# TCP port of the input server the payload connects to.
+port: 33700
+
+input:
+  # Analog -> digital threshold.
+  deadzone: 12000
+  # The left stick also drives the d-pad.
+  stick_as_dpad: true
+  # Physical gamepad buttons held together to quit the game.
+  exit_combo: [back, start]
+
+  # SDL gamepads (positional names, Xbox labels) -> virtual arcade stick of the
+  # player owning the pad (pads take players 1, 2... in connection order).
+  #   buttons: a b x y l1 r1 l2 r2 l3 r3 start back guide dpup dpdown dpleft dpright
+  #            misc1 paddle1-4 touchpad
+  #   axes:    leftx lefty rightx righty l2 r2, +leftx/-leftx for one half
+  # Virtual stick: b1-b8, up down left right, start coin service test, card (toggle),
+  #   lx ly rx ry accel brake (axes, -ly inverts), none
+  # Layout: top row b1 b2 b3 b4 = X Y R1 L1, bottom row b5 b6 b7 b8 = A B R2 L2.
+  gamepad:
+    x: b1
+    y: b2
+    r1: b3
+    l1: b4
+    a: b5
+    b: b6
+    r2: b7
+    l2: b8
+    start: start
+    back: coin
+    dpup: up
+    dpdown: down
+    dpleft: left
+    dpright: right
+    leftx: lx
+    lefty: ly
+    rightx: rx
+    righty: ry
+
+  # Keyboards (evdev key names) -> virtual stick, per player.
+  keyboard_enabled: true
+  keyboard:
+    p1:
+      KEY_UP: up
+      KEY_DOWN: down
+      KEY_LEFT: left
+      KEY_RIGHT: right
+      KEY_LEFTCTRL: b1
+      KEY_LEFTALT: b2
+      KEY_SPACE: b3
+      KEY_LEFTSHIFT: b4
+      KEY_Z: b5
+      KEY_X: b6
+      KEY_C: b7
+      KEY_V: b8
+      KEY_1: start
+      KEY_5: coin
+      KEY_9: service
+      KEY_F2: test
+      KEY_F4: card
+    p2:
+      KEY_R: up
+      KEY_F: down
+      KEY_D: left
+      KEY_G: right
+      KEY_A: b1
+      KEY_S: b2
+      KEY_Q: b3
+      KEY_W: b4
+      KEY_I: b5
+      KEY_K: b6
+      KEY_J: b7
+      KEY_L: b8
+      KEY_2: start
+      KEY_6: coin
+
+  # Devices with their own mapping, by case insensitive substring of the SDL name.
+  # Wheels and other non-gamepad joysticks are only used when listed here, with raw
+  # sources: button0, axis1, +axis2/-axis2 (one half), hat0up/down/left/right.
+  #   "G29":
+  #     player: 1          # force the player
+  #     raw: true          # raw sources even if SDL knows it as a gamepad
+  #     map: {axis0: lx, axis2: -accel, axis3: -brake, button0: b1}
+  devices: {}

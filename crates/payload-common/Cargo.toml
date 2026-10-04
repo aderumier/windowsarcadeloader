@@ -1,0 +1,16 @@
+[package]
+name = "wal-payload-common"
+description = "Shared code of the payload DLLs: launcher connection, logging, mapping"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+] }

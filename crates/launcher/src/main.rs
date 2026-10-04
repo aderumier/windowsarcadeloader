@@ -1,0 +1,242 @@
+//! Windows arcade game launcher for Linux.
+//!
+//! Reads physical inputs (SDL3 gamepads/wheels, evdev keyboards), maps them to virtual
+//! arcade sticks, serves them over TCP to the payload DLL running inside the game, and
+//! runs the game with a wine runner.
+
+mod config;
+mod input;
+mod mapping;
+mod rundir;
+mod server;
+mod systems;
+mod wine;
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+use anyhow::{Context, Result, bail};
+
+use config::{Graphics, Profile};
+use wal_protocol::{InputFrame, env};
+
+const USAGE: &str = "\
+usage:
+  arcade-launcher [run] <profile> [--root DIR] [--dry-run]
+      Launch a game. <profile> is a YAML file in systemprofiles/ or userprofiles/
+      (both layers are merged), or an id <system>/<game> looked up in --root
+      (default: current directory).
+  arcade-launcher input-test [<profile>] [--root DIR]
+      Print the virtual arcade sticks while you press buttons.
+  arcade-launcher show <profile> [--root DIR]
+      Print the merged profile.";
+
+struct Args {
+    command: String,
+    profile: Option<String>,
+    root: Option<PathBuf>,
+    dry_run: bool,
+}
+
+fn parse_args() -> Result<Args> {
+    let mut args = Args { command: "run".into(), profile: None, root: None, dry_run: false };
+    let mut positional = Vec::new();
+    let mut it = std::env::args().skip(1);
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--root" => args.root = Some(it.next().context("--root needs a directory")?.into()),
+            "--dry-run" => args.dry_run = true,
+            "-h" | "--help" => {
+                println!("{USAGE}");
+                std::process::exit(0);
+            }
+            _ if a.starts_with("--") => bail!("unknown option {a}\n{USAGE}"),
+            _ => positional.push(a),
+        }
+    }
+    let mut positional = positional.into_iter();
+    match positional.next() {
+        Some(c) if ["run", "input-test", "show"].contains(&c.as_str()) => {
+            args.command = c;
+            args.profile = positional.next();
+        }
+        other => args.profile = other,
+    }
+    Ok(args)
+}
+
+fn main() {
+    if let Err(e) = real_main() {
+        eprintln!("error: {e:#}");
+        std::process::exit(1);
+    }
+}
+
+fn real_main() -> Result<()> {
+    let args = parse_args()?;
+    let load = || -> Result<Profile> {
+        let p = args.profile.as_deref().with_context(|| format!("missing <profile>\n{USAGE}"))?;
+        Profile::load(p, args.root.as_deref())
+    };
+    match args.command.as_str() {
+        "show" => {
+            let p = load()?;
+            println!("# {} from {:?}\n{p:#?}", p.id, p.sources);
+            Ok(())
+        }
+        "input-test" => {
+            let profile = match &args.profile {
+                Some(_) => load()?,
+                None => Profile::without_game(args.root.as_deref().unwrap_or(Path::new(".")))?,
+            };
+            input_test(&profile)
+        }
+        _ => run(&load()?, args.dry_run),
+    }
+}
+
+fn stop_flag() -> Result<Arc<AtomicBool>> {
+    let stop = Arc::new(AtomicBool::new(false));
+    let s = stop.clone();
+    ctrlc::set_handler(move || s.store(true, Ordering::SeqCst))?;
+    Ok(stop)
+}
+
+fn describe(frame: &InputFrame) -> String {
+    let mut out = String::new();
+    for (i, p) in frame.players.iter().enumerate() {
+        if p.buttons == 0 && p.axes.iter().all(|a| *a == 0) {
+            continue;
+        }
+        let pressed: Vec<&str> =
+            wal_protocol::button::NAMES.iter().filter(|(_, b)| p.pressed(*b)).map(|(n, _)| *n).collect();
+        let axes: Vec<String> = wal_protocol::Axis::ALL
+            .iter()
+            .filter(|a| p.axis(**a) != 0)
+            .map(|a| format!("{}={}", a.name(), p.axis(*a)))
+            .collect();
+        out += &format!("P{}: [{}] {}   ", i + 1, pressed.join(" "), axes.join(" "));
+    }
+    if out.is_empty() { "(idle)".into() } else { out }
+}
+
+fn input_test(profile: &Profile) -> Result<()> {
+    let stop = stop_flag()?;
+    let mut hub = input::Hub::new(profile)?;
+    eprintln!("input-test: press buttons, Ctrl+C to quit");
+    let mut last = InputFrame::default();
+    while !stop.load(Ordering::SeqCst) {
+        hub.poll(Duration::from_millis(10));
+        let frame = hub.frame();
+        if frame != last {
+            println!("{}", describe(&frame));
+            last = frame;
+        }
+        if hub.exit_requested {
+            println!("(exit combo pressed)");
+            hub.exit_requested = false;
+        }
+    }
+    Ok(())
+}
+
+fn run(profile: &Profile, dry_run: bool) -> Result<()> {
+    let system = systems::by_name(&profile.system)?;
+    let mut wine = wine::Wine::new(profile, dry_run)?;
+
+    let exe = wine.unix_path(&profile.exe)?;
+    if !exe.is_file() {
+        bail!("game executable not found: {} ({})", profile.exe, exe.display());
+    }
+    let game_dir = exe.parent().context("executable without directory")?;
+    let exe_name = exe.file_name().context("executable without name")?;
+
+    let payload_dir = profile.path(&profile.payloads_dir);
+    let payloads: Vec<(PathBuf, &str)> =
+        system.payloads().iter().map(|p| (payload_dir.join(p.file), p.install_as)).collect();
+    for (src, _) in &payloads {
+        if !src.exists() {
+            bail!("payload {} missing: build it with ./build.sh", src.display());
+        }
+    }
+
+    wine.prepare_prefix()?;
+    wine.apply_tricks(&profile.tricks)?;
+    wine.setup_d3d(profile.dxvk)?;
+    wine.setup_ddraw(profile.graphics)?;
+
+    let mut hide: Vec<String> = profile.hide.clone();
+    hide.extend(system.hidden().iter().map(|s| s.to_string()));
+    if matches!(profile.graphics, Graphics::Wine | Graphics::D7vk) {
+        // dgVoodoo shipped with the game would take precedence
+        hide.extend(["ddraw.dll".into(), "d3dimm.dll".into()]);
+    }
+    let run_dir = wine.prefix.join("drive_c/wal").join(system.name()).join(profile.slug());
+    let payload_refs: Vec<(&Path, &str)> = payloads.iter().map(|(p, n)| (p.as_path(), *n)).collect();
+    if !dry_run {
+        for dir in system.data_dirs() {
+            std::fs::create_dir_all(game_dir.join(dir))
+                .with_context(|| format!("creating {}", game_dir.join(dir).display()))?;
+        }
+        rundir::build(&run_dir, game_dir, &hide, &payload_refs)?;
+    }
+
+    wine.set_env(env::PORT, &profile.port.to_string());
+    wine.set_env(env::LOG, &wine.windows_path(&run_dir.join(format!("wal-{}.log", system.name()))));
+    if !profile.native_map.is_empty() {
+        let map: Vec<String> = profile.native_map.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        wine.set_env(env::MAP, &map.join(","));
+    }
+    for (k, v) in &profile.env {
+        wine.set_env(k, v);
+    }
+
+    let game_exe = wine.windows_path(&run_dir.join(exe_name));
+    let mut cmd = wine.command(&game_exe);
+    cmd.args(&profile.args).current_dir(&run_dir);
+
+    eprintln!("game: {} ({})", profile.name.as_deref().unwrap_or(&profile.id), profile.id);
+    eprintln!("profile layers: {:?}", profile.sources);
+    eprintln!("game directory: {}", game_dir.display());
+    eprintln!("run directory: {}", run_dir.display());
+    if dry_run {
+        for (k, v) in wine.env() {
+            println!("{k}={v}");
+        }
+        println!("cd {:?} && {:?} {:?} {:?}", run_dir, wine.runner.join("bin/wine"), game_exe, profile.args);
+        return Ok(());
+    }
+
+    let stop = stop_flag()?;
+    let server = server::Server::start(profile.port)?;
+    let mut hub = input::Hub::new(profile)?;
+    let mut child = cmd.spawn().context("starting wine")?;
+
+    let mut last = InputFrame::default();
+    let mut last_sent = Instant::now();
+    let mut killing = false;
+    let status = loop {
+        hub.poll(Duration::from_millis(4));
+        let frame = hub.frame();
+        // on change, plus a periodic refresh
+        if frame != last || last_sent.elapsed() > Duration::from_millis(100) {
+            server.broadcast(&frame);
+            last = frame;
+            last_sent = Instant::now();
+        }
+        if (hub.exit_requested || stop.load(Ordering::SeqCst)) && !killing {
+            eprintln!("launcher: stopping the game");
+            killing = true;
+            let _ = wine.wineserver("-k");
+        }
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+    };
+    eprintln!("launcher: game exited ({status})");
+    // leftover processes of the game (helpers, services)
+    let _ = wine.wineserver("-k");
+    Ok(())
+}
