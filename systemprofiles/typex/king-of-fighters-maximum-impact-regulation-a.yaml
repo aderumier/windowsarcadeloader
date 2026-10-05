@@ -1,0 +1,18 @@
+# The King of Fighters Maximum Impact Regulation A (SNK, Taito Type X2) -
+# template, override values in
+# userprofiles/typex/king-of-fighters-maximum-impact-regulation-a.yaml.
+system: typex
+name: King of Fighters Maximum Impact Regulation A
+exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\King of Fighters Maximum Impact Regulation A\game.exe'
+
+# 6 buttons (b1-b6 -> btn1-b6, default mapping).
+# The dump's dinput8.dll is Microsoft's: use wine's. d3d8/d3d9/ddraw/wined3d
+# are a coherent set of Wine 10.16's own DLLs (this is a D3D8 game): keep them,
+# they shadow the prefix's set consistently.
+hide: [dinput8.dll]
+
+env:
+  # WindowsLoader's KOF Maximum Impact Regulation A patch (CRC 0x1782f027).
+  WAL_PATCHES: "0x447C:B80008009090"
+  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800

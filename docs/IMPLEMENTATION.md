@@ -210,6 +210,18 @@ place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships 
   `demuxer_destroy` used the create params layout, so 32-bit games destroyed a garbage demuxer
   handle; Battle Fantasia aborted with `free(): invalid size` when a coin stops the attract
   movie. Upstream Wine 2110c64d89cc; proposed for GE-Proton as a `wine-hotfixes/pending` backport.
+* `quartz-find-filter` (GE-Proton11-7 `quartz.dll`, i386): rebuilt DLL, not a byte patch.
+  `FindFilterByName("WMVideo Decoder DMO")` unconditionally returned the async file source
+  ("Reader"), a leftover of the gstreamer-reader era: games that look the decoder up by name
+  (KOF XII/XIII) got the reader, `FindPin("out0")` failed (reader pins are "Raw Video N") and
+  the game's Sample Grabber was autoplug-connected to the reader's raw pin — bypassing the
+  decoder, whose transform then died (`DMO_E_TYPE_NOT_SET`): black intro video with audio
+  (KOF XII), crash on `GetConnectedMediaType` (KOF XIII, see `WAL_DSHOW_FIND_FILTER`). GE-Proton
+  #823 looks the exact name up first and only falls back to "Reader" when no filter has it;
+  the runner's `quartz.dll` (`lib/wine/i386-windows/` and the common prefix `syswow64/`) was
+  replaced with a build containing that fix (wine-11.0 + the GE-patched tree sources), original
+  kept as `quartz.dll.orig`. Verified: KOF XII intro plays — the game connects
+  `WMVideo Decoder DMO:out0 -> sample_grabber` itself and no `0x80040203` occurs.
 
 ### 5.4 Run directory (`rundir.rs`)
 
@@ -516,6 +528,7 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | nesica/akai-katana-shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
 | nesica/blazblue-central-fiction | nesica | in game, NESiCA online | key bbcf, D: WindowsLoader, shop hours patch |
 | typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, WindowsLoader patches, runner hotfix (winedmo) |
+| typex/king-of-fighters-xii | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
 | typex/3d-cosplay-mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | nesica/chaos-breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks in own prefix `wine-prefix/directmusic` (native dsound) |
 | nesica/dark-awake | nesica | in fight | same as Chaos Breaker (same engine) |

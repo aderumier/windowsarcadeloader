@@ -1,0 +1,13 @@
+# Street Fighter IV (Capcom/SNK, Taito Type X2) - template, override values in
+# userprofiles/typex/street-fighter-iv.yaml.
+system: typex
+name: Street Fighter IV
+exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Street Fighter IV\launcher.exe'
+
+# 6 buttons (b1-b6 -> btn1-b6, default mapping).
+# The dump's dinput8.dll is Microsoft's: use wine's.
+hide: [dinput8.dll]
+
+env:
+  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
