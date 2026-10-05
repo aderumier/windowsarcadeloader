@@ -30,6 +30,7 @@ pub struct Profile {
     pub name: Option<String>,
     pub exe: String,
     pub args: Vec<String>,
+    pub exe_depth: usize,
     pub runner: String,
     pub runners_dir: PathBuf,
     pub prefix: PathBuf,

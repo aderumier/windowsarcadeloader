@@ -1,0 +1,12 @@
+# The Rumble Fish 2 (NESiCAxLive) - template, override values in
+# userprofiles/nesica/the-rumble-fish-2.yaml.
+system: nesica
+name: The Rumble Fish 2
+exe: 'Z:\userdata\roms\nesica\The Rumble Fish 2\game\Game.exe'
+
+# The executable is in game\ and loads ..\data: mirror the whole folder.
+exe_depth: 1
+
+# Direct3D 9 game (DXVK). No crypto key.
+
+# Buttons 1-5 = b1-b5 (default mapping).

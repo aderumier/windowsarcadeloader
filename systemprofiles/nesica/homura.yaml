@@ -1,0 +1,9 @@
+# Homura (NESiCAxLive) - template, override values in
+# userprofiles/nesica/homura.yaml.
+system: nesica
+name: Homura
+exe: 'Z:\userdata\roms\nesica\Homura\Game.exe'
+
+# Direct3D 8 game (DXVK d3d8).
+
+# Buttons A, B = b1, b2 (default mapping).

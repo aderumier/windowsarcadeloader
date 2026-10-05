@@ -1,0 +1,13 @@
+# Psychic Force 2012 (NESiCAxLive) - template, override values in
+# userprofiles/nesica/psychic-force-2012.yaml.
+system: nesica
+name: Psychic Force 2012
+# game.exe (PhyLauncher) stands in for the NESiCAxLive launcher: it creates the NxL events,
+# shared memory and pipe, then starts "game2.exe launcher", which waits for them (started
+# directly it never opens its I/O). game2.exe loads our iDmacDrv32.dll from the run directory.
+# TestMode.exe is the test menu.
+exe: 'Z:\userdata\roms\nesica\Psychic Force 2012\game.exe'
+
+# Direct3D 8 game (DXVK d3d8). No crypto key.
+
+# Buttons 1-6 = b1-b6 (default mapping).

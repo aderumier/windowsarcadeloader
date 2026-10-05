@@ -1,0 +1,19 @@
+# Street Fighter Zero 3 (NESiCAxLive) - template, override values in
+# userprofiles/nesica/street-fighter-zero-3.yaml.
+system: nesica
+name: Street Fighter Zero 3
+exe: 'Z:\userdata\roms\nesica\Street Fighter Zero 3\game.exe'
+
+# Direct3D 9 game (DXVK), XAudio2. test.exe is the test menu.
+
+# Buttons LP MP HP / LK MK HK (FastIO btn1-btn6, as WindowsLoader): virtual top row b1-b3 =
+# punches, bottom row b5-b7 = kicks.
+native_map:
+  b4: none
+  b5: btn4
+  b6: btn5
+  b7: btn6
+
+# Fullscreen comes from config.ini ([DISPLAY] Resolution=1280x768, FullScreen=ON), shipped
+# with the other Capcom dumps (HSF2, SF III, Vampire Savior, same engine) but missing from
+# some SFZ3 dumps: without it the game runs in a window. Copy Vampire Savior's next to the exe.

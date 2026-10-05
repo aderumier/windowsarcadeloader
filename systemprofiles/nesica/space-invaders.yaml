@@ -1,0 +1,9 @@
+# Space Invaders (NESiCAxLive) - template, override values in
+# userprofiles/nesica/space-invaders.yaml.
+system: nesica
+name: Space Invaders
+exe: 'Z:\userdata\roms\nesica\Space Invaders\game.exe'
+
+# Direct3D 9 game (DXVK). No crypto key.
+
+# Button Shoot = b1 (default mapping).

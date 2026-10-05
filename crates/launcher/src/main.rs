@@ -159,6 +159,12 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     }
     let game_dir = exe.parent().context("executable without directory")?;
     let exe_name = exe.file_name().context("executable without name")?;
+    let mut game_root = game_dir;
+    for _ in 0..profile.exe_depth {
+        game_root = game_root.parent().context("exe_depth goes above the filesystem root")?;
+    }
+    // path of the executable folder inside the game root
+    let exe_subdir = game_dir.strip_prefix(game_root)?;
 
     let payload_dir = profile.path(&profile.payloads_dir);
     let mut payloads: Vec<(PathBuf, &str)> =
@@ -190,8 +196,18 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
             std::fs::create_dir_all(game_dir.join(dir))
                 .with_context(|| format!("creating {}", game_dir.join(dir).display()))?;
         }
-        rundir::build(&run_dir, game_dir, &hide, &payload_refs)?;
+        // folders on the way to the executable are real directories, the rest are links
+        let (mut src, mut dst) = (game_root.to_path_buf(), run_dir.clone());
+        for part in exe_subdir.iter() {
+            let mut level_hide = hide.clone();
+            level_hide.push(part.to_string_lossy().into_owned());
+            rundir::build(&dst, &src, &level_hide, &[])?;
+            src.push(part);
+            dst.push(part);
+        }
+        rundir::build(&dst, &src, &hide, &payload_refs)?;
     }
+    let run_exe_dir = run_dir.join(exe_subdir);
 
     wine.set_env(env::PORT, &profile.port.to_string());
     wine.set_env(env::LOG, &wine.windows_path(&run_dir.join(format!("wal-{}.log", system.name()))));
@@ -203,17 +219,17 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         wine.set_env(k, v);
     }
 
-    let game_exe = wine.windows_path(&run_dir.join(exe_name));
+    let game_exe = wine.windows_path(&run_exe_dir.join(exe_name));
     let mut cmd = match system.loader() {
         // wal-loader <payload> <game> [args]: payload loaded before the game entry point
         Some(payload) => {
-            let mut cmd = wine.command(wine.windows_path(&run_dir.join("wal-loader.exe")));
-            cmd.arg(wine.windows_path(&run_dir.join(payload))).arg(&game_exe);
+            let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));
+            cmd.arg(wine.windows_path(&run_exe_dir.join(payload))).arg(&game_exe);
             cmd
         }
         None => wine.command(&game_exe),
     };
-    cmd.args(&profile.args).current_dir(&run_dir);
+    cmd.args(&profile.args).current_dir(&run_exe_dir);
 
     eprintln!("game: {} ({})", profile.name.as_deref().unwrap_or(&profile.id), profile.id);
     eprintln!("profile layers: {:?}", profile.sources);
@@ -223,7 +239,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         for (k, v) in wine.env() {
             println!("{k}={v}");
         }
-        println!("cd {:?} && {:?} {:?} {:?}", run_dir, wine.runner.join("bin/wine"), game_exe, profile.args);
+        println!("cd {:?} && {:?} {:?} {:?}", run_exe_dir, wine.runner.join("bin/wine"), game_exe, profile.args);
         return Ok(());
     }
 

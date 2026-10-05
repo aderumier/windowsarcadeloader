@@ -1,0 +1,15 @@
+# Hyper Street Fighter II: The Anniversary Edition (NESiCAxLive) - template, override values in
+# userprofiles/nesica/hyper-street-fighter-2.yaml.
+system: nesica
+name: 'Hyper Street Fighter II: The Anniversary Edition'
+exe: 'Z:\userdata\roms\nesica\Hyper Street Fighter II - The Anniversary Edition\game.exe'
+
+# Direct3D 9 game (DXVK), XAudio2. test.exe is the test menu.
+
+# Buttons LP MP HP / LK MK HK (FastIO btn1-btn6, as WindowsLoader): virtual top row b1-b3 =
+# punches, bottom row b5-b7 = kicks.
+native_map:
+  b4: none
+  b5: btn4
+  b6: btn5
+  b7: btn6

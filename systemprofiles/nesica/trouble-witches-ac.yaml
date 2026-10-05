@@ -1,0 +1,9 @@
+# Trouble Witches AC: Amalgam no Joutachi (NESiCAxLive) - template, override values in
+# userprofiles/nesica/trouble-witches-ac.yaml.
+system: nesica
+name: 'Trouble Witches AC: Amalgam no Joutachi'
+exe: 'Z:\userdata\roms\nesica\Trouble Witches AC Episode1 - Daughters of Amalgam\game.exe'
+
+# Rainlily/Selene engine. No crypto key.
+
+# Buttons 1-4 = b1-b4 (default mapping).

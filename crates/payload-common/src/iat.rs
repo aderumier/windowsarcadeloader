@@ -2,7 +2,8 @@
 //!
 //! Only calls made by the game module itself are redirected (system DLLs keep the
 //! original functions), which is what a game-specific emulation needs and stays safe
-//! with Wine builtin DLLs: no code is patched.
+//! with Wine builtin DLLs: no code is patched. `hook_module` patches another module the
+//! same way (e.g. the C runtime the game does its file I/O through).
 
 use crate::log;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -27,8 +28,15 @@ unsafe fn c_str_eq(ptr: usize, name: &str) -> bool {
 /// `replacement` must be a function with the exact signature and calling convention of
 /// the replaced import.
 pub unsafe fn hook(dll: &str, function: &str, replacement: usize) -> Option<usize> {
+    unsafe { hook_module(GetModuleHandleW(std::ptr::null()) as usize, dll, function, replacement) }
+}
+
+/// Same as [`hook`], on the module loaded at `base`.
+///
+/// # Safety
+/// See [`hook`]; `base` must be a loaded module.
+pub unsafe fn hook_module(base: usize, dll: &str, function: &str, replacement: usize) -> Option<usize> {
     unsafe {
-        let base = GetModuleHandleW(std::ptr::null()) as usize;
         let nt = base + read::<u32>(base, 0x3C) as usize;
         let optional = nt + 24;
         let data_dirs = match read::<u16>(optional, 0) {

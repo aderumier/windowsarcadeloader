@@ -1,0 +1,18 @@
+# Crimzon Clover (NESiCAxLive) - template, override values in
+# userprofiles/nesica/crimzon-clover.yaml.
+system: nesica
+name: Crimzon Clover
+exe: 'Z:\userdata\roms\nesica\Crimzon Clover\game.exe'
+
+# Direct3D 9 (loaded at runtime). No crypto key.
+
+# Buttons Fire, Lock on, Bomb = b1-b3 (default mapping).
+
+env:
+  # D:\ data of WindowsLoader dumps
+  WAL_NESICA_DDRIVE: WindowsLoader
+  # WindowsLoader (CRC 0xd98bed41): skip the wait on the warning screen
+  WAL_PATCHES: "0x1015E7:9090"
+  # DxLib window mode computes a window ~5 million pixels high (X BadAlloc, the game exits):
+  # force the window size; the 1280x720 back buffer is stretched to it. Set your screen size.
+  WAL_WINDOW_SIZE: 1280x720

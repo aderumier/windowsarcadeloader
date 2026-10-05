@@ -1,0 +1,17 @@
+# Magical Beat (NESiCAxLive) - template, override values in
+# userprofiles/nesica/magical-beat.yaml.
+system: nesica
+name: Magical Beat
+exe: 'Z:\userdata\roms\nesica\Magical Beat\game.exe'
+
+# Direct3D 9 game (DXVK), XAudio2.
+
+# Buttons 1-3 = b1-b3 (default mapping).
+
+env:
+  # encrypted data: crypto service with the Magical Beat key
+  WAL_NESICA_KEY: magicalbeat
+  # D:\ data of WindowsLoader dumps
+  WAL_NESICA_DDRIVE: WindowsLoader
+  # WindowsLoader (CRC 0x1d396bf2): skip the initialization wait
+  WAL_PATCHES: "0x56B21:9090"

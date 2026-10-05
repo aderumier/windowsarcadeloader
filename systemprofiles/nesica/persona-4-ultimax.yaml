@@ -1,0 +1,16 @@
+# Persona 4 The Ultimax Ultra Suplex Hold (NESiCAxLive) - template, override values in
+# userprofiles/nesica/persona-4-ultimax.yaml.
+system: nesica
+name: Persona 4 The Ultimax Ultra Suplex Hold
+exe: 'Z:\userdata\roms\nesica\P4UU - Persona 4 The Ultimax Ultra Suplex Hold\game.exe'
+
+# Direct3D 9 game (DXVK), XAudio2.
+
+# Buttons A B C D = b1-b4 (default mapping).
+
+env:
+  # encrypted data: crypto service with the Persona 4 Arena Ultimax key
+  WAL_NESICA_KEY: persona4ultimix
+  # shop hours check (test menu OPEN/CLOSE TIME) always "open" (same function as BBCF):
+  # otherwise NESiCA is disabled after closing time with a red "closing time has passed" banner
+  WAL_PATCHES: "0x7A3B0:B801000000C3"

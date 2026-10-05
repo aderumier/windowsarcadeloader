@@ -220,6 +220,10 @@ The game is started from there (cwd + `C:\wal\...\game.exe`).
   directory.
 * Hidden: profile `hide` + `System::hidden()` + `ddraw.dll`/`d3dimm.dll` for the `wine`/`d7vk`
   graphics modes (otherwise dgVoodoo in the game dir would win the DLL search).
+* `exe_depth` (profile): the executable sits that many folders below the game root (The Rumble
+  Fish 2: `game\Game.exe` loading `..\data`). The whole root is mirrored: folders on the way
+  to the executable are real directories, everything else is linked, and the game starts in
+  the executable's folder.
 
 ### 5.5 Run loop (`main.rs`)
 
@@ -269,17 +273,27 @@ profile), `show` (merged profile).
   fake handle, reply queue); used by the NESiCA card reader and the Type X JVS board. Logs the
   first 40 packets and any other COM port the game opens.
 * `drive`: `D:\` redirection (moved from NESiCA), folder variable chosen by the system
-  (`WAL_NESICA_DDRIVE`, `WAL_TYPEX_DDRIVE`).
+  (`WAL_NESICA_DDRIVE`, `WAL_TYPEX_DDRIVE`). The kernel32 file imports of the C runtimes
+  loaded with the game (`msvcrt`, `msvcr70`-`msvcr120`, `ucrtbase`) are hooked too: games
+  doing `fopen("D:/...")` go through the CRT (Chaos Code crashed on `fseek(NULL)`, Ikaruga
+  showed a storage error).
 * `patches`: `WAL_PATCHES=<rva>:<hex>,...` game code patches from the profile (keeps game
   knowledge in profiles, e.g. WindowsLoader's per-game patches).
 * `crash`: vectored exception handler logging the first access violations: address as
   `module+offset`, registers, EBP frame chain, stack scan, and for write overruns the text
   being written (found Cosplay Mahjong's overflow of a D3DX error message).
-* `screenshot` (d3d9 shims): `WAL_SCREENSHOT=<s>` writes the back buffer every s seconds
+* `screenshot` (d3d9 and d3d8 shims): `WAL_SCREENSHOT=<s>` writes the back buffer every s seconds
   (`shot-NNNN.bmp` in the run dir, for automated tests); `WAL_D3D9_FULLSCREEN_SIZE=WxH`
   creates/resets fullscreen devices with that size (Type X games ask 1280x768, which Wine does
-  not emulate: 1280x800 + Wine's fullscreen scaling). Logs the parameters of failing
-  CreateDevice calls.
+  not emulate: 1280x800 + Wine's fullscreen scaling; many NESiCA Taito/Type X2 ports do the
+  same). Logs the parameters of failing CreateDevice calls. Direct3D 8 games
+  (`d3d8!Direct3DCreate8`) get the same shims with the d3d8 vtable slots and layouts
+  (CreateImageSurface + CopyRects for the capture). `WAL_D3D9_FULLSCREEN=1` creates windowed
+  devices fullscreen (Chaos Code's white window border); it broke SFZ3, which then stops
+  presenting after its Reset.
+* `window`: `WAL_WINDOW_SIZE=WxH` forces the size of the game's top-level windows
+  (`SetWindowPos`/`MoveWindow` IAT hooks, at 0,0); in window mode Direct3D stretches the back
+  buffer to it (Crimzon Clover's DxLib computed a 5-million-pixel high window: X BadAlloc).
 * `jvs`: JVS packet framing (`E0` sync, `D0` escaping, size, checksum) for emulated I/O
   boards on serial ports (unit tested; output identical to WindowsLoader/ttx_monitor).
 * IAT hooks chain: hooking the same import twice makes the second hook call the first one.
@@ -477,7 +491,39 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | nesica/blazblue-central-fiction | nesica | in game, NESiCA online | key bbcf, D: WindowsLoader, shop hours patch |
 | typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, WindowsLoader patches, runner hotfix (winedmo) |
 | typex/3d-cosplay-mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
+| nesica/chaos-breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks in own prefix `wine-prefix/directmusic` (native dsound) |
+| nesica/dark-awake | nesica | in fight | same as Chaos Breaker (same engine) |
+| nesica/chaos-code-103, -211 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
+| nesica/daemon-bride | nesica | in fight | key bbcp |
+| nesica/do-not-fall | nesica | works (user) | D: WindowsLoader |
+| nesica/elevator-action | nesica | in game | 1280x800 |
+| nesica/en-eins-perfektewelt | nesica | renders (character select in screenshots), no picture on screen (user) | 1280x800; TODO |
+| nesica/gouketsuji-ichizoku | nesica | works (user) | hide dgVoodoo D3D8/D3D9 |
+| nesica/hyper-street-fighter-2, street-fighter-3-3rd-strike, vampire-savior | nesica | works (user) | NESYS on (WindowsLoader disables it: "server not connected") |
+| nesica/street-fighter-zero-3 | nesica | works (user), windowed | dump lacks config.ini: copy Vampire Savior's for fullscreen |
+| nesica/ikaruga | nesica | in game (user) | CRT D: redirection (storage error), `fakejapanese` |
+| nesica/magical-beat | nesica | works (user) | key magicalbeat, D: WindowsLoader, WindowsLoader patch |
+| nesica/nitroplus-blasterz, persona-4-ultimax, puzzle-bobble, skullgirls-2nd-encore, space-invaders, strania, trouble-witches-ac | nesica | works (user) | see profiles (P4UU: shop hours patch) |
+| nesica/persona-4-arena | nesica | in fight (user: may crash with some characters) | key persona4arena, plaintext reply, NESYS on, shop hours patch 0x6C9D0 |
+| nesica/raiden-3 | nesica | in game (user); intro movie white | hide dinput8 |
+| nesica/raiden-4 | nesica | in game (user); intro movie white (MPEG-1 via VMR9) | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade |
+| nesica/rastan-saga | nesica | works (user) | 1280x800, hide ReShade |
+| nesica/senko-no-ronde-duo | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
+| nesica/the-rumble-fish-2 | nesica | works (user) | `exe_depth: 1` |
+| nesica/crimzon-clover | nesica | crashes after the NESYS ranking reply | `WAL_WINDOW_SIZE` (DxLib asks a 5-million-pixel window); TODO ranking data |
+| nesica/psychic-force-2012 | nesica | black window: game2.exe never opens its I/O | run game.exe (PhyLauncher, NxL launcher stand-in); TODO |
+| nesica/tottemo-e-mahjong | nesica | crashes before creating its device (DXVK and wined3d) | run game.exe (NxL stand-in); TODO |
+| nesica/dragon-dance | nesica | crashes 3 s after FastIO open | run game.exe (NxL stand-in); TODO |
+| nesica/homura | nesica | stuck on NOW LOADING (2 frames) | TODO |
+| nesica/exception | nesica | runs (NESYS GAME_START) but no picture (OpenGL/SDL) | TODO |
+| nesica/kof-98-umfe, kof-2002-um | nesica | crash in a WoW64 syscall after the first frame; classic 32-bit mode: no frames | TODO |
 | nesica/aquapazza | nesica | template only, game not available | - |
+
+NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance ship a small
+`game.exe` that creates the NESiCAxLive launcher events/shared memory/pipe (`NxLEvent_*`,
+`NxLMMF_*`, `\\.\pipe\NxLPipe*`) and starts the real game (`game2.exe launcher`,
+`game_liong.exe -s`): the profiles run that stub, the child loads our iDmacDrv32.dll from the
+run directory.
 
 Launcher test helper: `--input-script FILE` replays `<seconds> p<N> <inputs>` lines (OR-ed with
 real devices); NESYS `GAME_START` (0x04) in the payload log means a credit started.

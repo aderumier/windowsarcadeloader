@@ -1,0 +1,21 @@
+# Chaos Code: New Sign of Catastrophe 2.11 (NESiCAxLive) - template, override values in
+# userprofiles/nesica/chaos-code-211.yaml.
+system: nesica
+name: 'Chaos Code: New Sign of Catastrophe 2.11'
+exe: 'Z:\userdata\roms\nesica\Chaos Code - New Sign of Catastrophe (2.11.00)\game.exe'
+
+# Direct3D 9 game (DXVK), Audiere sound. No crypto key.
+
+# Buttons A B C D: WindowsLoader maps A=Button1 B=Button4 C=Button2 D=Button5 (2 rows of 3).
+# Virtual top row b1-b4 = A B C D.
+native_map:
+  b1: btn1
+  b2: btn4
+  b3: btn2
+  b4: btn5
+  b5: none
+  b6: none
+
+env:
+  # The game creates a windowed 1280x720 device (white window border): make it fullscreen.
+  WAL_D3D9_FULLSCREEN: "1"

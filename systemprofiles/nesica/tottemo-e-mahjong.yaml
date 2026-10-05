@@ -1,0 +1,14 @@
+# Tottemo E Mahjong (NESiCAxLive) - template, override values in
+# userprofiles/nesica/tottemo-e-mahjong.yaml.
+system: nesica
+name: Tottemo E Mahjong
+exe: 'Z:\userdata\roms\nesica\Tottemo E Mahjong\game.exe'
+
+# game.exe (TestModeLauncher) stands in for the NESiCAxLive launcher: it creates the NxL
+# events, shared memory and pipe, then starts "game2.exe launcher" (started directly it
+# crashes before creating its device). TestMode.exe is the test menu.
+# Direct3D 9 game (DXVK).
+# dinput8.dll of the dump is Microsoft's: use wine's.
+hide: [dinput8.dll]
+
+# Buttons 1-4 = b1-b4 (default mapping).
