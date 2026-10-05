@@ -31,6 +31,9 @@ payloads_dir: dist/payloads
 wine_debug: "-all"
 # d3d8-11/dxgi through the runner's DXVK (false: wine builtin wined3d).
 dxvk: true
+# Runner whose DXVK is used when the runner has none (plain wine builds), e.g.
+# GE-Proton11-7-x86_64. Empty: none.
+dxvk_from: ""
 # DirectDraw: wine (builtin), d7vk (runner's ddraw->vulkan), dgvoodoo (the game's DDraw.dll).
 graphics: wine
 # System library directories, before the runner's i386-unix / x86_64-unix ones

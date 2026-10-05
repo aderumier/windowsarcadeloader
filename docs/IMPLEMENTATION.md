@@ -197,6 +197,9 @@ Mapping tables can disable an inherited entry with the value `none`.
   component case-insensitively. `windows_path()` is the reverse (drive_c → `C:\`, else `Z:\`).
 * `dry_run` makes every disk-changing step a no-op so `--dry-run` prints the exact env/command.
 
+`dxvk_from` (profile): runner whose DXVK is linked when the game's runner ships none (plain
+wine builds, e.g. `wine-9.22-amd64` with `dxvk_from: GE-Proton11-7-x86_64`).
+
 Prefix tricks: profile `tricks` lists winetricks verbs applied once per prefix with the runner's
 wine (`winetricks -q <verb>`, `WINEARCH` removed), recorded in `<prefix>/.wal-tricks`. The prefix
 is shared, so tricks affect every game using it.
@@ -294,6 +297,12 @@ profile), `show` (merged profile).
 * Games loading d3d9/d3d8 at run time (DxLib's Direct3D 9Ex in Crimzon Clover, Magical Beat)
   go through the game's `GetProcAddress`, also hooked: `Direct3DCreate9`, `Direct3DCreate9Ex`
   (`CreateDeviceEx`, `PresentEx`, `ResetEx` wrapped too) and `Direct3DCreate8`.
+* Forced fullscreen on a Direct3D 9Ex device passes a `D3DDISPLAYMODEEX` built from the
+  present parameters (`CreateDeviceEx`/`ResetEx` require one when not windowed).
+* `font`: `gdi32!CreateFontA` hook. `WAL_FONT_CODEPAGE=932` decodes Shift-JIS face names,
+  `WAL_FONT_REPLACE=from=to,...` renames faces (wine only knows the Japanese family name of a
+  font under a Japanese locale), `WAL_FONT_SCALE=<f>` scales the heights (the CJK font wine
+  falls back to can be much larger than the original: Crimzon Clover 0.28). Logs each font.
 * `window`: `WAL_WINDOW_SIZE=WxH` forces the size of the game's top-level windows
   (`SetWindowPos`/`MoveWindow` IAT hooks, at 0,0); in window mode Direct3D stretches the back
   buffer to it (Crimzon Clover's DxLib computed a 5-million-pixel high window: X BadAlloc).
@@ -513,7 +522,7 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | nesica/rastan-saga | nesica | works (user) | 1280x800, hide ReShade |
 | nesica/senko-no-ronde-duo | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
 | nesica/the-rumble-fish-2 | nesica | works (user) | `exe_depth: 1` |
-| nesica/crimzon-clover | nesica | crashes after the NESYS ranking reply; with `WAL_NESICA_NESYS=0` runs (coin sound) but presents one black frame | `WAL_WINDOW_SIZE` (DxLib asks a 5-million-pixel window under GE-Proton); works on Batocera with wine-tkg 9.22: TODO try that runner |
+| nesica/crimzon-clover | nesica | works fullscreen (user) | native dsound (own prefix: wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
 | nesica/psychic-force-2012 | nesica | black window: game2.exe never opens its I/O | run game.exe (PhyLauncher, NxL launcher stand-in); TODO |
 | nesica/tottemo-e-mahjong | nesica | crashes before creating its device (DXVK and wined3d) | run game.exe (NxL stand-in); TODO |
 | nesica/dragon-dance | nesica | crashes 3 s after FastIO open | run game.exe (NxL stand-in); TODO |

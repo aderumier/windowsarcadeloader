@@ -9,6 +9,8 @@ pub mod crash;
 #[cfg(windows)]
 pub mod drive;
 #[cfg(windows)]
+pub mod font;
+#[cfg(windows)]
 pub mod dshow;
 #[cfg(windows)]
 pub mod iat;
@@ -67,6 +69,7 @@ pub fn start(name: &'static str) {
             dshow::init();
             screenshot::init();
             window::init();
+            font::init();
         }
         std::thread::spawn(move || connection_loop(name, port));
     });
