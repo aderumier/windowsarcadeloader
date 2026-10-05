@@ -4,9 +4,9 @@
 //!
 //! The folder is given by a system-specific environment variable (e.g. `WAL_NESICA_DDRIVE`),
 //! relative to the game directory (`.`: the game directory itself) or absolute (Windows path),
-//! with a system default (`WindowsLoader`, the WindowsLoader layout, so existing saves keep working).
+//! with a system default (`WindowsLoader`).
 //!
-//! Done with IAT hooks on the game executable, like WindowsLoader's path hooks, and on the
+//! Done with IAT hooks on the game executable and on the
 //! C runtime DLLs it has loaded: games doing `fopen("D:/...")` go through the CRT's own
 //! kernel32 imports (Chaos Code crashed on `fseek` of a NULL `FILE` otherwise).
 
@@ -97,8 +97,8 @@ fn wide(p: *const u16) -> Redirected<u16> {
     unsafe { rewrite_drive(p, letter(), &target().wide) }
 }
 
-/// `WAL_PIN_CWD=1`: the game's working directory stays its own directory, like WindowsLoader's
-/// Type X2 `SetCurrentDirectoryA` hook: `.\sh` and `.\data\sh` go to those folders of the
+/// `WAL_PIN_CWD=1`: the game's working directory stays its own directory (Type X2
+/// `SetCurrentDirectoryA`): `.\sh` and `.\data\sh` go to those folders of the
 /// game directory, anything else to the game directory (Gaia Attack 4 steps up with `..\`
 /// and no longer finds `data\sound`).
 fn pin_cwd() -> bool {

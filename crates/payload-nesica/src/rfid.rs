@@ -1,4 +1,4 @@
-//! NESiCA card reader emulation (port of WindowsLoader's RfidEmu).
+//! NESiCA card reader emulation.
 //!
 //! The Taito RFID board sits on a serial port (`COM2`) and speaks JVS framing; the port is
 //! emulated by `wal_payload_common::serial`.
@@ -6,7 +6,7 @@
 //! The card is inserted/removed by the virtual stick `card` input of any player (toggle).
 //!
 //! Options: `WAL_NESICA_RFID=0` disables it, `WAL_NESICA_RFID_PORT` (default `COM2`),
-//! `WAL_NESICA_CARD_ID` (16 digits, default the WindowsLoader card `7020392010281502`).
+//! `WAL_NESICA_CARD_ID` (16 digits, default `7020392010281502`).
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -33,7 +33,7 @@ fn card_data() -> &'static [u8; 0x18] {
     })
 }
 
-/// Answers one request packet of the game (WindowsLoader `process_stream`).
+/// Answers one request packet of the game.
 fn process(packet: &[u8]) -> Vec<u8> {
     let Some(req) = jvs::parse(packet) else { return Vec::new() };
     if !matches!(req.node, 0x00 | 0x01 | 0xFF) {

@@ -5,7 +5,7 @@ name: The King of Fighters XIII
 exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\The King of Fighters XIII\game.exe'
 
 # 6 buttons (b1-b6 -> btn1-b6, default mapping).
-# The game talks to Taito's crypto pipe (\\.\pipe\TtxAppCtyptPipe; WindowsLoader
-# serves it with the KOFXIIIClimax key): the payload does not provide it yet.
+# The game talks to Taito's crypto pipe (\\.\pipe\TtxAppCtyptPipe, served
+# with the KOFXIIIClimax key): the payload does not provide it yet.
 # The dump's data is plaintext, so the game should boot without it.
 # settings.arc forces 1360x768 - no WAL_D3D9_FULLSCREEN_SIZE override.

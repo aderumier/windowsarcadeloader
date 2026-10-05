@@ -6,7 +6,7 @@
 //! Payload options (profile `env`):
 //! - `WAL_NESICA_REG`: registry values, e.g. `Resolution=0` (SD mode), `CoinCredit=1`
 //! - `WAL_NESICA_DDRIVE`: folder for the game's `D:\` data, relative to the game
-//!   directory (default `WindowsLoader`, WindowsLoader compatible) or absolute
+//!   directory (default `WindowsLoader`) or absolute
 //! - `WAL_NESICA_NESYS=0`: disable the NESYS service emulation
 //! - `WAL_NESICA_KEY`: crypto service key, built-in name or key file (default `usf4`)
 //! - `WAL_NESICA_CRYPT_REPLY=plaintext`: KOF XIII Climax key reply format
@@ -28,7 +28,7 @@ impl System for Nesica {
     }
 
     fn data_dirs(&self) -> &'static [&'static str] {
-        // the game's D: data (default WAL_NESICA_DDRIVE), WindowsLoader layout
+        // the game's D: data (default WAL_NESICA_DDRIVE)
         &["WindowsLoader"]
     }
 }

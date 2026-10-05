@@ -1,4 +1,4 @@
-//! NESiCA crypto server (port of WindowsLoader's CryptoPipe).
+//! NESiCA crypto server.
 //!
 //! Encrypted NESiCA games get their content key from the cabinet's crypto service over the
 //! byte-mode pipe `\\.\pipe\TtxAppCtyptPipe` (sic). The service holds a per-game RSA private
@@ -16,7 +16,7 @@
 //! NTE_BAD_PUBLIC_KEY. The game's import is hooked to pass that key explicitly.
 //!
 //! Options: `WAL_NESICA_KEY` = built-in key name (see `keys.rs`) or key file (PRIVATEKEYBLOB,
-//! relative to the game directory, e.g. `303002.key`); default `usf4` like WindowsLoader.
+//! relative to the game directory, e.g. `303002.key`); default `usf4`.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;

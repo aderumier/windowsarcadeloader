@@ -9,5 +9,5 @@ exe: 'Z:\userdata\roms\nesica\Puzzle Bobble\game.exe'
 # Button 1 = b1 (default mapping).
 
 env:
-  # WindowsLoader (CRC 0x358ec3ff): NESYS error workaround
+  # (CRC 0x358ec3ff): NESYS error workaround
   WAL_PATCHES: "0xA77B:A3EC0D4F0090"

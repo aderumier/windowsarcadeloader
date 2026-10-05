@@ -1,6 +1,6 @@
 # Aquapazza: Aquaplus Dream Match (NESiCAxLive) - template, override values in
 # userprofiles/nesica/aquapazza.yaml (set exe to the game's path).
-# Plain NESiCA in WindowsLoader (CRC 0x549627f4, no crypto key). Not tested yet.
+# Plain NESiCA (CRC 0x549627f4, no crypto key). Not tested yet.
 system: nesica
 name: 'Aquapazza: Aquaplus Dream Match'
 exe: 'Z:\userdata\roms\nesica\Aquapazza Aquaplus Dream Match\game.exe'

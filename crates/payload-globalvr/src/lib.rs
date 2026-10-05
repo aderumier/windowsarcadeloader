@@ -8,7 +8,7 @@
 //! * `W:\` redirected to the game directory (the cabinet runs the game from `subst W: .`):
 //!   `WAL_GLOBALVR_WDRIVE`, default `.`.
 //! * `g_arcadeError` of `systemcfg.lua` reset at load (`WAL_GLOBALVR_CLEAR_ERRORS=0` keeps it).
-//! * `hasp.rs`: the game's HASP4 dongle calls (`record` feature: log WindowsLoader's answers).
+//! * `hasp.rs`: the game's HASP4 dongle calls (`record` feature: log an existing emulation's answers).
 //! * Profile code patches (`WAL_PATCHES`).
 
 #![allow(non_snake_case)]
@@ -32,7 +32,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("globalvr");
         patches::apply();
-        // recording builds run under WindowsLoader: only log, change nothing else
+        // recording builds run under another dongle emulation: only log, change nothing else
         #[cfg(not(feature = "record"))]
         {
             drive::init_letter(b'W', "WAL_GLOBALVR_WDRIVE", ".");

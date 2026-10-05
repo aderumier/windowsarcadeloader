@@ -135,7 +135,7 @@ through one API path.
 
 ## Ruled out / verified
 
-- **The WindowsLoader patch IS applied.** `WAL_PATCHES` is written unconditionally by
+- **The pedal-calibration patch IS applied.** `WAL_PATCHES` is written unconditionally by
   the payload (`crates/payload-common/src/patches.rs`, no CRC gate); dump bytes at
   RVA/file offset `0x107E3` are `75 12 6a 01` (JZ rel8) and the patch overwrites
   the `75` with `EB` (unconditional JMP — "skip pedal calibration", per the

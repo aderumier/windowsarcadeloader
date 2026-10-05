@@ -4,7 +4,7 @@ system: typex
 name: The King of Fighters XII
 exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\The King of Fighters XII\game.exe'
 
-# Buttons: WindowsLoader maps A=Button1 B=Button4 C=Button2 D=Button5; virtual
+# Buttons: usual layout A=Button1 B=Button4 C=Button2 D=Button5; virtual
 # top row b1-b4 = A B C D.
 native_map:
   b1: btn1

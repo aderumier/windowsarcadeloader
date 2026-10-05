@@ -9,5 +9,3 @@ exe: 'Z:\userdata\roms\nesica\Do Not Fall - Run for Your Drink\game.exe'
 # Buttons A B C = b1-b3 (default mapping).
 
 env:
-  # D:\ data of WindowsLoader dumps (test menu settings in system\)
-  WAL_NESICA_DDRIVE: WindowsLoader

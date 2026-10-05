@@ -5,7 +5,6 @@
 //! entry point without any injector, implements the FastIO driver API on top of the
 //! virtual arcade stick, and starts the other emulated services (registry, NESYS).
 //!
-//! Reference implementation: WindowsLoader (`Functions/Nesica_Libs`).
 
 #![allow(non_snake_case)]
 

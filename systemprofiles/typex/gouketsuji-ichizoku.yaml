@@ -4,5 +4,5 @@ system: typex
 name: Gouketsuji Ichizoku - Matsuri Senzo Kuyou
 exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Gouketsuji Ichizoku - Matsuri Senzo Kuyou\game.exe'
 
-# 6 buttons (b1-b6 -> btn1-b6, default mapping). WindowsLoader knows this build
+# 6 buttons (b1-b6 -> btn1-b6, default mapping). Known build
 # (CRC 0x777df862) only through windowed-mode tweaks: no code patches needed.

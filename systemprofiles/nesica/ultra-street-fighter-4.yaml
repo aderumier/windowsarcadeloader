@@ -9,7 +9,7 @@ exe: 'Z:\userdata\roms\nesica\Ultra Street Fighter 4\game.exe'
 # blocks reading ones that never report (security keys, ...): use wine's.
 hide: [dinput8.dll]
 
-# Buttons LP MP HP / LK MK HK (FastIO btn1-btn6, as WindowsLoader): virtual top row b1-b3 =
+# Buttons LP MP HP / LK MK HK (FastIO btn1-btn6): virtual top row b1-b3 =
 # punches, bottom row b5-b7 = kicks.
 native_map:
   b4: none
@@ -20,5 +20,3 @@ native_map:
 env:
   # encrypted data: crypto service with the Ultra Street Fighter 4 key
   WAL_NESICA_KEY: usf4
-  # D:\ data of WindowsLoader dumps
-  WAL_NESICA_DDRIVE: WindowsLoader

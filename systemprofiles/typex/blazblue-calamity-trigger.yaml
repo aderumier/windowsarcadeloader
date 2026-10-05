@@ -6,7 +6,7 @@ exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\BlazBlue Calamity 
 
 # 4 buttons (b1-b4 -> btn1-b4, default mapping).
 env:
-  # WindowsLoader's BlazBlue patch (CRC 0xf9297ecb, Calamity Trigger only -
+  # BlazBlue patch (CRC 0xf9297ecb, Calamity Trigger only -
   # Continuum Shift is the generic build and needs no patches): returns true.
   WAL_PATCHES: "0xECFD0:B801000000C3"
   # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800

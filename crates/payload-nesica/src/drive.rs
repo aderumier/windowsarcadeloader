@@ -1,5 +1,5 @@
 //! NESiCA D: data folder: generic redirection (`wal_payload_common::drive`, folder
-//! `WAL_NESICA_DDRIVE`, default `WindowsLoader`) plus the NESYS news picture WindowsLoader provides.
+//! `WAL_NESICA_DDRIVE`, default `WindowsLoader`) plus the NESYS news picture.
 
 use wal_payload_common::drive;
 

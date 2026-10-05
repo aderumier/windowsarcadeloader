@@ -6,7 +6,7 @@ exe: 'Z:\userdata\roms\nesica\Chaos Code - New Sign of Catastrophe (1.03.00)\gam
 
 # Direct3D 9 game (DXVK), Audiere sound. No crypto key.
 
-# Buttons A B C D: WindowsLoader maps A=Button1 B=Button4 C=Button2 D=Button5 (2 rows of 3).
+# Buttons A B C D: usual layout A=Button1 B=Button4 C=Button2 D=Button5 (2 rows of 3).
 # Virtual top row b1-b4 = A B C D.
 native_map:
   b1: btn1

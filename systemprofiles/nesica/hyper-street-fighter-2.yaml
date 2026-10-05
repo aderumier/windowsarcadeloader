@@ -6,7 +6,7 @@ exe: 'Z:\userdata\roms\nesica\Hyper Street Fighter II - The Anniversary Edition\
 
 # Direct3D 9 game (DXVK), XAudio2. test.exe is the test menu.
 
-# Buttons LP MP HP / LK MK HK (FastIO btn1-btn6, as WindowsLoader): virtual top row b1-b3 =
+# Buttons LP MP HP / LK MK HK (FastIO btn1-btn6): virtual top row b1-b3 =
 # punches, bottom row b5-b7 = kicks.
 native_map:
   b4: none

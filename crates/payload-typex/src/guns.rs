@@ -1,11 +1,10 @@
-//! Type X2 lightgun games (`WAL_TYPEX_GUNS=<game>`): port of WindowsLoader's per-game input code
-//! (`GaiaAttack4InputMisc.cpp`, `MusicGunGun2InputMisc.cpp`).
+//! Type X2 lightgun games (`WAL_TYPEX_GUNS=<game>`): per-game gun inputs.
 //!
 //! These games read their guns from a gun board on a serial port (`WAL_TYPEX_GUN_PORT`, comma
-//! separated, default `COM1`); WindowsLoader answers nothing on that port and writes the guns straight into the game's memory instead, every 16 ms. Same here:
+//! separated, default `COM1`). Nothing answers on that port: the guns are written straight into the game's memory instead, every 16 ms:
 //! `COM1` is a silent port, and a thread writes each player's trigger, offscreen flag and
 //! position (0..=16384) at the game's addresses (RVAs of the game executable, from
-//! WindowsLoader; the dumps differ from WindowsLoader's CRCs but have the same layout).
+//! build of each game).
 //!
 //! Gun of a player = its virtual stick: position `lx`/`ly`, trigger `b1`; offscreen when the
 //! position is at an edge of the screen (lightguns report the edge off screen) or `b2` is held
@@ -61,7 +60,7 @@ const MUSIC_GUNGUN_2: Game = Game {
 const GAMES: &[Game] = &[GAIA_ATTACK_4, MUSIC_GUNGUN_2];
 
 /// Edge band of the -32768..=32767 position in which the gun counts as off screen
-/// (WindowsLoader: <= 1 or >= 254 on 0..=255).
+/// (<= 1 or >= 254 on 0..=255).
 const EDGE: i32 = 32768 - 256;
 
 fn offscreen(stick: &StickState) -> bool {

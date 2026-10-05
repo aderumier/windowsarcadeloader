@@ -1,6 +1,6 @@
 //! Settings the NESiCAxLive launcher normally provides in the registry.
 //!
-//! Instead of hooking the registry API (WindowsLoader's RegHooks), the values are written to
+//! Instead of hooking the registry API, the values are written to
 //! the real Wine registry before the game runs. Error values the game reported during the
 //! previous run (GameResult, IOError*) are reset every launch.
 //!

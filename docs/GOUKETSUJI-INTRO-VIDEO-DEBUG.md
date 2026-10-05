@@ -186,7 +186,7 @@ Environment facts for the failure:
    see `docs/CHASE-HQ-2-BOOT-DEBUG.md`). Once the Xwayland size is fixed,
    rerun and re-check the VMR path; the `5434182` texture width strongly
    suggests the same garbage is involved.
-3. Check whether the movie plays at all on WindowsLoader/real Windows — web
+3. Check whether the movie plays at all on real Windows — web
    search was inconclusive. If it never played on the PC port, the
    "skip movie, keep attract" behavior we see may be the game's own fallback
    for a failed movie, and the target becomes "make the movie renderable",
@@ -205,7 +205,7 @@ Environment facts for the failure:
 - Dump: `games/typex2/Gouketsuji Ichizoku - Matsuri Senzo Kuyou/` — 5 MB PE32
   `game.exe`, base 0x400000 (`.text` file 0x1000 / VMA 0x401000, `.rdata`
   0x3ef000 / 0x7ef000, `.data` 0x443000 / 0x843000); CRC 0x777df862 (=
-  WindowsLoader "Power Instinct V"); dump ships its own `D3DX9_37.dll` (Taito)
+  "Power Instinct V"); dump ships its own `D3DX9_37.dll` (Taito)
   and `debug.ini`.
 - Run dir: `wine-prefix/common/drive_c/wal/typex/gouketsuji-ichizoku/`
   (`wal-typex.log` = live payload log; `shot-*.bmp`).

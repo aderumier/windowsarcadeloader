@@ -9,5 +9,5 @@ exe: 'Z:\userdata\roms\nesica\Daemon Bride - Additional Gain\game.exe'
 # Buttons 1-4 = b1-b4 (default mapping).
 
 env:
-  # encrypted data: crypto service with the BlazBlue Chrono Phantasma key (WindowsLoader)
+  # encrypted data: crypto service with the BlazBlue Chrono Phantasma key
   WAL_NESICA_KEY: bbcp
