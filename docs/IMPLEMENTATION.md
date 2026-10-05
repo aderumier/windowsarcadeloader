@@ -201,6 +201,13 @@ Prefix tricks: profile `tricks` lists winetricks verbs applied once per prefix w
 wine (`winetricks -q <verb>`, `WINEARCH` removed), recorded in `<prefix>/.wal-tricks`. The prefix
 is shared, so tricks affect every game using it.
 
+Runner hotfixes: `tools/runner-hotfixes.py [runner...]` patches known bugs of runner builds in
+place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships in a release:
+* `winedmo-wow64-demuxer-destroy` (GE-Proton11-7 `winedmo.so`): the WoW64 thunk of
+  `demuxer_destroy` used the create params layout, so 32-bit games destroyed a garbage demuxer
+  handle; Battle Fantasia aborted with `free(): invalid size` when a coin stops the attract
+  movie. Upstream Wine 2110c64d89cc; proposed for GE-Proton as a `wine-hotfixes/pending` backport.
+
 ### 5.4 Run directory (`rundir.rs`)
 
 `<prefix>/drive_c/wal/<system>/<game>/`: one symlink per top-level game entry, except hidden
@@ -468,7 +475,7 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | nesica/kof-xiii-climax | nesica | in game, movies | key file 303002.key, crypto plaintext reply, dshow find-filter, xact, remuxed opening.wmv |
 | nesica/akai-katana-shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
 | nesica/blazblue-central-fiction | nesica | in game, NESiCA online | key bbcf, D: WindowsLoader, shop hours patch |
-| typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, WindowsLoader patches |
+| typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, WindowsLoader patches, runner hotfix (winedmo) |
 | typex/3d-cosplay-mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | nesica/aquapazza | nesica | template only, game not available | - |
 
