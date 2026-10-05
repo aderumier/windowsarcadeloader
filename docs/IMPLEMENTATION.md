@@ -291,6 +291,9 @@ profile), `show` (merged profile).
   (CreateImageSurface + CopyRects for the capture). `WAL_D3D9_FULLSCREEN=1` creates windowed
   devices fullscreen (Chaos Code's white window border); it broke SFZ3, which then stops
   presenting after its Reset.
+* Games loading d3d9/d3d8 at run time (DxLib's Direct3D 9Ex in Crimzon Clover, Magical Beat)
+  go through the game's `GetProcAddress`, also hooked: `Direct3DCreate9`, `Direct3DCreate9Ex`
+  (`CreateDeviceEx`, `PresentEx`, `ResetEx` wrapped too) and `Direct3DCreate8`.
 * `window`: `WAL_WINDOW_SIZE=WxH` forces the size of the game's top-level windows
   (`SetWindowPos`/`MoveWindow` IAT hooks, at 0,0); in window mode Direct3D stretches the back
   buffer to it (Crimzon Clover's DxLib computed a 5-million-pixel high window: X BadAlloc).
@@ -510,7 +513,7 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | nesica/rastan-saga | nesica | works (user) | 1280x800, hide ReShade |
 | nesica/senko-no-ronde-duo | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
 | nesica/the-rumble-fish-2 | nesica | works (user) | `exe_depth: 1` |
-| nesica/crimzon-clover | nesica | crashes after the NESYS ranking reply | `WAL_WINDOW_SIZE` (DxLib asks a 5-million-pixel window); TODO ranking data |
+| nesica/crimzon-clover | nesica | crashes after the NESYS ranking reply; with `WAL_NESICA_NESYS=0` runs (coin sound) but presents one black frame | `WAL_WINDOW_SIZE` (DxLib asks a 5-million-pixel window under GE-Proton); works on Batocera with wine-tkg 9.22: TODO try that runner |
 | nesica/psychic-force-2012 | nesica | black window: game2.exe never opens its I/O | run game.exe (PhyLauncher, NxL launcher stand-in); TODO |
 | nesica/tottemo-e-mahjong | nesica | crashes before creating its device (DXVK and wined3d) | run game.exe (NxL stand-in); TODO |
 | nesica/dragon-dance | nesica | crashes 3 s after FastIO open | run game.exe (NxL stand-in); TODO |

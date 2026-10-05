@@ -1,5 +1,6 @@
-//! Direct3D 9 and 8 shims. `d3d9!Direct3DCreate9` / `d3d8!Direct3DCreate8` are hooked in the
-//! game executable and the device methods are wrapped (shared vtables):
+//! Direct3D 9 and 8 shims. `d3d9!Direct3DCreate9(Ex)` / `d3d8!Direct3DCreate8` are hooked in
+//! the game executable (import table, or `GetProcAddress` for games loading d3d9 at run time
+//! such as DxLib's Direct3D 9Ex) and the device methods are wrapped (shared vtables):
 //!
 //! * `WAL_SCREENSHOT=<seconds>`: periodic screenshots for automated tests: every `<seconds>`
 //!   the back buffer is written as `shot-NNNN.bmp` in the working directory
@@ -24,8 +25,11 @@ type HRESULT = i32;
 type P = *mut c_void;
 
 const D3D_CREATE_DEVICE: usize = 16;
+const D3D_CREATE_DEVICE_EX: usize = 20;
 const DEV_RESET: usize = 16;
 const DEV_PRESENT: usize = 17;
+const DEV_PRESENT_EX: usize = 121;
+const DEV_RESET_EX: usize = 132;
 const DEV_GET_BACK_BUFFER: usize = 18;
 const DEV_GET_RENDER_TARGET_DATA: usize = 32;
 const DEV_CREATE_OFFSCREEN_PLAIN_SURFACE: usize = 36;
@@ -42,6 +46,11 @@ static ORIG_CREATE9: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_DEVICE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_PRESENT: AtomicUsize = AtomicUsize::new(0);
 static ORIG_RESET: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CREATE9EX: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CREATE_DEVICE_EX: AtomicUsize = AtomicUsize::new(0);
+static ORIG_PRESENT_EX: AtomicUsize = AtomicUsize::new(0);
+static ORIG_RESET_EX: AtomicUsize = AtomicUsize::new(0);
+static ORIG_GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
 static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -104,6 +113,79 @@ pub fn init() {
         d3d8::ORIG_CREATE8.store(o, Ordering::Relaxed);
         log!("d3d8: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, force fullscreen {force})");
     }
+    if let Some(o) = unsafe { iat::hook("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) } {
+        ORIG_GET_PROC_ADDRESS.store(o, Ordering::Relaxed);
+    }
+}
+
+/// Games loading d3d9/d3d8 at run time get the wrapped creation functions.
+unsafe extern "system" fn get_proc_address(module: P, name: *const u8) -> usize {
+    let orig: unsafe extern "system" fn(P, *const u8) -> usize =
+        unsafe { std::mem::transmute(ORIG_GET_PROC_ADDRESS.load(Ordering::Relaxed)) };
+    let f = unsafe { orig(module, name) };
+    if f == 0 || (name as usize) >> 16 == 0 {
+        return f; // not found, or by ordinal
+    }
+    let (slot, wrapper): (&AtomicUsize, usize) = match unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_bytes() {
+        b"Direct3DCreate9" => (&ORIG_CREATE9, create9 as *const () as usize),
+        b"Direct3DCreate9Ex" => (&ORIG_CREATE9EX, create9ex as *const () as usize),
+        b"Direct3DCreate8" => (&d3d8::ORIG_CREATE8, d3d8::create8 as *const () as usize),
+        _ => return f,
+    };
+    if slot.swap(f, Ordering::Relaxed) == 0 {
+        log!("d3d: shims on {} (GetProcAddress)", unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy());
+    }
+    wrapper
+}
+
+unsafe extern "system" fn create9ex(sdk: u32, out: *mut P) -> HRESULT {
+    let orig: unsafe extern "system" fn(u32, *mut P) -> HRESULT = unsafe { std::mem::transmute(ORIG_CREATE9EX.load(Ordering::Relaxed)) };
+    let hr = unsafe { orig(sdk, out) };
+    if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
+        unsafe {
+            patch(*out, D3D_CREATE_DEVICE, create_device as *const () as usize, &ORIG_CREATE_DEVICE);
+            patch(*out, D3D_CREATE_DEVICE_EX, create_device_ex as *const () as usize, &ORIG_CREATE_DEVICE_EX);
+        }
+    }
+    hr
+}
+
+/// Device methods wrapped on every created device (9 and 9Ex devices share their vtable in
+/// DXVK and wined3d).
+unsafe fn wrap_device(dev: P) {
+    unsafe {
+        patch(dev, DEV_PRESENT, present as *const () as usize, &ORIG_PRESENT);
+        patch(dev, DEV_RESET, reset as *const () as usize, &ORIG_RESET);
+    }
+}
+
+unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, window: P, flags: u32, params: P, mode: P, out: *mut P) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, u32, u32, P, u32, P, P, *mut P) -> HRESULT =
+        unsafe { std::mem::transmute(ORIG_CREATE_DEVICE_EX.load(Ordering::Relaxed)) };
+    unsafe { override_size(params) };
+    let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, mode, out) };
+    if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
+        unsafe {
+            wrap_device(*out);
+            patch(*out, DEV_PRESENT_EX, present_ex as *const () as usize, &ORIG_PRESENT_EX);
+            patch(*out, DEV_RESET_EX, reset_ex as *const () as usize, &ORIG_RESET_EX);
+        }
+    } else {
+        unsafe { log_failure(hr, params, flags) };
+    }
+    hr
+}
+
+unsafe extern "system" fn present_ex(dev: P, src: P, dst: P, window: P, dirty: P, flags: u32) -> HRESULT {
+    unsafe { maybe_capture(dev) };
+    let orig: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT_EX.load(Ordering::Relaxed)) };
+    unsafe { orig(dev, src, dst, window, dirty, flags) }
+}
+
+unsafe extern "system" fn reset_ex(dev: P, params: P, mode: P) -> HRESULT {
+    unsafe { override_size(params) };
+    let orig: unsafe extern "system" fn(P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_RESET_EX.load(Ordering::Relaxed)) };
+    unsafe { orig(dev, params, mode) }
 }
 
 /// Next screenshot path when one is due.
@@ -180,28 +262,36 @@ unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window:
     unsafe { override_size(params) };
     let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
-        unsafe {
-            patch(*out, DEV_PRESENT, present as *const () as usize, &ORIG_PRESENT);
-            patch(*out, DEV_RESET, reset as *const () as usize, &ORIG_RESET);
-        }
-    } else if !params.is_null() {
-        let p = params as *const u32;
-        unsafe {
-            log!(
-                "d3d9: CreateDevice failed {hr:#x}: {}x{} format {} buffers {} multisample {} swap {} windowed {} depth {}/{} flags {:#x} refresh {} interval {:#x}, behavior {flags:#x}",
-                *p, *p.add(1), *p.add(2), *p.add(3), *p.add(4), *p.add(6), *p.add(8), *p.add(9), *p.add(10), *p.add(11), *p.add(12), *p.add(13)
-            );
-        }
+        unsafe { wrap_device(*out) };
+    } else {
+        unsafe { log_failure(hr, params, flags) };
     }
     hr
 }
 
-unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
+unsafe fn log_failure(hr: HRESULT, params: P, flags: u32) {
+    if params.is_null() {
+        return;
+    }
+    let p = params as *const u32;
+    unsafe {
+        log!(
+            "d3d9: CreateDevice failed {hr:#x}: {}x{} format {} buffers {} multisample {} swap {} windowed {} depth {}/{} flags {:#x} refresh {} interval {:#x}, behavior {flags:#x}",
+            *p, *p.add(1), *p.add(2), *p.add(3), *p.add(4), *p.add(6), *p.add(8), *p.add(9), *p.add(10), *p.add(11), *p.add(12), *p.add(13)
+        );
+    }
+}
+
+unsafe fn maybe_capture(dev: P) {
     if let Some(path) = screenshot_due() {
         if let Err(e) = unsafe { capture(dev, &path) } {
             log!("screenshot: {path}: {e}");
         }
     }
+}
+
+unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
+    unsafe { maybe_capture(dev) };
     let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
     unsafe { orig(dev, src, dst, window, dirty) }
 }
