@@ -8,6 +8,6 @@ exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Street Fighter IV\
 # The dump's dinput8.dll is Microsoft's: use wine's.
 hide: [dinput8.dll]
 
-env:
-  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
-  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
+# No back buffer override: the game queries the desktop size (1920x1080 here) and
+# lays out its 1920x1080 viewport accordingly. Forcing a smaller back buffer
+# (1280x800) made the WM-stretched 1920x1080 window show a cropped, zoomed image.
