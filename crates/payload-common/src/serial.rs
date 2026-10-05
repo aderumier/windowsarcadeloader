@@ -7,8 +7,10 @@
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
+
+use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 
 use crate::{iat, log};
 
@@ -34,10 +36,18 @@ static HANDLER: OnceLock<Handler> = OnceLock::new();
 static REPLIES: Mutex<VecDeque<u8>> = Mutex::new(VecDeque::new());
 /// Reported in `GetCommModemStatus` (JVS sense line / reader ready).
 pub static READY: AtomicBool = AtomicBool::new(false);
+/// `GetCommModemStatus` value before / after [`READY`] (default: nothing, then CTS).
+pub static MODEM_STATUS: [AtomicU32; 2] = [AtomicU32::new(0), AtomicU32::new(0x10)];
 static TRACE_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 /// Installs the device on `port` (e.g. `COM2`, also matched as `\\.\COM2`).
 pub fn install(port: &str, handler: Handler) {
+    install_in(port, handler, &[unsafe { GetModuleHandleW(std::ptr::null()) } as usize]);
+}
+
+/// Same as [`install`], for the serial calls of the modules loaded at `modules` (e.g. the
+/// game's I/O library instead of the executable).
+pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
     let _ = PORT.set(port.to_string());
     let _ = HANDLER.set(handler);
     let hooks: [(&str, usize); COUNT] = [
@@ -57,9 +67,22 @@ pub fn install(port: &str, handler: Handler) {
         ("SetCommTimeouts", set_comm_timeouts as *const () as usize),
         ("PurgeComm", purge_comm as *const () as usize),
     ];
+    let kernel32 = unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) };
     for (idx, (name, f)) in hooks.into_iter().enumerate() {
-        if let Some(o) = unsafe { iat::hook("kernel32.dll", name, f) } {
-            ORIG[idx].store(o, Ordering::Relaxed);
+        for &module in modules {
+            if let Some(o) = unsafe { iat::hook_module(module, "kernel32.dll", name, f) } {
+                // a later module's entry is already ours
+                if o != f {
+                    ORIG[idx].store(o, Ordering::Relaxed);
+                }
+            }
+        }
+        // functions not imported by every module still need their original
+        if ORIG[idx].load(Ordering::Relaxed) == 0 {
+            let cname = format!("{name}\0");
+            if let Some(p) = unsafe { GetProcAddress(kernel32, cname.as_ptr()) } {
+                ORIG[idx].store(p as usize, Ordering::Relaxed);
+            }
         }
     }
 }
@@ -261,7 +284,7 @@ unsafe extern "system" fn get_comm_modem_status(h: P, stat: *mut u32) -> i32 {
         return unsafe { orig::<unsafe extern "system" fn(P, *mut u32) -> i32>(5)(h, stat) };
     }
     if !stat.is_null() {
-        unsafe { *stat = if READY.load(Ordering::Relaxed) { 0x10 } else { 0 } };
+        unsafe { *stat = MODEM_STATUS[READY.load(Ordering::Relaxed) as usize].load(Ordering::Relaxed) };
     }
     1
 }

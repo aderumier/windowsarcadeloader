@@ -47,6 +47,7 @@ tricks: []
 hide: []
 # Files copied into the run directory next to the executable, in place of the game's own:
 # <name in the run directory>: <source, relative to the root> (e.g. a missing config file).
+# A name with a folder ("dir/file") is a path from the game root.
 files: {}
 # Extra environment variables of the game process (system options, wine settings).
 env: {}

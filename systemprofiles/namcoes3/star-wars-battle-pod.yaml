@@ -1,0 +1,33 @@
+# Star Wars Battle Pod - The Force Awakens (Namco ES3, Unreal Engine 4, 64-bit) - template,
+# override values in userprofiles/namcoes3/star-wars-battle-pod.yaml.
+system: namcoes3
+name: Star Wars Battle Pod - The Force Awakens
+
+# The dump's Launcher\RSLauncher.exe (cabinet launcher, operator menu) starts the game
+# Binaries\Win64\SWArcGame-Win64-Shipping.exe (Direct3D 11, DXVK).
+# A DXVK copy left in Binaries\Win64 would replace the runner's.
+hide: [d3d9.dll, d3d10core.dll, d3d11.dll, dxgi.dll]
+
+env:
+  # English (the operator menu language otherwise; JPN, CHN... also possible)
+  WAL_NAMCOES3_LANGUAGE: ENG
+
+input:
+  # Flight stick on the left stick, throttle on the triggers (or the right stick), X / R1
+  # fire, A / L1 weapon, Y view, B enter.
+  gamepad:
+    r2: accel
+    l2: brake
+    x: b1
+    r1: b1
+    a: b2
+    l1: b2
+    y: b3
+    b: b4
+  # Keyboard (player 1): arrows flight stick and test menu cursor, Left Ctrl trigger, Left Alt
+  # weapon, Space view, Left Shift enter, Z / X menu up / down, Page Up / Page Down (or C / V)
+  # accelerate / brake, 1 start, 5 coin, 9 service, F2 test (on / off).
+  keyboard:
+    p1:
+      KEY_PAGEUP: b7
+      KEY_PAGEDOWN: b8

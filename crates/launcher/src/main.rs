@@ -199,23 +199,27 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         hide.extend(["ddraw.dll".into(), "d3dimm.dll".into()]);
     }
     let run_dir = wine.prefix.join("drive_c/wal").join(system.name()).join(profile.slug());
-    let payload_refs: Vec<(&Path, &str)> = payloads.iter().map(|(p, n)| (p.as_path(), *n)).collect();
+    // payload names: next to the executable, or a path from the game root ("dir/file.dll")
+    let payload_refs: Vec<(&Path, PathBuf)> = payloads
+        .iter()
+        .map(|(p, n)| {
+            let at = if n.contains(['/', '\\']) {
+                n.split(['/', '\\']).filter(|c| !c.is_empty()).collect()
+            } else {
+                exe_subdir.join(n)
+            };
+            (p.as_path(), at)
+        })
+        .collect();
     if !dry_run {
         for dir in system.data_dirs() {
             rundir::migrate_data_dir(game_dir, dir)?;
             std::fs::create_dir_all(game_dir.join(dir))
                 .with_context(|| format!("creating {}", game_dir.join(dir).display()))?;
         }
-        // folders on the way to the executable are real directories, the rest are links
-        let (mut src, mut dst) = (game_root.to_path_buf(), run_dir.clone());
-        for part in exe_subdir.iter() {
-            let mut level_hide = hide.clone();
-            level_hide.push(part.to_string_lossy().into_owned());
-            rundir::build(&dst, &src, &level_hide, &[])?;
-            src.push(part);
-            dst.push(part);
-        }
-        rundir::build(&dst, &src, &hide, &payload_refs)?;
+        // folders on the way to the executable and to the payloads are real directories, the
+        // rest are links
+        rundir::build_tree(&run_dir, game_root, &hide, &[exe_subdir.to_path_buf()], &payload_refs)?;
     }
     let run_exe_dir = run_dir.join(exe_subdir);
 
