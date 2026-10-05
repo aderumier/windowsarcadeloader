@@ -3,7 +3,7 @@
 //! The game's serial API calls are intercepted with IAT hooks on the game executable:
 //! opening the port returns a fake handle, each `WriteFile` packet goes to the device handler
 //! and its reply is queued for the game's `ReadFile`. Comm configuration calls succeed.
-//! One device per process.
+//! One device per process, plus optionally one silent port (`install_sink`).
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -16,11 +16,20 @@ type P = *mut c_void;
 
 /// Odd value: never a real handle.
 const FAKE: usize = 0x1337;
+/// Handle of the silent port (`install_sink`).
+const FAKE_SINK: usize = 0x1339;
+
+fn is_fake(h: P) -> bool {
+    h as usize == FAKE || h as usize == FAKE_SINK
+}
 
 /// The emulated device: answers the packets the game writes.
 pub type Handler = fn(&[u8]) -> Vec<u8>;
 
 static PORT: OnceLock<String> = OnceLock::new();
+/// Ports that accept everything and never answer (e.g. the gun board of Type X gun games,
+/// whose inputs are written in the game's memory instead).
+static SINK: OnceLock<Vec<String>> = OnceLock::new();
 static HANDLER: OnceLock<Handler> = OnceLock::new();
 static REPLIES: Mutex<VecDeque<u8>> = Mutex::new(VecDeque::new());
 /// Reported in `GetCommModemStatus` (JVS sense line / reader ready).
@@ -55,6 +64,22 @@ pub fn install(port: &str, handler: Handler) {
     }
 }
 
+/// Opens `ports` (comma separated) as silent devices: writes succeed, reads return nothing.
+/// Call after [`install`], which installs the hooks.
+pub fn install_sink(ports: &str) {
+    let list: Vec<String> = ports.split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
+    log!("serial: {} silent", list.join(", "));
+    let _ = SINK.set(list);
+}
+
+fn strip_device(name: &str) -> &str {
+    name.strip_prefix("\\\\.\\").unwrap_or(name)
+}
+
+fn is_sink(name: &str) -> bool {
+    SINK.get().is_some_and(|s| s.iter().any(|p| strip_device(name).eq_ignore_ascii_case(p)))
+}
+
 /// Logs the first packets exchanged with the game.
 fn trace(request: &[u8], reply: &[u8]) {
     if TRACE_COUNT.fetch_add(1, Ordering::Relaxed) < 40 {
@@ -69,7 +94,7 @@ fn port_matches(name: &str) -> bool {
     if name.eq_ignore_ascii_case(port) {
         return true;
     }
-    if name.len() <= 5 && name.to_ascii_uppercase().starts_with("COM") {
+    if name.len() <= 5 && name.to_ascii_uppercase().starts_with("COM") && !is_sink(name) {
         log!("serial: game opens {name}, not emulated (device on {port})");
     }
     false
@@ -123,6 +148,10 @@ fn trace_open(name: String, handle: P) {
 }
 
 unsafe extern "system" fn create_file_a(name: *const u8, a: u32, s: u32, sa: P, d: u32, f: u32, t: P) -> P {
+    if !name.is_null() && is_sink(&unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy()) {
+        log!("serial: silent port opened");
+        return FAKE_SINK as P;
+    }
     if is_port_a(name) {
         log!("serial: {} opened", PORT.get().map_or("", |p| p.as_str()));
         return FAKE as P;
@@ -135,6 +164,16 @@ unsafe extern "system" fn create_file_a(name: *const u8, a: u32, s: u32, sa: P, 
 }
 
 unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P, d: u32, f: u32, t: P) -> P {
+    if !name.is_null() {
+        let mut len = 0;
+        while unsafe { *name.add(len) } != 0 {
+            len += 1;
+        }
+        if is_sink(&String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) })) {
+            log!("serial: silent port opened");
+            return FAKE_SINK as P;
+        }
+    }
     if is_port_w(name) {
         log!("serial: {} opened", PORT.get().map_or("", |p| p.as_str()));
         return FAKE as P;
@@ -151,6 +190,12 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
 }
 
 unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut u32, ov: P) -> i32 {
+    if h as usize == FAKE_SINK {
+        if !written.is_null() {
+            unsafe { *written = n };
+        }
+        return 1;
+    }
     if h as usize != FAKE {
         let r = unsafe { orig::<unsafe extern "system" fn(P, *const u8, u32, *mut u32, P) -> i32>(2)(h, buf, n, written, ov) };
         if is_traced_pipe(h) {
@@ -169,6 +214,12 @@ unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut
 }
 
 unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, ov: P) -> i32 {
+    if h as usize == FAKE_SINK {
+        if !read.is_null() {
+            unsafe { *read = 0 };
+        }
+        return 1;
+    }
     if h as usize != FAKE {
         let r = unsafe { orig::<unsafe extern "system" fn(P, *mut u8, u32, *mut u32, P) -> i32>(3)(h, buf, n, read, ov) };
         if is_traced_pipe(h) {
@@ -189,7 +240,7 @@ unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, 
 }
 
 unsafe extern "system" fn close_handle(h: P) -> i32 {
-    if h as usize == FAKE {
+    if is_fake(h) {
         return 1;
     }
     if is_traced_pipe(h) {
@@ -200,6 +251,12 @@ unsafe extern "system" fn close_handle(h: P) -> i32 {
 }
 
 unsafe extern "system" fn get_comm_modem_status(h: P, stat: *mut u32) -> i32 {
+    if h as usize == FAKE_SINK {
+        if !stat.is_null() {
+            unsafe { *stat = 0 };
+        }
+        return 1;
+    }
     if h as usize != FAKE {
         return unsafe { orig::<unsafe extern "system" fn(P, *mut u32) -> i32>(5)(h, stat) };
     }
@@ -210,15 +267,15 @@ unsafe extern "system" fn get_comm_modem_status(h: P, stat: *mut u32) -> i32 {
 }
 
 unsafe extern "system" fn clear_comm_error(h: P, errors: *mut u32, stat: *mut u32) -> i32 {
-    if h as usize != FAKE {
+    if !is_fake(h) {
         return unsafe { orig::<unsafe extern "system" fn(P, *mut u32, *mut u32) -> i32>(6)(h, errors, stat) };
     }
+    let queued = if h as usize == FAKE { REPLIES.lock().unwrap().len() as u32 } else { 0 };
     if !errors.is_null() {
         unsafe { *errors = 0 };
     }
     if !stat.is_null() {
         // COMSTAT { flags, cbInQue, cbOutQue }
-        let queued = REPLIES.lock().unwrap().len() as u32;
         unsafe { std::ptr::write_bytes(stat, 0, 3) };
         unsafe { *stat.add(1) = queued };
     }
@@ -229,7 +286,7 @@ unsafe extern "system" fn clear_comm_error(h: P, errors: *mut u32, stat: *mut u3
 macro_rules! accept_on_port {
     ($($idx:literal $name:ident ($($a:ident: $t:ty),*);)*) => {$(
         unsafe extern "system" fn $name(h: P, $($a: $t),*) -> i32 {
-            if h as usize == FAKE {
+            if is_fake(h) {
                 return 1;
             }
             unsafe { orig::<unsafe extern "system" fn(P, $($t),*) -> i32>($idx)(h, $($a),*) }

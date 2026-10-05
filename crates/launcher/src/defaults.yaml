@@ -128,6 +128,13 @@ input:
       KEY_L: b8
       KEY_2: start
       KEY_6: coin
+    # Players 3/4: start and coin only, MAME keys (directions/buttons from pads).
+    p3:
+      KEY_3: start
+      KEY_7: coin
+    p4:
+      KEY_4: start
+      KEY_8: coin
 
   # Lightguns and mice aiming like guns (as batocera-wine-guns), for gun games: guns (udev
   # ID_INPUT_GUN=1, or absolute pointers) take players 1, 2... in device order, then mice

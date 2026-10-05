@@ -391,6 +391,13 @@ import it statically, so it loads before the game entry point: no injector neede
   | 0x4140 | coin: 1 once per press (edge), the game acks by writing 0x4140 |
   | 0x400, 0x4000, 0x4004, 0x4124, 0x41A4, 0x4150 | constants from WindowsLoader |
 
+  Options (profile `env`), for games reading the I/O through Taito's `FIO.dll` (Dariusburst):
+  * `WAL_FASTIO_COIN=counter`: 0x4140/0x4144/0x41C0/0x41C4 are coin counters (low 14 bits),
+    the game consumes coins by writing `-n`. With one-shot reads FIO never credited a coin.
+    Every player's coin feeds 0x4140 (Dariusburst: one credit pool, only 0x4140 consumed).
+  * `WAL_FASTIO_BOARDS=2`: 0x4004 reports a second board (players 3/4), `0x00FF00FF`
+    (WindowsLoader "Connect a 2nd Fast IO"); Dariusburst shows an I/O error without it.
+
   P1/P2 share bytes: P2 is the next bit up of each pair; test/ext are cabinet-wide.
   Native names for `native_map`: `up down left right start coin service test btn1..btn6
   ext1..ext3`. Default mapping: b1-b6 → btn1-btn6. Writes set `*DeviceResult = -1` for the
@@ -479,6 +486,24 @@ Switches: start 0x80, service 0x40, up/down/left/right 0x20/0x10/0x08/0x04, btn1
 second byte btn3-6 0x80..0x10, system byte test 0x80; coins counted on release, `30`/`31`
 decrease/increase. Native names for `native_map`: `start service test coin up down left right
 btn1..btn6`.
+Other `20` layouts (Gaia Attack 4 asks `20 01 03`: 1 player x 3 bytes) get the requested size,
+like WindowsLoader's generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
+the commands after it are answered (otherwise I/O ERROR).
+
+Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2`): port of WindowsLoader's
+per-game input code. The gun board's port (`WAL_TYPEX_GUN_PORT`, comma separated, default
+`COM1`) is a silent serial device (`serial::install_sink`: writes accepted, nothing read), and a
+thread writes every 16 ms each player's trigger, offscreen flag and position (0..=16384) at the
+game's RVAs (WindowsLoader's; our dumps differ from its CRCs but have the same layout). Gun = the
+player's virtual stick: `lx`/`ly`, trigger `b1`, offscreen = `b2` or the position at a screen
+edge. Profiles set `input.guns_enabled: true` (mice act as guns without lightguns).
+
+Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the game's
+`SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), like
+WindowsLoader's Type X2 hook (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
+`WAL_VFW_CODECS=vidc.wmv3=WMV9VCM.dll` (`vfw.rs`): registers Video for Windows codecs in
+`HKLM\...\Drivers32` at startup, the DLL being in the game directory (Gaia Attack 4's WMV9 AVIs,
+codec extracted from the dump's `wmv9VCMsetup.exe`).
 
 ## 7. Adding a system
 
@@ -600,6 +625,9 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | typex/king-of-fighters-xii | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
 | typex/3d-cosplay-mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | typex/street-fighter-iv | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
+| typex/gaia-attack-4 | typex | boots to title (guns untested) | wal-loader, JVS (`20 01 03`, `67`), guns (`WAL_TYPEX_GUNS`, COM1/COM3 silent), `WAL_PIN_CWD`, WMV9VCM codec (`WAL_VFW_CODECS`), WindowsLoader patches, 1280x800 |
+| typex/senko-no-ronde-duo | typex | works (user: perfect) | wal-loader, JVS, native 1280x720, hide xinput1_3 + XAudio2_4 and its manifests (wine's xaudio2), as the NESiCA build |
+| nesica/dariusburst-another-chronicle-ex | nesica | in game, 4 players (user: credits; TODO: P1 controls reported not responding with JVS on) | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), WindowsLoader 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
 | nesica/chaos-breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks in own prefix `wine-prefix/directmusic` (native dsound) |
 | nesica/dark-awake | nesica | in fight | same as Chaos Breaker (same engine) |
 | nesica/chaos-code-103, -211 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
@@ -614,8 +642,8 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | nesica/magical-beat | nesica | works (user) | key magicalbeat, D: WindowsLoader, WindowsLoader patch |
 | nesica/nitroplus-blasterz, persona-4-ultimax, puzzle-bobble, skullgirls-2nd-encore, space-invaders, strania, trouble-witches-ac | nesica | works (user) | see profiles (P4UU: shop hours patch) |
 | nesica/persona-4-arena | nesica | in fight (user: may crash with some characters) | key persona4arena, plaintext reply, NESYS on, shop hours patch 0x6C9D0 |
-| nesica/raiden-3 | nesica | in game (user); intro movie white | hide dinput8 |
-| nesica/raiden-4 | nesica | in game (user); intro movie: audio only, black video | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade, `WAL_ANSI_CODEPAGE: 932` (Shift-JIS movie name); TODO: winedmo fails to decode its raw MPEG-1 (.m1v) video (ffdshow not picked) |
+| nesica/raiden-3 | nesica | in game (user); intro movie black | hide dinput8; TODO: movies are uncompressed BGR24 240x320 AVIs played through amstream (`IAMMultiMediaStream`, MediaStreamFilter): AVI Decompressor is added but most connections to the media stream are refused (`VFW_E_TYPE_NOT_ACCEPTED`) |
+| nesica/raiden-4 | nesica | in game (user); intro movie: audio only, black video | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade, `WAL_ANSI_CODEPAGE: 932` (Shift-JIS movie name); TODO: black video: the game's own TEXTURERENDERER gets RGB24 from winedmo's MPEG Video Decoder, but ffmpeg rejects every packet (`Invalid frame dimensions 0x0`). GE builds ffmpeg with `--disable-everything` and no parsers, so the raw .m1v is fed in 1 KiB chunks; an ffmpeg 8.1 rebuild with `--enable-parsers` gave whole pictures (674 errors instead of 16k) but still `0x0`: not the (whole) fix, reverted |
 | nesica/rastan-saga | nesica | works (user) | 1280x800, hide ReShade |
 | nesica/senko-no-ronde-duo | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
 | nesica/the-rumble-fish-2 | nesica | works (user) | `exe_depth: 1` |

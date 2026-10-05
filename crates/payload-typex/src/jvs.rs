@@ -152,11 +152,21 @@ fn process(packet: &[u8]) -> Vec<u8> {
             // features, Taito stick: 2 players x 16 switches, 2 coin slots
             0x14 => (1, vec![0x01, 0x02, 0x10, 0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
             0x15 => (cmds[i..].iter().position(|b| *b == 0).map_or(cmds.len() - i, |p| p + 1), vec![0x01, 0x01, 0x05]),
-            0x20 => {
+            0x20 if (arg(1), arg(2)) == (2, 2) || arg(1) == 0 => {
                 // Taito stick: system byte + 2 bytes per player for both players
                 let p1 = players[0];
                 let p2 = players[1];
                 (3, vec![if test { 0x80 } else { 0 }, p1.0, p1.1, p2.0, p2.1])
+            }
+            0x20 => {
+                // other layouts (Gaia Attack 4: 1 player x 3 bytes), as WindowsLoader's generic
+                // reply: the 2 switch bytes of each player, padded with zeros
+                let mut v = vec![if test { 0x80 } else { 0 }];
+                for p in players.iter().take(arg(1).min(2) as usize) {
+                    let bytes = [p.0, p.1];
+                    v.extend((0..arg(2) as usize).map(|k| bytes.get(k).copied().unwrap_or(0)));
+                }
+                (3, v)
             }
             0x21 => {
                 let slots = arg(1) as usize;
@@ -191,6 +201,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
             0x05 => (3, vec![]),
             0x23 | 0x25 => (2, vec![]),
             0x65 => (2, vec![0xA0]),
+            // Gaia Attack 4 polls `67 xx` in every packet: unknown, acknowledged so the
+            // commands after it (coins, analogs) are answered
+            0x67 => (2, vec![]),
             other => {
                 log!("jvs: unknown command {other:#04x}");
                 (cmds.len() - i, vec![])
@@ -198,7 +211,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
         };
         // commands with outputs/acks report like WindowsLoader: data commands get a report
         // byte when they are not the first one
-        if matches!(cmds[i], 0x11..=0x14 | 0x20..=0x22 | 0x26 | 0x2E | 0x30..=0x37 | 0x65) {
+        if matches!(cmds[i], 0x11..=0x14 | 0x20..=0x22 | 0x26 | 0x2E | 0x30..=0x37 | 0x65 | 0x67) {
             rep(&mut bytes);
         }
         out.extend(&bytes);

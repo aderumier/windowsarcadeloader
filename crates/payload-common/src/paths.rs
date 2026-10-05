@@ -11,6 +11,11 @@ impl<T> Redirected<T> {
     pub fn ptr(&self) -> *const T {
         self.replaced.as_ref().map_or(self.original, |v| v.as_ptr())
     }
+
+    /// A replacement path; `path` must end with a NUL.
+    pub fn replaced(path: Vec<T>) -> Self {
+        Redirected { original: std::ptr::null(), replaced: Some(path) }
+    }
 }
 
 /// Rewrites `X:\rest` (or `X:/rest`, `X:`) to `target\rest`, for narrow (u8) or wide

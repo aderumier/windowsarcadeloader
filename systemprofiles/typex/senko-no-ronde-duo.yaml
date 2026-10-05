@@ -1,0 +1,15 @@
+# Senko no Ronde DUO: Dis-United Order 2.00 (G.rev, Taito Type X2) - template,
+# override values in userprofiles/typex/senko-no-ronde-duo.yaml.
+system: typex
+name: 'Senko no Ronde DUO: Dis-United Order'
+exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Senko no Ronde DUO - Dis-United Order (2.00)\game.exe'
+
+# Direct3D 9 game. CRC 0x5f2f509b (WindowsLoader lists another build, 0x6c2d2657,
+# as generic Type X2: JVS only, no code patches).
+# xinput1_3.dll of the dump is Microsoft's: use wine's. Sound effects use
+# XAudio2 through registration-free COM (game.exe.manifest ->
+# Dlls.XAudio2.manifest -> the dump's XAudio2_4.dll), as on the NESiCA build:
+# hide them so the game gets wine's xaudio2.
+hide: [xinput1_3.dll, game.exe.manifest, Dlls.XAudio2.manifest, XAudio2_4.dll]
+
+# Buttons M S C A = b1-b4 (default mapping).
