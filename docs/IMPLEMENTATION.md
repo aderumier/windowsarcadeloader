@@ -228,6 +228,28 @@ place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships 
   replaced with a build containing that fix (GE-patched tree sources — see the runner rule in §3, not plain wine), original
   kept as `quartz.dll.orig`. Verified: KOF XII intro plays — the game connects
   `WMVideo Decoder DMO:out0 -> sample_grabber` itself and no `0x80040203` occurs.
+* `quartz-vmr7-rgb24-getavailable` (same rebuilt `quartz.dll`, on top of the previous fix;
+  previous build kept as `quartz.dll.pre-rgb24`): GE-Proton `patches/ge-video-rework/0073`
+  + `0074`. (1) The VMR7 refused RGB24 input: its default presenter only allocates surfaces
+  at the desktop depth, so `Grabber -> Video Renderer` failed with `E_FAIL`; the VMR now falls
+  back to an RGB32 surface and expands the pixels. (2) The filter graph's
+  `IMediaSeeking::GetAvailable` was a stub leaving its outputs untouched; games seeking to
+  "earliest" seeked to stack garbage and the movie ended at once. Gouketsuji Ichizoku's opening
+  needed both (see `docs/GOUKETSUJI-INTRO-VIDEO-DEBUG.md`). Build: the configured GE tree copy
+  `/tmp/opencode/wine-11.0` (i386 only), `make dlls/quartz/i386-windows/quartz.dll`, then copy
+  to the runner's `lib/wine/i386-windows/` (read-only: `chmod u+w` first) and the common
+  prefix's `syswow64/`.
+* `ddraw-overlay-emulation` (GE-Proton11-7 `ddraw.dll`, i386, rebuilt the same way: `make
+  dlls/ddraw/i386-windows/ddraw.dll`; original kept as `ddraw.dll.pre-overlay`; the prefix's
+  `syswow64/ddraw.dll` is a symlink to the runner's): GE-Proton
+  `patches/ge-video-rework/0075`. Wine never drew DirectDraw overlays nor reported
+  `DDCAPS_OVERLAY`; CRI Sofdec players (KOF Maximum Impact Regulation A) only play movies
+  through a YUY2 overlay. The visible overlay is now drawn over its destination when that is
+  presented. Needs wined3d on the game window (`dxvk: false` for a D3D8/9 game that also uses
+  the overlay). See `docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md`.
+* Games shipping Wine's own DLLs (e.g. a dump with Wine 10.16's `d3d8/ddraw/wined3d.dll`):
+  Wine loads those builtin-format DLLs **from the game dir** even with `=b` overrides, mixing
+  Wine versions. `hide:` them in the profile (check with `WINEDEBUG=+loaddll`).
 
 ### 5.4 Run directory (`rundir.rs`)
 
@@ -490,6 +512,44 @@ simpler than hooks (registry values written at load, files in the run dir).
   `warn+module` shows missing host libraries (e.g. `ELFCLASS64` = a 64-bit lib picked for a
   32-bit `i386-unix` module → missing lib32 package or use `wow64`).
 * Imports/exports of game files and payloads: `winedump -j import|export <file>`.
+
+### Screenshots (seeing what the game shows without watching it)
+
+The payload's d3d8/d3d9 shim (`payload-common/src/screenshot.rs`) can dump the game's back
+buffer periodically. This is how automated/agent test runs check what is on screen:
+
+```sh
+RUN=wine-prefix/common/drive_c/wal/typex/gouketsuji-ichizoku     # the game's run dir
+rm -f $RUN/shot-*.bmp
+timeout 120 env WAL_SCREENSHOT=5 dist/arcade-launcher run typex/gouketsuji-ichizoku
+ls -l --time-style=+%T $RUN/shot-*.bmp                             # mtime = when it was taken
+magick $RUN/shot-0007.bmp -alpha off /tmp/shot-0007.png            # BMP -> PNG to view it
+magick $RUN/shot-*.bmp -alpha off -resize 320x +append /tmp/strip.png   # contact strip
+```
+
+* `WAL_SCREENSHOT=<seconds>` (min 0.5): in the hooked `Present`/`PresentEx`, when the interval
+  has elapsed, the current back buffer is copied (`GetRenderTargetData` into a system-memory
+  surface; d3d8: `CreateImageSurface` + `CopyRects`) and written as `shot-NNNN.bmp` (1-based
+  counter) in the run dir. `WAL_SCREENSHOT_DIR=<windows dir>` writes them elsewhere.
+* Combine with `--input-script tools/scripts/coin-start-mash.txt` to get past attract/title,
+  and with `WINEDEBUG=...` to correlate a frame with a trace (match the BMP mtime with the
+  log; the payload log `wal-<system>.log` in the run dir is timestamped too).
+* Cadence is approximate: a shot is only taken on a `Present`, so expect ~8–10 s between
+  shots with `WAL_SCREENSHOT=5` on heavy boots, and none while the game does not present
+  (loading, hangs).
+* It only sees the **game's own d3d8/d3d9 devices** (created via the hooked
+  `Direct3DCreate9(Ex)`/`Direct3DCreate8`, import or `GetProcAddress`). Anything drawn by
+  another path is invisible: DirectShow's VMR window (quartz uses its own ddraw), ddraw/GDI
+  games, a second device created inside a Wine DLL. A black shot during a movie means "the
+  game's back buffer is black", not necessarily "nothing on the monitor"; for those cases
+  grab the X screen instead: `import -window root /tmp/screen.png` (or
+  `ffmpeg -f x11grab -i $DISPLAY -frames:v 1 /tmp/screen.png`).
+* The BMP is 32-bit with an unused 4th byte: tools that read it as alpha report misleading
+  statistics (ImageMagick shows a ~25 % "mean" on a black frame). Use `-alpha off`, e.g.
+  `magick shot.bmp -alpha off -format '%[fx:mean]' info:` (0 = all black).
+* The shell's `WAL_SCREENSHOT` reaches the game through the inherited environment, so no
+  profile change is needed — but a profile `env:` entry with the same name overrides the shell
+  (only `WINEDEBUG` gives the shell priority).
 
 ### Testing a payload without the launcher
 

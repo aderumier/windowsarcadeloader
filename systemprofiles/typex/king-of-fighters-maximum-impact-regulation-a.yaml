@@ -6,13 +6,25 @@ name: King of Fighters Maximum Impact Regulation A
 exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\King of Fighters Maximum Impact Regulation A\game.exe'
 
 # 6 buttons (b1-b6 -> btn1-b6, default mapping).
-# The dump's dinput8.dll is Microsoft's: use wine's. d3d8/d3d9/ddraw/wined3d
-# are a coherent set of Wine 10.16's own DLLs (this is a D3D8 game): keep them,
-# they shadow the prefix's set consistently.
-hide: [dinput8.dll]
+# The dump's dinput8.dll is Microsoft's: use wine's. The dump also ships Wine
+# 10.16's own d3d8/d3d9/ddraw/wined3d: Wine loads them from the game dir as
+# "builtin" despite the `=b` overrides, and the runner's ddraw then binds to the
+# dump's older wined3d. Hide them all.
+hide: [dinput8.dll, d3d8.dll, d3d9.dll, ddraw.dll, wined3d.dll]
+
+# The intro movies (CRI Sofdec) are a DirectDraw YUY2 overlay, emulated by the
+# runner's patched ddraw (GE-Proton patches/ge-video-rework/0075) with wined3d
+# GL. With DXVK the game window already has a Vulkan swapchain and wined3d
+# cannot draw the overlay on it: use wined3d for d3d8 too.
+# See docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md.
+dxvk: false
 
 env:
   # WindowsLoader's KOF Maximum Impact Regulation A patch (CRC 0x1782f027).
   WAL_PATCHES: "0x447C:B80008009090"
-  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
-  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
+
+# No back buffer override: the game renders natively at 640x480 (it requests a
+# 640x480 back buffer and lays out its scene for it). Forcing 1280x800 put the
+# 640x480 scene in the top-left quarter of the buffer (small image, movie black).
+# Wine's desktop follows the 640x480 back buffer and the WM stretches the
+# fullscreen window to the monitor.
