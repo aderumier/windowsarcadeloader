@@ -1,0 +1,14 @@
+# Chase H.Q. 2 (Taito, Taito Type X2) - template, override values in
+# userprofiles/typex/chase-hq-2.yaml.
+system: typex
+name: Chase H.Q. 2
+exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Chase H.Q. 2\game.exe'
+
+# The dump's dinput8.dll is Taito's bridge (not Microsoft's): keep it.
+# NOTE: wheel/gas/brake come from JVS analog, which the payload does not
+# emulate yet: the game boots and shows menus, but driving is not possible.
+env:
+  # WindowsLoader's Chase H.Q. 2 patch (CRC 0x1f2f9497): skip pedal calibration.
+  WAL_PATCHES: "0x107E3:EB"
+  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800

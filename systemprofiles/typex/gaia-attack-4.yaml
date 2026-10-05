@@ -1,0 +1,14 @@
+# Gaia Attack 4 (Taito, Taito Type X2, 4P light guns) - template, override
+# values in userprofiles/typex/gaia-attack-4.yaml.
+system: typex
+name: Gaia Attack 4
+exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Gaia Attack 4\game.exe'
+
+# NOTE: the guns use JVS analog (X/Y per player), which the payload does not
+# emulate yet: the game boots, but aiming is not possible.
+env:
+  # WindowsLoader's Gaia Attack 4 patches (CRC 0xad310e21): disable the JVS gun
+  # writes, and the volume write (it reads JVS Analog0, which we use for inputs).
+  WAL_PATCHES: "0x113E80:B801000000C3,0x1156C8:90909090"
+  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800

@@ -1,0 +1,17 @@
+# The King of Fighters XII (SNK, Taito Type X2) - template, override values in
+# userprofiles/typex/king-of-fighters-xii.yaml.
+system: typex
+name: The King of Fighters XII
+exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\The King of Fighters XII\game.exe'
+
+# Buttons: WindowsLoader maps A=Button1 B=Button4 C=Button2 D=Button5; virtual
+# top row b1-b4 = A B C D.
+native_map:
+  b1: btn1
+  b2: btn4
+  b3: btn2
+  b4: btn5
+
+env:
+  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
