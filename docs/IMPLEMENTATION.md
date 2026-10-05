@@ -67,6 +67,12 @@ games/, wine-runners/, wine-prefix/   local data (git-ignored)
   for future 64-bit games.
 * `./build.sh` (env `PROFILE=dev` for debug builds) produces `dist/arcade-launcher` and
   `dist/payloads/wal_nesica.dll`. A new payload must be added to `build.sh`.
+* Wine runner: the default runner is `GE-Proton11-7-x86_64` (`wine-runners/`); **all game
+  tests must run on it**. When rebuilding a wine DLL (e.g. `quartz.dll` hotfixes), build from
+  the GE-Proton source tree (local clone `~/code/protonge`, GE patch set applied) — never from
+  plain upstream wine: the GE video stack (`quartz` + `winedmo`/`msdmo`, GStreamer-backed) only
+  works as a matched set of runner DLLs, and a plain-wine build is not a drop-in replacement
+  even for the same sources.
 * `panic = "abort"` everywhere: no unwinding across the FFI boundary and no libgcc DLL to ship.
   The DLL only imports Windows system DLLs + UCRT api-sets (Wine provides them); check with
   `winedump -j import dist/payloads/<dll>`.
@@ -219,7 +225,7 @@ place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships 
   (KOF XII), crash on `GetConnectedMediaType` (KOF XIII, see `WAL_DSHOW_FIND_FILTER`). GE-Proton
   #823 looks the exact name up first and only falls back to "Reader" when no filter has it;
   the runner's `quartz.dll` (`lib/wine/i386-windows/` and the common prefix `syswow64/`) was
-  replaced with a build containing that fix (wine-11.0 + the GE-patched tree sources), original
+  replaced with a build containing that fix (GE-patched tree sources — see the runner rule in §3, not plain wine), original
   kept as `quartz.dll.orig`. Verified: KOF XII intro plays — the game connects
   `WMVideo Decoder DMO:out0 -> sample_grabber` itself and no `0x80040203` occurs.
 
@@ -530,6 +536,7 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, WindowsLoader patches, runner hotfix (winedmo) |
 | typex/blazblue-calamity-trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, WindowsLoader patch 0xECFD0 |
 | typex/chase-hq-2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | see docs/CHASE-HQ-2-BOOT-DEBUG.md: Wine sees a 5434188x5434103 X desktop (Xwayland), game sizes its window from it; analog JVS also unemulated (not drivable anyway) |
+| typex/gouketsuji-ichizoku | typex | works (user: title, demo match, attract); intro movie never plays | wal-loader, JVS (native 640x480, no override); movie blocked: VMR second wined3d GL context fails — see docs/GOUKETSUJI-INTRO-VIDEO-DEBUG.md |
 | typex/king-of-fighters-xii | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
 | typex/3d-cosplay-mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | nesica/chaos-breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks in own prefix `wine-prefix/directmusic` (native dsound) |
