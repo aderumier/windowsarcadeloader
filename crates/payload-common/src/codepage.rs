@@ -1,11 +1,13 @@
 //! `WAL_ANSI_CODEPAGE=<cp>`: the game's own `MultiByteToWideChar` / `WideCharToMultiByte` calls
 //! on the ANSI code page (CP_ACP, CP_THREAD_ACP) use `<cp>` instead (932 = Shift-JIS).
 //! Japanese games convert Shift-JIS file names themselves: Raiden IV's movie
-//! "raiden4_ｃ50.m1v" was not found under a western code page (white intro).
+//! "raiden4_ｃ50.m1v" was not found under a western code page (white intro). The d3dx9 DLL
+//! shipped with the game is hooked too: K-On! draws Shift-JIS text with its `DrawTextA`.
 
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 use crate::{iat, log};
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 
 const CP_ACP: u32 = 0;
 const CP_THREAD_ACP: u32 = 3;
@@ -19,12 +21,23 @@ pub fn init() {
         return;
     };
     CODEPAGE.store(cp, Ordering::Relaxed);
-    unsafe {
-        if let Some(o) = iat::hook("kernel32.dll", "MultiByteToWideChar", mb2wc as *const () as usize) {
-            ORIG_MB2WC.store(o, Ordering::Relaxed);
+    // the game, and the D3DX library it ships (its ANSI DrawTextA/CreateFontA convert there)
+    let mut modules = vec![unsafe { GetModuleHandleW(std::ptr::null()) } as usize];
+    for v in 24..=43 {
+        let name: Vec<u16> = format!("d3dx9_{v}.dll\0").encode_utf16().collect();
+        let base = unsafe { GetModuleHandleW(name.as_ptr()) } as usize;
+        if base != 0 {
+            modules.push(base);
         }
-        if let Some(o) = iat::hook("kernel32.dll", "WideCharToMultiByte", wc2mb as *const () as usize) {
-            ORIG_WC2MB.store(o, Ordering::Relaxed);
+    }
+    for base in modules {
+        unsafe {
+            if let Some(o) = iat::hook_module(base, "kernel32.dll", "MultiByteToWideChar", mb2wc as *const () as usize) {
+                ORIG_MB2WC.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed).ok();
+            }
+            if let Some(o) = iat::hook_module(base, "kernel32.dll", "WideCharToMultiByte", wc2mb as *const () as usize) {
+                ORIG_WC2MB.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed).ok();
+            }
         }
     }
     log!("codepage: game ANSI conversions use code page {cp}");

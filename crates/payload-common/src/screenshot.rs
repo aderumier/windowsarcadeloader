@@ -505,6 +505,16 @@ mod d3d8 {
         unsafe { override_size_at(params, WINDOWED) };
         let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
         if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
+            if !params.is_null() {
+                let p = params as *const u32;
+                let device_window = unsafe { *p.add(6) } as usize as P;
+                unsafe {
+                    log!(
+                        "d3d8: device {}x{} windowed {}, focus window {}, device window {}",
+                        *p, *p.add(1), *p.add(WINDOWED), describe_window(window), describe_window(device_window)
+                    );
+                }
+            }
             unsafe {
                 patch(*out, DEV_PRESENT, present as *const () as usize, &ORIG_PRESENT);
                 patch(*out, DEV_RESET, reset as *const () as usize, &ORIG_RESET);
@@ -599,3 +609,28 @@ mod d3d8 {
         }
     }
 }
+
+/// A window's handle, parent, style, visibility and screen rectangle, for the device logs.
+fn describe_window(hwnd: P) -> String {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GWL_EXSTYLE, GWL_STYLE, GetParent, GetWindowLongW, GetWindowRect, IsWindowVisible};
+    if hwnd.is_null() {
+        return "null".into();
+    }
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    unsafe {
+        GetWindowRect(hwnd, &mut r);
+        format!(
+            "{hwnd:?} (parent {:?}, style {:#x} ex {:#x}, visible {}, {},{} {}x{})",
+            GetParent(hwnd),
+            GetWindowLongW(hwnd, GWL_STYLE),
+            GetWindowLongW(hwnd, GWL_EXSTYLE),
+            IsWindowVisible(hwnd),
+            r.left,
+            r.top,
+            r.right - r.left,
+            r.bottom - r.top
+        )
+    }
+}
+

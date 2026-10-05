@@ -1,0 +1,18 @@
+# Tetris The Grand Master 3 Terror-Instinct (Arika, Taito Type X) - template, override values
+# in userprofiles/typex/tetris-the-grand-master-3.yaml.
+system: typex
+name: Tetris The Grand Master 3 Terror-Instinct
+
+# OpenGL game, JVS I/O on COM2. The dump's dinput8.dll is Microsoft's: use wine's.
+hide: [dinput8.dll]
+
+# Buttons A, B, C, D (hold) = b1-b4 (default mapping).
+
+env:
+  # Known boot patch: its save folder "sv\" (missing) becomes ".\" (the game directory).
+  # Then its picture height 448 -> 480 (display mode and window are 640x480: the 32 uncovered
+  # lines showed as white bars at the top and bottom).
+  WAL_PATCHES: "0x6A0AC:2E5C0000,0xD160:E0010000,0xD19A:E0010000,0x4DCA6:E0010000,0x4DD2D:E0010000,0x4DD4D:E0010000,0x4E126:E0010000,0x4E198:E0010000,0x4E349:E0010000,0x4E429:E0010000"
+  # It creates an overlapped window (caption and border) for its fullscreen OpenGL picture:
+  # only an empty frame was shown. Borderless popup window.
+  WAL_WINDOW_POPUP: "1"

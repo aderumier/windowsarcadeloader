@@ -194,10 +194,14 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
 
     wine.prepare_prefix()?;
     wine.apply_tricks(&profile.tricks)?;
-    wine.setup_d3d(profile.dxvk)?;
+    let reshade: &[String] = if profile.reshade { &profile.reshade_files } else { &[] };
+    wine.setup_d3d(profile.dxvk, reshade)?;
     wine.setup_ddraw(profile.graphics)?;
 
     let mut hide: Vec<String> = profile.hide.clone();
+    if !profile.reshade {
+        hide.extend(profile.reshade_files.iter().cloned());
+    }
     hide.extend(system.hidden().iter().map(|s| s.to_string()));
     if matches!(profile.graphics, Graphics::Wine | Graphics::D7vk) {
         // dgVoodoo shipped with the game would take precedence

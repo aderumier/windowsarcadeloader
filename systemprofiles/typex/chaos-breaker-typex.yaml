@@ -1,0 +1,23 @@
+# Chaos Breaker (Taito, Taito Type X) - template, override values in
+# userprofiles/typex/chaos-breaker-typex.yaml.
+system: typex
+name: Chaos Breaker
+
+# Direct3D 8 game (DXVK d3d8), JVS I/O on COM2. Same engine as the NESiCA build.
+# Music is DirectMusic: wine's builtin one plays nothing, native DirectMusic + DirectSound +
+# the GM DLS sound bank, in their own prefix (native dsound would switch every game).
+prefix: wine-prefix/directmusic
+tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
+# The dump's dinput8.dll is Microsoft's: use wine's.
+hide: [dinput8.dll]
+
+# Buttons 1-4 = b1-b4 (default mapping).
+
+# Its fullscreen 640x480 is not scaled to the screen under Wine (drawn in the top-left corner of
+# a fullscreen window): its own window mode (-window) in a borderless window the size of the
+# screen, Direct3D stretches the picture to it.
+args: [-window]
+
+env:
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
