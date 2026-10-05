@@ -525,7 +525,7 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | nesica/crimzon-clover | nesica | works fullscreen (user) | native dsound (own prefix: wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
 | nesica/psychic-force-2012 | nesica | black window: game2.exe never opens its I/O | run game.exe (PhyLauncher, NxL launcher stand-in); TODO |
 | nesica/tottemo-e-mahjong | nesica | crashes before creating its device (DXVK and wined3d) | run game.exe (NxL stand-in); TODO |
-| nesica/dragon-dance | nesica | crashes 3 s after FastIO open | run game.exe (NxL stand-in); TODO |
+| nesica/dragon-dance | nesica | works (user), smoke effect glitches | run game.exe (NxL stand-in), native DirectMusic/dsound prefix; d7vk, wined3d Vulkan, DDrawCompat crash |
 | nesica/homura | nesica | stuck on NOW LOADING (2 frames) | TODO |
 | nesica/exception | nesica | runs (NESYS GAME_START) but no picture (OpenGL/SDL) | TODO |
 | nesica/kof-98-umfe, kof-2002-um | nesica | crash in a WoW64 syscall after the first frame; classic 32-bit mode: no frames | TODO |

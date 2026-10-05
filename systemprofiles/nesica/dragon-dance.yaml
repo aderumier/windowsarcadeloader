@@ -7,5 +7,11 @@ exe: 'Z:\userdata\roms\nesica\Dragon Dance\game.exe'
 # game.exe (NxL_DD_Check) stands in for the NESiCAxLive launcher: it creates the NxL events,
 # shared memory and pipe, then starts "game_liong.exe -s" (started directly it exits).
 # DirectDraw game; the dump's ddraw.dll (DDrawCompat) is hidden by the wine graphics mode.
+# With wine's dsound/DirectMusic it crashed 3 s after start (method call on a NULL object):
+# native ones, prefix of the DirectMusic games.
+prefix: wine-prefix/directmusic
+# Smoke effects render wrong with wine's ddraw (wined3d GL); d7vk, wined3d Vulkan and the dump's
+# DDrawCompat crash.
 
-# Button 1 = b1 (default mapping).
+# Button 1 = b1 (default mapping). The trackball is the Windows mouse (game mouse events):
+# a mouse or trackball on the PC works directly.
