@@ -2,7 +2,6 @@
 # userprofiles/typex/3d-cosplay-mahjong.yaml.
 system: typex
 name: 3D Cosplay Mahjong
-exe: 'Z:\userdata\roms\nesica\3D Cosplay Mahjong\game.exe'
 
 # Its effects do not compile with Wine's d3dx9_33 (E5017 ... ZWriteEnable), and the game
 # overflows a stack buffer printing the error: native d3dx9_33.

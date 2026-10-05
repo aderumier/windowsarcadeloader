@@ -2,8 +2,6 @@
 # userprofiles/nesica/arcana-heart-2.yaml (same keys, only what changes).
 system: nesica
 name: Arcana Heart 2
-# Windows path of the game executable (Z:\ = Linux /, C:\ = prefix drive_c).
-exe: 'Z:\userdata\roms\nesica\Arcana Heart 2\game.exe'
 
 graphics: wine
 # d3d11.dll is a ReShade build (bezel) and Dinput8.dll a Microsoft one: use wine's.

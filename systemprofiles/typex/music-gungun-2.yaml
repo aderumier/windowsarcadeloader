@@ -2,7 +2,6 @@
 # values in userprofiles/typex/music-gungun-2.yaml.
 system: typex
 name: Music GunGun! 2
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Music GunGun! 2\game.exe'
 
 # The dump's dinput8.dll is Microsoft's: use wine's.
 hide: [dinput8.dll]

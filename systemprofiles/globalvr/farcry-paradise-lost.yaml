@@ -2,7 +2,6 @@
 # userprofiles/globalvr/farcry-paradise-lost.yaml.
 system: globalvr
 name: Far Cry Paradise Lost
-exe: 'Z:\userdata\roms\globalvr\FarCry Paradise Lost\FarCry_r.exe'
 
 # CryEngine 1, Direct3D 9 (DXVK). The USBIO board (USBIOExtreme.dll) is replaced by the
 # payload: both guns, panel buttons and coins.

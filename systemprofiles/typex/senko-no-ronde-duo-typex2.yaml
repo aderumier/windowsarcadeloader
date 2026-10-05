@@ -1,8 +1,7 @@
 # Senko no Ronde DUO: Dis-United Order 2.00 (G.rev, Taito Type X2) - template,
-# override values in userprofiles/typex/senko-no-ronde-duo.yaml.
+# override values in userprofiles/typex/senko-no-ronde-duo-typex2.yaml.
 system: typex
 name: 'Senko no Ronde DUO: Dis-United Order'
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Senko no Ronde DUO - Dis-United Order (2.00)\game.exe'
 
 # Direct3D 9 game. CRC 0x5f2f509b (another known build, 0x6c2d2657, is
 # generic Type X2: JVS only, no code patches).

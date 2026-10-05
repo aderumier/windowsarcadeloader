@@ -9,7 +9,7 @@ Reproduce:
 
 ```
 cd windowsarcadeloader
-timeout 120 env WAL_SCREENSHOT=5 dist/arcade-launcher run typex/chase-hq-2
+timeout 120 env WAL_SCREENSHOT=5 dist/arcade-launcher run "games/typex2/Chase H.Q. 2"
 ```
 
 Best traces (keep until solved):

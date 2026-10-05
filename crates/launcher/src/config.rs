@@ -28,9 +28,7 @@ pub enum Graphics {
 pub struct Profile {
     pub system: String,
     pub name: Option<String>,
-    pub exe: String,
     pub args: Vec<String>,
-    pub exe_depth: usize,
     pub runner: String,
     pub runners_dir: PathBuf,
     pub prefix: PathBuf,
@@ -50,6 +48,13 @@ pub struct Profile {
     pub port: u16,
     pub input: InputConfig,
 
+    /// Game executable, Windows path (`Z:\...`), from the dump's `.windowsloader` file.
+    /// Empty when the profile was loaded by id (`show`, `input-test`).
+    #[serde(skip)]
+    pub exe: String,
+    /// Folder levels between the dump root and the executable.
+    #[serde(skip)]
+    pub exe_depth: usize,
     /// Directory the relative paths are resolved from.
     #[serde(skip)]
     pub root: PathBuf,
@@ -110,33 +115,111 @@ fn read_yaml(path: &Path) -> Result<Value> {
     Ok(if v.is_null() { Value::Mapping(Mapping::new()) } else { v })
 }
 
-/// Splits `.../<root>/{systemprofiles,userprofiles}/<rel>` into (root, rel).
-fn split_profile_path(path: &Path) -> Option<(PathBuf, PathBuf)> {
-    let comps: Vec<Component> = path.components().collect();
-    let pos = comps.iter().rposition(|c| {
-        matches!(c, Component::Normal(n) if *n == SYSTEM_PROFILES || *n == USER_PROFILES)
-    })?;
-    let root: PathBuf = comps[..pos].iter().collect();
-    let rel: PathBuf = comps[pos + 1..].iter().collect();
-    Some((if root.as_os_str().is_empty() { PathBuf::from(".") } else { root }, rel))
+/// Extension of the file at the root of a game dump: `<gameid>.windowsloader`, whose first line
+/// is the game executable's path relative to the dump root (`/` or `\\`).
+pub const DUMP_EXT: &str = "windowsloader";
+
+/// A game dump, found from its directory or its `.windowsloader` file.
+#[derive(Debug)]
+pub struct Dump {
+    /// Game id: the system profile `systemprofiles/<system>/<id>.yaml`.
+    pub id: String,
+    /// Dump root (the `.windowsloader` file's directory), absolute.
+    pub root: PathBuf,
+    /// Executable path relative to the root.
+    pub exe: PathBuf,
+}
+
+impl Dump {
+    /// `arg` is a dump directory (with one `.windowsloader` file) or the file itself;
+    /// `None` when it is neither (a profile id).
+    pub fn find(arg: &str) -> Result<Option<Dump>> {
+        let path = Path::new(arg);
+        let file = if path.is_dir() {
+            let mut found: Vec<PathBuf> = std::fs::read_dir(path)
+                .with_context(|| format!("reading {arg}"))?
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_file() && p.extension().is_some_and(|e| e.eq_ignore_ascii_case(DUMP_EXT)))
+                .collect();
+            match found.len() {
+                1 => found.remove(0),
+                0 => bail!("{arg}: no <gameid>.{DUMP_EXT} file in this game dump"),
+                _ => bail!("{arg}: several .{DUMP_EXT} files: {found:?}"),
+            }
+        } else if path.is_file() && path.extension().is_some_and(|e| e.eq_ignore_ascii_case(DUMP_EXT)) {
+            path.to_path_buf()
+        } else {
+            return Ok(None);
+        };
+        let file = std::path::absolute(&file)?;
+        let id = file.file_stem().context("dump file name")?.to_string_lossy().into_owned();
+        let text = std::fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
+        let rel = text
+            .lines()
+            .map(str::trim)
+            .find(|l| !l.is_empty() && !l.starts_with('#'))
+            .with_context(|| format!("{}: no executable path", file.display()))?;
+        let exe: PathBuf = rel.split(['/', '\\']).filter(|c| !c.is_empty() && *c != ".").collect();
+        if exe.components().any(|c| !matches!(c, Component::Normal(_))) {
+            bail!("{}: {rel:?} must be a path inside the dump", file.display());
+        }
+        let root = file.parent().context("dump root")?.to_path_buf();
+        if !root.join(&exe).is_file() {
+            bail!("{}: game executable not found: {}", file.display(), root.join(&exe).display());
+        }
+        Ok(Some(Dump { id, root, exe }))
+    }
+}
+
+/// Where `systemprofiles/` is: `--root`, else the current directory, else next to the
+/// launcher (its directory or the one above, e.g. `dist/..`).
+fn profiles_root(root: Option<&Path>) -> Result<PathBuf> {
+    if let Some(r) = root {
+        return Ok(std::path::absolute(r)?);
+    }
+    let cwd = std::env::current_dir()?;
+    let mut candidates = vec![cwd.clone()];
+    if let Ok(exe) = std::env::current_exe() {
+        candidates.extend(exe.ancestors().skip(1).take(2).map(Path::to_path_buf));
+    }
+    Ok(candidates.into_iter().find(|d| d.join(SYSTEM_PROFILES).is_dir()).unwrap_or(cwd))
 }
 
 impl Profile {
-    /// Loads a profile given as a file in `systemprofiles/` or `userprofiles/`, or as an
-    /// id `<system>/<game>` resolved from `root`.
+    /// Loads the profile of a game dump (its directory or `<gameid>.windowsloader` file): the
+    /// game id selects `systemprofiles/<system>/<id>.yaml` (+ `userprofiles/`), the dump gives
+    /// the executable. A game id (`<id>` or `<system>/<id>`) loads the profile alone.
     pub fn load(arg: &str, root: Option<&Path>) -> Result<Profile> {
-        let as_path = Path::new(arg);
-        let (root, rel) = if as_path.is_file() {
-            let abs = std::path::absolute(as_path)?;
-            split_profile_path(&abs).with_context(|| {
-                format!("{arg}: profiles must be in a '{SYSTEM_PROFILES}' or '{USER_PROFILES}' directory")
-            })?
-        } else {
-            let root = root.map(Path::to_path_buf).unwrap_or(std::env::current_dir()?);
-            let rel = PathBuf::from(if arg.ends_with(".yaml") { arg.to_string() } else { format!("{arg}.yaml") });
-            (root, rel)
+        let root = profiles_root(root)?;
+        let Some(dump) = Dump::find(arg)? else {
+            return Profile::load_id(arg.trim_end_matches(".yaml"), &root);
         };
-        let root = std::path::absolute(root)?;
+        let mut profile = Profile::load_id(&dump.id, &root)?;
+        let exe = dump.root.join(&dump.exe);
+        profile.exe = format!("Z:{}", exe.display()).replace('/', "\\");
+        profile.exe_depth = dump.exe.components().count() - 1;
+        Ok(profile)
+    }
+
+    /// The profile of game id `<id>` (searched in every system) or `<system>/<id>`.
+    fn load_id(id: &str, root: &Path) -> Result<Profile> {
+        let rel = if id.contains('/') {
+            PathBuf::from(format!("{id}.yaml"))
+        } else {
+            let mut found: Vec<PathBuf> = std::fs::read_dir(root.join(SYSTEM_PROFILES))
+                .with_context(|| format!("no {SYSTEM_PROFILES} in {}", root.display()))?
+                .flatten()
+                .map(|system| PathBuf::from(system.file_name()).join(format!("{id}.yaml")))
+                .filter(|rel| root.join(SYSTEM_PROFILES).join(rel).is_file())
+                .collect();
+            match found.len() {
+                1 => found.remove(0),
+                0 => bail!("no system profile for game id {id:?} in {}/{SYSTEM_PROFILES}", root.display()),
+                _ => bail!("game id {id:?} is ambiguous: {found:?}"),
+            }
+        };
+        let root = root.to_path_buf();
 
         let mut value: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
         let mut sources = Vec::new();
@@ -151,10 +234,8 @@ impl Profile {
                 sources.push(layer);
             }
         }
-        for key in ["system", "exe"] {
-            if value.get(key).is_none_or(Value::is_null) {
-                bail!("profile {}: '{key}' is not set (in {sources:?})", rel.display());
-            }
+        if value.get("system").is_none_or(Value::is_null) {
+            bail!("profile {}: 'system' is not set (in {sources:?})", rel.display());
         }
         let mut profile: Profile = serde_yaml_ng::from_value(value)
             .with_context(|| format!("profile {} (from {sources:?})", rel.display()))?;
@@ -174,7 +255,7 @@ impl Profile {
             merge(&mut value, read_yaml(&global)?);
             sources.push(global);
         }
-        merge(&mut value, serde_yaml_ng::from_str("{system: none, exe: ''}")?);
+        merge(&mut value, serde_yaml_ng::from_str("{system: none}")?);
         let mut profile: Profile = serde_yaml_ng::from_value(value)?;
         profile.root = root;
         profile.sources = sources;
@@ -195,37 +276,64 @@ impl Profile {
 mod tests {
     use super::*;
 
-    #[test]
-    fn layers_merge() {
-        let dir = std::env::temp_dir().join(format!("wal-profile-test-{}", std::process::id()));
+    fn tmp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("wal-profile-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn dump_selects_profile_and_exe() {
+        let dir = tmp("dump");
         std::fs::create_dir_all(dir.join("systemprofiles/nesica")).unwrap();
         std::fs::create_dir_all(dir.join("userprofiles/nesica")).unwrap();
         std::fs::write(
             dir.join("systemprofiles/nesica/game.yaml"),
-            "system: nesica\nexe: 'C:\\games\\g\\game.exe'\nnative_map: {b5: btn6}\ninput: {gamepad: {a: b1}}\n",
+            "system: nesica\nnative_map: {b5: btn6}\ninput: {gamepad: {a: b1}}\n",
         )
         .unwrap();
-        std::fs::write(
-            dir.join("userprofiles/nesica/game.yaml"),
-            "exe: 'Z:\\data\\g\\game.exe'\ninput: {gamepad: {x: none}}\n",
-        )
-        .unwrap();
+        std::fs::write(dir.join("userprofiles/nesica/game.yaml"), "input: {gamepad: {x: none}}\n").unwrap();
+        let dump = dir.join("My Game");
+        std::fs::create_dir_all(dump.join("bin")).unwrap();
+        std::fs::write(dump.join("bin/Game.exe"), "").unwrap();
+        std::fs::write(dump.join("game.windowsloader"), "# comment\nbin\\Game.exe\n").unwrap();
 
-        let p = Profile::load(dir.join("systemprofiles/nesica/game.yaml").to_str().unwrap(), None).unwrap();
-        assert_eq!(p.exe, "Z:\\data\\g\\game.exe");
+        let p = Profile::load(dump.to_str().unwrap(), Some(&dir)).unwrap();
         assert_eq!(p.id, "nesica/game");
+        assert_eq!(p.exe, format!("Z:{}", dump.join("bin/Game.exe").display()).replace('/', "\\"));
+        assert_eq!(p.exe_depth, 1);
+        assert_eq!(p.sources.len(), 2);
         assert_eq!(p.native_map["b5"], "btn6");
         assert_eq!(p.input.gamepad["a"], "b1");
         assert_eq!(p.input.gamepad["x"], "none");
         assert_eq!(p.input.gamepad["y"], "b2"); // default kept
         assert_eq!(p.graphics, Graphics::Wine);
 
-        // by id, and from the user file
-        let p2 = Profile::load("nesica/game", Some(&dir)).unwrap();
-        assert_eq!(p2.sources.len(), 2);
-        let p3 = Profile::load(dir.join("userprofiles/nesica/game.yaml").to_str().unwrap(), None).unwrap();
-        assert_eq!(p3.exe, p.exe);
+        // the file itself, and the profile alone by id
+        let p2 = Profile::load(dump.join("game.windowsloader").to_str().unwrap(), Some(&dir)).unwrap();
+        assert_eq!(p2.exe, p.exe);
+        let p3 = Profile::load("game", Some(&dir)).unwrap();
+        assert_eq!((p3.id.as_str(), p3.exe.as_str()), ("nesica/game", ""));
+        assert!(Profile::load("nesica/game", Some(&dir)).is_ok());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn dump_errors() {
+        let dir = tmp("errors");
+        std::fs::create_dir_all(dir.join("systemprofiles/nesica")).unwrap();
+        std::fs::create_dir_all(dir.join("systemprofiles/typex")).unwrap();
+        std::fs::write(dir.join("systemprofiles/nesica/twin.yaml"), "system: nesica\n").unwrap();
+        std::fs::write(dir.join("systemprofiles/typex/twin.yaml"), "system: typex\n").unwrap();
+        let dump = dir.join("dump");
+        std::fs::create_dir_all(&dump).unwrap();
+        assert!(Profile::load(dump.to_str().unwrap(), Some(&dir)).is_err()); // no file
+        std::fs::write(dump.join("game.exe"), "").unwrap();
+        std::fs::write(dump.join("twin.windowsloader"), "game.exe\n").unwrap();
+        assert!(Profile::load(dump.to_str().unwrap(), Some(&dir)).is_err()); // ambiguous id
+        std::fs::write(dump.join("twin.windowsloader"), "../game.exe\n").unwrap();
+        assert!(Dump::find(dump.to_str().unwrap()).is_err()); // outside the dump
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

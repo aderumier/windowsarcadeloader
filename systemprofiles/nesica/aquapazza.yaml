@@ -3,6 +3,5 @@
 # Plain NESiCA (CRC 0x549627f4, no crypto key). Not tested yet.
 system: nesica
 name: 'Aquapazza: Aquaplus Dream Match'
-exe: 'Z:\userdata\roms\nesica\Aquapazza Aquaplus Dream Match\game.exe'
 
 # Buttons A B C D = b1-b4 (default mapping).

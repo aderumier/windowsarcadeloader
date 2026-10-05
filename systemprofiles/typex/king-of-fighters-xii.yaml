@@ -2,7 +2,6 @@
 # userprofiles/typex/king-of-fighters-xii.yaml.
 system: typex
 name: The King of Fighters XII
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\The King of Fighters XII\game.exe'
 
 # Buttons: usual layout A=Button1 B=Button4 C=Button2 D=Button5; virtual
 # top row b1-b4 = A B C D.

@@ -2,7 +2,6 @@
 # userprofiles/nesica/hyper-street-fighter-2.yaml.
 system: nesica
 name: 'Hyper Street Fighter II: The Anniversary Edition'
-exe: 'Z:\userdata\roms\nesica\Hyper Street Fighter II - The Anniversary Edition\game.exe'
 
 # Direct3D 9 game (DXVK), XAudio2. test.exe is the test menu.
 

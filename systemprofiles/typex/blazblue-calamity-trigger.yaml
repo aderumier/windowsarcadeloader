@@ -2,7 +2,6 @@
 # override values in userprofiles/typex/blazblue-calamity-trigger.yaml.
 system: typex
 name: BlazBlue Calamity Trigger
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\BlazBlue Calamity Trigger\game.exe'
 
 # 4 buttons (b1-b4 -> btn1-b4, default mapping).
 env:

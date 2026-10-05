@@ -2,7 +2,6 @@
 # values in userprofiles/nesica/kof-98-umfe.yaml.
 system: nesica
 name: "The King of Fighters '98 Ultimate Match Final Edition"
-exe: 'Z:\userdata\roms\nesica\The King of Fighters ''98 - Ultimate Match Final Edition\game.exe'
 
 # Direct3D 9 game (DXVK). No crypto key.
 

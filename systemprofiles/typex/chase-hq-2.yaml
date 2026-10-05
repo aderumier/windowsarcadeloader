@@ -2,7 +2,6 @@
 # userprofiles/typex/chase-hq-2.yaml.
 system: typex
 name: Chase H.Q. 2
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Chase H.Q. 2\game.exe'
 
 # The dump's dinput8.dll is Taito's bridge (not Microsoft's): keep it.
 # NOTE: wheel/gas/brake come from JVS analog, which the payload does not

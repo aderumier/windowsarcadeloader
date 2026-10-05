@@ -2,7 +2,6 @@
 # userprofiles/nesica/dark-awake.yaml.
 system: nesica
 name: 'Dark Awake: The King Has No Name'
-exe: 'Z:\userdata\roms\nesica\Dark Awake - The King Has No Name\game.exe'
 
 # Direct3D 8 game (DXVK d3d8).
 # Music is DirectMusic: wine's builtin one plays nothing, native DirectMusic + DirectSound +

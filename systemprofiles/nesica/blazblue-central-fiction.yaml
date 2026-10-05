@@ -2,7 +2,6 @@
 # userprofiles/nesica/blazblue-central-fiction.yaml.
 system: nesica
 name: BlazBlue Central Fiction 2.01
-exe: 'Z:\userdata\roms\nesica\BlazBlue Central Fiction 2.01.00\game.exe'
 
 # Direct3D 9 game: through DXVK (default).
 

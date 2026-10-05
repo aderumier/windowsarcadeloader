@@ -3,7 +3,6 @@
 # userprofiles/typex/king-of-fighters-maximum-impact-regulation-a.yaml.
 system: typex
 name: King of Fighters Maximum Impact Regulation A
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\King of Fighters Maximum Impact Regulation A\game.exe'
 
 # 6 buttons (b1-b6 -> btn1-b6, default mapping).
 # The dump's dinput8.dll is Microsoft's: use wine's. The dump also ships Wine
