@@ -1,12 +1,22 @@
 # Gouketsuji Ichizoku (Type X2) — intro video not played, debug notes
 
-Status: **game works, movie blocked** (as of 2026-10-05). The game runs fine:
-title screen "Gouketsuji Ichizoku / 先祖供養" → demo match (REIJI vs CLARA) →
-attract scenes (user confirmed). In the attract cycle the game enters its
-`OPENING` state (~55–60 s after boot), tries to play
-`Data/Movie/Opening.avi`, the attempt **fails inside Wine's VMR/wined3d**, and
-the game silently falls back to normal attract. The user sees no video, no
-error.
+Status: **SOLVED** (2026-10-05) — the opening movie plays (user-confirmed).
+Two quartz bugs, both fixed in a rebuilt runner `quartz.dll` (GE-Proton tree,
+`patches/ge-video-rework/0073`, `0074`; see "Resolution" at the end and
+IMPLEMENTATION.md §5.3 `quartz-vmr7-rgb24-getavailable`):
+
+1. **VMR7 refused RGB24.** The VMR7's default presenter only allocates
+   surfaces at the primary's depth (32 bpp), so the RGB24 connection
+   Grabber → Video Renderer failed with `E_FAIL` (0x80004005) and the graph
+   dropped the renderer. The GL_INVALID_VALUE at `adapter_gl.c:3437` below is
+   **noise**, not the cause.
+2. **`IMediaSeeking::GetAvailable` was a stub** (S_OK, outputs untouched).
+   The game calls it and seeks to "earliest": it got stack garbage
+   (~450 million s — the bytes of the MEDIATYPE_Video GUID), the streams
+   started past their end and the movie ended at once.
+
+The analysis below is the original investigation, kept for reference; its
+conclusions about the wined3d second device were wrong.
 
 Reproduce:
 
@@ -204,3 +214,29 @@ Environment facts for the failure:
 - `timeout`+wine: if the game hangs past the timeout, wineserver can swallow
   SIGTERM and keep the port bound — kill the `arcade-launcher` pid (then
   wineserver goes too) instead of waiting.
+
+## 8. Resolution (2026-10-05)
+
+`WINEDEBUG=+quartz` after fix 1 showed the whole graph connecting
+(`allocate_surfaces Initializing in mode 1` then `ReceiveConnection returned 0`),
+followed by:
+
+```
+fixme:quartz:MediaSeeking_GetAvailable (...)->(0314FE78, 0314FE80): stub !!!
+MediaSeeking_SetPositions ... current 10000073646976 ... stop 719b3800aa000080
+```
+
+`0x...73646976` = `'vids'`, `719b3800aa000080` = the tail of the
+MEDIATYPE_Video GUID: uninitialized stack. With fix 2 the game seeks to
+0 → 35.5 s (`stop 152653b5`), runs the graph and ~2100 frames go through the
+VMR until the end of the movie.
+
+Fixes (GE-Proton tree `~/code/protonge`, branch for upstream, see
+IMPLEMENTATION.md §5.3):
+
+* `dlls/quartz/vmr7.c`: when the presenter refuses an RGB24 surface, retry
+  with RGB32 and expand the pixels in `vmr_render()` (Windows' VMR7 accepts
+  RGB24 input while its default presenter refuses RGB24 surfaces, as the
+  existing Wine tests show).
+* `dlls/quartz/filtergraph.c`: `GetAvailable` returns earliest 0, latest the
+  graph duration (`E_NOTIMPL`, as on Windows, when no filter can seek).
