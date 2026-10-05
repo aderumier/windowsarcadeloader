@@ -223,6 +223,9 @@ The game is started from there (cwd + `C:\wal\...\game.exe`).
   directory.
 * Hidden: profile `hide` + `System::hidden()` + `ddraw.dll`/`d3dimm.dll` for the `wine`/`d7vk`
   graphics modes (otherwise dgVoodoo in the game dir would win the DLL search).
+* `files` (profile): `<name>: <source>` files copied into the run directory next to the
+  executable in place of the game's own, like the payloads (SFZ3 gets the `config.ini` its
+  dump lacks, from `systemprofiles/nesica/files/`).
 * `exe_depth` (profile): the executable sits that many folders below the game root (The Rumble
   Fish 2: `game\Game.exe` loading `..\data`). The whole root is mirrored: folders on the way
   to the executable are real directories, everything else is linked, and the game starts in
@@ -281,7 +284,8 @@ profile), `show` (merged profile).
   doing `fopen("D:/...")` go through the CRT (Chaos Code crashed on `fseek(NULL)`, Ikaruga
   showed a storage error).
 * `patches`: `WAL_PATCHES=<rva>:<hex>,...` game code patches from the profile (keeps game
-  knowledge in profiles, e.g. WindowsLoader's per-game patches).
+  knowledge in profiles, e.g. WindowsLoader's per-game patches). `WAL_PATCHES_EXE=<file>` limits
+  them to one executable: test menus (`TestMode.exe`) load the payload too.
 * `crash`: vectored exception handler logging the first access violations: address as
   `module+offset`, registers, EBP frame chain, stack scan, and for write overruns the text
   being written (found Cosplay Mahjong's overflow of a D3DX error message).
@@ -303,6 +307,16 @@ profile), `show` (merged profile).
   `WAL_FONT_REPLACE=from=to,...` renames faces (wine only knows the Japanese family name of a
   font under a Japanese locale), `WAL_FONT_SCALE=<f>` scales the heights (the CJK font wine
   falls back to can be much larger than the original: Crimzon Clover 0.28). Logs each font.
+* `sdl`: `WAL_SDL_FULLSCREEN=1` adds `SDL_FULLSCREEN` to the game's `SDL_SetVideoMode` calls
+  (SDL 1.2, Exception).
+* `WAL_D3D9_QUERY_FIX=1`: `IDirect3DQuery9::GetData` goes through a scratch buffer and
+  copies back only the requested size. KOF '98 UMFE / 2002 UM poll an event query with
+  `GetData(&byte, 1, FLUSH)` on the first byte of their stack frame; DXVK writes the whole
+  4-byte BOOL (Windows drivers honour the size), overwriting the saved EBP: the next call used
+  EBP 0 (`QueryPerformanceCounter(0xffffffc8)`) and the game crashed after its first frame.
+* `codepage`: `WAL_ANSI_CODEPAGE=<cp>` makes the game's own `MultiByteToWideChar` /
+  `WideCharToMultiByte` calls on CP_ACP use `<cp>` (932): Raiden IV converts its Shift-JIS
+  movie name ("raiden4_ｃ50.m1v") itself.
 * `window`: `WAL_WINDOW_SIZE=WxH` forces the size of the game's top-level windows
   (`SetWindowPos`/`MoveWindow` IAT hooks, at 0,0); in window mode Direct3D stretches the back
   buffer to it (Crimzon Clover's DxLib computed a 5-million-pixel high window: X BadAlloc).
@@ -509,27 +523,33 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | nesica/daemon-bride | nesica | in fight | key bbcp |
 | nesica/do-not-fall | nesica | works (user) | D: WindowsLoader |
 | nesica/elevator-action | nesica | in game | 1280x800 |
-| nesica/en-eins-perfektewelt | nesica | renders (character select in screenshots), no picture on screen (user) | 1280x800; TODO |
+| nesica/en-eins-perfektewelt | nesica | works (user) | 1280x800, native dsound prefix (nothing on screen with wine's dsound) |
 | nesica/gouketsuji-ichizoku | nesica | works (user) | hide dgVoodoo D3D8/D3D9 |
 | nesica/hyper-street-fighter-2, street-fighter-3-3rd-strike, vampire-savior | nesica | works (user) | NESYS on (WindowsLoader disables it: "server not connected") |
-| nesica/street-fighter-zero-3 | nesica | works (user), windowed | dump lacks config.ini: copy Vampire Savior's for fullscreen |
+| nesica/street-fighter-zero-3 | nesica | works fullscreen (user) | dump lacks config.ini: Vampire Savior's installed with `files` |
 | nesica/ikaruga | nesica | in game (user) | CRT D: redirection (storage error), `fakejapanese` |
 | nesica/magical-beat | nesica | works (user) | key magicalbeat, D: WindowsLoader, WindowsLoader patch |
 | nesica/nitroplus-blasterz, persona-4-ultimax, puzzle-bobble, skullgirls-2nd-encore, space-invaders, strania, trouble-witches-ac | nesica | works (user) | see profiles (P4UU: shop hours patch) |
 | nesica/persona-4-arena | nesica | in fight (user: may crash with some characters) | key persona4arena, plaintext reply, NESYS on, shop hours patch 0x6C9D0 |
 | nesica/raiden-3 | nesica | in game (user); intro movie white | hide dinput8 |
-| nesica/raiden-4 | nesica | in game (user); intro movie white (MPEG-1 via VMR9) | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade |
+| nesica/raiden-4 | nesica | in game (user); intro movie: audio only, black video | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade, `WAL_ANSI_CODEPAGE: 932` (Shift-JIS movie name); TODO: winedmo fails to decode its raw MPEG-1 (.m1v) video (ffdshow not picked) |
 | nesica/rastan-saga | nesica | works (user) | 1280x800, hide ReShade |
 | nesica/senko-no-ronde-duo | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
 | nesica/the-rumble-fish-2 | nesica | works (user) | `exe_depth: 1` |
 | nesica/crimzon-clover | nesica | works fullscreen (user) | native dsound (own prefix: wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
-| nesica/psychic-force-2012 | nesica | black window: game2.exe never opens its I/O | run game.exe (PhyLauncher, NxL launcher stand-in); TODO |
-| nesica/tottemo-e-mahjong | nesica | crashes before creating its device (DXVK and wined3d) | run game.exe (NxL stand-in); TODO |
+| nesica/psychic-force-2012 | nesica | works (user) | run game.exe (NxL stand-in), native dsound prefix, patch 1280x768 preset -> 1280x720 |
+| nesica/tottemo-e-mahjong | nesica | works (user); test menu (TestMode.exe) crashes, TODO | run game.exe (NxL stand-in), patch 1280x768 -> 1280x800 limited to game2.exe (`WAL_PATCHES_EXE`) |
 | nesica/dragon-dance | nesica | works (user), smoke effect glitches | run game.exe (NxL stand-in), native DirectMusic/dsound prefix; d7vk, wined3d Vulkan, DDrawCompat crash |
-| nesica/homura | nesica | stuck on NOW LOADING (2 frames) | TODO |
-| nesica/exception | nesica | runs (NESYS GAME_START) but no picture (OpenGL/SDL) | TODO |
-| nesica/kof-98-umfe, kof-2002-um | nesica | crash in a WoW64 syscall after the first frame; classic 32-bit mode: no frames | TODO |
+| nesica/homura | nesica | works (user) | native dsound prefix (stuck on NOW LOADING with wine's dsound) |
+| nesica/exception | nesica | works fullscreen (user) | native dsound prefix (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
+| nesica/kof-98-umfe, kof-2002-um | nesica | works (user) | `WAL_D3D9_QUERY_FIX` (event query polled into a 1-byte variable: DXVK writes 4 bytes over the saved EBP) |
 | nesica/aquapazza | nesica | template only, game not available | - |
+
+Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
+(Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
+EN-Eins showing nothing, Psychic Force never opening its I/O): they run in
+`wine-prefix/directmusic`, which has native dsound and DirectMusic (winetricks), so the common
+prefix keeps wine's dsound for the others.
 
 NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance ship a small
 `game.exe` that creates the NESiCAxLive launcher events/shared memory/pipe (`NxLEvent_*`,

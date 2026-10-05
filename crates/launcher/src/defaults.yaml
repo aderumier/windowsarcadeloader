@@ -45,6 +45,9 @@ lib64_dirs: []
 tricks: []
 # Game files hidden from the run directory (case insensitive).
 hide: []
+# Files copied into the run directory next to the executable, in place of the game's own:
+# <name in the run directory>: <source, relative to the root> (e.g. a missing config file).
+files: {}
 # Extra environment variables of the game process (system options, wine settings).
 env: {}
 # Virtual stick -> native inputs of the system, for the payload (none = unmapped).

@@ -6,9 +6,17 @@ exe: 'Z:\userdata\roms\nesica\Tottemo E Mahjong\game.exe'
 
 # game.exe (TestModeLauncher) stands in for the NESiCAxLive launcher: it creates the NxL
 # events, shared memory and pipe, then starts "game2.exe launcher" (started directly it
-# crashes before creating its device). TestMode.exe is the test menu.
+# crashes before creating its device). TestMode.exe is the test menu: game2.exe exits with code
+# 18 when test is pressed and the stub starts it. TODO: TestMode.exe crashes.
 # Direct3D 9 game (DXVK).
 # dinput8.dll of the dump is Microsoft's: use wine's.
 hide: [dinput8.dll]
 
 # Buttons 1-4 = b1-b4 (default mapping).
+
+env:
+  # HD mode wants a 1280x768 fullscreen mode, not in Wine's list: it then creates no device and
+  # crashes. Ask 1280x800 instead (mov [height],0x300 -> 0x320).
+  WAL_PATCHES: "0x9231:2003"
+  # only in game2.exe (TestMode.exe, the test menu, loads the payload too)
+  WAL_PATCHES_EXE: game2.exe

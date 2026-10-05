@@ -4,6 +4,9 @@ system: nesica
 name: Homura
 exe: 'Z:\userdata\roms\nesica\Homura\Game.exe'
 
+# Stuck on NOW LOADING with wine's dsound: native dsound/DirectMusic, prefix of the DirectMusic games.
+prefix: wine-prefix/directmusic
+
 # Direct3D 8 game (DXVK d3d8).
 
 # Buttons A, B = b1, b2 (default mapping).
