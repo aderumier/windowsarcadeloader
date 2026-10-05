@@ -1,0 +1,14 @@
+# Senko no Ronde DUO: Dis-United Order (NESiCAxLive) - template, override values in
+# userprofiles/nesica/senko-no-ronde-duo.yaml.
+system: nesica
+name: 'Senko no Ronde DUO: Dis-United Order'
+exe: 'Z:\userdata\roms\nesica\Senko no Ronde DUO - Dis-United Order (2.35)\game.exe'
+
+# Direct3D 9 game (DXVK). No crypto key.
+# xinput1_3.dll of the dump is Microsoft's: use wine's.
+# Sound effects use XAudio2 2.6 through registration-free COM (game.exe.manifest ->
+# Dlls.XAudio2.manifest -> the dump's XAudio2_6.dll): without the manifests the game gets
+# wine's registered xaudio2_6 (FAudio).
+hide: [xinput1_3.dll, game.exe.manifest, Dlls.XAudio2.manifest, XAudio2_6.dll]
+
+# Buttons M S C A = b1-b4 (default mapping).

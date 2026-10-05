@@ -1,0 +1,11 @@
+# Gouketsuji Ichizoku: Matsuri Senzo Kuyou (NESiCAxLive) - template, override values in
+# userprofiles/nesica/gouketsuji-ichizoku.yaml.
+system: nesica
+name: 'Gouketsuji Ichizoku: Matsuri Senzo Kuyou'
+exe: 'Z:\userdata\roms\nesica\Gouketsuji Ichizoku - Matsuri Senzo Kuyou\game.exe'
+
+# Direct3D 9 game (DXVK); loads iDmacDrv32.dll at runtime (not imported).
+# D3D8.dll/D3D9.dll are dgVoodoo (DDraw/D3DImm hidden by the wine graphics mode).
+hide: [D3D8.dll, D3D9.dll]
+
+# Buttons 1-6 = b1-b6 (default mapping).

@@ -1,0 +1,10 @@
+# Exception (NESiCAxLive) - template, override values in
+# userprofiles/nesica/exception.yaml.
+system: nesica
+name: Exception
+exe: 'Z:\userdata\roms\nesica\Exception\game.exe'
+
+# OpenGL game (SDL 1.2). glu32.dll of the dump is Microsoft's: use wine's.
+hide: [glu32.dll]
+
+# Buttons 1-3 = b1-b3 (default mapping).

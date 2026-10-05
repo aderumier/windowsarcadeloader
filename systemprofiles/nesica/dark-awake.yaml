@@ -1,0 +1,19 @@
+# Dark Awake: The King Has No Name (NESiCAxLive) - template, override values in
+# userprofiles/nesica/dark-awake.yaml.
+system: nesica
+name: 'Dark Awake: The King Has No Name'
+exe: 'Z:\userdata\roms\nesica\Dark Awake - The King Has No Name\game.exe'
+
+# Direct3D 8 game (DXVK d3d8).
+# Music is DirectMusic: wine's builtin one plays nothing, native DirectMusic + DirectSound +
+# the GM DLS sound bank. Native dsound would switch every game of a prefix: own prefix.
+prefix: wine-prefix/directmusic
+tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
+# dinput8.dll, dinput.dll, dmusic.dll and dsound.dll of the dump are Microsoft's: use wine's.
+hide: [dinput8.dll, dinput.dll, dmusic.dll, dsound.dll]
+
+# Buttons 1-4 = b1-b4 (default mapping).
+
+env:
+  # The game wants 1280x768 fullscreen, not a mode Wine emulates: 1280x800, scaled to the screen.
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800

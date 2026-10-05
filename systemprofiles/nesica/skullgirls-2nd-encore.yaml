@@ -1,0 +1,15 @@
+# Skullgirls 2nd Encore (NESiCAxLive) - template, override values in
+# userprofiles/nesica/skullgirls-2nd-encore.yaml.
+system: nesica
+name: Skullgirls 2nd Encore
+exe: 'Z:\userdata\roms\nesica\SkullGirls 2nd Encore\game.exe'
+
+# Direct3D 9 game (DXVK). No crypto key.
+
+# Buttons LP MP HP / LK MK HK (FastIO btn1-btn6, as WindowsLoader): virtual top row b1-b3 =
+# punches, bottom row b5-b7 = kicks.
+native_map:
+  b4: none
+  b5: btn4
+  b6: btn5
+  b7: btn6

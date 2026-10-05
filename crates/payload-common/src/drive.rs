@@ -5,7 +5,9 @@
 //! relative to the game directory or absolute (Windows path), with a system default
 //! (`WindowsLoader`, the WindowsLoader layout, so existing saves keep working).
 //!
-//! Done with IAT hooks on the game executable, like WindowsLoader's path hooks.
+//! Done with IAT hooks on the game executable, like WindowsLoader's path hooks, and on the
+//! C runtime DLLs it has loaded: games doing `fopen("D:/...")` go through the CRT's own
+//! kernel32 imports (Chaos Code crashed on `fseek` of a NULL `FILE` otherwise).
 
 
 #![allow(non_snake_case)]
@@ -16,7 +18,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::paths::{Redirected, rewrite_drive};
 use crate::{iat, log};
-use windows_sys::Win32::System::LibraryLoader::{GetModuleFileNameA, GetModuleFileNameW};
+use windows_sys::Win32::System::LibraryLoader::{GetModuleFileNameA, GetModuleFileNameW, GetModuleHandleA};
+
+/// C runtimes whose file functions are redirected too, when loaded with the game.
+const CRT_MODULES: [&str; 9] = [
+    "msvcrt.dll", "msvcr70.dll", "msvcr71.dll", "msvcr80.dll", "msvcr90.dll", "msvcr100.dll",
+    "msvcr110.dll", "msvcr120.dll", "ucrtbase.dll",
+];
 
 struct Target {
     ansi: Vec<u8>,
@@ -98,6 +106,20 @@ macro_rules! hooks {
                     ORIG[$idx].store(o, Ordering::Relaxed);
                 }
             )*
+            for crt in CRT_MODULES {
+                let name = format!("{crt}\0");
+                let base = unsafe { GetModuleHandleA(name.as_ptr()) } as usize;
+                if base == 0 {
+                    continue;
+                }
+                log!("drive: redirecting {crt} file functions");
+                $(
+                    if let Some(o) = unsafe { iat::hook_module(base, "kernel32.dll", stringify!($name), $name as *const () as usize) } {
+                        // the CRT and the game import the same kernel32 function
+                        let _ = ORIG[$idx].compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
+                    }
+                )*
+            }
         }
     };
 }

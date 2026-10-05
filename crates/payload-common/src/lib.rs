@@ -22,6 +22,8 @@ pub mod patches;
 pub mod serial;
 #[cfg(windows)]
 pub mod screenshot;
+#[cfg(windows)]
+pub mod window;
 
 use std::io::Write;
 use std::net::TcpStream;
@@ -64,6 +66,7 @@ pub fn start(name: &'static str) {
             crash::init();
             dshow::init();
             screenshot::init();
+            window::init();
         }
         std::thread::spawn(move || connection_loop(name, port));
     });

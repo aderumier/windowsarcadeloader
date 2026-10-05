@@ -1,0 +1,15 @@
+# Street Fighter III 3rd Strike: Fight for the Future (NESiCAxLive) - template, override values in
+# userprofiles/nesica/street-fighter-3-3rd-strike.yaml.
+system: nesica
+name: 'Street Fighter III 3rd Strike: Fight for the Future'
+exe: 'Z:\userdata\roms\nesica\Street Fighter III 3rd Strike - Fight for the Future\game.exe'
+
+# Direct3D 9 game (DXVK), XAudio2. test.exe is the test menu.
+
+# Buttons LP MP HP / LK MK HK (FastIO btn1-btn6, as WindowsLoader): virtual top row b1-b3 =
+# punches, bottom row b5-b7 = kicks.
+native_map:
+  b4: none
+  b5: btn4
+  b6: btn5
+  b7: btn6

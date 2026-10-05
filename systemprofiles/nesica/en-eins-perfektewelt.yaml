@@ -1,0 +1,13 @@
+# EN-Eins Perfektewelt (NESiCAxLive) - template, override values in
+# userprofiles/nesica/en-eins-perfektewelt.yaml.
+system: nesica
+name: EN-Eins Perfektewelt
+exe: 'Z:\userdata\roms\nesica\EN-Eins Perfektewelt\game.exe'
+
+# Direct3D 9 game (DXVK). No crypto key.
+
+# Buttons 1-4 = b1-b4 (default mapping).
+
+env:
+  # The game wants 1280x768 fullscreen, not a mode Wine emulates: 1280x800, scaled to the screen.
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
