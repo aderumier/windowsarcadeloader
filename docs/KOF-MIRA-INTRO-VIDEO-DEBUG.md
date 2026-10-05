@@ -15,7 +15,7 @@ Reproduce:
 
 ```
 cd windowsarcadeloader
-timeout 240 env WAL_SCREENSHOT=5 dist/arcade-launcher run typex/king-of-fighters-maximum-impact-regulation-a
+timeout 240 env WAL_SCREENSHOT=5 dist/arcade-launcher run "games/typex2/King of Fighters Maximum Impact Regulation A"
 ```
 
 Movie window: t≈25–105 s after boot (79 s film). Crash at the movie end

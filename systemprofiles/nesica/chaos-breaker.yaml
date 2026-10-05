@@ -2,7 +2,6 @@
 # userprofiles/nesica/chaos-breaker.yaml.
 system: nesica
 name: Chaos Breaker
-exe: 'Z:\userdata\roms\nesica\Chaos Breaker\game.exe'
 
 # Direct3D 8 game (DXVK d3d8).
 # Music is DirectMusic: wine's builtin one plays nothing, native DirectMusic + DirectSound +

@@ -22,7 +22,7 @@ Reproduce:
 
 ```
 cd windowsarcadeloader
-timeout 120 env WAL_SCREENSHOT=5 dist/arcade-launcher run typex/gouketsuji-ichizoku
+timeout 120 env WAL_SCREENSHOT=5 dist/arcade-launcher run "games/typex2/Gouketsuji Ichizoku - Matsuri Senzo Kuyou"
 ```
 
 Movie attempt window: t≈55–70 s. Without a coin the attract rotates
@@ -200,14 +200,14 @@ Environment facts for the failure:
 
 ## 7. Environment quick facts
 
-- Profile: `systemprofiles/typex/gouketsuji-ichizoku.yaml` (8 lines, no
+- Profile: `systemprofiles/typex/gouketsuji-ichizoku-typex2.yaml` (8 lines, no
   backbuffer override — the game runs fine at its native 640x480).
 - Dump: `games/typex2/Gouketsuji Ichizoku - Matsuri Senzo Kuyou/` — 5 MB PE32
   `game.exe`, base 0x400000 (`.text` file 0x1000 / VMA 0x401000, `.rdata`
   0x3ef000 / 0x7ef000, `.data` 0x443000 / 0x843000); CRC 0x777df862 (=
   "Power Instinct V"); dump ships its own `D3DX9_37.dll` (Taito)
   and `debug.ini`.
-- Run dir: `wine-prefix/common/drive_c/wal/typex/gouketsuji-ichizoku/`
+- Run dir: `wine-prefix/common/drive_c/wal/typex/gouketsuji-ichizoku-typex2/`
   (`wal-typex.log` = live payload log; `shot-*.bmp`).
 - Screenshot cadence is ~8–10 s in practice with `WAL_SCREENSHOT=5`.
 - One launcher at a time (127.0.0.1:33700); prefix locale fr-FR.

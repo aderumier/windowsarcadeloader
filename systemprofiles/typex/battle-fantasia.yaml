@@ -2,7 +2,6 @@
 # in userprofiles/typex/battle-fantasia.yaml.
 system: typex
 name: Battle Fantasia
-exe: 'Z:\userdata\roms\nesica\Battle Fantasia for NesicaxLive\game.exe'
 
 # Buttons: usual layout A=Button1 B=Button4 C=Button2 D=Button5 G=Button3; virtual top
 # row b1-b4 = A B C D, b5 = G.

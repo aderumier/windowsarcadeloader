@@ -2,7 +2,6 @@
 # userprofiles/nesica/akai-katana-shin.yaml.
 system: nesica
 name: Akai Katana Shin
-exe: 'Z:\userdata\roms\nesica\Akai Katana Shin\Game.exe'
 
 # Direct3D 9 game: through DXVK (default). No crypto key.
 # Its sprite effects (Sprite_i*.cfx) are HLSL source compiled at load: Wine's d3dx9_37 fails

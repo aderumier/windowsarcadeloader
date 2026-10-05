@@ -6,7 +6,6 @@
 # so their code patches do not apply as-is.
 system: nesica
 name: Dariusburst Another Chronicle EX
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Dariusburst - Another Chronicle EX\game.exe'
 
 env:
   # encrypted data: crypto service with the Dariusburst key
@@ -21,7 +20,6 @@ env:
   # patch (same addresses in this build): isInv_RV -> 0.0f in
   # "rv = right * (isInv_RV * 1.0f - (2.0f * isInv_RV - 1.0f) * ...)".
   WAL_PATCHES: "0x5399CC:302E306620202020,0x5399E4:2A20302E306620202020202D"
-
 
 # The dump's init.ini disables JVS (6th line 0; the original init.ini.original has
 # 1): coins are then never credited. Same file with JVS on.

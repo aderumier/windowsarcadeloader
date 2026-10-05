@@ -2,7 +2,6 @@
 # userprofiles/nesica/senko-no-ronde-duo.yaml.
 system: nesica
 name: 'Senko no Ronde DUO: Dis-United Order'
-exe: 'Z:\userdata\roms\nesica\Senko no Ronde DUO - Dis-United Order (2.35)\game.exe'
 
 # Direct3D 9 game (DXVK). No crypto key.
 # xinput1_3.dll of the dump is Microsoft's: use wine's.

@@ -4,9 +4,8 @@ system: nesica
 name: Psychic Force 2012
 # game.exe (PhyLauncher) stands in for the NESiCAxLive launcher: it creates the NxL events,
 # shared memory and pipe, then starts "game2.exe launcher", which waits for them (started
-# directly it never opens its I/O). game2.exe loads our iDmacDrv32.dll from the run directory.
-# TestMode.exe is the test menu.
-exe: 'Z:\userdata\roms\nesica\Psychic Force 2012\game.exe'
+# directly it never opens its I/O): the dump's .windowsloader points to game.exe.
+# game2.exe loads our iDmacDrv32.dll from the run directory. TestMode.exe is the test menu.
 
 # Direct3D 8 game (DXVK d3d8). No crypto key.
 # Never opened its I/O with wine's dsound: native dsound/DirectMusic, prefix of the

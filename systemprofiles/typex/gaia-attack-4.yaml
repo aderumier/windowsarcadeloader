@@ -2,7 +2,6 @@
 # values in userprofiles/typex/gaia-attack-4.yaml.
 system: typex
 name: Gaia Attack 4
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Gaia Attack 4\game.exe'
 
 # Guns: the gun board (COM1) is a silent port and the guns are
 # written in the game's memory (payload guns.rs): lightgun or mouse per player,

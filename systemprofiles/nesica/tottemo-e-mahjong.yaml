@@ -2,7 +2,6 @@
 # userprofiles/nesica/tottemo-e-mahjong.yaml.
 system: nesica
 name: Tottemo E Mahjong
-exe: 'Z:\userdata\roms\nesica\Tottemo E Mahjong\game.exe'
 
 # game.exe (TestModeLauncher) stands in for the NESiCAxLive launcher: it creates the NxL
 # events, shared memory and pipe, then starts "game2.exe launcher" (started directly it

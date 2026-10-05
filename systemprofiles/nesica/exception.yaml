@@ -2,7 +2,6 @@
 # userprofiles/nesica/exception.yaml.
 system: nesica
 name: Exception
-exe: 'Z:\userdata\roms\nesica\Exception\game.exe'
 
 # No picture with wine's dsound: native dsound/DirectMusic, prefix of the DirectMusic games.
 prefix: wine-prefix/directmusic

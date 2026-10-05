@@ -2,7 +2,6 @@
 # userprofiles/typex/king-of-fighters-xiii.yaml.
 system: typex
 name: The King of Fighters XIII
-exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\The King of Fighters XIII\game.exe'
 
 # 6 buttons (b1-b6 -> btn1-b6, default mapping).
 # The game talks to Taito's crypto pipe (\\.\pipe\TtxAppCtyptPipe, served

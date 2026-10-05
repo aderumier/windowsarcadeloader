@@ -11,13 +11,9 @@
 # Emulated arcade system (nesica, ...). Required.
 system: null
 name: null
-# Game executable, Windows path: C:\... (prefix drive_c), Z:\... (unix /), or any
-# drive letter configured in the prefix dosdevices. Required.
-exe: null
+# The game executable comes from the dump: <dump>/<gameid>.windowsloader holds its path
+# relative to the dump root (the whole dump root is mirrored into the run directory).
 args: []
-# Folder levels between the game root and the executable: 1 for <game>\game\Game.exe
-# loading ..\data. The whole game root is mirrored into the run directory.
-exe_depth: 0
 
 runner: GE-Proton11-7-x86_64
 runners_dir: wine-runners

@@ -2,7 +2,6 @@
 # userprofiles/nesica/crimzon-clover.yaml.
 system: nesica
 name: Crimzon Clover
-exe: 'Z:\userdata\roms\nesica\Crimzon Clover\game.exe'
 
 # DxLib game, Direct3D 9Ex loaded at run time. No crypto key.
 # DxLib sizes its window and sound buffers from the DirectSound caps: with wine's dsound it

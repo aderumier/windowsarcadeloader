@@ -51,7 +51,7 @@ crates/
     src/news.png           NESYS news picture
     build.rs               passes the .def to the linker
 systemprofiles/<system>/<game>.yaml   game templates (shipped)
-userprofiles/<system>/<game>.yaml     user overrides (git-ignored)
+userprofiles/<system>/<gameid>.yaml   user overrides (optional, git-ignored)
 tools/fake_launcher.py     scripted stand-in for the launcher (payload tests)
 tools/scripts/             input scripts for `--input-script` (coin-start-mash.txt)
 dist/                      build output: arcade-launcher, payloads/*.dll
@@ -131,13 +131,19 @@ Layers, deep-merged in order (maps key by key, scalars/lists replaced):
 
 1. `src/defaults.yaml` (compiled in; the reference for every key)
 2. `<root>/launcher.yaml` (optional, machine wide)
-3. `<root>/systemprofiles/<rel>` (template)
-4. `<root>/userprofiles/<rel>` (user overrides)
+3. `<root>/systemprofiles/<system>/<gameid>.yaml` (template)
+4. `<root>/userprofiles/<system>/<gameid>.yaml` (user overrides, optional)
 
-`arcade-launcher <file>` accepts a file from either profiles directory: `<root>` and `<rel>` are
-derived from its path, so both layers are always merged. An id `<system>/<game>` is resolved
-against `--root` (default cwd). The merged value is deserialized with `deny_unknown_fields`,
-so typos fail loudly; `system` and `exe` are checked first for a clear error.
+Games are launched from their **dump**: `arcade-launcher <dump dir>` (or the file itself). The
+dump root holds `<gameid>.windowsloader`, a text file whose first non-comment line is the
+executable path relative to the dump root (`game.exe`, `game\Game.exe`; `/` or `\`). The game id
+(file name) selects the profile: `systemprofiles/*/<gameid>.yaml`, unique across systems (the
+Type X2 builds of games also on NESiCA are `-typex2`). Profiles carry no executable path, so the
+same profiles work wherever the dumps are. The executable's folder depth below the dump root
+replaces the former `exe_depth` (the whole dump root is mirrored into the run directory).
+`<root>` is `--root`, else the current directory, else next to the launcher binary. `show` and
+`input-test` also take a bare game id. The merged value is deserialized with
+`deny_unknown_fields`, so typos fail loudly; `system` is checked first for a clear error.
 
 Adding a profile key: add it to `defaults.yaml` (with a comment) **and** to `Profile` /
 `InputConfig`; every key needs a default in the YAML since the struct has no serde defaults.
@@ -266,8 +272,8 @@ The game is started from there (cwd + `C:\wal\...\game.exe`).
 * `files` (profile): `<name>: <source>` files copied into the run directory next to the
   executable in place of the game's own, like the payloads (SFZ3 gets the `config.ini` its
   dump lacks, from `systemprofiles/nesica/files/`).
-* `exe_depth` (profile): the executable sits that many folders below the game root (The Rumble
-  Fish 2: `game\Game.exe` loading `..\data`). The whole root is mirrored: folders on the way
+* Executable below the dump root (The Rumble Fish 2: `.windowsloader` = `game\Game.exe`, loading
+  `..\data`). The whole root is mirrored: folders on the way
   to the executable are real directories, everything else is linked, and the game starts in
   the executable's folder.
 
@@ -542,9 +548,9 @@ The payload's d3d8/d3d9 shim (`payload-common/src/screenshot.rs`) can dump the g
 buffer periodically. This is how automated/agent test runs check what is on screen:
 
 ```sh
-RUN=wine-prefix/common/drive_c/wal/typex/gouketsuji-ichizoku     # the game's run dir
+RUN=wine-prefix/common/drive_c/wal/typex/gouketsuji-ichizoku-typex2     # the game's run dir
 rm -f $RUN/shot-*.bmp
-timeout 120 env WAL_SCREENSHOT=5 dist/arcade-launcher run typex/gouketsuji-ichizoku
+timeout 120 env WAL_SCREENSHOT=5 dist/arcade-launcher run "games/typex2/Gouketsuji Ichizoku - Matsuri Senzo Kuyou"
 ls -l --time-style=+%T $RUN/shot-*.bmp                             # mtime = when it was taken
 magick $RUN/shot-0007.bmp -alpha off /tmp/shot-0007.png            # BMP -> PNG to view it
 magick $RUN/shot-*.bmp -alpha off -resize 320x +append /tmp/strip.png   # contact strip
@@ -582,7 +588,7 @@ magick $RUN/shot-*.bmp -alpha off -resize 320x +append /tmp/strip.png   # contac
 ```sh
 S=$(mktemp -d)
 python3 tools/fake_launcher.py &                       # listens on 33700
-dist/arcade-launcher systemprofiles/nesica/arcana-heart-2.yaml --dry-run 2>/dev/null \
+dist/arcade-launcher "games/nesicax/Arcana Heart 2" --dry-run 2>/dev/null \
   | grep -v '^cd ' | sed 's/^/export "/; s/$/"/' > $S/env.sh
 (cd wine-prefix/common/drive_c/wal/nesica/arcana-heart-2 && . $S/env.sh && \
   timeout 40 "$OLDPWD/wine-runners/GE-Proton11-7-x86_64/bin/wine" 'C:\wal\nesica\arcana-heart-2\game.exe')
@@ -607,52 +613,69 @@ Verified (GE-Proton11-7, WoW64 mode):
   Wine's splitter and WM ASF Reader read in file order, VLC reads ahead): remuxed once with
   `ffmpeg -c copy`, original kept as `opening.wmv.orig`. Card play to verify.
 
-Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` + screenshots):
+Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripted test
+`--input-script tools/scripts/coin-start-mash.txt` + screenshots):
 
-| Profile | System | Result | Needed |
-|---|---|---|---|
-| nesica/arcana-heart-2 | nesica | in game (user) | - |
-| nesica/arcana-heart-3-lmss | nesica | in game (user, GAME_START) | D: data in WindowsLoader |
-| nesica/kof-xiii-climax | nesica | in game, movies | key file 303002.key, crypto plaintext reply, dshow find-filter, xact, remuxed opening.wmv |
-| nesica/akai-katana-shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
-| nesica/blazblue-central-fiction | nesica | in game, NESiCA online | key bbcf, shop hours patch |
-| typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
-| typex/blazblue-calamity-trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
-| typex/chase-hq-2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | see docs/CHASE-HQ-2-BOOT-DEBUG.md: Wine sees a 5434188x5434103 X desktop (Xwayland), game sizes its window from it; analog JVS also unemulated (not drivable anyway) |
-| typex/gouketsuji-ichizoku | typex | works (user: title, demo match, attract); intro movie never plays | wal-loader, JVS (native 640x480, no override); movie blocked: VMR second wined3d GL context fails — see docs/GOUKETSUJI-INTRO-VIDEO-DEBUG.md |
-| typex/king-of-fighters-xii | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
-| typex/3d-cosplay-mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
-| typex/street-fighter-iv | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
-| typex/gaia-attack-4 | typex | boots to title (guns untested) | wal-loader, JVS (`20 01 03`, `67`), guns (`WAL_TYPEX_GUNS`, COM1/COM3 silent), `WAL_PIN_CWD`, WMV9VCM codec (`WAL_VFW_CODECS`), game patches, 1280x800 |
-| typex/senko-no-ronde-duo | typex | works (user: perfect) | wal-loader, JVS, native 1280x720, hide xinput1_3 + XAudio2_4 and its manifests (wine's xaudio2), as the NESiCA build |
-| nesica/dariusburst-another-chronicle-ex | nesica | in game, 4 players (user: credits; TODO: P1 controls reported not responding with JVS on) | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
-| nesica/chaos-breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks in own prefix `wine-prefix/directmusic` (native dsound) |
-| nesica/dark-awake | nesica | in fight | same as Chaos Breaker (same engine) |
-| nesica/chaos-code-103, -211 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
-| nesica/daemon-bride | nesica | in fight | key bbcp |
-| nesica/do-not-fall | nesica | works (user) | D: data in WindowsLoader |
-| nesica/elevator-action | nesica | in game | 1280x800 |
-| nesica/en-eins-perfektewelt | nesica | works (user) | 1280x800, native dsound prefix (nothing on screen with wine's dsound) |
-| nesica/gouketsuji-ichizoku | nesica | works (user) | hide dgVoodoo D3D8/D3D9 |
-| nesica/hyper-street-fighter-2, street-fighter-3-3rd-strike, vampire-savior | nesica | works (user) | NESYS on ("server not connected" when disabled) |
-| nesica/street-fighter-zero-3 | nesica | works fullscreen (user) | dump lacks config.ini: Vampire Savior's installed with `files` |
-| nesica/ikaruga | nesica | in game (user) | CRT D: redirection (storage error), `fakejapanese` |
-| nesica/magical-beat | nesica | works (user) | key magicalbeat, init wait patch |
-| nesica/nitroplus-blasterz, persona-4-ultimax, puzzle-bobble, skullgirls-2nd-encore, space-invaders, strania, trouble-witches-ac | nesica | works (user) | see profiles (P4UU: shop hours patch) |
-| nesica/persona-4-arena | nesica | in fight (user: may crash with some characters) | key persona4arena, plaintext reply, NESYS on, shop hours patch 0x6C9D0 |
-| nesica/raiden-3 | nesica | in game (user); intro movie black | hide dinput8; TODO: movies are uncompressed BGR24 240x320 AVIs played through amstream (`IAMMultiMediaStream`, MediaStreamFilter): AVI Decompressor is added but most connections to the media stream are refused (`VFW_E_TYPE_NOT_ACCEPTED`) |
-| nesica/raiden-4 | nesica | in game (user); intro movie: audio only, black video | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade, `WAL_ANSI_CODEPAGE: 932` (Shift-JIS movie name); TODO: black video: the game's own TEXTURERENDERER gets RGB24 from winedmo's MPEG Video Decoder, but ffmpeg rejects every packet (`Invalid frame dimensions 0x0`). GE builds ffmpeg with `--disable-everything` and no parsers, so the raw .m1v is fed in 1 KiB chunks; an ffmpeg 8.1 rebuild with `--enable-parsers` gave whole pictures (674 errors instead of 16k) but still `0x0`: not the (whole) fix, reverted |
-| nesica/rastan-saga | nesica | works (user) | 1280x800, hide ReShade |
-| nesica/senko-no-ronde-duo | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
-| nesica/the-rumble-fish-2 | nesica | works (user) | `exe_depth: 1` |
-| nesica/crimzon-clover | nesica | works fullscreen (user) | native dsound (own prefix: wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
-| nesica/psychic-force-2012 | nesica | works (user) | run game.exe (NxL stand-in), native dsound prefix, patch 1280x768 preset -> 1280x720 |
-| nesica/tottemo-e-mahjong | nesica | works (user); test menu (TestMode.exe) crashes, TODO | run game.exe (NxL stand-in), patch 1280x768 -> 1280x800 limited to game2.exe (`WAL_PATCHES_EXE`) |
-| nesica/dragon-dance | nesica | works (user), smoke effect glitches | run game.exe (NxL stand-in), native DirectMusic/dsound prefix; d7vk, wined3d Vulkan, DDrawCompat crash |
-| nesica/homura | nesica | works (user) | native dsound prefix (stuck on NOW LOADING with wine's dsound) |
-| nesica/exception | nesica | works fullscreen (user) | native dsound prefix (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
-| nesica/kof-98-umfe, kof-2002-um | nesica | works (user) | `WAL_D3D9_QUERY_FIX` (event query polled into a 1-byte variable: DXVK writes 4 bytes over the saved EBP) |
-| nesica/aquapazza | nesica | template only, game not available | - |
+| Game id | Game | System | Result | Needed |
+|---|---|---|---|---|
+| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not tested | - |
+| `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
+| `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | template only, game not available | - |
+| `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | - |
+| `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | D: data in WindowsLoader |
+| `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | key bbcf, shop hours patch |
+| `blazblue-chronophantasma` | BlazBlue Chronophantasma 2.03 | nesica | not tested | - |
+| `chaos-breaker` | Chaos Breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks in own prefix `wine-prefix/directmusic` (native dsound) |
+| `chaos-code-103` | Chaos Code: New Sign of Catastrophe 1.03 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
+| `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
+| `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user) | native dsound (own prefix: wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
+| `daemon-bride` | Daemon Bride: Additional Gain | nesica | in fight | key bbcp |
+| `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | in game, 4 players (user: credits; TODO: P1 controls reported not responding with JVS on) | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
+| `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | same as Chaos Breaker (same engine) |
+| `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | D: data in WindowsLoader |
+| `dragon-dance` | Dragon Dance | nesica | works (user), smoke effect glitches | run game.exe (NxL stand-in), native DirectMusic/dsound prefix; d7vk, wined3d Vulkan, DDrawCompat crash |
+| `elevator-action` | Elevator Action Death Parade | nesica | in game | 1280x800 |
+| `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | 1280x800, native dsound prefix (nothing on screen with wine's dsound) |
+| `exception` | Exception | nesica | works fullscreen (user) | native dsound prefix (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
+| `gouketsuji-ichizoku` | Gouketsuji Ichizoku: Matsuri Senzo Kuyou | nesica | works (user) | hide dgVoodoo D3D8/D3D9 |
+| `homura` | Homura | nesica | works (user) | native dsound prefix (stuck on NOW LOADING with wine's dsound) |
+| `hyper-street-fighter-2` | Hyper Street Fighter II: The Anniversary Edition | nesica | works (user) | NESYS on ("server not connected" when disabled) |
+| `ikaruga` | Ikaruga | nesica | in game (user) | CRT D: redirection (storage error), `fakejapanese` |
+| `kof-2002-um` | The King of Fighters 2002 Unlimited Match | nesica | works (user) | `WAL_D3D9_QUERY_FIX` (event query polled into a 1-byte variable: DXVK writes 4 bytes over the saved EBP) |
+| `kof-98-umfe` | The King of Fighters '98 Ultimate Match Final Edition | nesica | works (user) | `WAL_D3D9_QUERY_FIX` (event query polled into a 1-byte variable: DXVK writes 4 bytes over the saved EBP) |
+| `kof-xiii-climax` | The King of Fighters XIII Climax | nesica | in game, movies | key file 303002.key, crypto plaintext reply, dshow find-filter, xact, remuxed opening.wmv |
+| `magical-beat` | Magical Beat | nesica | works (user) | key magicalbeat, init wait patch |
+| `nitroplus-blasterz` | Nitroplus Blasterz: Heroines Infinite Duel | nesica | works (user) | - |
+| `persona-4-arena` | Persona 4 The Ultimate in Mayonaka Arena | nesica | in fight (user: may crash with some characters) | key persona4arena, plaintext reply, NESYS on, shop hours patch 0x6C9D0 |
+| `persona-4-ultimax` | Persona 4 The Ultimax Ultra Suplex Hold | nesica | works (user) | shop hours patch |
+| `psychic-force-2012` | Psychic Force 2012 | nesica | works (user) | run game.exe (NxL stand-in), native dsound prefix, patch 1280x768 preset -> 1280x720 |
+| `puzzle-bobble` | Puzzle Bobble | nesica | works (user) | - |
+| `raiden-3` | Raiden III | nesica | in game (user); intro movie black | hide dinput8; TODO: movies are uncompressed BGR24 240x320 AVIs played through amstream (`IAMMultiMediaStream`, MediaStreamFilter): AVI Decompressor is added but most connections to the media stream are refused (`VFW_E_TYPE_NOT_ACCEPTED`) |
+| `raiden-4` | Raiden IV | nesica | in game (user); intro movie: audio only, black video | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade, `WAL_ANSI_CODEPAGE: 932` (Shift-JIS movie name); TODO: black video: the game's own TEXTURERENDERER gets RGB24 from winedmo's MPEG Video Decoder, but ffmpeg rejects every packet (`Invalid frame dimensions 0x0`). GE builds ffmpeg with `--disable-everything` and no parsers, so the raw .m1v is fed in 1 KiB chunks; an ffmpeg 8.1 rebuild with `--enable-parsers` gave whole pictures (674 errors instead of 16k) but still `0x0`: not the (whole) fix, reverted |
+| `rastan-saga` | Rastan Saga | nesica | works (user) | 1280x800, hide ReShade |
+| `senko-no-ronde-duo` | Senko no Ronde DUO: Dis-United Order | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
+| `skullgirls-2nd-encore` | Skullgirls 2nd Encore | nesica | works (user) | - |
+| `space-invaders` | Space Invaders | nesica | works (user) | - |
+| `strania` | Strania: The Stella Machina | nesica | works (user) | - |
+| `street-fighter-3-3rd-strike` | Street Fighter III 3rd Strike: Fight for the Future | nesica | works (user) | NESYS on ("server not connected" when disabled) |
+| `street-fighter-zero-3` | Street Fighter Zero 3 | nesica | works fullscreen (user) | dump lacks config.ini: Vampire Savior's installed with `files` |
+| `the-rumble-fish-2` | The Rumble Fish 2 | nesica | works (user) | `.windowsloader`: `game\Game.exe` (loads `..\data`) |
+| `tottemo-e-mahjong` | Tottemo E Mahjong | nesica | works (user); test menu (TestMode.exe) crashes, TODO | run game.exe (NxL stand-in), patch 1280x768 -> 1280x800 limited to game2.exe (`WAL_PATCHES_EXE`) |
+| `trouble-witches-ac` | Trouble Witches AC: Amalgam no Joutachi | nesica | works (user) | - |
+| `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | not tested | - |
+| `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | NESYS on ("server not connected" when disabled) |
+| `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
+| `battle-fantasia` | Battle Fantasia | typex | in fight | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
+| `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
+| `chase-hq-2` | Chase H.Q. 2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | see docs/CHASE-HQ-2-BOOT-DEBUG.md: Wine sees a 5434188x5434103 X desktop (Xwayland), game sizes its window from it; analog JVS also unemulated (not drivable anyway) |
+| `gaia-attack-4` | Gaia Attack 4 | typex | boots to title (guns untested) | wal-loader, JVS (`20 01 03`, `67`), guns (`WAL_TYPEX_GUNS`, COM1/COM3 silent), `WAL_PIN_CWD`, WMV9VCM codec (`WAL_VFW_CODECS`), game patches, 1280x800 |
+| `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: title, demo match, attract); intro movie never plays | wal-loader, JVS (native 640x480, no override); movie blocked: VMR second wined3d GL context fails — see docs/GOUKETSUJI-INTRO-VIDEO-DEBUG.md |
+| `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works, intro movie (user); intermittent crash at the movie end | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |
+| `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
+| `king-of-fighters-xiii` | The King of Fighters XIII | typex | not tested | - |
+| `music-gungun-2` | Music GunGun! 2 | typex | BLOCKED: "Direct3D device enumeration failed" message box | wal-loader, JVS, guns (`WAL_TYPEX_GUNS`), `WAL_PIN_CWD`, patch 0x137C70 |
+| `senko-no-ronde-duo-typex2` | Senko no Ronde DUO: Dis-United Order | typex | works (user: perfect) | wal-loader, JVS, native 1280x720, hide xinput1_3 + XAudio2_4 and its manifests (wine's xaudio2), as the NESiCA build |
+| `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

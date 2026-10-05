@@ -2,7 +2,6 @@
 # userprofiles/nesica/dragon-dance.yaml.
 system: nesica
 name: Dragon Dance
-exe: 'Z:\userdata\roms\nesica\Dragon Dance\game.exe'
 
 # game.exe (NxL_DD_Check) stands in for the NESiCAxLive launcher: it creates the NxL events,
 # shared memory and pipe, then starts "game_liong.exe -s" (started directly it exits).

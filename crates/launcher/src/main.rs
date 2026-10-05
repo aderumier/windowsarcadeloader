@@ -26,14 +26,16 @@ use wal_protocol::{InputFrame, env};
 
 const USAGE: &str = "\
 usage:
-  arcade-launcher [run] <profile> [--root DIR] [--dry-run] [--input-script FILE]
-      Launch a game. <profile> is a YAML file in systemprofiles/ or userprofiles/
-      (both layers are merged), or an id <system>/<game> looked up in --root
-      (default: current directory). --input-script replays timed virtual stick
-      inputs (`<seconds> p<N> <inputs...>` per line, `-` releases), for tests.
-  arcade-launcher input-test [<profile>] [--root DIR]
+  arcade-launcher [run] <dump> [--root DIR] [--dry-run] [--input-script FILE]
+      Launch a game. <dump> is a game dump directory holding a <gameid>.windowsloader
+      file (the executable path relative to the dump root), or that file. The game id
+      selects systemprofiles/<system>/<gameid>.yaml, merged with userprofiles/.
+      --root: where systemprofiles/ is (default: the current directory, else next to
+      the launcher). --input-script replays timed virtual stick inputs
+      (`<seconds> p<N> <inputs...>` per line, `-` releases), for tests.
+  arcade-launcher input-test [<dump> | <gameid>] [--root DIR]
       Print the virtual arcade sticks while you press buttons.
-  arcade-launcher show <profile> [--root DIR]
+  arcade-launcher show <dump> | <gameid> [--root DIR]
       Print the merged profile.";
 
 struct Args {
@@ -82,7 +84,7 @@ fn main() {
 fn real_main() -> Result<()> {
     let args = parse_args()?;
     let load = || -> Result<Profile> {
-        let p = args.profile.as_deref().with_context(|| format!("missing <profile>\n{USAGE}"))?;
+        let p = args.profile.as_deref().with_context(|| format!("missing <dump>\n{USAGE}"))?;
         Profile::load(p, args.root.as_deref())
     };
     match args.command.as_str() {
@@ -151,6 +153,9 @@ fn input_test(profile: &Profile) -> Result<()> {
 }
 
 fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Result<()> {
+    if profile.exe.is_empty() {
+        bail!("{}: launch a game from its dump (directory or <gameid>.windowsloader file)\n{USAGE}", profile.id);
+    }
     let system = systems::by_name(&profile.system)?;
     let mut wine = wine::Wine::new(profile, dry_run)?;
 

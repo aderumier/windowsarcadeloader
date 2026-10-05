@@ -32,7 +32,7 @@ Output (player, id, value).
 ### Game profiles (YAML)
 
 `crates/launcher/src/defaults.yaml` (every key documented) <- `launcher.yaml` (optional) <-
-`systemprofiles/<system>/<game>.yaml` (template) <- `userprofiles/<system>/<game>.yaml` (user), deep
+`systemprofiles/<system>/<gameid>.yaml` (template) <- `userprofiles/<system>/<gameid>.yaml` (user), deep
 merged. `exe` is a Windows path (`Z:\...`, `C:\...`). Run: `arcade-launcher <profile.yaml>`.
 
 ## Injection: per-system "best" strategy
@@ -110,8 +110,8 @@ rustup (in ~/.cargo, not in the shell PATH: build.sh adds it) with `i686-pc-wind
 
 ```
 ./build.sh                                              # dist/arcade-launcher + dist/payloads/
-dist/arcade-launcher systemprofiles/nesica/arcana-heart-2.yaml            # play
-dist/arcade-launcher systemprofiles/nesica/arcana-heart-2.yaml --dry-run  # env + command only
+dist/arcade-launcher "games/nesicax/Arcana Heart 2"            # play (dump directory)
+dist/arcade-launcher "games/nesicax/Arcana Heart 2" --dry-run  # env + command only
 dist/arcade-launcher input-test [profile]               # show the virtual sticks live
 dist/arcade-launcher show <profile>                     # merged profile
 WINEDEBUG=+loaddll,err+all dist/arcade-launcher <profile>                 # wine debug channels

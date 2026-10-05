@@ -2,7 +2,6 @@
 # userprofiles/nesica/kof-xiii-climax.yaml.
 system: nesica
 name: The King of Fighters XIII Climax
-exe: 'Z:\userdata\roms\nesica\The King of Fighters XIII Climax (nesica)\game.exe'
 
 # Direct3D 9 game: through DXVK (default).
 
