@@ -8,15 +8,17 @@
 //! * `W:\` redirected to the game directory (the cabinet runs the game from `subst W: .`):
 //!   `WAL_GLOBALVR_WDRIVE`, default `.`.
 //! * `g_arcadeError` of `systemcfg.lua` reset at load (`WAL_GLOBALVR_CLEAR_ERRORS=0` keeps it).
-//! * `hasp.rs`: the game's HASP4 dongle calls (`record` feature: log an existing emulation's answers).
+//! * `hasp.rs`: the game's HASP4 dongle calls.
+//! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
+//! * `gamelog.rs`: the game's own messages in the payload log (`WAL_GLOBALVR_GAMELOG=1`).
 //! * Profile code patches (`WAL_PATCHES`).
 
 #![allow(non_snake_case)]
-// recording builds leave the emulation out
-#![cfg_attr(feature = "record", allow(dead_code, unused_imports))]
 
 mod config;
+mod gamelog;
 mod hasp;
+mod keyboard;
 mod usbio;
 
 use std::ffi::c_void;
@@ -32,16 +34,14 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("globalvr");
         patches::apply();
-        // recording builds run under another dongle emulation: only log, change nothing else
-        #[cfg(not(feature = "record"))]
-        {
-            drive::init_letter(b'W', "WAL_GLOBALVR_WDRIVE", ".");
-            if std::env::var("WAL_GLOBALVR_CLEAR_ERRORS").map_or(true, |v| v != "0") {
-                config::clear_errors();
-            }
+        drive::init_letter(b'W', "WAL_GLOBALVR_WDRIVE", ".");
+        if std::env::var("WAL_GLOBALVR_CLEAR_ERRORS").map_or(true, |v| v != "0") {
+            config::clear_errors();
         }
         usbio::init();
         hasp::init();
+        keyboard::init();
+        gamelog::init();
         log!("globalvr: initialized");
     }
     TRUE

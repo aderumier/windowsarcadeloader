@@ -17,7 +17,13 @@ env:
   # The game wants to run from W: (the cabinet's RunMe.bat does `subst W: .`) and stops on a
   # "You are not running under W drive!" message box otherwise: the payload redirects its
   # w:\ paths, skip the _getdrive() check (je -> jmp).
-  WAL_PATCHES: "0x1C89:EB"
+  # The payload answers the HASP4 dongle (game PARLST 1.0), but with it present the boot and
+  # level-start dongle checks still show "IncorrectDongle": skip them (jne -> jmp at 0x5cbc57,
+  # 0x5cbc68 and 0x5ceef0, je -> nop at 0x5cc4af).
+  # The PC mouse is FPS mouse look in levels: its update is removed from the input manager
+  # (0x7af9a1, the guns are updated there too). The game reads the USBIO board's version over
+  # HID and raises arcade error 0x400 ("n/a"): je -> nop at 0x7af4b6.
+  WAL_PATCHES: "0x1C89:EB,0x1CBC57:EB,0x1CBC68:EB,0x1CC4AF:9090,0x1CEEF0:EB,0x3AF9A1:909090909090909090909090909090909090,0x3AF4B6:9090"
   # systemcfg.lua asks a 1920x1080 window (r_Fullscreen = "0"): fullscreen device instead.
   WAL_D3D9_FULLSCREEN: "1"
 
@@ -26,32 +32,9 @@ input:
   guns_enabled: true
   # the gun position must not press the d-pad
   stick_as_dpad: false
-  # The game reads the keyboard itself (DirectInput): 5 test, 6 service, 1 2 9 A B X Y F4 F8
-  # Ctrl Shift debug keys, G god mode, K kill self, H reset high scores, and C crashes the game
-  # on purpose (writes to address 0). The default keys on them are moved:
-  #   P1: 7 coin, Enter start, Space trigger, Left Alt grenade
-  #   P2: 8 coin, keypad Enter start (aim and fire with the second gun or mouse)
-  keyboard:
-    p1:
-      KEY_1: none
-      KEY_5: none
-      KEY_9: none
-      KEY_C: none
-      KEY_X: none
-      KEY_LEFTCTRL: none
-      KEY_LEFTSHIFT: none
-      KEY_7: coin
-      KEY_ENTER: start
-      KEY_SPACE: b1
-      KEY_LEFTALT: b2
-    p2:
-      KEY_2: none
-      KEY_6: none
-      KEY_A: none
-      KEY_G: none
-      KEY_K: none
-      KEY_8: coin
-      KEY_KPENTER: start
+  # The game's own keyboard (operator keys, plus the console game's controls and debug keys)
+  # only sees the virtual sticks' operator buttons (payload keyboard.rs): default keys, F2
+  # test (open / select), 9 service, arrows up / down in the test menu.
 
 # Gun axes are sent as 1..255: calibration for that range (the dump's was made for its
 # DirectInput setup, 0..2000). The game rewrites it when calibrating from the test menu.
