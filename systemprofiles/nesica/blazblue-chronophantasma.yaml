@@ -1,0 +1,13 @@
+# BlazBlue Chronophantasma 2.03 (NESiCAxLive) - template, override values in
+# userprofiles/nesica/blazblue-chronophantasma.yaml.
+system: nesica
+name: BlazBlue Chronophantasma 2.03
+exe: 'Z:\userdata\roms\nesica\BlazBlue Chronophantasma (2.03)\game.exe'
+
+# Direct3D 9 game (DXVK), XAudio2.
+
+# Buttons A B C D = b1-b4 (default mapping).
+
+env:
+  # encrypted data: crypto service with the BlazBlue Chronophantasma key
+  WAL_NESICA_KEY: bbcp
