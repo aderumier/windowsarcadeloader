@@ -129,6 +129,30 @@ input:
       KEY_2: start
       KEY_6: coin
 
+  # Lightguns and mice aiming like guns (as batocera-wine-guns), for gun games: guns (udev
+  # ID_INPUT_GUN=1, or absolute pointers) take players 1, 2... in device order, then mice
+  # (guns_mouse) the remaining players. Not grabbed: the game still sees them as X11 mice.
+  guns_enabled: false
+  guns_mouse: true
+  # Mouse motion: a virtual screen of this many pixels spans the whole axis.
+  mouse_screen: [1920, 1080]
+  # Gun/mouse -> virtual stick of its player. Sources: x y (position, -32768 left/top ..
+  # 32767), offscreen (gun pointing off the screen), evdev buttons (BTN_LEFT...).
+  # Lightgun buttons as batocera-wine-guns: BTN_LEFT trigger, BTN_RIGHT action, BTN_MIDDLE
+  # start, BTN_1 coin, BTN_5-8 d-pad. Profiles of gun games usually set stick_as_dpad: false.
+  gun:
+    x: lx
+    y: ly
+    BTN_LEFT: b1
+    BTN_RIGHT: b2
+    BTN_MIDDLE: start
+    BTN_1: coin
+    BTN_2: b3
+    BTN_5: up
+    BTN_6: down
+    BTN_7: left
+    BTN_8: right
+
   # Devices with their own mapping, by case insensitive substring of the SDL name.
   # Wheels and other non-gamepad joysticks are only used when listed here, with raw
   # sources: button0, axis1, +axis2/-axis2 (one half), hat0up/down/left/right.

@@ -1,4 +1,5 @@
-//! Physical input devices: SDL3 gamepads/joysticks/wheels and evdev keyboards.
+//! Physical input devices: SDL3 gamepads/joysticks/wheels, evdev keyboards, lightguns and
+//! mice (`guns.rs`).
 //!
 //! Every device is a [`DeviceState`] bound to a player; the hub merges them into the
 //! virtual arcade sticks.
@@ -15,12 +16,14 @@ use sdl3::{GamepadSubsystem, JoystickSubsystem};
 use wal_protocol::{InputFrame, MAX_PLAYERS};
 
 use crate::config::Profile;
+use crate::guns::{self, PointerEvent};
 use crate::mapping::{self, DeviceState, Mapping, RawKey, Source};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum DevKey {
     Sdl(u32),
     Keyboard(usize),
+    Pointer(usize),
 }
 
 enum Handle {
@@ -39,6 +42,7 @@ pub struct Hub<'a> {
     joysticks: JoystickSubsystem,
     pump: sdl3::EventPump,
     keys: Option<Receiver<(u16, i32)>>,
+    pointers: Option<Receiver<PointerEvent>>,
     pub exit_requested: bool,
     /// Print device events (input test mode).
     pub verbose: bool,
@@ -72,6 +76,23 @@ impl<'a> Hub<'a> {
             None
         };
 
+        let pointers = if config.input.guns_enabled {
+            let m = mapping::compile(&config.input.gun, mapping::parse_gun_source).context("input.gun")?;
+            let (tx, rx) = channel();
+            let found = guns::start(config.input.guns_mouse, config.input.mouse_screen, tx);
+            if found.is_empty() {
+                eprintln!("input: no lightgun or mouse found");
+            }
+            for (i, p) in found.iter().enumerate() {
+                let kind = if p.is_gun { "lightgun" } else { "mouse" };
+                eprintln!("input: {kind} '{}' ({}) -> player {}", p.name, p.path.display(), p.player + 1);
+                devices.insert(DevKey::Pointer(i), DeviceState::new(p.player, m.clone()));
+            }
+            Some(rx)
+        } else {
+            None
+        };
+
         // gamepads/wheels are read in the background while the game window has the focus
         sdl3::hint::set("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
         let sdl = sdl3::init().map_err(|e| anyhow::anyhow!("SDL init: {e}"))?;
@@ -90,6 +111,7 @@ impl<'a> Hub<'a> {
             joysticks,
             pump,
             keys,
+            pointers,
             exit_requested: false,
             verbose: false,
         })
@@ -110,6 +132,14 @@ impl<'a> Hub<'a> {
                     if matches!(key, DevKey::Keyboard(_)) {
                         dev.raw.insert(RawKey::Key(code), value);
                     }
+                }
+            }
+        }
+        if let Some(rx) = &self.pointers {
+            let pending: Vec<_> = rx.try_iter().collect();
+            for (index, key, value) in pending {
+                if let Some(dev) = self.devices.get_mut(&DevKey::Pointer(index)) {
+                    dev.raw.insert(key, value);
                 }
             }
         }

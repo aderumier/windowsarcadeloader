@@ -23,7 +23,12 @@ pub enum RawKey {
     JoyButton(u8),
     JoyAxis(u8),
     JoyHat(u8),
+    /// evdev keys and buttons (keyboards, gun and mouse buttons).
     Key(u16),
+    /// Gun/mouse position: 0 = x, 1 = y (-32768 left/top..=32767).
+    GunAxis(u8),
+    /// Gun pointing off the screen (0/1).
+    GunOffscreen,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -151,6 +156,16 @@ pub fn parse_joy_source(name: &str) -> Option<Source> {
 pub fn parse_key_source(name: &str) -> Option<Source> {
     let code: evdev::KeyCode = name.to_ascii_uppercase().parse().ok()?;
     Some(Source { key: RawKey::Key(code.code()), range: Range::Digital(1) })
+}
+
+/// Gun and mouse source names: `x`, `y` (position), `offscreen`, evdev buttons (`BTN_LEFT`).
+pub fn parse_gun_source(name: &str) -> Option<Source> {
+    Some(match name.to_ascii_lowercase().as_str() {
+        "x" => Source { key: RawKey::GunAxis(0), range: Range::Full },
+        "y" => Source { key: RawKey::GunAxis(1), range: Range::Full },
+        "offscreen" => Source { key: RawKey::GunOffscreen, range: Range::Digital(1) },
+        _ => return parse_key_source(name),
+    })
 }
 
 pub fn parse_target(name: &str) -> Option<Target> {
@@ -343,5 +358,23 @@ mod tests {
         assert_eq!(parse_target("-ly"), Some(Target::Axis { axis: Axis::LeftY, invert: true }));
         assert_eq!(parse_target("b8"), Some(Target::Button(button::B8)));
         assert!(parse_target("b9").is_none());
+    }
+
+    #[test]
+    fn gun_sources() {
+        let table: MapTable = [("x", "lx"), ("y", "ly"), ("BTN_LEFT", "b1"), ("offscreen", "b4")]
+            .iter()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect();
+        let mut dev = DeviceState::new(0, compile(&table, parse_gun_source).unwrap());
+        dev.raw.insert(RawKey::GunAxis(0), -32768);
+        dev.raw.insert(RawKey::GunAxis(1), 12345);
+        dev.raw.insert(RawKey::Key(evdev::KeyCode::BTN_LEFT.code()), 1);
+        dev.raw.insert(RawKey::GunOffscreen, 1);
+        let c = dev.contribution(8000);
+        assert_eq!(c.axis(Axis::LeftX), -32768);
+        assert_eq!(c.axis(Axis::LeftY), 12345);
+        assert_eq!(c.buttons, button::B1 | button::B4);
+        assert!(parse_gun_source("BTN_MIDDLE").is_some());
     }
 }

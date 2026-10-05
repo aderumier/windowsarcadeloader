@@ -1,0 +1,8 @@
+; Exports of USBIOExtreme.dll the game imports (by name), MSVC mangled C++ methods of CUSBIO.
+EXPORTS
+    "??0CUSBIO@@QAE@XZ" = cusbio_new
+    "??1CUSBIO@@QAE@XZ" = cusbio_drop
+    "?CUSBIO_Init@CUSBIO@@QAEHXZ" = cusbio_init
+    "?CUSBIO_Update@CUSBIO@@QAEXH@Z" = cusbio_update
+    "?CUSBIO_GetLastError@CUSBIO@@QAEPADH@Z" = cusbio_last_error
+    "?CUSBIO_Close@CUSBIO@@QAEXXZ" = cusbio_close
