@@ -5,6 +5,7 @@
 //! runs the game with a wine runner.
 
 mod config;
+mod guns;
 mod input;
 mod mapping;
 mod rundir;

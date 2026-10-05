@@ -70,6 +70,10 @@ pub struct InputConfig {
     pub gamepad: MapTable,
     pub keyboard_enabled: bool,
     pub keyboard: BTreeMap<String, MapTable>,
+    pub guns_enabled: bool,
+    pub guns_mouse: bool,
+    pub mouse_screen: [u32; 2],
+    pub gun: MapTable,
     pub devices: BTreeMap<String, DeviceConfig>,
 }
 

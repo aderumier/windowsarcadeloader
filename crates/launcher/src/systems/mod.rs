@@ -1,6 +1,7 @@
 //! Emulated arcade systems: what each one needs on the Linux side. The in-game part is the
 //! matching `payload-<system>` crate; both only share the common protocol.
 
+mod globalvr;
 mod nesica;
 mod typex;
 
@@ -38,6 +39,7 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
     Ok(match name.to_ascii_lowercase().as_str() {
         "nesica" | "nesicax" | "nesicaxlive" => Box::new(nesica::Nesica),
         "typex" | "typex2" => Box::new(typex::TypeX),
-        _ => bail!("unknown system '{name}' (supported: nesica, typex)"),
+        "globalvr" => Box::new(globalvr::GlobalVr),
+        _ => bail!("unknown system '{name}' (supported: nesica, typex, globalvr)"),
     })
 }

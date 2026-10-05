@@ -1,0 +1,59 @@
+# Far Cry Paradise Lost (Global VR, WindowsLoader dump) - template, override values in
+# userprofiles/globalvr/farcry-paradise-lost.yaml.
+system: globalvr
+name: Far Cry Paradise Lost
+exe: 'Z:\userdata\roms\WindowsLoader\FarCry Paradise Lost\FarCry_r.exe'
+
+# CryEngine 1, Direct3D 9 (DXVK). The USBIO board (USBIOExtreme.dll) is replaced by the
+# payload: both guns, panel buttons and coins.
+
+# With wine's builtin DirectSound the game computes a window ~5.4 million pixels high (as
+# Crimzon Clover) and nothing shows, and there is no sound: native dsound prefix, shared with
+# the DirectMusic games.
+prefix: wine-prefix/directmusic
+tricks: [dsound]
+
+env:
+  # The game wants to run from W: (the cabinet's RunMe.bat does `subst W: .`) and stops on a
+  # "You are not running under W drive!" message box otherwise: the payload redirects its
+  # w:\ paths, skip the _getdrive() check (je -> jmp).
+  WAL_PATCHES: "0x1C89:EB"
+  # systemcfg.lua asks a 1920x1080 window (r_Fullscreen = "0"): fullscreen device instead.
+  WAL_D3D9_FULLSCREEN: "1"
+
+input:
+  # lightguns first, then mice
+  guns_enabled: true
+  # the gun position must not press the d-pad
+  stick_as_dpad: false
+  # The game reads the keyboard itself (DirectInput): 5 test, 6 service, 1 2 9 A B X Y F4 F8
+  # Ctrl Shift debug keys, G god mode, K kill self, H reset high scores, and C crashes the game
+  # on purpose (writes to address 0). The default keys on them are moved:
+  #   P1: 7 coin, Enter start, Space trigger, Left Alt grenade
+  #   P2: 8 coin, keypad Enter start (aim and fire with the second gun or mouse)
+  keyboard:
+    p1:
+      KEY_1: none
+      KEY_5: none
+      KEY_9: none
+      KEY_C: none
+      KEY_X: none
+      KEY_LEFTCTRL: none
+      KEY_LEFTSHIFT: none
+      KEY_7: coin
+      KEY_ENTER: start
+      KEY_SPACE: b1
+      KEY_LEFTALT: b2
+    p2:
+      KEY_2: none
+      KEY_6: none
+      KEY_A: none
+      KEY_G: none
+      KEY_K: none
+      KEY_8: coin
+      KEY_KPENTER: start
+
+# Gun axes are sent as 1..255: calibration for that range (the dump's was made for its
+# DirectInput setup, 0..2000). The game rewrites it when calibrating from the test menu.
+files:
+  arcade_calibration.txt: systemprofiles/globalvr/files/farcry-paradise-lost/arcade_calibration.txt

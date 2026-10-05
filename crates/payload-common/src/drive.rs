@@ -1,9 +1,10 @@
 //! Redirects the game's `D:\` accesses (arcade cabinets keep their data on drive D:) to a
-//! folder of the game directory, so the Wine prefix needs no D: drive.
+//! folder of the game directory, so the Wine prefix needs no D: drive. Other letters work the
+//! same ([`init_letter`]: Global VR games run from a `subst W: .` drive).
 //!
 //! The folder is given by a system-specific environment variable (e.g. `WAL_NESICA_DDRIVE`),
-//! relative to the game directory or absolute (Windows path), with a system default
-//! (`WindowsLoader`, the WindowsLoader layout, so existing saves keep working).
+//! relative to the game directory (`.`: the game directory itself) or absolute (Windows path),
+//! with a system default (`WindowsLoader`, the WindowsLoader layout, so existing saves keep working).
 //!
 //! Done with IAT hooks on the game executable, like WindowsLoader's path hooks, and on the
 //! C runtime DLLs it has loaded: games doing `fopen("D:/...")` go through the CRT's own
@@ -32,12 +33,22 @@ struct Target {
 }
 
 static TARGET: OnceLock<Target> = OnceLock::new();
-static CONFIG: OnceLock<(String, String)> = OnceLock::new();
+struct Config {
+    letter: u8,
+    var: String,
+    default: String,
+}
+
+static CONFIG: OnceLock<Config> = OnceLock::new();
+
+fn letter() -> u8 {
+    CONFIG.get().map_or(b'D', |c| c.letter)
+}
 
 fn target() -> &'static Target {
     TARGET.get_or_init(|| {
-        let (var, default) = CONFIG.get().cloned().unwrap_or_else(|| ("WAL_DDRIVE".into(), "WindowsLoader".into()));
-        let folder = std::env::var(&var).unwrap_or(default);
+        let (var, default) = CONFIG.get().map_or(("WAL_DDRIVE", "WindowsLoader"), |c| (&c.var, &c.default));
+        let folder = std::env::var(var).unwrap_or_else(|_| default.to_string());
         let absolute = folder.contains(':') || folder.starts_with('\\');
         let mut ansi = vec![0u8; 1024];
         let mut wide = vec![0u16; 1024];
@@ -51,18 +62,21 @@ fn target() -> &'static Target {
             ansi.clear();
             wide.clear();
         } else {
-            // keep the directory with its trailing separator
-            ansi.truncate(ansi.iter().rposition(|c| *c == b'\\').map_or(0, |i| i + 1));
-            wide.truncate(wide.iter().rposition(|c| *c == b'\\' as u16).map_or(0, |i| i + 1));
+            // the directory, with its trailing separator unless it is the target itself
+            let keep = if folder == "." { 0 } else { 1 };
+            ansi.truncate(ansi.iter().rposition(|c| *c == b'\\').map_or(0, |i| i + keep));
+            wide.truncate(wide.iter().rposition(|c| *c == b'\\' as u16).map_or(0, |i| i + keep));
         }
-        ansi.extend_from_slice(folder.as_bytes());
-        wide.extend(folder.encode_utf16());
-        log!("drive: D:\\ redirected to {}", String::from_utf16_lossy(&wide));
+        if folder != "." {
+            ansi.extend_from_slice(folder.as_bytes());
+            wide.extend(folder.encode_utf16());
+        }
+        log!("drive: {}:\\ redirected to {}", letter() as char, String::from_utf16_lossy(&wide));
         Target { ansi, wide }
     })
 }
 
-/// Creates the D: data folder.
+/// Creates the data folder.
 fn prepare_data_dir() {
     let dir = data_dir();
     if let Err(e) = std::fs::create_dir_all(&dir) {
@@ -70,17 +84,17 @@ fn prepare_data_dir() {
     }
 }
 
-/// Windows path of the folder holding the game's D: data.
+/// Windows path of the folder holding the redirected drive's data.
 pub fn data_dir() -> String {
     String::from_utf16_lossy(&target().wide)
 }
 
 fn ansi(p: *const u8) -> Redirected<u8> {
-    unsafe { rewrite_drive(p, b'D', &target().ansi) }
+    unsafe { rewrite_drive(p, letter(), &target().ansi) }
 }
 
 fn wide(p: *const u16) -> Redirected<u16> {
-    unsafe { rewrite_drive(p, b'D', &target().wide) }
+    unsafe { rewrite_drive(p, letter(), &target().wide) }
 }
 
 const COUNT: usize = 26;
@@ -97,9 +111,14 @@ macro_rules! hooks {
             }
         )*
 
-        /// Installs the redirection; `var` names the folder variable, `default` its default.
+        /// Installs the `D:` redirection; `var` names the folder variable, `default` its default.
         pub fn init(var: &str, default: &str) {
-            let _ = CONFIG.set((var.to_string(), default.to_string()));
+            init_letter(b'D', var, default)
+        }
+
+        /// Installs the redirection of drive `letter`.
+        pub fn init_letter(letter: u8, var: &str, default: &str) {
+            let _ = CONFIG.set(Config { letter: letter.to_ascii_uppercase(), var: var.to_string(), default: default.to_string() });
             prepare_data_dir();
             $(
                 if let Some(o) = unsafe { iat::hook("kernel32.dll", stringify!($name), $name as *const () as usize) } {

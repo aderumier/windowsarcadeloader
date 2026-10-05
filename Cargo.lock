@@ -325,6 +325,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-payload-globalvr"
+version = "0.1.0"
+dependencies = [
+ "wal-payload-common",
+ "wal-protocol",
+ "windows-sys",
+]
+
+[[package]]
 name = "wal-payload-nesica"
 version = "0.1.0"
 dependencies = [

@@ -6,6 +6,7 @@ members = [
     "crates/payload-common",
     "crates/payload-nesica",
     "crates/payload-typex",
+    "crates/payload-globalvr",
     "crates/loader",
 ]
 # Payloads are Windows DLLs: build them with --target i686-pc-windows-gnu (see build.sh)
