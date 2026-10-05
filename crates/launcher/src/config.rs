@@ -38,6 +38,7 @@ pub struct Profile {
     pub wow64: bool,
     pub wine_debug: String,
     pub dxvk: bool,
+    pub dxvk_from: String,
     pub graphics: Graphics,
     pub lib32_dirs: Vec<PathBuf>,
     pub lib64_dirs: Vec<PathBuf>,

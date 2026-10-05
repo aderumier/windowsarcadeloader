@@ -163,6 +163,8 @@ unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, wind
     let orig: unsafe extern "system" fn(P, u32, u32, P, u32, P, P, *mut P) -> HRESULT =
         unsafe { std::mem::transmute(ORIG_CREATE_DEVICE_EX.load(Ordering::Relaxed)) };
     unsafe { override_size(params) };
+    let mut fallback = DisplayModeEx::default();
+    let mode = unsafe { fullscreen_mode(params, mode, &mut fallback) };
     let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, mode, out) };
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
         unsafe {
@@ -182,8 +184,39 @@ unsafe extern "system" fn present_ex(dev: P, src: P, dst: P, window: P, dirty: P
     unsafe { orig(dev, src, dst, window, dirty, flags) }
 }
 
+/// D3DDISPLAYMODEEX
+#[repr(C)]
+#[derive(Default)]
+struct DisplayModeEx {
+    size: u32,
+    width: u32,
+    height: u32,
+    refresh: u32,
+    format: u32,
+    scanline_ordering: u32,
+}
+
+/// 9Ex fullscreen devices need a display mode: games made fullscreen by the shims pass none.
+unsafe fn fullscreen_mode(params: P, mode: P, fallback: &mut DisplayModeEx) -> P {
+    if params.is_null() || !mode.is_null() {
+        return mode;
+    }
+    let p = params as *const u32;
+    if unsafe { *p.add(8) } != 0 {
+        return mode; // windowed
+    }
+    unsafe {
+        // display modes have no alpha: A8R8G8B8 back buffers are shown in X8R8G8B8
+        let format = if *p.add(2) == D3DFMT_A8R8G8B8 { D3DFMT_X8R8G8B8 } else { *p.add(2) };
+        *fallback = DisplayModeEx { size: 24, width: *p, height: *p.add(1), refresh: *p.add(12), format, scanline_ordering: 1 };
+    }
+    fallback as *mut DisplayModeEx as P
+}
+
 unsafe extern "system" fn reset_ex(dev: P, params: P, mode: P) -> HRESULT {
     unsafe { override_size(params) };
+    let mut fallback = DisplayModeEx::default();
+    let mode = unsafe { fullscreen_mode(params, mode, &mut fallback) };
     let orig: unsafe extern "system" fn(P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_RESET_EX.load(Ordering::Relaxed)) };
     unsafe { orig(dev, params, mode) }
 }

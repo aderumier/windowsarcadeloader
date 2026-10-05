@@ -15,6 +15,8 @@ use crate::config::{Graphics, Profile};
 
 pub struct Wine {
     pub runner: PathBuf,
+    /// Runner whose DXVK is used when `runner` ships none (profile `dxvk_from`).
+    dxvk_runner: Option<PathBuf>,
     pub prefix: PathBuf,
     /// Compute everything but change nothing on disk.
     pub dry_run: bool,
@@ -37,6 +39,14 @@ fn existing_unique(candidates: &[&str]) -> Vec<PathBuf> {
     out
 }
 
+/// `<root>/<lib dir>/<component>/<arch>`, across runner layouts.
+fn component_in(root: &Path, component: &str, arch: &str) -> Option<PathBuf> {
+    ["lib/wine", "lib", "lib64/wine", "lib32/wine"]
+        .iter()
+        .map(|l| root.join(l).join(component).join(arch))
+        .find(|p| p.is_dir())
+}
+
 fn join_paths(paths: &[PathBuf]) -> String {
     paths.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(":")
 }
@@ -48,7 +58,8 @@ impl Wine {
             bail!("wine runner not found: {}", runner.display());
         }
         let prefix = config.path(&config.prefix);
-        let mut wine = Wine { runner, prefix, dry_run, env: Vec::new(), overrides: Vec::new() };
+        let dxvk_runner = (!config.dxvk_from.is_empty()).then(|| config.path(&config.runners_dir).join(&config.dxvk_from));
+        let mut wine = Wine { runner, dxvk_runner, prefix, dry_run, env: Vec::new(), overrides: Vec::new() };
 
         let lib32 = if config.lib32_dirs.is_empty() {
             existing_unique(&["/lib32", "/usr/lib32"])
@@ -129,10 +140,7 @@ impl Wine {
 
     /// Optional component shipped by the runner (dxvk, d7vk, vkd3d, icu...).
     fn component_dir(&self, component: &str, arch: &str) -> Option<PathBuf> {
-        ["lib/wine", "lib", "lib64/wine", "lib32/wine"]
-            .iter()
-            .map(|l| self.runner.join(l).join(component).join(arch))
-            .find(|p| p.is_dir())
+        component_in(&self.runner, component, arch)
     }
 
     pub fn system32(&self) -> PathBuf {
@@ -245,10 +253,13 @@ impl Wine {
         Ok(())
     }
 
-    /// d3d8..11/dxgi: the runner's DXVK, or wine's builtin wined3d.
+    /// d3d8..11/dxgi: the runner's DXVK (or `dxvk_from`'s), or wine's builtin wined3d.
     pub fn setup_d3d(&mut self, dxvk: bool) -> Result<()> {
         let dry = self.dry_run;
-        let dxvk_dirs = (self.component_dir("dxvk", "x86_64-windows"), self.component_dir("dxvk", "i386-windows"));
+        let dxvk_dir_of = |arch| {
+            self.component_dir("dxvk", arch).or_else(|| self.dxvk_runner.as_ref().and_then(|r| component_in(r, "dxvk", arch)))
+        };
+        let dxvk_dirs = (dxvk_dir_of("x86_64-windows"), dxvk_dir_of("i386-windows"));
         let use_dxvk = dxvk && dxvk_dirs.0.is_some();
         for (arch, dir, dxvk_dir) in
             [("x86_64-windows", self.system32(), dxvk_dirs.0), ("i386-windows", self.syswow64(), dxvk_dirs.1)]
