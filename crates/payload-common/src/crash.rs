@@ -13,6 +13,12 @@ use windows_sys::Win32::System::LibraryLoader::{
 
 use crate::log;
 
+/// `len` bytes at `addr` can be read. The handler must never fault itself: a fault while
+/// reporting left Music GunGun! 2 hanging (stack scan past the top of a new thread's stack).
+fn readable(addr: usize, len: usize) -> bool {
+    addr >= 0x10000 && unsafe { windows_sys::Win32::System::Memory::IsBadReadPtr(addr as *const _, len) } == 0
+}
+
 const EXCEPTION_ACCESS_VIOLATION: i32 = 0xC000_0005_u32 as i32;
 const EXCEPTION_CONTINUE_SEARCH: i32 = 0;
 const MAX_REPORTS: u32 = 3;
@@ -50,7 +56,7 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
         symbolize(addr).unwrap_or_default()
     );
     // write overrun: show what was being written just below the faulting address
-    if op == 1 && target > 0x10000 {
+    if op == 1 && target > 0x10000 && readable(target - 160, 160) {
         let start = target - 160;
         let bytes: Vec<u8> = (start..target).map(|a| unsafe { std::ptr::read_volatile(a as *const u8) }).collect();
         let text: String = bytes.iter().map(|b| if (0x20..0x7f).contains(b) { *b as char } else { '.' }).collect();
@@ -66,7 +72,7 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
         // EBP frame chain: [ebp] = caller ebp, [ebp+4] = return address
         let mut ebp = c.Ebp as usize;
         for depth in 0..16 {
-            if ebp < 0x10000 || ebp % 4 != 0 || ebp < c.Esp as usize || ebp > c.Esp as usize + 0x100000 {
+            if ebp < 0x10000 || ebp % 4 != 0 || ebp < c.Esp as usize || ebp > c.Esp as usize + 0x100000 || !readable(ebp, 8) {
                 break;
             }
             let frame = ebp as *const usize;
@@ -78,6 +84,9 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
         let esp = c.Esp as usize as *const usize;
         let mut found = 0;
         for i in 0..512 {
+            if !readable(esp.add(i) as usize, 4) {
+                break;
+            }
             let v = std::ptr::read_volatile(esp.add(i));
             if v < 0x10000 {
                 continue;

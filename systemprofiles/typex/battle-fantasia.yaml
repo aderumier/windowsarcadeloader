@@ -4,7 +4,7 @@ system: typex
 name: Battle Fantasia
 exe: 'Z:\userdata\roms\nesica\Battle Fantasia for NesicaxLive\game.exe'
 
-# Buttons: WindowsLoader maps A=Button1 B=Button4 C=Button2 D=Button5 G=Button3; virtual top
+# Buttons: usual layout A=Button1 B=Button4 C=Button2 D=Button5 G=Button3; virtual top
 # row b1-b4 = A B C D, b5 = G.
 native_map:
   b1: btn1
@@ -17,6 +17,6 @@ env:
   # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800 (16:10, scaled
   # to the screen by Wine's fullscreen hack).
   WAL_D3D9_FULLSCREEN_SIZE: 1280x800
-  # WindowsLoader's Battle Fantasia patches for this executable (CRC 0xcdf01376):
+  # Battle Fantasia patches for this executable (CRC 0xcdf01376):
   # skip the slow uppercase path loop, "fixes dual input" (returns true)
   WAL_PATCHES: "0xD062:9090,0xFF0A0:B801000000C3"

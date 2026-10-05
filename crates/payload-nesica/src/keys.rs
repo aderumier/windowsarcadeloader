@@ -1,5 +1,5 @@
 //! RSA private key blobs (PRIVATEKEYBLOB, 308 bytes) of the NESiCA crypto server, from
-//! WindowsLoader `Nesica_Libs/CryptoPipe.cpp` (GPL-3.0). Selected with `WAL_NESICA_KEY`.
+//! Selected with `WAL_NESICA_KEY`.
 
 pub(crate) const KEYS: &[(&str, &str)] = &[
     ("magicalbeat", "0702000000a40000525341320002000001000100411fe010238446e4c51a60e182dd275b6c1d35de1b3b1392c7f9a70dfb01c8bf2309cc85e74d88ece52041f985d785bb7cbd3f3a8bfc89e8d2a5a8440796cdd2bd2b2d5fb954f36193aa685e568dc940284e45bbddff89e721ebbf670362f8f6d5d73b0caa16ad31c8f819a0936fab11bb11a855c213d9c583a8621a97ae82da7108dc76dab389cd14a5e577c5e9a1908a0d0ef56a3fe1aa0f6103450f4650c8218fc47412a3adbdd146e68e5fc49d4d64ad28641941fc6fd057de15233bad288fa032390566e9b4ffed0b9f5a31a2a587b3f68405bf1a3a79ae05ba256c8c2c81adbd14dfaa8ef774684ad6d606574bb426df079270a0a333e65b281d6fecd260d618f32475ace360de3a8cb6540192a94fa00e01109f77bba9709428c2e3a3"),

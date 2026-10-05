@@ -1,0 +1,23 @@
+# Music GunGun! 2 (Taito, Taito Type X2, 2P light guns) - template, override
+# values in userprofiles/typex/music-gungun-2.yaml.
+system: typex
+name: Music GunGun! 2
+exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Music GunGun! 2\game.exe'
+
+# The dump's dinput8.dll is Microsoft's: use wine's.
+hide: [dinput8.dll]
+
+# Guns: the gun board (COM1) is a silent port and the guns are
+# written in the game's memory (payload guns.rs): lightgun or mouse per player,
+# trigger = b1, reload = b2 or aiming off screen.
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+env:
+  WAL_TYPEX_GUNS: music-gungun-2
+  # Type X2 working directory pinning (the game steps up with "..\").
+  WAL_PIN_CWD: "1"
+  # Music GunGun 2 patch (known for CRC 0xf36d354a; this dump has another CRC but
+  # the same layout, function prologue checked): 0x137C70 returns true.
+  WAL_PATCHES: "0x137C70:B801000000C3"

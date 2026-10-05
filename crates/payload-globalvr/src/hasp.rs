@@ -3,10 +3,10 @@
 //! Far Cry Paradise Lost links the HASP4 API statically: `hasp(service, seed, lpt, pw1, pw2,
 //! &p1, &p2, &p3, &p4)` (cdecl) at `0x8a9094`, called from 4 places (IsHasp, HaspStatus,
 //! ReadBlock of the 112-byte memory, HaspID). The calls are repointed to [`hook`] in memory, so
-//! the executable stays untouched (WindowsLoader checks its CRC).
+//! the executable stays untouched (other launchers check its CRC).
 //!
-//! Built with the `record` feature, the hook calls the real `hasp()` (WindowsLoader's emulation
-//! answers it) and appends each call to `hasplog.bin` in the current directory:
+//! Built with the `record` feature, the hook calls the real `hasp()` (an existing dongle
+//! emulation answers it) and appends each call to `hasplog.bin` in the current directory:
 //! `"HSP4" | service seed lpt pw1 pw2 | p1 p2 p3 p4 before | p1 p2 p3 p4 after |
 //! ReadBlock (50): the p2 words read at p4`.
 

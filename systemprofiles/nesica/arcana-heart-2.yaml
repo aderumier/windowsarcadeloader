@@ -9,7 +9,7 @@ graphics: wine
 # d3d11.dll is a ReShade build (bezel) and Dinput8.dll a Microsoft one: use wine's.
 hide: [d3d11.dll, Dinput8.dll]
 
-# Buttons A B C D E: WindowsLoader maps E on FastIO Button6.
+# Buttons A B C D E: E is FastIO Button6.
 # Virtual stick top row b1-b4 = A B C D, bottom row b5 = E.
 native_map:
   b5: btn6

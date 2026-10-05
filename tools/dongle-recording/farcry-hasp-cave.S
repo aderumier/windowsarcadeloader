@@ -1,7 +1,7 @@
-# Far Cry Paradise Lost (FarCry_r.exe, WindowsLoader build): logs every HASP4 hasp() call.
+# Far Cry Paradise Lost (FarCry_r.exe, MD5 87648806d0b4b5a5384e7eedf4882d7e): logs every HASP4 hasp() call.
 # Placed in the free tail of .text (0x8f96b0); the four `call hasp` sites are repointed here.
 # hasp(service, seed, lpt, pw1, pw2, &p1, &p2, &p3, &p4), cdecl. The real hasp() is called
-# first (so whatever answers it, WindowsLoader's emulation included, still does), then a record
+# first (so whatever answers it, any dongle emulation included, still does), then a record
 # is appended to hasplog.bin (opened once, in the current directory):
 #   "HSP4" | 9 arguments | p1 p2 p3 p4 after the call | ReadBlock (50): 112 bytes at p4
     .set HASP,        0x8a9094

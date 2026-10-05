@@ -15,8 +15,6 @@ tricks: [dsound]
 # Buttons Fire, Lock on, Bomb = b1-b3 (default mapping).
 
 env:
-  # D:\ data of WindowsLoader dumps
-  WAL_NESICA_DDRIVE: WindowsLoader
   # The game asks NESYS for rankings and uses the parsed ranking object unchecked: with no
   # ranking data it is NULL and the game crashes. Test the object instead of the success flag
   # at the three call sites (test bl,bl -> test esi,esi).

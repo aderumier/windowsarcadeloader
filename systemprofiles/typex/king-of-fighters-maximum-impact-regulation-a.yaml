@@ -20,7 +20,7 @@ hide: [dinput8.dll, d3d8.dll, d3d9.dll, ddraw.dll, wined3d.dll]
 dxvk: false
 
 env:
-  # WindowsLoader's KOF Maximum Impact Regulation A patch (CRC 0x1782f027).
+  # KOF Maximum Impact Regulation A patch (CRC 0x1782f027).
   WAL_PATCHES: "0x447C:B80008009090"
 
 # No back buffer override: the game renders natively at 640x480 (it requests a

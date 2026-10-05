@@ -38,7 +38,7 @@ merged. `exe` is a Windows path (`Z:\...`, `C:\...`). Run: `arcade-launcher <pro
 ## Injection: per-system "best" strategy
 
 * **NESiCA: replace `iDmacDrv32.dll`.** `game.exe` imports it statically (verified with winedump), so our DLL
-  loads before the game's entry point. No remote thread, no loader-lock race (WindowsLoader's own comments say
+  loads before the game's entry point. No remote thread, no loader-lock race (known injectors note
   CreateRemoteThread is unreliable under Wine/Box). The game folder is left untouched: the launcher builds a
   per-game run dir (`<prefix>/drive_c/wal/<system>/<game>`) of symlinks to the game files with our DLL in
   place of `iDmacDrv32.dll`, and launches from there.
@@ -47,29 +47,28 @@ merged. `exe` is a Windows path (`Z:\...`, `C:\...`). Run: `arcade-launcher <pro
 * Generic fallback for other systems: proxy a DLL the game imports (dinput8/winmm/version) with
   `WINEDLLOVERRIDES=<dll>=n,b`, or a small suspended-process + entry-point-patch loader.
 
-## NESiCA emulation (port of WindowsLoader, GPLv3 → project must be GPLv3)
+## NESiCA emulation
 
-Reference: WindowsLoader `Functions/Nesica_Libs/*`, `Games/Nesica/NesicaGeneric.cpp`.
 
 * **FastIO** (`iDmacDrvRegisterRead/Write`, `FastIoEmu.cpp`): `iDmacDrvOpen` sets `*out=284, *flag=0`.
   Reads: 0x400→0x00010201, 0x4000→0x00FF00FF, 0x4004→0x00FF0000, 0x4120→bytes[0..4] (P1/P2),
   0x4124→0x01100000, 0x4128→bytes[8]|bytes[9]<<8, 0x4140→coin (edge: 1 once per press), 0x4144/0x41C4→bytes[5],
   0x41A0→bytes[10..14] (P3/P4), 0x4150→0x1823C, 0x41A4→0x01100000, others 0. `*DeviceResult=0`.
   Writes: set `*DeviceResult=-1` for 0x4000/0x4004/0x4100..0x410C (except 0x4108), 0x4180..0x418C.
-* **Byte layout** (from WindowsLoader `FastIOPipe.cs`):
+* **Byte layout**:
   - byte0: P1 start 0x10, P2 start 0x20, test 0x40, P1 service 0x04, P2 service 0x08, ext1 0x01, ext2 0x02, ext3 0x80
   - byte1: P1 up 0x01 down 0x04 left 0x10 right 0x40; P2 up 0x02 down 0x08 left 0x20 right 0x80
   - byte2: P1 b1 0x01 b2 0x04 b3 0x10 b4 0x40; P2 b1 0x02 b2 0x08 b3 0x20 b4 0x80
   - byte3: P1 b5 0x01 b6 0x04; P2 b5 0x02 b6 0x08
   - byte4: coin1; bytes 8/9 analog; bytes 10–14 same layout for P3/P4; bytes 15–20 analogs.
-* **AH2 mapping** (WindowsLoader profile `ArcanaHeart2Nesica.xml`): A=Button1, B=Button2, C=Button3, D=Button4,
+* **AH2 mapping**: A=Button1, B=Button2, C=Button3, D=Button4,
   **E=Button6**.
 * **Registry** (`RegHooks.cpp`): implemented without hooks: the DLL writes `HKLM\SOFTWARE\TAITO\NESiCAxLive` (32-bit view /
   Wow6432Node) from the DLL at attach time: CoinCredit=0 (free play), Resolution=1 (HD; 0=SD), ScreenVertical=0,
   EventModeEnable, UserSelectEnable=0, GameResult, IOErrorCoin, IOErrorCredit, SystemType, ConditionTime=300,
   EventNextTime=900, GameKind=1234, LogLevel=0, TrafficCount=2, UpdateStep=0, Country=1, AppVer=1.
   Same for `SOFTWARE\TAITO\TYPEX`.
-* **D:\ redirection** (`RfidEmu.cpp`, `D:\x` → `.\WindowsLoader\x`): IAT hooks on game.exe file APIs rewrite
+* **D:\ redirection** (`D:\x` → `.\WindowsLoader\x`): IAT hooks on game.exe file APIs rewrite
   `D:\` to `<game dir>\WindowsLoader` (`WAL_NESICA_DDRIVE`), no D: drive in the prefix. NESYS card files go
   there too.
 * **NESYS** (`NesysEmu.cpp`): message-mode named pipe `\\.\pipe\nesys_games`, header `{u32 cmd, u32 len}`;

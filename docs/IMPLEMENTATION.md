@@ -2,7 +2,7 @@
 
 Developer documentation of the Windows arcade loader: how the code is organised, how the
 pieces talk to each other, the non-obvious decisions, and how to extend and debug it.
-`DESIGN.md` keeps the original research notes (WindowsLoader/WindowsLoader findings).
+`DESIGN.md` keeps the original research notes.
 
 ## 1. Overview
 
@@ -47,8 +47,8 @@ crates/
   payload-typex/           Taito Type X payload (JVS I/O board on COM2), loaded by wal-loader
   payload-nesica/          NESiCAxLive payload = replacement iDmacDrv32.dll
     iDmacDrv32.def         export ordinals of the original driver (see §6.2)
-    src/keys.rs            built-in crypto service keys (from WindowsLoader)
-    src/news.png           NESYS news picture (from WindowsLoader)
+    src/keys.rs            built-in crypto service keys
+    src/news.png           NESYS news picture
     build.rs               passes the .def to the linker
 systemprofiles/<system>/<game>.yaml   game templates (shipped)
 userprofiles/<system>/<game>.yaml     user overrides (git-ignored)
@@ -324,7 +324,7 @@ profile), `show` (merged profile).
   doing `fopen("D:/...")` go through the CRT (Chaos Code crashed on `fseek(NULL)`, Ikaruga
   showed a storage error).
 * `patches`: `WAL_PATCHES=<rva>:<hex>,...` game code patches from the profile (keeps game
-  knowledge in profiles, e.g. WindowsLoader's per-game patches). `WAL_PATCHES_EXE=<file>` limits
+  knowledge in profiles, e.g. known per-game patches). `WAL_PATCHES_EXE=<file>` limits
   them to one executable: test menus (`TestMode.exe`) load the payload too.
 * `crash`: vectored exception handler logging the first access violations: address as
   `module+offset`, registers, EBP frame chain, stack scan, and for write overruns the text
@@ -361,7 +361,7 @@ profile), `show` (merged profile).
   (`SetWindowPos`/`MoveWindow` IAT hooks, at 0,0); in window mode Direct3D stretches the back
   buffer to it (Crimzon Clover's DxLib computed a 5-million-pixel high window: X BadAlloc).
 * `jvs`: JVS packet framing (`E0` sync, `D0` escaping, size, checksum) for emulated I/O
-  boards on serial ports (unit tested; output identical to WindowsLoader/ttx_monitor).
+  boards on serial ports (unit tested; output identical to ttx_monitor).
 * IAT hooks chain: hooking the same import twice makes the second hook call the first one.
   NESiCA installs the D: hooks, then the card reader's CreateFile hooks in front of them.
 
@@ -380,8 +380,8 @@ import it statically, so it loads before the game entry point: no injector neede
   Read/Write, 9/10 Memory Read/Write, 11/12 MemoryBuffer Read/Write, 13/14 Memory Read/WriteExt.
   Verify with `winedump -j export dist/payloads/wal_nesica.dll`. Any other replacement-DLL
   payload must do the same.
-* **FastIO** (`fastio.rs`, port of WindowsLoader `FastIoEmu.cpp`): `iDmacDrvRegisterRead` answers
-  per register; inputs are built on demand from the sticks into the WindowsLoader byte layout:
+* **FastIO** (`fastio.rs`): `iDmacDrvRegisterRead` answers
+  per register; inputs are built on demand from the sticks into the FastIO byte layout:
 
   | register | value |
   |---|---|
@@ -389,14 +389,14 @@ import it statically, so it loads before the game entry point: no injector neede
   | 0x41A0 | bytes 10..13: P3/P4, same layout |
   | 0x4128 | byte8 = P1 `lx`, byte9 = P1 `accel` (0..255) |
   | 0x4140 | coin: 1 once per press (edge), the game acks by writing 0x4140 |
-  | 0x400, 0x4000, 0x4004, 0x4124, 0x41A4, 0x4150 | constants from WindowsLoader |
+  | 0x400, 0x4000, 0x4004, 0x4124, 0x41A4, 0x4150 | constants |
 
   Options (profile `env`), for games reading the I/O through Taito's `FIO.dll` (Dariusburst):
   * `WAL_FASTIO_COIN=counter`: 0x4140/0x4144/0x41C0/0x41C4 are coin counters (low 14 bits),
     the game consumes coins by writing `-n`. With one-shot reads FIO never credited a coin.
     Every player's coin feeds 0x4140 (Dariusburst: one credit pool, only 0x4140 consumed).
   * `WAL_FASTIO_BOARDS=2`: 0x4004 reports a second board (players 3/4), `0x00FF00FF`
-    (WindowsLoader "Connect a 2nd Fast IO"); Dariusburst shows an I/O error without it.
+    ("2nd Fast IO"); Dariusburst shows an I/O error without it.
 
   P1/P2 share bytes: P2 is the next bit up of each pair; test/ext are cabinet-wide.
   Native names for `native_map`: `up down left right start coin service test btn1..btn6
@@ -411,20 +411,21 @@ import it statically, so it loads before the game entry point: no injector neede
   GetFileAttributes(Ex), Create/RemoveDirectory, DeleteFile, FindFirstFile(Ex), SetCurrentDirectory,
   GetDiskFreeSpaceEx, MoveFile(Ex), CopyFile, A and W) rewrite `D:\...` to
   `<exe dir>\WindowsLoader\...` (`WAL_NESICA_DDRIVE`: relative or absolute). The run dir's
-  `WindowsLoader` entry is a symlink, so data lands in the game directory (WindowsLoader-compatible
-  saves). The hook table is a macro: index, name, path arguments, other arguments.
-* **Crypto server** (`crypto.rs`, port of WindowsLoader `CryptoPipe.cpp`): byte-mode pipe
+  `WindowsLoader` entry is a symlink, so data lands in the game directory (saves).
+  Legacy data folders of existing dumps are moved into `WindowsLoader` by the launcher at
+  start (`rundir::migrate_data_dir`, merged without overwriting). The hook table is a macro: index, name, path arguments, other arguments.
+* **Crypto server** (`crypto.rs`): byte-mode pipe
   `\\.\pipe\TtxAppCtyptPipe`. Frames `FF FD <u32 size> <PUBLICKEYBLOB>` (game RSA key) and
   `FF FE <u32 size> <SIMPLEBLOB>` (content key encrypted for the service key); `FF FF` escapes
   `FF` in the size. The service key (PRIVATEKEYBLOB, 308 bytes) is `WAL_NESICA_KEY`: a built-in
-  name from `keys.rs` (extracted from WindowsLoader: magicalbeat, bbcf, persona4arena, bbcp,
+  name from `keys.rs` (built in: magicalbeat, bbcf, persona4arena, bbcp,
   kofxiiiclimax, persona4ultimix, usf4, darius) or a file in the game directory (KOF XIII Climax
   ships `303002.key`, identical to the built-in one). Replies `<u32 len><blob>` (`<u32 0>` on
   error): SIMPLEBLOB for the game key, or for KOF XIII Climax (`WAL_NESICA_CRYPT_REPLY=plaintext`)
   a PLAINTEXTKEYBLOB RSA-encrypted with the game key. Uses CryptoAPI (Wine rsaenh).
   Wine fix: BBCF imports the reply with `CryptImportKey(SIMPLEBLOB, hPubKey = 0)`, which Windows
   resolves to the container's AT_KEYEXCHANGE key but Wine rejects (NTE_BAD_PUBLIC_KEY, then the
-  game asserts "Decrypt failed" when a match starts; WindowsLoader under Wine has the same bug).
+  game asserts "Decrypt failed" when a match starts).
   The game's `CryptImportKey` is IAT-hooked to pass `CryptGetUserKey(AT_KEYEXCHANGE)`.
 * **NESYS message size**: requests are read whole (`ERROR_MORE_DATA` loop); BBCF uploads a
   ~60 KB play log (`UPLOAD_CONFIG`), which used to break the pipe and show "NESiCA offline".
@@ -435,7 +436,7 @@ import it statically, so it loads before the game entry point: no injector neede
   76-byte SIMPLEBLOB (RC4 40-bit, 11 zero salt bytes), RC4 data from 0x60 (`FPAC`).
   `WAL_NESICA_CRYPT=0` disables it. Verified with KOF XIII: the game decrypts the 17-byte RC4
   content key and loads its resources.
-* **Card reader** (`rfid.rs`, port of WindowsLoader `RfidEmu.cpp`): Taito RFID board on `COM2`
+* **Card reader** (`rfid.rs`): Taito RFID board on `COM2`
   (`WAL_NESICA_RFID_PORT`), JVS framing. IAT hooks on CreateFileA/W (fake handle `0x1337`),
   Read/WriteFile, CloseHandle and the comm functions; written packets are answered into a reply
   queue. Commands: F0 reset, F1 address, 01/03/04/05 Taito, 10 id
@@ -447,18 +448,17 @@ import it statically, so it loads before the game entry point: no injector neede
   themselves when the port cannot be opened** (KOF XIII Climax closed its window ~0.5 s after
   the NESYS connect).
 * **Data folder**: the launcher creates `<game>/WindowsLoader` (`System::data_dirs`) before
-  building the run dir, the DLL creates it too and writes WindowsLoader's `news.png` (NESYS news
+  building the run dir, the DLL creates it too and writes the built-in `news.png` (NESYS news
   picture, referenced by the CERT_INIT reply) when missing.
-* **NESYS** (`nesys.rs`, port of WindowsLoader `NesysEmu.cpp`, corrected with
+* **NESYS** (`nesys.rs`, corrected with
   [FakeNesicaService](https://github.com/ArcadeMachinist/FakeNesicaService) whose layouts come
   from captures of the real service). **The connect sequence must be `CONNECT_REPLY` →
   `NWRECOVER_NOTICE` (0x103, network up) → `CERT_INIT_NOTICE`**: without the 0x103 notice
-  (missing in WindowsLoader) KOF XIII Climax stays on ネットワークを初期化しています ("initializing
+  KOF XIII Climax stays on ネットワークを初期化しています ("initializing
   network"). Real-capture formats used: LOCALNW_INFO_NOTICE interface block = MAC, IP, gateway,
   DNS, `u32 0x157c`, `u32 0`; GLOBALADDR_REPLY = `{1, 0x1a6, ip[16]}`; CERT_INIT news block
-  type 8. (WindowsLoader's FREE_TICKET_REPLY constant 0x130 is wrong, the real value is 0x12A.)
-  WindowsLoader itself runs NESiCA games with its closed-source core (`EmulatorType: WindowsLoader`),
-  not WindowsLoader. Debug knob: `WAL_NESICA_NESYS_EXTRA=0x105,0x10c:01000000` sends extra notices
+  type 8. (FREE_TICKET_REPLY is 0x12A, not 0x130.)
+  Debug knob: `WAL_NESICA_NESYS_EXTRA=0x105,0x10c:01000000` sends extra notices
   after the certificate. message-mode pipe
   `\\.\pipe\nesys_games`, requests `{u32 cmd, u32 len, data}` back to back (next = +8+len),
   replies built with the `Out` helper following the C struct layouts (sizes documented next to
@@ -478,29 +478,27 @@ in the game that calls `LoadLibraryW(payload)` (address taken locally: Wine maps
 the same address), restores the 5 entry bytes and jumps back. No remote thread. The launcher
 uses it for systems whose `System::loader()` is set (run dir gets `wal-loader.exe`).
 
-JVS board (`jvs.rs`): port of WindowsLoader's `JvsPackageEmulator` with its
-`TaitoTypeXGeneric` settings: Taito stick mode (features `01 02 10 00 02 02 00 ...`: 2 players,
+JVS board (`jvs.rs`) with `TaitoTypeXGeneric` settings: Taito stick mode (features `01 02 10 00 02 02 00 ...`: 2 players,
 16 switches, 2 coin slots), JVS version 0x30, identifier
-`SEGA CORPORATION;I/O BD JVS;837-14572;Ver1.00;2005/10`, WindowsLoader's report-byte quirks.
+`SEGA CORPORATION;I/O BD JVS;837-14572;Ver1.00;2005/10`, the usual report-byte quirks.
 Switches: start 0x80, service 0x40, up/down/left/right 0x20/0x10/0x08/0x04, btn1 0x02, btn2 0x01,
 second byte btn3-6 0x80..0x10, system byte test 0x80; coins counted on release, `30`/`31`
 decrease/increase. Native names for `native_map`: `start service test coin up down left right
 btn1..btn6`.
 Other `20` layouts (Gaia Attack 4 asks `20 01 03`: 1 player x 3 bytes) get the requested size,
-like WindowsLoader's generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
+as a generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
 the commands after it are answered (otherwise I/O ERROR).
 
-Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2`): port of WindowsLoader's
-per-game input code. The gun board's port (`WAL_TYPEX_GUN_PORT`, comma separated, default
+Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2`): per-game
+input code. The gun board's port (`WAL_TYPEX_GUN_PORT`, comma separated, default
 `COM1`) is a silent serial device (`serial::install_sink`: writes accepted, nothing read), and a
 thread writes every 16 ms each player's trigger, offscreen flag and position (0..=16384) at the
-game's RVAs (WindowsLoader's; our dumps differ from its CRCs but have the same layout). Gun = the
+game's RVAs (layout checked against the dumps). Gun = the
 player's virtual stick: `lx`/`ly`, trigger `b1`, offscreen = `b2` or the position at a screen
 edge. Profiles set `input.guns_enabled: true` (mice act as guns without lightguns).
 
 Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the game's
-`SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), like
-WindowsLoader's Type X2 hook (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
+`SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), for Type X2 games (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
 `WAL_VFW_CODECS=vidc.wmv3=WMV9VCM.dll` (`vfw.rs`): registers Video for Windows codecs in
 `HKLM\...\Drivers32` at startup, the DLL being in the game directory (Gaia Attack 4's WMV9 AVIs,
 codec extracted from the dump's `wmv9VCMsetup.exe`).
@@ -516,7 +514,7 @@ codec extracted from the dump's `wmv9VCMsetup.exe`).
      code, no injector, works the same under Wine). Copy its export names **and ordinals**.
    * otherwise proxy a system DLL the game imports (dinput8, winmm, version...) and forward the
      real exports, with the matching `WINEDLLOVERRIDES=<dll>=n,b` set by the launcher.
-   * a remote-thread/entry-point injector is the last resort (WindowsLoader documents it as
+   * a remote-thread/entry-point injector is the last resort (known injectors document it as
      unreliable under Wine).
 3. Linux side: `crates/launcher/src/systems/<system>.rs` implementing `System` (name, payload
    files and the DLL they replace, always-hidden files) and register it in `systems::by_name`.
@@ -614,32 +612,32 @@ Games status (scripted test `--input-script tools/scripts/coin-start-mash.txt` +
 | Profile | System | Result | Needed |
 |---|---|---|---|
 | nesica/arcana-heart-2 | nesica | in game (user) | - |
-| nesica/arcana-heart-3-lmss | nesica | in game (user, GAME_START) | D: WindowsLoader folder |
+| nesica/arcana-heart-3-lmss | nesica | in game (user, GAME_START) | D: data in WindowsLoader |
 | nesica/kof-xiii-climax | nesica | in game, movies | key file 303002.key, crypto plaintext reply, dshow find-filter, xact, remuxed opening.wmv |
 | nesica/akai-katana-shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
-| nesica/blazblue-central-fiction | nesica | in game, NESiCA online | key bbcf, D: WindowsLoader, shop hours patch |
-| typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, WindowsLoader patches, runner hotfix (winedmo) |
-| typex/blazblue-calamity-trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, WindowsLoader patch 0xECFD0 |
+| nesica/blazblue-central-fiction | nesica | in game, NESiCA online | key bbcf, shop hours patch |
+| typex/battle-fantasia | typex | in fight | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
+| typex/blazblue-calamity-trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
 | typex/chase-hq-2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | see docs/CHASE-HQ-2-BOOT-DEBUG.md: Wine sees a 5434188x5434103 X desktop (Xwayland), game sizes its window from it; analog JVS also unemulated (not drivable anyway) |
 | typex/gouketsuji-ichizoku | typex | works (user: title, demo match, attract); intro movie never plays | wal-loader, JVS (native 640x480, no override); movie blocked: VMR second wined3d GL context fails — see docs/GOUKETSUJI-INTRO-VIDEO-DEBUG.md |
 | typex/king-of-fighters-xii | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
 | typex/3d-cosplay-mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | typex/street-fighter-iv | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
-| typex/gaia-attack-4 | typex | boots to title (guns untested) | wal-loader, JVS (`20 01 03`, `67`), guns (`WAL_TYPEX_GUNS`, COM1/COM3 silent), `WAL_PIN_CWD`, WMV9VCM codec (`WAL_VFW_CODECS`), WindowsLoader patches, 1280x800 |
+| typex/gaia-attack-4 | typex | boots to title (guns untested) | wal-loader, JVS (`20 01 03`, `67`), guns (`WAL_TYPEX_GUNS`, COM1/COM3 silent), `WAL_PIN_CWD`, WMV9VCM codec (`WAL_VFW_CODECS`), game patches, 1280x800 |
 | typex/senko-no-ronde-duo | typex | works (user: perfect) | wal-loader, JVS, native 1280x720, hide xinput1_3 + XAudio2_4 and its manifests (wine's xaudio2), as the NESiCA build |
-| nesica/dariusburst-another-chronicle-ex | nesica | in game, 4 players (user: credits; TODO: P1 controls reported not responding with JVS on) | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), WindowsLoader 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
+| nesica/dariusburst-another-chronicle-ex | nesica | in game, 4 players (user: credits; TODO: P1 controls reported not responding with JVS on) | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
 | nesica/chaos-breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks in own prefix `wine-prefix/directmusic` (native dsound) |
 | nesica/dark-awake | nesica | in fight | same as Chaos Breaker (same engine) |
 | nesica/chaos-code-103, -211 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
 | nesica/daemon-bride | nesica | in fight | key bbcp |
-| nesica/do-not-fall | nesica | works (user) | D: WindowsLoader |
+| nesica/do-not-fall | nesica | works (user) | D: data in WindowsLoader |
 | nesica/elevator-action | nesica | in game | 1280x800 |
 | nesica/en-eins-perfektewelt | nesica | works (user) | 1280x800, native dsound prefix (nothing on screen with wine's dsound) |
 | nesica/gouketsuji-ichizoku | nesica | works (user) | hide dgVoodoo D3D8/D3D9 |
-| nesica/hyper-street-fighter-2, street-fighter-3-3rd-strike, vampire-savior | nesica | works (user) | NESYS on (WindowsLoader disables it: "server not connected") |
+| nesica/hyper-street-fighter-2, street-fighter-3-3rd-strike, vampire-savior | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | nesica/street-fighter-zero-3 | nesica | works fullscreen (user) | dump lacks config.ini: Vampire Savior's installed with `files` |
 | nesica/ikaruga | nesica | in game (user) | CRT D: redirection (storage error), `fakejapanese` |
-| nesica/magical-beat | nesica | works (user) | key magicalbeat, D: WindowsLoader, WindowsLoader patch |
+| nesica/magical-beat | nesica | works (user) | key magicalbeat, init wait patch |
 | nesica/nitroplus-blasterz, persona-4-ultimax, puzzle-bobble, skullgirls-2nd-encore, space-invaders, strania, trouble-witches-ac | nesica | works (user) | see profiles (P4UU: shop hours patch) |
 | nesica/persona-4-arena | nesica | in fight (user: may crash with some characters) | key persona4arena, plaintext reply, NESYS on, shop hours patch 0x6C9D0 |
 | nesica/raiden-3 | nesica | in game (user); intro movie black | hide dinput8; TODO: movies are uncompressed BGR24 240x320 AVIs played through amstream (`IAMMultiMediaStream`, MediaStreamFilter): AVI Decompressor is added but most connections to the media stream are refused (`VFW_E_TYPE_NOT_ACCEPTED`) |

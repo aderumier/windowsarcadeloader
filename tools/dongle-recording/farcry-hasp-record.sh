@@ -1,9 +1,9 @@
 #!/bin/sh
-# Builds FarCry_r_hasplog.exe: a copy of Far Cry Paradise Lost's FarCry_r.exe (WindowsLoader
-# build, MD5 87648806d0b4b5a5384e7eedf4882d7e) whose hasp() calls go through
+# Builds FarCry_r_hasplog.exe: a copy of Far Cry Paradise Lost's FarCry_r.exe (build
+# MD5 87648806d0b4b5a5384e7eedf4882d7e) whose hasp() calls go through
 # farcry-hasp-cave.S, logging every call and its answer to hasplog.bin. Run that copy
-# under WindowsLoader (in place of FarCry_r.exe) to record what WindowsLoader's dongle
-# emulation answers, then build the payload's dongle image from the log.
+# under an existing dongle emulation (in place of FarCry_r.exe) to record what it
+# answers, then build the payload's dongle image from the log.
 #
 # usage: farcry-hasp-record.sh <FarCry_r.exe> [output]
 set -e
@@ -22,7 +22,7 @@ import hashlib, struct, sys
 src, out, cave = sys.argv[1], sys.argv[2], open(sys.argv[3], 'rb').read()
 d = bytearray(open(src, 'rb').read())
 if hashlib.md5(d).hexdigest() != '87648806d0b4b5a5384e7eedf4882d7e':
-    sys.exit('not the WindowsLoader FarCry_r.exe (MD5 87648806d0b4b5a5384e7eedf4882d7e)')
+    sys.exit('not the expected FarCry_r.exe (MD5 87648806d0b4b5a5384e7eedf4882d7e)')
 BASE, TEXT_VA, TEXT_RAW, TEXT_RAWSIZE = 0x400000, 0x1000, 0x400, 0x4f8800
 off = lambda va: va - BASE - TEXT_VA + TEXT_RAW
 CAVE, HASP = 0x8f96b0, 0x8a9094

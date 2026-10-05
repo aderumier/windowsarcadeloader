@@ -76,7 +76,7 @@ static COIN_COUNTER: AtomicBool = AtomicBool::new(false);
 static COINS: [AtomicI32; 4] = [const { AtomicI32::new(0) }; 4];
 static COIN_DOWN: [AtomicBool; 4] = [const { AtomicBool::new(false) }; 4];
 /// `WAL_FASTIO_BOARDS=2`: report a second FastIO board (players 3/4) in 0x4004, as
-/// WindowsLoader's "Connect a 2nd Fast IO" / WindowsLoader for Dariusburst (I/O error otherwise).
+/// (Dariusburst shows an I/O error otherwise).
 static TWO_BOARDS: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn init() {
@@ -117,7 +117,7 @@ fn coin_counter(slot: usize) -> u32 {
     COINS[slot].load(Ordering::Relaxed).clamp(0, 0x3FFF) as u32
 }
 
-/// Native FastIO input block, same layout as WindowsLoader's FastIO pipe:
+/// Native FastIO input block:
 /// bytes 0..=3 players 1/2, byte 4 coin, bytes 8/9 analogs, bytes 10..=14 players 3/4.
 fn native_state() -> [u8; 16] {
     let map = MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP));

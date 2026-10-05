@@ -202,6 +202,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     let payload_refs: Vec<(&Path, &str)> = payloads.iter().map(|(p, n)| (p.as_path(), *n)).collect();
     if !dry_run {
         for dir in system.data_dirs() {
+            rundir::migrate_data_dir(game_dir, dir)?;
             std::fs::create_dir_all(game_dir.join(dir))
                 .with_context(|| format!("creating {}", game_dir.join(dir).display()))?;
         }

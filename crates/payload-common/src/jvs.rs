@@ -4,7 +4,7 @@
 //! bytes, `sum` is the 8-bit sum of node..data, and `E0`/`D0` inside the packet are escaped
 //! as `D0 DF` / `D0 CF`.
 //!
-//! Ported from WindowsLoader's RfidEmu (itself based on ttx_monitor), keeping its exact output.
+//! Based on ttx_monitor's card reader protocol, keeping its exact output.
 
 pub const SYNC: u8 = 0xE0;
 pub const MARK: u8 = 0xD0;

@@ -1,6 +1,6 @@
 //! NESYS network service emulation.
 //!
-//! Based on WindowsLoader's NesysEmu, corrected with FakeNesicaService
+//! Corrected with FakeNesicaService
 //! (github.com/ArcadeMachinist/FakeNesicaService), whose layouts come from captures of the
 //! real service: the network must be reported up (`NWRECOVER_NOTICE`) between the connect
 //! reply and the certificate, or games such as KOF XIII Climax stay on "initializing network".

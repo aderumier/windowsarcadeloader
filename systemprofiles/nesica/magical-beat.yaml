@@ -11,7 +11,5 @@ exe: 'Z:\userdata\roms\nesica\Magical Beat\game.exe'
 env:
   # encrypted data: crypto service with the Magical Beat key
   WAL_NESICA_KEY: magicalbeat
-  # D:\ data of WindowsLoader dumps
-  WAL_NESICA_DDRIVE: WindowsLoader
-  # WindowsLoader (CRC 0x1d396bf2): skip the initialization wait
+  # (CRC 0x1d396bf2): skip the initialization wait
   WAL_PATCHES: "0x56B21:9090"

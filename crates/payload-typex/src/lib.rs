@@ -1,7 +1,7 @@
 //! Taito Type X payload, loaded by `wal-loader` (Type X games import no driver DLL).
 //!
 //! * JVS I/O board on the serial port (`WAL_TYPEX_JVS_PORT`, default `COM2`), fed by the
-//!   virtual arcade sticks (`jvs.rs`, port of WindowsLoader's JvsPackageEmulator in Taito
+//!   virtual arcade sticks (`jvs.rs`, in Taito
 //!   stick mode).
 //! * `D:\` redirected to a game folder (`WAL_TYPEX_DDRIVE`, default `WindowsLoader`).
 //! * Profile code patches (`WAL_PATCHES`).

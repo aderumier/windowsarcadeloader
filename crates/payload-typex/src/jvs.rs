@@ -1,8 +1,7 @@
-//! JVS I/O board, port of WindowsLoader's `JvsPackageEmulator` with the settings of its
-//! `TaitoTypeXGeneric` profile: Taito stick mode (2 players, 16 switches), JVS version 0x30.
+//! JVS I/O board for Taito Type X: Taito stick mode (2 players, 16 switches), JVS version 0x30.
 //!
-//! Replies follow WindowsLoader exactly: one report byte for the packet, then each command's
-//! data; the commands after the first add their own report byte where WindowsLoader does.
+//! Replies: one report byte for the packet, then each command's data; the commands after
+//! the first add their own report byte.
 //!
 //! Switch byte 1: start 0x80, service 0x40, up 0x20, down 0x10, left 0x08, right 0x04,
 //! button 1 0x02, button 2 0x01. Switch byte 2: buttons 3-6 0x80/0x40/0x20/0x10.
@@ -118,7 +117,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
     let mut guard = BOARD.lock().unwrap();
     let Some(board) = guard.as_mut() else { return Vec::new() };
 
-    // input state (coins counted on release, like WindowsLoader)
+    // input state (coins counted on release)
     let sticks = [wal_payload_common::input(0), wal_payload_common::input(1)];
     let players: Vec<_> = sticks.iter().map(|s| player(&board.map, s)).collect();
     for (slot, p) in players.iter().enumerate() {
@@ -159,7 +158,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 (3, vec![if test { 0x80 } else { 0 }, p1.0, p1.1, p2.0, p2.1])
             }
             0x20 => {
-                // other layouts (Gaia Attack 4: 1 player x 3 bytes), as WindowsLoader's generic
+                // other layouts (Gaia Attack 4: 1 player x 3 bytes), generic
                 // reply: the 2 switch bytes of each player, padded with zeros
                 let mut v = vec![if test { 0x80 } else { 0 }];
                 for p in players.iter().take(arg(1).min(2) as usize) {
@@ -209,7 +208,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 (cmds.len() - i, vec![])
             }
         };
-        // commands with outputs/acks report like WindowsLoader: data commands get a report
+        // commands with outputs/acks: data commands get a report
         // byte when they are not the first one
         if matches!(cmds[i], 0x11..=0x14 | 0x20..=0x22 | 0x26 | 0x2E | 0x30..=0x37 | 0x65 | 0x67) {
             rep(&mut bytes);

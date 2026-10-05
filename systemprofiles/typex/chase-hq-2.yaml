@@ -12,7 +12,7 @@ exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Chase H.Q. 2\game.
 # off-screen because Wine sees a garbage ~5434188x5434103 X "desktop"
 # (Xwayland). Blocked: read the real X root geometry, then work around.
 env:
-  # WindowsLoader's Chase H.Q. 2 patch (CRC 0x1f2f9497): skip pedal calibration.
+  # Chase H.Q. 2 patch (CRC 0x1f2f9497): skip pedal calibration.
   WAL_PATCHES: "0x107E3:EB"
   # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
   WAL_D3D9_FULLSCREEN_SIZE: 1280x800

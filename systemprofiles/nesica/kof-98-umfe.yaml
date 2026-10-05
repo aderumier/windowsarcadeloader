@@ -6,7 +6,7 @@ exe: 'Z:\userdata\roms\nesica\The King of Fighters ''98 - Ultimate Match Final E
 
 # Direct3D 9 game (DXVK). No crypto key.
 
-# Buttons A B C D: WindowsLoader maps A=Button1 B=Button2 C=Button4 D=Button5 (2 rows of 3).
+# Buttons A B C D: usual layout A=Button1 B=Button2 C=Button4 D=Button5 (2 rows of 3).
 # Virtual top row b1-b4 = A B C D.
 native_map:
   b1: btn1

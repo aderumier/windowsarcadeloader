@@ -20,5 +20,5 @@ windows-sys = { version = "0.61", features = [
 ] }
 
 [features]
-# Recording build for WindowsLoader: forwards USBIO to USBIOExtreme_real.dll, logs hasp() calls
+# Recording build (under another dongle emulation): forwards USBIO to USBIOExtreme_real.dll, logs hasp() calls
 record = []

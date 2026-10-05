@@ -4,7 +4,7 @@ system: typex
 name: Gaia Attack 4
 exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Gaia Attack 4\game.exe'
 
-# Guns: like WindowsLoader, the gun board (COM1) is a silent port and the guns are
+# Guns: the gun board (COM1) is a silent port and the guns are
 # written in the game's memory (payload guns.rs): lightgun or mouse per player,
 # trigger = b1, reload = b2 or aiming off screen.
 input:
@@ -16,7 +16,7 @@ env:
   # the game opens COM3 at boot (and knows COM1): both silent
   WAL_TYPEX_GUN_PORT: COM1,COM3
   # The game steps up with SetCurrentDirectory("..\\") and no longer finds data\sound
-  # (SOUND ERROR): keep its directory, like WindowsLoader (.\data\sh -> data\sh).
+  # (SOUND ERROR): keep its directory (.\data\sh -> data\sh).
   WAL_PIN_CWD: "1"
   # Attract movies are WMV9 (WMV3) AVIs read through AVIFile: Microsoft's WMV9 VCM codec,
   # WMV9VCM.dll, extracted from the dump's wmv9VCMsetup.exe into the game folder
@@ -24,8 +24,13 @@ env:
   WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll
   # Shift-JIS boot/error messages
   WAL_ANSI_CODEPAGE: "932"
-  # WindowsLoader's Gaia Attack 4 patches (CRC 0xad310e21): disable the JVS gun
+  # Gaia Attack 4 patches (CRC 0xad310e21): disable the JVS gun
   # writes, and the volume write (it reads JVS Analog0, which we use for inputs).
   WAL_PATCHES: "0x113E80:B801000000C3,0x1156C8:90909090"
   # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
   WAL_D3D9_FULLSCREEN_SIZE: 1280x800
+
+# The dump's MINIGUN.INI keeps settings and rankings in another data folder: same file,
+# with WindowsLoader.
+files:
+  MINIGUN.INI: systemprofiles/typex/files/gaia-attack-4/MINIGUN.INI

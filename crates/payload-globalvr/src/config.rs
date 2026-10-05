@@ -3,7 +3,7 @@
 //!
 //! `g_arcadeError` keeps the cabinet error flags across boots. Bits 4/8 ("One or more Gun
 //! PCB(s) Missing") are only cleared by the game's DirectInput gun path, never with a USBIO
-//! board: a value saved by another setup (WindowsLoader runs the DirectInput path without gun
+//! board: a value saved by another setup (one running the DirectInput path without gun
 //! PCBs: 1038) blocks the game on CONTROL ERROR. The flags are reset before the game reads them;
 //! it sets again the ones still true.
 

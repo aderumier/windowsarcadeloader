@@ -101,7 +101,7 @@ Sibling movies: `staff.sfd` (104 MB), `bargein.sfd`/`bargein2.sfd`,
 ## 3. Environment facts
 
 * Profile: `systemprofiles/typex/king-of-fighters-maximum-impact-regulation-a.yaml`
-  (WindowsLoader patch `0x447C:B80008009090` for CRC 0x1782f027; hide MS
+  (patch `0x447C:B80008009090` for CRC 0x1782f027; hide MS
   dinput8; no back buffer override).
 * Dump: `games/typex2/King of Fighters Maximum Impact Regulation A/` —
   `game.exe` (PE32, base 0x400000) imports d3d8, d3d9, ddraw, d3dx9_29,
@@ -148,7 +148,7 @@ Sibling movies: `staff.sfd` (104 MB), `bargein.sfd`/`bargein2.sfd`,
    (protonge, `dlls/wined3d/adapter_gl.c` — caps context not current at the
    profile query) and rebuild per IMPLEMENTATION.md §3; re-test Gouketsuji
    **and** KOF MIRA. Upstream candidate like #821–823.
-4. Check whether the opening plays at all on WindowsLoader / real Windows.
+4. Check whether the opening plays at all on real Windows.
 5. If the engine decode is the blocker, look for a known PC-port behavior
    (movie skipped under certain conditions / `game.inf` flags).
 

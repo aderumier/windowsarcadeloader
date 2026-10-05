@@ -122,17 +122,27 @@ input:
       KEY_S: b2
       KEY_Q: b3
       KEY_W: b4
-      KEY_I: b5
-      KEY_K: b6
-      KEY_J: b7
-      KEY_L: b8
       KEY_2: start
       KEY_6: coin
-    # Players 3/4: start and coin only, MAME keys (directions/buttons from pads).
+    # Players 3/4: MAME's 4-player keys.
     p3:
+      KEY_I: up
+      KEY_K: down
+      KEY_J: left
+      KEY_L: right
+      KEY_RIGHTCTRL: b1
+      KEY_RIGHTSHIFT: b2
+      KEY_ENTER: b3
       KEY_3: start
       KEY_7: coin
     p4:
+      KEY_KP8: up
+      KEY_KP2: down
+      KEY_KP4: left
+      KEY_KP6: right
+      KEY_KP0: b1
+      KEY_KPDOT: b2
+      KEY_KPENTER: b3
       KEY_4: start
       KEY_8: coin
 
