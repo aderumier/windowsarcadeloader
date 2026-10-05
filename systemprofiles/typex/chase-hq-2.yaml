@@ -6,7 +6,11 @@ exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Chase H.Q. 2\game.
 
 # The dump's dinput8.dll is Taito's bridge (not Microsoft's): keep it.
 # NOTE: wheel/gas/brake come from JVS analog, which the payload does not
-# emulate yet: the game boots and shows menus, but driving is not possible.
+# emulate yet: even once boot works, driving will not be possible.
+# CURRENT STATE (see docs/CHASE-HQ-2-BOOT-DEBUG.md): the game shows a
+# (blank) MessageBox before any D3D9 and exits 0; its window is placed
+# off-screen because Wine sees a garbage ~5434188x5434103 X "desktop"
+# (Xwayland). Blocked: read the real X root geometry, then work around.
 env:
   # WindowsLoader's Chase H.Q. 2 patch (CRC 0x1f2f9497): skip pedal calibration.
   WAL_PATCHES: "0x107E3:EB"
