@@ -4,9 +4,26 @@ system: typex
 name: Gaia Attack 4
 exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Gaia Attack 4\game.exe'
 
-# NOTE: the guns use JVS analog (X/Y per player), which the payload does not
-# emulate yet: the game boots, but aiming is not possible.
+# Guns: like WindowsLoader, the gun board (COM1) is a silent port and the guns are
+# written in the game's memory (payload guns.rs): lightgun or mouse per player,
+# trigger = b1, reload = b2 or aiming off screen.
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
 env:
+  WAL_TYPEX_GUNS: gaia-attack-4
+  # the game opens COM3 at boot (and knows COM1): both silent
+  WAL_TYPEX_GUN_PORT: COM1,COM3
+  # The game steps up with SetCurrentDirectory("..\\") and no longer finds data\sound
+  # (SOUND ERROR): keep its directory, like WindowsLoader (.\data\sh -> data\sh).
+  WAL_PIN_CWD: "1"
+  # Attract movies are WMV9 (WMV3) AVIs read through AVIFile: Microsoft's WMV9 VCM codec,
+  # WMV9VCM.dll, extracted from the dump's wmv9VCMsetup.exe into the game folder
+  # (cabextract wmv9VCMsetup.exe), registered at startup. Without it: MOVIE READ_ERROR.
+  WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll
+  # Shift-JIS boot/error messages
+  WAL_ANSI_CODEPAGE: "932"
   # WindowsLoader's Gaia Attack 4 patches (CRC 0xad310e21): disable the JVS gun
   # writes, and the volume write (it reads JVS Analog0, which we use for inputs).
   WAL_PATCHES: "0x113E80:B801000000C3,0x1156C8:90909090"

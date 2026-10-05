@@ -5,9 +5,12 @@
 //!   stick mode).
 //! * `D:\` redirected to a game folder (`WAL_TYPEX_DDRIVE`, default `WindowsLoader`).
 //! * Profile code patches (`WAL_PATCHES`).
+//! * Lightgun games (`WAL_TYPEX_GUNS`): guns written in the game's memory (`guns.rs`).
+//! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`).
 
 #![allow(non_snake_case)]
 
+mod guns;
 mod jvs;
 
 use std::ffi::c_void;
@@ -23,6 +26,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         patches::apply();
         drive::init("WAL_TYPEX_DDRIVE", "WindowsLoader");
         jvs::init();
+        guns::init();
+        wal_payload_common::vfw::init();
         log!("typex: initialized");
     }
     TRUE

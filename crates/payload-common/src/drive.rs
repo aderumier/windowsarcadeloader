@@ -97,6 +97,57 @@ fn wide(p: *const u16) -> Redirected<u16> {
     unsafe { rewrite_drive(p, letter(), &target().wide) }
 }
 
+/// `WAL_PIN_CWD=1`: the game's working directory stays its own directory, like WindowsLoader's
+/// Type X2 `SetCurrentDirectoryA` hook: `.\sh` and `.\data\sh` go to those folders of the
+/// game directory, anything else to the game directory (Gaia Attack 4 steps up with `..\`
+/// and no longer finds `data\sound`).
+fn pin_cwd() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_PIN_CWD").is_ok_and(|v| v == "1"))
+}
+
+/// The pinned directory for a `SetCurrentDirectory` argument.
+fn pinned_dir(requested: &str) -> String {
+    let mut exe = vec![0u16; 1024];
+    let n = unsafe { GetModuleFileNameW(std::ptr::null_mut(), exe.as_mut_ptr(), exe.len() as u32) } as usize;
+    let exe = String::from_utf16_lossy(&exe[..n]);
+    let dir = exe.rsplit_once('\\').map_or(exe.as_str(), |(d, _)| d).to_string();
+    let lower = requested.to_ascii_lowercase().replace('/', "\\");
+    let dir = if lower.starts_with(".\\sh") {
+        format!("{dir}\\sh")
+    } else if lower.starts_with(".\\data\\sh") {
+        format!("{dir}\\data\\sh")
+    } else {
+        dir
+    };
+    log!("drive: SetCurrentDirectory {requested:?} -> {dir}");
+    dir
+}
+
+fn cwd_ansi(p: *const u8) -> Redirected<u8> {
+    if !pin_cwd() || p.is_null() {
+        return ansi(p);
+    }
+    let requested = unsafe { std::ffi::CStr::from_ptr(p.cast()) }.to_string_lossy().into_owned();
+    let mut out = pinned_dir(&requested).into_bytes();
+    out.push(0);
+    Redirected::replaced(out)
+}
+
+fn cwd_wide(p: *const u16) -> Redirected<u16> {
+    if !pin_cwd() || p.is_null() {
+        return wide(p);
+    }
+    let mut len = 0;
+    while unsafe { *p.add(len) } != 0 {
+        len += 1;
+    }
+    let requested = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(p, len) });
+    let mut out: Vec<u16> = pinned_dir(&requested).encode_utf16().collect();
+    out.push(0);
+    Redirected::replaced(out)
+}
+
 const COUNT: usize = 26;
 static ORIG: [AtomicUsize; COUNT] = [const { AtomicUsize::new(0) }; COUNT];
 
@@ -162,8 +213,8 @@ hooks! {
     13 FindFirstFileW [wide; path: *const u16] (data: P) -> P;
     14 FindFirstFileExA [ansi; path: *const u8] (level: i32, data: P, op: i32, filter: P, flags: u32) -> P;
     15 FindFirstFileExW [wide; path: *const u16] (level: i32, data: P, op: i32, filter: P, flags: u32) -> P;
-    16 SetCurrentDirectoryA [ansi; path: *const u8] () -> i32;
-    17 SetCurrentDirectoryW [wide; path: *const u16] () -> i32;
+    16 SetCurrentDirectoryA [cwd_ansi; path: *const u8] () -> i32;
+    17 SetCurrentDirectoryW [cwd_wide; path: *const u16] () -> i32;
     18 GetDiskFreeSpaceExA [ansi; path: *const u8] (avail: P, total: P, free: P) -> i32;
     19 GetDiskFreeSpaceExW [wide; path: *const u16] (avail: P, total: P, free: P) -> i32;
     20 MoveFileA [ansi; from: *const u8, to: *const u8] () -> i32;

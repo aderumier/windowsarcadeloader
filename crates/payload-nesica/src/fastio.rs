@@ -5,7 +5,7 @@
 
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 use wal_payload_common::{log, mapping::ButtonMap};
 use wal_protocol::{Axis, StickState};
@@ -66,8 +66,55 @@ const DEFAULT_MAP: &[(&str, &str)] = &[
 static MAP: OnceLock<ButtonMap<Native>> = OnceLock::new();
 static COIN_HELD: AtomicBool = AtomicBool::new(false);
 
+/// `WAL_FASTIO_COIN=counter`: the coin registers are coin counters, as read by Taito's
+/// FIO.dll (Dariusburst): a read returns the coins inserted (low 14 bits), the game consumes
+/// them by writing `-n`. By default each press is reported once (`coin_edge`).
+static COIN_COUNTER: AtomicBool = AtomicBool::new(false);
+/// Coin counters of 0x4140, 0x4144, 0x41C0, 0x41C4. Every player's coin feeds the first one:
+/// Dariusburst has a single credit pool and only consumes 0x4140 (it ignores the coins of
+/// 0x4144 and of the second board, 0x41C0).
+static COINS: [AtomicI32; 4] = [const { AtomicI32::new(0) }; 4];
+static COIN_DOWN: [AtomicBool; 4] = [const { AtomicBool::new(false) }; 4];
+/// `WAL_FASTIO_BOARDS=2`: report a second FastIO board (players 3/4) in 0x4004, as
+/// WindowsLoader's "Connect a 2nd Fast IO" / WindowsLoader for Dariusburst (I/O error otherwise).
+static TWO_BOARDS: AtomicBool = AtomicBool::new(false);
+
 pub(crate) fn init() {
     MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP));
+    if std::env::var("WAL_FASTIO_COIN").is_ok_and(|v| v == "counter") {
+        COIN_COUNTER.store(true, Ordering::Relaxed);
+        log!("fastio: coin counters");
+    }
+    if std::env::var("WAL_FASTIO_BOARDS").is_ok_and(|v| v == "2") {
+        TWO_BOARDS.store(true, Ordering::Relaxed);
+        log!("fastio: two boards");
+    }
+}
+
+fn coin_slot(command: u32) -> Option<usize> {
+    match command {
+        0x4140 => Some(0),
+        0x4144 => Some(1),
+        0x41C0 => Some(2),
+        0x41C4 => Some(3),
+        _ => None,
+    }
+}
+
+/// Counts the coin presses of every player (rising edges) and returns the counter of `slot`.
+fn coin_counter(slot: usize) -> u32 {
+    let map = MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP));
+    for player in 0..wal_protocol::MAX_PLAYERS.min(4) {
+        let stick = wal_payload_common::input(player);
+        let mut pressed = false;
+        map.for_each_pressed(&stick, |n| pressed |= n == Native::Coin);
+        if pressed && !COIN_DOWN[player].swap(true, Ordering::Relaxed) {
+            COINS[0].fetch_add(1, Ordering::Relaxed);
+        } else if !pressed {
+            COIN_DOWN[player].store(false, Ordering::Relaxed);
+        }
+    }
+    COINS[slot].load(Ordering::Relaxed).clamp(0, 0x3FFF) as u32
 }
 
 /// Native FastIO input block, same layout as WindowsLoader's FastIO pipe:
@@ -155,9 +202,12 @@ pub unsafe extern "C" fn iDmacDrvRegisterRead(
     out: *mut c_void,
     result: *mut c_void,
 ) -> i32 {
+    let counter = COIN_COUNTER.load(Ordering::Relaxed);
     let value = match command {
+        c if counter && coin_slot(c).is_some() => coin_counter(coin_slot(c).unwrap()),
         0x400 => 0x0001_0201,
         0x4000 => 0x00FF_00FF,
+        0x4004 if TWO_BOARDS.load(Ordering::Relaxed) => 0x00FF_00FF,
         0x4004 => 0x00FF_0000,
         0x4120 => le(&native_state()[0..4]),
         0x4124 | 0x41A4 => 0x0110_0000,
@@ -190,7 +240,7 @@ fn trace(kind: &str, command: u32, value: u32) {
         }
         Some((_, last)) if *last != value => {
             *last = value;
-            if matches!(command, 0x4120 | 0x4128 | 0x4140 | 0x41A0) {
+            if matches!(command, 0x4120 | 0x4128 | 0x4140 | 0x4144 | 0x41A0 | 0x41C0 | 0x41C4) {
                 log!("fastio: {kind} {command:#06x} -> {value:#010x}");
             }
         }
@@ -206,6 +256,13 @@ pub unsafe extern "C" fn iDmacDrvRegisterWrite(
     result: *mut c_void,
 ) -> i32 {
     trace("write", command, _value as u32);
+    if let Some(slot) = coin_slot(command).filter(|_| COIN_COUNTER.load(Ordering::Relaxed)) {
+        // the game consumes coins by adding -n
+        let left = COINS[slot].fetch_add(_value, Ordering::Relaxed) + _value;
+        log!("fastio: coin slot {slot} {_value:+}, {left} left");
+        unsafe { put(result, u32::MAX) };
+        return 0;
+    }
     let ack = matches!(command, 0x4000 | 0x4004 | 0x4100 | 0x4180 | 0x4184 | 0x4188 | 0x418C)
         || (0x4101..=0x410C).contains(&command);
     if ack {

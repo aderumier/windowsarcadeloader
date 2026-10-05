@@ -29,6 +29,8 @@ pub mod screenshot;
 #[cfg(windows)]
 pub mod sdl;
 #[cfg(windows)]
+pub mod vfw;
+#[cfg(windows)]
 pub mod window;
 
 use std::io::Write;

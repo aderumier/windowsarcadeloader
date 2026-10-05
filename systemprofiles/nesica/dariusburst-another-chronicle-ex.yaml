@@ -1,0 +1,32 @@
+# Dariusburst Another Chronicle EX (Taito) - template, override values in
+# userprofiles/nesica/dariusburst-another-chronicle-ex.yaml.
+# NESiCA architecture (FastIO via iDmacDrv32.dll, NESYS on \\.\pipe\nesystest,
+# TtxAppCrypt), although the dump is filed with the Type X2 games.
+# CRC 0xa50dc62c: neither WindowsLoader build (1.05 0x5F9F4B9F, 1.16 0xCD3EF573),
+# so their code patches do not apply as-is.
+system: nesica
+name: Dariusburst Another Chronicle EX
+exe: 'Z:\home\aderumier\code\windowsarcadeloader\games\typex2\Dariusburst - Another Chronicle EX\game.exe'
+
+env:
+  # encrypted data: crypto service with the Dariusburst key
+  WAL_NESICA_KEY: darius
+  # Taito FIO.dll reads 0x4140/0x4144/0x41C0/0x41C4 as coin counters and consumes
+  # coins by writing -n: with one-shot coin reads no coin was ever credited.
+  WAL_FASTIO_COIN: counter
+  # 4-player cabinet: a second FastIO board (players 3/4) must answer, else I/O error
+  # (WindowsLoader "Connect a 2nd Fast IO": Required).
+  WAL_FASTIO_BOARDS: "2"
+  # The cabinet's right (players 3/4) screen is mounted upside down: the composite
+  # shader flips its V when the 2nd board is present (isInv_RV). WindowsLoader's 1.16
+  # patch (same addresses in this build): isInv_RV -> 0.0f in
+  # "rv = right * (isInv_RV * 1.0f - (2.0f * isInv_RV - 1.0f) * ...)".
+  WAL_PATCHES: "0x5399CC:302E306620202020,0x5399E4:2A20302E306620202020202D"
+
+
+# The dump's init.ini disables JVS (6th line 0; the original init.ini.original has
+# 1): coins are then never credited. Same file with JVS on.
+# TODO: with JVS on, P1's controls were reported not to respond (the inputs do reach
+# 0x4120); coins and P3/P4 start work.
+files:
+  init.ini: systemprofiles/nesica/files/dariusburst-another-chronicle-ex/init.ini
