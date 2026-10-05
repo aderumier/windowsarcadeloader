@@ -177,6 +177,14 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
             bail!("payload {} missing: build it with ./build.sh", src.display());
         }
     }
+    // profile files are installed like the payloads: copied in place of the game's file
+    for (name, src) in &profile.files {
+        let src = profile.path(src);
+        if !src.is_file() {
+            bail!("profile file {} missing", src.display());
+        }
+        payloads.push((src, name.as_str()));
+    }
 
     wine.prepare_prefix()?;
     wine.apply_tricks(&profile.tricks)?;

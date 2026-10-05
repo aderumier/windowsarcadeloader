@@ -17,3 +17,8 @@ native_map:
   b4: btn5
   b5: none
   b6: none
+
+env:
+  # It polls a Direct3D event query into a 1-byte variable at the top of its stack frame; DXVK
+  # writes the whole 4-byte BOOL and overwrites the saved EBP: crash after the first frame.
+  WAL_D3D9_QUERY_FIX: "1"

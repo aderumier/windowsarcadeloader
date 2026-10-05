@@ -9,5 +9,15 @@ name: Psychic Force 2012
 exe: 'Z:\userdata\roms\nesica\Psychic Force 2012\game.exe'
 
 # Direct3D 8 game (DXVK d3d8). No crypto key.
+# Never opened its I/O with wine's dsound: native dsound/DirectMusic, prefix of the
+# DirectMusic games.
+prefix: wine-prefix/directmusic
 
 # Buttons 1-6 = b1-b6 (default mapping).
+
+env:
+  # HD mode (Resolution=1) picks resolution preset 5, 1280x768, which Wine does not offer
+  # ("Cannot Support Full Screen"): preset 6, 1280x720 (mov esi,5 -> mov esi,6).
+  WAL_PATCHES: "0xA79BB:06"
+  # only in game2.exe (TestMode.exe loads the payload too)
+  WAL_PATCHES_EXE: game2.exe

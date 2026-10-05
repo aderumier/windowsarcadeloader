@@ -5,6 +5,8 @@
 //! reports game outputs with [`send_output`].
 
 #[cfg(windows)]
+pub mod codepage;
+#[cfg(windows)]
 pub mod crash;
 #[cfg(windows)]
 pub mod drive;
@@ -24,6 +26,8 @@ pub mod patches;
 pub mod serial;
 #[cfg(windows)]
 pub mod screenshot;
+#[cfg(windows)]
+pub mod sdl;
 #[cfg(windows)]
 pub mod window;
 
@@ -70,6 +74,8 @@ pub fn start(name: &'static str) {
             screenshot::init();
             window::init();
             font::init();
+            sdl::init();
+            codepage::init();
         }
         std::thread::spawn(move || connection_loop(name, port));
     });

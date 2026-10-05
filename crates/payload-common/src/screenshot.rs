@@ -11,6 +11,11 @@
 //! * `WAL_D3D9_FULLSCREEN=1`: windowed devices are created (and reset) fullscreen instead,
 //!   with the same back buffer size, for games that only run in a window under Wine.
 //!
+//! * `WAL_D3D9_QUERY_FIX=1`: `IDirect3DQuery9::GetData` writes at most the requested size.
+//!   KOF '98 UMFE / 2002 UM poll an event query into a 1-byte variable at the top of their
+//!   stack frame; DXVK writes the whole 4-byte BOOL, overwriting the saved EBP (crash after the
+//!   first frame).
+//!
 //! Direct3D 8 differs in the vtable slots and structure layouts only (see `mod d3d8`).
 
 use std::ffi::c_void;
@@ -29,6 +34,8 @@ const D3D_CREATE_DEVICE_EX: usize = 20;
 const DEV_RESET: usize = 16;
 const DEV_PRESENT: usize = 17;
 const DEV_PRESENT_EX: usize = 121;
+const DEV_CREATE_QUERY: usize = 118;
+const QUERY_GET_DATA: usize = 7;
 const DEV_RESET_EX: usize = 132;
 const DEV_GET_BACK_BUFFER: usize = 18;
 const DEV_GET_RENDER_TARGET_DATA: usize = 32;
@@ -51,6 +58,9 @@ static ORIG_CREATE_DEVICE_EX: AtomicUsize = AtomicUsize::new(0);
 static ORIG_PRESENT_EX: AtomicUsize = AtomicUsize::new(0);
 static ORIG_RESET_EX: AtomicUsize = AtomicUsize::new(0);
 static ORIG_GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CREATE_QUERY: AtomicUsize = AtomicUsize::new(0);
+static ORIG_QUERY_GET_DATA: AtomicUsize = AtomicUsize::new(0);
+static QUERY_FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -102,7 +112,9 @@ pub fn init() {
         let dir = std::env::var("WAL_SCREENSHOT_DIR").unwrap_or_else(|_| ".".into());
         *STATE.lock().unwrap() = Some(State { interval: Duration::from_secs_f64(secs.max(0.5)), last: None, count: 0, dir });
     }
-    if secs.is_none() && size.is_none() && !force {
+    let query_fix = std::env::var("WAL_D3D9_QUERY_FIX").is_ok_and(|v| v == "1");
+    QUERY_FIX.store(query_fix, Ordering::Relaxed);
+    if secs.is_none() && size.is_none() && !force && !query_fix {
         return;
     }
     if let Some(o) = unsafe { iat::hook("d3d9.dll", "Direct3DCreate9", create9 as *const () as usize) } {
@@ -156,7 +168,36 @@ unsafe fn wrap_device(dev: P) {
     unsafe {
         patch(dev, DEV_PRESENT, present as *const () as usize, &ORIG_PRESENT);
         patch(dev, DEV_RESET, reset as *const () as usize, &ORIG_RESET);
+        if QUERY_FIX.load(Ordering::Relaxed) {
+            patch(dev, DEV_CREATE_QUERY, create_query as *const () as usize, &ORIG_CREATE_QUERY);
+        }
     }
+}
+
+unsafe extern "system" fn create_query(dev: P, kind: u32, out: *mut P) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, u32, *mut P) -> HRESULT =
+        unsafe { std::mem::transmute(ORIG_CREATE_QUERY.load(Ordering::Relaxed)) };
+    let hr = unsafe { orig(dev, kind, out) };
+    if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
+        unsafe { patch(*out, QUERY_GET_DATA, query_get_data as *const () as usize, &ORIG_QUERY_GET_DATA) };
+    }
+    hr
+}
+
+/// Query results (BOOL, UINT64, structures) into a scratch buffer, `size` bytes copied back.
+unsafe extern "system" fn query_get_data(query: P, data: *mut u8, size: u32, flags: u32) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, *mut u8, u32, u32) -> HRESULT =
+        unsafe { std::mem::transmute(ORIG_QUERY_GET_DATA.load(Ordering::Relaxed)) };
+    if data.is_null() || size == 0 || size >= 64 {
+        return unsafe { orig(query, data, size, flags) };
+    }
+    let mut buf = [0u8; 64];
+    let hr = unsafe { orig(query, buf.as_mut_ptr(), size, flags) };
+    if hr == 0 {
+        // S_OK: data available (S_FALSE leaves the caller's buffer untouched)
+        unsafe { std::ptr::copy_nonoverlapping(buf.as_ptr(), data, size as usize) };
+    }
+    hr
 }
 
 unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, window: P, flags: u32, params: P, mode: P, out: *mut P) -> HRESULT {

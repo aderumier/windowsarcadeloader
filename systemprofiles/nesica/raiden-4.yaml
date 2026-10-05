@@ -12,3 +12,8 @@ hide: [d3d9.dll]
 tricks: [d3dx9_31]
 
 # Buttons Shoot, Bomb = b1, b2 (default mapping).
+
+env:
+  # It converts its Shift-JIS movie name ("raiden4_ｃ50.m1v") with the ANSI code page: not
+  # found under a western one (white intro).
+  WAL_ANSI_CODEPAGE: "932"

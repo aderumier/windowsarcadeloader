@@ -16,4 +16,7 @@ native_map:
 
 # Fullscreen comes from config.ini ([DISPLAY] Resolution=1280x768, FullScreen=ON), shipped
 # with the other Capcom dumps (HSF2, SF III, Vampire Savior, same engine) but missing from
-# some SFZ3 dumps: without it the game runs in a window. Copy Vampire Savior's next to the exe.
+# some SFZ3 dumps: without it the game runs in a window. Vampire Savior's is installed in the
+# run directory.
+files:
+  config.ini: systemprofiles/nesica/files/street-fighter-zero-3/config.ini

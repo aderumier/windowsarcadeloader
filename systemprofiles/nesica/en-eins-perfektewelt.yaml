@@ -4,6 +4,9 @@ system: nesica
 name: EN-Eins Perfektewelt
 exe: 'Z:\userdata\roms\nesica\EN-Eins Perfektewelt\game.exe'
 
+# Rendered but nothing showed on screen with wine's dsound: native dsound/DirectMusic, prefix of the DirectMusic games.
+prefix: wine-prefix/directmusic
+
 # Direct3D 9 game (DXVK). No crypto key.
 
 # Buttons 1-4 = b1-b4 (default mapping).
