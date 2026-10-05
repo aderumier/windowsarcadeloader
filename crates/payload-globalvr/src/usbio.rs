@@ -134,114 +134,49 @@ fn fill(rec: &mut [u8; RECORD_SIZE]) {
 /// `CUSBIO::CUSBIO()`
 #[unsafe(no_mangle)]
 pub unsafe extern "thiscall" fn cusbio_new(this: *mut u32) -> *mut u32 {
-    #[cfg(feature = "record")]
-    {
-        unsafe { real::call0::<*mut u32>("??0CUSBIO@@QAE@XZ", this) }
+    unsafe {
+        *this = 0;
+        *this.add(1) = 0;
     }
-    #[cfg(not(feature = "record"))]
-    {
-        unsafe {
-            *this = 0;
-            *this.add(1) = 0;
-        }
-        this
-    }
+    this
 }
 
 /// `CUSBIO::~CUSBIO()`
 #[unsafe(no_mangle)]
-pub unsafe extern "thiscall" fn cusbio_drop(_this: *mut u32) {
-    #[cfg(feature = "record")]
-    unsafe {
-        real::call0::<()>("??1CUSBIO@@QAE@XZ", _this)
-    };
-}
+pub unsafe extern "thiscall" fn cusbio_drop(_this: *mut u32) {}
 
 /// `int CUSBIO::CUSBIO_Init()`: number of boards found.
 #[unsafe(no_mangle)]
 pub unsafe extern "thiscall" fn cusbio_init(this: *mut u32) -> i32 {
-    #[cfg(feature = "record")]
-    {
-        unsafe { real::call0::<i32>("?CUSBIO_Init@CUSBIO@@QAEHXZ", this) }
+    let rec = records();
+    unsafe {
+        *this = DEVICES as u32;
+        *this.add(1) = rec as u32;
     }
-    #[cfg(not(feature = "record"))]
-    {
-        let rec = records();
-        unsafe {
-            *this = DEVICES as u32;
-            *this.add(1) = rec as u32;
-        }
-        log!("usbio: init, {DEVICES} board, records at {rec:p}");
-        DEVICES as i32
-    }
+    log!("usbio: init, {DEVICES} board, records at {rec:p}");
+    DEVICES as i32
 }
 
 /// `void CUSBIO::CUSBIO_Update(int device)`
 #[unsafe(no_mangle)]
 pub unsafe extern "thiscall" fn cusbio_update(this: *mut u32, device: i32) {
-    #[cfg(feature = "record")]
-    {
-        unsafe { real::call1::<()>("?CUSBIO_Update@CUSBIO@@QAEXH@Z", this, device) }
+    if device != 0 {
+        return;
     }
-    #[cfg(not(feature = "record"))]
-    {
-        if device != 0 {
-            return;
-        }
-        let rec = unsafe { *this.add(1) } as *mut [u8; RECORD_SIZE];
-        if !rec.is_null() {
-            fill(unsafe { &mut *rec });
-        }
+    let rec = unsafe { *this.add(1) } as *mut [u8; RECORD_SIZE];
+    if !rec.is_null() {
+        fill(unsafe { &mut *rec });
     }
 }
 
 /// `char *CUSBIO::CUSBIO_GetLastError(int device)`: NULL, no error.
 #[unsafe(no_mangle)]
 pub unsafe extern "thiscall" fn cusbio_last_error(_this: *mut u32, _device: i32) -> *const u8 {
-    #[cfg(feature = "record")]
-    {
-        unsafe { real::call1::<*const u8>("?CUSBIO_GetLastError@CUSBIO@@QAEPADH@Z", _this, _device) }
-    }
-    #[cfg(not(feature = "record"))]
-    {
-        std::ptr::null()
-    }
+    std::ptr::null()
 }
 
 /// `void CUSBIO::CUSBIO_Close()`
 #[unsafe(no_mangle)]
 pub unsafe extern "thiscall" fn cusbio_close(_this: *mut u32) {
-    #[cfg(feature = "record")]
-    {
-        unsafe { real::call0::<()>("?CUSBIO_Close@CUSBIO@@QAEXXZ", _this) }
-    }
-    #[cfg(not(feature = "record"))]
-    {
-        log!("usbio: close");
-    }
-}
-
-/// Recording builds: the real driver, renamed `USBIOExtreme_real.dll`, does the work.
-#[cfg(feature = "record")]
-mod real {
-    use std::sync::OnceLock;
-    use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
-
-    fn proc(name: &str) -> usize {
-        static DLL: OnceLock<usize> = OnceLock::new();
-        let dll = *DLL.get_or_init(|| unsafe { LoadLibraryA(c"USBIOExtreme_real.dll".as_ptr().cast()) } as usize);
-        let name = format!("{name}\0");
-        let f = unsafe { GetProcAddress(dll as _, name.as_ptr()) };
-        f.map_or(0, |f| f as usize)
-    }
-
-    pub unsafe fn call0<R>(name: &str, this: *mut u32) -> R {
-        let f: unsafe extern "thiscall" fn(*mut u32) -> R = unsafe { std::mem::transmute(proc(name)) };
-        unsafe { f(this) }
-    }
-
-    pub unsafe fn call1<R>(name: &str, this: *mut u32, a: i32) -> R {
-        let f: unsafe extern "thiscall" fn(*mut u32, i32) -> R = unsafe { std::mem::transmute(proc(name)) };
-        unsafe { f(this, a) }
-    }
+    log!("usbio: close");
 }
