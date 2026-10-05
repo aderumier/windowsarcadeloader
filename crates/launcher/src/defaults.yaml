@@ -41,6 +41,12 @@ lib64_dirs: []
 tricks: []
 # Game files hidden from the run directory (case insensitive).
 hide: []
+# ReShade setup shipped by some dumps (rotation of vertical games to a landscape screen with a
+# bezel): its files, as the profile lists them (ReShade DLLs and what they chain to, e.g.
+# d3d8to9 or dgVoodoo). true uses them when the dump has them (they load before DXVK/wined3d),
+# false hides them (the game's own picture, portrait for vertical games).
+reshade: true
+reshade_files: []
 # Files copied into the run directory next to the executable, in place of the game's own:
 # <name in the run directory>: <source, relative to the root> (e.g. a missing config file).
 # A name with a folder ("dir/file") is a path from the game root.

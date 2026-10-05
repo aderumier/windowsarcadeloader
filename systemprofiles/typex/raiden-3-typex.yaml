@@ -1,0 +1,8 @@
+# Raiden III (MOSS, Taito Type X) - template, override values in
+# userprofiles/typex/raiden-3-typex.yaml.
+system: typex
+name: Raiden III
+
+# Direct3D 9 game (DXVK), JVS I/O on COM2.
+
+# Buttons Shoot, Bomb = b1, b2 (default mapping).

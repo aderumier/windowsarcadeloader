@@ -9,6 +9,8 @@ pub mod codepage;
 #[cfg(windows)]
 pub mod crash;
 #[cfg(windows)]
+pub mod dinput;
+#[cfg(windows)]
 pub mod drive;
 #[cfg(windows)]
 pub mod font;
@@ -78,6 +80,7 @@ pub fn start(name: &'static str) {
             font::init();
             sdl::init();
             codepage::init();
+            dinput::init();
         }
         std::thread::spawn(move || connection_loop(name, port));
     });

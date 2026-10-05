@@ -254,7 +254,9 @@ impl Wine {
     }
 
     /// d3d8..11/dxgi: the runner's DXVK (or `dxvk_from`'s), or wine's builtin wined3d.
-    pub fn setup_d3d(&mut self, dxvk: bool) -> Result<()> {
+    /// `game_first`: DLLs the game directory provides (ReShade...), loaded before wine's
+    /// builtin ones in wined3d mode (DXVK is native already: the game directory comes first).
+    pub fn setup_d3d(&mut self, dxvk: bool, game_first: &[String]) -> Result<()> {
         let dry = self.dry_run;
         let dxvk_dir_of = |arch| {
             self.component_dir("dxvk", arch).or_else(|| self.dxvk_runner.as_ref().and_then(|r| component_in(r, "dxvk", arch)))
@@ -269,7 +271,16 @@ impl Wine {
                 link_all(&src, &dir, |name| D3D_DLLS.iter().any(|d| name.eq_ignore_ascii_case(&format!("{d}.dll"))))?;
             }
         }
-        self.override_dll(&format!("{}={}", D3D_DLLS.join(","), if use_dxvk { "n" } else { "b" }));
+        if use_dxvk {
+            self.override_dll(&format!("{}=n", D3D_DLLS.join(",")));
+        } else {
+            let first = |d: &&str| game_first.iter().any(|f| f.eq_ignore_ascii_case(&format!("{d}.dll")));
+            let (native, builtin): (Vec<&str>, Vec<&str>) = D3D_DLLS.iter().copied().partition(|d| first(&d));
+            if !native.is_empty() {
+                self.override_dll(&format!("{}=n,b", native.join(",")));
+            }
+            self.override_dll(&format!("{}=b", builtin.join(",")));
+        }
         Ok(())
     }
 

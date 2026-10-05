@@ -110,8 +110,11 @@ fn process(packet: &[u8]) -> Vec<u8> {
         return Vec::new();
     }
     let cmds = req.commands;
-    // bus reset: no reply
+    // bus reset: no reply, the board is unaddressed again (sense line). K-On! resets the bus
+    // once more after its first polls and only assigns the address when the sense line says
+    // so (JVS_BOARD_NONE otherwise).
     if cmds.first() == Some(&0xF0) {
+        serial::READY.store(false, Ordering::Relaxed);
         return Vec::new();
     }
     let mut guard = BOARD.lock().unwrap();

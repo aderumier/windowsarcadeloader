@@ -138,7 +138,7 @@ Games are launched from their **dump**: `arcade-launcher <dump dir>` (or the fil
 dump root holds `<gameid>.windowsloader`, a text file whose first non-comment line is the
 executable path relative to the dump root (`game.exe`, `game\Game.exe`; `/` or `\`). The game id
 (file name) selects the profile: `systemprofiles/*/<gameid>.yaml`, unique across systems (the
-Type X2 builds of games also on NESiCA are `-typex2`). Profiles carry no executable path, so the
+Type X2 builds of games also on NESiCA are `-typex2`, Type X builds `-typex`). Profiles carry no executable path, so the
 same profiles work wherever the dumps are. The executable's folder depth below the dump root
 replaces the former `exe_depth` (the whole dump root is mirrored into the run directory).
 `<root>` is `--root`, else the current directory, else next to the launcher binary. `show` and
@@ -149,6 +149,14 @@ Adding a profile key: add it to `defaults.yaml` (with a comment) **and** to `Pro
 `InputConfig`; every key needs a default in the YAML since the struct has no serde defaults.
 
 Mapping tables can disable an inherited entry with the value `none`.
+
+ReShade setups of the dumps (`reshade`, `reshade_files`): some dumps rotate vertical games to a
+landscape screen with a bezel through ReShade (and what it chains to: d3d8to9, dgVoodoo). The
+profile lists those files in `reshade_files`; with `reshade: true` (default) they are used when
+the dump has them (DXVK's `n` override already loads the game directory's DLL first; in
+wined3d mode these DLLs get `n,b`), `reshade: false` hides them (portrait picture). ReShade
+compiles its effects with `d3dcompiler_47`: Wine's (vkd3d) fails the CRT/bezel shaders, so
+those profiles add `tricks: [d3dcompiler_47]`.
 
 ### 5.2 Input (`mapping.rs`, `input.rs`)
 
@@ -363,9 +371,23 @@ profile), `show` (merged profile).
 * `codepage`: `WAL_ANSI_CODEPAGE=<cp>` makes the game's own `MultiByteToWideChar` /
   `WideCharToMultiByte` calls on CP_ACP use `<cp>` (932): Raiden IV converts its Shift-JIS
   movie name ("raiden4_ｃ50.m1v") itself.
-* `window`: `WAL_WINDOW_SIZE=WxH` forces the size of the game's top-level windows
+* `dinput`: `WAL_DINPUT_DISABLE=1` gives the game a fake DirectInput (`DirectInputCreateA/W/Ex`,
+  `DirectInput8Create` IAT hooks): no devices enumerated, created devices succeed with zeroed
+  states and no buffered data. Games that still read the keyboard/joysticks next to their I/O
+  board (Raiden IV Type X opened its test menu on the PC keyboard's `2`, also P2 start: the
+  launcher does not grab the keyboard) only see the board. A fake rather than a failed creation,
+  which some games treat as fatal.
+* `window`: `WAL_WINDOW_SIZE=WxH` (or `screen`: the primary monitor's size) forces the size of the game's top-level windows
   (`SetWindowPos`/`MoveWindow` IAT hooks, at 0,0); in window mode Direct3D stretches the back
   buffer to it (Crimzon Clover's DxLib computed a 5-million-pixel high window: X BadAlloc).
+  `WAL_WINDOW_POPUP=1` creates the game's top-level windows as borderless popups
+  (`CreateWindowExA/W` IAT hooks: `WS_POPUP`, caption/frame/system menu removed). Shikigami no
+  Shiro III makes its fullscreen Direct3D 8 device on a plain overlapped window (style 0, so a
+  caption and border): the window manager showed an empty frame with the desktop behind.
+  Always on: `ShowWindow` minimize requests of DXVK's d3d9 (also behind its d3d8) and wined3d
+  are dropped. They minimize a fullscreen window when it is deactivated: a game started while
+  another fullscreen window (a terminal) kept the focus was minimized at once, out of the
+  taskbar, and stopped presenting.
 * `jvs`: JVS packet framing (`E0` sync, `D0` escaping, size, checksum) for emulated I/O
   boards on serial ports (unit tested; output identical to ttx_monitor).
 * IAT hooks chain: hooking the same import twice makes the second hook call the first one.
@@ -487,6 +509,9 @@ uses it for systems whose `System::loader()` is set (run dir gets `wal-loader.ex
 JVS board (`jvs.rs`) with `TaitoTypeXGeneric` settings: Taito stick mode (features `01 02 10 00 02 02 00 ...`: 2 players,
 16 switches, 2 coin slots), JVS version 0x30, identifier
 `SEGA CORPORATION;I/O BD JVS;837-14572;Ver1.00;2005/10`, the usual report-byte quirks.
+A bus reset (`F0`) makes the board unaddressed again (sense line, `GetCommModemStatus`): K-On!
+resets the bus once more after its first polls and only assigns the address when the sense line
+says so (JVS_BOARD_NONE, error 0300, otherwise).
 Switches: start 0x80, service 0x40, up/down/left/right 0x20/0x10/0x08/0x04, btn1 0x02, btn2 0x01,
 second byte btn3-6 0x80..0x10, system byte test 0x80; coins counted on release, `30`/`31`
 decrease/increase. Native names for `native_map`: `start service test coin up down left right
@@ -502,6 +527,18 @@ thread writes every 16 ms each player's trigger, offscreen flag and position (0.
 game's RVAs (layout checked against the dumps). Gun = the
 player's virtual stick: `lx`/`ly`, trigger `b1`, offscreen = `b2` or the position at a screen
 edge. Profiles set `input.guns_enabled: true` (mice act as guns without lightguns).
+
+Reference for new gun games: [DemulShooter](https://github.com/argonlefou/DemulShooter)
+(`DemulShooter/Games/Game_<System><Game>.cs`, e.g. `Game_TtxBlockKingBallShooter.cs`,
+`Game_TtxHauntedMuseum.cs`, `Game_TtxHauntedMuseum2.cs`, `Game_TtxGundam.cs` /
+`_V2`, `Game_TtxGaiaAttack4.cs`, `Game_TtxGungun2.cs`; Global VR, Lindbergh, RingWide... too).
+Each module is an external process doing what `guns.rs` does from inside: per game executable,
+the RVAs of the gun axes / trigger / offscreen flags it writes (`_AxisX_Offset`...), the game
+instructions it NOPs so the game stops overwriting them (`NopStruct(rva, length)`), code caves
+for outputs (recoil, damage, lamps: `SetOutputValue(...)` reads). Port those values into a
+`WAL_TYPEX_GUNS` game entry; check the RVAs against our dump (DemulShooter targets a given
+build: compare the bytes at the NOP addresses before trusting them). Its axis ranges are the
+game's native ones (convert from our 0..=16384 / virtual stick range).
 
 Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the game's
 `SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), for Type X2 games (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
@@ -668,13 +705,23 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `battle-fantasia` | Battle Fantasia | typex | in fight | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
 | `chase-hq-2` | Chase H.Q. 2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | see docs/CHASE-HQ-2-BOOT-DEBUG.md: Wine sees a 5434188x5434103 X desktop (Xwayland), game sizes its window from it; analog JVS also unemulated (not drivable anyway) |
+| `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, native DirectMusic prefix (exits at start with wine's), `reshade_files` dgVoodoo D3D8 + ReShade dxgi, `tricks: [d3dcompiler_47]`, dgVoodoo.conf with Direct3D 11 output (`files`: the dump asks D3D12, NULL device crash) |
+| `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | wal-loader, JVS, native DirectMusic prefix, its window mode (`args: [-window]`) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`): Wine drew its fullscreen 640x480 unscaled in the top-left corner |
 | `gaia-attack-4` | Gaia Attack 4 | typex | boots to title (guns untested) | wal-loader, JVS (`20 01 03`, `67`), guns (`WAL_TYPEX_GUNS`, COM1/COM3 silent), `WAL_PIN_CWD`, WMV9VCM codec (`WAL_VFW_CODECS`), game patches, 1280x800 |
 | `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: title, demo match, attract); intro movie never plays | wal-loader, JVS (native 640x480, no override); movie blocked: VMR second wined3d GL context fails — see docs/GOUKETSUJI-INTRO-VIDEO-DEBUG.md |
+| `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | wal-loader, JVS, `.windowsloader`: `launcher.exe`, `WAL_D3D9_QUERY_FIX`, A/B/C/D map, hide MS dinput8 |
+| `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | wal-loader, JVS, hide MS dinput8, `reshade_files` ReShade d3d9, `tricks: [d3dcompiler_47]` |
+| `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | wal-loader, JVS (re-init after bus reset), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA); TODO: dispenser (reference "Skip Boot Check") |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works, intro movie (user); intermittent crash at the movie end | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
 | `king-of-fighters-xiii` | The King of Fighters XIII | typex | not tested | - |
 | `music-gungun-2` | Music GunGun! 2 | typex | BLOCKED: "Direct3D device enumeration failed" message box | wal-loader, JVS, guns (`WAL_TYPEX_GUNS`), `WAL_PIN_CWD`, patch 0x137C70 |
+| `raiden-3-typex` | Raiden III | typex | works (user); intro movie black (as NESiCA) | wal-loader, JVS; Notice screen ~65 s |
+| `raiden-4-typex` | Raiden IV | typex | works (user) | wal-loader, JVS, `tricks: [d3dx9_31]` (MMShader.fx), `WAL_DINPUT_DISABLE` (keyboard 2 opened the test menu) |
+| `shikigami-no-shiro-3` | Shikigami no Shiro III | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, `WAL_WINDOW_POPUP` (overlapped window: empty frame), `reshade_files` d3d8to9 + ReShade d3d9, `tricks: [d3dcompiler_47]` |
 | `senko-no-ronde-duo-typex2` | Senko no Ronde DUO: Dis-United Order | typex | works (user: perfect) | wal-loader, JVS, native 1280x720, hide xinput1_3 + XAudio2_4 and its manifests (wine's xaudio2), as the NESiCA build |
+| `spica-adventure` | Spica Adventure | typex | works (user: 100%) | wal-loader, JVS |
+| `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

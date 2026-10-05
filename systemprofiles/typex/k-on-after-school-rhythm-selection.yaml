@@ -1,0 +1,14 @@
+# K-On! After School Rhythm Selection (Sega, Taito Type X) - template, override values in
+# userprofiles/typex/k-on-after-school-rhythm-selection.yaml.
+system: typex
+name: K-On! After School Rhythm Selection
+
+# Direct3D 9 game (DXVK, through its d3dx9_31.dll), JVS I/O on COM2.
+
+env:
+  # Its messages are Shift-JIS, drawn with the dump's d3dx9_31 DrawTextA: Japanese code page.
+  WAL_ANSI_CODEPAGE: "932"
+  # It runs in a 640x480 window: a borderless window the size of the screen, Direct3D
+  # stretches the picture to it.
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen

@@ -42,6 +42,8 @@ pub struct Profile {
     pub lib64_dirs: Vec<PathBuf>,
     pub tricks: Vec<String>,
     pub hide: Vec<String>,
+    pub reshade: bool,
+    pub reshade_files: Vec<String>,
     pub files: BTreeMap<String, PathBuf>,
     pub env: BTreeMap<String, String>,
     pub native_map: BTreeMap<String, String>,

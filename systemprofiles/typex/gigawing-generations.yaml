@@ -1,0 +1,26 @@
+# GigaWing Generations (Takumi, Taito Type X) - template, override values in
+# userprofiles/typex/gigawing-generations.yaml.
+system: typex
+name: GigaWing Generations
+
+# Direct3D 8 game (DXVK d3d8), JVS I/O on COM2.
+# Music is DirectMusic: native DirectMusic + DirectSound + the GM DLS sound bank, in their own
+# prefix (as Chaos Breaker).
+prefix: wine-prefix/directmusic
+tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls, d3dcompiler_47]
+# The dumps' dinput8.dll is Microsoft's: use wine's.
+hide: [dinput8.dll]
+# The Landscape/Bezel dump rotates the vertical game to a landscape screen with a bezel:
+# dgVoodoo's D3D8.dll (Direct3D 11) then ReShade as dxgi.dll (reshade: false for the portrait
+# picture through DXVK d3d8).
+reshade_files: [D3D8.dll, D3D9.dll, dxgi.dll]
+# (d3dcompiler_47 above: ReShade compiles its effects with it, Wine's fails them.)
+
+# Buttons Shot, Bomb = b1, b2 (default mapping).
+
+files:
+  # The Landscape/Bezel dump's dgVoodoo.conf asks Direct3D 12 output (OutputAPI d3d12_fl11_0):
+  # none under Wine, no device, the game crashes on it (NULL read). Same file with Direct3D 11
+  # output, and fullscreen as a borderless screen-sized window (fake fullscreen, stretched
+  # keeping the aspect ratio): it stayed a window otherwise.
+  dgVoodoo.conf: systemprofiles/typex/files/gigawing-generations/dgVoodoo.conf

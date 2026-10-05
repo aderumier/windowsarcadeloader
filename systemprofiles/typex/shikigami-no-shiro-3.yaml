@@ -1,0 +1,19 @@
+# Shikigami no Shiro III (Alfa System, Taito Type X) - template, override values in
+# userprofiles/typex/shikigami-no-shiro-3.yaml.
+system: typex
+name: Shikigami no Shiro III
+
+# Direct3D 8 game (DXVK d3d8), JVS I/O on COM2.
+# The Landscape/Bezel dump rotates the vertical game to a landscape screen with a bezel:
+# d3d8to9 as d3d8.dll, then ReShade as d3d9.dll (reshade: false for the portrait picture).
+reshade_files: [d3d8.dll, d3d9.dll]
+# ReShade compiles its CRTGeomMOD.fx (rotation, bezel) with d3dcompiler_47: Wine's (vkd3d)
+# fails it (E5002 static resource variables, E5008 array size). Native d3dcompiler_47.
+tricks: [d3dcompiler_47]
+
+# Buttons Shot, Bomb, Tension = b1-b3 (default mapping).
+
+env:
+  # It creates a plain overlapped window (Windows adds a caption and border) for its
+  # fullscreen Direct3D 8 device: only an empty frame was shown. Borderless popup window.
+  WAL_WINDOW_POPUP: "1"
