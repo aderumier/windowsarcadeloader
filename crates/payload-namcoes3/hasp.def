@@ -1,0 +1,27 @@
+; HASP HL API exports (hasp_windows_x64_100610.dll): the games import them by ordinal.
+EXPORTS
+    hasp_datetime_to_hasptime @1
+    hasp_decrypt @2
+    hasp_encrypt @3
+    hasp_free @4
+    hasp_get_rtc @5
+    hasp_get_sessioninfo @6
+    hasp_get_size @7
+    hasp_hasptime_to_datetime @8
+    hasp_legacy_decrypt @9
+    hasp_legacy_encrypt @10
+    hasp_legacy_set_idletime @11
+    hasp_legacy_set_rtc @12
+    hasp_login @13
+    hasp_logout @14
+    hasp_read @15
+    hasp_update @16
+    hasp_write @17
+    hasp_get_trace @18
+    hasp_login_port @19
+    hasp_enable_trace @20
+    hasp_login_ex @21
+    hasp_get_info @22
+    hasp_login_scope @23
+    hasp_get_version @24
+    hasp_detach @25

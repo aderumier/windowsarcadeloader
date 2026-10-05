@@ -7,9 +7,11 @@ members = [
     "crates/payload-nesica",
     "crates/payload-typex",
     "crates/payload-globalvr",
+    "crates/payload-namcoes3",
     "crates/loader",
 ]
-# Payloads are Windows DLLs: build them with --target i686-pc-windows-gnu (see build.sh)
+# Payloads are Windows DLLs: build them with --target i686-pc-windows-gnu, the 64-bit ones
+# (namcoes3) with x86_64-pc-windows-gnu (see build.sh)
 default-members = ["crates/protocol", "crates/launcher"]
 
 [workspace.package]

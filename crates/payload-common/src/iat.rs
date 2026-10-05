@@ -36,6 +36,33 @@ pub unsafe fn hook(dll: &str, function: &str, replacement: usize) -> Option<usiz
 /// # Safety
 /// See [`hook`]; `base` must be a loaded module.
 pub unsafe fn hook_module(base: usize, dll: &str, function: &str, replacement: usize) -> Option<usize> {
+    unsafe { hook_import(base, dll, Import::Name(function), replacement) }
+}
+
+/// Same as [`hook_module`], for a function imported by ordinal (e.g. `xinput1_3.dll` #2).
+///
+/// # Safety
+/// See [`hook`]; `base` must be a loaded module.
+pub unsafe fn hook_ordinal(base: usize, dll: &str, ordinal: u16, replacement: usize) -> Option<usize> {
+    unsafe { hook_import(base, dll, Import::Ordinal(ordinal), replacement) }
+}
+
+#[derive(Clone, Copy)]
+enum Import<'a> {
+    Name(&'a str),
+    Ordinal(u16),
+}
+
+impl std::fmt::Display for Import<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Import::Name(n) => write!(f, "{n}"),
+            Import::Ordinal(o) => write!(f, "#{o}"),
+        }
+    }
+}
+
+unsafe fn hook_import(base: usize, dll: &str, function: Import, replacement: usize) -> Option<usize> {
     unsafe {
         let nt = base + read::<u32>(base, 0x3C) as usize;
         let optional = nt + 24;
@@ -67,8 +94,12 @@ pub unsafe fn hook_module(base: usize, dll: &str, function: &str, replacement: u
                     if entry == 0 {
                         break;
                     }
-                    // IMAGE_IMPORT_BY_NAME: u16 hint, then the name
-                    if entry & ORDINAL_FLAG == 0 && c_str_eq(base + entry + 2, function) {
+                    let found = match function {
+                        // IMAGE_IMPORT_BY_NAME: u16 hint, then the name
+                        Import::Name(name) => entry & ORDINAL_FLAG == 0 && c_str_eq(base + entry + 2, name),
+                        Import::Ordinal(o) => entry & ORDINAL_FLAG != 0 && entry & 0xFFFF == o as usize,
+                    };
+                    if found {
                         let slot = (iat + i * ptr_size) as *mut usize;
                         let mut old = 0;
                         VirtualProtect(slot.cast(), ptr_size, PAGE_READWRITE, &mut old);

@@ -3,9 +3,13 @@
 //!
 //! Files the game creates next to its executable land in the run directory and are kept
 //! between launches; files inside the game's sub directories go to the game directory.
+//!
+//! Sub directories holding the executable or a payload are real directories built the same
+//! way (links plus payloads), the other ones are links.
 
+use std::collections::BTreeSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
@@ -90,6 +94,44 @@ pub fn build(run_dir: &Path, game_dir: &Path, hide: &[String], payloads: &[(&Pat
         let dst = run_dir.join(name);
         let _ = fs::remove_file(&dst);
         fs::copy(src, &dst).with_context(|| format!("installing {}", dst.display()))?;
+    }
+    Ok(())
+}
+
+/// Builds the run directory of the game root `game_dir`: `real` (relative paths: the
+/// executable's folder, payload folders) are real directories down to them, and each payload
+/// `(source, path relative to the game root)` is installed in its folder.
+pub fn build_tree(run_dir: &Path, game_dir: &Path, hide: &[String], real: &[PathBuf], payloads: &[(&Path, PathBuf)]) -> Result<()> {
+    // every folder on the way to a real one or to a payload
+    let mut dirs: BTreeSet<PathBuf> = BTreeSet::new();
+    let parents = payloads.iter().filter_map(|(_, p)| p.parent().map(Path::to_path_buf));
+    for d in real.iter().cloned().chain(parents) {
+        let mut cur = PathBuf::new();
+        for part in d.iter() {
+            cur.push(part);
+            dirs.insert(cur.clone());
+        }
+    }
+    level(run_dir, game_dir, Path::new(""), hide, &dirs, payloads)
+}
+
+fn level(run_dir: &Path, game_dir: &Path, rel: &Path, hide: &[String], dirs: &BTreeSet<PathBuf>, payloads: &[(&Path, PathBuf)]) -> Result<()> {
+    let children: Vec<&PathBuf> = dirs.iter().filter(|d| d.parent() == Some(rel)).collect();
+    let mut level_hide = hide.to_vec();
+    level_hide.extend(children.iter().filter_map(|d| d.file_name()).map(|n| n.to_string_lossy().into_owned()));
+    let here: Vec<(&Path, &str)> = payloads
+        .iter()
+        .filter(|(_, p)| p.parent().unwrap_or(Path::new("")) == rel)
+        .filter_map(|(src, p)| Some((*src, p.file_name()?.to_str()?)))
+        .collect();
+    let dst = run_dir.join(rel);
+    // a real directory replaces a link left by a previous layout
+    if fs::symlink_metadata(&dst).is_ok_and(|m| m.file_type().is_symlink()) {
+        fs::remove_file(&dst)?;
+    }
+    build(&dst, &game_dir.join(rel), &level_hide, &here)?;
+    for child in children {
+        level(run_dir, game_dir, child, hide, dirs, payloads)?;
     }
     Ok(())
 }

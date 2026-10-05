@@ -1,0 +1,22 @@
+[package]
+name = "wal-payload-namcoes3"
+description = "Namco ES3 payload: replacement hasp_windows_x64_100610.dll (HASP HL dongle, JVS I/O board)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_namcoes3"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_SystemServices",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Threading",
+] }
