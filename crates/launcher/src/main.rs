@@ -229,9 +229,23 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
             std::fs::create_dir_all(game_dir.join(dir))
                 .with_context(|| format!("creating {}", game_dir.join(dir).display()))?;
         }
+        for (name, src) in &profile.initial_files {
+            let dst = game_root.join(name);
+            if !dst.exists() {
+                if let Some(dir) = dst.parent() {
+                    std::fs::create_dir_all(dir)?;
+                }
+                std::fs::copy(profile.path(src), &dst)
+                    .with_context(|| format!("initial file {} -> {}", profile.path(src).display(), dst.display()))?;
+                eprintln!("launcher: {name} installed in the dump");
+            }
+        }
         // folders on the way to the executable and to the payloads are real directories, the
         // rest are links
         rundir::build_tree(&run_dir, game_root, &hide, &[exe_subdir.to_path_buf()], &payload_refs)?;
+        if profile.exe_fixed_base {
+            rundir::copy_fixed_base(&exe, &run_dir.join(exe_subdir).join(exe_name))?;
+        }
     }
     let run_exe_dir = run_dir.join(exe_subdir);
 

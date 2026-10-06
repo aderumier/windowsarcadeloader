@@ -150,7 +150,9 @@ const WS_EX_DECORATIONS: u32 = 0x0000_0001 | 0x0000_0100 | 0x0000_0200 | 0x0002_
 /// Style and geometry of a window being created: popup style (`WAL_WINDOW_POPUP`) and forced
 /// size at 0,0 (`WAL_WINDOW_SIZE`) for top-level windows (`parent` null) with a size.
 fn created(ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32, parent: HWND) -> (u32, u32, i32, i32, i32, i32) {
-    if !parent.is_null() || style & WS_CHILD != 0 {
+    // child windows, and hidden helper windows created without a size (CRI's
+    // CriDSoundOutput, its DirectSound window: as a popup the game was silent)
+    if !parent.is_null() || style & WS_CHILD != 0 || (w == 0 && h == 0) {
         return (ex, style, x, y, w, h);
     }
     let (mut ex2, mut style2, mut geometry) = (ex, style, (x, y, w, h));

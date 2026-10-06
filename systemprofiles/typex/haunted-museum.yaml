@@ -21,6 +21,10 @@ env:
   WAL_TYPEX_GUN_PORT: COM1,!COM3
   # It changes directory to .\data\sh: stays in the game's own folders.
   WAL_PIN_CWD: "1"
+  # The gun cabinet's JVS switch wiring (starts on up/down, coin and service switches).
+  WAL_TYPEX_JVS_LAYOUT: haunted-museum
+  # Analog channel 0 is the cabinet's volume knob (0: no sound): 75 %.
+  WAL_TYPEX_JVS_ANALOG: C000
   # Its window is created 1286x5434821 at CW_USEDEFAULT (garbage height): an empty frame with the
   # desktop behind. Borderless 1280x720 window at 0,0 for its fullscreen 1280x720 device.
   WAL_WINDOW_POPUP: "1"

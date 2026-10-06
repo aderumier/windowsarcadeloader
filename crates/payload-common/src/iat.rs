@@ -4,9 +4,15 @@
 //! original functions), which is what a game-specific emulation needs and stays safe
 //! with Wine builtin DLLs: no code is patched. `hook_module` patches another module the
 //! same way (e.g. the C runtime the game does its file I/O through).
+//!
+//! Imports without a lookup table (no OriginalFirstThunk, e.g. a rebuilt executable such as
+//! Haunted Museum II's) have no names once loaded, only the resolved addresses: the slot is
+//! found by its address, the function's (`GetProcAddress`) or a previous hook's replacement.
+
+use std::sync::Mutex;
 
 use crate::log;
-use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
 
 const IMAGE_DIRECTORY_ENTRY_IMPORT: usize = 1;
@@ -62,6 +68,26 @@ impl std::fmt::Display for Import<'_> {
     }
 }
 
+/// (real function, replacement) of the hooks made: a slot without a name holds one of them.
+static HOOKED: Mutex<Vec<(usize, usize)>> = Mutex::new(Vec::new());
+
+/// Address of `dll!function` (the DLL is loaded: the game imports it).
+unsafe fn resolve(dll: &str, function: Import) -> usize {
+    let Ok(cdll) = std::ffi::CString::new(dll) else { return 0 };
+    let module = unsafe { LoadLibraryA(cdll.as_ptr().cast()) };
+    if module.is_null() {
+        return 0;
+    }
+    let f = match function {
+        Import::Name(name) => {
+            let Ok(cname) = std::ffi::CString::new(name) else { return 0 };
+            unsafe { GetProcAddress(module, cname.as_ptr().cast()) }
+        }
+        Import::Ordinal(o) => unsafe { GetProcAddress(module, o as usize as *const u8) },
+    };
+    f.map_or(0, |f| f as usize)
+}
+
 unsafe fn hook_import(base: usize, dll: &str, function: Import, replacement: usize) -> Option<usize> {
     unsafe {
         let nt = base + read::<u32>(base, 0x3C) as usize;
@@ -83,21 +109,34 @@ unsafe fn hook_import(base: usize, dll: &str, function: Import, replacement: usi
                 return None;
             }
             if c_str_eq(base + name_rva, dll) {
-                let lookup_rva = match read::<u32>(desc, 0) {
-                    0 => read::<u32>(desc, 16), // no OriginalFirstThunk: names are in the IAT
-                    rva => rva,
-                } as usize;
+                let lookup_rva = read::<u32>(desc, 0) as usize;
                 let iat = base + read::<u32>(desc, 16) as usize;
+                // no lookup table: match the resolved address (or a hook's replacement of it)
+                let addresses: Vec<usize> = if lookup_rva == 0 {
+                    let real = resolve(dll, function);
+                    if real == 0 {
+                        desc += 20;
+                        continue;
+                    }
+                    let hooked = HOOKED.lock().unwrap();
+                    std::iter::once(real).chain(hooked.iter().filter(|(r, _)| *r == real).map(|(_, h)| *h)).collect()
+                } else {
+                    Vec::new()
+                };
                 let mut i = 0;
                 loop {
-                    let entry = read::<usize>(base + lookup_rva, i * ptr_size);
+                    let entry = if lookup_rva == 0 { read::<usize>(iat, i * ptr_size) } else { read::<usize>(base + lookup_rva, i * ptr_size) };
                     if entry == 0 {
                         break;
                     }
-                    let found = match function {
-                        // IMAGE_IMPORT_BY_NAME: u16 hint, then the name
-                        Import::Name(name) => entry & ORDINAL_FLAG == 0 && c_str_eq(base + entry + 2, name),
-                        Import::Ordinal(o) => entry & ORDINAL_FLAG != 0 && entry & 0xFFFF == o as usize,
+                    let found = if lookup_rva == 0 {
+                        addresses.contains(&entry)
+                    } else {
+                        match function {
+                            // IMAGE_IMPORT_BY_NAME: u16 hint, then the name
+                            Import::Name(name) => entry & ORDINAL_FLAG == 0 && c_str_eq(base + entry + 2, name),
+                            Import::Ordinal(o) => entry & ORDINAL_FLAG != 0 && entry & 0xFFFF == o as usize,
+                        }
                     };
                     if found {
                         let slot = (iat + i * ptr_size) as *mut usize;
@@ -106,6 +145,9 @@ unsafe fn hook_import(base: usize, dll: &str, function: Import, replacement: usi
                         let original = slot.read();
                         slot.write(replacement);
                         VirtualProtect(slot.cast(), ptr_size, old, &mut old);
+                        if let Some(real) = (lookup_rva == 0).then(|| resolve(dll, function)).or(Some(original)) {
+                            HOOKED.lock().unwrap().push((real, replacement));
+                        }
                         log!("iat: hooked {dll}!{function}");
                         return Some(original);
                     }

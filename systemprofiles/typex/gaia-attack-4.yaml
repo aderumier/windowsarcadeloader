@@ -3,33 +3,42 @@
 system: typex
 name: Gaia Attack 4
 
-# Guns: the gun board (COM1) is a silent port and the guns are
-# written in the game's memory (payload guns.rs): lightgun or mouse per player,
-# trigger = b1, reload = b2 or aiming off screen.
+# Guns: written in the gun board's record (payload guns.rs, as the Haunted Museum games, same
+# engine): lightgun or mouse per player, trigger = b1, reload = b2 or aiming off screen.
+# Its videos under DXVK: crash in the first attract movie (as Haunted Museum II's Indeo
+# videos, RADV GPU fault). Wine's wined3d.
+dxvk: false
+
 input:
   guns_enabled: true
   stick_as_dpad: false
 
+# The dump's MINIGUN.INI keeps settings and rankings in another data folder: same file,
+# with WindowsLoader.
+files:
+  MINIGUN.INI: systemprofiles/typex/files/gaia-attack-4/MINIGUN.INI
+
 env:
   WAL_TYPEX_GUNS: gaia-attack-4
-  # the game opens COM3 at boot (and knows COM1): both silent
-  WAL_TYPEX_GUN_PORT: COM1,COM3
+  # Gun board on COM1 (silent, its handle opens the game's gun library); no COM3.
+  WAL_TYPEX_GUN_PORT: COM1,!COM3
   # The game steps up with SetCurrentDirectory("..\\") and no longer finds data\sound
   # (SOUND ERROR): keep its directory (.\data\sh -> data\sh).
   WAL_PIN_CWD: "1"
   # Attract movies are WMV9 (WMV3) AVIs read through AVIFile: Microsoft's WMV9 VCM codec,
   # WMV9VCM.dll, extracted from the dump's wmv9VCMsetup.exe into the game folder
   # (cabextract wmv9VCMsetup.exe), registered at startup. Without it: MOVIE READ_ERROR.
-  WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll
+  # Indeo 5 (ir50_32.dll, not in the dump: copy Haunted Museum II's into the game directory)
+  # for some videos, else a crash after playing/loading them.
+  WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll,vidc.iv50=ir50_32.dll
   # Shift-JIS boot/error messages
   WAL_ANSI_CODEPAGE: "932"
-  # Gaia Attack 4 patches (CRC 0xad310e21): disable the JVS gun
-  # writes, and the volume write (it reads JVS Analog0, which we use for inputs).
-  WAL_PATCHES: "0x113E80:B801000000C3,0x1156C8:90909090"
-  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
-  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
-
-# The dump's MINIGUN.INI keeps settings and rankings in another data folder: same file,
-# with WindowsLoader.
-files:
-  MINIGUN.INI: systemprofiles/typex/files/gaia-attack-4/MINIGUN.INI
+  # No patch of its per-frame gun update (+0x113E80, stubbed by loaders that write the gun
+  # state itself): it is what copies the gun board record into the game.
+  # Analog channel 0 is the cabinet's volume knob (as the Haunted Museum games; no sound at
+  # 0 or with its volume write patched out): 75 %.
+  WAL_TYPEX_JVS_ANALOG: C000
+  # Its window is created like Haunted Museum's: an empty frame. Borderless 1280x720 window
+  # at 0,0 for its fullscreen 1280x720 device (MINIGUN.INI).
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: 1280x720

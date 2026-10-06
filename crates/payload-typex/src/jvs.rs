@@ -73,12 +73,18 @@ struct Board {
     map: ButtonMap<Native>,
     coins: [u16; 2],
     coin_held: [bool; 2],
+    /// `WAL_TYPEX_JVS_LAYOUT=haunted-museum`: the gun cabinets' switch wiring (Haunted Museum
+    /// 1/2) for `20 01 03` (1 player, 3 bytes): P1 start on up 0x20, P2 start on down 0x10;
+    /// third byte: service 0x08, P2/P1 action 0x40/0x80 active low (coins: the coin counter). With the generic reply the actions read as held and up/down as
+    /// both starts.
+    haunted_museum: bool,
 }
 
 static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 
 pub(crate) fn init() {
-    *BOARD.lock().unwrap() = Some(Board { map: ButtonMap::new(NATIVES, DEFAULT_MAP), coins: [0; 2], coin_held: [false; 2] });
+    let haunted_museum = std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v.trim() == "haunted-museum");
+    *BOARD.lock().unwrap() = Some(Board { map: ButtonMap::new(NATIVES, DEFAULT_MAP), coins: [0; 2], coin_held: [false; 2], haunted_museum });
     let port = std::env::var("WAL_TYPEX_JVS_PORT").unwrap_or_else(|_| "COM2".into());
     serial::install(&port, process);
     log!("jvs: I/O board on {port}");
@@ -160,6 +166,29 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 let p2 = players[1];
                 (3, vec![if test { 0x80 } else { 0 }, p1.0, p1.1, p2.0, p2.1])
             }
+            0x20 if board.haunted_museum && arg(1) == 1 => {
+                let (p1, p2) = (players[0], players[1]);
+                let mut b0 = 0;
+                if p1.0 & 0x80 != 0 {
+                    b0 |= 0x20;
+                }
+                if p2.0 & 0x80 != 0 {
+                    b0 |= 0x10;
+                }
+                let mut b2 = 0xC0;
+                if (p1.0 | p2.0) & 0x40 != 0 {
+                    b2 |= 0x08;
+                }
+                // actions (button 2), active low
+                if p1.0 & 0x01 != 0 {
+                    b2 &= !0x80;
+                }
+                if p2.0 & 0x01 != 0 {
+                    b2 &= !0x40;
+                }
+                let bytes = [b0, 0, b2];
+                (3, std::iter::once(if test { 0x80 } else { 0 }).chain((0..arg(2) as usize).map(|k| bytes.get(k).copied().unwrap_or(0))).collect())
+            }
             0x20 => {
                 // other layouts (Gaia Attack 4: 1 player x 3 bytes), generic
                 // reply: the 2 switch bytes of each player, padded with zeros
@@ -179,7 +208,14 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 }
                 (2, v)
             }
-            0x22 => (2, vec![0; arg(1).max(1) as usize * 2]),
+            0x22 => {
+                // analog channels: WAL_TYPEX_JVS_ANALOG, hex values by channel (default 0); the
+                // Haunted Museum games read their volume knob on channel 0 (0: silent)
+                let values: Vec<u16> = std::env::var("WAL_TYPEX_JVS_ANALOG")
+                    .map(|v| v.split(',').map(|c| u16::from_str_radix(c.trim().trim_start_matches("0x"), 16).unwrap_or(0)).collect())
+                    .unwrap_or_default();
+                (2, (0..arg(1).max(1) as usize).flat_map(|c| values.get(c).copied().unwrap_or(0).to_be_bytes()).collect())
+            }
             0x26 => (2, vec![0; arg(1) as usize]),
             0x2E => (2, vec![0; 4]),
             0x2F => (1, vec![0; 5]),
