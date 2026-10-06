@@ -232,7 +232,13 @@ impl Wine {
             if self.dry_run {
                 continue;
             }
-            let status = Command::new("winetricks")
+            // the runner's own copy (bin/winetricks), the runners directory's (Batocera's
+            // /userdata/system/wine/custom/winetricks), else the system's
+            let winetricks = [self.runner.join("bin/winetricks"), self.runner.with_file_name("winetricks")]
+                .into_iter()
+                .find(|p| p.is_file())
+                .unwrap_or_else(|| PathBuf::from("winetricks"));
+            let status = Command::new(&winetricks)
                 .args(["-q", verb])
                 .envs(self.env())
                 // winetricks only knows win32/win64 prefixes
@@ -240,7 +246,7 @@ impl Wine {
                 .env("WINE", self.runner.join("bin/wine"))
                 .env("WINESERVER", self.runner.join("bin/wineserver"))
                 .status()
-                .context("running winetricks (is it installed?)")?;
+                .with_context(|| format!("running {} (is it installed?)", winetricks.display()))?;
             self.wineserver("-w")?;
             if !status.success() {
                 bail!("winetricks {verb} failed: {status}");
