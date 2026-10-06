@@ -164,6 +164,9 @@ input:
   # (guns_mouse) the remaining players. Not grabbed: the game still sees them as X11 mice.
   guns_enabled: false
   guns_mouse: true
+  # Most mice used as guns (0: all). A laptop's TrackPoint and touchpad report the same
+  # button press: two guns firing at once for one click (set 1).
+  guns_mice: 0
   # Mouse motion: a virtual screen of this many pixels spans the whole axis.
   mouse_screen: [1920, 1080]
   # Gun/mouse -> virtual stick of its player. Sources: x y (position, -32768 left/top ..

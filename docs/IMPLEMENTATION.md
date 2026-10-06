@@ -531,7 +531,7 @@ Other `20` layouts (Gaia Attack 4 asks `20 01 03`: 1 player x 3 bytes) get the r
 as a generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
 the commands after it are answered (otherwise I/O ERROR).
 
-Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2|haunted-museum|haunted-museum-2`):
+Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2|haunted-museum|haunted-museum-2|block-king-ball-shooter`):
 per-game input code. The gun board's port (`WAL_TYPEX_GUN_PORT`, comma separated, default
 `COM1`) is a silent serial device (`serial::install_sink`: writes accepted, nothing read; a
 `!COMn` entry is absent instead, its open fails as on a PC without it), and a
@@ -545,6 +545,15 @@ Museum copies its gun board's 20-byte record (`+0x327958` received, `+0x327944` 
 gun state every frame, so the guns are written in both records (writing the state alone, as
 some loaders do, lost the race: trigger ignored, positions flickering with board junk). A
 silent COM3 also fed it junk: `COM1,!COM3`.
+
+Block King Ball Shooter is a touch screen hit by balls (up to 4 players in co-op, the game
+cannot tell them apart: any touch fires its cannons): its `lsdrv.dll` sensor driver is answered
+as present (`WAL_TYPEX_LSDRV`, `touch.rs`: `OpenDriver` failed, "touch sensor error
+(0xffffffff)"), the guns share the touch (a position and a one-frame flag written when a gun
+fires; positions 0..65535), the game's own position writes patched out, its DirectInput faked (it reads the PC mouse too:
+one click made two touches). Its JVS switches
+(`WAL_TYPEX_JVS_LAYOUT=block-king`, found with its switch test): service 0x40, left/right
+start 0x20/0x10, cannon 0x08, then SELECT 0x08 / ENTER 0x04 (buttons 4/3).
 
 `WAL_TYPEX_GUN_PLAYERS=2,1` chooses the virtual player of each gun (calibrating gun 2 with a
 single mouse).
@@ -744,6 +753,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | in fight | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
+| `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
 | `chase-hq-2` | Chase H.Q. 2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | see docs/CHASE-HQ-2-BOOT-DEBUG.md: Wine sees a 5434188x5434103 X desktop (Xwayland), game sizes its window from it; analog JVS also unemulated (not drivable anyway) |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, native DirectMusic prefix (exits at start with wine's), `reshade_files` dgVoodoo D3D8 + ReShade dxgi, `tricks: [d3dcompiler_47]`, dgVoodoo.conf with Direct3D 11 output (`files`: the dump asks D3D12, NULL device crash) |

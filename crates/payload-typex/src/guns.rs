@@ -37,6 +37,11 @@ struct Game {
     /// Bytes written every frame (e.g. "gun board connected").
     constants: &'static [(u32, u8)],
     guns: &'static [Gun],
+    /// Position range: 0..=range (16384 for the Taito gun boards).
+    range: u32,
+    /// The guns share one touch input: a gun writes its position only when it fires (its
+    /// trigger edge), so the players do not overwrite each other's aim.
+    shared_touch: bool,
 }
 
 const GAIA_ATTACK_4: Game = Game {
@@ -52,6 +57,8 @@ const GAIA_ATTACK_4: Game = Game {
         Gun { trigger: &[0x32F04C, 0x32F014], offscreen: &[0x32F046, 0x32F047, 0x32F00E, 0x32F00F], x: &[0x32F048, 0x32F010], y: &[0x32F04A, 0x32F012], trigger_edge: None, auto_fire: None },
         Gun { trigger: &[0x32F056, 0x32F01E], offscreen: &[0x32F050, 0x32F051, 0x32F018, 0x32F019], x: &[0x32F052, 0x32F01A], y: &[0x32F054, 0x32F01C], trigger_edge: None, auto_fire: None },
     ],
+    range: 16384,
+    shared_touch: false,
 };
 
 const MUSIC_GUNGUN_2: Game = Game {
@@ -62,6 +69,8 @@ const MUSIC_GUNGUN_2: Game = Game {
         Gun { trigger: &[0x2B8108], offscreen: &[0x2B8102], x: &[0x2B8104], y: &[0x2B8106], trigger_edge: None, auto_fire: None },
         Gun { trigger: &[0x2B8112], offscreen: &[0x2B810C], x: &[0x2B810E], y: &[0x2B8110], trigger_edge: None, auto_fire: None },
     ],
+    range: 16384,
+    shared_touch: false,
 };
 
 const HAUNTED_MUSEUM: Game = Game {
@@ -76,6 +85,8 @@ const HAUNTED_MUSEUM: Game = Game {
         Gun { trigger: &[0x32794C, 0x327960], offscreen: &[0x327946, 0x32795A], x: &[0x327948, 0x32795C], y: &[0x32794A, 0x32795E], trigger_edge: None, auto_fire: None },
         Gun { trigger: &[0x327956, 0x32796A], offscreen: &[0x327950, 0x327964], x: &[0x327952, 0x327966], y: &[0x327954, 0x327968], trigger_edge: None, auto_fire: None },
     ],
+    range: 16384,
+    shared_touch: false,
 };
 
 const HAUNTED_MUSEUM_2: Game = Game {
@@ -89,9 +100,28 @@ const HAUNTED_MUSEUM_2: Game = Game {
         Gun { trigger: &[0x3BB418, 0x3BB3E0], offscreen: &[0x3BB412, 0x3BB413, 0x3BB3DA, 0x3BB3DB], x: &[0x3BB414, 0x3BB3DC], y: &[0x3BB416, 0x3BB3DE], trigger_edge: None, auto_fire: None },
         Gun { trigger: &[0x3BB422, 0x3BB3EA], offscreen: &[0x3BB41C, 0x3BB41D, 0x3BB3E4, 0x3BB3E5], x: &[0x3BB41E, 0x3BB3E6], y: &[0x3BB420, 0x3BB3E8], trigger_edge: None, auto_fire: None },
     ],
+    range: 16384,
+    shared_touch: false,
 };
 
-const GAMES: &[Game] = &[GAIA_ATTACK_4, MUSIC_GUNGUN_2, HAUNTED_MUSEUM, HAUNTED_MUSEUM_2];
+const BLOCK_KING_BALL_SHOOTER: Game = Game {
+    name: "block-king-ball-shooter",
+    constants: &[],
+    // Its touch sensor (lsdrv.dll tablet): position words 0..=65535 at +0x5473D0/+0x5473D4
+    // (the game's own writes there patched out in the profile); a touch is a one-frame flag
+    // at +0x546A19 that the game takes and clears.
+    // Up to 4 players in co-op, all on the same touch screen: each gun touches where it fires.
+    guns: &[
+        Gun { trigger: &[], offscreen: &[], x: &[0x5473D0], y: &[0x5473D4], trigger_edge: Some(0x546A19), auto_fire: None },
+        Gun { trigger: &[], offscreen: &[], x: &[0x5473D0], y: &[0x5473D4], trigger_edge: Some(0x546A19), auto_fire: None },
+        Gun { trigger: &[], offscreen: &[], x: &[0x5473D0], y: &[0x5473D4], trigger_edge: Some(0x546A19), auto_fire: None },
+        Gun { trigger: &[], offscreen: &[], x: &[0x5473D0], y: &[0x5473D4], trigger_edge: Some(0x546A19), auto_fire: None },
+    ],
+    range: 65535,
+    shared_touch: true,
+};
+
+const GAMES: &[Game] = &[BLOCK_KING_BALL_SHOOTER, GAIA_ATTACK_4, MUSIC_GUNGUN_2, HAUNTED_MUSEUM, HAUNTED_MUSEUM_2];
 
 /// Edge band of the -32768..=32767 position in which the gun counts as off screen
 /// (<= 1 or >= 254 on 0..=255).
@@ -105,9 +135,9 @@ fn offscreen(stick: &StickState) -> bool {
     stick.pressed(button::B2) || at_edge(Axis::LeftX) || at_edge(Axis::LeftY)
 }
 
-/// -32768..=32767 -> 0..=16384.
-fn position(v: i16) -> u16 {
-    ((v as i32 + 32768) * 16384 / 65535) as u16
+/// -32768..=32767 -> 0..=range.
+fn position(v: i16, range: u32) -> u16 {
+    ((v as i32 + 32768) as u32 * range / 65535) as u16
 }
 
 pub(crate) fn init() {
@@ -146,15 +176,32 @@ fn run(game: &'static Game) {
             if let Some(rva) = gun.auto_fire {
                 byte(rva, trigger as u8);
             }
-            if let Some(rva) = gun.trigger_edge {
-                byte(rva, (trigger && !held[player]) as u8);
-            }
+            let edge = trigger && !held[player];
             held[player] = trigger;
             let off = offscreen(&stick) as u8;
             for &rva in gun.offscreen {
                 byte(rva, off);
             }
-            let (x, y) = (position(stick.axis(Axis::LeftX)), position(stick.axis(Axis::LeftY)));
+            let (x, y) = (position(stick.axis(Axis::LeftX), game.range), position(stick.axis(Axis::LeftY), game.range));
+            if game.shared_touch {
+                // one touch input: position then flag, only when this gun fires; the game
+                // clears the flag (another player's frame must not)
+                if edge {
+                    for &rva in gun.x {
+                        word(rva, x);
+                    }
+                    for &rva in gun.y {
+                        word(rva, y);
+                    }
+                    if let Some(rva) = gun.trigger_edge {
+                        byte(rva, 1);
+                    }
+                }
+                continue;
+            }
+            if let Some(rva) = gun.trigger_edge {
+                byte(rva, edge as u8);
+            }
             for &rva in gun.x {
                 word(rva, x);
             }

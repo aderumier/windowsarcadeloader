@@ -1,0 +1,24 @@
+# Block King Ball Shooter (Taito, Taito Type X) - template, override values in
+# userprofiles/typex/block-king-ball-shooter.yaml.
+system: typex
+name: Block King Ball Shooter
+
+# Direct3D 9 ball shooter: the cannon aims at a touch sensor (lsdrv.dll tablet), written in
+# the game's memory (payload guns.rs): lightgun or mouse aims, trigger (b1) shoots.
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+env:
+  WAL_TYPEX_GUNS: block-king-ball-shooter
+  # Its touch sensor driver (lsdrv.dll) answered as with a sensor: "touch sensor error
+  # (0xffffffff)" otherwise.
+  WAL_TYPEX_LSDRV: "1"
+  # Its JVS switches: starts, cannon (button 2), ENTER (button 3), SELECT (button 4).
+  WAL_TYPEX_JVS_LAYOUT: block-king
+  # It also reads the PC mouse through DirectInput (a second touch at the cursor for each
+  # click): fake DirectInput without devices.
+  WAL_DINPUT_DISABLE: "1"
+  # Known patch: the game's own writes of the touch position (Y, X) are removed, the
+  # payload's stay.
+  WAL_PATCHES: "0x2597E9:9090909090,0x2597FF:909090909090"
