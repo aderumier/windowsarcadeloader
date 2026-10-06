@@ -81,6 +81,7 @@ pub struct InputConfig {
     pub keyboard: BTreeMap<String, MapTable>,
     pub guns_enabled: bool,
     pub guns_mouse: bool,
+    pub guns_mice: usize,
     pub mouse_screen: [u32; 2],
     pub gun: MapTable,
     pub devices: BTreeMap<String, DeviceConfig>,

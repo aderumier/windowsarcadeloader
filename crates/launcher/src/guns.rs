@@ -59,11 +59,11 @@ fn is_mouse(dev: &Device) -> bool {
 
 /// Finds the guns, then the mice for the remaining players, and starts a reader thread for
 /// each one, sending its updates to `tx`.
-pub fn start(use_mice: bool, mouse_screen: [u32; 2], tx: Sender<PointerEvent>) -> Vec<Pointer> {
+pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], tx: Sender<PointerEvent>) -> Vec<Pointer> {
     let mut devices: Vec<(PathBuf, Device)> = evdev::enumerate().collect();
     devices.sort_by(|a, b| a.0.cmp(&b.0));
     let (guns, others): (Vec<_>, Vec<_>) = devices.into_iter().partition(|(p, d)| is_gun(p, d));
-    let mice = others.into_iter().filter(|(_, d)| use_mice && is_mouse(d));
+    let mice = others.into_iter().filter(|(_, d)| use_mice && is_mouse(d)).take(if max_mice == 0 { usize::MAX } else { max_mice });
 
     let mut pointers = Vec::new();
     for (path, dev) in guns.into_iter().chain(mice).take(MAX_PLAYERS) {
