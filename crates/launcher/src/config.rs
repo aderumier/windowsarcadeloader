@@ -40,7 +40,9 @@ pub struct Profile {
     pub graphics: Graphics,
     pub lib32_dirs: Vec<PathBuf>,
     pub lib64_dirs: Vec<PathBuf>,
+    pub prefix_tricks: Vec<String>,
     pub tricks: Vec<String>,
+    pub dll_overrides: BTreeMap<String, String>,
     pub hide: Vec<String>,
     pub reshade: bool,
     pub reshade_files: Vec<String>,
@@ -298,6 +300,32 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// Every system profile's `tricks` are preinstalled in the shared prefix (`prefix_tricks`),
+    /// unless the profile has its own prefix.
+    #[test]
+    fn shared_prefix_has_every_trick() {
+        let defaults: Value = serde_yaml_ng::from_str(DEFAULTS).unwrap();
+        let shared: Vec<String> = serde_yaml_ng::from_value(defaults["prefix_tricks"].clone()).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(SYSTEM_PROFILES);
+        let mut missing = Vec::new();
+        for system in std::fs::read_dir(&root).unwrap().flatten().filter(|e| e.path().is_dir()) {
+            for file in std::fs::read_dir(system.path()).unwrap().flatten() {
+                if file.path().extension().is_none_or(|e| e != "yaml") {
+                    continue;
+                }
+                let v = read_yaml(&file.path()).unwrap();
+                if v.get("prefix").is_some() {
+                    continue;
+                }
+                let tricks: Vec<String> = v.get("tricks").map(|t| serde_yaml_ng::from_value(t.clone()).unwrap()).unwrap_or_default();
+                for t in tricks.iter().filter(|t| !shared.contains(t)) {
+                    missing.push(format!("{}: {t}", file.path().display()));
+                }
+            }
+        }
+        assert!(missing.is_empty(), "tricks missing from defaults.yaml prefix_tricks: {missing:#?}");
     }
 
     #[test]

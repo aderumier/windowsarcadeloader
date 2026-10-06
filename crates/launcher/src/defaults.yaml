@@ -17,7 +17,9 @@ args: []
 
 runner: GE-Proton11-7-x86_64
 runners_dir: wine-runners
-prefix: wine-prefix/common
+# One prefix for all the games, with every game's winetricks verbs preinstalled
+# (prefix_tricks). A game that cannot share it sets its own prefix (and prefix_tricks).
+prefix: wine-prefix/full
 # New WoW64 mode (WINEARCH=wow64): 32-bit games use the 64-bit host libraries, no lib32
 # packages needed. false: classic mode, 32-bit games need 32-bit host libraries
 # (pulse, alsa, freetype... in lib32_dirs).
@@ -36,10 +38,20 @@ graphics: wine
 # (empty: auto, /lib32 or /usr/lib32 and /lib, /usr/lib).
 lib32_dirs: []
 lib64_dirs: []
-# winetricks verbs applied once to the prefix (recorded in <prefix>/.wal-tricks). The prefix
-# is shared by the games using it, keep this list short.
+# winetricks verbs installed in the prefix for all the games (applied once, recorded in
+# <prefix>/.wal-tricks): every game's `tricks` (a test checks it). Their DLL overrides are
+# then those of every game: a game needing wine's own DLL sets it in dll_overrides.
+prefix_tricks: [
+  dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound,
+  dswave, dsdmo, gmdls, d3dcompiler_47, d3dx9_31, d3dx9_33, d3dx9_37, xact, fakejapanese,
+]
+# winetricks verbs the game needs (installed when the prefix does not have them yet): the
+# record of each game's needs, even when prefix_tricks already has them.
 # winetricks: the runner's bin/winetricks, else <runners_dir>/winetricks, else the PATH's.
 tricks: []
+# DLL overrides of this game (WINEDLLOVERRIDES, over the prefix's): <dll>: n | b | n,b | b,n
+# | "" (disabled), e.g. {dsound: b} for wine's DirectSound in a prefix with native dsound.
+dll_overrides: {}
 # Game files hidden from the run directory (case insensitive).
 hide: []
 # ReShade setup shipped by some dumps (rotation of vertical games to a landscape screen with a
