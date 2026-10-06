@@ -1,0 +1,84 @@
+# Games of the regression test (tools/regression.py): the working ones, by dump (path of the
+# .windowsloader file under games/). Options per game:
+#   wait: seconds before the checks (default 60)
+#   script: input script replayed during the run (default tools/regression/coin-start.txt:
+#           coin + start after 30 s, so the game starts), none: no input
+#   skip: reason, the game is listed but not run
+
+# "globalvr/FarCry Paradise Lost/farcry-paradise-lost.windowsloader": {}  # not tested
+# "namcoes3/Star Wars Battle Pod - The Force Awakens/star-wars-battle-pod.windowsloader": {}  # no status
+"nesicax/3D Cosplay Mahjong/3d-cosplay-mahjong.windowsloader": {}
+"nesicax/Akai Katana Shin/akai-katana-shin.windowsloader": {}
+"nesicax/Arcana Heart 2/arcana-heart-2.windowsloader": {}
+"nesicax/Arcana Heart 3 Love Max Six Stars!!!!!!/arcana-heart-3-lmss.windowsloader": {}
+"nesicax/BlazBlue Central Fiction 2.01.00/blazblue-central-fiction.windowsloader": {}
+# "nesicax/BlazBlue Chronophantasma (2.03)/blazblue-chronophantasma.windowsloader": {}  # not tested
+"nesicax/Chaos Breaker/chaos-breaker.windowsloader": {}
+"nesicax/Chaos Code - New Sign of Catastrophe (1.03.00)/chaos-code-103.windowsloader": {}
+"nesicax/Chaos Code - New Sign of Catastrophe (2.11.00)/chaos-code-211.windowsloader": {}
+"nesicax/Crimzon Clover/crimzon-clover.windowsloader": {}
+"nesicax/Daemon Bride - Additional Gain/daemon-bride.windowsloader": {}
+"nesicax/Dark Awake - The King Has No Name/dark-awake.windowsloader": {}
+"nesicax/Do Not Fall - Run for Your Drink/do-not-fall.windowsloader": {}
+"nesicax/Dragon Dance/dragon-dance.windowsloader": {}
+"nesicax/EN-Eins Perfektewelt/en-eins-perfektewelt.windowsloader": {}
+"nesicax/Elevator Action/elevator-action.windowsloader": {}
+"nesicax/Exception/exception.windowsloader": {}
+"nesicax/Gouketsuji Ichizoku - Matsuri Senzo Kuyou/gouketsuji-ichizoku.windowsloader": {}
+"nesicax/Homura/homura.windowsloader": {}
+"nesicax/Hyper Street Fighter II - The Anniversary Edition/hyper-street-fighter-2.windowsloader": {}
+"nesicax/Ikaruga/ikaruga.windowsloader": {}
+"nesicax/Magical Beat/magical-beat.windowsloader": {}
+"nesicax/Nitro+ Blasterz - Heroines Infinite Duel/nitroplus-blasterz.windowsloader": {}
+"nesicax/P4U - Persona 4 The Ultimate in Mayonaka Arena/persona-4-arena.windowsloader": {}
+"nesicax/P4UU - Persona 4 The Ultimax Ultra Suplex Hold/persona-4-ultimax.windowsloader": {}
+"nesicax/Psychic Force 2012/psychic-force-2012.windowsloader": {}
+"nesicax/Puzzle Bobble/puzzle-bobble.windowsloader": {}
+"nesicax/Raiden III/raiden-3.windowsloader": {}
+"nesicax/Raiden IV/raiden-4.windowsloader": {}
+"nesicax/Rastan Saga/rastan-saga.windowsloader": {}
+"nesicax/Senko no Ronde DUO - Dis-United Order (2.35)/senko-no-ronde-duo.windowsloader": {}
+"nesicax/SkullGirls 2nd Encore/skullgirls-2nd-encore.windowsloader": {}
+"nesicax/Space Invaders/space-invaders.windowsloader": {}
+"nesicax/Strania - The Stella Machina/strania.windowsloader": {}
+"nesicax/Street Fighter III 3rd Strike - Fight for the Future/street-fighter-3-3rd-strike.windowsloader": {}
+"nesicax/Street Fighter Zero 3/street-fighter-zero-3.windowsloader": {}
+"nesicax/The King of Fighters '98 - Ultimate Match Final Edition/kof-98-umfe.windowsloader": {}
+"nesicax/The King of Fighters 2002 - Unlimited Match/kof-2002-um.windowsloader": {}
+"nesicax/The King of Fighters XIII Climax (nesica)/kof-xiii-climax.windowsloader": {}
+"nesicax/The Rumble Fish 2/the-rumble-fish-2.windowsloader": {}
+"nesicax/Tottemo E Mahjong/tottemo-e-mahjong.windowsloader": {}
+"nesicax/Trouble Witches AC Episode1 - Daughters of Amalgam/trouble-witches-ac.windowsloader": {}
+# "nesicax/Ultra Street Fighter 4/ultra-street-fighter-4.windowsloader": {}  # not tested
+"nesicax/Vampire Savior - The Lord of Vampire/vampire-savior.windowsloader": {}
+"typex/Block King Ball Shooter/block-king-ball-shooter.windowsloader": {}
+"typex/Chaos Breaker/chaos-breaker-typex.windowsloader": {}
+"typex/GigaWing Generations (Landscape, Bezel)/gigawing-generations.windowsloader": {}
+"typex/GigaWing Generations/gigawing-generations.windowsloader": {}
+"typex/Haunted Museum II/haunted-museum-2.windowsloader": {}
+"typex/Haunted Museum/haunted-museum.windowsloader": {}
+# "typex/K-On! After School Rhythm Selection/k-on-after-school-rhythm-selection.windowsloader": {}  # BLOCKED: error 0002 DISPENSER_ERROR (card dispen
+"typex/KOF Sky Stage/kof-sky-stage.windowsloader": {}
+"typex/Mobile Suit Gundam Spirits of Zeon - Memory of Soldiers/gundam-spirits-of-zeon-2p.windowsloader": {}
+"typex/Mobile Suit Gundam Spirits of Zeon - Memory of Soldiers/gundam-spirits-of-zeon.windowsloader": {}
+# "typex/New Super Mario Bros Wii Coin World/new-super-mario-bros-wii-coin-world.windowsloader": {}  # no status
+"typex/Raiden III (2.01J) (Portrait)/raiden-3-typex.windowsloader": {}
+"typex/Raiden IV (1.00J) (Portrait)/raiden-4-typex.windowsloader": {}
+"typex/Shikigami no Shiro III (Landscape, Bezel)/shikigami-no-shiro-3.windowsloader": {}
+"typex/Shikigami no Shiro III (Portrait)/shikigami-no-shiro-3.windowsloader": {}
+"typex/Spica Adventure/spica-adventure.windowsloader": {}
+# "typex/Taisen Hot Gimmick 5 - Mirai Eigou/taisen-hot-gimmick-5.windowsloader": {}  # no status
+"typex/Tetris The Grand Master 3 - Terror-Instinct/tetris-the-grand-master-3.windowsloader": {}
+"typex/The King of Fighters '98 - Ultimate Match/kof-98-um-typex.windowsloader": {}
+"typex2/Battle Fantasia Offline Edition/battle-fantasia.windowsloader": {}
+"typex2/BlazBlue Calamity Trigger/blazblue-calamity-trigger.windowsloader": {}
+# "typex2/Chase H.Q. 2/chase-hq-2.windowsloader": {}  # BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing)
+"typex2/Dariusburst - Another Chronicle EX/dariusburst-another-chronicle-ex.windowsloader": {}
+"typex2/Gaia Attack 4/gaia-attack-4.windowsloader": {}
+"typex2/Gouketsuji Ichizoku - Matsuri Senzo Kuyou/gouketsuji-ichizoku-typex2.windowsloader": {}
+"typex2/King of Fighters Maximum Impact Regulation A/king-of-fighters-maximum-impact-regulation-a.windowsloader": {}
+# "typex2/Music GunGun! 2/music-gungun-2.windowsloader": {}  # BLOCKED: "Direct3D device enumeration failed" message box
+"typex2/Senko no Ronde DUO - Dis-United Order (2.00)/senko-no-ronde-duo-typex2.windowsloader": {}
+"typex2/Street Fighter IV/street-fighter-iv.windowsloader": {}
+"typex2/The King of Fighters XII/king-of-fighters-xii.windowsloader": {}
+# "typex2/The King of Fighters XIII/king-of-fighters-xiii.windowsloader": {}  # not tested
