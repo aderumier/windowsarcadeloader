@@ -1,0 +1,15 @@
+[package]
+name = "wal-payload-tsunami"
+description = "Tsunami (TsuMo Racing) cabinet payload: TsuInput COM object and the wheel DirectInput device, loaded by wal-loader"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_tsunami"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_System_SystemServices"] }

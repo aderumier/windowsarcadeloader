@@ -4,6 +4,7 @@
 mod globalvr;
 mod namcoes3;
 mod nesica;
+mod tsunami;
 mod typex;
 
 use anyhow::{Result, bail};
@@ -42,6 +43,7 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
         "typex" | "typex2" => Box::new(typex::TypeX),
         "globalvr" => Box::new(globalvr::GlobalVr),
         "namcoes3" => Box::new(namcoes3::NamcoEs3),
-        _ => bail!("unknown system '{name}' (supported: nesica, typex, globalvr, namcoes3)"),
+        "tsunami" => Box::new(tsunami::Tsunami),
+        _ => bail!("unknown system '{name}' (supported: nesica, typex, globalvr, namcoes3, tsunami)"),
     })
 }

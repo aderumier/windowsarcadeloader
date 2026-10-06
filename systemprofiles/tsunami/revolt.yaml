@@ -1,0 +1,36 @@
+# Re-Volt (Tsunami / TsuMo Racing cabinet) - template, override values in
+# userprofiles/tsunami/revolt.yaml.
+system: tsunami
+name: Re-Volt
+
+# DirectDraw racing game (wine builtin ddraw). The cabinet's `tsuinput.exe` is emulated by
+# the payload: the wheel (DirectInput device "TsuMo Joystick, Throttle") and the coin
+# mechanism (the TsuInput COM object, fed by the virtual coin buttons).
+# Launch argument (launch.reg): -launchGame is the playable game (coin, then the gas pedal
+# starts a race). -launchAttract is only the demo: it quits as soon as a paid player presses
+# gas (the cabinet's tvtopcon then relaunches -launchGame). -launchGame needs the TsuMotion
+# object (motion seat), emulated by the payload.
+args: [-launchGame]
+
+# The cabinet ("Driving Pod", read through the TsuInput object): wheel = lx, gas = accel,
+# brake = brake, cabinet buttons b1 WHEEL (menu select), b2 ABORT, b3 MUSIC,
+# b4-b6 VIEW1-3. A race starts with a credit and the gas pedal.
+native_map: {}
+
+input:
+  # Left stick wheel, R2 gas, L2 brake.
+  gamepad:
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, 5 coin, 1 start.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+# The second cabinet COM object (TsuNet) is the dump's real in-proc server, copied next to the
+# exe and registered in the prefix registry by the payload (docs/REVOLT-DEBUG.md).
+files:
+  tsunet.dll: games/misc/ReVolt/Tsunami/tsunet.dll
