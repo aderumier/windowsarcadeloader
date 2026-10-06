@@ -22,3 +22,7 @@ env:
   WAL_PATCHES: "0xD135B:9090909090,0xD12C8:85,0xD0C60:C3,0xD0E30:C3,0xD02F0:C3,0xD0320:C3,0xD0350:C3,0xD06E7:E93901000090909090"
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: 1280x480
+  # Its movie texture is sized for GPUs of the time (power of two only: 1024x512 for the
+  # 640x480 video). DXVK allows any size: a 640x480 texture mapped as 1024 wide, the video
+  # cut on the right. Device caps without non-power-of-two textures.
+  WAL_D3D9_POW2: "1"

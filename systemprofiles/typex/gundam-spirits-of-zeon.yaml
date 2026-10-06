@@ -21,3 +21,7 @@ env:
   # borderless 640x480 window at 0,0, made fullscreen by the game.
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: 640x480
+  # Its movie texture is sized for GPUs of the time (power of two only: 1024x512 for the
+  # 640x480 video). DXVK allows any size: a 640x480 texture mapped as 1024 wide, the video
+  # cut on the right. Device caps without non-power-of-two textures.
+  WAL_D3D9_POW2: "1"
