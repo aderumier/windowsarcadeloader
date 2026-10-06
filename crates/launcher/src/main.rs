@@ -38,10 +38,7 @@ usage:
   arcade-launcher input-test [<dump> | <gameid>] [--root DIR]
       Print the virtual arcade sticks while you press buttons.
   arcade-launcher show <dump> | <gameid> [--root DIR]
-      Print the merged profile.
-  arcade-launcher prepare <dump> | <gameid> [--root DIR] [--profile FILE]...
-      Create the game's wine prefix and install its winetricks verbs (prefix_tricks and
-      tricks), without running the game.";
+      Print the merged profile.";
 
 struct Args {
     command: String,
@@ -72,7 +69,7 @@ fn parse_args() -> Result<Args> {
     }
     let mut positional = positional.into_iter();
     match positional.next() {
-        Some(c) if ["run", "input-test", "show", "prepare"].contains(&c.as_str()) => {
+        Some(c) if ["run", "input-test", "show"].contains(&c.as_str()) => {
             args.command = c;
             args.profile = positional.next();
         }
@@ -98,16 +95,6 @@ fn real_main() -> Result<()> {
         "show" => {
             let p = load()?;
             println!("# {} from {:?}\n{p:#?}", p.id, p.sources);
-            Ok(())
-        }
-        "prepare" => {
-            // the game's prefix, ready (created, its winetricks verbs installed)
-            let p = load()?;
-            let wine = wine::Wine::new(&p, false)?;
-            wine.prepare_prefix()?;
-            wine.apply_tricks(&p.prefix_tricks)?;
-            wine.apply_tricks(&p.tricks)?;
-            eprintln!("prefix ready: {}", wine.prefix.display());
             Ok(())
         }
         "input-test" => {
@@ -229,11 +216,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     }
 
     wine.prepare_prefix()?;
-    wine.apply_tricks(&profile.prefix_tricks)?;
     wine.apply_tricks(&profile.tricks)?;
-    for (dll, mode) in &profile.dll_overrides {
-        wine.override_dll(&format!("{dll}={mode}"));
-    }
     let reshade: &[String] = if profile.reshade { &profile.reshade_files } else { &[] };
     wine.setup_d3d(profile.dxvk, reshade)?;
     wine.setup_ddraw(profile.graphics)?;
@@ -327,9 +310,6 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     let stop = stop_flag()?;
     let server = server::Server::start(profile.port)?;
     let mut hub = input::Hub::new(profile)?;
-    // own process group: whatever the game leaves (gamescope's reaper and its children) is
-    // killed with it at the end
-    std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
     let mut child = cmd.spawn().context("starting wine")?;
 
     let mut last = InputFrame::default();
@@ -361,6 +341,5 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     eprintln!("launcher: game exited ({status})");
     // leftover processes of the game (helpers, services)
     let _ = wine.wineserver("-k");
-    let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stderr(std::process::Stdio::null()).status();
     Ok(())
 }

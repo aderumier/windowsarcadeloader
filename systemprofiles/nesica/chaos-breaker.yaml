@@ -5,7 +5,8 @@ name: Chaos Breaker
 
 # Direct3D 8 game (DXVK d3d8).
 # Music is DirectMusic: wine's builtin one plays nothing, native DirectMusic + DirectSound +
-# the GM DLS sound bank.
+# the GM DLS sound bank. Native dsound would switch every game of a prefix: own prefix.
+prefix: wine-prefix/directmusic
 tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
 
 # Buttons 1-4 = b1-b4 (default mapping).

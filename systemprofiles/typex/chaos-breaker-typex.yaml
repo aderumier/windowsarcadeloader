@@ -5,7 +5,8 @@ name: Chaos Breaker
 
 # Direct3D 8 game (DXVK d3d8), JVS I/O on COM2. Same engine as the NESiCA build.
 # Music is DirectMusic: wine's builtin one plays nothing, native DirectMusic + DirectSound +
-# the GM DLS sound bank.
+# the GM DLS sound bank, in their own prefix (native dsound would switch every game).
+prefix: wine-prefix/directmusic
 tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
 # The dump's dinput8.dll is Microsoft's: use wine's.
 hide: [dinput8.dll]

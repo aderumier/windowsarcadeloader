@@ -3,8 +3,8 @@
 system: nesica
 name: EN-Eins Perfektewelt
 
-# Rendered but nothing showed on screen with wine's dsound: native dsound/DirectMusic.
-tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
+# Rendered but nothing showed on screen with wine's dsound: native dsound/DirectMusic, prefix of the DirectMusic games.
+prefix: wine-prefix/directmusic
 
 # Direct3D 9 game (DXVK). No crypto key.
 
