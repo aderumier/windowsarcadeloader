@@ -51,6 +51,15 @@ reshade_files: []
 # directory, the dump untouched): for executables whose hex edits left absolute addresses the
 # relocations do not cover (Haunted Museum II: crash on a non-relocated address).
 exe_fixed_base: false
+# Runs the game in gamescope (its own X server, the picture scaled to the screen): for games
+# needing a screen mode the desktop does not have (Gundam Spirits of Zeon 2 players: 1280x480).
+# width/height: the game's screen (gamescope -w/-h), args: the rest (output, scaler, window).
+gamescope:
+  enabled: false
+  bin: gamescope
+  width: 0
+  height: 0
+  args: [-S, stretch, -f]
 # Files copied into the run directory next to the executable, in place of the game's own:
 # <name in the run directory>: <source, relative to the root> (e.g. a missing config file).
 # A name with a folder ("dir/file") is a path from the game root.

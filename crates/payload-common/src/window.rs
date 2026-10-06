@@ -82,11 +82,14 @@ fn hook_create() {
 }
 
 /// The forced size when `hwnd` is a top-level window, logging the replaced geometry.
-fn forced(hwnd: HWND, x: i32, y: i32, cx: i32, cy: i32) -> Option<(i32, i32)> {
+pub(crate) fn forced(hwnd: HWND, x: i32, y: i32, cx: i32, cy: i32) -> Option<(i32, i32)> {
     if !unsafe { GetParent(hwnd) }.is_null() {
         return None;
     }
     let (w, h) = (WIDTH.load(Ordering::Relaxed) as i32, HEIGHT.load(Ordering::Relaxed) as i32);
+    if w == 0 || h == 0 {
+        return None; // no WAL_WINDOW_SIZE
+    }
     if (x, y, cx, cy) != (0, 0, w, h) {
         log!("window: {hwnd:?} {cx}x{cy} at {x},{y} -> {w}x{h} at 0,0");
     }
@@ -149,7 +152,7 @@ const WS_EX_DECORATIONS: u32 = 0x0000_0001 | 0x0000_0100 | 0x0000_0200 | 0x0002_
 
 /// Style and geometry of a window being created: popup style (`WAL_WINDOW_POPUP`) and forced
 /// size at 0,0 (`WAL_WINDOW_SIZE`) for top-level windows (`parent` null) with a size.
-fn created(ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32, parent: HWND) -> (u32, u32, i32, i32, i32, i32) {
+pub(crate) fn created(ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32, parent: HWND) -> (u32, u32, i32, i32, i32, i32) {
     // child windows, and hidden helper windows created without a size (CRI's
     // CriDSoundOutput, its DirectSound window: as a popup the game was silent)
     if !parent.is_null() || style & WS_CHILD != 0 || (w == 0 && h == 0) {

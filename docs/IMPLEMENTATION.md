@@ -155,6 +155,13 @@ Wine maps it at its preferred base (rebuilt executables whose absolute addresses
 relocations miss). `initial_files`: files installed in the dump only when missing (default
 settings, calibration the game then updates).
 
+`gamescope.enabled: true` runs the game command in gamescope (`gamescope -w <width> -h
+<height> <args> -- wine ...`, default args `-S stretch -f`): an X server of the game's own
+screen size, scaled to the real screen. For screen modes the desktop does not have (Wine on
+the desktop's Xwayland only offers its modes): Gundam Spirits of Zeon's 2 player mode starts
+only on a 1280x480 screen. The stop path is unchanged (`wineserver -k`, gamescope exits with
+its client).
+
 ReShade setups of the dumps (`reshade`, `reshade_files`): some dumps rotate vertical games to a
 landscape screen with a bezel through ReShade (and what it chains to: d3d8to9, dgVoodoo). The
 profile lists those files in `reshade_files`; with `reshade: true` (default) they are used when
@@ -294,7 +301,7 @@ The game is started from there (cwd + `C:\wal\...\game.exe`).
 
 `run()`: load profile → system → `Wine::new` → resolve exe → check payload files → prefix +
 graphics → run dir → payload env → print summary → (dry run stops here) → TCP server →
-input hub → spawn wine → loop { poll input 4 ms, broadcast on change / 100 ms, exit combo or
+input hub → spawn wine (in gamescope when enabled) → loop { poll input 4 ms, broadcast on change / 100 ms, exit combo or
 Ctrl-C/SIGTERM → `wineserver -k`, child exit → break } → `wineserver -k` for leftovers.
 
 Subcommands: `run` (default), `input-test` (prints the merged sticks; works without a game
@@ -555,6 +562,20 @@ one click made two touches). Its JVS switches
 (`WAL_TYPEX_JVS_LAYOUT=block-king`, found with its switch test): service 0x40, left/right
 start 0x20/0x10, cannon 0x08, then SELECT 0x08 / ENTER 0x04 (buttons 4/3).
 
+Gundam Spirits of Zeon (`gundam-spirits-of-zeon`, its "patched I/O" build) reads its guns
+from the JVS data in memory: positions in 640x480 pixels, buttons as bits of its switch bytes
+(`bits` per gun: trigger, action, start, service, test), coin counters incremented directly.
+Its 2 player mode (`gundam-spirits-of-zeon-2p`: second `.windowsloader` file in the same dump)
+patches its player count to 2 and draws both screens side by side on one 1280x480 picture
+(player 2's X offset 640); it needs a 1280x480 screen: run in gamescope.
+
+Work area fix (`payload-common/workarea.rs`, always on when it is wrong): Wine on some
+Xwayland desktops reports a work area ~5.4 million pixels high. The game executable and the
+DLLs of its directory get the screen size from `GetSystemMetrics`, `SystemParametersInfo`
+(`SPI_GETWORKAREA`) and `GetMonitorInfo`, garbage or default `CreateWindowEx` sizes are
+replaced, and the window options (`WAL_WINDOW_POPUP`/`_SIZE`) apply to the windows those DLLs
+create and resize (Gundam's Alchemy engine, `libIG*.dll`).
+
 `WAL_TYPEX_GUN_PLAYERS=2,1` chooses the virtual player of each gun (calibrating gun 2 with a
 single mouse).
 
@@ -763,6 +784,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | wal-loader, JVS, `.windowsloader`: `launcher.exe`, `WAL_D3D9_QUERY_FIX`, A/B/C/D map, hide MS dinput8 |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | wal-loader, JVS, hide MS dinput8, `reshade_files` ReShade d3d9, `tricks: [d3dcompiler_47]` |
 | `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test, sound) | wal-loader, JVS (`haunted-museum` layout, volume knob on analog 0), guns in the gun board record (`WAL_TYPEX_GUNS`, `COM1,!COM3`), `WAL_PIN_CWD`, MUSEUM.ini with WindowsLoader paths (`files`), window created 1286x5434821 at CW_USEDEFAULT: popup 1280x720 at 0,0 (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`) |
+| `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video cut on the right) | wal-loader, JVS, guns in its JVS data (`WAL_TYPEX_GUNS`), known patches (`WAL_PATCHES`), popup 640x480 window, work area fix |
+| `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: in gamescope, guns) | as `gundam-spirits-of-zeon`, 2 player patch, 1280x480 in `gamescope` |
 | `haunted-museum-2` | Haunted Museum II | typex | works (user: guns, inputs, sound, video) | wal-loader, JVS (`haunted-museum` layout, volume knob on analog 0), guns in the gun board record (`COM1,!COM3`), `exe_fixed_base` (rebuilt exe: absolute addresses not relocated, imports without lookup table), known patch restoring its JVSENABLE/GUNENABLE reads (hex-edited to run without boards), both guns pre-calibrated (`initial_files` HM20/HM21.CFG + CRC32), `dxvk: false` (Indeo videos: RADV GPU fault with DXVK), popup 1280x720 window |
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | wal-loader, JVS (re-init after bus reset), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA); TODO: dispenser (reference "Skip Boot Check") |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works, intro movie (user); intermittent crash at the movie end | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |

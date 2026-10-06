@@ -1,0 +1,23 @@
+# Mobile Suit Gundam Spirits of Zeon - Memory of Soldiers (Banpresto, Taito Type X) -
+# template, override values in userprofiles/typex/gundam-spirits-of-zeon.yaml.
+system: typex
+name: "Mobile Suit Gundam: Spirits of Zeon"
+
+# Direct3D 9 gun game, JVS I/O on COM2. The dump is the "patched I/O" single screen build
+# (ioemulation): the guns go in its JVS data in memory (payload guns.rs), its PC mouse and
+# key input is turned off. Trigger = b1, action (bazooka, mines) = b2, aiming off the screen
+# hides.
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+env:
+  WAL_TYPEX_GUNS: gundam-spirits-of-zeon
+  # Known patches: skip a JVS function that crashes, use the JVS data (je -> jne), its key
+  # and mouse event functions return at once, skip its own JVS axis update.
+  WAL_PATCHES: "0xD135B:9090909090,0xD12C8:85,0xD0C60:C3,0xD0E30:C3,0xD02F0:C3,0xD0320:C3,0xD0350:C3,0xD06E7:E93901000090909090"
+  # Its engine (Alchemy, libIG*.dll) creates a captioned window whose Wine non-client height is
+  # garbage here (~5.4 million pixels: DXVK cannot create the back buffer, crash at boot):
+  # borderless 640x480 window at 0,0, made fullscreen by the game.
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: 640x480
