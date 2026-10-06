@@ -232,9 +232,16 @@ those profiles add `tricks: [d3dcompiler_47]`.
 `dxvk_from` (profile): runner whose DXVK is linked when the game's runner ships none (plain
 wine builds, e.g. `wine-9.22-amd64` with `dxvk_from: GE-Proton11-7-x86_64`).
 
-Prefix tricks: profile `tricks` lists winetricks verbs applied once per prefix with the runner's
-wine (`winetricks -q <verb>`, `WINEARCH` removed), recorded in `<prefix>/.wal-tricks`. The prefix
-is shared, so tricks affect every game using it.
+Prefix and tricks: all the games share one prefix, `wine-prefix/full`, with every game's
+winetricks verbs preinstalled (`prefix_tricks` in `defaults.yaml`; a unit test checks it holds
+every system profile's `tricks`). Each profile still lists the verbs it needs in `tricks`
+(installed when missing: the record of each game's needs). Verbs are applied once with the
+runner's wine (`winetricks -q <verb>`, `WINEARCH` removed; winetricks from the runner's `bin/`,
+else the runners directory, else the PATH), recorded in `<prefix>/.wal-tricks`.
+`arcade-launcher prepare <dump|id>` creates the prefix and installs them without running a game.
+Their DLL overrides (native dsound, DirectMusic, xact, d3dx9...) apply to every game: a game
+needing wine's own DLL sets `dll_overrides: {dsound: b}` (WINEDLLOVERRIDES of that game). A
+game that cannot share the prefix sets its own `prefix` (and `prefix_tricks`).
 
 Runner hotfixes: `tools/runner-hotfixes.py [runner...]` patches known bugs of runner builds in
 place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships in a release:
@@ -658,13 +665,35 @@ simpler than hooks (registry values written at load, files in the run dir).
   32-bit `i386-unix` module → missing lib32 package or use `wow64`).
 * Imports/exports of game files and payloads: `winedump -j import|export <file>`.
 
+### Regression test (`tools/regression.py`)
+
+Launches each game of `tools/regression/games.yaml` (the working ones, by dump; options `wait`,
+`script`, `skip`) one after the other, with `WAL_SCREENSHOT` on, and checks after `wait`
+seconds (default 60):
+
+* started: the payload connected to the launcher (its log);
+* running: the game has not exited;
+* picture: the last Direct3D 8/9 screenshot is not uniform/black (`-` for other APIs);
+* audio: the game's PulseAudio/PipeWire stream peaks above silence. Its streams are moved to a
+  temporary null sink looped back to the default one (still heard) and that sink is recorded
+  (`pw-record`, `stream.capture.sink`), so only the game counts (`parec --monitor-stream`
+  reads silence for wine's streams). A coin and start after 30 s
+  (`tools/regression/coin-start.txt`, per game `script`) start the game, as attract modes are
+  often silent.
+
+Results in `tools/regression/results/<date>/` (`report.md`, `results.json`, launcher and payload
+logs, screenshots per game), compared with the previous run: a check that passed and now
+fails is a regression (exit status 1). `--only TEXT` runs a subset, `--compare DIR` picks the
+reference run. The prefix is prepared first (`arcade-launcher prepare`). It takes the screen
+for ~1 minute per game.
+
 ### Screenshots (seeing what the game shows without watching it)
 
 The payload's d3d8/d3d9 shim (`payload-common/src/screenshot.rs`) can dump the game's back
 buffer periodically. This is how automated/agent test runs check what is on screen:
 
 ```sh
-RUN=wine-prefix/common/drive_c/wal/typex/gouketsuji-ichizoku-typex2     # the game's run dir
+RUN=wine-prefix/full/drive_c/wal/typex/gouketsuji-ichizoku-typex2     # the game's run dir
 rm -f $RUN/shot-*.bmp
 timeout 120 env WAL_SCREENSHOT=5 dist/arcade-launcher run "games/typex2/Gouketsuji Ichizoku - Matsuri Senzo Kuyou"
 ls -l --time-style=+%T $RUN/shot-*.bmp                             # mtime = when it was taken
@@ -706,10 +735,10 @@ S=$(mktemp -d)
 python3 tools/fake_launcher.py &                       # listens on 33700
 dist/arcade-launcher "games/nesicax/Arcana Heart 2" --dry-run 2>/dev/null \
   | grep -v '^cd ' | sed 's/^/export "/; s/$/"/' > $S/env.sh
-(cd wine-prefix/common/drive_c/wal/nesica/arcana-heart-2 && . $S/env.sh && \
+(cd wine-prefix/full/drive_c/wal/nesica/arcana-heart-2 && . $S/env.sh && \
   timeout 40 "$OLDPWD/wine-runners/GE-Proton11-7-x86_64/bin/wine" 'C:\wal\nesica\arcana-heart-2\game.exe')
 (. $S/env.sh && wine-runners/GE-Proton11-7-x86_64/bin/wineserver -k)
-grep -E 'input:|0x4120|0x4140' wine-prefix/common/drive_c/wal/nesica/arcana-heart-2/wal-nesica.log
+grep -E 'input:|0x4120|0x4140' wine-prefix/full/drive_c/wal/nesica/arcana-heart-2/wal-nesica.log
 ```
 
 (Run the launcher once normally before, so the prefix and run dir exist.)
@@ -741,20 +770,20 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | D: data in WindowsLoader |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | key bbcf, shop hours patch |
 | `blazblue-chronophantasma` | BlazBlue Chronophantasma 2.03 | nesica | not tested | - |
-| `chaos-breaker` | Chaos Breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks in own prefix `wine-prefix/directmusic` (native dsound) |
+| `chaos-breaker` | Chaos Breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks (native dsound) |
 | `chaos-code-103` | Chaos Code: New Sign of Catastrophe 1.03 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
 | `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
-| `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user) | native dsound (own prefix: wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
+| `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user) | native dsound (wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
 | `daemon-bride` | Daemon Bride: Additional Gain | nesica | in fight | key bbcp |
 | `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | in game, 4 players (user: credits; TODO: P1 controls reported not responding with JVS on) | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | same as Chaos Breaker (same engine) |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | D: data in WindowsLoader |
-| `dragon-dance` | Dragon Dance | nesica | works (user), smoke effect glitches | run game.exe (NxL stand-in), native DirectMusic/dsound prefix; d7vk, wined3d Vulkan, DDrawCompat crash |
+| `dragon-dance` | Dragon Dance | nesica | works (user), smoke effect glitches | run game.exe (NxL stand-in), native DirectMusic/dsound; d7vk, wined3d Vulkan, DDrawCompat crash |
 | `elevator-action` | Elevator Action Death Parade | nesica | in game | 1280x800 |
-| `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | 1280x800, native dsound prefix (nothing on screen with wine's dsound) |
-| `exception` | Exception | nesica | works fullscreen (user) | native dsound prefix (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
+| `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | 1280x800, native dsound (nothing on screen with wine's dsound) |
+| `exception` | Exception | nesica | works fullscreen (user) | native dsound (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
 | `gouketsuji-ichizoku` | Gouketsuji Ichizoku: Matsuri Senzo Kuyou | nesica | works (user) | hide dgVoodoo D3D8/D3D9 |
-| `homura` | Homura | nesica | works (user) | native dsound prefix (stuck on NOW LOADING with wine's dsound) |
+| `homura` | Homura | nesica | works (user) | native dsound (stuck on NOW LOADING with wine's dsound) |
 | `hyper-street-fighter-2` | Hyper Street Fighter II: The Anniversary Edition | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `ikaruga` | Ikaruga | nesica | in game (user) | CRT D: redirection (storage error), `fakejapanese` |
 | `kof-2002-um` | The King of Fighters 2002 Unlimited Match | nesica | works (user) | `WAL_D3D9_QUERY_FIX` (event query polled into a 1-byte variable: DXVK writes 4 bytes over the saved EBP) |
@@ -811,9 +840,9 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
-EN-Eins showing nothing, Psychic Force never opening its I/O): they run in
-`wine-prefix/directmusic`, which has native dsound and DirectMusic (winetricks), so the common
-prefix keeps wine's dsound for the others.
+EN-Eins showing nothing, Psychic Force never opening its I/O): they need native dsound and
+DirectMusic (winetricks, their `tricks`). The shared prefix has them for every game; a game
+broken by them gets wine's back with `dll_overrides`.
 
 NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance ship a small
 `game.exe` that creates the NESiCAxLive launcher events/shared memory/pipe (`NxLEvent_*`,

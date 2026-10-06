@@ -6,9 +6,7 @@ name: Crimzon Clover
 # DxLib game, Direct3D 9Ex loaded at run time. No crypto key.
 # DxLib sizes its window and sound buffers from the DirectSound caps: with wine's dsound it
 # computed a window ~5 million pixels high (X BadAlloc) and overran a mixing buffer (wine 9.22),
-# then showed only black. Native dsound (as Batocera's working prefix): own prefix, shared with
-# the DirectMusic games.
-prefix: wine-prefix/directmusic
+# then showed only black. Native dsound (as Batocera's working prefix).
 tricks: [dsound]
 
 # Buttons Fire, Lock on, Bomb = b1-b3 (default mapping).

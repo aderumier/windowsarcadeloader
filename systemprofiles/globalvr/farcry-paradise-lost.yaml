@@ -7,9 +7,7 @@ name: Far Cry Paradise Lost
 # payload: both guns, panel buttons and coins.
 
 # With wine's builtin DirectSound the game computes a window ~5.4 million pixels high (as
-# Crimzon Clover) and nothing shows, and there is no sound: native dsound prefix, shared with
-# the DirectMusic games.
-prefix: wine-prefix/directmusic
+# Crimzon Clover) and nothing shows, and there is no sound: native dsound.
 tricks: [dsound]
 
 env:
