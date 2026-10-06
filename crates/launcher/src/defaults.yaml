@@ -38,6 +38,7 @@ lib32_dirs: []
 lib64_dirs: []
 # winetricks verbs applied once to the prefix (recorded in <prefix>/.wal-tricks). The prefix
 # is shared by the games using it, keep this list short.
+# winetricks: the runner's bin/winetricks, else <runners_dir>/winetricks, else the PATH's.
 tricks: []
 # Game files hidden from the run directory (case insensitive).
 hide: []
