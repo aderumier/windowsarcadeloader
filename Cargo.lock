@@ -352,6 +352,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-payload-tsunami"
+version = "0.1.0"
+dependencies = [
+ "wal-payload-common",
+ "wal-protocol",
+ "windows-sys",
+]
+
+[[package]]
 name = "wal-payload-typex"
 version = "0.1.0"
 dependencies = [

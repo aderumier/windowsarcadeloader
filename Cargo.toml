@@ -8,6 +8,7 @@ members = [
     "crates/payload-typex",
     "crates/payload-globalvr",
     "crates/payload-namcoes3",
+    "crates/payload-tsunami",
     "crates/loader",
 ]
 # Payloads are Windows DLLs: build them with --target i686-pc-windows-gnu, the 64-bit ones

@@ -90,6 +90,34 @@ unsafe fn resolve(dll: &str, function: Import) -> usize {
 
 unsafe fn hook_import(base: usize, dll: &str, function: Import, replacement: usize) -> Option<usize> {
     unsafe {
+        let (slot, recorded) = find_slot(base, dll, function)?;
+        let ptr_size = size_of::<usize>();
+        let mut old = 0;
+        VirtualProtect(slot.cast(), ptr_size, PAGE_READWRITE, &mut old);
+        let original = slot.read();
+        slot.write(replacement);
+        VirtualProtect(slot.cast(), ptr_size, old, &mut old);
+        HOOKED.lock().unwrap().push((recorded.unwrap_or(original), replacement));
+        log!("iat: hooked {dll}!{function}");
+        Some(original)
+    }
+}
+
+/// Address of the game's IAT slot of `dll!function`, without patching it.
+///
+/// # Safety
+/// The game must import `dll!function`.
+pub unsafe fn hook_addr(dll: &str, function: &str) -> Option<usize> {
+    unsafe {
+        find_slot(GetModuleHandleW(std::ptr::null()) as usize, dll, Import::Name(function)).map(|(s, _)| s as usize)
+    }
+}
+
+/// The IAT slot of `dll!function` in the module loaded at `base`, with what to record in
+/// `HOOKED` when patching it: the resolved address for imports without a lookup table (a slot
+/// without a name once loaded), the original slot value otherwise.
+unsafe fn find_slot(base: usize, dll: &str, function: Import) -> Option<(*mut usize, Option<usize>)> {
+    unsafe {
         let nt = base + read::<u32>(base, 0x3C) as usize;
         let optional = nt + 24;
         let data_dirs = match read::<u16>(optional, 0) {
@@ -139,17 +167,8 @@ unsafe fn hook_import(base: usize, dll: &str, function: Import, replacement: usi
                         }
                     };
                     if found {
-                        let slot = (iat + i * ptr_size) as *mut usize;
-                        let mut old = 0;
-                        VirtualProtect(slot.cast(), ptr_size, PAGE_READWRITE, &mut old);
-                        let original = slot.read();
-                        slot.write(replacement);
-                        VirtualProtect(slot.cast(), ptr_size, old, &mut old);
-                        if let Some(real) = (lookup_rva == 0).then(|| resolve(dll, function)).or(Some(original)) {
-                            HOOKED.lock().unwrap().push((real, replacement));
-                        }
-                        log!("iat: hooked {dll}!{function}");
-                        return Some(original);
+                        let recorded = (lookup_rva == 0).then(|| resolve(dll, function)).filter(|r| *r != 0);
+                        return Some(((iat + i * ptr_size) as *mut usize, recorded));
                     }
                     i += 1;
                 }

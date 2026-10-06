@@ -320,7 +320,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         let mut frame = hub.frame();
         if let Some(script) = &script {
             for (p, stick) in frame.players.iter_mut().enumerate() {
-                stick.buttons |= script.buttons(p);
+                script.apply(p, stick);
             }
         }
         // on change, plus a periodic refresh
