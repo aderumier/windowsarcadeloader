@@ -192,12 +192,13 @@ impl Profile {
     /// Loads the profile of a game dump (its directory or `<gameid>.windowsloader` file): the
     /// game id selects `systemprofiles/<system>/<id>.yaml` (+ `userprofiles/`), the dump gives
     /// the executable. A game id (`<id>` or `<system>/<id>`) loads the profile alone.
-    pub fn load(arg: &str, root: Option<&Path>) -> Result<Profile> {
+    /// `extra`: more layers merged last (`--profile`, e.g. a frontend's per-game options).
+    pub fn load(arg: &str, root: Option<&Path>, extra: &[PathBuf]) -> Result<Profile> {
         let root = profiles_root(root)?;
         let Some(dump) = Dump::find(arg)? else {
-            return Profile::load_id(arg.trim_end_matches(".yaml"), &root);
+            return Profile::load_id(arg.trim_end_matches(".yaml"), &root, extra);
         };
-        let mut profile = Profile::load_id(&dump.id, &root)?;
+        let mut profile = Profile::load_id(&dump.id, &root, extra)?;
         let exe = dump.root.join(&dump.exe);
         profile.exe = format!("Z:{}", exe.display()).replace('/', "\\");
         profile.exe_depth = dump.exe.components().count() - 1;
@@ -205,7 +206,7 @@ impl Profile {
     }
 
     /// The profile of game id `<id>` (searched in every system) or `<system>/<id>`.
-    fn load_id(id: &str, root: &Path) -> Result<Profile> {
+    fn load_id(id: &str, root: &Path, extra: &[PathBuf]) -> Result<Profile> {
         let rel = if id.contains('/') {
             PathBuf::from(format!("{id}.yaml"))
         } else {
@@ -230,7 +231,7 @@ impl Profile {
         if !template.exists() && !user.exists() {
             bail!("no profile {} in {}/{{{SYSTEM_PROFILES},{USER_PROFILES}}}", rel.display(), root.display());
         }
-        for layer in [root.join("launcher.yaml"), template, user] {
+        for layer in [root.join("launcher.yaml"), template, user].into_iter().chain(extra.iter().cloned()) {
             if layer.exists() {
                 merge(&mut value, read_yaml(&layer)?);
                 sources.push(layer);
@@ -301,7 +302,7 @@ mod tests {
         std::fs::write(dump.join("bin/Game.exe"), "").unwrap();
         std::fs::write(dump.join("game.windowsloader"), "# comment\nbin\\Game.exe\n").unwrap();
 
-        let p = Profile::load(dump.to_str().unwrap(), Some(&dir)).unwrap();
+        let p = Profile::load(dump.to_str().unwrap(), Some(&dir), &[]).unwrap();
         assert_eq!(p.id, "nesica/game");
         assert_eq!(p.exe, format!("Z:{}", dump.join("bin/Game.exe").display()).replace('/', "\\"));
         assert_eq!(p.exe_depth, 1);
@@ -313,11 +314,15 @@ mod tests {
         assert_eq!(p.graphics, Graphics::Wine);
 
         // the file itself, and the profile alone by id
-        let p2 = Profile::load(dump.join("game.windowsloader").to_str().unwrap(), Some(&dir)).unwrap();
+        let p2 = Profile::load(dump.join("game.windowsloader").to_str().unwrap(), Some(&dir), &[]).unwrap();
         assert_eq!(p2.exe, p.exe);
-        let p3 = Profile::load("game", Some(&dir)).unwrap();
+        let p3 = Profile::load("game", Some(&dir), &[]).unwrap();
+        // extra layers (--profile) are merged last
+        std::fs::write(dir.join("extra.yaml"), "reshade: false\n").unwrap();
+        let p4 = Profile::load("game", Some(&dir), &[dir.join("extra.yaml")]).unwrap();
+        assert!(!p4.reshade && p3.reshade);
         assert_eq!((p3.id.as_str(), p3.exe.as_str()), ("nesica/game", ""));
-        assert!(Profile::load("nesica/game", Some(&dir)).is_ok());
+        assert!(Profile::load("nesica/game", Some(&dir), &[]).is_ok());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -330,10 +335,10 @@ mod tests {
         std::fs::write(dir.join("systemprofiles/typex/twin.yaml"), "system: typex\n").unwrap();
         let dump = dir.join("dump");
         std::fs::create_dir_all(&dump).unwrap();
-        assert!(Profile::load(dump.to_str().unwrap(), Some(&dir)).is_err()); // no file
+        assert!(Profile::load(dump.to_str().unwrap(), Some(&dir), &[]).is_err()); // no file
         std::fs::write(dump.join("game.exe"), "").unwrap();
         std::fs::write(dump.join("twin.windowsloader"), "game.exe\n").unwrap();
-        assert!(Profile::load(dump.to_str().unwrap(), Some(&dir)).is_err()); // ambiguous id
+        assert!(Profile::load(dump.to_str().unwrap(), Some(&dir), &[]).is_err()); // ambiguous id
         std::fs::write(dump.join("twin.windowsloader"), "../game.exe\n").unwrap();
         assert!(Dump::find(dump.to_str().unwrap()).is_err()); // outside the dump
         std::fs::remove_dir_all(&dir).unwrap();

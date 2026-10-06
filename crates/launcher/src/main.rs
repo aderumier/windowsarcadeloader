@@ -26,12 +26,13 @@ use wal_protocol::{InputFrame, env};
 
 const USAGE: &str = "\
 usage:
-  arcade-launcher [run] <dump> [--root DIR] [--dry-run] [--input-script FILE]
+  arcade-launcher [run] <dump> [--root DIR] [--profile FILE]... [--dry-run] [--input-script FILE]
       Launch a game. <dump> is a game dump directory holding a <gameid>.windowsloader
       file (the executable path relative to the dump root), or that file. The game id
       selects systemprofiles/<system>/<gameid>.yaml, merged with userprofiles/.
       --root: where systemprofiles/ is (default: the current directory, else next to
-      the launcher). --input-script replays timed virtual stick inputs
+      the launcher). --profile merges a YAML layer last (frontend options, e.g. reshade:
+      false), repeatable. --input-script replays timed virtual stick inputs
       (`<seconds> p<N> <inputs...>` per line, `-` releases), for tests.
   arcade-launcher input-test [<dump> | <gameid>] [--root DIR]
       Print the virtual arcade sticks while you press buttons.
@@ -42,17 +43,19 @@ struct Args {
     command: String,
     profile: Option<String>,
     root: Option<PathBuf>,
+    layers: Vec<PathBuf>,
     dry_run: bool,
     script: Option<PathBuf>,
 }
 
 fn parse_args() -> Result<Args> {
-    let mut args = Args { command: "run".into(), profile: None, root: None, dry_run: false, script: None };
+    let mut args = Args { command: "run".into(), profile: None, root: None, layers: Vec::new(), dry_run: false, script: None };
     let mut positional = Vec::new();
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
         match a.as_str() {
             "--root" => args.root = Some(it.next().context("--root needs a directory")?.into()),
+            "--profile" => args.layers.push(it.next().context("--profile needs a file")?.into()),
             "--dry-run" => args.dry_run = true,
             "--input-script" => args.script = Some(it.next().context("--input-script needs a file")?.into()),
             "-h" | "--help" => {
@@ -85,7 +88,7 @@ fn real_main() -> Result<()> {
     let args = parse_args()?;
     let load = || -> Result<Profile> {
         let p = args.profile.as_deref().with_context(|| format!("missing <dump>\n{USAGE}"))?;
-        Profile::load(p, args.root.as_deref())
+        Profile::load(p, args.root.as_deref(), &args.layers)
     };
     match args.command.as_str() {
         "show" => {

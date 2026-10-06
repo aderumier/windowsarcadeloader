@@ -39,6 +39,7 @@ pub static READY: AtomicBool = AtomicBool::new(false);
 /// `GetCommModemStatus` value before / after [`READY`] (default: nothing, then CTS).
 pub static MODEM_STATUS: [AtomicU32; 2] = [AtomicU32::new(0), AtomicU32::new(0x10)];
 static TRACE_COUNT: AtomicUsize = AtomicUsize::new(0);
+static SINK_TRACE_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 /// Installs the device on `port` (e.g. `COM2`, also matched as `\\.\COM2`).
 pub fn install(port: &str, handler: Handler) {
@@ -88,6 +89,7 @@ pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
 }
 
 /// Opens `ports` (comma separated) as silent devices: writes succeed, reads return nothing.
+/// A `!` prefix (`!COM3`) makes the port absent instead: opening it fails.
 /// Call after [`install`], which installs the hooks.
 pub fn install_sink(ports: &str) {
     let list: Vec<String> = ports.split(',').map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
@@ -101,6 +103,17 @@ fn strip_device(name: &str) -> &str {
 
 fn is_sink(name: &str) -> bool {
     SINK.get().is_some_and(|s| s.iter().any(|p| strip_device(name).eq_ignore_ascii_case(p)))
+}
+
+/// `!COMn` entries of the silent port list: opening them fails, as on a PC without the port.
+fn is_absent(name: &str) -> bool {
+    SINK.get().is_some_and(|s| s.iter().any(|p| p.strip_prefix('!').is_some_and(|p| strip_device(name).eq_ignore_ascii_case(p))))
+}
+
+/// `INVALID_HANDLE_VALUE` with `ERROR_FILE_NOT_FOUND`, for an absent port.
+fn absent() -> P {
+    unsafe { windows_sys::Win32::Foundation::SetLastError(2) };
+    usize::MAX as P
 }
 
 /// Logs the first packets exchanged with the game.
@@ -171,6 +184,9 @@ fn trace_open(name: String, handle: P) {
 }
 
 unsafe extern "system" fn create_file_a(name: *const u8, a: u32, s: u32, sa: P, d: u32, f: u32, t: P) -> P {
+    if !name.is_null() && is_absent(&unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy()) {
+        return absent();
+    }
     if !name.is_null() && is_sink(&unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy()) {
         log!("serial: silent port opened");
         return FAKE_SINK as P;
@@ -192,7 +208,11 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
         while unsafe { *name.add(len) } != 0 {
             len += 1;
         }
-        if is_sink(&String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) })) {
+        let wide = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) });
+        if is_absent(&wide) {
+            return absent();
+        }
+        if is_sink(&wide) {
             log!("serial: silent port opened");
             return FAKE_SINK as P;
         }
@@ -214,6 +234,10 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
 
 unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut u32, ov: P) -> i32 {
     if h as usize == FAKE_SINK {
+        if SINK_TRACE_COUNT.fetch_add(1, Ordering::Relaxed) < 40 {
+            let hex = unsafe { std::slice::from_raw_parts(buf, n as usize) }.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
+            log!("serial: silent port <- {hex}");
+        }
         if !written.is_null() {
             unsafe { *written = n };
         }

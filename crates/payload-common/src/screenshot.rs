@@ -336,6 +336,7 @@ unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window:
     unsafe { override_size(params) };
     let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
+        unsafe { log_device("d3d9", params, 8, window) };
         unsafe { wrap_device(*out) };
     } else {
         unsafe { log_failure(hr, params, flags) };
@@ -634,3 +635,18 @@ fn describe_window(hwnd: P) -> String {
     }
 }
 
+
+/// Logs a created device: back buffer size, windowed, focus and device windows.
+unsafe fn log_device(api: &str, params: P, windowed_index: usize, window: P) {
+    if params.is_null() {
+        return;
+    }
+    let p = params as *const u32;
+    let device_window = unsafe { *p.add(windowed_index - 1) } as usize as P;
+    unsafe {
+        log!(
+            "{api}: device {}x{} windowed {}, focus window {}, device window {}",
+            *p, *p.add(1), *p.add(windowed_index), describe_window(window), describe_window(device_window)
+        );
+    }
+}

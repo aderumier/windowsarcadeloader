@@ -520,13 +520,20 @@ Other `20` layouts (Gaia Attack 4 asks `20 01 03`: 1 player x 3 bytes) get the r
 as a generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
 the commands after it are answered (otherwise I/O ERROR).
 
-Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2`): per-game
-input code. The gun board's port (`WAL_TYPEX_GUN_PORT`, comma separated, default
-`COM1`) is a silent serial device (`serial::install_sink`: writes accepted, nothing read), and a
+Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2|haunted-museum`):
+per-game input code. The gun board's port (`WAL_TYPEX_GUN_PORT`, comma separated, default
+`COM1`) is a silent serial device (`serial::install_sink`: writes accepted, nothing read; a
+`!COMn` entry is absent instead, its open fails as on a PC without it), and a
 thread writes every 16 ms each player's trigger, offscreen flag and position (0..=16384) at the
 game's RVAs (layout checked against the dumps). Gun = the
 player's virtual stick: `lx`/`ly`, trigger `b1`, offscreen = `b2` or the position at a screen
 edge. Profiles set `input.guns_enabled: true` (mice act as guns without lightguns).
+
+Write the guns where the game reads them from, not into state the game rebuilds: Haunted
+Museum copies its gun board's 20-byte record (`+0x327958` received, `+0x327944` current) into its
+gun state every frame, so the guns are written in both records (writing the state alone, as
+some loaders do, lost the race: trigger ignored, positions flickering with board junk). A
+silent COM3 also fed it junk: `COM1,!COM3`.
 
 Reference for new gun games: [DemulShooter](https://github.com/argonlefou/DemulShooter)
 (`DemulShooter/Games/Game_<System><Game>.cs`, e.g. `Game_TtxBlockKingBallShooter.cs`,
@@ -545,6 +552,26 @@ Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the 
 `WAL_VFW_CODECS=vidc.wmv3=WMV9VCM.dll` (`vfw.rs`): registers Video for Windows codecs in
 `HKLM\...\Drivers32` at startup, the DLL being in the game directory (Gaia Attack 4's WMV9 AVIs,
 codec extracted from the dump's `wmv9VCMsetup.exe`).
+
+### 6.4 Batocera integration
+
+A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
+repository) runs `arcade-launcher run <rom> --root <emulator dir> --profile <es options>`:
+
+* Emulator directory `/userdata/system/rgs/emulators/windows-arcade-loader`:
+  `arcade-launcher`, `payloads/`, `systemprofiles/`, `launcher.yaml` (machine layer:
+  `runners_dir: /userdata/system/wine/custom`, `runner: GE-Proton11-7-x86_64`,
+  `payloads_dir: payloads`; template in `tools/batocera/launcher.yaml`). The Wine prefixes are
+  created there. `tools/batocera/install.sh [DEST]` copies a build (and the profiles) into it.
+* The GE-Proton runner (with the runner hotfixes) is copied to
+  `/userdata/system/wine/custom/GE-Proton11-7-x86_64`: Batocera's own Wine builds lack them.
+* Roms: the dump directory's `<gameid>.windowsloader` file (ES extension `.windowsloader`), or
+  the dump as a `.squashfs` image: configgen mounts it with a writable overlay
+  (`writesToRom`, kept in `/userdata/saves/<system>/<image>`) and hands the mounted directory.
+* ES options (`es_features_windowsarcadeloader.cfg`): rotation (`reshade`), renderer (`dxvk`),
+  mouse as gun (`input.guns_mouse`), keyboard (`input.keyboard_enabled`). Only the options set in
+  ES are written to the `--profile` layer (merged last), so a game's own value stays otherwise.
+* Hotkey exit runs `pkill -TERM -x arcade-launcher` (the launcher stops the game on SIGTERM).
 
 ## 7. Adding a system
 
@@ -711,6 +738,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: title, demo match, attract); intro movie never plays | wal-loader, JVS (native 640x480, no override); movie blocked: VMR second wined3d GL context fails — see docs/GOUKETSUJI-INTRO-VIDEO-DEBUG.md |
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | wal-loader, JVS, `.windowsloader`: `launcher.exe`, `WAL_D3D9_QUERY_FIX`, A/B/C/D map, hide MS dinput8 |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | wal-loader, JVS, hide MS dinput8, `reshade_files` ReShade d3d9, `tricks: [d3dcompiler_47]` |
+| `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test) | wal-loader, JVS, guns in the gun board record (`WAL_TYPEX_GUNS`, `COM1,!COM3`), `WAL_PIN_CWD`, MUSEUM.ini with WindowsLoader paths (`files`), window created 1286x5434821 at CW_USEDEFAULT: popup 1280x720 at 0,0 (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`) |
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | wal-loader, JVS (re-init after bus reset), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA); TODO: dispenser (reference "Skip Boot Check") |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works, intro movie (user); intermittent crash at the movie end | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
@@ -735,6 +763,8 @@ NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance s
 `NxLMMF_*`, `\\.\pipe\NxLPipe*`) and starts the real game (`game2.exe launcher`,
 `game_liong.exe -s`): the profiles run that stub, the child loads our iDmacDrv32.dll from the
 run directory.
+
+Gamepads: Back inserts a coin, L3/R3 are the service and test switches (keyboard `F1` / `F2`).
 
 Launcher test helper: `--input-script FILE` replays `<seconds> p<N> <inputs>` lines (OR-ed with
 real devices); NESYS `GAME_START` (0x04) in the payload log means a credit started.

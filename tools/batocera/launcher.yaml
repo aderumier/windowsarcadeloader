@@ -1,0 +1,8 @@
+# Batocera machine settings of the Windows arcade loader (layer 2 of every game profile,
+# see systemprofiles/ and the launcher's defaults.yaml). Paths relative to this directory.
+
+# GE-Proton build with the loader's runner hotfixes, copied as
+# /userdata/system/wine/custom/GE-Proton11-7-x86_64.
+runners_dir: /userdata/system/wine/custom
+runner: GE-Proton11-7-x86_64
+payloads_dir: payloads

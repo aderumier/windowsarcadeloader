@@ -1,0 +1,27 @@
+# Haunted Museum (Taito, Taito Type X) - template, override values in
+# userprofiles/typex/haunted-museum.yaml.
+system: typex
+name: Haunted Museum
+
+# Direct3D 9 lightgun game, JVS I/O on COM2. Guns (2 players) written in the game's memory,
+# the gun board ports are silent.
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+files:
+  # The dump's MUSEUM.ini keeps its settings and rankings in another data folder name:
+  # WindowsLoader (the D: data folder of the Type X system).
+  MUSEUM.ini: systemprofiles/typex/files/haunted-museum/MUSEUM.ini
+
+env:
+  WAL_TYPEX_GUNS: haunted-museum
+  # Gun board on COM1 (silent, the guns are in memory); no COM3 (open fails): a silent COM3
+  # made its gun library read junk (random positions for ~1 s in the gun test).
+  WAL_TYPEX_GUN_PORT: COM1,!COM3
+  # It changes directory to .\data\sh: stays in the game's own folders.
+  WAL_PIN_CWD: "1"
+  # Its window is created 1286x5434821 at CW_USEDEFAULT (garbage height): an empty frame with the
+  # desktop behind. Borderless 1280x720 window at 0,0 for its fullscreen 1280x720 device.
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: 1280x720
