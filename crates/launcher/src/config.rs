@@ -45,6 +45,7 @@ pub struct Profile {
     pub reshade: bool,
     pub reshade_files: Vec<String>,
     pub exe_fixed_base: bool,
+    pub gamescope: GamescopeConfig,
     pub files: BTreeMap<String, PathBuf>,
     pub initial_files: BTreeMap<String, PathBuf>,
     pub env: BTreeMap<String, String>,
@@ -68,6 +69,16 @@ pub struct Profile {
     /// Files merged, in order.
     #[serde(skip)]
     pub sources: Vec<PathBuf>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GamescopeConfig {
+    pub enabled: bool,
+    pub bin: PathBuf,
+    pub width: u32,
+    pub height: u32,
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

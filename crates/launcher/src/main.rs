@@ -14,6 +14,7 @@ mod server;
 mod systems;
 mod wine;
 
+use std::process::Command;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -155,6 +156,25 @@ fn input_test(profile: &Profile) -> Result<()> {
     Ok(())
 }
 
+/// `cmd` run inside gamescope, with its environment and directory.
+fn gamescope(conf: &config::GamescopeConfig, cmd: Command) -> Command {
+    let mut gs = Command::new(&conf.bin);
+    if conf.width > 0 && conf.height > 0 {
+        gs.arg("-w").arg(conf.width.to_string()).arg("-h").arg(conf.height.to_string());
+    }
+    gs.args(&conf.args).arg("--").arg(cmd.get_program()).args(cmd.get_args());
+    for (k, v) in cmd.get_envs() {
+        match v {
+            Some(v) => gs.env(k, v),
+            None => gs.env_remove(k),
+        };
+    }
+    if let Some(dir) = cmd.get_current_dir() {
+        gs.current_dir(dir);
+    }
+    gs
+}
+
 fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Result<()> {
     if profile.exe.is_empty() {
         bail!("{}: launch a game from its dump (directory or <gameid>.windowsloader file)\n{USAGE}", profile.id);
@@ -270,6 +290,9 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         None => wine.command(&game_exe),
     };
     cmd.args(&profile.args).current_dir(&run_exe_dir);
+    if profile.gamescope.enabled {
+        cmd = gamescope(&profile.gamescope, cmd);
+    }
 
     eprintln!("game: {} ({})", profile.name.as_deref().unwrap_or(&profile.id), profile.id);
     eprintln!("profile layers: {:?}", profile.sources);
@@ -279,7 +302,8 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         for (k, v) in wine.env() {
             println!("{k}={v}");
         }
-        println!("cd {:?} && {:?} {:?} {:?}", run_exe_dir, wine.runner.join("bin/wine"), game_exe, profile.args);
+        let argv: Vec<_> = std::iter::once(cmd.get_program()).chain(cmd.get_args()).collect();
+        println!("cd {:?} && {:?}", run_exe_dir, argv);
         return Ok(());
     }
 

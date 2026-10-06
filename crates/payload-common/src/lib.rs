@@ -34,6 +34,8 @@ pub mod sdl;
 pub mod vfw;
 #[cfg(windows)]
 pub mod window;
+#[cfg(windows)]
+pub mod workarea;
 
 use std::io::Write;
 use std::net::TcpStream;
@@ -77,6 +79,7 @@ pub fn start(name: &'static str) {
             dshow::init();
             screenshot::init();
             window::init();
+            workarea::init();
             font::init();
             sdl::init();
             codepage::init();

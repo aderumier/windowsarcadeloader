@@ -1,0 +1,24 @@
+# Mobile Suit Gundam Spirits of Zeon - Memory of Soldiers, 2 players mode (Banpresto, Taito
+# Type X) - template, override values in userprofiles/typex/gundam-spirits-of-zeon-2p.yaml.
+# Same dump as gundam-spirits-of-zeon (its gundam-spirits-of-zeon-2p.windowsloader file).
+system: typex
+name: "Mobile Suit Gundam: Spirits of Zeon (2 players)"
+
+# As the 1 player mode (gundam-spirits-of-zeon.yaml), the 2 player mode turned on (payload
+# guns.rs): one 1280x480 picture, the 2 players' 640x480 screens side by side. The game does not
+# start on another screen size, and Wine has no 1280x480 mode on the desktop: run in gamescope
+# (a 1280x480 X server, stretched to the screen).
+gamescope:
+  enabled: true
+  width: 1280
+  height: 480
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+env:
+  WAL_TYPEX_GUNS: gundam-spirits-of-zeon-2p
+  WAL_PATCHES: "0xD135B:9090909090,0xD12C8:85,0xD0C60:C3,0xD0E30:C3,0xD02F0:C3,0xD0320:C3,0xD0350:C3,0xD06E7:E93901000090909090"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: 1280x480
