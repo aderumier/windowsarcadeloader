@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 /// Legacy names of the `D:` data folder in existing dumps, moved to the current one on start.
 const LEGACY_DATA_DIRS: [&str; 2] = [concat!("Open", "Parrot"), concat!("Tekno", "Parrot")];
@@ -183,4 +183,22 @@ mod tests {
         assert!(!g.join(A).exists() && !g.join(B).exists());
         fs::remove_dir_all(&g).unwrap();
     }
+}
+
+/// Copies the PE executable `src` to `dst` (replacing the link) without the DYNAMIC_BASE flag:
+/// Wine then maps it at its preferred base instead of relocating it.
+pub fn copy_fixed_base(src: &Path, dst: &Path) -> Result<()> {
+    let mut data = fs::read(src).with_context(|| format!("reading {}", src.display()))?;
+    let pe = data.get(0x3C..0x40).map(|b| u32::from_le_bytes(b.try_into().unwrap()) as usize).context("not a PE file")?;
+    // DllCharacteristics: optional header (PE + 24) + 70, same offset in PE32 and PE32+
+    let at = pe + 24 + 70;
+    if data.get(pe..pe + 4) != Some(b"PE\0\0") || data.len() < at + 2 {
+        bail!("{}: not a PE file", src.display());
+    }
+    let flags = u16::from_le_bytes([data[at], data[at + 1]]) & !0x0040;
+    data[at..at + 2].copy_from_slice(&flags.to_le_bytes());
+    let _ = fs::remove_file(dst);
+    fs::write(dst, data).with_context(|| format!("writing {}", dst.display()))?;
+    eprintln!("launcher: {} loads at its preferred base", dst.display());
+    Ok(())
 }

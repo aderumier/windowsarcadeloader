@@ -150,6 +150,11 @@ Adding a profile key: add it to `defaults.yaml` (with a comment) **and** to `Pro
 
 Mapping tables can disable an inherited entry with the value `none`.
 
+`exe_fixed_base: true`: the run directory gets a copy of the executable without DYNAMIC_BASE, so
+Wine maps it at its preferred base (rebuilt executables whose absolute addresses the
+relocations miss). `initial_files`: files installed in the dump only when missing (default
+settings, calibration the game then updates).
+
 ReShade setups of the dumps (`reshade`, `reshade_files`): some dumps rotate vertical games to a
 landscape screen with a bezel through ReShade (and what it chains to: d3d8to9, dgVoodoo). The
 profile lists those files in `reshade_files`; with `reshade: true` (default) they are used when
@@ -509,6 +514,12 @@ uses it for systems whose `System::loader()` is set (run dir gets `wal-loader.ex
 JVS board (`jvs.rs`) with `TaitoTypeXGeneric` settings: Taito stick mode (features `01 02 10 00 02 02 00 ...`: 2 players,
 16 switches, 2 coin slots), JVS version 0x30, identifier
 `SEGA CORPORATION;I/O BD JVS;837-14572;Ver1.00;2005/10`, the usual report-byte quirks.
+`WAL_TYPEX_JVS_LAYOUT=haunted-museum`: the gun cabinets' switch wiring for `20 01 03` (1 player
+x 3 bytes): P1 start on up `0x20`, P2 start on down `0x10`; third byte service `0x08`, P2/P1
+action `0x40`/`0x80` active low (the generic reply read up/down as both starts). Coins stay on
+the coin counter. `WAL_TYPEX_JVS_ANALOG=v0,v1,...` (hex) sets the analog channels (default 0):
+the Haunted Museum games read their volume knob on channel 0, silent at 0 (`C000` in their
+profiles).
 A bus reset (`F0`) makes the board unaddressed again (sense line, `GetCommModemStatus`): K-On!
 resets the bus once more after its first polls and only assigns the address when the sense line
 says so (JVS_BOARD_NONE, error 0300, otherwise).
@@ -520,7 +531,7 @@ Other `20` layouts (Gaia Attack 4 asks `20 01 03`: 1 player x 3 bytes) get the r
 as a generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
 the commands after it are answered (otherwise I/O ERROR).
 
-Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2|haunted-museum`):
+Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2|haunted-museum|haunted-museum-2`):
 per-game input code. The gun board's port (`WAL_TYPEX_GUN_PORT`, comma separated, default
 `COM1`) is a silent serial device (`serial::install_sink`: writes accepted, nothing read; a
 `!COMn` entry is absent instead, its open fails as on a PC without it), and a
@@ -534,6 +545,9 @@ Museum copies its gun board's 20-byte record (`+0x327958` received, `+0x327944` 
 gun state every frame, so the guns are written in both records (writing the state alone, as
 some loaders do, lost the race: trigger ignored, positions flickering with board junk). A
 silent COM3 also fed it junk: `COM1,!COM3`.
+
+`WAL_TYPEX_GUN_PLAYERS=2,1` chooses the virtual player of each gun (calibrating gun 2 with a
+single mouse).
 
 Reference for new gun games: [DemulShooter](https://github.com/argonlefou/DemulShooter)
 (`DemulShooter/Games/Game_<System><Game>.cs`, e.g. `Game_TtxBlockKingBallShooter.cs`,
@@ -734,11 +748,12 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chase-hq-2` | Chase H.Q. 2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | see docs/CHASE-HQ-2-BOOT-DEBUG.md: Wine sees a 5434188x5434103 X desktop (Xwayland), game sizes its window from it; analog JVS also unemulated (not drivable anyway) |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, native DirectMusic prefix (exits at start with wine's), `reshade_files` dgVoodoo D3D8 + ReShade dxgi, `tricks: [d3dcompiler_47]`, dgVoodoo.conf with Direct3D 11 output (`files`: the dump asks D3D12, NULL device crash) |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | wal-loader, JVS, native DirectMusic prefix, its window mode (`args: [-window]`) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`): Wine drew its fullscreen 640x480 unscaled in the top-left corner |
-| `gaia-attack-4` | Gaia Attack 4 | typex | boots to title (guns untested) | wal-loader, JVS (`20 01 03`, `67`), guns (`WAL_TYPEX_GUNS`, COM1/COM3 silent), `WAL_PIN_CWD`, WMV9VCM codec (`WAL_VFW_CODECS`), game patches, 1280x800 |
+| `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | wal-loader, JVS, guns in the gun board record (4 x 10 bytes, `COM1,!COM3`; no patch of its per-frame gun update, which copies it), volume knob on analog 0 (its volume write not patched out), `WAL_PIN_CWD`, WMV9 + Indeo 5 codecs (`WAL_VFW_CODECS`; ir50_32.dll copied into the dump), `dxvk: false` (first attract video crashed), popup 1280x720 window |
 | `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: title, demo match, attract); intro movie never plays | wal-loader, JVS (native 640x480, no override); movie blocked: VMR second wined3d GL context fails — see docs/GOUKETSUJI-INTRO-VIDEO-DEBUG.md |
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | wal-loader, JVS, `.windowsloader`: `launcher.exe`, `WAL_D3D9_QUERY_FIX`, A/B/C/D map, hide MS dinput8 |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | wal-loader, JVS, hide MS dinput8, `reshade_files` ReShade d3d9, `tricks: [d3dcompiler_47]` |
-| `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test) | wal-loader, JVS, guns in the gun board record (`WAL_TYPEX_GUNS`, `COM1,!COM3`), `WAL_PIN_CWD`, MUSEUM.ini with WindowsLoader paths (`files`), window created 1286x5434821 at CW_USEDEFAULT: popup 1280x720 at 0,0 (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`) |
+| `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test, sound) | wal-loader, JVS (`haunted-museum` layout, volume knob on analog 0), guns in the gun board record (`WAL_TYPEX_GUNS`, `COM1,!COM3`), `WAL_PIN_CWD`, MUSEUM.ini with WindowsLoader paths (`files`), window created 1286x5434821 at CW_USEDEFAULT: popup 1280x720 at 0,0 (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`) |
+| `haunted-museum-2` | Haunted Museum II | typex | works (user: guns, inputs, sound, video) | wal-loader, JVS (`haunted-museum` layout, volume knob on analog 0), guns in the gun board record (`COM1,!COM3`), `exe_fixed_base` (rebuilt exe: absolute addresses not relocated, imports without lookup table), known patch restoring its JVSENABLE/GUNENABLE reads (hex-edited to run without boards), both guns pre-calibrated (`initial_files` HM20/HM21.CFG + CRC32), `dxvk: false` (Indeo videos: RADV GPU fault with DXVK), popup 1280x720 window |
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | wal-loader, JVS (re-init after bus reset), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA); TODO: dispenser (reference "Skip Boot Check") |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works, intro movie (user); intermittent crash at the movie end | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |

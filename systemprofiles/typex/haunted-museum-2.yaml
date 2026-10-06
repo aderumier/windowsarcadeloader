@@ -1,0 +1,49 @@
+# Haunted Museum II (Taito, Taito Type X) - template, override values in
+# userprofiles/typex/haunted-museum-2.yaml.
+system: typex
+name: Haunted Museum II
+
+# Direct3D 9 lightgun game, JVS I/O on COM2. Guns (2 players) written in the gun board's
+# record (see guns.rs), as Haunted Museum.
+# Its videos (Indeo AVI) under DXVK: RADV GPU page fault, context lost. Wine's wined3d.
+dxvk: false
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+# Its executable is a rebuilt one (hex edits, imports without lookup table) whose absolute
+# addresses the relocations do not cover: loaded at its preferred base (crash otherwise).
+exe_fixed_base: true
+
+files:
+  # The dump's haunted2.ini keeps its settings and rankings in another data folder name:
+  # WindowsLoader (the D: data folder of the Type X system). JVSENABLE 1: the JVS board
+  # (coins, start, service, test) is not used otherwise.
+  haunted2.ini: systemprofiles/typex/files/haunted-museum-2/haunted2.ini
+
+initial_files:
+  # Both guns calibrated for the loader's gun positions (linear 0..16384: targets at 20/80 %,
+  # center 8192): the game otherwise forces its gun calibration at boot, which a single mouse
+  # cannot finish for gun 2. Installed once; the game keeps its settings in them afterwards.
+  WindowsLoader/HM20.CFG: systemprofiles/typex/files/haunted-museum-2/HM20.CFG
+  WindowsLoader/HM20.CRC: systemprofiles/typex/files/haunted-museum-2/HM20.CRC
+  WindowsLoader/HM21.CFG: systemprofiles/typex/files/haunted-museum-2/HM21.CFG
+  WindowsLoader/HM21.CRC: systemprofiles/typex/files/haunted-museum-2/HM21.CRC
+
+env:
+  WAL_TYPEX_GUNS: haunted-museum-2
+  # Gun board on COM1 (silent, its handle opens the game's gun library); no COM3.
+  WAL_TYPEX_GUN_PORT: COM1,!COM3
+  WAL_PIN_CWD: "1"
+  # The gun cabinet's JVS switch wiring (starts on up/down, coin and service switches).
+  WAL_TYPEX_JVS_LAYOUT: haunted-museum
+  # Analog channel 0 is the cabinet's volume knob (0: no sound): 75 %.
+  WAL_TYPEX_JVS_ANALOG: C000
+  # The dump's executable is hex-edited to run without its boards: PRJENABLE, JVSENABLE and
+  # GUNENABLE are constants instead of read from haunted2.ini (no JVS: no coins, start...).
+  # Known fix, restores the reads (absolute addresses: the executable loads at 0x400000).
+  WAL_PATCHES: "0x9E625:ECEA7000,0x9E62D:E83E4A0100,0x9E6E4:50B8D0707000,0x9E6EA:897C2414,0x9E6EE:897C2418,0x9E6F2:E879490100,0x9E6F7:83C404,0x9E70C:B808EB7000,0x9E711:E85A490100"
+  # As Haunted Museum: a borderless 1280x720 window at 0,0 for its fullscreen device.
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: 1280x720

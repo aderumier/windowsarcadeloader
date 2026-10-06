@@ -47,10 +47,17 @@ hide: []
 # false hides them (the game's own picture, portrait for vertical games).
 reshade: true
 reshade_files: []
+# The executable loads at its preferred base (a copy without DYNAMIC_BASE in the run
+# directory, the dump untouched): for executables whose hex edits left absolute addresses the
+# relocations do not cover (Haunted Museum II: crash on a non-relocated address).
+exe_fixed_base: false
 # Files copied into the run directory next to the executable, in place of the game's own:
 # <name in the run directory>: <source, relative to the root> (e.g. a missing config file).
 # A name with a folder ("dir/file") is a path from the game root.
 files: {}
+# Files copied into the dump only when it does not have them yet (default settings or
+# calibration the game then keeps updating): <path from the dump root>: <source>.
+initial_files: {}
 # Extra environment variables of the game process (system options, wine settings).
 env: {}
 # Virtual stick -> native inputs of the system, for the payload (none = unmapped).

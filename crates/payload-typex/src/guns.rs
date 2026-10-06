@@ -9,6 +9,9 @@
 //! Gun of a player = its virtual stick: position `lx`/`ly`, trigger `b1`; offscreen when the
 //! position is at an edge of the screen (lightguns report the edge off screen) or `b2` is held
 //! (reload with a mouse or a gun's second button).
+//!
+//! `WAL_TYPEX_GUN_PLAYERS=2,1`: the virtual player driving each gun (default 1,2...), e.g. to
+//! calibrate gun 2 with a single mouse.
 
 use std::time::Duration;
 
@@ -38,13 +41,16 @@ struct Game {
 
 const GAIA_ATTACK_4: Game = Game {
     name: "gaia-attack-4",
-    // gun board connected, 4 players
-    constants: &[(0x32F068, 0x02), (0xB3B820, 0x04)],
+    // gun board connected (state 2), 4 players
+    constants: &[(0x32F068, 0x02), (0x32F069, 0x00), (0x32F06A, 0x00), (0x32F06B, 0x00), (0xB3B820, 0x04)],
+    // As the Haunted Museum games (same engine): the 40-byte gun board record (10 bytes a gun:
+    // offscreen +2/+3, x +4, y +6, trigger +8), received at +0x32F030, copied to +0x32EFF8,
+    // which the game reads while the port is open (COM1 silent) and the state is 1-4.
     guns: &[
-        Gun { trigger: &[0xB3B890], offscreen: &[0xB3B830], x: &[0xB3B834, 0xB3B950], y: &[0xB3B836, 0xB3B960], trigger_edge: Some(0xB3B880), auto_fire: Some(0xB3B838) },
-        Gun { trigger: &[0xB3B894], offscreen: &[0xB3B83A], x: &[0xB3B83E, 0xB3B954], y: &[0xB3B840, 0xB3B964], trigger_edge: Some(0xB3B884), auto_fire: Some(0xB3B842) },
-        Gun { trigger: &[0xB3B898], offscreen: &[0xB3B844], x: &[0xB3B848, 0xB3B958], y: &[0xB3B84A, 0xB3B968], trigger_edge: Some(0xB3B888), auto_fire: Some(0xB3B84C) },
-        Gun { trigger: &[0xB3B89C], offscreen: &[0xB3B84E], x: &[0xB3B852, 0xB3B95C], y: &[0xB3B854, 0xB3B96C], trigger_edge: Some(0xB3B88C), auto_fire: Some(0xB3B856) },
+        Gun { trigger: &[0x32F038, 0x32F000], offscreen: &[0x32F032, 0x32F033, 0x32EFFA, 0x32EFFB], x: &[0x32F034, 0x32EFFC], y: &[0x32F036, 0x32EFFE], trigger_edge: None, auto_fire: None },
+        Gun { trigger: &[0x32F042, 0x32F00A], offscreen: &[0x32F03C, 0x32F03D, 0x32F004, 0x32F005], x: &[0x32F03E, 0x32F006], y: &[0x32F040, 0x32F008], trigger_edge: None, auto_fire: None },
+        Gun { trigger: &[0x32F04C, 0x32F014], offscreen: &[0x32F046, 0x32F047, 0x32F00E, 0x32F00F], x: &[0x32F048, 0x32F010], y: &[0x32F04A, 0x32F012], trigger_edge: None, auto_fire: None },
+        Gun { trigger: &[0x32F056, 0x32F01E], offscreen: &[0x32F050, 0x32F051, 0x32F018, 0x32F019], x: &[0x32F052, 0x32F01A], y: &[0x32F054, 0x32F01C], trigger_edge: None, auto_fire: None },
     ],
 };
 
@@ -72,7 +78,20 @@ const HAUNTED_MUSEUM: Game = Game {
     ],
 };
 
-const GAMES: &[Game] = &[GAIA_ATTACK_4, MUSIC_GUNGUN_2, HAUNTED_MUSEUM];
+const HAUNTED_MUSEUM_2: Game = Game {
+    name: "haunted-museum-2",
+    // gun board connected (state 2)
+    constants: &[(0x3BB448, 0x02), (0x3BB449, 0x00), (0x3BB44A, 0x00), (0x3BB44B, 0x00)],
+    // As Haunted Museum: the board record (10 bytes a player: offscreen +2/+3, x +4, y +6,
+    // trigger +8), received at +0x3BB410, copied to +0x3BB3D8, which the game reads while the
+    // port is open (COM1 silent) and the state is 1-4.
+    guns: &[
+        Gun { trigger: &[0x3BB418, 0x3BB3E0], offscreen: &[0x3BB412, 0x3BB413, 0x3BB3DA, 0x3BB3DB], x: &[0x3BB414, 0x3BB3DC], y: &[0x3BB416, 0x3BB3DE], trigger_edge: None, auto_fire: None },
+        Gun { trigger: &[0x3BB422, 0x3BB3EA], offscreen: &[0x3BB41C, 0x3BB41D, 0x3BB3E4, 0x3BB3E5], x: &[0x3BB41E, 0x3BB3E6], y: &[0x3BB420, 0x3BB3E8], trigger_edge: None, auto_fire: None },
+    ],
+};
+
+const GAMES: &[Game] = &[GAIA_ATTACK_4, MUSIC_GUNGUN_2, HAUNTED_MUSEUM, HAUNTED_MUSEUM_2];
 
 /// Edge band of the -32768..=32767 position in which the gun counts as off screen
 /// (<= 1 or >= 254 on 0..=255).
@@ -107,12 +126,19 @@ fn run(game: &'static Game) {
     let byte = |rva: u32, v: u8| unsafe { std::ptr::write_volatile((base + rva as usize) as *mut u8, v) };
     let word = |rva: u32, v: u16| unsafe { std::ptr::write_volatile((base + rva as usize) as *mut u16, v) };
     let mut held = [false; 4];
+    // virtual player of each gun
+    let players: Vec<usize> = std::env::var("WAL_TYPEX_GUN_PLAYERS")
+        .map(|v| v.split(',').filter_map(|p| p.trim().parse::<usize>().ok()).filter(|p| (1..=4).contains(p)).map(|p| p - 1).collect())
+        .unwrap_or_default();
+    if !players.is_empty() {
+        log!("guns: players {players:?} drive the guns 1..");
+    }
     loop {
         for &(rva, v) in game.constants {
             byte(rva, v);
         }
         for (player, gun) in game.guns.iter().enumerate() {
-            let stick = wal_payload_common::input(player);
+            let stick = wal_payload_common::input(players.get(player).copied().unwrap_or(player));
             let trigger = stick.pressed(button::B1);
             for &rva in gun.trigger {
                 byte(rva, trigger as u8);
