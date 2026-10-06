@@ -142,22 +142,20 @@ pub fn init() {
     }
     // the game and the DLLs of its directory (engines creating the device themselves)
     let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
-    let hooks: [(&str, &str, usize, &AtomicUsize); 3] = [
-        ("d3d9.dll", "Direct3DCreate9", create9 as *const () as usize, &ORIG_CREATE9),
-        ("d3d8.dll", "Direct3DCreate8", d3d8::create8 as *const () as usize, &d3d8::ORIG_CREATE8),
-        ("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize, &ORIG_GET_PROC_ADDRESS),
-    ];
     for base in crate::workarea::game_modules(exe) {
-        for (dll, name, f, orig) in &hooks {
-            if let Some(o) = unsafe { iat::hook_module(base, dll, name, *f) } {
-                if o != *f {
-                    orig.store(o, Ordering::Relaxed);
-                }
-                if *dll != "kernel32.dll" {
-                    log!("{}: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, force fullscreen {force})", &dll[..4]);
-                }
+        if let Some(o) = unsafe { iat::hook_module(base, "d3d9.dll", "Direct3DCreate9", create9 as *const () as usize) } {
+            if o != create9 as *const () as usize {
+                ORIG_CREATE9.store(o, Ordering::Relaxed);
             }
+            log!("d3d9: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, force fullscreen {force})");
         }
+    }
+    if let Some(o) = unsafe { iat::hook("d3d8.dll", "Direct3DCreate8", d3d8::create8 as *const () as usize) } {
+        d3d8::ORIG_CREATE8.store(o, Ordering::Relaxed);
+        log!("d3d8: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, force fullscreen {force})");
+    }
+    if let Some(o) = unsafe { iat::hook("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) } {
+        ORIG_GET_PROC_ADDRESS.store(o, Ordering::Relaxed);
     }
 }
 

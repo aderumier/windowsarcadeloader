@@ -3,8 +3,8 @@
 system: nesica
 name: Homura
 
-# Stuck on NOW LOADING with wine's dsound: native dsound/DirectMusic.
-tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
+# Stuck on NOW LOADING with wine's dsound: native dsound/DirectMusic, prefix of the DirectMusic games.
+prefix: wine-prefix/directmusic
 
 # Direct3D 8 game (DXVK d3d8).
 

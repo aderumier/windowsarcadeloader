@@ -8,8 +8,9 @@ name: Psychic Force 2012
 # game2.exe loads our iDmacDrv32.dll from the run directory. TestMode.exe is the test menu.
 
 # Direct3D 8 game (DXVK d3d8). No crypto key.
-# Never opened its I/O with wine's dsound: native dsound/DirectMusic.
-tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
+# Never opened its I/O with wine's dsound: native dsound/DirectMusic, prefix of the
+# DirectMusic games.
+prefix: wine-prefix/directmusic
 
 # Buttons 1-6 = b1-b6 (default mapping).
 

@@ -3,8 +3,8 @@
 system: nesica
 name: Exception
 
-# No picture with wine's dsound: native dsound/DirectMusic.
-tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
+# No picture with wine's dsound: native dsound/DirectMusic, prefix of the DirectMusic games.
+prefix: wine-prefix/directmusic
 
 # OpenGL game (SDL 1.2). glu32.dll of the dump is Microsoft's: use wine's.
 hide: [glu32.dll]
