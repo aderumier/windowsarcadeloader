@@ -1,9 +1,10 @@
 //! Game window size override: `WAL_WINDOW_SIZE=<w>x<h>` (`screen`: the primary monitor's size).
 //!
-//! The game's `user32!SetWindowPos` / `MoveWindow` calls that size a top-level window are
-//! replaced by `<w>x<h>` at (0,0). In window mode Direct3D stretches the back buffer to the
+//! The game's `user32!CreateWindowExA/W` (top-level windows with a size), `SetWindowPos` and
+//! `MoveWindow` calls that size a top-level window are replaced by `<w>x<h>` at (0,0). In window mode Direct3D stretches the back buffer to the
 //! client area, so this also rescales a game drawing a fixed-size back buffer. Crimzon Clover
-//! (DxLib) computes a window height of ~5 million pixels, which X refuses (BadAlloc).
+//! (DxLib) computes a window height of ~5 million pixels, which X refuses (BadAlloc); Haunted
+//! Museum creates its window 1286x5434821 at CW_USEDEFAULT (empty frame, desktop behind).
 //!
 //! `WAL_WINDOW_POPUP=1`: the game's top-level windows are created as borderless popups
 //! (`WS_POPUP`, no caption, frame or system menu). Shikigami no Shiro III creates a plain
@@ -16,7 +17,7 @@
 //! `ShowWindow` minimize requests are dropped: the game keeps running behind, switch to it.
 
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 
 use crate::{iat, log};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -31,18 +32,13 @@ static ORIG_MOVE_WINDOW: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SHOW_WINDOW: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_WINDOW_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_WINDOW_W: AtomicUsize = AtomicUsize::new(0);
+static POPUP: AtomicBool = AtomicBool::new(false);
 
 pub fn init() {
     keep_unminimized();
     if std::env::var("WAL_WINDOW_POPUP").is_ok_and(|v| v.trim() == "1") {
-        unsafe {
-            if let Some(o) = iat::hook("user32.dll", "CreateWindowExA", create_window_a as *const () as usize) {
-                ORIG_CREATE_WINDOW_A.store(o, Ordering::Relaxed);
-            }
-            if let Some(o) = iat::hook("user32.dll", "CreateWindowExW", create_window_w as *const () as usize) {
-                ORIG_CREATE_WINDOW_W.store(o, Ordering::Relaxed);
-            }
-        }
+        POPUP.store(true, Ordering::Relaxed);
+        hook_create();
         log!("window: top-level windows created as popups");
     }
     let Some((w, h)) = std::env::var("WAL_WINDOW_SIZE").ok().and_then(|v| {
@@ -58,6 +54,7 @@ pub fn init() {
     };
     WIDTH.store(w, Ordering::Relaxed);
     HEIGHT.store(h, Ordering::Relaxed);
+    hook_create();
     unsafe {
         if let Some(o) = iat::hook("user32.dll", "SetWindowPos", set_window_pos as *const () as usize) {
             ORIG_SET_WINDOW_POS.store(o, Ordering::Relaxed);
@@ -67,6 +64,21 @@ pub fn init() {
         }
     }
     log!("window: top-level windows sized {w}x{h}");
+}
+
+fn hook_create() {
+    unsafe {
+        if ORIG_CREATE_WINDOW_A.load(Ordering::Relaxed) == 0 {
+            if let Some(o) = iat::hook("user32.dll", "CreateWindowExA", create_window_a as *const () as usize) {
+                ORIG_CREATE_WINDOW_A.store(o, Ordering::Relaxed);
+            }
+        }
+        if ORIG_CREATE_WINDOW_W.load(Ordering::Relaxed) == 0 {
+            if let Some(o) = iat::hook("user32.dll", "CreateWindowExW", create_window_w as *const () as usize) {
+                ORIG_CREATE_WINDOW_W.store(o, Ordering::Relaxed);
+            }
+        }
+    }
 }
 
 /// The forced size when `hwnd` is a top-level window, logging the replaced geometry.
@@ -135,12 +147,25 @@ const WS_DECORATIONS: u32 = 0x00C0_0000 | 0x0004_0000 | 0x0008_0000 | 0x0002_000
 /// Extended styles adding a border.
 const WS_EX_DECORATIONS: u32 = 0x0000_0001 | 0x0000_0100 | 0x0000_0200 | 0x0002_0000;
 
-/// The popup style of a top-level window (`parent` null), others unchanged.
-fn popup(ex: u32, style: u32, parent: HWND) -> (u32, u32) {
+/// Style and geometry of a window being created: popup style (`WAL_WINDOW_POPUP`) and forced
+/// size at 0,0 (`WAL_WINDOW_SIZE`) for top-level windows (`parent` null) with a size.
+fn created(ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32, parent: HWND) -> (u32, u32, i32, i32, i32, i32) {
     if !parent.is_null() || style & WS_CHILD != 0 {
-        return (ex, style);
+        return (ex, style, x, y, w, h);
     }
-    (ex & !WS_EX_DECORATIONS, (style & !WS_DECORATIONS) | WS_POPUP)
+    let (mut ex2, mut style2, mut geometry) = (ex, style, (x, y, w, h));
+    if POPUP.load(Ordering::Relaxed) {
+        ex2 = ex & !WS_EX_DECORATIONS;
+        style2 = (style & !WS_DECORATIONS) | WS_POPUP;
+    }
+    let (fw, fh) = (WIDTH.load(Ordering::Relaxed) as i32, HEIGHT.load(Ordering::Relaxed) as i32);
+    if fw > 0 && (w != 0 || h != 0) {
+        geometry = (0, 0, fw, fh);
+    }
+    if (ex2, style2, geometry) != (ex, style, (x, y, w, h)) {
+        log!("window: created style {style:#x} ex {ex:#x} {w}x{h} at {x},{y} -> style {style2:#x} ex {ex2:#x} {}x{} at {},{}", geometry.2, geometry.3, geometry.0, geometry.1);
+    }
+    (ex2, style2, geometry.0, geometry.1, geometry.2, geometry.3)
 }
 
 type CreateWindow<T> = unsafe extern "system" fn(u32, *const T, *const T, u32, i32, i32, i32, i32, HWND, P, P, P) -> HWND;
@@ -150,20 +175,14 @@ unsafe extern "system" fn create_window_a(
     ex: u32, class: *const u8, title: *const u8, style: u32, x: i32, y: i32, w: i32, h: i32, parent: HWND, menu: P, inst: P, param: P,
 ) -> HWND {
     let orig: CreateWindow<u8> = unsafe { std::mem::transmute(ORIG_CREATE_WINDOW_A.load(Ordering::Relaxed)) };
-    let (ex2, style2) = popup(ex, style, parent);
-    if style2 != style {
-        log!("window: style {style:#x} ex {ex:#x} -> popup {style2:#x} ex {ex2:#x}");
-    }
-    unsafe { orig(ex2, class, title, style2, x, y, w, h, parent, menu, inst, param) }
+    let (ex, style, x, y, w, h) = created(ex, style, x, y, w, h, parent);
+    unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) }
 }
 
 unsafe extern "system" fn create_window_w(
     ex: u32, class: *const u16, title: *const u16, style: u32, x: i32, y: i32, w: i32, h: i32, parent: HWND, menu: P, inst: P, param: P,
 ) -> HWND {
     let orig: CreateWindow<u16> = unsafe { std::mem::transmute(ORIG_CREATE_WINDOW_W.load(Ordering::Relaxed)) };
-    let (ex2, style2) = popup(ex, style, parent);
-    if style2 != style {
-        log!("window: style {style:#x} ex {ex:#x} -> popup {style2:#x} ex {ex2:#x}");
-    }
-    unsafe { orig(ex2, class, title, style2, x, y, w, h, parent, menu, inst, param) }
+    let (ex, style, x, y, w, h) = created(ex, style, x, y, w, h, parent);
+    unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) }
 }

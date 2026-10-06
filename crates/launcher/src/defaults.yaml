@@ -86,6 +86,9 @@ input:
     l2: b8
     start: start
     back: coin
+    # stick clicks: the cabinet's service and test switches
+    l3: service
+    r3: test
     dpup: up
     dpdown: down
     dpleft: left
@@ -113,7 +116,7 @@ input:
       KEY_V: b8
       KEY_1: start
       KEY_5: coin
-      KEY_9: service
+      KEY_F1: service
       KEY_F2: test
       KEY_F4: card
     p2:
