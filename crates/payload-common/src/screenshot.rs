@@ -16,6 +16,11 @@
 //!   stack frame; DXVK writes the whole 4-byte BOOL, overwriting the saved EBP (crash after the
 //!   first frame).
 //!
+//! * `WAL_D3D9_TRACE=1`: logs the device caps' TextureCaps, texture creations and viewports
+//!   (finding how a game sizes its pictures).
+//! * `WAL_D3D9_POW2=1`: device caps report power-of-two textures only (conditional
+//!   non-power-of-two), as the GPUs of the time.
+//!
 //! Direct3D 8 differs in the vtable slots and structure layouts only (see `mod d3d8`).
 
 use std::ffi::c_void;
@@ -44,6 +49,14 @@ const SURF_GET_DESC: usize = 12;
 const SURF_LOCK_RECT: usize = 13;
 const SURF_UNLOCK_RECT: usize = 14;
 const RELEASE: usize = 2;
+const D3D_GET_DEVICE_CAPS: usize = 14;
+const DEV_GET_DEVICE_CAPS: usize = 7;
+const DEV_CREATE_TEXTURE: usize = 23;
+const DEV_SET_VIEWPORT: usize = 47;
+/// D3DCAPS9.TextureCaps (dword 15)
+const CAPS_TEXTURE_CAPS: usize = 15;
+const D3DPTEXTURECAPS_POW2: u32 = 0x2;
+const D3DPTEXTURECAPS_NONPOW2CONDITIONAL: u32 = 0x100;
 const D3DPOOL_SYSTEMMEM: u32 = 2;
 const D3DFMT_A8R8G8B8: u32 = 21;
 const D3DFMT_X8R8G8B8: u32 = 22;
@@ -60,6 +73,12 @@ static ORIG_RESET_EX: AtomicUsize = AtomicUsize::new(0);
 static ORIG_GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_QUERY: AtomicUsize = AtomicUsize::new(0);
 static ORIG_QUERY_GET_DATA: AtomicUsize = AtomicUsize::new(0);
+static ORIG_D3D_CAPS: AtomicUsize = AtomicUsize::new(0);
+static ORIG_DEV_CAPS: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CREATE_TEXTURE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_SET_VIEWPORT: AtomicUsize = AtomicUsize::new(0);
+static TRACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static POW2: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static QUERY_FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -114,12 +133,22 @@ pub fn init() {
     }
     let query_fix = std::env::var("WAL_D3D9_QUERY_FIX").is_ok_and(|v| v == "1");
     QUERY_FIX.store(query_fix, Ordering::Relaxed);
-    if secs.is_none() && size.is_none() && !force && !query_fix {
+    let trace = std::env::var("WAL_D3D9_TRACE").is_ok_and(|v| v == "1");
+    TRACE.store(trace, Ordering::Relaxed);
+    let pow2 = std::env::var("WAL_D3D9_POW2").is_ok_and(|v| v == "1");
+    POW2.store(pow2, Ordering::Relaxed);
+    if secs.is_none() && size.is_none() && !force && !query_fix && !trace && !pow2 {
         return;
     }
-    if let Some(o) = unsafe { iat::hook("d3d9.dll", "Direct3DCreate9", create9 as *const () as usize) } {
-        ORIG_CREATE9.store(o, Ordering::Relaxed);
-        log!("d3d9: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, force fullscreen {force})");
+    // the game and the DLLs of its directory (engines creating the device themselves)
+    let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    for base in crate::workarea::game_modules(exe) {
+        if let Some(o) = unsafe { iat::hook_module(base, "d3d9.dll", "Direct3DCreate9", create9 as *const () as usize) } {
+            if o != create9 as *const () as usize {
+                ORIG_CREATE9.store(o, Ordering::Relaxed);
+            }
+            log!("d3d9: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, force fullscreen {force})");
+        }
     }
     if let Some(o) = unsafe { iat::hook("d3d8.dll", "Direct3DCreate8", d3d8::create8 as *const () as usize) } {
         d3d8::ORIG_CREATE8.store(o, Ordering::Relaxed);
@@ -168,10 +197,78 @@ unsafe fn wrap_device(dev: P) {
     unsafe {
         patch(dev, DEV_PRESENT, present as *const () as usize, &ORIG_PRESENT);
         patch(dev, DEV_RESET, reset as *const () as usize, &ORIG_RESET);
+        if TRACE.load(Ordering::Relaxed) || POW2.load(Ordering::Relaxed) {
+            patch(dev, DEV_GET_DEVICE_CAPS, dev_caps as *const () as usize, &ORIG_DEV_CAPS);
+        }
+        if TRACE.load(Ordering::Relaxed) {
+            patch(dev, DEV_CREATE_TEXTURE, create_texture as *const () as usize, &ORIG_CREATE_TEXTURE);
+            patch(dev, DEV_SET_VIEWPORT, set_viewport as *const () as usize, &ORIG_SET_VIEWPORT);
+        }
         if QUERY_FIX.load(Ordering::Relaxed) {
             patch(dev, DEV_CREATE_QUERY, create_query as *const () as usize, &ORIG_CREATE_QUERY);
         }
     }
+}
+
+/// TextureCaps of the caps just read: logged, and power of two only with `WAL_D3D9_POW2`.
+unsafe fn fix_caps(caps: *mut u32) {
+    if caps.is_null() {
+        return;
+    }
+    let tc = unsafe { caps.add(CAPS_TEXTURE_CAPS) };
+    let old = unsafe { *tc };
+    if POW2.load(Ordering::Relaxed) {
+        unsafe { *tc |= D3DPTEXTURECAPS_POW2 | D3DPTEXTURECAPS_NONPOW2CONDITIONAL };
+    }
+    if TRACE.load(Ordering::Relaxed) {
+        log!("d3d9: TextureCaps {old:#x} -> {:#x}", unsafe { *tc });
+    }
+}
+
+unsafe extern "system" fn d3d_caps(d3d: P, adapter: u32, kind: u32, caps: *mut u32) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, u32, u32, *mut u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_D3D_CAPS.load(Ordering::Relaxed)) };
+    let hr = unsafe { orig(d3d, adapter, kind, caps) };
+    if hr >= 0 {
+        unsafe { fix_caps(caps) };
+    }
+    hr
+}
+
+unsafe extern "system" fn dev_caps(dev: P, caps: *mut u32) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, *mut u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_DEV_CAPS.load(Ordering::Relaxed)) };
+    let hr = unsafe { orig(dev, caps) };
+    if hr >= 0 {
+        unsafe { fix_caps(caps) };
+    }
+    hr
+}
+
+unsafe extern "system" fn create_texture(
+    dev: P, w: u32, h: u32, levels: u32, usage: u32, format: u32, pool: u32, out: *mut P, shared: P,
+) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, u32, u32, u32, u32, u32, u32, *mut P, P) -> HRESULT =
+        unsafe { std::mem::transmute(ORIG_CREATE_TEXTURE.load(Ordering::Relaxed)) };
+    let hr = unsafe { orig(dev, w, h, levels, usage, format, pool, out, shared) };
+    // the game's many small textures are noise: from 256 pixels
+    if w >= 256 || h >= 256 {
+        log!("d3d9: texture {w}x{h} levels {levels} usage {usage:#x} format {format} pool {pool}: {hr:#x}");
+    }
+    hr
+}
+
+/// D3DVIEWPORT9: X, Y, Width, Height, MinZ, MaxZ.
+unsafe extern "system" fn set_viewport(dev: P, vp: *const u32) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, *const u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_SET_VIEWPORT.load(Ordering::Relaxed)) };
+    if !vp.is_null() {
+        static LAST: Mutex<[u32; 4]> = Mutex::new([0; 4]);
+        let v = unsafe { [*vp, *vp.add(1), *vp.add(2), *vp.add(3)] };
+        let mut last = LAST.lock().unwrap();
+        if *last != v {
+            *last = v;
+            log!("d3d9: viewport {}x{} at {},{}", v[2], v[3], v[0], v[1]);
+        }
+    }
+    unsafe { orig(dev, vp) }
 }
 
 unsafe extern "system" fn create_query(dev: P, kind: u32, out: *mut P) -> HRESULT {
@@ -326,6 +423,9 @@ unsafe extern "system" fn create9(sdk: u32) -> P {
     let d3d = unsafe { orig(sdk) };
     if !d3d.is_null() {
         unsafe { patch(d3d, D3D_CREATE_DEVICE, create_device as *const () as usize, &ORIG_CREATE_DEVICE) };
+        if TRACE.load(Ordering::Relaxed) || POW2.load(Ordering::Relaxed) {
+            unsafe { patch(d3d, D3D_GET_DEVICE_CAPS, d3d_caps as *const () as usize, &ORIG_D3D_CAPS) };
+        }
     }
     d3d
 }

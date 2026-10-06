@@ -569,6 +569,14 @@ Its 2 player mode (`gundam-spirits-of-zeon-2p`: second `.windowsloader` file in 
 patches its player count to 2 and draws both screens side by side on one 1280x480 picture
 (player 2's X offset 640); it needs a 1280x480 screen: run in gamescope.
 
+Its intro video was cut on the right: the CRI movie texture is created at the video's size
+when the device allows non-power-of-two textures (DXVK, wined3d), but drawn as if rounded
+up (640 -> 1024). `WAL_D3D9_POW2=1` (`screenshot.rs`) reports power-of-two textures only
+(`D3DPTEXTURECAPS_POW2 | NONPOW2CONDITIONAL`, as the GPUs of the time): a 1024x512 texture.
+`WAL_D3D9_TRACE=1` logs the caps, textures from 256 pixels and viewports (how it was found).
+The d3d9 shims hook `Direct3DCreate9` in the game's DLLs too (its device comes from
+`libIGGfx.dll`).
+
 Work area fix (`payload-common/workarea.rs`, always on when it is wrong): Wine on some
 Xwayland desktops reports a work area ~5.4 million pixels high. The game executable and the
 DLLs of its directory get the screen size from `GetSystemMetrics`, `SystemParametersInfo`
@@ -784,7 +792,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | wal-loader, JVS, `.windowsloader`: `launcher.exe`, `WAL_D3D9_QUERY_FIX`, A/B/C/D map, hide MS dinput8 |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | wal-loader, JVS, hide MS dinput8, `reshade_files` ReShade d3d9, `tricks: [d3dcompiler_47]` |
 | `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test, sound) | wal-loader, JVS (`haunted-museum` layout, volume knob on analog 0), guns in the gun board record (`WAL_TYPEX_GUNS`, `COM1,!COM3`), `WAL_PIN_CWD`, MUSEUM.ini with WindowsLoader paths (`files`), window created 1286x5434821 at CW_USEDEFAULT: popup 1280x720 at 0,0 (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`) |
-| `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video cut on the right) | wal-loader, JVS, guns in its JVS data (`WAL_TYPEX_GUNS`), known patches (`WAL_PATCHES`), popup 640x480 window, work area fix |
+| `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video fixed with `WAL_D3D9_POW2`) | wal-loader, JVS, guns in its JVS data (`WAL_TYPEX_GUNS`), known patches (`WAL_PATCHES`), popup 640x480 window, work area fix, power-of-two texture caps |
 | `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: in gamescope, guns) | as `gundam-spirits-of-zeon`, 2 player patch, 1280x480 in `gamescope` |
 | `haunted-museum-2` | Haunted Museum II | typex | works (user: guns, inputs, sound, video) | wal-loader, JVS (`haunted-museum` layout, volume knob on analog 0), guns in the gun board record (`COM1,!COM3`), `exe_fixed_base` (rebuilt exe: absolute addresses not relocated, imports without lookup table), known patch restoring its JVSENABLE/GUNENABLE reads (hex-edited to run without boards), both guns pre-calibrated (`initial_files` HM20/HM21.CFG + CRC32), `dxvk: false` (Indeo videos: RADV GPU fault with DXVK), popup 1280x720 window |
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | wal-loader, JVS (re-init after bus reset), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA); TODO: dispenser (reference "Skip Boot Check") |
