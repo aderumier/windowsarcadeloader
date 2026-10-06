@@ -7,8 +7,8 @@ name: Dragon Dance
 # shared memory and pipe, then starts "game_liong.exe -s" (started directly it exits).
 # DirectDraw game; the dump's ddraw.dll (DDrawCompat) is hidden by the wine graphics mode.
 # With wine's dsound/DirectMusic it crashed 3 s after start (method call on a NULL object):
-# native ones, prefix of the DirectMusic games.
-prefix: wine-prefix/directmusic
+# native ones.
+tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
 # Smoke effects render wrong with wine's ddraw (wined3d GL); d7vk, wined3d Vulkan and the dump's
 # DDrawCompat crash.
 
