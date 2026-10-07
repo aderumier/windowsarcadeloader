@@ -36,12 +36,12 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | in game, 4 players (user: credits); no audio (TODO: any dsound, master volume off); TODO: P1 controls reported not responding with JVS on | fail: audio | 2026-10-07 |
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | pass | 2026-10-07 |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | pass | 2026-10-07 |
-| `dragon-dance` | Dragon Dance | nesica | works on a first start only (user), smoke effect glitches; crashes at start (`game_liong.exe+0x1174b`, NULL renderer object) once its saves exist in `WindowsLoader/` (TODO) | fail: running, window, audio | 2026-10-07 |
+| `dragon-dance` | Dragon Dance | nesica | starts with and without saves (crash on applying saved display settings fixed by a code patch), smoke effect glitches | pass | 2026-10-08 |
 | `elevator-action` | Elevator Action Death Parade | nesica | in game | pass | 2026-10-07 |
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | pass | 2026-10-07 |
 | `exception` | Exception | nesica | works fullscreen (user) | pass | 2026-10-07 |
 | `gouketsuji-ichizoku` | Gouketsuji Ichizoku: Matsuri Senzo Kuyou | nesica | works (user) | pass | 2026-10-07 |
-| `homura` | Homura | nesica | works (user) | fail: audio | 2026-10-07 |
+| `homura` | Homura | nesica | works (user), some sound effects missing (TODO) | pass | 2026-10-07 |
 | `hyper-street-fighter-2` | Hyper Street Fighter II: The Anniversary Edition | nesica | works (user) | pass | 2026-10-07 |
 | `ikaruga` | Ikaruga | nesica | in game (user) | pass | 2026-10-07 |
 | `kof-2002-um` | The King of Fighters 2002 Unlimited Match | nesica | works (user) | pass | 2026-10-07 |
@@ -49,12 +49,12 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `kof-xiii-climax` | The King of Fighters XIII Climax | nesica | in game, movies | pass | 2026-10-07 |
 | `magical-beat` | Magical Beat | nesica | works (user) | pass | 2026-10-07 |
 | `nitroplus-blasterz` | Nitroplus Blasterz: Heroines Infinite Duel | nesica | works (user) | pass | 2026-10-07 |
-| `persona-4-arena` | Persona 4 The Ultimate in Mayonaka Arena | nesica | in fight (user: may crash with some characters) | pass | 2026-10-07 |
+| `persona-4-arena` | Persona 4 The Ultimate in Mayonaka Arena | nesica | works (user: perfect) | pass | 2026-10-07 |
 | `persona-4-ultimax` | Persona 4 The Ultimax Ultra Suplex Hold | nesica | works (user) | pass | 2026-10-07 |
 | `psychic-force-2012` | Psychic Force 2012 | nesica | works (user) | pass | 2026-10-07 |
 | `puzzle-bobble` | Puzzle Bobble | nesica | works (user) | pass | 2026-10-07 |
 | `raiden-3` | Raiden III | nesica | in game (user); intro movie black | pass | 2026-10-07 |
-| `raiden-4` | Raiden IV | nesica | in game (user); intro movie: audio only, black video | pass | 2026-10-07 |
+| `raiden-4` | Raiden IV | nesica | in game (user); intro movie: audio only, black video; hangs ~10 s into it unless skipped with a button (TODO) | fail: audio | 2026-10-07 |
 | `rastan-saga` | Rastan Saga | nesica | works (user) | pass | 2026-10-07 |
 | `senko-no-ronde-duo` | Senko no Ronde DUO: Dis-United Order | nesica | works, sound effects (user) | pass | 2026-10-07 |
 | `skullgirls-2nd-encore` | Skullgirls 2nd Encore | nesica | works (user) | pass | 2026-10-07 |
@@ -63,27 +63,27 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `street-fighter-3-3rd-strike` | Street Fighter III 3rd Strike: Fight for the Future | nesica | works (user) | pass | 2026-10-07 |
 | `street-fighter-zero-3` | Street Fighter Zero 3 | nesica | works fullscreen (user) | pass | 2026-10-07 |
 | `the-rumble-fish-2` | The Rumble Fish 2 | nesica | works (user) | pass | 2026-10-07 |
-| `tottemo-e-mahjong` | Tottemo E Mahjong | nesica | works (user); test menu (TestMode.exe) crashes, TODO | pass | 2026-10-07 |
+| `tottemo-e-mahjong` | Tottemo E Mahjong | nesica | works (user); test menu (TestMode.exe) crashes, TODO | fail: picture, audio | 2026-10-07 |
 | `trouble-witches-ac` | Trouble Witches AC: Amalgam no Joutachi | nesica | works (user) | pass | 2026-10-07 |
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | not tested | not in the test |  |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | pass | 2026-10-07 |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
-| `battle-fantasia` | Battle Fantasia | typex | in fight | fail: audio | 2026-10-07 |
+| `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-07 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | pass | 2026-10-07 |
 | `chase-hq-2` | Chase H.Q. 2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | not in the test |  |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | pass | 2026-10-07 |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | pass | 2026-10-07 |
 | `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | pass | 2026-10-07 |
-| `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: title, demo match, attract); intro movie never plays | pass | 2026-10-07 |
+| `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: 100%) | pass | 2026-10-07 |
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | pass | 2026-10-07 |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | pass | 2026-10-07 |
 | `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test, sound) | pass | 2026-10-07 |
 | `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video fixed with `WAL_D3D9_POW2`) | pass | 2026-10-07 |
-| `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: in gamescope, guns) | fail: window | 2026-10-07 |
+| `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: perfect, in gamescope, guns) | fail: window | 2026-10-07 |
 | `haunted-museum-2` | Haunted Museum II | typex | works (user: guns, inputs, sound, video) | pass | 2026-10-07 |
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | not in the test |  |
-| `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works, intro movie (user); intermittent crash at the movie end | pass | 2026-10-07 |
+| `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | pass | 2026-10-07 |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | pass | 2026-10-07 |
 | `king-of-fighters-xiii` | The King of Fighters XIII | typex | not tested | not in the test |  |
 | `music-gungun-2` | Music GunGun! 2 | typex | BLOCKED: "Direct3D device enumeration failed" message box | not in the test |  |
