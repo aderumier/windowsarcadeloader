@@ -357,6 +357,9 @@ def main():
     games = {k: v or {} for k, v in games.items() if not args.only or any(o.lower() in k.lower() for o in args.only)}
     run_dir = RESULTS / (time.strftime("%Y%m%d-%H%M%S") + (f"-{args.label}" if args.label else ""))
     run_dir.mkdir(parents=True)
+    if args.profile:
+        # not a reference result (tools/gamelist.py skips it)
+        (run_dir / "experiment").write_text("".join(f"--profile {p}\n" for p in args.profile))
 
     if not args.no_prepare and games:
         # prefix creation and winetricks downloads, once, before the timed runs
