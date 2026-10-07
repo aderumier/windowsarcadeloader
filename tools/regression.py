@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Regression test of the working games: launches each game of tools/regression/games.yaml in
-turn, then checks that it started (payload connected), is still running, shows a picture
+turn, then checks that it started (payload connected), is still running, shows a window
+(viewable X11 window of its processes, 200x200 at least, XWayland too), shows a picture
 (Direct3D 8/9 screenshots, WAL_SCREENSHOT) and plays sound (its PulseAudio/PipeWire stream).
 
 Usage: tools/regression.py [--wait S] [--only TEXT]... [--compare RUN_DIR] [--no-prepare]
@@ -11,6 +12,8 @@ regression. Run ./build.sh first. One game at a time (input port 33700): close r
 """
 
 import argparse
+import ctypes
+import ctypes.util
 import json
 import os
 import re
@@ -34,7 +37,7 @@ RESULTS = ROOT / "tools/regression/results"
 PORT = 33700
 # coin + start after 30 s (per game: script: <file> | none)
 DEFAULT_SCRIPT = "tools/regression/coin-start.txt"
-CHECKS = ["started", "running", "picture", "audio"]
+CHECKS = ["started", "running", "window", "picture", "audio"]
 
 
 def port_busy() -> bool:
@@ -145,6 +148,89 @@ def sink_peak(sink: str, seconds: float = 2.0) -> float:
     return max(abs(v) for v in struct.unpack(f"<{len(data) // 4}f", data))
 
 
+class XWindowAttributes(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_int), ("y", ctypes.c_int), ("width", ctypes.c_int), ("height", ctypes.c_int),
+                ("border_width", ctypes.c_int), ("depth", ctypes.c_int), ("visual", ctypes.c_void_p),
+                ("root", ctypes.c_ulong), ("c_class", ctypes.c_int), ("bit_gravity", ctypes.c_int),
+                ("win_gravity", ctypes.c_int), ("backing_store", ctypes.c_int), ("backing_planes", ctypes.c_ulong),
+                ("backing_pixel", ctypes.c_ulong), ("save_under", ctypes.c_int), ("colormap", ctypes.c_ulong),
+                ("map_installed", ctypes.c_int), ("map_state", ctypes.c_int), ("all_event_masks", ctypes.c_long),
+                ("your_event_mask", ctypes.c_long), ("do_not_propagate_mask", ctypes.c_long),
+                ("override_redirect", ctypes.c_int), ("screen", ctypes.c_void_p)]
+
+
+def wine_pids() -> set[int]:
+    """Wine processes (WINEPREFIX in their environment): the game's, one game at a time. Not
+    the launcher's session: the game, wineserver and explorer.exe get sessions of their own."""
+    pids = set()
+    for p in os.listdir("/proc"):
+        try:
+            if p.isdigit() and b"\0WINEPREFIX=" in b"\0" + Path(f"/proc/{p}/environ").read_bytes():
+                pids.add(int(p))
+        except OSError:
+            pass
+    return pids
+
+
+def in_gamescope(sid: int) -> bool:
+    """A gamescope process in the launcher's session (the game runs inside it)."""
+    for p in os.listdir("/proc"):
+        try:
+            if p.isdigit() and os.getsid(int(p)) == sid and Path(f"/proc/{p}/comm").read_text().strip() == "gamescope":
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def game_windows(pids: set[int]) -> list[tuple[int, int]] | None:
+    """(width, height) of the viewable windows (window manager's client list) of these
+    processes, from the X server (XWayland too). None: no X display to ask."""
+    try:
+        x = ctypes.CDLL(ctypes.util.find_library("X11") or "libX11.so.6")
+    except OSError:
+        return None
+    x.XOpenDisplay.restype = ctypes.c_void_p
+    x.XOpenDisplay.argtypes = [ctypes.c_char_p]
+    x.XDefaultRootWindow.restype = ctypes.c_ulong
+    x.XDefaultRootWindow.argtypes = [ctypes.c_void_p]
+    x.XInternAtom.restype = ctypes.c_ulong
+    x.XInternAtom.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int]
+    x.XGetWindowProperty.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_long, ctypes.c_long,
+                                     ctypes.c_int, ctypes.c_ulong, ctypes.POINTER(ctypes.c_ulong),
+                                     ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_ulong),
+                                     ctypes.POINTER(ctypes.c_ulong), ctypes.POINTER(ctypes.c_void_p)]
+    x.XGetWindowAttributes.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.POINTER(XWindowAttributes)]
+    x.XFree.argtypes = [ctypes.c_void_p]
+    x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+    dpy = x.XOpenDisplay(None)
+    if not dpy:
+        return None
+
+    def prop(win: int, name: bytes) -> list[int]:
+        typ, fmt, n, after, data = ctypes.c_ulong(), ctypes.c_int(), ctypes.c_ulong(), ctypes.c_ulong(), ctypes.c_void_p()
+        atom = x.XInternAtom(dpy, name, 0)
+        if x.XGetWindowProperty(dpy, win, atom, 0, 4096, 0, 0, ctypes.byref(typ), ctypes.byref(fmt),
+                                ctypes.byref(n), ctypes.byref(after), ctypes.byref(data)) != 0 or not data:
+            return []
+        # format 32 items are C longs
+        values = list(ctypes.cast(data, ctypes.POINTER(ctypes.c_ulong))[: n.value]) if fmt.value == 32 else []
+        x.XFree(data)
+        return values
+
+    found = []
+    try:
+        for win in prop(x.XDefaultRootWindow(dpy), b"_NET_CLIENT_LIST"):
+            pid = prop(win, b"_NET_WM_PID")
+            attrs = XWindowAttributes()
+            if pid and pid[0] in pids and x.XGetWindowAttributes(dpy, win, ctypes.byref(attrs)) \
+                    and attrs.map_state == 2:  # IsViewable
+                found.append((attrs.width, attrs.height))
+    finally:
+        x.XCloseDisplay(dpy)
+    return found
+
+
 def stop(proc: subprocess.Popen):
     """The launcher stops the game (wineserver -k); its whole session is killed if it hangs."""
     if proc.poll() is None:
@@ -198,6 +284,19 @@ def run_game(rel: str, opts: dict, wait: float, out: Path, layers: list[Path]) -
             time.sleep(2)
     res["seconds"] = round(time.time() - start)
     res["running"] = proc.poll() is None
+    # at the end (startup windows, launchers and loading screens are gone by then)
+    windows = game_windows(wine_pids()) if res["running"] else []
+    if res["running"] and in_gamescope(proc.pid):
+        # its own nested X server, shown as a Wayland window: not visible here
+        res["window"] = None
+        res["window_detail"] = "gamescope"
+    elif windows is None:
+        res["window"] = None
+        res["window_detail"] = "no X display"
+    else:
+        big = [w for w in windows if w[0] >= 200 and w[1] >= 200]
+        res["window"] = bool(big)
+        res["window_detail"] = ", ".join(f"{w}x{h}" for w, h in windows) or "no window"
     log.flush()
     text = (out / "launcher.log").read_text(errors="replace")
     m = re.search(r"^run directory: (.+)$", text, re.M)
@@ -270,11 +369,22 @@ def main():
     modules = capture_sink_setup()
     if not modules:
         print("warning: no capture sink (pactl load-module failed): audio measured on the real sink, other programs count too")
+    # a locked/blanked screen stops the games' frames and sound: no idle while testing
+    inhibit = None
+    for cmd in (["gnome-session-inhibit", "--inhibit", "idle", "--inhibit-only"],
+                ["systemd-inhibit", "--what=idle", "--why=regression test", "sleep", "infinity"]):
+        try:
+            inhibit = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            break
+        except OSError:
+            pass
     results = {}
     try:
         run_games(games, args, run_dir, results)
     finally:
         capture_sink_teardown(modules)
+        if inhibit:
+            inhibit.terminate()
     report(results, args, run_dir)
 
 
@@ -296,16 +406,16 @@ def report(results: dict, args, run_dir: Path):
     prev = json.loads((prev_dir / "results.json").read_text()) if prev_dir else {}
     lines = [f"# Regression run {run_dir.name}", "",
              f"Compared with: {prev_dir.name if prev_dir else 'nothing'}", "",
-             "| game | started | running | picture | audio | regressions | details |", "|---|---|---|---|---|---|---|"]
+             "| game | started | running | window | picture | audio | regressions | details |", "|---|---|---|---|---|---|---|---|"]
     regressions = 0
     for rel, res in results.items():
         if "skipped" in res:
-            lines.append(f"| {rel} | skipped: {res['skipped']} | | | | | |")
+            lines.append(f"| {rel} | skipped: {res['skipped']} | | | | | | |")
             continue
         old = prev.get(rel, {})
         lost = [c for c in CHECKS if old.get(c) is True and res.get(c) is not True]
         regressions += bool(lost)
-        details = f"{res.get('picture_detail', '')}; {res.get('audio_detail', '')}"
+        details = f"{res.get('window_detail', '')}; {res.get('picture_detail', '')}; {res.get('audio_detail', '')}"
         lines.append(f"| {rel} | " + " | ".join(mark(res.get(c)) for c in CHECKS) + f" | {', '.join(lost) or ''} | {details} |")
     lines += ["", f"{regressions} game(s) with regressions."]
     (run_dir / "report.md").write_text("\n".join(lines) + "\n")
