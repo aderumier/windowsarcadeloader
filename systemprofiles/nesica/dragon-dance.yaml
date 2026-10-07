@@ -14,3 +14,12 @@ tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, 
 
 # Button 1 = b1 (default mapping). The trackball is the Windows mouse (game mouse events):
 # a mouse or trackball on the PC works directly.
+
+# Crashed at start (game_liong.exe+0x1174b, method call on NULL) when the display settings
+# differ from the defaults (e.g. once saves exist): applying them (+0xe120) frees an effect
+# object (0x7cbfa4) and recreates the device, whose window messages draw a frame before the
+# object is recreated; its "created" flag (0x7cbfa8) is still set. The frame now checks the
+# object itself: mov ecx,[0x7cbfa4] / test ecx,ecx / jne draw / jmp skip.
+env:
+  WAL_PATCHES: "0xF804:8B0DA4BF7C0085C97517EB20909090"
+  WAL_PATCHES_EXE: game_liong.exe
