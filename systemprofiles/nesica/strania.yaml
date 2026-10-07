@@ -6,5 +6,10 @@ name: 'Strania: The Stella Machina'
 # Direct3D 9 game (DXVK), XAudio2. No crypto key.
 # xinput1_3.dll of the dump is Microsoft's: use wine's.
 hide: [xinput1_3.dll]
+# Silent with the native XAudio2 2.6 / XACT 3.6 (the dump's, registered, and the prefix's xact):
+# wine's.
+dll_overrides:
+  xaudio2_6: b
+  xactengine3_6: b
 
 # Buttons A, B = b1, b2 (default mapping).

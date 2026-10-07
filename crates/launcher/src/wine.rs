@@ -26,6 +26,27 @@ pub struct Wine {
 
 const D3D_DLLS: [&str; 5] = ["d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"];
 
+/// Verbs whose native DLLs break other games: native only for the games listing them.
+const ISOLATED_TRICKS: [&str; 1] = ["dsound"];
+
+/// DLLs a winetricks verb sets to native (its `w_override_dlls`).
+fn trick_dlls(verb: &str) -> Vec<String> {
+    match verb {
+        "dmusic" => vec!["dmusic".into(), "dmusic32".into()],
+        "xact" => {
+            let mut dlls: Vec<String> = (0..8).map(|i| format!("xaudio2_{i}")).collect();
+            dlls.extend((0..8).map(|i| format!("x3daudio1_{i}")));
+            dlls.extend((1..6).map(|i| format!("xapofx1_{i}")));
+            dlls.extend((0..11).map(|i| format!("xactengine2_{i}")));
+            dlls.extend((0..8).map(|i| format!("xactengine3_{i}")));
+            dlls
+        }
+        // registrations, sound bank, fonts: no DLL override
+        "dsdmo" | "gmdls" | "fakejapanese" => vec![],
+        _ => vec![verb.into()],
+    }
+}
+
 fn existing_unique(candidates: &[&str]) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = Vec::new();
     for c in candidates {
@@ -119,8 +140,32 @@ impl Wine {
         self.env.push((key.into(), value.into()));
     }
 
+    /// `dll[,dll...]=mode` in WINEDLLOVERRIDES. Wine looks up `*<dll>` first, in the
+    /// environment then in the registry, before the plain name: winetricks writes `*dsound`
+    /// keys, which would win over a plain `dsound=b`. The names get the `*` too.
     pub fn override_dll(&mut self, spec: &str) {
-        self.overrides.push(spec.into());
+        let (dlls, mode) = spec.split_once('=').unwrap_or((spec, ""));
+        let dlls: Vec<String> = dlls.split(',').map(|d| format!("*{}", d.trim_start_matches('*'))).collect();
+        self.overrides.push(format!("{}={mode}", dlls.join(",")));
+    }
+
+    /// The shared prefix holds every game's verbs and their native DLLs serve every game (as the
+    /// old common prefix did: games rely on d3dx9, xact... they do not list), except the
+    /// `ISOLATED_TRICKS` ones, native only for the games listing them (native dsound crashes
+    /// the CRI audio games). Its `dll_overrides` still have the last word.
+    pub fn builtin_unlisted_tricks(&mut self, prefix_tricks: &[String], tricks: &[String], keep: &[&str]) {
+        let needed: Vec<String> = tricks.iter().flat_map(|v| trick_dlls(v)).collect();
+        let mut builtin: Vec<String> = prefix_tricks
+            .iter()
+            .filter(|v| ISOLATED_TRICKS.contains(&v.as_str()))
+            .flat_map(|v| trick_dlls(v))
+            .filter(|d| !needed.contains(d) && !keep.contains(&d.as_str()))
+            .collect();
+        builtin.sort();
+        builtin.dedup();
+        if !builtin.is_empty() {
+            self.override_dll(&format!("{}=b", builtin.join(",")));
+        }
     }
 
     pub fn env(&self) -> Vec<(String, String)> {

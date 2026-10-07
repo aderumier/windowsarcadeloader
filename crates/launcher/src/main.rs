@@ -239,6 +239,8 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     wine.prepare_prefix()?;
     wine.apply_tricks(&profile.prefix_tricks)?;
     wine.apply_tricks(&profile.tricks)?;
+    let keep: Vec<&str> = profile.dll_overrides.keys().map(|d| d.trim_start_matches('*')).collect();
+    wine.builtin_unlisted_tricks(&profile.prefix_tricks, &profile.tricks, &keep);
     for (dll, mode) in &profile.dll_overrides {
         wine.override_dll(&format!("{dll}={mode}"));
     }
