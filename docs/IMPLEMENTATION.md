@@ -778,12 +778,12 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chaos-breaker` | Chaos Breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks (native dsound) |
 | `chaos-code-103` | Chaos Code: New Sign of Catastrophe 1.03 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
 | `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
-| `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user) | native dsound (wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
+| `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user; 1280x800: pillarboxed on a 16:9 screen) | native dsound (wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
 | `daemon-bride` | Daemon Bride: Additional Gain | nesica | in fight | key bbcp |
-| `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | in game, 4 players (user: credits; TODO: P1 controls reported not responding with JVS on) | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
+| `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | in game, 4 players (user: credits); no audio (TODO: any dsound, master volume off); TODO: P1 controls reported not responding with JVS on | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | same as Chaos Breaker (same engine) |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | D: data in WindowsLoader |
-| `dragon-dance` | Dragon Dance | nesica | works (user), smoke effect glitches | run game.exe (NxL stand-in), native DirectMusic/dsound; d7vk, wined3d Vulkan, DDrawCompat crash |
+| `dragon-dance` | Dragon Dance | nesica | works on a first start only (user), smoke effect glitches; crashes at start (`game_liong.exe+0x1174b`, NULL renderer object) once its saves exist in `WindowsLoader/` (TODO) | run game.exe (NxL stand-in), native DirectMusic/dsound; d7vk, wined3d Vulkan, DDrawCompat crash |
 | `elevator-action` | Elevator Action Death Parade | nesica | in game | 1280x800 |
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | 1280x800, native dsound (nothing on screen with wine's dsound) |
 | `exception` | Exception | nesica | works fullscreen (user) | native dsound (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
@@ -806,7 +806,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `senko-no-ronde-duo` | Senko no Ronde DUO: Dis-United Order | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
 | `skullgirls-2nd-encore` | Skullgirls 2nd Encore | nesica | works (user) | - |
 | `space-invaders` | Space Invaders | nesica | works (user) | - |
-| `strania` | Strania: The Stella Machina | nesica | works (user) | - |
+| `strania` | Strania: The Stella Machina | nesica | works (user), music but no sound effects (TODO) | wine's XAudio2 2.6 / XACT 3.6 (`dll_overrides`: silent with the native ones) |
 | `street-fighter-3-3rd-strike` | Street Fighter III 3rd Strike: Fight for the Future | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `street-fighter-zero-3` | Street Fighter Zero 3 | nesica | works fullscreen (user) | dump lacks config.ini: Vampire Savior's installed with `files` |
 | `the-rumble-fish-2` | The Rumble Fish 2 | nesica | works (user) | `.windowsloader`: `game\Game.exe` (loads `..\data`) |
