@@ -124,6 +124,14 @@ fn real_main() -> Result<()> {
     }
 }
 
+/// The process' main thread has exited (zombie state) while it is not reaped yet.
+fn main_thread_dead(pid: u32) -> bool {
+    std::fs::read_to_string(format!("/proc/{pid}/stat"))
+        .ok()
+        .and_then(|s| s.rsplit_once(')').map(|(_, rest)| rest.trim_start().starts_with('Z')))
+        .unwrap_or(false)
+}
+
 fn stop_flag() -> Result<Arc<AtomicBool>> {
     let stop = Arc::new(AtomicBool::new(false));
     let s = stop.clone();
@@ -335,6 +343,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     let mut last = InputFrame::default();
     let mut last_sent = Instant::now();
     let mut killing = false;
+    let mut last_check = Instant::now();
     let status = loop {
         hub.poll(Duration::from_millis(4));
         let mut frame = hub.frame();
@@ -356,6 +365,17 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         }
         if let Some(status) = child.try_wait()? {
             break status;
+        }
+        // a crash (e.g. a stack overflow under WoW64) can end the game's main thread only:
+        // the process stays a zombie leader with live threads, never reaped
+        if !killing && last_check.elapsed() > Duration::from_millis(500) {
+            last_check = Instant::now();
+            if main_thread_dead(child.id()) {
+                eprintln!("launcher: the game's main thread is gone (crash): stopping the game");
+                killing = true;
+                let _ = wine.wineserver("-k");
+                let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stderr(std::process::Stdio::null()).status();
+            }
         }
     };
     eprintln!("launcher: game exited ({status})");
