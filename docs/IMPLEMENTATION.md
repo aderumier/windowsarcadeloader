@@ -239,8 +239,13 @@ every system profile's `tricks`). Each profile still lists the verbs it needs in
 runner's wine (`winetricks -q <verb>`, `WINEARCH` removed; winetricks from the runner's `bin/`,
 else the runners directory, else the PATH), recorded in `<prefix>/.wal-tricks`.
 `arcade-launcher prepare <dump|id>` creates the prefix and installs them without running a game.
-Their DLL overrides (native dsound, DirectMusic, xact, d3dx9...) apply to every game: a game
-needing wine's own DLL sets `dll_overrides: {dsound: b}` (WINEDLLOVERRIDES of that game). A
+The verbs' native DLLs (DirectMusic, xact, d3dx9, d3dcompiler...) serve every game, as the
+old common prefix did: many games rely on one they do not list (Chaos Code's d3dx9_37). Native
+dsound is the exception, native only for the games listing it (wine's builtin for the others,
+in their WINEDLLOVERRIDES): it crashes the CRI audio games (Gaia Attack 4, Haunted Museum,
+Street Fighter IV...). `dll_overrides` (`<dll>: n | b | ...`) has the last word. The overrides
+are written `*<dll>`: wine looks up `*dsound` before `dsound`, in the environment then the
+registry, and winetricks writes `*dsound` keys, which a plain `dsound=b` would not beat. A
 game that cannot share the prefix sets its own `prefix` (and `prefix_tricks`).
 
 Runner hotfixes: `tools/runner-hotfixes.py [runner...]` patches known bugs of runner builds in
@@ -841,8 +846,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
 EN-Eins showing nothing, Psychic Force never opening its I/O): they need native dsound and
-DirectMusic (winetricks, their `tricks`). The shared prefix has them for every game; a game
-broken by them gets wine's back with `dll_overrides`.
+DirectMusic (winetricks, their `tricks`). The shared prefix has them; the games that do not
+list dsound get wine's.
 
 NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance ship a small
 `game.exe` that creates the NESiCAxLive launcher events/shared memory/pipe (`NxLEvent_*`,
