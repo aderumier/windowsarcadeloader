@@ -52,6 +52,17 @@ unsafe extern "system" fn move_window(hwnd: P, x: i32, y: i32, cx: i32, cy: i32,
     }
 }
 
+/// Base of the module holding this code (the payload DLL).
+fn this_module() -> usize {
+    use windows_sys::Win32::System::LibraryLoader::{
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, GetModuleHandleExW,
+    };
+    let mut module = std::ptr::null_mut();
+    let flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+    unsafe { GetModuleHandleExW(flags, this_module as *const () as *const u16, &mut module) };
+    module as usize
+}
+
 /// The game executable and the DLLs of its directory (the payload's excluded).
 pub(crate) fn game_modules(exe: usize) -> Vec<usize> {
     let mut found: Vec<(usize, String)> = Vec::new();
@@ -70,9 +81,12 @@ pub(crate) fn game_modules(exe: usize) -> Vec<usize> {
     let dir = found.iter().find(|(b, _)| *b == exe).and_then(|(_, p)| p.rsplit_once('\\').map(|(d, _)| format!("{d}\\")));
     let mut modules = vec![exe];
     if let Some(dir) = dir {
-        // not the loader's own modules (the payload calls the real functions)
+        // not the loader's own modules (the payload calls the real functions): by name, and
+        // this payload by address too, as it can be installed under a game DLL's name
+        // (NESiCA's iDmacDrv32.dll: its hooks would call themselves)
         let ours = |p: &str| p.rsplit('\\').next().is_some_and(|n| n.starts_with("wal_") || n.starts_with("wal-"));
-        modules.extend(found.iter().filter(|(b, p)| *b != exe && p.starts_with(&dir) && !ours(p)).map(|(b, _)| *b));
+        let this = this_module();
+        modules.extend(found.iter().filter(|(b, p)| *b != exe && *b != this && p.starts_with(&dir) && !ours(p)).map(|(b, _)| *b));
     }
     modules
 }
