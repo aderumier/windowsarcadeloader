@@ -36,7 +36,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | in game, 4 players (user: credits); no audio (TODO: any dsound, master volume off); TODO: P1 controls reported not responding with JVS on | fail: audio | 2026-10-07 |
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | pass | 2026-10-07 |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | pass | 2026-10-07 |
-| `dragon-dance` | Dragon Dance | nesica | starts with and without saves (crash on applying saved display settings fixed by a code patch), smoke effect glitches | pass | 2026-10-08 |
+| `dragon-dance` | Dragon Dance | nesica | works (user), smoke and sparkle effects correct with d7vk; crash on applying saved display settings fixed by a code patch | pass | 2026-10-08 |
+| `dragon-dance-typex` | Dragon Dance (Type X dump) | nesica | works (user), same build, d7vk and code patch as `dragon-dance` | not run yet |  |
 | `elevator-action` | Elevator Action Death Parade | nesica | in game | pass | 2026-10-07 |
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | pass | 2026-10-07 |
 | `exception` | Exception | nesica | works fullscreen (user) | pass | 2026-10-07 |

@@ -783,7 +783,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | in game, 4 players (user: credits); no audio (TODO: any dsound, master volume off); TODO: P1 controls reported not responding with JVS on | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | same as Chaos Breaker (same engine) |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | D: data in WindowsLoader |
-| `dragon-dance` | Dragon Dance | nesica | starts with and without saves, smoke effect glitches | run game.exe (NxL stand-in), native DirectMusic/dsound, code patch (frame drawn while applying the saved display settings, NULL effect object); d7vk, wined3d Vulkan, DDrawCompat crash |
+| `dragon-dance` | Dragon Dance | nesica | works (user), starts with and without saves | run game.exe (NxL stand-in), native DirectMusic/dsound, d7vk (wined3d GL drew the particle effects with an opaque black background), code patch (frame drawn while applying the saved display settings, NULL effect object) |
+| `dragon-dance-typex` | Dragon Dance (Type X dump) | nesica | works (user) | the NESiCA build with a replacement iDmacDrv32.dll: NESiCA payload, same tricks, d7vk and code patch as `dragon-dance` |
 | `elevator-action` | Elevator Action Death Parade | nesica | in game | 1280x800 |
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | 1280x800, native dsound (nothing on screen with wine's dsound) |
 | `exception` | Exception | nesica | works fullscreen (user) | native dsound (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
