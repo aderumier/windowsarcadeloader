@@ -66,7 +66,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `the-rumble-fish-2` | The Rumble Fish 2 | nesica | works (user) | pass | 2026-10-07 |
 | `tottemo-e-mahjong` | Tottemo E Mahjong | nesica | works (user); test menu (TestMode.exe) crashes, TODO | fail: picture, audio | 2026-10-07 |
 | `trouble-witches-ac` | Trouble Witches AC: Amalgam no Joutachi | nesica | works (user) | pass | 2026-10-07 |
-| `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | not tested | not in the test |  |
+| `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | works (user: 100%), opening video | pass | 2026-10-09 |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | pass | 2026-10-07 |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | pass | 2026-10-08 |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
