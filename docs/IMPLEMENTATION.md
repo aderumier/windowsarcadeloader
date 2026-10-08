@@ -789,7 +789,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | 1280x800, native dsound (nothing on screen with wine's dsound) |
 | `exception` | Exception | nesica | works fullscreen (user) | native dsound (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
 | `gouketsuji-ichizoku` | Gouketsuji Ichizoku: Matsuri Senzo Kuyou | nesica | works (user) | hide dgVoodoo D3D8/D3D9 |
-| `homura` | Homura | nesica | works (user), some sound effects missing (TODO) | native dsound (stuck on NOW LOADING with wine's dsound) |
+| `homura` | Homura | nesica | works (user), sound effects and music in game; attract demo silent, as under Windows (original or dump, not the loader) | native dsound (stuck on NOW LOADING with wine's dsound) |
 | `hyper-street-fighter-2` | Hyper Street Fighter II: The Anniversary Edition | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `ikaruga` | Ikaruga | nesica | in game (user) | CRT D: redirection (storage error), `fakejapanese` |
 | `kof-2002-um` | The King of Fighters 2002 Unlimited Match | nesica | works (user) | `WAL_D3D9_QUERY_FIX` (event query polled into a 1-byte variable: DXVK writes 4 bytes over the saved EBP) |
@@ -802,7 +802,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `psychic-force-2012` | Psychic Force 2012 | nesica | works (user) | run game.exe (NxL stand-in), native dsound prefix, patch 1280x768 preset -> 1280x720 |
 | `puzzle-bobble` | Puzzle Bobble | nesica | works (user) | - |
 | `raiden-3` | Raiden III | nesica | in game (user); intro movie black | hide dinput8; TODO: movies are uncompressed BGR24 240x320 AVIs played through amstream (`IAMMultiMediaStream`, MediaStreamFilter): AVI Decompressor is added but most connections to the media stream are refused (`VFW_E_TYPE_NOT_ACCEPTED`) |
-| `raiden-4` | Raiden IV | nesica | in game (user); intro movie: audio only, black video; hangs ~10 s into it unless skipped with a button (TODO) | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade, `WAL_ANSI_CODEPAGE: 932` (Shift-JIS movie name); TODO: black video: the game's own TEXTURERENDERER gets RGB24 from winedmo's MPEG Video Decoder, but ffmpeg rejects every packet (`Invalid frame dimensions 0x0`). GE builds ffmpeg with `--disable-everything` and no parsers, so the raw .m1v is fed in 1 KiB chunks; an ffmpeg 8.1 rebuild with `--enable-parsers` gave whole pictures (674 errors instead of 16k) but still `0x0`: not the (whole) fix, reverted |
+| `raiden-4` | Raiden IV | nesica | in game (user), intro movie (with GE-Proton's winedmo MPEG sequence header fix, after 11-7) | `tricks: [d3dx9_31]` (MMShader.fx), hide ReShade, `WAL_ANSI_CODEPAGE: 932` (Shift-JIS movie name); intro: MPEG-1 elementary stream with its only sequence header at the start of the file, consumed by the demuxer while probing: Wine's DirectShow MPEG decoder dropped the one of the media type ("Invalid frame dimensions 0x0" on every picture) — GE-Proton ge-video-rework/0077 passes it |
 | `rastan-saga` | Rastan Saga | nesica | works (user) | 1280x800, hide ReShade |
 | `senko-no-ronde-duo` | Senko no Ronde DUO: Dis-United Order | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
 | `skullgirls-2nd-encore` | Skullgirls 2nd Encore | nesica | works (user) | - |
