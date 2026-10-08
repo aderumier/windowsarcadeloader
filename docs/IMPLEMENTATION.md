@@ -239,6 +239,13 @@ every system profile's `tricks`). Each profile still lists the verbs it needs in
 runner's wine (`winetricks -q <verb>`, `WINEARCH` removed; winetricks from the runner's `bin/`,
 else the runners directory, else the PATH), recorded in `<prefix>/.wal-tricks`.
 `arcade-launcher prepare <dump|id>` creates the prefix and installs them without running a game.
+A new prefix is unpacked from `<prefix>.tar.gz` (`wine-prefix/full.tar.gz`) when present:
+`tools/prefix-archive.sh` builds it (`prepare` into a fresh prefix, packed), so a machine's
+first start downloads no winetricks verbs (Batocera: `install.sh` ships it). It is unpacked
+aside then renamed (no partial prefix), without its runner stamp: the runner update rewrites
+what pointed into the building machine's runner (font paths, vkd3d/icu links). Verbs added
+to `prefix_tricks` after it was built are installed as usual (its `.wal-tricks`). Without an archive the
+prefix is created from scratch.
 The verbs' native DLLs (DirectMusic, xact, d3dx9, d3dcompiler...) serve every game, as the
 old common prefix did: many games rely on one they do not list (Chaos Code's d3dx9_37). Native
 dsound is the exception, native only for the games listing it (wine's builtin for the others,

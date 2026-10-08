@@ -3,6 +3,7 @@
 //! Follows batocera-wine: same library order (32-bit system libs, runner i386-unix,
 //! 64-bit system libs, runner x86_64-unix, then the runner's own FFmpeg last), GE-Proton
 //! prefixes get vkd3d and icu linked in, prefixes are updated when the runner changes.
+//! A new prefix is unpacked from `<prefix>.tar.gz` when present (`tools/prefix-archive.sh`).
 
 use std::ffi::OsStr;
 use std::fs;
@@ -222,11 +223,13 @@ impl Wine {
         Ok(())
     }
 
-    /// Creates the prefix, or updates it when the runner changed.
+    /// Creates the prefix (unpacked from `<prefix>.tar.gz` when present), or updates it when the
+    /// runner changed.
     pub fn prepare_prefix(&self) -> Result<()> {
         if self.dry_run {
             return Ok(());
         }
+        self.unpack_prefix()?;
         let inf = self.runner.join("share/wine/wine.inf");
         let inf_stamp = fs::metadata(&inf)
             .and_then(|m| m.modified())
@@ -262,6 +265,44 @@ impl Wine {
                 }
             }
         }
+        Ok(())
+    }
+
+    /// A prefix built elsewhere (`<prefix>.tar.gz`, winetricks verbs installed), unpacked when
+    /// the prefix does not exist yet. Without its runner stamp, the runner update below rewrites
+    /// what points into the runner of the machine that built it (font paths, links); verbs
+    /// added since are installed by `apply_tricks` (`.wal-tricks` of the archive).
+    fn unpack_prefix(&self) -> Result<()> {
+        let archive = self.prefix.with_file_name(format!(
+            "{}.tar.gz",
+            self.prefix.file_name().unwrap_or_default().to_string_lossy()
+        ));
+        if self.prefix.exists() || !archive.is_file() {
+            return Ok(());
+        }
+        eprintln!("wine: unpacking prefix {}", archive.display());
+        // unpacked aside then renamed: an interrupted unpack leaves no partial prefix
+        let tmp = self.prefix.with_file_name(format!(
+            "{}.unpack",
+            self.prefix.file_name().unwrap_or_default().to_string_lossy()
+        ));
+        if tmp.exists() {
+            fs::remove_dir_all(&tmp)?;
+        }
+        fs::create_dir_all(&tmp)?;
+        let status = Command::new("tar")
+            .arg("-xzf")
+            .arg(&archive)
+            .arg("-C")
+            .arg(&tmp)
+            .status()
+            .context("running tar")?;
+        if !status.success() {
+            let _ = fs::remove_dir_all(&tmp);
+            bail!("unpacking {} failed: {status}", archive.display());
+        }
+        let _ = fs::remove_file(tmp.join(".wal-update-timestamp"));
+        fs::rename(&tmp, &self.prefix)?;
         Ok(())
     }
 

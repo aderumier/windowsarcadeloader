@@ -19,6 +19,8 @@ runner: GE-Proton11-7-x86_64
 runners_dir: wine-runners
 # One prefix for all the games, with every game's winetricks verbs preinstalled
 # (prefix_tricks). A game that cannot share it sets its own prefix (and prefix_tricks).
+# A new prefix is unpacked from <prefix>.tar.gz when present (tools/prefix-archive.sh: no
+# winetricks downloads on the first start), else created from scratch.
 prefix: wine-prefix/full
 # New WoW64 mode (WINEARCH=wow64): 32-bit games use the 64-bit host libraries, no lib32
 # packages needed. false: classic mode, 32-bit games need 32-bit host libraries
