@@ -60,7 +60,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `senko-no-ronde-duo` | Senko no Ronde DUO: Dis-United Order | nesica | works, sound effects (user) | pass | 2026-10-07 |
 | `skullgirls-2nd-encore` | Skullgirls 2nd Encore | nesica | works (user) | pass | 2026-10-07 |
 | `space-invaders` | Space Invaders | nesica | works (user) | fail: picture, audio | 2026-10-07 |
-| `strania` | Strania: The Stella Machina | nesica | works (user), music but no sound effects (TODO) | pass | 2026-10-07 |
+| `strania` | Strania: The Stella Machina | nesica | works (user), music and sound effects | pass | 2026-10-07 |
 | `street-fighter-3-3rd-strike` | Street Fighter III 3rd Strike: Fight for the Future | nesica | works (user) | pass | 2026-10-07 |
 | `street-fighter-zero-3` | Street Fighter Zero 3 | nesica | works fullscreen (user) | pass | 2026-10-07 |
 | `the-rumble-fish-2` | The Rumble Fish 2 | nesica | works (user) | pass | 2026-10-07 |

@@ -807,7 +807,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `senko-no-ronde-duo` | Senko no Ronde DUO: Dis-United Order | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
 | `skullgirls-2nd-encore` | Skullgirls 2nd Encore | nesica | works (user) | - |
 | `space-invaders` | Space Invaders | nesica | works (user) | - |
-| `strania` | Strania: The Stella Machina | nesica | works (user), music but no sound effects (TODO) | wine's XAudio2 2.6 / XACT 3.6 (`dll_overrides`: silent with the native ones); TODO: the music is streamed xWMA wave banks (`BGM*.xwb`), the sound effects are the in-memory PCM wave banks OnceSystem/OnceGame of `mediaPC/Once2.pak` (zlib) |
+| `strania` | Strania: The Stella Machina | nesica | works (user), music and sound effects | wine's XAudio2 2.6 / XACT 3.6 (`dll_overrides`: silent with the native ones); the sound effects' XAudio2 comes from the dump's manifests (registration-free COM, as Senko no Ronde DUO): manifests and `XAudio2_6.dll` hidden |
 | `street-fighter-3-3rd-strike` | Street Fighter III 3rd Strike: Fight for the Future | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `street-fighter-zero-3` | Street Fighter Zero 3 | nesica | works fullscreen (user) | dump lacks config.ini: Vampire Savior's installed with `files` |
 | `the-rumble-fish-2` | The Rumble Fish 2 | nesica | works (user) | `.windowsloader`: `game\Game.exe` (loads `..\data`) |
