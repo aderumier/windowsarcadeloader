@@ -2,8 +2,7 @@
 # userprofiles/nesica/dariusburst-another-chronicle-ex.yaml.
 # NESiCA architecture (FastIO via iDmacDrv32.dll, NESYS on \\.\pipe\nesystest,
 # TtxAppCrypt), although the dump is filed with the Type X2 games.
-# CRC 0xa50dc62c: neither known build (1.05 0x5F9F4B9F, 1.16 0xCD3EF573),
-# so their code patches do not apply as-is.
+# Build 1.16 (test menu: "Ver1.16 ENG"; game.exe identical to a known working 1.16 dump).
 system: nesica
 name: Dariusburst Another Chronicle EX
 
@@ -15,15 +14,18 @@ env:
   WAL_FASTIO_COIN: counter
   # 4-player cabinet: a second FastIO board (players 3/4) must answer, else I/O error
   WAL_FASTIO_BOARDS: "2"
+  # The master volume ("automatic" in the test menu) is the cabinet's volume knob, read in
+  # 0x4124: at maximum (silent at 0).
+  WAL_FASTIO_ANALOG1: "FF"
+  # Test menu in Japanese (Shift-JIS), unreadable under a western code page.
+  WAL_ANSI_CODEPAGE: "932"
   # The cabinet's right (players 3/4) screen is mounted upside down: the composite
   # shader flips its V when the 2nd board is present (isInv_RV). The 1.16 build's
-  # patch (same addresses in this build): isInv_RV -> 0.0f in
+  # patch: isInv_RV -> 0.0f in
   # "rv = right * (isInv_RV * 1.0f - (2.0f * isInv_RV - 1.0f) * ...)".
   WAL_PATCHES: "0x5399CC:302E306620202020,0x5399E4:2A20302E306620202020202D"
 
 # The dump's init.ini disables JVS (6th line 0; the original init.ini.original has
 # 1): coins are then never credited. Same file with JVS on.
-# TODO: with JVS on, P1's controls were reported not to respond (the inputs do reach
-# 0x4120); coins and P3/P4 start work.
 files:
   init.ini: systemprofiles/nesica/files/dariusburst-another-chronicle-ex/init.ini

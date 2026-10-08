@@ -5,7 +5,7 @@
 
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
 
 use wal_payload_common::{log, mapping::ButtonMap};
 use wal_protocol::{Axis, StickState};
@@ -78,6 +78,10 @@ static COIN_DOWN: [AtomicBool; 4] = [const { AtomicBool::new(false) }; 4];
 /// `WAL_FASTIO_BOARDS=2`: report a second FastIO board (players 3/4) in 0x4004, as
 /// (Dariusburst shows an I/O error otherwise).
 static TWO_BOARDS: AtomicBool = AtomicBool::new(false);
+/// `WAL_FASTIO_ANALOG1=<hex>`: value of 0x4124 (analogs of the first board). Dariusburst reads
+/// its master volume knob there (low byte; "automatic" master volume in its test menu): 0 by
+/// default, the game is silent.
+static ANALOG1: AtomicU32 = AtomicU32::new(0x0110_0000);
 
 pub(crate) fn init() {
     MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP));
@@ -88,6 +92,10 @@ pub(crate) fn init() {
     if std::env::var("WAL_FASTIO_BOARDS").is_ok_and(|v| v == "2") {
         TWO_BOARDS.store(true, Ordering::Relaxed);
         log!("fastio: two boards");
+    }
+    if let Some(v) = std::env::var("WAL_FASTIO_ANALOG1").ok().and_then(|v| u32::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()) {
+        ANALOG1.store(v, Ordering::Relaxed);
+        log!("fastio: analogs 1 = {v:#010x}");
     }
 }
 
@@ -210,7 +218,8 @@ pub unsafe extern "C" fn iDmacDrvRegisterRead(
         0x4004 if TWO_BOARDS.load(Ordering::Relaxed) => 0x00FF_00FF,
         0x4004 => 0x00FF_0000,
         0x4120 => le(&native_state()[0..4]),
-        0x4124 | 0x41A4 => 0x0110_0000,
+        0x4124 => ANALOG1.load(Ordering::Relaxed),
+        0x41A4 => 0x0110_0000,
         0x4128 => {
             let d = native_state();
             d[8] as u32 | (d[9] as u32) << 8
