@@ -23,7 +23,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 |---|---|---|---|---|---|
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not tested | not in the test |  |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | pass | 2026-10-07 |
-| `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | template only, game not available | not in the test |  |
+| `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-10-08 |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | pass | 2026-10-07 |
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | pass | 2026-10-07 |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | pass | 2026-10-07 |
@@ -68,6 +68,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `trouble-witches-ac` | Trouble Witches AC: Amalgam no Joutachi | nesica | works (user) | pass | 2026-10-07 |
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | not tested | not in the test |  |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | pass | 2026-10-07 |
+| `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | pass | 2026-10-08 |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-07 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
