@@ -112,7 +112,50 @@ pub fn build_tree(run_dir: &Path, game_dir: &Path, hide: &[String], real: &[Path
             dirs.insert(cur.clone());
         }
     }
-    level(run_dir, game_dir, Path::new(""), hide, &dirs, payloads)
+    let installed: BTreeSet<PathBuf> = payloads.iter().map(|(_, p)| p.clone()).collect();
+    remove_stale(run_dir, &installed, &dirs)?;
+    level(run_dir, game_dir, Path::new(""), hide, &dirs, payloads)?;
+    let list: String = installed.iter().map(|p| format!("{}\n", p.display())).collect();
+    fs::write(run_dir.join(INSTALLED), list).with_context(|| format!("writing {}", run_dir.join(INSTALLED).display()))
+}
+
+/// Files installed by the previous build (payloads, profile files), one path per line.
+const INSTALLED: &str = ".wal-installed";
+
+/// Removes what the previous build installed and this one does not (a profile file dropped
+/// from the profile would otherwise stay, kept as a file of the game), then the real folders
+/// no longer needed that hold nothing of the game's (links only): they become links again.
+fn remove_stale(run_dir: &Path, installed: &BTreeSet<PathBuf>, dirs: &BTreeSet<PathBuf>) -> Result<()> {
+    let Ok(list) = fs::read_to_string(run_dir.join(INSTALLED)) else { return Ok(()) };
+    for rel in list.lines().filter(|l| !l.is_empty()).map(PathBuf::from) {
+        if installed.contains(&rel) {
+            continue;
+        }
+        if fs::symlink_metadata(run_dir.join(&rel)).is_ok_and(|m| m.is_file()) {
+            fs::remove_file(run_dir.join(&rel))?;
+            eprintln!("rundir: removed {}, no longer installed", rel.display());
+        }
+        // its folders, deepest first
+        for dir in rel.ancestors().skip(1).filter(|d| !d.as_os_str().is_empty()) {
+            let path = run_dir.join(dir);
+            if dirs.contains(dir) || !fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir()) || !links_only(&path)? {
+                break;
+            }
+            fs::remove_dir_all(&path)?;
+        }
+    }
+    Ok(())
+}
+
+/// The folder holds links and folders of links only.
+fn links_only(dir: &Path) -> Result<bool> {
+    for entry in fs::read_dir(dir)?.flatten() {
+        let kind = entry.file_type()?;
+        if !kind.is_symlink() && !(kind.is_dir() && links_only(&entry.path())?) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn level(run_dir: &Path, game_dir: &Path, rel: &Path, hide: &[String], dirs: &BTreeSet<PathBuf>, payloads: &[(&Path, PathBuf)]) -> Result<()> {
@@ -170,6 +213,24 @@ mod tests {
         // the conflicting file stays in its legacy folder
         assert_eq!(fs::read_to_string(g.join(B).join("save.bin")).unwrap(), "tp");
         fs::remove_dir_all(&g).unwrap();
+    }
+
+    #[test]
+    fn dropped_profile_file_removed() {
+        let t = tmp("stale");
+        let (game, run, src) = (t.join("game"), t.join("run"), t.join("Settings.sw"));
+        fs::create_dir_all(game.join("Data/Loader")).unwrap();
+        fs::write(game.join("Data/Loader/Settings.sw"), "game").unwrap();
+        fs::write(game.join("game.exe"), "").unwrap();
+        fs::write(&src, "profile").unwrap();
+        let file = PathBuf::from("Data/Loader/Settings.sw");
+        build_tree(&run, &game, &[], &[PathBuf::new()], &[(src.as_path(), file.clone())]).unwrap();
+        assert_eq!(fs::read_to_string(run.join(&file)).unwrap(), "profile");
+        assert!(!run.join("Data").is_symlink());
+        build_tree(&run, &game, &[], &[PathBuf::new()], &[]).unwrap();
+        assert_eq!(fs::read_to_string(run.join(&file)).unwrap(), "game");
+        assert!(run.join("Data").is_symlink());
+        fs::remove_dir_all(&t).unwrap();
     }
 
     #[test]
