@@ -107,6 +107,8 @@ fn real_main() -> Result<()> {
             wine.prepare_prefix()?;
             wine.apply_tricks(&p.prefix_tricks)?;
             wine.apply_tricks(&p.tricks)?;
+            // registry written to disk (tools/prefix-archive.sh packs it next)
+            wine.wineserver("-w")?;
             eprintln!("prefix ready: {}", wine.prefix.display());
             Ok(())
         }
