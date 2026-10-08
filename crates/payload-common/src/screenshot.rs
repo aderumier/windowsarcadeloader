@@ -10,6 +10,11 @@
 //!   Wine's fullscreen scaling then fits it to the monitor.
 //! * `WAL_D3D9_FULLSCREEN=1`: windowed devices are created (and reset) fullscreen instead,
 //!   with the same back buffer size, for games that only run in a window under Wine.
+//! * `WAL_D3D9_WINDOWED_SIZE=<w>x<h>`: devices are created (and reset) windowed with this back
+//!   buffer size, which window mode stretches to the window (fullscreen ones made windowed). For
+//!   games drawing a smaller picture in the corner of their back buffer (Yatagarasu: 854x480 of
+//!   1280x720), whose size no fullscreen mode has. `Present` source/destination rectangles are
+//!   dropped: whole back buffer to the whole window (Yatagarasu presents to 0,0 1280x720).
 //!
 //! * `WAL_D3D9_QUERY_FIX=1`: `IDirect3DQuery9::GetData` writes at most the requested size.
 //!   KOF '98 UMFE / 2002 UM poll an event query into a 1-byte variable at the top of their
@@ -81,6 +86,7 @@ static TRACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new
 static POW2: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static QUERY_FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+static WINDOWED_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 struct State {
@@ -119,11 +125,16 @@ unsafe fn patch(obj: P, slot: usize, replacement: usize, orig: &AtomicUsize) {
 }
 
 pub fn init() {
-    let size = std::env::var("WAL_D3D9_FULLSCREEN_SIZE").ok().and_then(|v| {
-        let (w, h) = v.split_once('x')?;
-        Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
-    });
+    let parse_size = |var| {
+        std::env::var(var).ok().and_then(|v| {
+            let (w, h) = v.split_once('x')?;
+            Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
+        })
+    };
+    let size = parse_size("WAL_D3D9_FULLSCREEN_SIZE");
     *FULLSCREEN_SIZE.lock().unwrap() = size;
+    let windowed_size = parse_size("WAL_D3D9_WINDOWED_SIZE");
+    *WINDOWED_SIZE.lock().unwrap() = windowed_size;
     let force = std::env::var("WAL_D3D9_FULLSCREEN").is_ok_and(|v| v == "1");
     FORCE_FULLSCREEN.store(force, Ordering::Relaxed);
     let secs = std::env::var("WAL_SCREENSHOT").ok().and_then(|v| v.parse::<f64>().ok());
@@ -137,7 +148,7 @@ pub fn init() {
     TRACE.store(trace, Ordering::Relaxed);
     let pow2 = std::env::var("WAL_D3D9_POW2").is_ok_and(|v| v == "1");
     POW2.store(pow2, Ordering::Relaxed);
-    if secs.is_none() && size.is_none() && !force && !query_fix && !trace && !pow2 {
+    if secs.is_none() && size.is_none() && windowed_size.is_none() && !force && !query_fix && !trace && !pow2 {
         return;
     }
     // the game and the DLLs of its directory (engines creating the device themselves)
@@ -154,7 +165,7 @@ pub fn init() {
                     orig.store(o, Ordering::Relaxed);
                 }
                 if *dll != "kernel32.dll" {
-                    log!("{}: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, force fullscreen {force})", &dll[..4]);
+                    log!("{}: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, windowed size {windowed_size:?}, force fullscreen {force})", &dll[..4]);
                 }
             }
         }
@@ -320,6 +331,7 @@ unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, wind
 
 unsafe extern "system" fn present_ex(dev: P, src: P, dst: P, window: P, dirty: P, flags: u32) -> HRESULT {
     unsafe { maybe_capture(dev) };
+    let (src, dst) = whole_window(src, dst);
     let orig: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT_EX.load(Ordering::Relaxed)) };
     unsafe { orig(dev, src, dst, window, dirty, flags) }
 }
@@ -402,8 +414,18 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
             log!("d3d: windowed {w}x{h} device made fullscreen");
         }
     }
-    let Some((w, h)) = *FULLSCREEN_SIZE.lock().unwrap() else { return };
+    if let Some((w, h)) = *WINDOWED_SIZE.lock().unwrap() {
+        let (old_w, old_h, old_windowed) = unsafe { (*p, *p.add(1), *p.add(windowed_index)) };
+        unsafe {
+            *p = w;
+            *p.add(1) = h;
+            *p.add(windowed_index) = 1;
+            *p.add(windowed_index + 4) = 0; // refresh rate: 0 when windowed
+        }
+        log!("d3d: back buffer {old_w}x{old_h} (windowed {old_windowed}) -> windowed {w}x{h}");
+    }
     let windowed = unsafe { *p.add(windowed_index) } != 0;
+    let Some((w, h)) = *FULLSCREEN_SIZE.lock().unwrap() else { return };
     if !windowed {
         let (old_w, old_h) = unsafe { (*p, *p.add(1)) };
         unsafe {
@@ -417,7 +439,11 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
 unsafe extern "system" fn reset(dev: P, params: P) -> HRESULT {
     unsafe { override_size(params) };
     let orig: unsafe extern "system" fn(P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_RESET.load(Ordering::Relaxed)) };
-    unsafe { orig(dev, params) }
+    let hr = unsafe { orig(dev, params) };
+    if hr != 0 {
+        log!("d3d9: Reset failed {hr:#x}");
+    }
+    hr
 }
 
 unsafe extern "system" fn create9(sdk: u32) -> P {
@@ -469,8 +495,22 @@ unsafe fn maybe_capture(dev: P) {
 
 unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
     unsafe { maybe_capture(dev) };
+    let (src, dst) = whole_window(src, dst);
     let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
     unsafe { orig(dev, src, dst, window, dirty) }
+}
+
+/// `Present` rectangles, dropped with `WAL_D3D9_WINDOWED_SIZE` (logged the first time).
+fn whole_window(src: P, dst: P) -> (P, P) {
+    static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if WINDOWED_SIZE.lock().unwrap().is_none() || (src.is_null() && dst.is_null()) {
+        return (src, dst);
+    }
+    if !LOGGED.swap(true, Ordering::Relaxed) {
+        let rect = |r: P| if r.is_null() { None } else { Some(unsafe { std::ptr::read(r as *const [i32; 4]) }) };
+        log!("d3d9: Present rectangles dropped (source {:?}, destination {:?})", rect(src), rect(dst));
+    }
+    (std::ptr::null_mut(), std::ptr::null_mut())
 }
 
 /// D3DSURFACE_DESC

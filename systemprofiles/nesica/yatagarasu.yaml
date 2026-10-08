@@ -1,0 +1,29 @@
+# Yatagarasu: Attack on Cataclysm (NESiCAxLive) - template, override values in
+# userprofiles/nesica/yatagarasu.yaml.
+system: nesica
+name: 'Yatagarasu: Attack on Cataclysm'
+
+# Direct3D 9 game (DXVK). No crypto key, card reader.
+# d3d9.dll of the dump is ReShade (bezel): use DXVK.
+hide: [d3d9.dll]
+
+# Buttons = b1-b4 (default mapping).
+
+# Its language files ask the font "ＭＳ ゴシック" (MS Gothic's Japanese name): no Japanese font
+# replaces it (squares). Same files with "MS Gothic", replaced by the prefix's Japanese font
+# (fakejapanese).
+tricks: [fakejapanese]
+files:
+  language/00_enu.set: systemprofiles/nesica/files/yatagarasu/00_enu.set
+  language/01_jpn.set: systemprofiles/nesica/files/yatagarasu/01_jpn.set
+
+env:
+  # Shift-JIS text drawn with the ANSI code page: garbled under a western one.
+  WAL_ANSI_CODEPAGE: "932"
+  # Windowed 1280x720 device, picture (with its side portraits) drawn 854x480 in the top-left
+  # corner: 854x480 back buffer, stretched by window mode to a screen-sized borderless window
+  # (no 854x480 fullscreen mode). It presents to 0,0 1280x720: the shim presents the whole
+  # back buffer to the whole window.
+  WAL_D3D9_WINDOWED_SIZE: 854x480
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen

@@ -1,7 +1,10 @@
 # Aquapazza: Aquaplus Dream Match (NESiCAxLive) - template, override values in
-# userprofiles/nesica/aquapazza.yaml (set exe to the game's path).
-# Plain NESiCA (CRC 0x549627f4, no crypto key). Not tested yet.
+# userprofiles/nesica/aquapazza.yaml.
 system: nesica
 name: 'Aquapazza: Aquaplus Dream Match'
+
+# Direct3D 9 game (DXVK). No crypto key.
+# dinput8.dll of the dump is "Game Loader All RH" (a Type X loader hack): use wine's.
+hide: [dinput8.dll]
 
 # Buttons A B C D = b1-b4 (default mapping).

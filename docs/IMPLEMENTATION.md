@@ -375,7 +375,11 @@ profile), `show` (merged profile).
   (`d3d8!Direct3DCreate8`) get the same shims with the d3d8 vtable slots and layouts
   (CreateImageSurface + CopyRects for the capture). `WAL_D3D9_FULLSCREEN=1` creates windowed
   devices fullscreen (Chaos Code's white window border); it broke SFZ3, which then stops
-  presenting after its Reset.
+  presenting after its Reset. `WAL_D3D9_WINDOWED_SIZE=WxH` creates/resets every device windowed
+  with that back buffer size and drops the `Present` source/destination rectangles, so window
+  mode stretches the whole back buffer to the window: games drawing a smaller picture in the
+  corner of their back buffer, of a size no fullscreen mode has (Yatagarasu: 854x480 of
+  1280x720, presented to 0,0 1280x720). Failing Resets are logged.
 * Games loading d3d9/d3d8 at run time (DxLib's Direct3D 9Ex in Crimzon Clover, Magical Beat)
   go through the game's `GetProcAddress`, also hooked: `Direct3DCreate9`, `Direct3DCreate9Ex`
   (`CreateDeviceEx`, `PresentEx`, `ResetEx` wrapped too) and `Direct3DCreate8`.
@@ -770,7 +774,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 |---|---|---|---|---|
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not tested | - |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
-| `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | template only, game not available | - |
+| `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | hide dinput8 (loader hack) |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | - |
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | D: data in WindowsLoader |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | key bbcf, shop hours patch |
@@ -815,6 +819,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `trouble-witches-ac` | Trouble Witches AC: Amalgam no Joutachi | nesica | works (user) | - |
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | not tested | - |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | NESYS on ("server not connected" when disabled) |
+| `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | hide ReShade, `WAL_ANSI_CODEPAGE: 932`, language files with "MS Gothic" instead of "ＭＳ ゴシック" (`files`, fakejapanese: squares otherwise), picture drawn 854x480 in a 1280x720 back buffer and presented to 0,0 1280x720: `WAL_D3D9_WINDOWED_SIZE: 854x480` (also turns its fullscreen Reset windowed, drops the Present rectangles) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`) |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
