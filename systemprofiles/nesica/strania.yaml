@@ -5,7 +5,10 @@ name: 'Strania: The Stella Machina'
 
 # Direct3D 9 game (DXVK), XAudio2. No crypto key.
 # xinput1_3.dll of the dump is Microsoft's: use wine's.
-hide: [xinput1_3.dll]
+# Sound effects use XAudio2 2.6 through registration-free COM, as Senko no Ronde DUO
+# (game.exe.manifest -> Dlls.XAudio2.manifest -> the dump's XAudio2_6.dll, loaded by path
+# whatever the DLL overrides): without the manifests the game gets wine's xaudio2_6.
+hide: [xinput1_3.dll, game.exe.manifest, Dlls.XAudio2.manifest, XAudio2_6.dll]
 # Silent with the native XAudio2 2.6 / XACT 3.6 (the dump's, registered, and the prefix's xact):
 # wine's.
 dll_overrides:
