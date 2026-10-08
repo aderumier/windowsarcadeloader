@@ -42,7 +42,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | pass | 2026-10-07 |
 | `exception` | Exception | nesica | works fullscreen (user) | pass | 2026-10-07 |
 | `gouketsuji-ichizoku` | Gouketsuji Ichizoku: Matsuri Senzo Kuyou | nesica | works (user) | pass | 2026-10-07 |
-| `homura` | Homura | nesica | works (user), some sound effects missing (TODO) | pass | 2026-10-07 |
+| `homura` | Homura | nesica | works (user), sound effects and music in game; attract demo silent, as under Windows (original or dump, not the loader) | pass | 2026-10-07 |
 | `hyper-street-fighter-2` | Hyper Street Fighter II: The Anniversary Edition | nesica | works (user) | pass | 2026-10-07 |
 | `ikaruga` | Ikaruga | nesica | in game (user) | pass | 2026-10-07 |
 | `kof-2002-um` | The King of Fighters 2002 Unlimited Match | nesica | works (user) | pass | 2026-10-07 |
@@ -55,7 +55,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `psychic-force-2012` | Psychic Force 2012 | nesica | works (user) | pass | 2026-10-07 |
 | `puzzle-bobble` | Puzzle Bobble | nesica | works (user) | pass | 2026-10-07 |
 | `raiden-3` | Raiden III | nesica | in game (user); intro movie black | pass | 2026-10-07 |
-| `raiden-4` | Raiden IV | nesica | in game (user); intro movie: audio only, black video; hangs ~10 s into it unless skipped with a button (TODO) | fail: audio | 2026-10-07 |
+| `raiden-4` | Raiden IV | nesica | in game (user), intro movie (with GE-Proton's winedmo MPEG sequence header fix, after 11-7) | fail: audio | 2026-10-07 |
 | `rastan-saga` | Rastan Saga | nesica | works (user) | pass | 2026-10-07 |
 | `senko-no-ronde-duo` | Senko no Ronde DUO: Dis-United Order | nesica | works, sound effects (user) | pass | 2026-10-07 |
 | `skullgirls-2nd-encore` | Skullgirls 2nd Encore | nesica | works (user) | pass | 2026-10-07 |
