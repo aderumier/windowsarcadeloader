@@ -14,7 +14,7 @@ Any error stops the run, before deleting anything of that dump.
 Skipped: systems without a Batocera ES system (games/misc...), images already on the machine
 (--overwrite replaces them), dumps with absolute symlinks (broken inside an image).
 
-Usage: tools/batocera/upload-dumps.py [--dry-run] [--only TEXT]... [--keep] [--overwrite]
+Usage: tools/batocera/upload-dumps.py [--dry-run] [--only TEXT]... [--skip TEXT]... [--keep] [--overwrite]
                                       [--host root@HOST] [--password PASS]
 """
 
@@ -96,6 +96,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--dry-run", action="store_true", help="list what would be moved, change nothing")
     p.add_argument("--only", action="append", default=[], help="dumps whose path contains TEXT")
+    p.add_argument("--skip", action="append", default=[], help="not the dumps whose path contains TEXT")
     p.add_argument("--keep", action="store_true", help="keep the local dump after the upload")
     p.add_argument("--overwrite", action="store_true", help="replace images already on the machine")
     p.add_argument("--host", default="root@batocera.fritz.box")
@@ -106,6 +107,8 @@ def main() -> int:
     for size, dump in dumps():
         rel = dump.relative_to(GAMES)
         if args.only and not any(t in str(rel) for t in args.only):
+            continue
+        if any(t in str(rel) for t in args.skip):
             continue
         system = SYSTEMS.get(dump.parent.name)
         if system is None:
