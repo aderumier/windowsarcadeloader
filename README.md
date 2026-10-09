@@ -86,7 +86,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | not in the test |  |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | pass | 2026-10-07 |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | pass | 2026-10-07 |
-| `king-of-fighters-xiii` | The King of Fighters XIII | typex | not tested | not in the test |  |
+| `king-of-fighters-xiii` | The King of Fighters XIII | typex | works (user: 100%) | pass | 2026-10-09 |
 | `music-gungun-2` | Music GunGun! 2 | typex | works (user: perfect), attract movie, sound, 2 guns | pass | 2026-10-09 |
 | `raiden-3-typex` | Raiden III | typex | works (user); intro movie black (as NESiCA) | pass | 2026-10-07 |
 | `raiden-4-typex` | Raiden IV | typex | works (user) | pass | 2026-10-07 |
