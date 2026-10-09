@@ -9,14 +9,34 @@ hide: [dinput8.dll]
 # Guns: the gun board (COM1) is a silent port and the guns are
 # written in the game's memory (payload guns.rs): lightgun or mouse per player,
 # trigger = b1, reload = b2 or aiming off screen.
+# A player starts by shooting the screen (title: "shoot the screen to start"): the start keys
+# (1, 2, gamepad Start) pull that player's trigger. The JVS start bit is the cabinet's SELECT
+# button (test menu): b3 (Space, gamepad R1).
 input:
   guns_enabled: true
   stick_as_dpad: false
+  gamepad:
+    start: b1
+  keyboard:
+    p1:
+      KEY_1: b1
+    p2:
+      KEY_2: b1
+native_map:
+  start: none
+  b3: start
 
 env:
   WAL_TYPEX_GUNS: music-gungun-2
   # Type X2 working directory pinning (the game steps up with "..\").
   WAL_PIN_CWD: "1"
-  # Music GunGun 2 patch (known for CRC 0xf36d354a; this dump has another CRC but
-  # the same layout, function prologue checked): 0x137C70 returns true.
-  WAL_PATCHES: "0x137C70:B801000000C3"
+  # Game patches:
+  # * 0x137C70 returns true (known patch for CRC 0xf36d354a; this dump has another CRC but the
+  #   same layout, function prologue checked).
+  # * 0x154E6: its Direct3D enumeration keeps only 60 Hz display modes; skip the refresh rate
+  #   check (screens at 120 Hz: "Direct3D device enumeration failed").
+  # * 0x1779/0x1783: game resolution 1360x768 -> 1920x1080 (Wine on Xwayland has no 1360x768
+  #   mode; the dump's Patch/HD game.exe has the same values).
+  # * 0x1B4B90: the master volume comes from the cabinet's volume knob, an analog input our JVS
+  #   board does not report (read as 0: muted); return the maximum.
+  WAL_PATCHES: "0x137C70:B801000000C3,0x154E6:9090,0x1779:8007,0x1783:3804,0x1B4B90:B810270000C3"

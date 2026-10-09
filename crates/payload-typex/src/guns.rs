@@ -77,12 +77,16 @@ const MUSIC_GUNGUN_2: Game = Game {
     name: "music-gungun-2",
     // gun board connected, JVS type
     constants: &[(0x2B8128, 0x02), (0x2B3708, 0x03)],
+    // The gun board's 20-byte record (10 bytes a gun: offscreen +2/+3, x +4, y +6, trigger
+    // +8), received at +0x2B8100 and copied to +0x2B80E4 (the game's state) when a board packet
+    // is parsed: the port is silent, so both records are written (the received one alone never
+    // reached the game: aim not moving). Axes 0..0x3FF0.
     guns: &[
-        Gun { trigger: &[0x2B8108], offscreen: &[0x2B8102], x: &[0x2B8104], y: &[0x2B8106], trigger_edge: None, auto_fire: None, x_offset: 0, bits: &[] },
-        Gun { trigger: &[0x2B8112], offscreen: &[0x2B810C], x: &[0x2B810E], y: &[0x2B8110], trigger_edge: None, auto_fire: None, x_offset: 0, bits: &[] },
+        Gun { trigger: &[0x2B8108, 0x2B80EC], offscreen: &[0x2B8102, 0x2B8103, 0x2B80E6, 0x2B80E7], x: &[0x2B8104, 0x2B80E8], y: &[0x2B8106, 0x2B80EA], trigger_edge: None, auto_fire: None, x_offset: 0, bits: &[] },
+        Gun { trigger: &[0x2B8112, 0x2B80F6], offscreen: &[0x2B810C, 0x2B810D, 0x2B80F0, 0x2B80F1], x: &[0x2B810E, 0x2B80F2], y: &[0x2B8110, 0x2B80F4], trigger_edge: None, auto_fire: None, x_offset: 0, bits: &[] },
     ],
-    range: 16384,
-    range_y: 16384,
+    range: 16368,
+    range_y: 16368,
     shared_touch: false,
     coin_counters: &[],
     patches: &[],
