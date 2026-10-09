@@ -9,7 +9,7 @@ Smallest dump first (each one moved frees room for the next), one at a time:
      /userdata/roms/<system>/<dump>.squashfs.part, md5 compared with the local image, then renamed
      to <dump>.squashfs;
   3. only then the local image and the dump directory are deleted.
-Any error stops the run, before deleting anything of that dump.
+Any error stops the run, before deleting anything of that dump (its local image is removed).
 
 Skipped: systems without a Batocera ES system (games/misc...), images already on the machine
 (--overwrite replaces them), dumps with absolute symlinks (broken inside an image).
@@ -120,15 +120,21 @@ def main() -> int:
         todo.append((size, dump, system))
 
     remote = None if args.dry_run else Remote(args.host, args.password)
+    image = None
     try:
+        if remote:
+            remote.run("true")  # reachable, password accepted: before building anything
         for size, dump, system in todo:
             rel = dump.relative_to(GAMES)
             target = f"/userdata/roms/{system}/{dump.name}.squashfs"
             if remote is None:
                 print(f"{gib(size):>9}  {rel} -> {target}")
                 continue
-            exists = remote.run(f"test -e {shlex.quote(target)}", check=False).returncode == 0
-            if exists and not args.overwrite:
+            test = remote.run(f"test -e {shlex.quote(target)}", check=False)
+            if test.returncode not in (0, 1):
+                print(f"error: {args.host}: {test.stderr.strip()}")
+                return 1
+            if test.returncode == 0 and not args.overwrite:
                 print(f"skip {rel}: {target} already on the machine")
                 continue
             free = shutil.disk_usage(dump.parent).free
@@ -157,6 +163,7 @@ def main() -> int:
                 return 1
             remote.run(f"chmod 644 {shlex.quote(part)} && mv -f {shlex.quote(part)} {shlex.quote(target)}")
             image.unlink()
+            image = None
             if args.keep:
                 print(f"   uploaded, local dump kept")
             else:
@@ -166,6 +173,8 @@ def main() -> int:
         print(f"error: {shlex.join(map(str, e.cmd))} failed ({e.returncode}): {(e.stderr or '').strip()}")
         return 1
     finally:
+        if image is not None:
+            image.unlink(missing_ok=True)  # failed dump: its local image is not kept
         if remote:
             remote.close()
     return 0
