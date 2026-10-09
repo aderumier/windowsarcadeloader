@@ -8,5 +8,13 @@ name: Elevator Action Death Parade
 # Buttons Shoot, Jump = b1, b2 (default mapping).
 
 env:
-  # The game wants 1280x768 fullscreen, not a mode Wine emulates: 1280x800, scaled to the screen.
-  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
+  # The game wants 1280x768 fullscreen (no such mode under Wine) and stretches its 4:3 picture
+  # (the 1983 game) over the whole back buffer, viewport 1280x768. Windowed 1280x768 device in
+  # a screen-sized borderless window, presented to a centered 4:3 rectangle.
+  WAL_D3D9_WINDOWED_SIZE: 1280x768
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # It asks for vsync, which the window does not get (Xwayland): ~400 frames per second, the
+  # game (timed by frames) 6 times too fast. 60 frames per second.
+  WAL_D3D9_MAX_FPS: "60"

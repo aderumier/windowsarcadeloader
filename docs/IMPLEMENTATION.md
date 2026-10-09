@@ -410,7 +410,12 @@ profile), `show` (merged profile).
   with that back buffer size and drops the `Present` source/destination rectangles, so window
   mode stretches the whole back buffer to the window: games drawing a smaller picture in the
   corner of their back buffer, of a size no fullscreen mode has (Yatagarasu: 854x480 of
-  1280x720, presented to 0,0 1280x720). Failing Resets are logged.
+  1280x720, presented to 0,0 1280x720). `WAL_D3D9_ASPECT=W:H` presents windowed devices to the
+  largest centered rectangle of that aspect in the window (black bars): games stretching a 4:3
+  picture over a wide back buffer (Elevator Action: 1280x768). `WAL_D3D9_MAX_FPS=N` paces
+  `Present` to N frames per second: windowed devices get no vsync under Xwayland (Elevator
+  Action asks interval one and ran at ~400 fps, 6 times too fast; DXVK's maxFrameRate had no
+  effect). `WAL_D3D9_TRACE` also logs presents per second. Failing Resets are logged.
 * Games loading d3d9/d3d8 at run time (DxLib's Direct3D 9Ex in Crimzon Clover, Magical Beat)
   go through the game's `GetProcAddress`, also hooked: `Direct3DCreate9`, `Direct3DCreate9Ex`
   (`CreateDeviceEx`, `PresentEx`, `ResetEx` wrapped too) and `Direct3DCreate8`.
@@ -871,7 +876,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | - |
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | D: data in WindowsLoader |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | key bbcf, shop hours patch |
-| `blazblue-chronophantasma` | BlazBlue Chronophantasma 2.03 | nesica | not tested | - |
+| `blazblue-chronophantasma` | BlazBlue Chronophantasma 2.03 | nesica | works (user: 100%) | - |
 | `chaos-breaker` | Chaos Breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks (native dsound) |
 | `chaos-code-103` | Chaos Code: New Sign of Catastrophe 1.03 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
 | `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
@@ -881,7 +886,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | same as Chaos Breaker (same engine) |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | D: data in WindowsLoader |
 | `dragon-dance` | Dragon Dance | nesica | works (user), smoke and sparkle effects correct with d7vk; crash on applying saved display settings fixed by a code patch | run game.exe (NxL stand-in), native DirectMusic/dsound, d7vk (wined3d GL drew the particle effects with an opaque black background), code patch (frame drawn while applying the saved display settings, NULL effect object) |
-| `elevator-action` | Elevator Action Death Parade | nesica | in game | 1280x800 |
+| `elevator-action` | Elevator Action Death Parade | nesica | works (user: 100%), 4:3 | 4:3 picture stretched over its 1280x768 back buffer: windowed 1280x768 (`WAL_D3D9_WINDOWED_SIZE`) in a screen-sized popup, presented to a centered 4:3 rectangle (`WAL_D3D9_ASPECT: "4:3"`), 60 fps (`WAL_D3D9_MAX_FPS`: no vsync in a window) |
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | 1280x800, native dsound (nothing on screen with wine's dsound) |
 | `exception` | Exception | nesica | works fullscreen (user) | native dsound (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
 | `gouketsuji-ichizoku` | Gouketsuji Ichizoku: Matsuri Senzo Kuyou | nesica | works (user) | hide dgVoodoo D3D8/D3D9 |

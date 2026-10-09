@@ -17,13 +17,21 @@
 //!   games drawing a smaller picture in the corner of their back buffer (Yatagarasu: 854x480 of
 //!   1280x720), whose size no fullscreen mode has. `Present` source/destination rectangles are
 //!   dropped: whole back buffer to the whole window (Yatagarasu presents to 0,0 1280x720).
+//! * `WAL_D3D9_MAX_FPS=<n>`: `Present` waits so that frames come at most `n` per second. Games
+//!   timed by frames, made windowed: Elevator Action asks for vsync (interval one), which the
+//!   window does not get under Xwayland: ~400 frames per second, the game 6 times too fast.
+//! * `WAL_D3D9_ASPECT=<w>:<h>`: windowed devices present to the largest centered rectangle of
+//!   that aspect ratio in the window, black bars around. For games stretching a 4:3 picture over
+//!   a wide back buffer (Elevator Action: 1280x768), with `WAL_D3D9_WINDOWED_SIZE` and a
+//!   screen-sized window.
 //!
 //! * `WAL_D3D9_QUERY_FIX=1`: `IDirect3DQuery9::GetData` writes at most the requested size.
 //!   KOF '98 UMFE / 2002 UM poll an event query into a 1-byte variable at the top of their
 //!   stack frame; DXVK writes the whole 4-byte BOOL, overwriting the saved EBP (crash after the
 //!   first frame).
 //!
-//! * `WAL_D3D9_TRACE=1`: logs the device caps' TextureCaps, texture creations and viewports
+//! * `WAL_D3D9_TRACE=1`: logs the device caps' TextureCaps, texture creations, viewports and
+//!   presents per second
 //!   (finding how a game sizes its pictures).
 //! * `WAL_D3D9_POW2=1`: device caps report power-of-two textures only (conditional
 //!   non-power-of-two), as the GPUs of the time.
@@ -98,6 +106,12 @@ static QUERY_FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool:
 static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static WINDOWED_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static ASPECT: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+/// `WAL_D3D9_MAX_FPS`: minimum time between two presents.
+static FRAME_PERIOD: Mutex<Option<Duration>> = Mutex::new(None);
+/// The device's window (hDeviceWindow, else the focus window): `Present` with a null window
+/// draws to it.
+static DEVICE_WINDOW: AtomicUsize = AtomicUsize::new(0);
 
 struct State {
     interval: Duration,
@@ -145,6 +159,13 @@ pub fn init() {
     *FULLSCREEN_SIZE.lock().unwrap() = size;
     let windowed_size = parse_size("WAL_D3D9_WINDOWED_SIZE");
     *WINDOWED_SIZE.lock().unwrap() = windowed_size;
+    let aspect = std::env::var("WAL_D3D9_ASPECT").ok().and_then(|v| {
+        let (w, h) = v.split_once(':')?;
+        Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
+    });
+    *ASPECT.lock().unwrap() = aspect;
+    let max_fps = std::env::var("WAL_D3D9_MAX_FPS").ok().and_then(|v| v.trim().parse::<f64>().ok()).filter(|f| *f > 0.0);
+    *FRAME_PERIOD.lock().unwrap() = max_fps.map(|f| Duration::from_secs_f64(1.0 / f));
     let force = std::env::var("WAL_D3D9_FULLSCREEN").is_ok_and(|v| v == "1");
     FORCE_FULLSCREEN.store(force, Ordering::Relaxed);
     let secs = std::env::var("WAL_SCREENSHOT").ok().and_then(|v| v.parse::<f64>().ok());
@@ -158,7 +179,7 @@ pub fn init() {
     TRACE.store(trace, Ordering::Relaxed);
     let pow2 = std::env::var("WAL_D3D9_POW2").is_ok_and(|v| v == "1");
     POW2.store(pow2, Ordering::Relaxed);
-    if secs.is_none() && size.is_none() && windowed_size.is_none() && !force && !query_fix && !trace && !pow2 {
+    if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && max_fps.is_none() && !force && !query_fix && !trace && !pow2 {
         return;
     }
     // the game and the DLLs of its directory (engines creating the device themselves)
@@ -329,6 +350,7 @@ unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, wind
     let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, mode, out) };
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
         unsafe {
+            remember_window(params, window);
             wrap_device(*out);
             patch(*out, DEV_PRESENT_EX, present_ex as *const () as usize, &ORIG_PRESENT_EX);
             patch(*out, DEV_RESET_EX, reset_ex as *const () as usize, &ORIG_RESET_EX);
@@ -340,8 +362,12 @@ unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, wind
 }
 
 unsafe extern "system" fn present_ex(dev: P, src: P, dst: P, window: P, dirty: P, flags: u32) -> HRESULT {
+    pace_present();
+    count_present();
     unsafe { maybe_capture(dev) };
     let (src, dst) = whole_window(src, dst);
+    let mut rect = [0i32; 4];
+    let dst = unsafe { aspect_rect(dst, window, &mut rect) };
     let orig: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT_EX.load(Ordering::Relaxed)) };
     unsafe { orig(dev, src, dst, window, dirty, flags) }
 }
@@ -474,6 +500,7 @@ unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window:
     unsafe { override_size(params) };
     let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
+        unsafe { remember_window(params, window) };
         unsafe { log_device("d3d9", params, 8, window) };
         unsafe { wrap_device(*out) };
     } else {
@@ -503,11 +530,91 @@ unsafe fn maybe_capture(dev: P) {
     }
 }
 
+/// `WAL_D3D9_MAX_FPS`: waits until one frame period after the previous present (sleep, then
+/// spin for the last 2 ms: Sleep is coarse); late frames do not pile up.
+fn pace_present() {
+    static NEXT: Mutex<Option<Instant>> = Mutex::new(None);
+    let Some(period) = *FRAME_PERIOD.lock().unwrap() else { return };
+    let mut next = NEXT.lock().unwrap();
+    let now = Instant::now();
+    if let Some(deadline) = *next {
+        if deadline > now {
+            let wait = deadline - now;
+            if wait > Duration::from_millis(2) {
+                std::thread::sleep(wait - Duration::from_millis(2));
+            }
+            while Instant::now() < deadline {
+                std::hint::spin_loop();
+            }
+        }
+    }
+    let now = Instant::now();
+    *next = Some(match *next {
+        Some(deadline) if now < deadline + period => deadline + period,
+        _ => now + period,
+    });
+}
+
+/// `WAL_D3D9_TRACE`: presents per second, logged every 5 s.
+fn count_present() {
+    static STATS: Mutex<Option<(Instant, u32)>> = Mutex::new(None);
+    if !TRACE.load(Ordering::Relaxed) {
+        return;
+    }
+    let mut stats = STATS.lock().unwrap();
+    let (start, n) = stats.get_or_insert((Instant::now(), 0));
+    *n += 1;
+    let secs = start.elapsed().as_secs_f64();
+    if secs >= 5.0 {
+        log!("d3d9: {:.1} presents/s", *n as f64 / secs);
+        *stats = None;
+    }
+}
+
 unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
+    pace_present();
+    count_present();
     unsafe { maybe_capture(dev) };
     let (src, dst) = whole_window(src, dst);
+    let mut rect = [0i32; 4];
+    let dst = unsafe { aspect_rect(dst, window, &mut rect) };
     let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
     unsafe { orig(dev, src, dst, window, dirty) }
+}
+
+/// Device window of D3DPRESENT_PARAMETERS (hDeviceWindow, dword 7), else the focus window.
+unsafe fn remember_window(params: P, focus: P) {
+    let device_window = if params.is_null() { 0 } else { (unsafe { *(params as *const u32).add(7) }) as usize };
+    DEVICE_WINDOW.store(if device_window != 0 { device_window } else { focus as usize }, Ordering::Relaxed);
+}
+
+/// `WAL_D3D9_ASPECT`: destination `rect` centered in the presentation window's client area
+/// (logged the first time), when the game gives none.
+unsafe fn aspect_rect(dst: P, window: P, rect: &mut [i32; 4]) -> P {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
+    static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    let Some((aw, ah)) = *ASPECT.lock().unwrap() else { return dst };
+    if !dst.is_null() || aw == 0 || ah == 0 {
+        return dst;
+    }
+    let hwnd = if window.is_null() { DEVICE_WINDOW.load(Ordering::Relaxed) as P } else { window };
+    let mut client = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    if hwnd.is_null() || unsafe { GetClientRect(hwnd, &mut client) } == 0 {
+        return dst;
+    }
+    let (cw, ch) = (client.right - client.left, client.bottom - client.top);
+    if cw <= 0 || ch <= 0 {
+        return dst;
+    }
+    let (aw, ah) = (aw as i64, ah as i64);
+    let (w, h) = if cw as i64 * ah > ch as i64 * aw { ((ch as i64 * aw / ah) as i32, ch) } else { (cw, (cw as i64 * ah / aw) as i32) };
+    let (x, y) = ((cw - w) / 2, (ch - h) / 2);
+    *rect = [x, y, x + w, y + h];
+    if !LOGGED.swap(true, Ordering::Relaxed) {
+        log!("d3d9: Present to {w}x{h} at {x},{y} of the {cw}x{ch} window ({aw}:{ah})");
+    }
+    rect.as_mut_ptr().cast()
 }
 
 /// `Present` rectangles, dropped with `WAL_D3D9_WINDOWED_SIZE` (logged the first time).
