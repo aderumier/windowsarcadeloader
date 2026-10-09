@@ -395,7 +395,9 @@ profile), `show` (merged profile).
   `module+offset`, registers, EBP frame chain, stack scan, and for write overruns the text
   being written (found Cosplay Mahjong's overflow of a D3DX error message).
 * `screenshot` (d3d9 and d3d8 shims): `WAL_SCREENSHOT=<s>` writes the back buffer every s seconds
-  (`shot-NNNN.bmp` in the run dir, for automated tests); `WAL_D3D9_FULLSCREEN_SIZE=WxH`
+  (`shot-NNNN.bmp` in the run dir, for automated tests; 32-bit and 16-bit back buffers);
+  `WAL_MEMDUMP=<rva>-<rva>` also writes that range of the executable's memory with each shot
+  (`mem-NNNN.bin`: finding the variables behind what a frame shows); `WAL_D3D9_FULLSCREEN_SIZE=WxH`
   creates/resets fullscreen devices with that size (Type X games ask 1280x768, which Wine does
   not emulate: 1280x800 + Wine's fullscreen scaling; many NESiCA Taito/Type X2 ports do the
   same). Logs the parameters of failing CreateDevice calls. Direct3D 8 games
@@ -665,6 +667,22 @@ Medal games (New Super Mario Bros. Wii Coin World, Capcom on Type X2 hardware, 4
     (`native_map` names: up down left right bet start payout medal test select cancel key
     door). The game takes the medals as bets by itself (3 per play).
 
+Driving games (Valve Limit R):
+* Pedals on JVS analog channels: `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...` gives player 1's
+  virtual axis read on each channel (`-axis` inverted, empty: the fixed `WAL_TYPEX_JVS_ANALOG`
+  value), left-justified 16 bits. The features then report 8 analog channels of 10 bits: the
+  game's JVS library polls `22 n` only for the channels the board declares (`n` = the count).
+* Steering board (`wheel.rs`, `WAL_TYPEX_WHEEL_PORT=COM1`): the wheel's motor driver, which
+  also reports the wheel position. 2-byte commands at 38400 baud, a 2-byte reply to each:
+  `20` reset -> `A0 00`; `1F` motor stop -> `1F 00` (bit 7 clear: already calibrated, the game
+  skips its wheel calibration); `11` starts the position reports, then every command (motor
+  forces) is answered `0x400 | pos` big endian (10 bits, 0 = full right); before that
+  `8C A0`. Wheel = player 1's `lx` (`WAL_TYPEX_WHEEL_AXIS`). Forces are not forwarded yet.
+* Valve Limit R is a 4-cabinet link game: a race takes the cabinets of our link group, and
+  without a network the lookup failed alike for every NETWORK-ID, so the three absent cabinets
+  joined ("WAIT! CHALLENGER(S) STILL SELECTING" for minutes). Its profile patches the group
+  lookup to return the NETWORK-ID itself (standalone cabinet).
+
 `WAL_TYPEX_GUN_PLAYERS=2,1` chooses the virtual player of each gun (calibrating gun 2 with a
 single mouse).
 
@@ -912,6 +930,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `new-super-mario-bros-wii-coin-world` | New Super Mario Bros. Wii Coin World | typex | works (user: 100%), 4 satellites, medals, hoppers, satellite test menu | wal-loader, backup SRAM (`TxedLap.dll` answered), JVS watchdog, medal I/O board on COM1 (`WAL_TYPEX_MEDAL_PORT`); XAudio2 2.7 32-bit registration (shared prefix; crashed after the device creation without it) |
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
+| `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | wal-loader, JVS (gas/brake on analog channels 1/2), steering board on COM1 (`WAL_TYPEX_WHEEL_PORT`), standalone link patch, `WAL_DINPUT_DISABLE`; `.windowsloader`: `launcher.exe` |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

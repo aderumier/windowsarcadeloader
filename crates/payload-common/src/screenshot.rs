@@ -5,6 +5,8 @@
 //! * `WAL_SCREENSHOT=<seconds>`: periodic screenshots for automated tests: every `<seconds>`
 //!   the back buffer is written as `shot-NNNN.bmp` in the working directory
 //!   (`WAL_SCREENSHOT_DIR` overrides it).
+//!   `WAL_MEMDUMP=<rva>-<rva>`: each shot also writes that range of the game executable's
+//!   memory as `mem-NNNN.bin` (finding the variables behind what a frame shows).
 //! * `WAL_D3D9_FULLSCREEN_SIZE=<w>x<h>`: fullscreen devices are created (and reset) with this
 //!   back buffer size. For games asking a display mode Wine cannot emulate (Type X2 1280x768);
 //!   Wine's fullscreen scaling then fits it to the monitor.
@@ -65,6 +67,14 @@ const D3DPTEXTURECAPS_NONPOW2CONDITIONAL: u32 = 0x100;
 const D3DPOOL_SYSTEMMEM: u32 = 2;
 const D3DFMT_A8R8G8B8: u32 = 21;
 const D3DFMT_X8R8G8B8: u32 = 22;
+const D3DFMT_R5G6B5: u32 = 23;
+const D3DFMT_X1R5G5B5: u32 = 24;
+const D3DFMT_A1R5G5B5: u32 = 25;
+
+/// Back buffer formats the capture converts.
+fn supported(format: u32) -> bool {
+    matches!(format, D3DFMT_X8R8G8B8 | D3DFMT_A8R8G8B8 | D3DFMT_R5G6B5 | D3DFMT_X1R5G5B5 | D3DFMT_A1R5G5B5)
+}
 const D3DLOCK_READONLY: u32 = 0x10;
 
 static ORIG_CREATE9: AtomicUsize = AtomicUsize::new(0);
@@ -538,7 +548,7 @@ unsafe fn capture(dev: P, path: &str) -> Result<(), String> {
         let get_desc: unsafe extern "system" fn(P, *mut SurfaceDesc) -> HRESULT = std::mem::transmute(method(back, SURF_GET_DESC));
         let mut desc = SurfaceDesc::default();
         get_desc(back, &mut desc);
-        if desc.format != D3DFMT_X8R8G8B8 && desc.format != D3DFMT_A8R8G8B8 {
+        if !supported(desc.format) {
             release(back);
             return Err(format!("unsupported back buffer format {}", desc.format));
         }
@@ -567,7 +577,7 @@ unsafe fn capture(dev: P, path: &str) -> Result<(), String> {
             release(sys);
             return Err("LockRect failed".into());
         }
-        let pixels = read_pixels(locked.bits, locked.pitch, desc.width, desc.height);
+        let pixels = read_pixels(locked.bits, locked.pitch, desc.width, desc.height, desc.format);
         let unlock: unsafe extern "system" fn(P) -> HRESULT = std::mem::transmute(method(sys, SURF_UNLOCK_RECT));
         unlock(sys);
         release(sys);
@@ -575,13 +585,26 @@ unsafe fn capture(dev: P, path: &str) -> Result<(), String> {
     }
 }
 
-/// Copies a locked 32-bit surface.
-unsafe fn read_pixels(bits: *const u8, pitch: i32, w: u32, h: u32) -> Vec<u8> {
+/// Copies a locked surface as BGRX (16-bit formats expanded).
+unsafe fn read_pixels(bits: *const u8, pitch: i32, w: u32, h: u32, format: u32) -> Vec<u8> {
     let (w, h) = (w as usize, h as usize);
+    let bpp = if format == D3DFMT_X8R8G8B8 || format == D3DFMT_A8R8G8B8 { 4 } else { 2 };
     let mut pixels = Vec::with_capacity(w * h * 4);
     for y in 0..h {
-        let row = unsafe { std::slice::from_raw_parts(bits.offset(y as isize * pitch as isize), w * 4) };
-        pixels.extend_from_slice(row);
+        let row = unsafe { std::slice::from_raw_parts(bits.offset(y as isize * pitch as isize), w * bpp) };
+        if bpp == 4 {
+            pixels.extend_from_slice(row);
+            continue;
+        }
+        for px in row.chunks_exact(2) {
+            let v = u16::from_le_bytes([px[0], px[1]]) as u32;
+            let (r, g, b) = if format == D3DFMT_R5G6B5 {
+                ((v >> 11) * 255 / 31, (v >> 5 & 63) * 255 / 63, (v & 31) * 255 / 31)
+            } else {
+                ((v >> 10 & 31) * 255 / 31, (v >> 5 & 31) * 255 / 31, (v & 31) * 255 / 31)
+            };
+            pixels.extend_from_slice(&[b as u8, g as u8, r as u8, 0]);
+        }
     }
     pixels
 }
@@ -589,7 +612,39 @@ unsafe fn read_pixels(bits: *const u8, pitch: i32, w: u32, h: u32) -> Vec<u8> {
 fn save(path: &str, w: u32, h: u32, pixels: &[u8]) -> Result<(), String> {
     write_bmp(path, w, h, pixels).map_err(|e| e.to_string())?;
     log!("screenshot: {path} ({w}x{h})");
+    memdump(&path.replace("shot-", "mem-").replace(".bmp", ".bin"));
     Ok(())
+}
+
+/// `WAL_MEMDUMP=<rva>-<rva>`: the game executable's memory in that range (unreadable pages
+/// as zeros), written next to the screenshot.
+fn memdump(path: &str) {
+    use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEMORY_BASIC_INFORMATION, VirtualQuery};
+    let Ok(range) = std::env::var("WAL_MEMDUMP") else { return };
+    let hex = |v: &str| usize::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok();
+    let Some((Some(start), Some(end))) = range.split_once('-').map(|(a, b)| (hex(a), hex(b))) else {
+        log!("memdump: bad range {range:?}");
+        return;
+    };
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    let mut out = vec![0u8; end.saturating_sub(start)];
+    let mut off = 0;
+    while off < out.len() {
+        let addr = base + start + off;
+        let mut info: MEMORY_BASIC_INFORMATION = unsafe { std::mem::zeroed() };
+        if unsafe { VirtualQuery(addr as *const c_void, &mut info, size_of::<MEMORY_BASIC_INFORMATION>()) } == 0 {
+            break;
+        }
+        let n = (info.BaseAddress as usize + info.RegionSize - addr).min(out.len() - off);
+        if info.State == MEM_COMMIT {
+            let src = unsafe { std::slice::from_raw_parts(addr as *const u8, n) };
+            out[off..off + n].copy_from_slice(src);
+        }
+        off += n;
+    }
+    if let Err(e) = std::fs::write(path, &out) {
+        log!("memdump: {path}: {e}");
+    }
 }
 
 /// 32-bit top-down BMP (BGRX rows, as in X8R8G8B8 surfaces).
@@ -715,7 +770,7 @@ mod d3d8 {
             let get_desc: unsafe extern "system" fn(P, *mut SurfaceDesc) -> HRESULT = std::mem::transmute(method(back, SURF_GET_DESC));
             let mut desc = SurfaceDesc::default();
             get_desc(back, &mut desc);
-            if desc.format != D3DFMT_X8R8G8B8 && desc.format != D3DFMT_A8R8G8B8 {
+            if !supported(desc.format) {
                 release(back);
                 return Err(format!("unsupported back buffer format {}", desc.format));
             }
@@ -744,7 +799,7 @@ mod d3d8 {
                 release(sys);
                 return Err("LockRect failed".into());
             }
-            let pixels = read_pixels(locked.bits, locked.pitch, desc.width, desc.height);
+            let pixels = read_pixels(locked.bits, locked.pitch, desc.width, desc.height, desc.format);
             let unlock: unsafe extern "system" fn(P) -> HRESULT = std::mem::transmute(method(sys, SURF_UNLOCK_RECT));
             unlock(sys);
             release(sys);

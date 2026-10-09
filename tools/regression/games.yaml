@@ -72,6 +72,7 @@
 # "typex/Taisen Hot Gimmick 5 - Mirai Eigou/taisen-hot-gimmick-5.windowsloader": {}  # no status
 "typex/Tetris The Grand Master 3 - Terror-Instinct/tetris-the-grand-master-3.windowsloader": {}
 "typex/The King of Fighters '98 - Ultimate Match/kof-98-um-typex.windowsloader": {}
+"typex/Valve Limit R/valve-limit-r.windowsloader": {}
 "typex2/Battle Fantasia Offline Edition/battle-fantasia.windowsloader": {}
 "typex2/BlazBlue Calamity Trigger/blazblue-calamity-trigger.windowsloader": {}
 # "typex2/Chase H.Q. 2/chase-hq-2.windowsloader": {}  # BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing)
