@@ -217,8 +217,11 @@ those profiles add `tricks: [d3dcompiler_47]`.
     exits with status 5).
   * `WINEDLLOVERRIDES` is accumulated by `override_dll()` and joined at the end.
 * Prefix (`prepare_prefix`): created with `wineboot -u` (mono/gecko disabled) when
-  `system.reg` is missing; updated when the mtime of the runner's `share/wine/wine.inf` differs
-  from `<prefix>/.wal-update-timestamp` (symlinks in system32/syswow64 are removed first).
+  `system.reg` is missing; updated when the newest mtime of the runner's `share/wine/wine.inf`
+  and builtin PE DLLs (`lib/wine/{i386,x86_64}-windows`) differs from
+  `<prefix>/.wal-update-timestamp` (symlinks in system32/syswow64 are removed first). Wine
+  loads the prefix's copies of the builtin DLLs: a replaced runner DLL (hotfix, rebuild) only
+  reaches the games through that update, which copies it in.
   GE-Proton's vkd3d and icu DLLs are always symlinked into system32 (x86_64) / syswow64 (i386).
 * Graphics: `setup_d3d` links DXVK (or wine builtin) d3d8/9/10core/11/dxgi into the prefix and
   sets the override to `n` (or `b`). `setup_ddraw`: `wine` = builtin ddraw; `d7vk` = runner d7vk

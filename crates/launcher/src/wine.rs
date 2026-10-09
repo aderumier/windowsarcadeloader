@@ -225,18 +225,29 @@ impl Wine {
 
     /// Creates the prefix (unpacked from `<prefix>.tar.gz` when present), or updates it when the
     /// runner changed.
+    /// When the runner last changed: the newest of its `wine.inf` and builtin PE DLLs. The prefix
+    /// holds copies of those DLLs, which Wine loads: a hotfixed runner DLL (tools/runner-hotfixes,
+    /// rebuilt video DLLs) only reaches the game once the prefix is updated.
+    fn runner_stamp(&self) -> String {
+        let mtime = |p: &Path| fs::metadata(p).and_then(|m| m.modified()).ok();
+        let mut newest = mtime(&self.runner.join("share/wine/wine.inf"));
+        for arch in ["i386-windows", "x86_64-windows"] {
+            for entry in fs::read_dir(self.runner.join("lib/wine").join(arch)).into_iter().flatten().flatten() {
+                newest = newest.max(mtime(&entry.path()));
+            }
+        }
+        newest
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs().to_string())
+            .unwrap_or_default()
+    }
+
     pub fn prepare_prefix(&self) -> Result<()> {
         if self.dry_run {
             return Ok(());
         }
         self.unpack_prefix()?;
-        let inf = self.runner.join("share/wine/wine.inf");
-        let inf_stamp = fs::metadata(&inf)
-            .and_then(|m| m.modified())
-            .ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|d| d.as_secs().to_string())
-            .unwrap_or_default();
+        let inf_stamp = self.runner_stamp();
         let stamp_file = self.prefix.join(".wal-update-timestamp");
 
         if !self.prefix.join("system.reg").exists() {
