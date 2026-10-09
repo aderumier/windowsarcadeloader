@@ -1,0 +1,14 @@
+# New Super Mario Bros. Wii Coin World (Capcom, Taito Type X2 medal game) - template, override
+# values in userprofiles/typex/new-super-mario-bros-wii-coin-world.yaml.
+system: typex
+name: New Super Mario Bros. Wii Coin World
+
+# Direct3D 9 (MT Framework), 4 satellites (stations), one per player.
+# Backup SRAM: TxedLap.dll is answered by the payload (WindowsLoader/txe001-sram.bin).
+# JVS on COM2 is only a watchdog. XAudio2 2.7 comes from the shared prefix (xact).
+
+env:
+  # Medal I/O board: switches, medal selectors, hoppers, lamps of the 4 satellites.
+  # Player N: coin = a medal, b1 BET, start START, b2 payout, test (F2) satellite menu
+  # (joystick to select, BET/START to enter), service (F1) cancel/error reset.
+  WAL_TYPEX_MEDAL_PORT: COM1
