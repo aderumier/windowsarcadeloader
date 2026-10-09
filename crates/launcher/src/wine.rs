@@ -27,8 +27,9 @@ pub struct Wine {
 
 const D3D_DLLS: [&str; 5] = ["d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"];
 
-/// Verbs whose native DLLs break other games: native only for the games listing them.
-const ISOLATED_TRICKS: [&str; 1] = ["dsound"];
+/// Verbs whose native DLLs break other games: native only for the games listing them
+/// (native DirectPlay: kept away from the games that never needed it).
+const ISOLATED_TRICKS: [&str; 2] = ["dsound", "directplay"];
 
 /// DLLs a winetricks verb sets to native (its `w_override_dlls`).
 fn trick_dlls(verb: &str) -> Vec<String> {
@@ -42,6 +43,9 @@ fn trick_dlls(verb: &str) -> Vec<String> {
             dlls.extend((0..8).map(|i| format!("xactengine3_{i}")));
             dlls
         }
+        "directplay" => ["dplaysvr.exe", "dplayx", "dpmodemx", "dpnet", "dpnhpast", "dpnhupnp", "dpnsvr.exe", "dpwsockx"]
+            .map(String::from)
+            .to_vec(),
         // registrations, sound bank, fonts: no DLL override
         "dsdmo" | "gmdls" | "fakejapanese" => vec![],
         _ => vec![verb.into()],

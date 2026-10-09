@@ -75,7 +75,7 @@
 "typex/Valve Limit R/valve-limit-r.windowsloader": {}
 "typex2/Battle Fantasia Offline Edition/battle-fantasia.windowsloader": {}
 "typex2/BlazBlue Calamity Trigger/blazblue-calamity-trigger.windowsloader": {}
-# "typex2/Chase H.Q. 2/chase-hq-2.windowsloader": {}  # BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing)
+"typex2/Chase H.Q. 2/chase-hq-2.windowsloader": {}
 "typex2/Dariusburst - Another Chronicle EX/dariusburst-another-chronicle-ex.windowsloader": {}
 "typex2/Gaia Attack 4/gaia-attack-4.windowsloader": {}
 "typex2/Gouketsuji Ichizoku - Matsuri Senzo Kuyou/gouketsuji-ichizoku-typex2.windowsloader": {}

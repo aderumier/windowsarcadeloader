@@ -4,7 +4,7 @@
 //! the first add their own report byte.
 //!
 //! Switch byte 1: start 0x80, service 0x40, up 0x20, down 0x10, left 0x08, right 0x04,
-//! button 1 0x02, button 2 0x01. Switch byte 2: buttons 3-6 0x80/0x40/0x20/0x10.
+//! button 1 0x02, button 2 0x01. Switch byte 2: buttons 3-8 0x80/0x40/0x20/0x10/0x08/0x04.
 //! System byte: test 0x80. Coins count up when the coin input is released.
 //!
 //! Analog channels: `WAL_TYPEX_JVS_ANALOG` (fixed values, e.g. a volume knob) and
@@ -52,6 +52,8 @@ const NATIVES: &[(&str, Native)] = &[
     ("btn4", Native::Btn(4)),
     ("btn5", Native::Btn(5)),
     ("btn6", Native::Btn(6)),
+    ("btn7", Native::Btn(7)),
+    ("btn8", Native::Btn(8)),
 ];
 
 /// Virtual stick -> JVS; games override with `WAL_MAP` (profile `native_map`).

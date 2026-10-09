@@ -135,9 +135,15 @@ fn absent() -> P {
     usize::MAX as P
 }
 
+/// Number of packets traced: `WAL_SERIAL_TRACE=<n>` (default 40).
+fn trace_limit() -> usize {
+    static LIMIT: OnceLock<usize> = OnceLock::new();
+    *LIMIT.get_or_init(|| std::env::var("WAL_SERIAL_TRACE").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(40))
+}
+
 /// Logs the first packets exchanged with the game.
 fn trace(request: &[u8], reply: &[u8]) {
-    if TRACE_COUNT.fetch_add(1, Ordering::Relaxed) < 40 {
+    if TRACE_COUNT.fetch_add(1, Ordering::Relaxed) < trace_limit() {
         let hex = |d: &[u8]| d.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
         log!("serial: <- {}  -> {}", hex(request), hex(reply));
     }

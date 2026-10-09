@@ -253,7 +253,8 @@ The verbs' native DLLs (DirectMusic, xact, d3dx9, d3dcompiler...) serve every ga
 old common prefix did: many games rely on one they do not list (Chaos Code's d3dx9_37). Native
 dsound is the exception, native only for the games listing it (wine's builtin for the others,
 in their WINEDLLOVERRIDES): it crashes the CRI audio games (Gaia Attack 4, Haunted Museum,
-Street Fighter IV...). `dll_overrides` (`<dll>: n | b | ...`) has the last word. The overrides
+Street Fighter IV...). Native DirectPlay (`directplay`, Chase H.Q. 2) is kept the same way,
+for the games listing it only. `dll_overrides` (`<dll>: n | b | ...`) has the last word. The overrides
 are written `*<dll>`: wine looks up `*dsound` before `dsound`, in the environment then the
 registry, and winetricks writes `*dsound` keys, which a plain `dsound=b` would not beat. A
 game that cannot share the prefix sets its own `prefix` (and `prefix_tricks`).
@@ -382,7 +383,8 @@ profile), `show` (merged profile).
   a fake handle and reply queue per device, one device per port: each `install` adds one);
   used by the NESiCA card reader, the Type X JVS board and the medal board. Overlapped calls
   complete at once (`OVERLAPPED` result set, event signaled), `ClearCommError` reports the
-  queued reply bytes. Logs the first 40 packets and any other COM port the game opens.
+  queued reply bytes. Logs the first 40 packets (`WAL_SERIAL_TRACE=<n>`: the first n) and any other COM port the
+  game opens.
 * `drive`: `D:\` redirection (moved from NESiCA), folder variable chosen by the system
   (`WAL_NESICA_DDRIVE`, `WAL_TYPEX_DDRIVE`). The kernel32 file imports of the C runtimes
   loaded with the game (`msvcrt`, `msvcr70`-`msvcr120`, `ucrtbase`) are hooked too: games
@@ -576,9 +578,9 @@ A bus reset (`F0`) makes the board unaddressed again (sense line, `GetCommModemS
 resets the bus once more after its first polls and only assigns the address when the sense line
 says so (JVS_BOARD_NONE, error 0300, otherwise).
 Switches: start 0x80, service 0x40, up/down/left/right 0x20/0x10/0x08/0x04, btn1 0x02, btn2 0x01,
-second byte btn3-6 0x80..0x10, system byte test 0x80; coins counted on release, `30`/`31`
+second byte btn3-8 0x80..0x04, system byte test 0x80; coins counted on release, `30`/`31`
 decrease/increase. Native names for `native_map`: `start service test coin up down left right
-btn1..btn6`.
+btn1..btn8`.
 Other `20` layouts (Gaia Attack 4 asks `20 01 03`: 1 player x 3 bytes) get the requested size,
 as a generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
 the commands after it are answered (otherwise I/O ERROR).
@@ -667,7 +669,7 @@ Medal games (New Super Mario Bros. Wii Coin World, Capcom on Type X2 hardware, 4
     (`native_map` names: up down left right bet start payout medal test select cancel key
     door). The game takes the medals as bets by itself (3 per play).
 
-Driving games (Valve Limit R):
+Driving games (Valve Limit R, Chase H.Q. 2):
 * Pedals on JVS analog channels: `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...` gives player 1's
   virtual axis read on each channel (`-axis` inverted, empty: the fixed `WAL_TYPEX_JVS_ANALOG`
   value), left-justified 16 bits. The features then report 8 analog channels of 10 bits: the
@@ -914,7 +916,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
-| `chase-hq-2` | Chase H.Q. 2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | see docs/CHASE-HQ-2-BOOT-DEBUG.md: Wine sees a 5434188x5434103 X desktop (Xwayland), game sizes its window from it; analog JVS also unemulated (not drivable anyway) |
+| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: wheel/pedal calibration, switches, Nancy videos) | wal-loader, JVS (wheel, gas, brake on analog channels 2-4; START on btn7, PATO-NITRO btn8, SHIFT up, SHIFT-NITRO down), native DirectPlay 8 (`tricks: [directplay]`: wine's IDirectPlay8Peer::Host is a stub, NETWORK CHECKING forever), its own 800x600 mode (no `WAL_D3D9_FULLSCREEN_SIZE`: it drew an 800x600 viewport in the corner), WMV9 codec (`WAL_VFW_CODECS`), known patch skipping the pedal calibration |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, native DirectMusic prefix (exits at start with wine's), `reshade_files` dgVoodoo D3D8 + ReShade dxgi, `tricks: [d3dcompiler_47]`, dgVoodoo.conf with Direct3D 11 output (`files`: the dump asks D3D12, NULL device crash) |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | wal-loader, JVS, native DirectMusic prefix, its window mode (`args: [-window]`) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`): Wine drew its fullscreen 640x480 unscaled in the top-left corner |
 | `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | wal-loader, JVS, guns in the gun board record (4 x 10 bytes, `COM1,!COM3`; no patch of its per-frame gun update, which copies it), volume knob on analog 0 (its volume write not patched out), `WAL_PIN_CWD`, WMV9 + Indeo 5 codecs (`WAL_VFW_CODECS`; ir50_32.dll copied into the dump), `dxvk: false` (first attract video crashed), popup 1280x720 window |
