@@ -21,7 +21,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 <!-- GAMELIST BEGIN (tools/gamelist.py) -->
 | Game id | Game | System | Status | Regression test | Run |
 |---|---|---|---|---|---|
-| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not tested | not in the test |  |
+| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | not in the test |  |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | pass | 2026-10-07 |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-10-08 |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | pass | 2026-10-07 |
