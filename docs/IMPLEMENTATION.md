@@ -870,7 +870,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 
 | Game id | Game | System | Result | Needed |
 |---|---|---|---|---|
-| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not tested | - |
+| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | hide dinput8 (loader hack) |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | - |

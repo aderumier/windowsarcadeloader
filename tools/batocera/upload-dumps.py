@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Moves the working game dumps to the Batocera machine as .squashfs images.
 
-A working dump is a directory games/<system>/<dump>/ holding its <gameid>.windowsloader.
+A working dump is a directory games/<system>/<dump>/ holding its <gameid>.windowsloader, whose
+game's status in docs/IMPLEMENTATION.md (games table) is not BLOCKED, not tested or not playable
+(the .windowsloader only says which executable to start).
 Smallest dump first (each one moved frees room for the next), one at a time:
   1. mksquashfs <dump> -comp zstd -> games/<system>/<dump>.squashfs (dump contents at the root:
      Batocera's generator mounts the image and looks for the .windowsloader there);
@@ -11,7 +13,8 @@ Smallest dump first (each one moved frees room for the next), one at a time:
   3. only then the local image and the dump directory are deleted.
 Any error stops the run, before deleting anything of that dump (its local image is removed).
 
-Skipped: systems without a Batocera ES system (games/misc...), images already on the machine
+Skipped: games not working (status above) or missing from the games table, systems without a
+Batocera ES system (games/misc...), images already on the machine
 (--overwrite replaces them), dumps with absolute symlinks (broken inside an image).
 
 Usage: tools/batocera/upload-dumps.py [--dry-run] [--only TEXT]... [--skip TEXT]... [--keep] [--overwrite]
@@ -21,6 +24,7 @@ Usage: tools/batocera/upload-dumps.py [--dry-run] [--only TEXT]... [--skip TEXT]
 import argparse
 import hashlib
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -32,8 +36,20 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 GAMES = ROOT / "games"
 # local games/<dir> -> Batocera ES system (/userdata/roms/<system>)
 SYSTEMS = {s: s for s in ["typex", "typex2", "nesicax", "nesicax2", "globalvr", "namcoes3", "rawthrills"]}
+DOC = ROOT / "docs/IMPLEMENTATION.md"
+# statuses of games that do not work
+NOT_WORKING = ("blocked", "not tested", "not playable")
 # free space kept besides the image, on the local disk and in the machine's rom directory
 MARGIN = 1 << 30
+
+
+def statuses() -> dict[str, str]:
+    """Game id -> status of the games table of docs/IMPLEMENTATION.md."""
+    out = {}
+    for line in DOC.read_text().splitlines():
+        if m := re.match(r"\| `([^`]+)` \| [^|]* \| [^|]* \| ([^|]*) \|", line):
+            out[m.group(1)] = m.group(2).strip()
+    return out
 
 
 def dumps() -> list[tuple[int, Path]]:
@@ -103,12 +119,21 @@ def main() -> int:
     p.add_argument("--password", default=os.environ.get("WAL_BATOCERA_PASSWORD", "linux"))
     args = p.parse_args()
 
+    status = statuses()
     todo = []
     for size, dump in dumps():
         rel = dump.relative_to(GAMES)
         if args.only and not any(t in str(rel) for t in args.only):
             continue
         if any(t in str(rel) for t in args.skip):
+            continue
+        gameid = next(dump.glob("*.windowsloader")).stem
+        game_status = status.get(gameid)
+        if game_status is None:
+            print(f"skip {rel}: {gameid} not in the games table of docs/IMPLEMENTATION.md")
+            continue
+        if game_status.lower().startswith(NOT_WORKING):
+            print(f"skip {rel}: {game_status}")
             continue
         system = SYSTEMS.get(dump.parent.name)
         if system is None:
