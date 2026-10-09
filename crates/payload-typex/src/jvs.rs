@@ -6,6 +6,9 @@
 //! Switch byte 1: start 0x80, service 0x40, up 0x20, down 0x10, left 0x08, right 0x04,
 //! button 1 0x02, button 2 0x01. Switch byte 2: buttons 3-6 0x80/0x40/0x20/0x10.
 //! System byte: test 0x80. Coins count up when the coin input is released.
+//!
+//! Analog channels: `WAL_TYPEX_JVS_ANALOG` (fixed values, e.g. a volume knob) and
+//! `WAL_TYPEX_JVS_ANALOG_INPUTS` (player 1's axes, e.g. the pedals of driving games).
 
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
@@ -13,7 +16,7 @@ use std::sync::atomic::Ordering;
 use wal_payload_common::jvs::{Encoder, parse};
 use wal_payload_common::mapping::ButtonMap;
 use wal_payload_common::{log, serial};
-use wal_protocol::StickState;
+use wal_protocol::{Axis, StickState};
 
 const IDENTIFIER: &[u8] = b"SEGA CORPORATION;I/O BD JVS;837-14572;Ver1.00;2005/10\0";
 const COMMAND_REVISION: u8 = 0x13;
@@ -83,6 +86,13 @@ struct Board {
     /// start 0x10, cannon 0x08 (button 2); second byte SELECT 0x08 (button 4), ENTER 0x04
     /// (button 3). The standard start bit 0x80 is not read.
     block_king: bool,
+    /// `WAL_TYPEX_JVS_ANALOG=v0,v1,...` (hex): fixed analog channel values (default 0).
+    analog_fixed: Vec<u16>,
+    /// `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...`: player 1's virtual axis read on each
+    /// channel (`-axis` inverted; empty: the fixed value). When set, the features report 8
+    /// analog channels: games poll `22` only for the channels the board declares (Valve
+    /// Limit R: gas on channel 1, brake on channel 2).
+    analog_inputs: Vec<Option<(Axis, bool)>>,
 }
 
 static BOARD: Mutex<Option<Board>> = Mutex::new(None);
@@ -90,11 +100,49 @@ static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 pub(crate) fn init() {
     let layout = std::env::var("WAL_TYPEX_JVS_LAYOUT").unwrap_or_default();
     let (haunted_museum, block_king) = (layout.trim() == "haunted-museum", layout.trim() == "block-king");
-    *BOARD.lock().unwrap() =
-        Some(Board { map: ButtonMap::new(NATIVES, DEFAULT_MAP), coins: [0; 2], coin_held: [false; 2], haunted_museum, block_king });
+    let analog_fixed = std::env::var("WAL_TYPEX_JVS_ANALOG")
+        .map(|v| v.split(',').map(|c| u16::from_str_radix(c.trim().trim_start_matches("0x"), 16).unwrap_or(0)).collect())
+        .unwrap_or_default();
+    let analog_inputs: Vec<_> = std::env::var("WAL_TYPEX_JVS_ANALOG_INPUTS")
+        .map(|v| v.split(',').map(analog_input).collect())
+        .unwrap_or_default();
+    if !analog_inputs.is_empty() {
+        log!("jvs: analog inputs {analog_inputs:?}");
+    }
+    *BOARD.lock().unwrap() = Some(Board {
+        map: ButtonMap::new(NATIVES, DEFAULT_MAP),
+        coins: [0; 2],
+        coin_held: [false; 2],
+        haunted_museum,
+        block_king,
+        analog_fixed,
+        analog_inputs,
+    });
     let port = std::env::var("WAL_TYPEX_JVS_PORT").unwrap_or_else(|_| "COM2".into());
     serial::install(&port, process);
     log!("jvs: I/O board on {port}");
+}
+
+/// One `WAL_TYPEX_JVS_ANALOG_INPUTS` entry: `accel`, `-lx` (inverted), empty for none.
+fn analog_input(entry: &str) -> Option<(Axis, bool)> {
+    let entry = entry.trim();
+    let (name, inverted) = entry.strip_prefix('-').map_or((entry, false), |n| (n, true));
+    let axis = Axis::from_name(name);
+    if axis.is_none() && !name.is_empty() {
+        log!("jvs: unknown analog input {entry:?}");
+    }
+    axis.map(|a| (a, inverted))
+}
+
+/// Analog channel value, left-justified 16 bits (10 significant bits, as the features say).
+fn analog(board: &Board, stick: &StickState, channel: usize) -> u16 {
+    match board.analog_inputs.get(channel).copied().flatten() {
+        Some((axis, inverted)) => {
+            let v = stick.axis_u16(axis);
+            (if inverted { !v } else { v }) & 0xFFC0
+        }
+        None => board.analog_fixed.get(channel).copied().unwrap_or(0),
+    }
 }
 
 /// (switch byte 1, switch byte 2, test, coin) of a player.
@@ -164,7 +212,11 @@ fn process(packet: &[u8]) -> Vec<u8> {
             0x11 => (1, vec![COMMAND_REVISION]),
             0x12 => (1, vec![JVS_VERSION]),
             0x13 => (1, vec![COMM_VERSION]),
-            // features, Taito stick: 2 players x 16 switches, 2 coin slots
+            // features, Taito stick: 2 players x 16 switches, 2 coin slots (+ 8 analog
+            // channels of 10 bits for the games reading axes)
+            0x14 if !board.analog_inputs.is_empty() => {
+                (1, vec![0x01, 0x02, 0x10, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x08, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00])
+            }
             0x14 => (1, vec![0x01, 0x02, 0x10, 0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
             0x15 => (cmds[i..].iter().position(|b| *b == 0).map_or(cmds.len() - i, |p| p + 1), vec![0x01, 0x01, 0x05]),
             0x20 if (arg(1), arg(2)) == (2, 2) || arg(1) == 0 => {
@@ -238,12 +290,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 (2, v)
             }
             0x22 => {
-                // analog channels: WAL_TYPEX_JVS_ANALOG, hex values by channel (default 0); the
-                // Haunted Museum games read their volume knob on channel 0 (0: silent)
-                let values: Vec<u16> = std::env::var("WAL_TYPEX_JVS_ANALOG")
-                    .map(|v| v.split(',').map(|c| u16::from_str_radix(c.trim().trim_start_matches("0x"), 16).unwrap_or(0)).collect())
-                    .unwrap_or_default();
-                (2, (0..arg(1).max(1) as usize).flat_map(|c| values.get(c).copied().unwrap_or(0).to_be_bytes()).collect())
+                // analog channels: fixed values (the Haunted Museum games read their volume
+                // knob on channel 0, 0: silent) or player 1's axes
+                (2, (0..arg(1).max(1) as usize).flat_map(|c| analog(board, &sticks[0], c).to_be_bytes()).collect())
             }
             0x26 => (2, vec![0; arg(1) as usize]),
             0x2E => (2, vec![0; 4]),

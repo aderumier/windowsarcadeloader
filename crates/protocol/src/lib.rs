@@ -139,6 +139,12 @@ impl StickState {
         let v = self.axis(axis) as i32;
         if axis.is_pedal() { (v.max(0) * 255 / 32767) as u8 } else { ((v + 32768) >> 8) as u8 }
     }
+
+    /// Axis scaled to 0..=65535 (32768 = center for sticks, 0 = released for pedals).
+    pub fn axis_u16(&self, axis: Axis) -> u16 {
+        let v = self.axis(axis) as i32;
+        if axis.is_pedal() { (v.max(0) * 65535 / 32767) as u16 } else { (v + 32768) as u16 }
+    }
 }
 
 /// Inputs of every player.
@@ -289,5 +295,18 @@ mod tests {
         assert_eq!(s.axis_u8(Axis::LeftX), 255);
         s.axes[Axis::Brake as usize] = 32767;
         assert_eq!(s.axis_u8(Axis::Brake), 255);
+    }
+
+    #[test]
+    fn axis_u16() {
+        let mut s = StickState::default();
+        assert_eq!(s.axis_u16(Axis::LeftX), 32768);
+        assert_eq!(s.axis_u16(Axis::Accel), 0);
+        s.axes[Axis::LeftX as usize] = -32768;
+        assert_eq!(s.axis_u16(Axis::LeftX), 0);
+        s.axes[Axis::LeftX as usize] = 32767;
+        assert_eq!(s.axis_u16(Axis::LeftX), 65535);
+        s.axes[Axis::Accel as usize] = 32767;
+        assert_eq!(s.axis_u16(Axis::Accel), 65535);
     }
 }

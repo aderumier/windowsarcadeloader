@@ -1,0 +1,62 @@
+# Valve Limit R (Taito, Taito Type X, driving) - template, override values in
+# userprofiles/typex/valve-limit-r.yaml.
+system: typex
+name: Valve Limit R
+
+# Direct3D 9 game (DXVK). The game is launcher.exe: some dumps ship a game.exe hex-edited to
+# load another JVS emulator (JVSEmuVL.dll) and wrapper DLLs (dinput8, dgVoodoo): hidden.
+hide: [game.exe, JVSEmuVL.dll, dinput8.dll, D3D8.dll, D3D9.dll, D3DImm.dll, DDraw.dll]
+
+# Cabinet: wheel (steering board on COM1), gas and brake pedals (JVS analog channels 1 and 2),
+# NITRO, VIEW, SIDE-BRAKE, SHIFT UP, SHIFT DOWN (JVS up, down, left, right, button 1).
+# Virtual stick: wheel lx, pedals accel/brake, b1 NITRO, b2 VIEW, b3 SIDE-BRAKE, b4 SHIFT UP,
+# b5 SHIFT DOWN. The stick directions are not cabinet inputs (the wheel stick would brake
+# and shift).
+native_map:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: up
+  b2: down
+  b3: left
+  b4: right
+  b5: btn1
+  b6: none
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, A NITRO, X VIEW, B SIDE-BRAKE, R1/L1 shift up/down.
+  gamepad:
+    a: b1
+    x: b2
+    b: b3
+    r1: b4
+    l1: b5
+    y: none
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl NITRO, Alt VIEW,
+  # Space SIDE-BRAKE, Shift / Z shift up / down, 5 coin, 1 start.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+  # A wheel: list it in input.devices of the user profile, e.g.
+  #   devices:
+  #     "G29": {player: 1, map: {axis0: lx, axis2: -accel, axis3: -brake, button0: b1}}
+
+env:
+  # Gas and brake on JVS analog channels 1 and 2 (channel 0 unused: the wheel position comes
+  # from the steering board).
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",accel,brake"
+  WAL_TYPEX_WHEEL_PORT: COM1
+  # Standalone cabinet. The races take the cabinets of our link group (+0x5A680: the group of
+  # a NETWORK-ID); without a network every lookup fails alike, so the 3 absent cabinets joined
+  # and the game showed "WAIT! CHALLENGER(S) STILL SELECTING" for minutes before each race.
+  # Patched to return the NETWORK-ID itself: each cabinet is alone in its group.
+  WAL_PATCHES: "0x5A680:8B442404C20400"
+  # It reads the PC keyboard through DirectInput too.
+  WAL_DINPUT_DISABLE: "1"
