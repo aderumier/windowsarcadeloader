@@ -5,8 +5,9 @@ A working dump is a directory games/<system>/<dump>/ holding its <gameid>.window
 Smallest dump first (each one moved frees room for the next), one at a time:
   1. mksquashfs <dump> -comp zstd -> games/<system>/<dump>.squashfs (dump contents at the root:
      Batocera's generator mounts the image and looks for the .windowsloader there);
-  2. upload to /userdata/roms/<system>/<dump>.squashfs.part, md5 compared with the local image,
-     then renamed to <dump>.squashfs;
+  2. if the machine's rom directory has room for it, upload to
+     /userdata/roms/<system>/<dump>.squashfs.part, md5 compared with the local image, then renamed
+     to <dump>.squashfs;
   3. only then the local image and the dump directory are deleted.
 Any error stops the run, before deleting anything of that dump.
 
@@ -31,7 +32,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 GAMES = ROOT / "games"
 # local games/<dir> -> Batocera ES system (/userdata/roms/<system>)
 SYSTEMS = {s: s for s in ["typex", "typex2", "nesicax", "nesicax2", "globalvr", "namcoes3", "rawthrills"]}
-# free space kept on the local disk besides the image being built
+# free space kept besides the image, on the local disk and in the machine's rom directory
 MARGIN = 1 << 30
 
 
@@ -139,6 +140,12 @@ def main() -> int:
             local_md5 = md5(image)
             print(f"   image {gib(image.stat().st_size)}, md5 {local_md5}, uploading to {target}")
             remote.run(f"mkdir -p /userdata/roms/{system}")
+            # room in the machine's rom directory (df -P: POSIX columns, also busybox)
+            avail = int(remote.run(f"df -Pk /userdata/roms/{system} | tail -1").stdout.split()[3]) * 1024
+            if avail < image.stat().st_size + MARGIN:
+                print(f"stop: {gib(avail)} free in /userdata/roms/{system}, "
+                      f"{image.name} needs {gib(image.stat().st_size + MARGIN)}: local dump kept")
+                return 1
             part = target + ".part"
             remote.upload(image, part)
             remote_md5 = remote.run(f"md5sum {shlex.quote(part)}").stdout.split()[0]
