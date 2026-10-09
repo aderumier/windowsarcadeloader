@@ -1,6 +1,6 @@
 # Chase H.Q. 2 (Type X2) — boot, input and video notes
 
-Status: **works** (2026-10-09, user: wheel/pedal calibration, switches, Nancy videos).
+Status: **works** (2026-10-09, user: 100%, wheel/pedals, switches, Nancy videos).
 Profile: `systemprofiles/typex/chase-hq-2.yaml`.
 
 The first attempt (2026-10-05) was stuck on an invisible MessageBox; the causes below

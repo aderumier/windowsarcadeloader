@@ -72,7 +72,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-07 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | pass | 2026-10-07 |
-| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: wheel/pedal calibration, switches, Nancy videos) | pass | 2026-10-09 |
+| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | pass | 2026-10-09 |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | pass | 2026-10-07 |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | pass | 2026-10-07 |
 | `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | pass | 2026-10-09 |
