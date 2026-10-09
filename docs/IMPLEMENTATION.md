@@ -683,6 +683,14 @@ Driving games (Valve Limit R):
   joined ("WAIT! CHALLENGER(S) STILL SELECTING" for minutes). Its profile patches the group
   lookup to return the NETWORK-ID itself (standalone cabinet).
 
+Mahjong games (Taisen Hot Gimmick 5, `mahjong.rs`, `WAL_TYPEX_MAHJONG=hot-gimmick-5`): the
+game reads its mahjong panel as a keyboard (DirectInput `GetDeviceState`, one call per frame),
+the JVS board only gives the coins and service/test. The call is patched: the key states are
+rebuilt from the PC keyboard's `A`-`N` (tiles, MAME's layout) and player 1's virtual stick
+(start and b1-b5 = kan, pon, chi, reach, ron: keyboard `1`, left Ctrl, left Alt, Space, left
+Shift, `Z`), every other key cleared. The game's own keys: tiles `1`-`0` `-` `Q` `W` `E`, start
+`O`, calls `Y` `T` `R` `U` `I`.
+
 `WAL_TYPEX_GUN_PLAYERS=2,1` chooses the virtual player of each gun (calibrating gun 2 with a
 single mouse).
 
@@ -928,6 +936,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `senko-no-ronde-duo-typex2` | Senko no Ronde DUO: Dis-United Order | typex | works (user: perfect) | wal-loader, JVS, native 1280x720, hide xinput1_3 + XAudio2_4 and its manifests (wine's xaudio2), as the NESiCA build |
 | `spica-adventure` | Spica Adventure | typex | works (user: 100%) | wal-loader, JVS |
 | `new-super-mario-bros-wii-coin-world` | New Super Mario Bros. Wii Coin World | typex | works (user: 100%), 4 satellites, medals, hoppers, satellite test menu | wal-loader, backup SRAM (`TxedLap.dll` answered), JVS watchdog, medal I/O board on COM1 (`WAL_TYPEX_MEDAL_PORT`); XAudio2 2.7 32-bit registration (shared prefix; crashed after the device creation without it) |
+| `taisen-hot-gimmick-5` | Taisen Hot Gimmick 5: Mirai Eigou | typex | works (user: 100%) | wal-loader, JVS (coins, service/test), mahjong panel read as a keyboard (`WAL_TYPEX_MAHJONG`: tiles A-N on keys A-N, start and calls from player 1), hide the dump's dinput8.dll (another loader's input hack: window not responding) |
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 | `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | wal-loader, JVS (gas/brake on analog channels 1/2), steering board on COM1 (`WAL_TYPEX_WHEEL_PORT`), standalone link patch, `WAL_DINPUT_DISABLE`; `.windowsloader`: `launcher.exe` |
