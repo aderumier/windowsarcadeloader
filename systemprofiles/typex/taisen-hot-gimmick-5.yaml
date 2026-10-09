@@ -1,0 +1,14 @@
+# Taisen Hot Gimmick 5: Mirai Eigou (Taito, Taito Type X) - template, override values in
+# userprofiles/typex/taisen-hot-gimmick-5.yaml.
+system: typex
+name: Taisen Hot Gimmick 5 - Mirai Eigou
+
+# The dump's dinput8.dll is another loader's input hack ("Game Loader All RH"): use wine's.
+hide: [dinput8.dll]
+
+# Mahjong panel: the game reads it as a keyboard (DirectInput), the JVS board only gives the
+# coins and service/test. Tiles A-N on the keyboard's A-N; start and the calls from player 1:
+# start, b1-b5 = kan, pon, chi, reach, ron (keyboard 1, left Ctrl, left Alt, Space,
+# left Shift, Z, as MAME).
+env:
+  WAL_TYPEX_MAHJONG: hot-gimmick-5

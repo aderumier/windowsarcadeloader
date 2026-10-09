@@ -11,12 +11,14 @@
 //! * Medal I/O board on a serial port (`WAL_TYPEX_MEDAL_PORT`, `medal.rs`).
 //! * Steering (wheel motor) board of driving games on a serial port (`WAL_TYPEX_WHEEL_PORT`,
 //!   `wheel.rs`).
+//! * Mahjong panel read as a keyboard (`WAL_TYPEX_MAHJONG`, `mahjong.rs`).
 //! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`).
 
 #![allow(non_snake_case)]
 
 mod guns;
 mod jvs;
+mod mahjong;
 mod medal;
 mod sram;
 mod touch;
@@ -37,6 +39,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         jvs::init();
         medal::init();
         wheel::init();
+        mahjong::init();
         guns::init();
         touch::init();
         sram::init();

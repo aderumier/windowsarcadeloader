@@ -69,7 +69,7 @@
 "typex/Shikigami no Shiro III (Landscape, Bezel)/shikigami-no-shiro-3.windowsloader": {}
 "typex/Shikigami no Shiro III (Portrait)/shikigami-no-shiro-3.windowsloader": {}
 "typex/Spica Adventure/spica-adventure.windowsloader": {}
-# "typex/Taisen Hot Gimmick 5 - Mirai Eigou/taisen-hot-gimmick-5.windowsloader": {}  # no status
+"typex/Taisen Hot Gimmick 5 - Mirai Eigou/taisen-hot-gimmick-5.windowsloader": {}  # picture/audio: false negatives (no screenshot after ~20 s), works (user: 100%)
 "typex/Tetris The Grand Master 3 - Terror-Instinct/tetris-the-grand-master-3.windowsloader": {}
 "typex/The King of Fighters '98 - Ultimate Match/kof-98-um-typex.windowsloader": {}
 "typex/Valve Limit R/valve-limit-r.windowsloader": {}
