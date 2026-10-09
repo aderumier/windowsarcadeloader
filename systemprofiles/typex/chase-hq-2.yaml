@@ -3,15 +3,58 @@
 system: typex
 name: Chase H.Q. 2
 
-# The dump's dinput8.dll is Taito's bridge (not Microsoft's): keep it.
-# NOTE: wheel/gas/brake come from JVS analog, which the payload does not
-# emulate yet: even once boot works, driving will not be possible.
-# CURRENT STATE (see docs/CHASE-HQ-2-BOOT-DEBUG.md): the game shows a
-# (blank) MessageBox before any D3D9 and exits 0; its window is placed
-# off-screen because Wine sees a garbage ~5434188x5434103 X "desktop"
-# (Xwayland). Blocked: read the real X root geometry, then work around.
+# Direct3D 9 (DXVK), its own 800x600 fullscreen mode (Wine scales it to the screen; a forced
+# bigger back buffer left its 800x600 viewport in the corner).
+# Its cabinet link is DirectPlay 8 (TCP/IP peer, port 13400): even a single cabinet hosts a
+# session at boot, and wine's IDirectPlay8Peer::Host is a stub (DPNERR_GENERIC): NETWORK
+# CHECKING forever. Microsoft's dpnet.
+tricks: [directplay]
+
+# Cabinet: wheel, gas and brake pedals on JVS analog channels 2, 3 and 4 (no steering board;
+# its calibration screens read those channels). Switches (its switch test): START on button 7,
+# PATO-NITRO on button 8, SHIFT (gear lever, held = the other gear) on up, SHIFT-NITRO on down;
+# the standard start switch is not read.
+# Virtual stick (MAME's Chase H.Q. buttons): wheel lx, pedals accel/brake, b3 SHIFT,
+# b4 SHIFT-NITRO, b5 PATO-NITRO.
+native_map:
+  start: btn7
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: none
+  b2: none
+  b3: up
+  b4: down
+  b5: btn8
+  b6: none
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1 SHIFT, X SHIFT-NITRO, A PATO-NITRO.
+  gamepad:
+    r1: b3
+    x: b4
+    a: b5
+    b: none
+    y: none
+    l1: none
+    r2: accel
+    l2: brake
+  # Keyboard (player 1, MAME): Left / Right wheel, Ctrl gas, Alt brake, Space SHIFT,
+  # Shift SHIFT-NITRO, Z PATO-NITRO, 1 start, 5 coin.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_LEFTCTRL: accel
+      KEY_LEFTALT: brake
+
 env:
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,lx,accel,brake"
   # Chase H.Q. 2 patch (CRC 0x1f2f9497): skip pedal calibration.
   WAL_PATCHES: "0x107E3:EB"
-  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
-  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
+  # Nancy's videos (data\mv) are WMV9 (WMV3) AVIs read through AVIFile: Microsoft's WMV9 VCM
+  # codec, WMV9VCM.dll, extracted from the dump's wmv9VCMsetup.exe into the game folder
+  # (cabextract -F WMV9VCM.dll wmv9VCMsetup.exe), registered at startup (as Gaia Attack 4).
+  WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll
