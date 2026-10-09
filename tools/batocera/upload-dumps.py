@@ -17,7 +17,7 @@ Skipped: games not working (status above) or missing from the games table, syste
 Batocera ES system (games/misc...), images already on the machine
 (--overwrite replaces them), dumps with absolute symlinks (broken inside an image).
 
-Usage: tools/batocera/upload-dumps.py [--dry-run] [--only TEXT]... [--skip TEXT]... [--keep] [--overwrite]
+Usage: tools/batocera/upload-dumps.py [--list] [--only TEXT]... [--skip TEXT]... [--keep] [--overwrite]
                                       [--host root@HOST] [--password PASS]
 """
 
@@ -108,9 +108,41 @@ def gib(n: int) -> str:
     return f"{n / (1 << 30):.1f} GiB"
 
 
+def list_games(todo: list, skipped: list, args) -> int:
+    """--list: the games that would be converted, by system, marked when their image is already
+    on the machine (skipped unless --overwrite), then the skipped dumps."""
+    on_machine: set[str] | None = None
+    remote = Remote(args.host, args.password)
+    try:
+        dirs = " ".join(f"/userdata/roms/{s}" for s in sorted({t[2] for t in todo}))
+        out = remote.run(f"for d in {dirs}; do ls -1 \"$d\" 2>/dev/null | sed \"s|^|$d/|\"; done", check=False)
+        if out.returncode == 0:
+            on_machine = set(out.stdout.splitlines())
+    finally:
+        remote.close()
+    if on_machine is None:
+        print(f"({args.host} not reachable: images already there not marked)")
+    count, total = 0, 0
+    for system in sorted({t[2] for t in todo}):
+        print(f"\n{system}:")
+        for size, dump, _, game_status in sorted((t for t in todo if t[2] == system), key=lambda t: t[1].name.lower()):
+            there = on_machine is not None and f"/userdata/roms/{system}/{dump.name}.squashfs" in on_machine
+            mark = "  [on the machine: overwritten]" if there and args.overwrite else "  [on the machine: skipped]" if there else ""
+            if not there or args.overwrite:
+                count, total = count + 1, total + size
+            print(f"  {gib(size):>9}  {dump.name}  ({game_status[:60]}){mark}")
+    if skipped:
+        print("\nnot converted:")
+        for rel, reason in skipped:
+            print(f"  {rel}: {reason}")
+    print(f"\nto convert: {count} games, {gib(total)} (uncompressed), smallest first")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--dry-run", action="store_true", help="list what would be moved, change nothing")
+    p.add_argument("--list", "--dry-run", dest="list", action="store_true",
+                   help="list the games that would be converted (and the skipped ones), change nothing")
     p.add_argument("--only", action="append", default=[], help="dumps whose path contains TEXT")
     p.add_argument("--skip", action="append", default=[], help="not the dumps whose path contains TEXT")
     p.add_argument("--keep", action="store_true", help="keep the local dump after the upload")
@@ -120,7 +152,7 @@ def main() -> int:
     args = p.parse_args()
 
     status = statuses()
-    todo = []
+    todo, skipped = [], []
     for size, dump in dumps():
         rel = dump.relative_to(GAMES)
         if args.only and not any(t in str(rel) for t in args.only):
@@ -129,32 +161,31 @@ def main() -> int:
             continue
         gameid = next(dump.glob("*.windowsloader")).stem
         game_status = status.get(gameid)
-        if game_status is None:
-            print(f"skip {rel}: {gameid} not in the games table of docs/IMPLEMENTATION.md")
-            continue
-        if game_status.lower().startswith(NOT_WORKING):
-            print(f"skip {rel}: {game_status}")
-            continue
         system = SYSTEMS.get(dump.parent.name)
-        if system is None:
-            print(f"skip {rel}: no Batocera system for games/{dump.parent.name}")
-            continue
-        if links := absolute_links(dump):
-            print(f"skip {rel}: absolute symlinks ({links[0].relative_to(dump)} ...)")
-            continue
-        todo.append((size, dump, system))
+        if game_status is None:
+            skipped.append((rel, f"{gameid} not in the games table of docs/IMPLEMENTATION.md"))
+        elif game_status.lower().startswith(NOT_WORKING):
+            skipped.append((rel, game_status))
+        elif system is None:
+            skipped.append((rel, f"no Batocera system for games/{dump.parent.name}"))
+        elif links := absolute_links(dump):
+            skipped.append((rel, f"absolute symlinks ({links[0].relative_to(dump)} ...)"))
+        else:
+            todo.append((size, dump, system, game_status))
 
-    remote = None if args.dry_run else Remote(args.host, args.password)
+    if args.list:
+        return list_games(todo, skipped, args)
+    for rel, reason in skipped:
+        print(f"skip {rel}: {reason}")
+
+    remote = Remote(args.host, args.password)
     image = None
     try:
         if remote:
             remote.run("true")  # reachable, password accepted: before building anything
-        for size, dump, system in todo:
+        for size, dump, system, _ in todo:
             rel = dump.relative_to(GAMES)
             target = f"/userdata/roms/{system}/{dump.name}.squashfs"
-            if remote is None:
-                print(f"{gib(size):>9}  {rel} -> {target}")
-                continue
             test = remote.run(f"test -e {shlex.quote(target)}", check=False)
             if test.returncode not in (0, 1):
                 print(f"error: {args.host}: {test.stderr.strip()}")
