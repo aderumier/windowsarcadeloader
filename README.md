@@ -87,7 +87,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | pass | 2026-10-07 |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | pass | 2026-10-07 |
 | `king-of-fighters-xiii` | The King of Fighters XIII | typex | not tested | not in the test |  |
-| `music-gungun-2` | Music GunGun! 2 | typex | BLOCKED: "Direct3D device enumeration failed" message box | not in the test |  |
+| `music-gungun-2` | Music GunGun! 2 | typex | works (user: perfect), attract movie, sound, 2 guns | pass | 2026-10-09 |
 | `raiden-3-typex` | Raiden III | typex | works (user); intro movie black (as NESiCA) | pass | 2026-10-07 |
 | `raiden-4-typex` | Raiden IV | typex | works (user) | pass | 2026-10-07 |
 | `shikigami-no-shiro-3` | Shikigami no Shiro III | typex | works (user), Landscape/Bezel dump rotated by its ReShade | pass | 2026-10-07 |

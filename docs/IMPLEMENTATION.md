@@ -292,6 +292,21 @@ place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships 
   through a YUY2 overlay. The visible overlay is now drawn over its destination when that is
   presented. Needs wined3d on the game window (`dxvk: false` for a D3D8/9 game that also uses
   the overlay). See `docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md`.
+* `ge-master-video-dlls` (2026-10-09, supersedes the two `quartz` entries above): the video
+  DLLs `winedmo` (PE and `winedmo.so`), `quartz`, `qasf` and `wmvcore`, i386 and x86_64, rebuilt
+  from GE-Proton master (fork `aderumier/proton-ge-custom`, branch `windowsloader` = master plus
+  the patches not merged yet). Master's patch 0080 stops the DirectShow parsers flushing on
+  Run -> Pause: a paused renderer never got its first frame and Music GunGun! 2 hung on a
+  black attract movie (`GetState(INFINITE)`). 0073 (VMR7 RGB24) is dropped on that branch: it
+  no longer applied after 0067 and Gouketsuji's opening plays without it. Build: a worktree of
+  the GE `wine` submodule next to links to the GE `patches`, `wine-staging`, `wineopenxr`; the
+  wine section of `patches/protonprep-valve-staging.sh`; `make_vulkan -x vk.xml -X video.xml`
+  (Vulkan-Headers registry) and `tools/make_specfiles`; `configure --enable-archs=i386,x86_64`
+  with `FFMPEG_CFLAGS` = the GE `ffmpeg` submodule (62.x, the runner's) + its generated
+  `libavutil/avconfig.h`, `FFMPEG_LIBS` = the runner's `lib/x86_64-linux-gnu` (`-rpath-link`).
+  PE and unix sides must come from the same tree (the unixlib interface changed since 11-7).
+  Installed in the runner (previous files `*.pre-ge-master`) **and** in the prefix
+  (`syswow64/`, `system32/`): Wine loads the prefix's copies, a runner-only change is ignored.
 * Games shipping Wine's own DLLs (e.g. a dump with Wine 10.16's `d3d8/ddraw/wined3d.dll`):
   Wine loads those builtin-format DLLs **from the game dir** even with `=b` overrides, mixing
   Wine versions. `hide:` them in the profile (check with `WINEDEBUG=+loaddll`).
@@ -587,6 +602,10 @@ one click made two touches). Its JVS switches
 (`WAL_TYPEX_JVS_LAYOUT=block-king`, found with its switch test): service 0x40, left/right
 start 0x20/0x10, cannon 0x08, then SELECT 0x08 / ENTER 0x04 (buttons 4/3).
 
+Music GunGun! 2 has the same 20-byte gun record (received `+0x2B8100`, copied to the game's
+`+0x2B80E4` only when a gun board packet is parsed): both are written, axes 0..0x3FF0. A
+player starts by shooting the screen: the start keys pull that player's trigger.
+
 Gundam Spirits of Zeon (`gundam-spirits-of-zeon`, its "patched I/O" build) reads its guns
 from the JVS data in memory: positions in 640x480 pixels, buttons as bits of its switch bytes
 (`bits` per gun: trigger, action, start, service, test), coin counters incremented directly.
@@ -881,7 +900,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
 | `king-of-fighters-xiii` | The King of Fighters XIII | typex | not tested | - |
-| `music-gungun-2` | Music GunGun! 2 | typex | BLOCKED: "Direct3D device enumeration failed" message box | wal-loader, JVS, guns (`WAL_TYPEX_GUNS`), `WAL_PIN_CWD`, patch 0x137C70 |
+| `music-gungun-2` | Music GunGun! 2 | typex | works (user: perfect), attract movie, sound, 2 guns | wal-loader, JVS, guns in both gun records (`WAL_TYPEX_GUNS`), `WAL_PIN_CWD`, patches: 0x137C70, 60 Hz-only mode enumeration (screens at 120 Hz), 1920x1080 instead of 1360x768 (no such Xwayland mode), volume knob at maximum (muted otherwise); start keys = trigger; GE-master video DLLs (0080: attract movie hung) |
 | `raiden-3-typex` | Raiden III | typex | works (user); intro movie black (as NESiCA) | wal-loader, JVS; Notice screen ~65 s |
 | `raiden-4-typex` | Raiden IV | typex | works (user) | wal-loader, JVS, `tricks: [d3dx9_31]` (MMShader.fx), `WAL_DINPUT_DISABLE` (keyboard 2 opened the test menu) |
 | `shikigami-no-shiro-3` | Shikigami no Shiro III | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, `WAL_WINDOW_POPUP` (overlapped window: empty frame), `reshade_files` d3d8to9 + ReShade d3d9, `tricks: [d3dcompiler_47]` |

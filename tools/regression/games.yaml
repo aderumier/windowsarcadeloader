@@ -79,7 +79,7 @@
 "typex2/Gaia Attack 4/gaia-attack-4.windowsloader": {}
 "typex2/Gouketsuji Ichizoku - Matsuri Senzo Kuyou/gouketsuji-ichizoku-typex2.windowsloader": {}
 "typex2/King of Fighters Maximum Impact Regulation A/king-of-fighters-maximum-impact-regulation-a.windowsloader": {}
-# "typex2/Music GunGun! 2/music-gungun-2.windowsloader": {}  # BLOCKED: "Direct3D device enumeration failed" message box
+"typex2/Music GunGun! 2/music-gungun-2.windowsloader": {wait: 75}
 "typex2/Senko no Ronde DUO - Dis-United Order (2.00)/senko-no-ronde-duo-typex2.windowsloader": {}
 "typex2/Street Fighter IV/street-fighter-iv.windowsloader": {}
 "typex2/The King of Fighters XII/king-of-fighters-xii.windowsloader": {}
