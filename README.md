@@ -27,7 +27,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | pass | 2026-10-07 |
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | pass | 2026-10-07 |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | pass | 2026-10-07 |
-| `blazblue-chronophantasma` | BlazBlue Chronophantasma 2.03 | nesica | not tested | not in the test |  |
+| `blazblue-chronophantasma` | BlazBlue Chronophantasma 2.03 | nesica | works (user: 100%) | pass | 2026-10-09 |
 | `chaos-breaker` | Chaos Breaker | nesica | in fight, music | pass | 2026-10-07 |
 | `chaos-code-103` | Chaos Code: New Sign of Catastrophe 1.03 | nesica | in fight (user) | pass | 2026-10-07 |
 | `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | pass | 2026-10-07 |
@@ -37,7 +37,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | pass | 2026-10-07 |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | pass | 2026-10-07 |
 | `dragon-dance` | Dragon Dance | nesica | works (user), smoke and sparkle effects correct with d7vk; crash on applying saved display settings fixed by a code patch | pass | 2026-10-08 |
-| `elevator-action` | Elevator Action Death Parade | nesica | in game | pass | 2026-10-07 |
+| `elevator-action` | Elevator Action Death Parade | nesica | works (user: 100%), 4:3 | pass | 2026-10-09 |
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | pass | 2026-10-07 |
 | `exception` | Exception | nesica | works fullscreen (user) | pass | 2026-10-07 |
 | `gouketsuji-ichizoku` | Gouketsuji Ichizoku: Matsuri Senzo Kuyou | nesica | works (user) | pass | 2026-10-07 |
