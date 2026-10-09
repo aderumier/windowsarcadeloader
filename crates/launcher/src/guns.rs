@@ -2,9 +2,10 @@
 //!
 //! * Guns: devices udev tags `ID_INPUT_GUN=1` (fallback without udev data: an absolute
 //!   pointer, `ABS_X`/`ABS_Y` + `BTN_LEFT`, that is not a touchpad). They take players 1, 2...
-//!   in device path order.
-//! * Mice (`REL_X`/`REL_Y` + `BTN_LEFT`) fill the remaining players: their motion moves a
-//!   position over a virtual screen of `input.mouse_screen` pixels.
+//!   in device order (`eventN` number).
+//! * Mice (`REL_X`/`REL_Y` + `BTN_LEFT`) fill the remaining players, USB mice first (before a
+//!   laptop's touchpad and TrackPoint): their motion moves a position over a virtual screen of
+//!   `input.mouse_screen` pixels.
 //!
 //! Each device reports its position as the `x`/`y` sources (-32768 left/top..32767), its
 //! buttons as evdev key sources (`BTN_LEFT`...) and `offscreen` while a gun points off the
@@ -51,6 +52,11 @@ fn is_gun(path: &Path, dev: &Device) -> bool {
         && keys.is_some_and(|k| k.contains(KeyCode::BTN_LEFT) && !k.contains(KeyCode::BTN_TOUCH))
 }
 
+/// `N` of `/dev/input/eventN` (enumeration order: `event10` after `event6`).
+fn event_number(path: &Path) -> u32 {
+    path.file_name().and_then(|n| n.to_str()?.strip_prefix("event")?.parse().ok()).unwrap_or(u32::MAX)
+}
+
 fn is_mouse(dev: &Device) -> bool {
     let rel = dev.supported_relative_axes();
     rel.is_some_and(|r| r.contains(RelativeAxisCode::REL_X) && r.contains(RelativeAxisCode::REL_Y))
@@ -61,9 +67,13 @@ fn is_mouse(dev: &Device) -> bool {
 /// each one, sending its updates to `tx`.
 pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], tx: Sender<PointerEvent>) -> Vec<Pointer> {
     let mut devices: Vec<(PathBuf, Device)> = evdev::enumerate().collect();
-    devices.sort_by(|a, b| a.0.cmp(&b.0));
+    devices.sort_by_key(|(p, _)| event_number(p));
     let (guns, others): (Vec<_>, Vec<_>) = devices.into_iter().partition(|(p, d)| is_gun(p, d));
-    let mice = others.into_iter().filter(|(_, d)| use_mice && is_mouse(d)).take(if max_mice == 0 { usize::MAX } else { max_mice });
+    let mut mice: Vec<_> = others.into_iter().filter(|(_, d)| use_mice && is_mouse(d)).collect();
+    // plugged-in (USB) mice before the built-in pointers (touchpad, TrackPoint): with
+    // `guns_mice: 1` on a laptop, the external mouse aims
+    mice.sort_by_key(|(p, _)| (udev_property(p, "ID_BUS").as_deref() != Some("usb"), event_number(p)));
+    let mice = mice.into_iter().take(if max_mice == 0 { usize::MAX } else { max_mice });
 
     let mut pointers = Vec::new();
     for (path, dev) in guns.into_iter().chain(mice).take(MAX_PLAYERS) {
