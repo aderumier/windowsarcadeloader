@@ -360,9 +360,11 @@ profile), `show` (merged profile).
   * `WAL_DSHOW_TRACE=1`: logs FindFilterByName and IGraphBuilder::Connect calls.
   GE-Proton 11 has no GStreamer backend: winedmo (FFmpeg) is the only media path; its
   `demuxer_destroy` faults during probing are caught by Wine.
-* `serial`: emulated serial device (IAT hooks of CreateFile/ReadFile/WriteFile/comm calls,
-  fake handle, reply queue); used by the NESiCA card reader and the Type X JVS board. Logs the
-  first 40 packets and any other COM port the game opens.
+* `serial`: emulated serial devices (IAT hooks of CreateFile/ReadFile/WriteFile/comm calls,
+  a fake handle and reply queue per device, one device per port: each `install` adds one);
+  used by the NESiCA card reader, the Type X JVS board and the medal board. Overlapped calls
+  complete at once (`OVERLAPPED` result set, event signaled), `ClearCommError` reports the
+  queued reply bytes. Logs the first 40 packets and any other COM port the game opens.
 * `drive`: `D:\` redirection (moved from NESiCA), folder variable chosen by the system
   (`WAL_NESICA_DDRIVE`, `WAL_TYPEX_DDRIVE`). The kernel32 file imports of the C runtimes
   loaded with the game (`msvcrt`, `msvcr70`-`msvcr120`, `ucrtbase`) are hooked too: games
@@ -607,6 +609,40 @@ DLLs of its directory get the screen size from `GetSystemMetrics`, `SystemParame
 replaced, and the window options (`WAL_WINDOW_POPUP`/`_SIZE`) apply to the windows those DLLs
 create and resize (Gundam's Alchemy engine, `libIG*.dll`).
 
+Medal games (New Super Mario Bros. Wii Coin World, Capcom on Type X2 hardware, 4 satellites):
+* Backup SRAM board (`sram.rs`, always on when the game imports it): the game reads its
+  battery-backed SRAM through `TxedLap.dll` (`TXE001_Open/Close/GetSRAMSize/Read/Write`, C++
+  names, cdecl) over the board driver `txedctl.dll`. Without the board `Open` fails, its backup
+  thread never starts and the boot stays on バックアップＲＡＭ確認中. The imports are answered
+  with a 32 KB file, `WindowsLoader/txe001-sram.bin` (settings, bookkeeping, credits; delete it
+  to reset the cabinet). `Read`/`Write(offset, count, buffer, width)`: `count` bytes, or with
+  `count` 1 one item of `width` 0/2/4 (1/2/4 bytes).
+* JVS on COM2 is only a watchdog: Taito commands `01 01` (status), `05 0B B8` (3000 ms),
+  `04` (enable), then `01 01` + `08` (kick) every poll; `08` is answered with one data byte.
+* Medal I/O board on COM1 (`medal.rs`, `WAL_TYPEX_MEDAL_PORT`): text frames at 115200 baud.
+  Game: `:<date> <time>` (first frame), `/S`, a line per unit `<unit>:<satellite>,<command>,
+  <value>,0` (`H` hopper, `C` medal selector, `O` lamps with 3 values, `L`, `M`
+  electromechanical counters, commands `R` run / `S` stop / `C` clear error), `/E`, ETX. Board:
+  `/S`, a line per unit `<unit>:<n>,<state>,<d1>,<d2>,<error>,<detail>`, the switches of each
+  satellite `S:<n>,S,0,0,3,<state>,<released>,<pressed>` (hex words: state active low, then the
+  edges since the last frame), `/E`, ETX (the game checks `/S`...`/E` and the ETX). No reply:
+  "I/O board communication timeout" (7201) after ~7 s.
+  * Selector `C`: d2 = medals accepted since the last frame (the game adds it to the
+    satellite's credits and echoes it in its value); reported only while the selector runs.
+    A cumulative count over-credited, hit the credit cap and started refund payouts.
+  * Hopper `H`: the request value is the number of medals to pay; the board answers state `R`,
+    d1 = the requested count, d2 = paid so far, then `S` once paid (the game then subtracts
+    the paid medals from its request). Paid one per poll (~15/s, the satellite hopper test
+    pays its batches of 100). Other units: the commanded state echoed, zeros.
+  * Switches (the game's input test, satellite test mode): bits 3/2/0/1 joystick, 4 START,
+    5 BET, 6 payout, 8 medal accepted, 7 fake medal, 11 test/enter, 12 select, 13
+    cancel/error reset, 10 satellite key (active high, "adjusting" 98xx when on), 9
+    maintenance door (low = closed, 99xx "door open" otherwise), 14 hopper count, 15 hopper
+    over-current. Satellite N = player N: `coin` inserts a medal, b1 BET, start START, b2
+    payout, b3 select, test (F2) the satellite menu, service (F1) cancel/error reset
+    (`native_map` names: up down left right bet start payout medal test select cancel key
+    door). The game takes the medals as bets by itself (3 per play).
+
 `WAL_TYPEX_GUN_PLAYERS=2,1` chooses the virtual player of each gun (calibrating gun 2 with a
 single mouse).
 
@@ -794,8 +830,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | works (user: 100%), 4 players, sound, test menu in Japanese | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, master volume knob at maximum (`WAL_FASTIO_ANALOG1: FF`, silent at 0), `WAL_ANSI_CODEPAGE: 932`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | same as Chaos Breaker (same engine) |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | D: data in WindowsLoader |
-| `dragon-dance` | Dragon Dance | nesica | works (user), starts with and without saves | run game.exe (NxL stand-in), native DirectMusic/dsound, d7vk (wined3d GL drew the particle effects with an opaque black background), code patch (frame drawn while applying the saved display settings, NULL effect object) |
-| `dragon-dance-typex` | Dragon Dance (Type X dump) | nesica | works (user) | the NESiCA build with a replacement iDmacDrv32.dll: NESiCA payload, same tricks, d7vk and code patch as `dragon-dance` |
+| `dragon-dance` | Dragon Dance | nesica | works (user), smoke and sparkle effects correct with d7vk; crash on applying saved display settings fixed by a code patch | run game.exe (NxL stand-in), native DirectMusic/dsound, d7vk (wined3d GL drew the particle effects with an opaque black background), code patch (frame drawn while applying the saved display settings, NULL effect object) |
 | `elevator-action` | Elevator Action Death Parade | nesica | in game | 1280x800 |
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | 1280x800, native dsound (nothing on screen with wine's dsound) |
 | `exception` | Exception | nesica | works fullscreen (user) | native dsound (no picture with wine's dsound), `WAL_SDL_FULLSCREEN` |
@@ -852,6 +887,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `shikigami-no-shiro-3` | Shikigami no Shiro III | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, `WAL_WINDOW_POPUP` (overlapped window: empty frame), `reshade_files` d3d8to9 + ReShade d3d9, `tricks: [d3dcompiler_47]` |
 | `senko-no-ronde-duo-typex2` | Senko no Ronde DUO: Dis-United Order | typex | works (user: perfect) | wal-loader, JVS, native 1280x720, hide xinput1_3 + XAudio2_4 and its manifests (wine's xaudio2), as the NESiCA build |
 | `spica-adventure` | Spica Adventure | typex | works (user: 100%) | wal-loader, JVS |
+| `new-super-mario-bros-wii-coin-world` | New Super Mario Bros. Wii Coin World | typex | works (user: 100%), 4 satellites, medals, hoppers, satellite test menu | wal-loader, backup SRAM (`TxedLap.dll` answered), JVS watchdog, medal I/O board on COM1 (`WAL_TYPEX_MEDAL_PORT`); XAudio2 2.7 32-bit registration (shared prefix; crashed after the device creation without it) |
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |

@@ -55,7 +55,6 @@
 "nesicax2/Ultra Street Fighter 4/ultra-street-fighter-4.windowsloader": {}
 "typex/Block King Ball Shooter/block-king-ball-shooter.windowsloader": {}
 "typex/Chaos Breaker/chaos-breaker-typex.windowsloader": {}
-"typex/Dragon Dance/game/dragon-dance-typex.windowsloader": {}
 "typex/GigaWing Generations (Landscape, Bezel)/gigawing-generations.windowsloader": {}
 "typex/GigaWing Generations/gigawing-generations.windowsloader": {}
 "typex/Haunted Museum II/haunted-museum-2.windowsloader": {}
@@ -64,7 +63,7 @@
 "typex/KOF Sky Stage/kof-sky-stage.windowsloader": {}
 "typex/Mobile Suit Gundam Spirits of Zeon - Memory of Soldiers/gundam-spirits-of-zeon-2p.windowsloader": {}
 "typex/Mobile Suit Gundam Spirits of Zeon - Memory of Soldiers/gundam-spirits-of-zeon.windowsloader": {}
-# "typex/New Super Mario Bros Wii Coin World/new-super-mario-bros-wii-coin-world.windowsloader": {}  # no status
+"typex/New Super Mario Bros Wii Coin World/new-super-mario-bros-wii-coin-world.windowsloader": {script: tools/regression/medals.txt}
 "typex/Raiden III (2.01J) (Portrait)/raiden-3-typex.windowsloader": {}
 "typex/Raiden IV (1.00J) (Portrait)/raiden-4-typex.windowsloader": {}
 "typex/Shikigami no Shiro III (Landscape, Bezel)/shikigami-no-shiro-3.windowsloader": {}

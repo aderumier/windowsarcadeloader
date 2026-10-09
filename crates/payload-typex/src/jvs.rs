@@ -266,6 +266,8 @@ fn process(packet: &[u8]) -> Vec<u8> {
             0x03 => (2, vec![0x01]),
             0x04 => (1, vec![]),
             0x05 => (3, vec![]),
+            // watchdog kick (New Super Mario Bros. Wii Coin World polls it with `01 01`)
+            0x08 => (1, vec![0x00]),
             0x23 | 0x25 => (2, vec![]),
             0x65 => (2, vec![0xA0]),
             // Gaia Attack 4 polls `67 xx` in every packet: unknown, acknowledged so the
@@ -278,7 +280,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
         };
         // commands with outputs/acks: data commands get a report
         // byte when they are not the first one
-        if matches!(cmds[i], 0x11..=0x14 | 0x20..=0x22 | 0x26 | 0x2E | 0x30..=0x37 | 0x65 | 0x67) {
+        if matches!(cmds[i], 0x08 | 0x11..=0x14 | 0x20..=0x22 | 0x26 | 0x2E | 0x30..=0x37 | 0x65 | 0x67) {
             rep(&mut bytes);
         }
         out.extend(&bytes);

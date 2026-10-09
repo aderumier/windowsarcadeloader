@@ -1,0 +1,17 @@
+# Medal games (New Super Mario Bros. Wii Coin World): 5 medals in satellite 1 after 30 s; the
+# game bets them by itself (3 per play), then START.
+# `<seconds since launch> p<player> <inputs...>`, `-` releases.
+30.0 p1 coin
+30.2 p1 -
+30.5 p1 coin
+30.7 p1 -
+31.0 p1 coin
+31.2 p1 -
+31.5 p1 coin
+31.7 p1 -
+32.0 p1 coin
+32.2 p1 -
+34.0 p1 start
+34.3 p1 -
+37.0 p1 start
+37.3 p1 -

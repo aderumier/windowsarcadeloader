@@ -37,7 +37,6 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | pass | 2026-10-07 |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | pass | 2026-10-07 |
 | `dragon-dance` | Dragon Dance | nesica | works (user), smoke and sparkle effects correct with d7vk; crash on applying saved display settings fixed by a code patch | pass | 2026-10-08 |
-| `dragon-dance-typex` | Dragon Dance (Type X dump) | nesica | works (user), same build, d7vk and code patch as `dragon-dance` | not run yet |  |
 | `elevator-action` | Elevator Action Death Parade | nesica | in game | pass | 2026-10-07 |
 | `en-eins-perfektewelt` | EN-Eins Perfektewelt | nesica | works (user) | pass | 2026-10-07 |
 | `exception` | Exception | nesica | works fullscreen (user) | pass | 2026-10-07 |
@@ -47,7 +46,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `ikaruga` | Ikaruga | nesica | in game (user) | pass | 2026-10-07 |
 | `kof-2002-um` | The King of Fighters 2002 Unlimited Match | nesica | works (user) | pass | 2026-10-07 |
 | `kof-98-umfe` | The King of Fighters '98 Ultimate Match Final Edition | nesica | works (user) | pass | 2026-10-07 |
-| `kof-xiii-climax` | The King of Fighters XIII Climax | nesica | in game, movies | pass | 2026-10-07 |
+| `kof-xiii-climax` | The King of Fighters XIII Climax | nesica | in game, movies | pass | 2026-10-09 |
 | `magical-beat` | Magical Beat | nesica | works (user) | pass | 2026-10-07 |
 | `nitroplus-blasterz` | Nitroplus Blasterz: Heroines Infinite Duel | nesica | works (user) | pass | 2026-10-07 |
 | `persona-4-arena` | Persona 4 The Ultimate in Mayonaka Arena | nesica | works (user: perfect) | pass | 2026-10-07 |
@@ -76,7 +75,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `chase-hq-2` | Chase H.Q. 2 | typex | BLOCKED: boot MessageBox, exits 0, window off-screen (user sees nothing) | not in the test |  |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | pass | 2026-10-07 |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | pass | 2026-10-07 |
-| `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | pass | 2026-10-07 |
+| `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | pass | 2026-10-09 |
 | `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: 100%) | pass | 2026-10-07 |
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | pass | 2026-10-07 |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | pass | 2026-10-07 |
@@ -93,7 +92,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `raiden-4-typex` | Raiden IV | typex | works (user) | pass | 2026-10-07 |
 | `shikigami-no-shiro-3` | Shikigami no Shiro III | typex | works (user), Landscape/Bezel dump rotated by its ReShade | pass | 2026-10-07 |
 | `senko-no-ronde-duo-typex2` | Senko no Ronde DUO: Dis-United Order | typex | works (user: perfect) | pass | 2026-10-07 |
-| `spica-adventure` | Spica Adventure | typex | works (user: 100%) | pass | 2026-10-07 |
+| `spica-adventure` | Spica Adventure | typex | works (user: 100%) | pass | 2026-10-09 |
+| `new-super-mario-bros-wii-coin-world` | New Super Mario Bros. Wii Coin World | typex | works (user: 100%), 4 satellites, medals, hoppers, satellite test menu | pass | 2026-10-09 |
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | pass | 2026-10-07 |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | pass | 2026-10-07 |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |

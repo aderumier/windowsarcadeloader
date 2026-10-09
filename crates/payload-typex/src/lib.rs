@@ -7,12 +7,16 @@
 //! * Profile code patches (`WAL_PATCHES`).
 //! * Lightgun games (`WAL_TYPEX_GUNS`): guns written in the game's memory (`guns.rs`).
 //! * Block King Ball Shooter's touch sensor driver (`WAL_TYPEX_LSDRV`, `touch.rs`).
+//! * The medal games' TXE001 backup SRAM board (`TxedLap.dll` imports, `sram.rs`).
+//! * Medal I/O board on a serial port (`WAL_TYPEX_MEDAL_PORT`, `medal.rs`).
 //! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`).
 
 #![allow(non_snake_case)]
 
 mod guns;
 mod jvs;
+mod medal;
+mod sram;
 mod touch;
 
 use std::ffi::c_void;
@@ -28,8 +32,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         patches::apply();
         drive::init("WAL_TYPEX_DDRIVE", "WindowsLoader");
         jvs::init();
+        medal::init();
         guns::init();
         touch::init();
+        sram::init();
         wal_payload_common::vfw::init();
         log!("typex: initialized");
     }

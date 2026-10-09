@@ -3,7 +3,8 @@
 //! The game's serial API calls are intercepted with IAT hooks on the game executable:
 //! opening the port returns a fake handle, each `WriteFile` packet goes to the device handler
 //! and its reply is queued for the game's `ReadFile`. Comm configuration calls succeed.
-//! One device per process, plus optionally one silent port (`install_sink`).
+//! Several devices per process (one per port, each `install` call), plus optionally silent
+//! ports (`install_sink`).
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -16,24 +17,39 @@ use crate::{iat, log};
 
 type P = *mut c_void;
 
-/// Odd value: never a real handle.
+/// Handle of the first device; device `i` is `FAKE + 4 * i`. Odd values: never real handles.
 const FAKE: usize = 0x1337;
 /// Handle of the silent port (`install_sink`).
 const FAKE_SINK: usize = 0x1339;
 
 fn is_fake(h: P) -> bool {
-    h as usize == FAKE || h as usize == FAKE_SINK
+    h as usize == FAKE_SINK || device(h).is_some()
 }
 
 /// The emulated device: answers the packets the game writes.
 pub type Handler = fn(&[u8]) -> Vec<u8>;
 
-static PORT: OnceLock<String> = OnceLock::new();
+/// An emulated device: its port, the packet handler and the replies not read yet.
+struct Device {
+    port: String,
+    handler: Handler,
+    replies: Mutex<VecDeque<u8>>,
+}
+
+static DEVICES: Mutex<Vec<&'static Device>> = Mutex::new(Vec::new());
+static HOOKED: AtomicBool = AtomicBool::new(false);
+
+/// The device behind a fake handle.
+fn device(h: P) -> Option<&'static Device> {
+    let i = (h as usize).checked_sub(FAKE)?;
+    if i % 4 != 0 {
+        return None;
+    }
+    DEVICES.lock().unwrap().get(i / 4).copied()
+}
 /// Ports that accept everything and never answer (e.g. the gun board of Type X gun games,
 /// whose inputs are written in the game's memory instead).
 static SINK: OnceLock<Vec<String>> = OnceLock::new();
-static HANDLER: OnceLock<Handler> = OnceLock::new();
-static REPLIES: Mutex<VecDeque<u8>> = Mutex::new(VecDeque::new());
 /// Reported in `GetCommModemStatus` (JVS sense line / reader ready).
 pub static READY: AtomicBool = AtomicBool::new(false);
 /// `GetCommModemStatus` value before / after [`READY`] (default: nothing, then CTS).
@@ -47,10 +63,13 @@ pub fn install(port: &str, handler: Handler) {
 }
 
 /// Same as [`install`], for the serial calls of the modules loaded at `modules` (e.g. the
-/// game's I/O library instead of the executable).
+/// game's I/O library instead of the executable). The hooks are installed by the first call.
 pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
-    let _ = PORT.set(port.to_string());
-    let _ = HANDLER.set(handler);
+    let device = Box::leak(Box::new(Device { port: port.to_string(), handler, replies: Mutex::new(VecDeque::new()) }));
+    DEVICES.lock().unwrap().push(device);
+    if HOOKED.swap(true, Ordering::Relaxed) {
+        return;
+    }
     let hooks: [(&str, usize); COUNT] = [
         ("CreateFileA", create_file_a as *const () as usize),
         ("CreateFileW", create_file_w as *const () as usize),
@@ -124,31 +143,37 @@ fn trace(request: &[u8], reply: &[u8]) {
     }
 }
 
-fn port_matches(name: &str) -> bool {
-    let Some(port) = PORT.get() else { return false };
+/// Fake handle of the device on port `name`.
+fn port_handle(name: &str) -> Option<P> {
+    let devices = DEVICES.lock().unwrap();
     let name = name.strip_prefix("\\\\.\\").unwrap_or(name);
-    if name.eq_ignore_ascii_case(port) {
-        return true;
+    if let Some(i) = devices.iter().position(|d| name.eq_ignore_ascii_case(&d.port)) {
+        log!("serial: {} opened", devices[i].port);
+        return Some((FAKE + 4 * i) as P);
     }
     if name.len() <= 5 && name.to_ascii_uppercase().starts_with("COM") && !is_sink(name) {
-        log!("serial: game opens {name}, not emulated (device on {port})");
+        let ports: Vec<&str> = devices.iter().map(|d| d.port.as_str()).collect();
+        log!("serial: game opens {name}, not emulated (devices on {})", ports.join(", "));
     }
-    false
+    None
 }
 
-fn is_port_a(name: *const u8) -> bool {
-    !name.is_null() && port_matches(&unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy())
-}
-
-fn is_port_w(name: *const u16) -> bool {
+fn port_a(name: *const u8) -> Option<P> {
     if name.is_null() {
-        return false;
+        return None;
+    }
+    port_handle(&unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy())
+}
+
+fn port_w(name: *const u16) -> Option<P> {
+    if name.is_null() {
+        return None;
     }
     let mut len = 0;
     while unsafe { *name.add(len) } != 0 {
         len += 1;
     }
-    port_matches(&String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) }))
+    port_handle(&String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) }))
 }
 
 // Original functions (previous IAT entries), by hook index.
@@ -191,9 +216,8 @@ unsafe extern "system" fn create_file_a(name: *const u8, a: u32, s: u32, sa: P, 
         log!("serial: silent port opened");
         return FAKE_SINK as P;
     }
-    if is_port_a(name) {
-        log!("serial: {} opened", PORT.get().map_or("", |p| p.as_str()));
-        return FAKE as P;
+    if let Some(h) = port_a(name) {
+        return h;
     }
     let h = unsafe { orig::<unsafe extern "system" fn(*const u8, u32, u32, P, u32, u32, P) -> P>(0)(name, a, s, sa, d, f, t) };
     if trace_files() && !name.is_null() {
@@ -217,9 +241,8 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
             return FAKE_SINK as P;
         }
     }
-    if is_port_w(name) {
-        log!("serial: {} opened", PORT.get().map_or("", |p| p.as_str()));
-        return FAKE as P;
+    if let Some(h) = port_w(name) {
+        return h;
     }
     let h = unsafe { orig::<unsafe extern "system" fn(*const u16, u32, u32, P, u32, u32, P) -> P>(1)(name, a, s, sa, d, f, t) };
     if trace_files() && !name.is_null() {
@@ -243,21 +266,38 @@ unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut
         }
         return 1;
     }
-    if h as usize != FAKE {
+    let Some(device) = device(h) else {
         let r = unsafe { orig::<unsafe extern "system" fn(P, *const u8, u32, *mut u32, P) -> i32>(2)(h, buf, n, written, ov) };
         if is_traced_pipe(h) {
             log!("file: pipe {h:?} write {n} bytes overlapped {} -> {r} err {}", !ov.is_null(), unsafe { windows_sys::Win32::Foundation::GetLastError() });
         }
         return r;
-    }
+    };
     let packet = unsafe { std::slice::from_raw_parts(buf, n as usize) };
-    let reply = HANDLER.get().map_or_else(Vec::new, |h| h(packet));
+    let reply = (device.handler)(packet);
     trace(packet, &reply);
-    REPLIES.lock().unwrap().extend(reply);
+    device.replies.lock().unwrap().extend(reply);
     if !written.is_null() {
         unsafe { *written = n };
     }
+    unsafe { complete(ov, n) };
     1
+}
+
+/// Overlapped calls complete at once: `OVERLAPPED { Internal, InternalHigh, .. }` set to
+/// success and the byte count, its event signaled.
+unsafe fn complete(ov: P, n: u32) {
+    if ov.is_null() {
+        return;
+    }
+    let o = ov as *mut windows_sys::Win32::System::IO::OVERLAPPED;
+    unsafe {
+        (*o).Internal = 0;
+        (*o).InternalHigh = n as usize;
+        if !(*o).hEvent.is_null() {
+            windows_sys::Win32::System::Threading::SetEvent((*o).hEvent);
+        }
+    }
 }
 
 unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, ov: P) -> i32 {
@@ -267,15 +307,15 @@ unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, 
         }
         return 1;
     }
-    if h as usize != FAKE {
+    let Some(device) = device(h) else {
         let r = unsafe { orig::<unsafe extern "system" fn(P, *mut u8, u32, *mut u32, P) -> i32>(3)(h, buf, n, read, ov) };
         if is_traced_pipe(h) {
             let got = if read.is_null() { 0 } else { unsafe { *read } };
             log!("file: pipe {h:?} read {n} -> {r} got {got} overlapped {} err {}", !ov.is_null(), unsafe { windows_sys::Win32::Foundation::GetLastError() });
         }
         return r;
-    }
-    let mut q = REPLIES.lock().unwrap();
+    };
+    let mut q = device.replies.lock().unwrap();
     let count = (n as usize).min(q.len());
     for i in 0..count {
         unsafe { *buf.add(i) = q.pop_front().unwrap() };
@@ -283,6 +323,7 @@ unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, 
     if !read.is_null() {
         unsafe { *read = count as u32 };
     }
+    unsafe { complete(ov, count as u32) };
     1
 }
 
@@ -304,7 +345,7 @@ unsafe extern "system" fn get_comm_modem_status(h: P, stat: *mut u32) -> i32 {
         }
         return 1;
     }
-    if h as usize != FAKE {
+    if device(h).is_none() {
         return unsafe { orig::<unsafe extern "system" fn(P, *mut u32) -> i32>(5)(h, stat) };
     }
     if !stat.is_null() {
@@ -317,7 +358,7 @@ unsafe extern "system" fn clear_comm_error(h: P, errors: *mut u32, stat: *mut u3
     if !is_fake(h) {
         return unsafe { orig::<unsafe extern "system" fn(P, *mut u32, *mut u32) -> i32>(6)(h, errors, stat) };
     }
-    let queued = if h as usize == FAKE { REPLIES.lock().unwrap().len() as u32 } else { 0 };
+    let queued = device(h).map_or(0, |d| d.replies.lock().unwrap().len() as u32);
     if !errors.is_null() {
         unsafe { *errors = 0 };
     }
