@@ -1,0 +1,14 @@
+# Samurai Spirits Sen (SNK Playmore, Taito Type X2) - template, override values in
+# userprofiles/typex/samurai-spirits-sen.yaml.
+system: typex
+name: Samurai Spirits Sen
+
+# The dump's launcher.exe is the original executable (CRC 0x9646805d); its game.exe is the same
+# build with the known patches below written in (and its D:\ save path changed to sv\): run
+# the original, patched in memory, saves on D:\ (WindowsLoader).
+# Buttons: b1 vertical slash, b2 horizontal slash, b3 kick, b4 special (default mapping).
+env:
+  # Known patches: skip the I/O board reset and the wait for its node (start-up),
+  # skip two cabinet checks (0xB73DE, 0xB73ED, 0xC640C), 0xCE1C0 returns 1.
+  WAL_PATCHES: "0x117A:9090909090,0x1188:9090,0xB73DE:9090,0xB73ED:EB,0xC640C:EB,0xCE1C0:33C040C3"
+  WAL_PATCHES_EXE: launcher.exe

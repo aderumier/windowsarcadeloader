@@ -72,8 +72,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-10 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | pass | 2026-10-07 |
+| `blazblue-continuum-shift` | BlazBlue Continuum Shift | typex | works (user: 100%) | pass | 2026-10-10 |
 | `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | pass | 2026-10-10 |
-| `d1gp-arcade` | D1GP Arcade | typex | works (user: wheel, pedals, buttons, test menu); TODO: force feedback check on a wheel, magnetic card reader (saves) | not in the test |  |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | pass | 2026-10-07 |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | fail: running, window | 2026-10-10 |
 | `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | pass | 2026-10-09 |
@@ -88,10 +88,12 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | pass | 2026-10-07 |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | pass | 2026-10-07 |
 | `king-of-fighters-xiii` | The King of Fighters XIII | typex | works (user: 100%) | pass | 2026-10-09 |
+| `kof-xiii-climax-typex2` | The King of Fighters XIII Climax (Type X2) | typex | works (user: 100%) | pass | 2026-10-10 |
 | `music-gungun-2` | Music GunGun! 2 | typex | works (user: perfect), attract movie, sound, 2 guns | pass | 2026-10-09 |
 | `raiden-3-typex` | Raiden III | typex | works (user); intro movie black (as NESiCA) | pass | 2026-10-07 |
 | `raiden-4-typex` | Raiden IV | typex | works (user) | pass | 2026-10-07 |
 | `shikigami-no-shiro-3` | Shikigami no Shiro III | typex | works (user), Landscape/Bezel dump rotated by its ReShade | pass | 2026-10-07 |
+| `samurai-spirits-sen` | Samurai Spirits Sen | typex | works (user: 100%) | pass | 2026-10-10 |
 | `senko-no-ronde-duo-typex2` | Senko no Ronde DUO: Dis-United Order | typex | works (user: perfect) | pass | 2026-10-07 |
 | `spica-adventure` | Spica Adventure | typex | works (user: 100%) | pass | 2026-10-09 |
 | `new-super-mario-bros-wii-coin-world` | New Super Mario Bros. Wii Coin World | typex | works (user: 100%), 4 satellites, medals, hoppers, satellite test menu | pass | 2026-10-09 |
@@ -99,6 +101,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | pass | 2026-10-07 |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | pass | 2026-10-07 |
 | `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | not in the test |  |
+| `d1gp-arcade` | D1GP Arcade | typex | works (user: wheel, pedals, buttons, test menu); TODO: force feedback check on a wheel, magnetic card reader (saves) | not in the test |  |
 | `wacky-races` | Wacky Races | typex | works (user: controls, start, view) | not in the test |  |
 | `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | not in the test |  |
 | `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | pass | 2026-10-10 |

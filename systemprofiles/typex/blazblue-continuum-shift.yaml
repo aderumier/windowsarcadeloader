@@ -1,0 +1,7 @@
+# BlazBlue Continuum Shift (Arc System Works, Taito Type X2) - template,
+# override values in userprofiles/typex/blazblue-continuum-shift.yaml.
+system: typex
+name: BlazBlue Continuum Shift
+
+# Generic Type X2 build (CRC 0x4414288e): wal-loader, JVS, no code patches.
+# 4 buttons (b1-b4 -> btn1-btn4, default mapping).
