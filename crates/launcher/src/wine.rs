@@ -305,7 +305,9 @@ impl Wine {
             fs::remove_dir_all(&tmp)?;
         }
         fs::create_dir_all(&tmp)?;
+        // files owned by whoever runs the launcher (root on Batocera), not the archive's user
         let status = Command::new("tar")
+            .arg("--no-same-owner")
             .arg("-xzf")
             .arg(&archive)
             .arg("-C")
