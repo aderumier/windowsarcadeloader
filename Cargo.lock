@@ -3391,6 +3391,7 @@ dependencies = [
  "eframe",
  "evdev",
  "libc",
+ "libm",
  "rfd",
  "sdl3",
  "serde",

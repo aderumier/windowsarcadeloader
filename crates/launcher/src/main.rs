@@ -6,6 +6,8 @@
 
 mod config;
 mod ffb;
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+mod glibc_compat;
 mod guns;
 mod gui;
 mod input;

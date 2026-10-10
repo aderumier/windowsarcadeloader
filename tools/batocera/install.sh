@@ -11,6 +11,8 @@ rm -rf "$DEST/payloads" "$DEST/systemprofiles"
 cp -r dist/payloads "$DEST/payloads"
 cp -r systemprofiles "$DEST/systemprofiles"
 [ -f "$DEST/launcher.yaml" ] || cp tools/batocera/launcher.yaml "$DEST/"
+# GUI: its wrapper and icon (the applications menu entry of the rgs tree points at them)
+cp tools/batocera/arcade-launcher-gui tools/batocera/icon.png "$DEST/"
 # shared prefix ready to unpack (tools/prefix-archive.sh), if built
 if [ -f wine-prefix/full.tar.gz ]; then
     mkdir -p "$DEST/wine-prefix"

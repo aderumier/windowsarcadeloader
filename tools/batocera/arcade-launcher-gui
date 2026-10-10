@@ -1,0 +1,10 @@
+#!/bin/sh
+# The loader's GUI on Batocera (applications menu entry): controls mapping into userprofiles/
+# of the emulator directory, the same root as the games started from EmulationStation.
+DIR=$(dirname "$(readlink -f "$0")")
+# started from a non X environment
+if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && command -v getLocalXDisplay >/dev/null; then
+    export DISPLAY=$(getLocalXDisplay)
+fi
+cd "$DIR" || exit 1
+exec "$DIR/arcade-launcher" gui --root "$DIR" >/userdata/system/logs/arcade-launcher-gui.log 2>&1

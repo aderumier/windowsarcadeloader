@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Windows Arcade Loader: arcade stick (Batocera applications menu icon) -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b3a67"/>
+      <stop offset="1" stop-color="#141b33"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d3d46"/>
+      <stop offset="1" stop-color="#1f1f26"/>
+    </linearGradient>
+    <radialGradient id="ball" cx="0.35" cy="0.3" r="0.75">
+      <stop offset="0" stop-color="#ff8a80"/>
+      <stop offset="0.5" stop-color="#e53935"/>
+      <stop offset="1" stop-color="#8e1414"/>
+    </radialGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="44" fill="url(#bg)"/>
+  <!-- control panel -->
+  <path d="M28 150 L228 150 L238 206 Q240 220 226 220 L30 220 Q16 220 18 206 Z" fill="url(#panel)" stroke="#0b0b10" stroke-width="3"/>
+  <rect x="24" y="146" width="208" height="10" rx="5" fill="#55555f"/>
+  <!-- joystick -->
+  <ellipse cx="80" cy="168" rx="30" ry="10" fill="#0b0b10"/>
+  <rect x="74" y="92" width="12" height="76" rx="6" fill="#c9ccd6"/>
+  <circle cx="80" cy="82" r="30" fill="url(#ball)" stroke="#5e0d0d" stroke-width="2"/>
+  <ellipse cx="70" cy="70" rx="10" ry="6" fill="#ffffff" opacity="0.55"/>
+  <!-- buttons -->
+  <g stroke="#0b0b10" stroke-width="2">
+    <ellipse cx="146" cy="180" rx="15" ry="9" fill="#ffd600"/>
+    <ellipse cx="182" cy="172" rx="15" ry="9" fill="#00c853"/>
+    <ellipse cx="216" cy="166" rx="15" ry="9" fill="#2979ff"/>
+    <ellipse cx="150" cy="203" rx="15" ry="9" fill="#ff6d00"/>
+    <ellipse cx="186" cy="196" rx="15" ry="9" fill="#d500f9"/>
+  </g>
+  <g fill="#ffffff" opacity="0.45">
+    <ellipse cx="142" cy="177" rx="6" ry="3"/>
+    <ellipse cx="178" cy="169" rx="6" ry="3"/>
+    <ellipse cx="212" cy="163" rx="6" ry="3"/>
+    <ellipse cx="146" cy="200" rx="6" ry="3"/>
+    <ellipse cx="182" cy="193" rx="6" ry="3"/>
+  </g>
+  <!-- Windows logo -->
+  <g transform="translate(160 44) skewY(-6)" fill="#4fc3f7">
+    <rect x="0" y="0" width="26" height="26" rx="2"/>
+    <rect x="30" y="0" width="26" height="26" rx="2"/>
+    <rect x="0" y="30" width="26" height="26" rx="2"/>
+    <rect x="30" y="30" width="26" height="26" rx="2"/>
+  </g>
+</svg>
