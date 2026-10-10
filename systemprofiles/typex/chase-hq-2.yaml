@@ -52,6 +52,8 @@ input:
 
 env:
   WAL_TYPEX_JVS_ANALOG_INPUTS: ",,lx,accel,brake"
+  # Force feedback: the wheel motor command of its I/O output word (payload ffb.rs).
+  WAL_TYPEX_FFB: chase-hq-2
   # Chase H.Q. 2 patch (CRC 0x1f2f9497): skip pedal calibration.
   WAL_PATCHES: "0x107E3:EB"
   # Nancy's videos (data\mv) are WMV9 (WMV3) AVIs read through AVIFile: Microsoft's WMV9 VCM

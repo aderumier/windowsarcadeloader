@@ -11,6 +11,9 @@
 //! overlapped window (style 0: Windows adds a caption and border) and makes its Direct3D 8
 //! device fullscreen on it: the window manager showed an empty frame, desktop behind.
 //!
+//! `WAL_HIDE_CURSOR=1`: no mouse cursor over the game (a cabinet has none; Battle Gear 4 shows
+//! the arrow of its window class): `LoadCursorA/W` return no cursor and `SetCursor` sets none.
+//!
 //! Always: Direct3D (DXVK's d3d9, also behind its d3d8, and wined3d) minimizes a fullscreen
 //! window when it is deactivated. A game started while another fullscreen window keeps the
 //! focus (a terminal) was minimized at once, out of the taskbar, and stopped presenting. Their
@@ -36,6 +39,9 @@ static POPUP: AtomicBool = AtomicBool::new(false);
 
 pub fn init() {
     keep_unminimized();
+    if std::env::var("WAL_HIDE_CURSOR").is_ok_and(|v| v.trim() == "1") {
+        hide_cursor();
+    }
     if std::env::var("WAL_WINDOW_POPUP").is_ok_and(|v| v.trim() == "1") {
         POPUP.store(true, Ordering::Relaxed);
         hook_create();
@@ -64,6 +70,29 @@ pub fn init() {
         }
     }
     log!("window: top-level windows sized {w}x{h}");
+}
+
+static ORIG_SET_CURSOR: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "system" fn load_cursor(_instance: *mut c_void, _name: *const c_void) -> *mut c_void {
+    std::ptr::null_mut()
+}
+
+unsafe extern "system" fn set_cursor(_cursor: *mut c_void) -> *mut c_void {
+    let orig: unsafe extern "system" fn(*mut c_void) -> *mut c_void =
+        unsafe { std::mem::transmute(ORIG_SET_CURSOR.load(Ordering::Relaxed)) };
+    unsafe { orig(std::ptr::null_mut()) }
+}
+
+fn hide_cursor() {
+    unsafe {
+        iat::hook("user32.dll", "LoadCursorA", load_cursor as *const () as usize);
+        iat::hook("user32.dll", "LoadCursorW", load_cursor as *const () as usize);
+        if let Some(o) = iat::hook("user32.dll", "SetCursor", set_cursor as *const () as usize) {
+            ORIG_SET_CURSOR.store(o, Ordering::Relaxed);
+        }
+    }
+    log!("window: mouse cursor hidden");
 }
 
 fn hook_create() {

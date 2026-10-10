@@ -98,6 +98,15 @@ pub struct InputConfig {
     pub mouse_screen: [u32; 2],
     pub gun: MapTable,
     pub devices: BTreeMap<String, DeviceConfig>,
+    pub ffb: FfbConfig,
+}
+
+#[derive(Debug, Deserialize, Clone, Copy)]
+#[serde(deny_unknown_fields)]
+pub struct FfbConfig {
+    pub enabled: bool,
+    pub gain: u32,
+    pub invert: bool,
 }
 
 #[derive(Debug, Deserialize)]

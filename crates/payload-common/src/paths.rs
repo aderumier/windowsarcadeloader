@@ -12,6 +12,11 @@ impl<T> Redirected<T> {
         self.replaced.as_ref().map_or(self.original, |v| v.as_ptr())
     }
 
+    /// The path was rewritten.
+    pub fn is_replaced(&self) -> bool {
+        self.replaced.is_some()
+    }
+
     /// A replacement path; `path` must end with a NUL.
     pub fn replaced(path: Vec<T>) -> Self {
         Redirected { original: std::ptr::null(), replaced: Some(path) }

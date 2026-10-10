@@ -2,14 +2,16 @@
 
 use std::io::Write;
 use std::net::{TcpListener, TcpStream};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
-use wal_protocol::{InputFrame, Message, VERSION};
+use wal_protocol::{InputFrame, Message, Output, VERSION};
 
 pub struct Server {
     clients: Arc<Mutex<Vec<TcpStream>>>,
     last: Arc<Mutex<InputFrame>>,
+    outputs: Receiver<Output>,
 }
 
 impl Server {
@@ -18,6 +20,7 @@ impl Server {
         let clients: Arc<Mutex<Vec<TcpStream>>> = Arc::default();
         let last: Arc<Mutex<InputFrame>> = Arc::default();
         let (c, l) = (clients.clone(), last.clone());
+        let (tx, outputs) = channel();
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
                 let _ = stream.set_nodelay(true);
@@ -29,11 +32,12 @@ impl Server {
                 let frame = Message::Input(*l.lock().unwrap());
                 if writer.write_all(&[hello.encode(), frame.encode()].concat()).is_ok() {
                     c.lock().unwrap().push(writer);
-                    std::thread::spawn(move || read_client(stream));
+                    let tx = tx.clone();
+                    std::thread::spawn(move || read_client(stream, tx));
                 }
             }
         });
-        Ok(Server { clients, last })
+        Ok(Server { clients, last, outputs })
     }
 
     pub fn broadcast(&self, frame: &InputFrame) {
@@ -41,13 +45,20 @@ impl Server {
         let bytes = Message::Input(*frame).encode();
         self.clients.lock().unwrap().retain_mut(|c| c.write_all(&bytes).is_ok());
     }
+
+    /// Outputs received from the game since the last call.
+    pub fn outputs(&self) -> Vec<Output> {
+        self.outputs.try_iter().collect()
+    }
 }
 
-fn read_client(mut stream: TcpStream) {
+fn read_client(mut stream: TcpStream, outputs: Sender<Output>) {
     while let Ok(msg) = Message::read_from(&mut stream) {
         match msg {
             Message::Hello { version, name } => eprintln!("server: payload '{name}' connected (protocol v{version})"),
-            Message::Output(o) => eprintln!("server: output player {} id {} = {}", o.player, o.id, o.value),
+            Message::Output(o) => {
+                let _ = outputs.send(o);
+            }
             Message::Input(_) => {}
         }
     }

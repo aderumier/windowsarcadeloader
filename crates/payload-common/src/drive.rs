@@ -90,11 +90,150 @@ pub fn data_dir() -> String {
 }
 
 fn ansi(p: *const u8) -> Redirected<u8> {
-    unsafe { rewrite_drive(p, letter(), &target().ansi) }
+    let r = unsafe { rewrite_drive(p, letter(), &target().ansi) };
+    match game_drive() {
+        Some(g) if !r.is_replaced() => unsafe { rewrite_drive(p, g.letter, &g.ansi) },
+        _ => r,
+    }
 }
 
 fn wide(p: *const u16) -> Redirected<u16> {
-    unsafe { rewrite_drive(p, letter(), &target().wide) }
+    let r = unsafe { rewrite_drive(p, letter(), &target().wide) };
+    match game_drive() {
+        Some(g) if !r.is_replaced() => unsafe { rewrite_drive(p, g.letter, &g.wide) },
+        _ => r,
+    }
+}
+
+/// `WAL_GAME_DRIVE=<letter>`: the game runs from the root of that drive, as on the cabinet
+/// (Battle Gear 4: `E:\`, its data found from the current directory's drive). Paths on that
+/// drive go to the game directory, `GetCurrentDirectory` answers its root, and
+/// `GetLogicalDrives` / `GetDriveType` report C:, the redirected drive and it as fixed disks.
+struct GameDrive {
+    letter: u8,
+    ansi: Vec<u8>,
+    wide: Vec<u16>,
+}
+
+fn game_drive() -> Option<&'static GameDrive> {
+    static DRIVE: OnceLock<Option<GameDrive>> = OnceLock::new();
+    DRIVE
+        .get_or_init(|| {
+            let letter = std::env::var("WAL_GAME_DRIVE").ok()?.bytes().next()?.to_ascii_uppercase();
+            if !letter.is_ascii_uppercase() {
+                return None;
+            }
+            // the game directory, without its trailing separator
+            let mut ansi = vec![0u8; 1024];
+            let mut wide = vec![0u16; 1024];
+            unsafe {
+                let n = GetModuleFileNameA(std::ptr::null_mut(), ansi.as_mut_ptr(), ansi.len() as u32) as usize;
+                ansi.truncate(n);
+                let n = GetModuleFileNameW(std::ptr::null_mut(), wide.as_mut_ptr(), wide.len() as u32) as usize;
+                wide.truncate(n);
+            }
+            ansi.truncate(ansi.iter().rposition(|c| *c == b'\\').unwrap_or(0));
+            wide.truncate(wide.iter().rposition(|c| *c == b'\\' as u16).unwrap_or(0));
+            log!("drive: {}:\\ redirected to {} (the game's drive)", letter as char, String::from_utf16_lossy(&wide));
+            Some(GameDrive { letter, ansi, wide })
+        })
+        .as_ref()
+}
+
+fn drive_bits() -> u32 {
+    let mut bits = 1 << 2 | 1 << (letter() - b'A');
+    if let Some(g) = game_drive() {
+        bits |= 1 << (g.letter - b'A');
+    }
+    bits
+}
+
+static GAME_DRIVE_ORIG: [AtomicUsize; 5] = [const { AtomicUsize::new(0) }; 5];
+
+unsafe extern "system" fn GetLogicalDrives() -> u32 {
+    let original: unsafe extern "system" fn() -> u32 = unsafe { std::mem::transmute(GAME_DRIVE_ORIG[0].load(Ordering::Relaxed)) };
+    drive_bits() | unsafe { original() }
+}
+
+/// DRIVE_FIXED for the reported drives (Wine answers DRIVE_NO_ROOT_DIR for the absent ones).
+fn drive_type(first: u32, original: impl FnOnce() -> u32) -> u32 {
+    let c = (first as u8).to_ascii_uppercase();
+    if c.is_ascii_uppercase() && drive_bits() & (1 << (c - b'A')) != 0 { 3 } else { original() }
+}
+
+unsafe extern "system" fn GetDriveTypeA(root: *const u8) -> u32 {
+    let original: unsafe extern "system" fn(*const u8) -> u32 = unsafe { std::mem::transmute(GAME_DRIVE_ORIG[1].load(Ordering::Relaxed)) };
+    let first = if root.is_null() { 0 } else { u32::from(unsafe { *root }) };
+    drive_type(first, || unsafe { original(root) })
+}
+
+unsafe extern "system" fn GetDriveTypeW(root: *const u16) -> u32 {
+    let original: unsafe extern "system" fn(*const u16) -> u32 = unsafe { std::mem::transmute(GAME_DRIVE_ORIG[2].load(Ordering::Relaxed)) };
+    let first = if root.is_null() { 0 } else { u32::from(unsafe { *root }) };
+    drive_type(first, || unsafe { original(root) })
+}
+
+/// The game drive's root, `X:\` (3 characters): the length without the NUL when it fits, the
+/// size needed (with the NUL) otherwise.
+unsafe fn current_dir<T: From<u8>>(size: u32, buffer: *mut T) -> u32 {
+    let letter = game_drive().map_or(b'C', |g| g.letter);
+    if size < 4 || buffer.is_null() {
+        return 4;
+    }
+    for (i, c) in [letter, b':', b'\\', 0].into_iter().enumerate() {
+        unsafe { buffer.add(i).write(T::from(c)) };
+    }
+    3
+}
+
+unsafe extern "system" fn GetCurrentDirectoryA(size: u32, buffer: *mut u8) -> u32 {
+    unsafe { current_dir(size, buffer) }
+}
+
+unsafe extern "system" fn GetCurrentDirectoryW(size: u32, buffer: *mut u16) -> u32 {
+    unsafe { current_dir(size, buffer) }
+}
+
+static MMIO_ORIG: [AtomicUsize; 2] = [const { AtomicUsize::new(0) }; 2];
+
+/// `winmm!mmioOpenA/W`: RIFF files opened by path (Battle Gear 4's music, `E:\data\Sound\Bgm`).
+unsafe extern "system" fn mmioOpenA(path: *mut u8, info: P, flags: u32) -> P {
+    let original: unsafe extern "system" fn(*mut u8, P, u32) -> P = unsafe { std::mem::transmute(MMIO_ORIG[0].load(Ordering::Relaxed)) };
+    let p = ansi(path);
+    unsafe { original(p.ptr().cast_mut(), info, flags) }
+}
+
+unsafe extern "system" fn mmioOpenW(path: *mut u16, info: P, flags: u32) -> P {
+    let original: unsafe extern "system" fn(*mut u16, P, u32) -> P = unsafe { std::mem::transmute(MMIO_ORIG[1].load(Ordering::Relaxed)) };
+    let p = wide(path);
+    unsafe { original(p.ptr().cast_mut(), info, flags) }
+}
+
+fn init_mmio() {
+    for (i, (name, f)) in [("mmioOpenA", mmioOpenA as *const () as usize), ("mmioOpenW", mmioOpenW as *const () as usize)].into_iter().enumerate() {
+        if let Some(o) = unsafe { iat::hook("winmm.dll", name, f) } {
+            MMIO_ORIG[i].store(o, Ordering::Relaxed);
+        }
+    }
+}
+
+/// Installs the game drive hooks (game executable only) when `WAL_GAME_DRIVE` is set.
+fn init_game_drive() {
+    if game_drive().is_none() {
+        return;
+    }
+    let hooks: [(&str, usize); 5] = [
+        ("GetLogicalDrives", GetLogicalDrives as *const () as usize),
+        ("GetDriveTypeA", GetDriveTypeA as *const () as usize),
+        ("GetDriveTypeW", GetDriveTypeW as *const () as usize),
+        ("GetCurrentDirectoryA", GetCurrentDirectoryA as *const () as usize),
+        ("GetCurrentDirectoryW", GetCurrentDirectoryW as *const () as usize),
+    ];
+    for (i, (name, f)) in hooks.into_iter().enumerate() {
+        if let Some(o) = unsafe { iat::hook("kernel32.dll", name, f) } {
+            GAME_DRIVE_ORIG[i].store(o, Ordering::Relaxed);
+        }
+    }
 }
 
 /// `WAL_PIN_CWD=1`: the game's working directory stays its own directory (Type X2
@@ -171,6 +310,8 @@ macro_rules! hooks {
         pub fn init_letter(letter: u8, var: &str, default: &str) {
             let _ = CONFIG.set(Config { letter: letter.to_ascii_uppercase(), var: var.to_string(), default: default.to_string() });
             prepare_data_dir();
+            init_game_drive();
+            init_mmio();
             $(
                 if let Some(o) = unsafe { iat::hook("kernel32.dll", stringify!($name), $name as *const () as usize) } {
                     ORIG[$idx].store(o, Ordering::Relaxed);

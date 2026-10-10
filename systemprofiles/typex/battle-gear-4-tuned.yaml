@@ -1,0 +1,80 @@
+# Battle Gear 4 Tuned Professional 2.08 (Taito, Taito Type X+, driving) - template, override
+# values in userprofiles/typex/battle-gear-4-tuned.yaml.
+system: typex
+name: Battle Gear 4 Tuned
+
+# Cabinet: wheel (steering board on COM1), pedals, SHIFT UP / SHIFT DOWN (sequential shifter,
+# JVS buttons 2 / 3), VIEW, HAZARD, OVER TAKE (JVS up, down, left), SIDE BRAKE (button 1), KEY
+# switch (right) and key reader (the player's key id, payload jvs.rs). The professional
+# cabinet (wide monitor, H shifter, clutch): battle-gear-4-tuned-pro.yaml.
+# Virtual stick: wheel lx, pedals accel/brake, b1 SHIFT UP, b2 SHIFT DOWN, b3 VIEW, b4 HAZARD,
+# b5 OVER TAKE, b6 SIDE BRAKE, b7 KEY. The stick directions are not cabinet inputs.
+native_map:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: btn2
+  b2: btn3
+  b3: up
+  b4: down
+  b5: left
+  b6: btn1
+  b7: right
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1/L1 shift up/down, Y VIEW, X HAZARD, B OVER TAKE,
+  # A SIDE BRAKE.
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    x: b4
+    b: b5
+    a: b6
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl / Alt shift up / down,
+  # Space VIEW, Shift HAZARD, Z OVER TAKE, X SIDE BRAKE, C KEY, 5 coin, 1 start.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # Wheel position from the steering board on COM1 (inverted: 0 = full left here).
+  WAL_TYPEX_WHEEL_PORT: COM1
+  WAL_TYPEX_WHEEL_AXIS: "-lx"
+  # Force feedback from its memory (payload ffb.rs): centering spring in a race, wall and car
+  # hits push the wheel, car contacts vibrate.
+  WAL_TYPEX_FFB: battle-gear-4
+  # Gas and brake on JVS analog channels 3 and 4 (its I/O test).
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,accel,brake"
+  # Key reader (Taito JVS commands of the main board).
+  WAL_TYPEX_JVS_LAYOUT: battle-gear
+  # The cabinet runs it from the root of E: and it finds its data from the current
+  # directory's drive (E:\data): without it, it waited forever for C:\data\... at boot.
+  WAL_GAME_DRIVE: E
+  # Battle Gear 4 Tuned patches for this executable (CRC 0x14eb3c8a), the dump being
+  # hex-edited: original entry point (the edited one first loads ttx_monitor.dll), original
+  # transmission lookup (the edited one forces an index: no SEQ/6MT in professional mode);
+  # no window menu (LoadMenuA wrapper returns at once); intro fix (distorted 3D scene in the
+  # intro otherwise: a field set to 1.0 in its setup loop, code in padding at 0x57ACE); wide
+  # monitor in the normal cabinet: the cabinet type check sets the wide monitor flag (+0x4DC:
+  # 1360x768 and its layouts) and the clutch flag (+0x4E0) together; patched to always set the
+  # first, the second staying 0 (0x1F4C3E: no branch to the normal type, 0x1F4C4B: stores edi,
+  # 0 there).
+  WAL_PATCHES: "0x2837E0:6A606828AC7C00,0xCBCB8:8B8481940000008B4004,0x1F21B0:C20400,\
+    0x57ACE:896814C740080000803F83C108EB0A,0x57AE7:E91B040000,0x57F01:E9C8FBFFFF90,\
+    0x1F4C3E:9090,0x1F4C4B:89BEE0040000"
+  # Always windowed, 1360x768 (wide monitor): that back buffer stretched to a screen-sized
+  # borderless window.
+  WAL_D3D9_WINDOWED_SIZE: 1360x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # It reads the PC keyboard through DirectInput too (arrows and keypad shift gears).
+  WAL_DINPUT_DISABLE: "1"
