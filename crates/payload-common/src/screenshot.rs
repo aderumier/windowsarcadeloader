@@ -17,6 +17,8 @@
 //!   games drawing a smaller picture in the corner of their back buffer (Yatagarasu: 854x480 of
 //!   1280x720), whose size no fullscreen mode has. `Present` source/destination rectangles are
 //!   dropped: whole back buffer to the whole window (Yatagarasu presents to 0,0 1280x720).
+//!   A fullscreen game's window left hidden or without a size (fullscreen Direct3D would have
+//!   shown and sized it: Street Fighter IV) is shown borderless over the whole screen.
 //!   The adapter's display modes also list that size (60 Hz) when the monitor has none: games
 //!   checking for their mode before creating the device run on any screen (Music GunGun! 2:
 //!   1920x1080, "Direct3D device enumeration failed" on a 1280x720 screen).
@@ -359,6 +361,7 @@ unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, wind
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
         unsafe {
             remember_window(params, window);
+            show_device_window();
             wrap_device(*out);
             patch(*out, DEV_PRESENT_EX, present_ex as *const () as usize, &ORIG_PRESENT_EX);
             patch(*out, DEV_RESET_EX, reset_ex as *const () as usize, &ORIG_RESET_EX);
@@ -575,6 +578,7 @@ unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window:
     let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
         unsafe { remember_window(params, window) };
+        unsafe { show_device_window() };
         unsafe { log_device("d3d9", params, 8, window) };
         unsafe { wrap_device(*out) };
     } else {
@@ -654,6 +658,35 @@ unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -
     let dst = unsafe { aspect_rect(dst, window, &mut rect) };
     let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
     unsafe { orig(dev, src, dst, window, dirty) }
+}
+
+/// `WAL_D3D9_WINDOWED_SIZE`: the device's window, hidden or without a size (a fullscreen game
+/// leaves that to fullscreen Direct3D), shown borderless over the whole screen.
+unsafe fn show_device_window() {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_STYLE, GetSystemMetrics, GetWindowLongW, GetWindowRect, HWND_TOP, IsWindowVisible, SM_CXSCREEN, SM_CYSCREEN,
+        SWP_FRAMECHANGED, SWP_SHOWWINDOW, SetWindowLongW, SetWindowPos, WS_CAPTION, WS_POPUP, WS_THICKFRAME,
+    };
+    if WINDOWED_SIZE.lock().unwrap().is_none() {
+        return;
+    }
+    let hwnd = DEVICE_WINDOW.load(Ordering::Relaxed) as P;
+    if hwnd.is_null() {
+        return;
+    }
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    unsafe { GetWindowRect(hwnd, &mut r) };
+    if unsafe { IsWindowVisible(hwnd) } != 0 && r.right > r.left && r.bottom > r.top {
+        return;
+    }
+    let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+    unsafe {
+        let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+        SetWindowLongW(hwnd, GWL_STYLE, ((style & !(WS_CAPTION | WS_THICKFRAME)) | WS_POPUP) as i32);
+        SetWindowPos(hwnd, HWND_TOP, 0, 0, w, h, SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+    }
+    log!("d3d9: device window {hwnd:?} ({}x{}, hidden or empty) shown over the screen {w}x{h}", r.right - r.left, r.bottom - r.top);
 }
 
 /// Device window of D3DPRESENT_PARAMETERS (hDeviceWindow, dword 7), else the focus window.

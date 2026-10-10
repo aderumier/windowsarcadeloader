@@ -7,9 +7,16 @@ name: Street Fighter IV
 # The dump's dinput8.dll is Microsoft's: use wine's.
 hide: [dinput8.dll]
 
-# No back buffer override: the game queries the desktop size (1920x1080 here) and
-# lays out its 1920x1080 viewport accordingly. Forcing a smaller back buffer
-# (1280x800) made the WM-stretched 1920x1080 window show a cropped, zoomed image.
+# The game always asks for a 1920x1080 fullscreen device (a smaller forced back buffer,
+# 1280x800, showed a cropped, zoomed picture). On a screen without that mode (Batocera at
+# 1600x1200) the device was refused (D3DERR_NOTAVAILABLE) and the game quit: a windowed
+# 1920x1080 device, its window (left hidden, 0x0) shown borderless over the screen, the
+# picture kept 16:9 (black bars on other screens).
+env:
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
 
 # Control names (the GUI's mapping rows).
 controls:
