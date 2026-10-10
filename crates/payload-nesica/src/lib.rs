@@ -8,11 +8,9 @@
 
 #![allow(non_snake_case)]
 
-mod crypto;
 mod crypttrace;
 mod drive;
 mod fastio;
-mod keys;
 mod nesys;
 mod registry;
 mod rfid;
@@ -40,7 +38,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             nesys::start();
         }
         if std::env::var("WAL_NESICA_CRYPT").map_or(true, |v| v != "0") {
-            crypto::start();
+            wal_payload_common::crypto::start();
         }
         log!("nesica: initialized");
     }

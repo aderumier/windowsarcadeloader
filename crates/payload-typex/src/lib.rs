@@ -48,6 +48,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         touch::init();
         sram::init();
         wal_payload_common::vfw::init();
+        // Taito crypto service (KOF XIII Climax): only for a profile naming its key
+        if wal_payload_common::crypto::key_configured() {
+            wal_payload_common::crypto::start();
+        }
         log!("typex: initialized");
     }
     TRUE

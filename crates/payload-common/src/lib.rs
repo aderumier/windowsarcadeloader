@@ -9,6 +9,10 @@ pub mod codepage;
 #[cfg(windows)]
 pub mod crash;
 #[cfg(windows)]
+pub mod crypto;
+#[cfg(windows)]
+mod crypto_keys;
+#[cfg(windows)]
 pub mod dinput;
 #[cfg(windows)]
 pub mod drive;
