@@ -53,6 +53,7 @@ pub struct Profile {
     pub env: BTreeMap<String, String>,
     pub native_map: BTreeMap<String, String>,
     pub controls: BTreeMap<String, String>,
+    pub squashfs_saves: PathBuf,
     pub port: u16,
     pub input: InputConfig,
 
@@ -278,6 +279,13 @@ impl Profile {
         profile.root = root;
         profile.sources = sources;
         Ok(profile)
+    }
+
+    /// The game uses this virtual stick input: in `controls`, not set to none there nor in
+    /// `native_map`.
+    pub fn uses(&self, target: &str) -> bool {
+        let none = |v: Option<&String>| v.is_some_and(|v| v.eq_ignore_ascii_case("none"));
+        self.controls.contains_key(target) && !none(self.controls.get(target)) && !none(self.native_map.get(target))
     }
 
     pub fn path(&self, p: &Path) -> PathBuf {

@@ -6,3 +6,7 @@
 runners_dir: /userdata/system/wine/custom
 runner: GE-Proton11-7-x86_64
 payloads_dir: payloads
+
+# SquashFS images started by the launcher itself (GUI): their writes with those of the games
+# started from EmulationStation (configgen: /userdata/saves/<system>/<image name>).
+squashfs_saves: /userdata/saves
