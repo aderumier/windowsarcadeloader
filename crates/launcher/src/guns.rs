@@ -5,7 +5,9 @@
 //!   in device order (`eventN` number).
 //! * Mice (`REL_X`/`REL_Y` + `BTN_LEFT`) fill the remaining players, USB mice first (before a
 //!   laptop's touchpad and TrackPoint): their motion moves a position over a virtual screen of
-//!   `input.mouse_screen` pixels.
+//!   `input.mouse_screen` pixels. A touchpad's own mouse node (same HID device as the
+//!   touchpad: ELAN i2c touchpads have one, it never moves) is skipped, so a laptop's single
+//!   mouse is its TrackPoint.
 //!
 //! Each device reports its position as the `x`/`y` sources (-32768 left/top..32767), its
 //! buttons as evdev key sources (`BTN_LEFT`...) and `offscreen` while a gun points off the
@@ -63,13 +65,32 @@ fn is_mouse(dev: &Device) -> bool {
         && dev.supported_keys().is_some_and(|k| k.contains(KeyCode::BTN_LEFT))
 }
 
+/// The HID device of an evdev node (`/sys/class/input/eventN/device/device`).
+fn hid_device(path: &Path) -> Option<PathBuf> {
+    let name = path.file_name()?.to_str()?;
+    std::fs::canonicalize(format!("/sys/class/input/{name}/device/device")).ok()
+}
+
+fn is_touchpad(path: &Path, dev: &Device) -> bool {
+    if let Some(v) = udev_property(path, "ID_INPUT_TOUCHPAD") {
+        return v == "1";
+    }
+    dev.supported_absolute_axes().is_some_and(|a| a.contains(AbsoluteAxisCode::ABS_X))
+        && dev.supported_keys().is_some_and(|k| k.contains(KeyCode::BTN_TOUCH))
+}
+
 /// Finds the guns, then the mice for the remaining players, and starts a reader thread for
 /// each one, sending its updates to `tx`.
 pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], tx: Sender<PointerEvent>) -> Vec<Pointer> {
     let mut devices: Vec<(PathBuf, Device)> = evdev::enumerate().collect();
     devices.sort_by_key(|(p, _)| event_number(p));
+    let touchpads: Vec<PathBuf> =
+        devices.iter().filter(|(p, d)| is_touchpad(p, d)).filter_map(|(p, _)| hid_device(p)).collect();
     let (guns, others): (Vec<_>, Vec<_>) = devices.into_iter().partition(|(p, d)| is_gun(p, d));
-    let mut mice: Vec<_> = others.into_iter().filter(|(_, d)| use_mice && is_mouse(d)).collect();
+    let mut mice: Vec<_> = others
+        .into_iter()
+        .filter(|(p, d)| use_mice && is_mouse(d) && !hid_device(p).is_some_and(|h| touchpads.contains(&h)))
+        .collect();
     // plugged-in (USB) mice before the built-in pointers (touchpad, TrackPoint): with
     // `guns_mice: 1` on a laptop, the external mouse aims
     mice.sort_by_key(|(p, _)| (udev_property(p, "ID_BUS").as_deref() != Some("usb"), event_number(p)));
