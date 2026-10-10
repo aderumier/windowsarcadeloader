@@ -70,6 +70,14 @@ env:
   WAL_DINPUT_WHEEL: Immersion TouchSense Steering Wheel
   # Pedals: JVS analog channels 3 (gas) and 4 (brake).
   WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,accel,brake"
+  # Its picture is laid out for 1368x768, but it picks its fullscreen mode from the monitor's
+  # (Batocera at 1920x1080: 1280x800, the right side cut; other screens: past the screen). A
+  # windowed 1368x768 device (that mode added to the display modes) in a screen-sized borderless
+  # window, 16:9 kept.
+  WAL_D3D9_WINDOWED_SIZE: 1368x768
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
   # Force feedback: its Immersion TouchSense library calls (the wheel's spring that follows
   # the car, tire and engine effects), answered by the payload (immersion.rs, ffb.rs).
   WAL_TYPEX_FFB: d1gp

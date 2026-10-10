@@ -8,6 +8,13 @@ name: New Super Mario Bros. Wii Coin World
 # JVS on COM2 is only a watchdog. XAudio2 2.7 comes from the shared prefix (xact).
 
 env:
+  # Its config.ini asks for a 1920x1080 fullscreen device: refused on a screen without that mode
+  # (Batocera at 1600x1200), the game quit. A windowed 1920x1080 device (that mode also added to
+  # the display modes) in a screen-sized borderless window, 16:9 kept.
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
   # Medal I/O board: switches, medal selectors, hoppers, lamps of the 4 satellites.
   # Player N: coin = a medal, b1 BET, start START, b2 payout, test (F2) satellite menu
   # (joystick to select, BET/START to enter), service (F1) cancel/error reset.

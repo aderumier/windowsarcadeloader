@@ -11,7 +11,8 @@ input:
 
 files:
   # The dump's MUSEUM.ini keeps its settings and rankings in another data folder name:
-  # WindowsLoader (the D: data folder of the Type X system).
+  # WindowsLoader (the D: data folder of the Type X system). Its picture is 1280x768 (the dump's
+  # 1280x720 left the players' health bars below the screen, seen only when hit).
   MUSEUM.ini: systemprofiles/typex/files/haunted-museum/MUSEUM.ini
 
 env:
@@ -26,9 +27,12 @@ env:
   # Analog channel 0 is the cabinet's volume knob (0: no sound): 75 %.
   WAL_TYPEX_JVS_ANALOG: C000
   # Its window is created 1286x5434821 at CW_USEDEFAULT (garbage height): an empty frame with the
-  # desktop behind. Borderless 1280x720 window at 0,0 for its fullscreen 1280x720 device.
+  # desktop behind. Its 1280x768 picture (no such fullscreen mode) in a screen-sized borderless
+  # window: a windowed 1280x768 device stretched to the window (the guns aim over the whole
+  # screen).
+  WAL_D3D9_WINDOWED_SIZE: 1280x768
   WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: 1280x720
+  WAL_WINDOW_SIZE: screen
 
 # Control names (the GUI's mapping rows).
 controls:

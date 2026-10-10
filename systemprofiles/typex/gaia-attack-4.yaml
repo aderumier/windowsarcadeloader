@@ -38,10 +38,13 @@ env:
   # Analog channel 0 is the cabinet's volume knob (as the Haunted Museum games; no sound at
   # 0 or with its volume write patched out): 75 %.
   WAL_TYPEX_JVS_ANALOG: C000
-  # Its window is created like Haunted Museum's: an empty frame. Borderless 1280x720 window
-  # at 0,0 for its fullscreen 1280x720 device (MINIGUN.INI).
+  # Its window is created like Haunted Museum's: an empty frame. Its 1280x720 picture
+  # (MINIGUN.INI) in a screen-sized borderless window, whatever the screen's mode (a 1280x720
+  # window at 0,0 for its fullscreen device went past an 800x600 screen): a windowed 1280x720
+  # device stretched to the window (no bars: the guns aim over the whole screen).
+  WAL_D3D9_WINDOWED_SIZE: 1280x720
   WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: 1280x720
+  WAL_WINDOW_SIZE: screen
 
 # Control names (the GUI's mapping rows).
 controls:
