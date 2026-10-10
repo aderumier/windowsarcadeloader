@@ -1,7 +1,9 @@
 # Battle Gear 4 Tuned Professional 2.08, professional cabinet (Taito, Taito Type X+, driving) -
 # template, override values in userprofiles/typex/battle-gear-4-tuned-pro.yaml.
-# Same dump as battle-gear-4-tuned (its battle-gear-4-tuned-pro.windowsloader file): the
-# game finds the cabinet's second I/O board and runs its wide monitor & clutch mode (1360x768,
+# The battle-gear-4-tuned dump, copied with battle-gear-4-tuned-pro.windowsloader instead (one
+# .windowsloader per dump: Batocera packs each dump as one image; its own WindowsLoader data,
+# cabinet settings and pedal calibration with the clutch): the game finds the cabinet's second
+# I/O board and runs its wide monitor & clutch mode (1360x768,
 # 6-speed H shifter, clutch pedal; the transmission is chosen per race: AT, sequential, 6MT).
 system: typex
 name: Battle Gear 4 Tuned (professional)
@@ -80,9 +82,6 @@ env:
   WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,accel,brake,,+ry"
   # Key reader and the professional cabinet's second board, H shifter.
   WAL_TYPEX_JVS_LAYOUT: battle-gear-pro
-  # Own data folder: cabinet settings and pedal calibration (clutch) apart from the normal
-  # cabinet's.
-  WAL_TYPEX_DDRIVE: WindowsLoaderPro
   # The cabinet runs it from the root of E: and it finds its data from the current
   # directory's drive (E:\data): without it, it waited forever for C:\data\... at boot.
   WAL_GAME_DRIVE: E
