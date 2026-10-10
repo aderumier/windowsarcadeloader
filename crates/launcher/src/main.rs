@@ -222,7 +222,35 @@ fn gamescope(conf: &config::GamescopeConfig, cmd: Command) -> Command {
     gs
 }
 
+/// Open files limit of the game (wine with ntsync: a descriptor per synchronization object).
+/// Batocera starts games with 1024 (4096 hard): Crimzon Clover (DxLib) could not start its
+/// loading threads and quit. The kernel's maximum (fs.nr_open) as root, else the hard limit.
+fn raise_open_files_limit() {
+    let wanted: libc::rlim_t = std::fs::read_to_string("/proc/sys/fs/nr_open")
+        .ok()
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(1_048_576);
+    let mut lim = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
+    if unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &mut lim) } != 0 || lim.rlim_cur >= wanted {
+        return;
+    }
+    let before = lim.rlim_cur;
+    if lim.rlim_max < wanted {
+        let raised = libc::rlimit { rlim_cur: wanted, rlim_max: wanted };
+        // root only (CAP_SYS_RESOURCE)
+        if unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &raised) } == 0 {
+            eprintln!("launcher: open files limit {before} -> {wanted}");
+            return;
+        }
+    }
+    lim.rlim_cur = lim.rlim_max;
+    if lim.rlim_cur > before && unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &lim) } == 0 {
+        eprintln!("launcher: open files limit {before} -> {}", lim.rlim_cur);
+    }
+}
+
 fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Result<()> {
+    raise_open_files_limit();
     if profile.exe.is_empty() {
         bail!("{}: launch a game from its dump (directory or <gameid>.windowsloader file)\n{USAGE}", profile.id);
     }
