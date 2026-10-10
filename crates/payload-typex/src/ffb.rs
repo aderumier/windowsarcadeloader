@@ -8,6 +8,9 @@
 //! right, on the right (wall 0x20, car 0x02) to the left, with a force of speed / 180 (full from
 //! 180 km/h); a car contact (0x01) vibrates as much. `WAL_TYPEX_FFB_SPRING` (0-100, default
 //! 100) scales the spring.
+//! `battle-gear-4-original` (Battle Gear 4, 2005): the same, at the race flag +0x40F2C0, the
+//! contact flags +0x3CF862 / +0x3CF863 and the speed +0x3CF97C (the player's car record at
+//! +0x3CF860, found in a race).
 //!
 //! `chase-hq-2` (Chase H.Q. 2): the wheel motor command of the game's I/O output word (the
 //! 32-bit value at [+0x130B558] + 0x45), lamp bits (0x4001, 0x10, 0x400, 0x200, 0x80, 0x08,
@@ -44,10 +47,11 @@ pub(crate) fn init() {
     let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
     let trace = std::env::var("WAL_TYPEX_FFB_TRACE").is_ok_and(|v| v == "1");
     match game.trim() {
-        "battle-gear-4" => {
+        "battle-gear-4" | "battle-gear-4-original" => {
             let spring = std::env::var("WAL_TYPEX_FFB_SPRING").ok().and_then(|v| v.trim().parse::<i32>().ok()).unwrap_or(100).clamp(0, 100);
-            log!("ffb: Battle Gear 4 (spring {spring}%)");
-            let mut game = BattleGear4 { base, spring, trace, racing: false, traced: (0, 0, 0, 0) };
+            let at = if game.trim() == "battle-gear-4" { &BG4_TUNED } else { &BG4_ORIGINAL };
+            log!("ffb: {game} (spring {spring}%)");
+            let mut game = BattleGear4 { base, at, spring, trace, racing: false, traced: (0, 0, 0, 0) };
             std::thread::spawn(move || run(|| game.effects()));
         }
         "chase-hq-2" => {
@@ -117,8 +121,20 @@ fn read<T: Copy + Default>(address: usize) -> Option<T> {
     (ok != 0 && done == size_of::<T>()).then_some(value)
 }
 
+/// A Battle Gear 4 version's addresses (RVAs): race flag, wall and car contact flags, speed.
+struct Bg4Addresses {
+    race: usize,
+    wall: usize,
+    car: usize,
+    speed: usize,
+}
+
+const BG4_TUNED: Bg4Addresses = Bg4Addresses { race: 0x4A9508, wall: 0x42EBB2, car: 0x42EBB3, speed: 0x3F3000 };
+const BG4_ORIGINAL: Bg4Addresses = Bg4Addresses { race: 0x40F2C0, wall: 0x3CF862, car: 0x3CF863, speed: 0x3CF97C };
+
 struct BattleGear4 {
     base: usize,
+    at: &'static Bg4Addresses,
     spring: i32,
     trace: bool,
     racing: bool,
@@ -127,10 +143,10 @@ struct BattleGear4 {
 
 impl BattleGear4 {
     fn effects(&mut self) -> Effects {
-        let racing = read::<u8>(self.base + 0x4A9508).unwrap_or(0) != 0;
-        let wall = read::<u8>(self.base + 0x42EBB2).unwrap_or(0);
-        let car = read::<u8>(self.base + 0x42EBB3).unwrap_or(0);
-        let speed = read::<f32>(self.base + 0x3F3000).unwrap_or(0.0);
+        let racing = read::<u8>(self.base + self.at.race).unwrap_or(0) != 0;
+        let wall = read::<u8>(self.base + self.at.wall).unwrap_or(0);
+        let car = read::<u8>(self.base + self.at.car).unwrap_or(0);
+        let speed = read::<f32>(self.base + self.at.speed).unwrap_or(0.0);
         if racing != self.racing {
             log!("ffb: race {}", if racing { "started" } else { "ended" });
             self.racing = racing;
