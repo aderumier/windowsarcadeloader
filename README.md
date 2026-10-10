@@ -39,6 +39,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | pass | 2026-10-07 |
 | `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user; 1280x800: pillarboxed on a 16:9 screen) | fail: picture | 2026-10-07 |
 | `daemon-bride` | Daemon Bride: Additional Gain | nesica | in fight | pass | 2026-10-07 |
+| `dariusburst-another-chronicle` | Dariusburst Another Chronicle (1.05) | nesica | starts, coins (user), not played yet | pass | 2026-10-11 |
 | `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | works (user: 100%), 4 players, sound, test menu in Japanese | pass | 2026-10-08 |
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | pass | 2026-10-07 |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | pass | 2026-10-07 |
