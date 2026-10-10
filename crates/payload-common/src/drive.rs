@@ -217,10 +217,74 @@ fn init_mmio() {
     }
 }
 
+static GRAPH_ORIG: [AtomicUsize; 3] = [const { AtomicUsize::new(0) }; 3];
+
+type Guid = windows_sys::core::GUID;
+const CLSID_FILTER_GRAPH: Guid = Guid::from_u128(0xe436ebb3_524f_11ce_9f53_0020af0ba770);
+const IID_IGRAPH_BUILDER: Guid = Guid::from_u128(0x56a868a9_0ad4_11ce_b03a_0020af0ba770);
+const IID_IFILTER_GRAPH2: Guid = Guid::from_u128(0x36b73882_c2c8_11cf_8b46_00805f6cef60);
+
+fn same(a: &Guid, b: &Guid) -> bool {
+    (a.data1, a.data2, a.data3, a.data4) == (b.data1, b.data2, b.data3, b.data4)
+}
+
+/// `IGraphBuilder::RenderFile(file, playlist)` (method 13).
+unsafe extern "system" fn RenderFile(this: P, file: *const u16, playlist: *const u16) -> i32 {
+    let original: unsafe extern "system" fn(P, *const u16, *const u16) -> i32 = unsafe { std::mem::transmute(GRAPH_ORIG[1].load(Ordering::Relaxed)) };
+    let f = wide(file);
+    unsafe { original(this, f.ptr(), playlist) }
+}
+
+/// `IGraphBuilder::AddSourceFilter(file, name, filter)` (method 14).
+unsafe extern "system" fn AddSourceFilter(this: P, file: *const u16, name: *const u16, filter: *mut P) -> i32 {
+    let original: unsafe extern "system" fn(P, *const u16, *const u16, *mut P) -> i32 = unsafe { std::mem::transmute(GRAPH_ORIG[2].load(Ordering::Relaxed)) };
+    let f = wide(file);
+    unsafe { original(this, f.ptr(), name, filter) }
+}
+
+/// `ole32!CoCreateInstance`: a DirectShow filter graph opens the game's movies itself (Battle
+/// Gear 4's attract movie, `E:/data/Scene/demo/attract/attract_demo.wmv`: not found, then a crash
+/// on its never created player): its `RenderFile` / `AddSourceFilter` get the game drive's paths
+/// redirected too (the graph's vtable, shared by its instances, patched once).
+unsafe extern "system" fn CoCreateInstance(clsid: *const Guid, outer: P, ctx: u32, iid: *const Guid, out: *mut P) -> i32 {
+    let original: unsafe extern "system" fn(*const Guid, P, u32, *const Guid, *mut P) -> i32 = unsafe { std::mem::transmute(GRAPH_ORIG[0].load(Ordering::Relaxed)) };
+    let hr = unsafe { original(clsid, outer, ctx, iid, out) };
+    let graph = !clsid.is_null() && !iid.is_null() && same(unsafe { &*clsid }, &CLSID_FILTER_GRAPH)
+        && (same(unsafe { &*iid }, &IID_IGRAPH_BUILDER) || same(unsafe { &*iid }, &IID_IFILTER_GRAPH2));
+    if hr >= 0 && graph && !out.is_null() && GRAPH_ORIG[2].load(Ordering::Relaxed) == 0 {
+        unsafe { patch_graph(*out) };
+    }
+    hr
+}
+
+unsafe fn patch_graph(object: P) {
+    use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+    if object.is_null() {
+        return;
+    }
+    let vtable = unsafe { *(object as *const *mut usize) };
+    for (slot, index, f) in [(13usize, 1usize, RenderFile as *const () as usize), (14, 2, AddSourceFilter as *const () as usize)] {
+        let entry = unsafe { vtable.add(slot) };
+        let mut old = 0;
+        unsafe {
+            if VirtualProtect(entry.cast(), size_of::<usize>(), PAGE_EXECUTE_READWRITE, &mut old) == 0 {
+                continue;
+            }
+            GRAPH_ORIG[index].store(*entry, Ordering::Relaxed);
+            *entry = f;
+            VirtualProtect(entry.cast(), size_of::<usize>(), old, &mut old);
+        }
+    }
+    log!("drive: DirectShow filter graph: its file paths on the game's drive redirected");
+}
+
 /// Installs the game drive hooks (game executable only) when `WAL_GAME_DRIVE` is set.
 fn init_game_drive() {
     if game_drive().is_none() {
         return;
+    }
+    if let Some(o) = unsafe { iat::hook("ole32.dll", "CoCreateInstance", CoCreateInstance as *const () as usize) } {
+        GRAPH_ORIG[0].store(o, Ordering::Relaxed);
     }
     let hooks: [(&str, usize); 5] = [
         ("GetLogicalDrives", GetLogicalDrives as *const () as usize),
