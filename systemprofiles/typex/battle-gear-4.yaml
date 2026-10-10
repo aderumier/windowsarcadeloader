@@ -1,0 +1,71 @@
+# Battle Gear 4, original Japanese release (Taito, Taito Type X+, driving, 2005) - template,
+# override values in userprofiles/typex/battle-gear-4.yaml. Same cabinet as Battle Gear 4 Tuned
+# (battle-gear-4-tuned.yaml): same inputs.
+system: typex
+name: Battle Gear 4
+
+# Cabinet: wheel (steering board on COM1), pedals, SHIFT UP / SHIFT DOWN (sequential shifter,
+# JVS buttons 2 / 3), VIEW, HAZARD, OVER TAKE (JVS up, down, left), SIDE BRAKE (button 1), KEY
+# switch (right) and key reader (the player's key id, payload jvs.rs).
+# Virtual stick: wheel lx, pedals accel/brake, b1 SHIFT UP, b2 SHIFT DOWN, b3 VIEW, b4 HAZARD,
+# b5 OVER TAKE, b6 SIDE BRAKE, b7 KEY. The stick directions are not cabinet inputs.
+native_map:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: btn2
+  b2: btn3
+  b3: up
+  b4: down
+  b5: left
+  b6: btn1
+  b7: right
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1/L1 shift up/down, Y VIEW, X HAZARD, B OVER TAKE,
+  # A SIDE BRAKE.
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    x: b4
+    b: b5
+    a: b6
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl / Alt shift up / down,
+  # Space VIEW, Shift HAZARD, Z OVER TAKE, X SIDE BRAKE, C KEY, 5 coin, 1 start.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # Wheel position from the steering board on COM1 (inverted: 0 = full left here).
+  WAL_TYPEX_WHEEL_PORT: COM1
+  WAL_TYPEX_WHEEL_AXIS: "-lx"
+  # Gas and brake on JVS analog channels 3 and 4 (its I/O test).
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,accel,brake"
+  # Key reader (Taito JVS commands of the main board).
+  WAL_TYPEX_JVS_LAYOUT: battle-gear
+  # The cabinet runs it from the root of E: and it finds its data from the current
+  # directory's drive (E:\data): without it, it waited forever for C:\data\... at boot.
+  WAL_GAME_DRIVE: E
+  # Battle Gear 4 patches for this executable (CRC 0x9699f0cd): no window menu (LoadMenuA
+  # wrapper returns at once); intro fix (distorted 3D scene in the intro otherwise).
+  WAL_PATCHES: "0x1B8030:C20400,\
+    0x46E3E:896814C740080000803F83C108EB0A,0x46E57:E95F030000,0x471B5:E984FCFFFF90,\
+    0xEB964:894C,0xEB967:408B7018D95C244C894C,0xEB972:5C,\
+    0xEB982:8B7018894C2478897424548BB4249C00,\
+    0xEB994:897424688BB424A00000008974246C31F6897424608974246489B424800000008B701889742470BE0000803F8974242C89742444897424488974247C897424208974243C89742458897424749090909090"
+  # Always windowed, 800x600: that back buffer stretched to a screen-sized borderless window.
+  WAL_D3D9_WINDOWED_SIZE: 800x600
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # It reads the PC keyboard through DirectInput too (arrows and keypad shift gears).
+  WAL_DINPUT_DISABLE: "1"
