@@ -1,0 +1,75 @@
+# D1GP Arcade (Taito, Taito Type X2, driving) - template, override values in
+# userprofiles/typex/d1gp-arcade.yaml.
+system: typex
+name: D1GP Arcade
+
+# Its cabinet link is DirectPlay 8 (peer): even a single cabinet hosts a session at boot, and
+# wine's IDirectPlay8Peer::Host is a stub ("Connection : FAILURE", then the boot waits forever).
+# Microsoft's dpnet: the link task below never hosts, but without it the boot stops before
+# the I/O board.
+tricks: [directplay]
+
+# Cabinet switches (JVS), as the game turns them into its pad buttons (the order of its
+# device setting): button 1 R1 (SHIFT up), button 2 L1 (SHIFT down), right MARU (side
+# brake), button 8 R2 (view change), button 7 START, service L3, test R3 (up, SELECT: no
+# function in its I/O test). The standard start switch is not read. Steering is the wheel's
+# X axis (lx), the pedals are JVS analog channels (see env).
+# Virtual stick: wheel lx, pedals accel/brake, b1 SHIFT up, b2 SHIFT down, b3 side brake,
+# b4 view change.
+native_map:
+  start: btn7
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: btn1
+  b2: btn2
+  b3: right
+  b4: btn8
+  b5: none
+  b6: none
+  b7: none
+  b8: none
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1 / L1 SHIFT up / down, A side brake, Y view.
+  gamepad:
+    r1: b1
+    l1: b2
+    a: b3
+    y: b4
+    x: none
+    b: none
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl SHIFT up, Alt SHIFT
+  # down, Space side brake, Shift view change, 1 start, 5 coin.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # D1GP Arcade patches (standalone cabinet):
+  # - 0x84DD0: the boot's "network done" check (link task state 5) always true;
+  # - 0x855B3: the link task never hosts (straight to its idle state 5);
+  # - 0x856F0: the link task draws nothing (its "Network : Initialize" text stayed on screen);
+  # - 0x6CDDC: the "Handle Initialize" stage goes on (state 3) when the Immersion TouchSense
+  #   wheel effect does not load, instead of stopping there (state 6) forever; its last state
+  #   processes the inputs;
+  # - no card (its magnetic card reader/vendor is not emulated): 0x6AB2C skips the in-game
+  #   hardware error checks (I/O, card reader, link), 0x950C6 and 0x8F0B0 drop the blinking
+  #   "CARD VENDOR / ERROR" of the credit area, 0x99F7D never reads a card.
+  WAL_PATCHES: "0x84DD0:B001C390909090,0x855B3:E9F300000090,0x856F0:C20800,0x6CDDC:03,0x6AB2C:E99600000000,0x950C6:84,0x8F0B0:74,0x99F7D:EB"
+  # Its cabinet wheel is a USB DirectInput device, "Immersion TouchSense Steering Wheel" (the
+  # dump's Immersion_TouchSense_Steering_Wheel.txt is its setting): the game steers with its X
+  # axis, and takes the I/O board's switches only while such a device is present. A fake one.
+  WAL_DINPUT_WHEEL: Immersion TouchSense Steering Wheel
+  # Pedals: JVS analog channels 3 (gas) and 4 (brake).
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,accel,brake"
+  # Force feedback: its Immersion TouchSense library calls (the wheel's spring that follows
+  # the car, tire and engine effects), answered by the payload (immersion.rs, ffb.rs).
+  WAL_TYPEX_FFB: d1gp

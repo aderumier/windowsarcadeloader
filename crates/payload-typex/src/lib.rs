@@ -19,6 +19,7 @@
 
 mod ffb;
 mod guns;
+mod immersion;
 mod jvs;
 mod mahjong;
 mod medal;

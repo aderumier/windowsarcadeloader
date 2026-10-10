@@ -461,7 +461,12 @@ profile), `show` (merged profile).
   launcher does not grab the keyboard) only see the board. A fake rather than a failed creation,
   which some games treat as fatal. `WAL_KEYBOARD_STATE_DISABLE=1`: the game's
   `user32!GetKeyboardState` reports no key pressed (Wacky Races read START / VIEW on Enter /
-  Right Shift that way).
+  Right Shift that way). `WAL_DINPUT_WHEEL=<product name>`: the same fake DirectInput (A or W,
+  by the interface asked for) lists one DirectInput 8 driving wheel under that name: X, Y, Z
+  absolute axes taking the game's `DIPROP_RANGE`, X player 1's `lx` (`WAL_DINPUT_WHEEL_AXIS`,
+  `-` inverts), Y / Z released, no buttons. D1GP Arcade's cabinet wheel is a USB "Immersion
+  TouchSense Steering Wheel": it steers with its X axis, loads `<product name>.txt` (spaces
+  as `_`, shipped in the dump) and merges the JVS switches only in its per-device loop.
 * `window`: `WAL_WINDOW_SIZE=WxH` (or `screen`: the primary monitor's size) forces the size of the game's top-level windows
   (`SetWindowPos`/`MoveWindow` IAT hooks, at 0,0); in window mode Direct3D stretches the back
   buffer to it (Crimzon Clover's DxLib computed a 5-million-pixel high window: X BadAlloc).
@@ -697,7 +702,7 @@ Medal games (New Super Mario Bros. Wii Coin World, Capcom on Type X2 hardware, 4
     (`native_map` names: up down left right bet start payout medal test select cancel key
     door). The game takes the medals as bets by itself (3 per play).
 
-Driving games (Valve Limit R, Chase H.Q. 2, Battle Gear 4 Tuned, Wacky Races):
+Driving games (Valve Limit R, Chase H.Q. 2, Battle Gear 4 Tuned, Wacky Races, D1GP Arcade):
 * Pedals on JVS analog channels: `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...` gives player 1's
   virtual axis read on each channel (`-axis` inverted, `+axis` its positive half only: 0 at the
   center and below, a clutch on a stick axis; empty: the fixed `WAL_TYPEX_JVS_ANALOG` value),
@@ -745,6 +750,16 @@ Driving games (Valve Limit R, Chase H.Q. 2, Battle Gear 4 Tuned, Wacky Races):
   `WAL_TYPEX_FFB=wacky-races`: the same scheme ([+0x7E00590] + 0x45, lamp bits 0x10, 0x400, 0x200,
   0x80, 0x08, 0x100, 0x4000, FFBArcadePlugin's WackyRaces.cpp codes), levels 16-30 pushing left
   and 1-15 right. Seen in a race: levels 9, 24.
+  `WAL_TYPEX_FFB=d1gp`: D1GP Arcade drives its TouchSense wheel through the Immersion library
+  (`IFC23.dll`, C++ classes): `immersion.rs` answers the game's 23 imports of it (device,
+  project, spring; every call succeeds) and keeps the spring (on/off, center, saturation) and
+  the named effects of `data/game.ifr` playing. Every frame the game moves the spring's center
+  with the car (self-aligning torque, saturation 0.6-0.7): played as a constant force toward
+  it, 2 x its distance from the wheel up to the saturation (`WAL_TYPEX_FFB_SPRING` scales it).
+  Effects as vibration: `crash*` 70% for 300 ms, `tire1` 50%, `dirt0` 40%, `engine*` 12%, menu
+  `select` / `click*` 30% for 150 ms; `tire0` (grip, a slope) and `steer*` (friction) not
+  played. Seen in a race: spring on at the start, `engine0`, `tire0`, `crash1` on wall hits,
+  forces up to about 2000 with the wheel centered.
 
 Mahjong games (Taisen Hot Gimmick 5, `mahjong.rs`, `WAL_TYPEX_MAHJONG=hot-gimmick-5`): the
 game reads its mahjong panel as a keyboard (DirectInput `GetDeviceState`, one call per frame),
@@ -1003,6 +1018,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 | `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | wal-loader, JVS (gas/brake on analog channels 1/2), steering board on COM1 (`WAL_TYPEX_WHEEL_PORT`), standalone link patch, `WAL_DINPUT_DISABLE`; `.windowsloader`: `launcher.exe` |
+| `d1gp-arcade` | D1GP Arcade | typex | works (user: wheel, pedals, buttons, test menu); TODO: force feedback check on a wheel, magnetic card reader (saves) | wal-loader, JVS (pedals on analog channels 3/4, START on btn7, SHIFT up/down btn1/btn2, side brake right, view btn8), fake DirectInput wheel "Immersion TouchSense Steering Wheel" (`WAL_DINPUT_WHEEL`: steering, and the game merges the JVS switches only with such a device), native DirectPlay 8 (`tricks: [directplay]`), standalone patches (boot network check passes, the link task never hosts nor draws), "Handle Initialize" stage goes on without the TouchSense effect (it stopped forever), no card: no in-game hardware error checks nor "CARD VENDOR / ERROR" (its magnetic card reader/vendor on COM1 is not emulated; the game backs card data up in `d:\card_backup\`), force feedback from its Immersion calls (`WAL_TYPEX_FFB`, untested on a wheel) |
 | `wacky-races` | Wacky Races | typex | works (user: controls, start, view) | wal-loader, JVS (wheel/gas/brake on analog channels 2/3/4, START/VIEW on buttons 8/7, LEVER on down), the dump's root Launcher.exe (set up to play at once), `WAL_KEYBOARD_STATE_DISABLE` (it read START/VIEW on the PC keyboard's Enter/Right Shift), force feedback from its motor command (`WAL_TYPEX_FFB`, untested on a wheel) |
 | `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | original Japanese release (2005): as `battle-gear-4-tuned` (same cabinet, inputs, key reader, `WAL_GAME_DRIVE: E`), patches of this executable (clean: no window menu, intro fix), 800x600 windowed in a screen-sized popup; no force feedback (no addresses for this build) |
 | `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | wal-loader, JVS (gas/brake on analog channels 3/4, shift up/down on buttons 2/3, key reader: `battle-gear` layout), steering board on COM1 (inverted, `WAL_TYPEX_WHEEL_AXIS=-lx`), `WAL_GAME_DRIVE: E` (data found from the current directory's drive; music through `mmioOpenA`), patches: hex-edited entry point and transmission lookup restored, no window menu, intro fix, wide monitor without the clutch type (the cabinet type check sets both flags: patched to set only the wide monitor one); 1360x768 windowed in a screen-sized popup (`WAL_D3D9_WINDOWED_SIZE`), `WAL_HIDE_CURSOR`, `WAL_DINPUT_DISABLE` (it shifted gears on the PC arrows and keypad), force feedback from its memory (`WAL_TYPEX_FFB`, untested on a wheel) |
