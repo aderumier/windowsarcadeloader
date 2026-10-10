@@ -13,16 +13,18 @@ use crate::mapping::{self, Source, Target};
 pub enum Device {
     Keyboard,
     Gamepad,
-    /// Raw joysticks (`input.devices`): wheels, pedals, shifters.
+    /// Calibrated wheels (`input.wheel` over `input.gamepad`): gamepad source names.
     Wheel,
+    /// Raw joysticks (`input.devices`): wheels not calibrated, pedals, shifters.
+    Joystick,
 }
 
 impl Device {
     pub fn parse(self, name: &str) -> Option<Source> {
         match self {
             Device::Keyboard => mapping::parse_key_source(name),
-            Device::Gamepad => mapping::parse_pad_source(name),
-            Device::Wheel => mapping::parse_joy_source(name),
+            Device::Gamepad | Device::Wheel => mapping::parse_pad_source(name),
+            Device::Joystick => mapping::parse_joy_source(name),
         }
     }
 }
@@ -103,8 +105,8 @@ fn full_axis(device: Device, src: &str) -> bool {
     let s = src.to_ascii_lowercase();
     match device {
         Device::Keyboard => false,
-        Device::Gamepad => ["leftx", "lefty", "rightx", "righty"].contains(&s.as_str()),
-        Device::Wheel => s.starts_with("axis"),
+        Device::Gamepad | Device::Wheel => ["leftx", "lefty", "rightx", "righty"].contains(&s.as_str()),
+        Device::Joystick => s.starts_with("axis"),
     }
 }
 
@@ -287,7 +289,8 @@ pub fn source_label(device: Device, src: &str) -> String {
     match device {
         Device::Keyboard => key_label(src),
         Device::Gamepad => pad_label(src),
-        Device::Wheel => joy_label(src),
+        Device::Wheel => wheel_label(src),
+        Device::Joystick => joy_label(src),
     }
 }
 
@@ -398,6 +401,19 @@ fn pad_label(src: &str) -> String {
     }
 }
 
+/// A calibrated wheel's gamepad inputs as the wheel's parts.
+fn wheel_label(src: &str) -> String {
+    match src.to_ascii_lowercase().as_str() {
+        "leftx" => "Wheel".into(),
+        "-leftx" => "Wheel left".into(),
+        "+leftx" => "Wheel right".into(),
+        "r2" | "rt" | "righttrigger" => "Gas pedal".into(),
+        "l2" | "lt" | "lefttrigger" => "Brake pedal".into(),
+        "righty" | "+righty" => "Clutch pedal".into(),
+        _ => pad_label(src),
+    }
+}
+
 fn joy_label(src: &str) -> String {
     let lower = src.to_ascii_lowercase();
     let (sign, base) = match lower.chars().next() {
@@ -453,7 +469,7 @@ mod tests {
         let d = Device::Gamepad;
         assert_eq!(row_of(d, "leftx", "lx"), Some(("lx".into(), RowKind::Analog, false)));
         assert_eq!(row_of(d, "dpleft", "-lx"), Some(("lx".into(), RowKind::Negative, false)));
-        assert_eq!(row_of(Device::Wheel, "axis2", "-accel"), Some(("accel".into(), RowKind::Pedal, true)));
+        assert_eq!(row_of(Device::Joystick, "axis2", "-accel"), Some(("accel".into(), RowKind::Pedal, true)));
         assert_eq!(row_of(d, "a", "B5"), Some(("b5".into(), RowKind::Button, false)));
         let t = table(&[("x", "b1"), ("r1", "b1"), ("a", "none"), ("leftx", "lx")]);
         assert_eq!(bound(&t, d, &row("b1", RowKind::Button)).len(), 2);
@@ -487,7 +503,9 @@ mod tests {
         assert_eq!(source_label(Device::Keyboard, "KEY_Z"), "Z");
         assert_eq!(source_label(Device::Gamepad, "-leftx"), "Left stick left");
         assert_eq!(source_label(Device::Gamepad, "back"), "View (Back)");
-        assert_eq!(source_label(Device::Wheel, "-axis1"), "Axis 1 -");
-        assert_eq!(source_label(Device::Wheel, "hat0up"), "Hat 0 up");
+        assert_eq!(source_label(Device::Joystick, "-axis1"), "Axis 1 -");
+        assert_eq!(source_label(Device::Wheel, "r2"), "Gas pedal");
+        assert_eq!(source_label(Device::Wheel, "r1"), "RB (R1)");
+        assert_eq!(source_label(Device::Joystick, "hat0up"), "Hat 0 up");
     }
 }

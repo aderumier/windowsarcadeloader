@@ -18,6 +18,7 @@ mod script;
 mod server;
 mod squashfs;
 mod systems;
+mod wheels;
 mod wine;
 
 use std::process::Command;

@@ -48,6 +48,21 @@ pub struct Source {
     range: Range,
 }
 
+impl Source {
+    pub fn key(&self) -> RawKey {
+        self.key
+    }
+
+    /// Whether a raw value presses this source (a button, a hat direction, a half axis).
+    pub fn pressed(&self, raw: i32) -> bool {
+        match self.range {
+            Range::Digital(mask) => raw as u8 & mask != 0,
+            Range::Full | Range::Positive => raw > 0,
+            Range::Negative => raw < 0,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Target {
     Button(u32),
@@ -203,6 +218,13 @@ pub fn stick_dpad(table: &MapTable, uses: impl Fn(&str) -> bool) -> Vec<(String,
         }
     }
     out
+}
+
+/// A calibrated wheel's table: the gamepad's, the wheel's own entries over it.
+pub fn wheel_table(gamepad: &MapTable, wheel: &MapTable) -> MapTable {
+    let mut table = gamepad.clone();
+    table.extend(wheel.iter().map(|(s, d)| (s.clone(), d.clone())));
+    table
 }
 
 /// Compiles a table; `parse` is the source parser of the device kind.
@@ -406,6 +428,16 @@ mod tests {
         assert_eq!(stick_dpad(&table, no_axes).len(), 2);
         table.remove("dpleft");
         assert!(stick_dpad(&table, no_axes).is_empty());
+    }
+
+    #[test]
+    fn wheel_over_gamepad() {
+        let t = |e: &[(&str, &str)]| -> MapTable { e.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect() };
+        let pad = t(&[("r1", "b1"), ("l1", "b2"), ("r2", "accel")]);
+        let wheel = wheel_table(&pad, &t(&[("r1", "b3"), ("l1", "none")]));
+        assert_eq!(wheel, t(&[("r1", "b3"), ("l1", "none"), ("r2", "accel")]));
+        assert_eq!(compile(&wheel, parse_pad_source).unwrap().len(), 2);
+        assert_eq!(wheel_table(&pad, &MapTable::new()), pad);
     }
 
     #[test]

@@ -93,6 +93,7 @@ pub struct InputConfig {
     pub exit_combo: Vec<String>,
     pub exit_keys: Vec<String>,
     pub gamepad: MapTable,
+    pub wheel: MapTable,
     pub keyboard_enabled: bool,
     pub keyboard: BTreeMap<String, MapTable>,
     pub guns_enabled: bool,

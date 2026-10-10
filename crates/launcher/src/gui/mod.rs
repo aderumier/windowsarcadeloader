@@ -3,6 +3,7 @@
 //! its launch.
 
 mod bindings;
+mod calibration;
 mod capture;
 
 use std::collections::{BTreeMap, HashMap};
@@ -19,7 +20,10 @@ use serde_yaml_ng::Value;
 
 use crate::config::{self, DUMP_EXT, Dump, Layers, MapTable, Profile, USER_PROFILES};
 use crate::squashfs::{self, DumpFile};
+use crate::mapping::RawKey;
+use crate::wheels::{self, Calibration, Wheels};
 use bindings::{Captured, Device, Row, RowKind};
+use calibration::{Step, Wizard};
 use capture::InputEvent;
 
 /// `userprofiles/` file of the games' dumps: `<system>/<game>: <folder or SquashFS image>`.
@@ -153,7 +157,7 @@ struct App {
     /// Keyboard tab: player 1-4.
     kb_player: usize,
     /// Wheel tab: the `input.devices` name (substring of the device name).
-    wheel: Option<String>,
+    joystick: Option<String>,
     capture: Option<Capture>,
     inputs: Receiver<InputEvent>,
     keyboards: Option<usize>,
@@ -165,6 +169,12 @@ struct App {
     /// When Esc last cancelled a capture: that press does not also close the window.
     esc_cancel: Option<Instant>,
     images: Images,
+    /// Wheel calibrations (`wheels.rs`), the calibration window and its wizard.
+    calibrations: Wheels,
+    show_wheels: bool,
+    wizard: Option<Wizard>,
+    /// The last gamepad button a calibrated wheel pressed (the window's test).
+    wheel_pressed: Option<&'static str>,
 }
 
 impl App {
@@ -189,6 +199,10 @@ impl App {
             status = format!("{e:#}");
             BTreeMap::new()
         });
+        let calibrations = wheels::load(&root).unwrap_or_else(|e| {
+            status = format!("{e:#}");
+            Wheels::new()
+        });
         App {
             root,
             games,
@@ -199,7 +213,7 @@ impl App {
             gamedirs,
             tab: Device::Gamepad,
             kb_player: 1,
-            wheel: None,
+            joystick: None,
             capture: None,
             inputs,
             keyboards: None,
@@ -210,17 +224,21 @@ impl App {
             show_log: false,
             esc_cancel: None,
             images: Images::new(ctx),
+            calibrations,
+            show_wheels: false,
+            wizard: None,
+            wheel_pressed: None,
         }
     }
 
     fn select(&mut self, index: usize) {
         self.selected = Some(index);
         self.capture = None;
-        self.wheel = None;
+        self.joystick = None;
         let id = &self.games[index].id;
         match Layers::load(id, &self.root).and_then(|layers| Ok(Selected { profile: layers.profile(&self.root)?, layers })) {
             Ok(sel) => {
-                self.wheel = sel.profile.input.devices.keys().next().cloned();
+                self.joystick = sel.profile.input.devices.keys().next().cloned();
                 self.game = Some(sel);
             }
             Err(e) => {
@@ -237,7 +255,8 @@ impl App {
         Some(match device {
             Device::Keyboard => vec!["input".into(), "keyboard".into(), format!("p{}", self.kb_player)],
             Device::Gamepad => vec!["input".into(), "gamepad".into()],
-            Device::Wheel => vec!["input".into(), "devices".into(), self.wheel.clone()?, "map".into()],
+            Device::Wheel => vec!["input".into(), "wheel".into()],
+            Device::Joystick => vec!["input".into(), "devices".into(), self.joystick.clone()?, "map".into()],
         })
     }
 
@@ -248,7 +267,8 @@ impl App {
         match device {
             Device::Keyboard => input.keyboard.get(&format!("p{}", self.kb_player)).cloned().unwrap_or_default(),
             Device::Gamepad => input.gamepad.clone(),
-            Device::Wheel => self.wheel.as_ref().and_then(|w| input.devices.get(w)).map(|d| d.map.clone()).unwrap_or_default(),
+            Device::Wheel => crate::mapping::wheel_table(&input.gamepad, &input.wheel),
+            Device::Joystick => self.joystick.as_ref().and_then(|w| input.devices.get(w)).map(|d| d.map.clone()).unwrap_or_default(),
         }
     }
 
@@ -259,9 +279,14 @@ impl App {
         f(&mut table);
         let Some(sel) = &mut self.game else { return };
         let path: Vec<&str> = path.iter().map(String::as_str).collect();
-        let diff = bindings::diff(&bindings::table_at(&sel.layers.base, &path), &table);
-        bindings::set_at(&mut sel.layers.user, &path, bindings::table_value(&diff));
+        let mut base = bindings::table_at(&sel.layers.base, &path);
         if device == Device::Wheel {
+            // the wheel's defaults: the gamepad mapping in use
+            base = crate::mapping::wheel_table(&sel.profile.input.gamepad, &base);
+        }
+        let diff = bindings::diff(&base, &table);
+        bindings::set_at(&mut sel.layers.user, &path, bindings::table_value(&diff));
+        if device == Device::Joystick {
             // raw sources even for a device SDL knows as a gamepad
             let raw = (!diff.is_empty()).then_some(Value::Bool(true));
             bindings::set_at(&mut sel.layers.user, &[path[0], path[1], path[2], "raw"], raw);
@@ -304,8 +329,8 @@ impl App {
 
     // ---- inputs ----
 
-    fn wheel_matches(&self, id: u32) -> bool {
-        let (Some(w), Some(d)) = (&self.wheel, self.devices.get(&id)) else { return false };
+    fn joystick_matches(&self, id: u32) -> bool {
+        let (Some(w), Some(d)) = (&self.joystick, self.devices.get(&id)) else { return false };
         d.name.to_ascii_lowercase().contains(&w.to_ascii_lowercase())
     }
 
@@ -318,9 +343,62 @@ impl App {
         self.capture = Some(Capture { device, row, replace, started: Instant::now(), rest });
     }
 
+    /// The calibration of a connected device.
+    fn calibration(&self, id: u32) -> Option<&Calibration> {
+        wheels::find(&self.calibrations, &self.devices.get(&id)?.name)
+    }
+
+    /// A calibrated wheel's inputs as a gamepad's (its own SDL gamepad events dropped): None
+    /// for the other devices' events.
+    fn as_pad(&mut self, ev: &InputEvent) -> Option<Vec<InputEvent>> {
+        let (id, raw, value) = match *ev {
+            InputEvent::PadButton { id, .. } | InputEvent::PadAxis { id, .. } => {
+                return self.calibration(id).map(|_| Vec::new());
+            }
+            InputEvent::JoyButton { id, index, down } => (id, RawKey::JoyButton(index), down as i32),
+            InputEvent::JoyAxis { id, index, value } => (id, RawKey::JoyAxis(index), value),
+            InputEvent::JoyHat { id, index, bits } => (id, RawKey::JoyHat(index), bits as i32),
+            _ => return None,
+        };
+        let named = self.calibration(id)?.named(raw, value);
+        let mut out = Vec::new();
+        for (name, value) in named {
+            if matches!(raw, RawKey::JoyAxis(_)) {
+                out.push(InputEvent::PadAxis { id, name, value });
+            } else {
+                if value != 0 {
+                    self.wheel_pressed = Some(name);
+                }
+                out.push(InputEvent::PadButton { id, name, down: value != 0 });
+            }
+        }
+        Some(out)
+    }
+
+    /// The calibration wizard's device: its inputs go to the wizard (true: taken).
+    fn wizard_input(&mut self, ev: &InputEvent) -> bool {
+        let Some(w) = &mut self.wizard else { return false };
+        match *ev {
+            InputEvent::JoyAxis { id, index, value } if id == w.id => w.axis_moved(index, value),
+            InputEvent::JoyButton { id, index, down: true } if id == w.id => w.pressed(format!("button{index}")),
+            InputEvent::JoyHat { id, index, bits } if id == w.id && bits != 0 => w.pressed(calibration::hat_source(index, bits)),
+            InputEvent::JoyButton { id, .. } | InputEvent::JoyHat { id, .. } if id == w.id => {}
+            InputEvent::PadButton { id, .. } | InputEvent::PadAxis { id, .. } if id == w.id => {}
+            _ => return false,
+        }
+        true
+    }
+
     fn poll_inputs(&mut self) {
         while let Ok(ev) = self.inputs.try_recv() {
-            let caught = self.capture.as_ref().and_then(|c| self.captured(c, &ev));
+            let taken = self.wizard_input(&ev);
+            let mut caught = None;
+            if !taken {
+                caught = self.capture.as_ref().and_then(|c| self.captured(c, &ev));
+                if let Some(pad) = self.as_pad(&ev) {
+                    caught = caught.or_else(|| pad.iter().find_map(|p| self.capture.as_ref().and_then(|c| self.captured(c, p))));
+                }
+            }
             match ev {
                 InputEvent::Keyboards(n) => self.keyboards = Some(n),
                 InputEvent::Added { id, name, is_pad, axes } => {
@@ -361,17 +439,24 @@ impl App {
             (Device::Keyboard, InputEvent::Key(code, true)) if *code != evdev::KeyCode::KEY_ESC.code() => {
                 Some(Captured::Key(*code))
             }
-            (Device::Gamepad, InputEvent::PadButton { name, down: true }) => Some(Captured::PadButton(name)),
-            (Device::Gamepad, InputEvent::PadAxis { name, value }) if value.abs() > threshold => {
+            // gamepads in the Gamepad tab, calibrated wheels (their inputs as a gamepad's) in the Wheel tab
+            (Device::Gamepad | Device::Wheel, InputEvent::PadButton { id, name, down: true })
+                if (c.device == Device::Wheel) == self.calibration(*id).is_some() =>
+            {
+                Some(Captured::PadButton(name))
+            }
+            (Device::Gamepad | Device::Wheel, InputEvent::PadAxis { id, name, value })
+                if value.abs() > threshold && (c.device == Device::Wheel) == self.calibration(*id).is_some() =>
+            {
                 Some(Captured::PadAxis(name, *value))
             }
-            (Device::Wheel, InputEvent::JoyButton { id, index, down: true }) if self.wheel_matches(*id) => {
+            (Device::Joystick, InputEvent::JoyButton { id, index, down: true }) if self.joystick_matches(*id) => {
                 Some(Captured::JoyButton(*index))
             }
-            (Device::Wheel, InputEvent::JoyHat { id, index, bits }) if *bits != 0 && self.wheel_matches(*id) => {
+            (Device::Joystick, InputEvent::JoyHat { id, index, bits }) if *bits != 0 && self.joystick_matches(*id) => {
                 Some(Captured::JoyHat(*index, 1 << bits.trailing_zeros()))
             }
-            (Device::Wheel, InputEvent::JoyAxis { id, index, value }) if self.wheel_matches(*id) => {
+            (Device::Joystick, InputEvent::JoyAxis { id, index, value }) if self.joystick_matches(*id) => {
                 let rest = c.rest.get(&(*id, *index)).copied().unwrap_or(0);
                 ((value - rest).abs() > threshold).then_some(Captured::JoyAxis(*index, *value, rest))
             }
@@ -608,7 +693,8 @@ impl App {
             return;
         }
         ui.horizontal(|ui| {
-            for (d, label) in [(Device::Keyboard, "⌨ Keyboard"), (Device::Gamepad, "🎮 Gamepad"), (Device::Wheel, "🚗 Wheel / joystick")] {
+            let tabs = [(Device::Keyboard, "⌨ Keyboard"), (Device::Gamepad, "🎮 Gamepad"), (Device::Wheel, "🚗 Wheel"), (Device::Joystick, "🕹 Other joystick")];
+            for (d, label) in tabs {
                 if ui.selectable_label(self.tab == d, egui::RichText::new(label).size(16.0)).clicked() {
                     self.tab = d;
                     self.capture = None;
@@ -635,17 +721,39 @@ impl App {
                 });
             }
             Device::Gamepad => {
-                let pads: Vec<&str> = self.devices.values().filter(|d| d.is_pad).map(|d| d.name.as_str()).collect();
+                let pads: Vec<&str> = self
+                    .devices
+                    .values()
+                    .filter(|d| d.is_pad && wheels::find(&self.calibrations, &d.name).is_none())
+                    .map(|d| d.name.as_str())
+                    .collect();
                 ui.label(if pads.is_empty() {
                     "No gamepad connected. This mapping applies to every gamepad (players in connection order).".into()
                 } else {
                     format!("Every gamepad (players in connection order): {}", pads.join(", "))
                 });
             }
-            Device::Wheel => self.wheel_header(ui),
+            Device::Wheel => {
+                let wheels: Vec<&str> = self
+                    .devices
+                    .values()
+                    .filter(|d| wheels::find(&self.calibrations, &d.name).is_some())
+                    .map(|d| d.name.as_str())
+                    .collect();
+                ui.label(
+                    "Every calibrated wheel (🚗 Wheel calibration). Its defaults are this game's gamepad mapping \
+                     (wheel = left stick X, gas = RT, brake = LT, clutch = right stick down); changes here are for the wheel only.",
+                );
+                if wheels.is_empty() {
+                    ui.weak("No calibrated wheel connected.");
+                } else {
+                    ui.label(format!("Connected: {}", wheels.join(", ")));
+                }
+            }
+            Device::Joystick => self.joystick_header(ui),
         }
         ui.add_space(4.0);
-        if self.tab == Device::Wheel && self.wheel.is_none() {
+        if self.tab == Device::Joystick && self.joystick.is_none() {
             return;
         }
         self.mapping_table(ui);
@@ -747,7 +855,7 @@ impl App {
         };
     }
 
-    fn wheel_header(&mut self, ui: &mut egui::Ui) {
+    fn joystick_header(&mut self, ui: &mut egui::Ui) {
         let Some(sel) = &self.game else { return };
         let mut names: Vec<String> = sel.profile.input.devices.keys().cloned().collect();
         for d in self.devices.values() {
@@ -755,25 +863,28 @@ impl App {
                 names.push(d.name.clone());
             }
         }
-        let player = self.wheel.as_ref().and_then(|w| sel.profile.input.devices.get(w)).and_then(|d| d.player);
-        ui.label("Wheels, pedals and other joysticks are used only when mapped here (by device name).");
+        let player = self.joystick.as_ref().and_then(|w| sel.profile.input.devices.get(w)).and_then(|d| d.player);
+        ui.label(
+            "Wheels, pedals or other joysticks not calibrated (🚗 Wheel calibration), mapped here by device name \
+             with raw inputs, for this game only (a calibrated wheel mapped here loses its calibration in this game).",
+        );
         let mut chosen = None;
         let mut new_player = None;
         ui.horizontal(|ui| {
             ui.label("Device");
             egui::ComboBox::from_id_salt("wheel-device")
                 .width(320.0)
-                .selected_text(self.wheel.clone().unwrap_or_else(|| "choose a device".into()))
+                .selected_text(self.joystick.clone().unwrap_or_else(|| "choose a device".into()))
                 .show_ui(ui, |ui| {
                     for n in &names {
                         let connected = self.devices.values().any(|d| d.name.to_ascii_lowercase().contains(&n.to_ascii_lowercase()));
                         let text = if connected { format!("🔌 {n}") } else { n.clone() };
-                        if ui.selectable_label(self.wheel.as_ref() == Some(n), text).clicked() {
+                        if ui.selectable_label(self.joystick.as_ref() == Some(n), text).clicked() {
                             chosen = Some(n.clone());
                         }
                     }
                 });
-            if self.wheel.is_some() {
+            if self.joystick.is_some() {
                 ui.label("Player");
                 egui::ComboBox::from_id_salt("wheel-player")
                     .selected_text(player.map_or("auto".to_string(), |p| p.to_string()))
@@ -790,17 +901,17 @@ impl App {
             }
         });
         if let Some(n) = chosen {
-            self.wheel = Some(n);
+            self.joystick = Some(n);
             self.capture = None;
         }
-        if let (Some(p), Some(w)) = (new_player, self.wheel.clone()) {
+        if let (Some(p), Some(w)) = (new_player, self.joystick.clone()) {
             self.set_user(&["input", "devices", &w, "player"], p.map(|p| Value::Number((p as u64).into())));
         }
         // live axes of the device, to see which one moves
         let live: Vec<(String, Vec<i32>)> = self
             .devices
             .iter()
-            .filter(|(id, _)| self.wheel_matches(**id))
+            .filter(|(id, _)| self.joystick_matches(**id))
             .map(|(_, d)| (d.name.clone(), d.axes.clone()))
             .collect();
         for (_, axes) in live {
@@ -811,7 +922,7 @@ impl App {
                 }
             });
         }
-        if self.wheel.is_some() && live_is_empty(&self.devices, self.wheel.as_deref()) {
+        if self.joystick.is_some() && live_is_empty(&self.devices, self.joystick.as_deref()) {
             ui.weak("(not connected)");
         }
     }
@@ -823,7 +934,7 @@ impl App {
         let table = self.table(device);
         // gamepad: the left stick on the d-pad's directions (as the launcher adds it)
         let auto: MapTable = match device {
-            Device::Gamepad => crate::mapping::stick_dpad(&table, |t| sel.profile.uses(t)).into_iter().collect(),
+            Device::Gamepad | Device::Wheel => crate::mapping::stick_dpad(&table, |t| sel.profile.uses(t)).into_iter().collect(),
             _ => MapTable::new(),
         };
         let mut action: Option<Action> = None;
@@ -897,7 +1008,7 @@ impl App {
                 if ui.button("Reset to the game's defaults").clicked() {
                     action = Some(Action::Reset);
                 }
-                if device == Device::Wheel && ui.button("Forget this device").clicked() {
+                if device == Device::Joystick && ui.button("Forget this device").clicked() {
                     action = Some(Action::Forget);
                 }
             });
@@ -915,14 +1026,191 @@ impl App {
                 }
             }
             Some(Action::Forget) => {
-                if let Some(w) = self.wheel.take() {
+                if let Some(w) = self.joystick.take() {
                     self.set_user(&["input", "devices", &w], None);
-                    self.wheel = self.game.as_ref().and_then(|s| s.profile.input.devices.keys().next().cloned());
+                    self.joystick = self.game.as_ref().and_then(|s| s.profile.input.devices.keys().next().cloned());
                 }
             }
             None => {}
         }
     }
+}
+
+// ---- wheel calibration ----
+
+impl App {
+    fn wheels_window(&mut self, ctx: &egui::Context) {
+        if !self.show_wheels {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("🚗 Wheel calibration").open(&mut open).default_width(620.0).show(ctx, |ui| {
+            if self.wizard.is_some() {
+                self.wizard_ui(ui);
+            } else {
+                self.wheels_list(ui);
+            }
+        });
+        if !open {
+            self.show_wheels = false;
+            self.wizard = None;
+        }
+    }
+
+    fn save_calibrations(&mut self) {
+        self.status = match wheels::save(&self.root, &self.calibrations) {
+            Ok(()) => "saved the wheel calibrations".into(),
+            Err(e) => format!("{e:#}"),
+        };
+    }
+
+    fn wheels_list(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            "A calibrated wheel is read as a gamepad in every game: steering = left stick X, gas = RT (R2), \
+             brake = LT (L2), clutch = right stick down, its buttons as the gamepad buttons you choose, \
+             at the gamepad's full ranges. Each game's Wheel tab maps it (by default as its gamepad).",
+        );
+        ui.add_space(6.0);
+        let mut start = None;
+        let mut forget = None;
+        if self.devices.is_empty() {
+            ui.weak("No wheel or joystick connected.");
+        }
+        for (id, d) in &self.devices {
+            let cal = wheels::find(&self.calibrations, &d.name);
+            egui::Frame::group(ui.style()).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.strong(&d.name);
+                    match cal {
+                        Some(_) => ui.colored_label(egui::Color32::from_rgb(80, 180, 80), "✔ calibrated"),
+                        None if d.is_pad => ui.weak("(gamepad)"),
+                        None => ui.weak("not calibrated"),
+                    };
+                    let text = if cal.is_some() { "Calibrate again…" } else { "Calibrate…" };
+                    if ui.button(text).clicked() {
+                        start = Some((*id, d.name.clone(), d.axes.clone()));
+                    }
+                    if cal.is_some() && ui.button("Forget").clicked() {
+                        forget = Some(d.name.clone());
+                    }
+                });
+                if let Some(cal) = cal {
+                    calibration_test(ui, cal, &d.axes, self.wheel_pressed);
+                }
+            });
+        }
+        let offline: Vec<String> = self
+            .calibrations
+            .keys()
+            .filter(|n| !self.devices.values().any(|d| d.name.eq_ignore_ascii_case(n)))
+            .cloned()
+            .collect();
+        for n in offline {
+            ui.horizontal(|ui| {
+                ui.label(format!("{n} (calibrated, not connected)"));
+                if ui.button("Forget").clicked() {
+                    forget = Some(n.clone());
+                }
+            });
+        }
+        if let Some((id, name, axes)) = start {
+            self.capture = None;
+            self.wizard = Some(Wizard::new(id, name, &axes));
+        }
+        if let Some(n) = forget {
+            self.calibrations.remove(&n);
+            self.save_calibrations();
+        }
+    }
+
+    fn wizard_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(w) = &self.wizard else { return };
+        let axes = self.devices.get(&w.id).map(|d| d.axes.clone()).unwrap_or_default();
+        ui.strong(&w.name);
+        if !self.devices.contains_key(&w.id) {
+            ui.colored_label(ui.visuals().error_fg_color, "disconnected");
+        }
+        ui.add_space(4.0);
+        ui.label(egui::RichText::new(w.instruction()).size(16.0));
+        if !w.note.is_empty() {
+            ui.colored_label(ui.visuals().warn_fg_color, &w.note);
+        }
+        ui.add_space(4.0);
+        ui.horizontal_wrapped(|ui| {
+            for (i, v) in axes.iter().enumerate() {
+                ui.label(format!("Axis {i}"));
+                ui.add(egui::ProgressBar::new((*v as f32 + 32768.0) / 65535.0).desired_width(70.0));
+            }
+        });
+        if w.cal != Calibration::default() {
+            ui.add_space(4.0);
+            calibration_test(ui, &w.cal, &axes, None);
+            if !w.cal.buttons.is_empty() {
+                let list: Vec<String> = w.cal.buttons.iter().map(|(p, s)| format!("{} = {}", p, bindings::source_label(Device::Joystick, s))).collect();
+                ui.weak(list.join(", "));
+            }
+        }
+        ui.add_space(6.0);
+        let step = w.step;
+        let mut done = false;
+        let mut cancel = false;
+        ui.horizontal(|ui| {
+            let Some(w) = &mut self.wizard else { return };
+            match step {
+                Step::Done => done = ui.button(egui::RichText::new("Save").strong()).clicked(),
+                Step::Button(_) => {
+                    if ui.button("Skip").clicked() {
+                        w.skip();
+                    }
+                }
+                Step::Start => {
+                    if ui.button("Next").clicked() {
+                        w.next();
+                    }
+                }
+                _ => {
+                    if ui.button("Next").clicked() {
+                        w.next();
+                    }
+                    if ui.button("Skip").clicked() {
+                        w.skip();
+                    }
+                }
+            }
+            cancel = ui.button("Cancel").clicked();
+        });
+        if done {
+            if let Some(w) = self.wizard.take() {
+                self.calibrations.insert(w.name, w.cal);
+                self.save_calibrations();
+            }
+        } else if cancel {
+            self.wizard = None;
+        }
+    }
+}
+
+/// A calibration's gamepad values for the axes now: steering, pedals, the last button.
+fn calibration_test(ui: &mut egui::Ui, cal: &Calibration, axes: &[i32], pressed: Option<&str>) {
+    let raw = |axis: u8| axes.get(axis as usize).copied().unwrap_or(0);
+    ui.horizontal_wrapped(|ui| {
+        if let Some(s) = cal.steering {
+            let v = s.value(raw(s.axis));
+            ui.label("Steering");
+            ui.add(egui::ProgressBar::new((v as f32 + 32768.0) / 65535.0).desired_width(120.0).text(v.to_string()));
+        }
+        for (label, pedal) in [("Gas", cal.gas), ("Brake", cal.brake), ("Clutch", cal.clutch)] {
+            if let Some(p) = pedal {
+                let v = p.value(raw(p.axis));
+                ui.label(label);
+                ui.add(egui::ProgressBar::new(v as f32 / 32767.0).desired_width(90.0).text(v.to_string()));
+            }
+        }
+        if let Some(name) = pressed {
+            ui.label(format!("last button: {}", bindings::source_label(Device::Gamepad, name)));
+        }
+    });
 }
 
 /// The window closed: the running game stops with it.
@@ -976,6 +1264,8 @@ impl eframe::App for App {
                     }
                 }
                 ui.toggle_value(&mut self.show_log, "📄 Game log");
+                ui.toggle_value(&mut self.show_wheels, "🚗 Wheel calibration")
+                    .on_hover_text("calibrate a wheel and its pedals: then read as a gamepad in every game");
             });
         });
         // Esc (window focused, no game running, no input awaited) quits, as Exit
@@ -1003,6 +1293,7 @@ impl eframe::App for App {
                 });
             });
         }
+        self.wheels_window(ui.ctx());
         egui::Panel::left("games").resizable(true).default_size(320.0).show(ui, |ui| self.game_list(ui));
         egui::CentralPanel::default().show(ui, |ui| match self.selected {
             Some(i) => self.game_page(ui, i),

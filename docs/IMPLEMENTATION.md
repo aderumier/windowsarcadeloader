@@ -197,6 +197,18 @@ those profiles add `tricks: [d3dcompiler_47]`.
     if an `input.devices` entry matches their name, with raw sources. `raw: true` forces raw
     mode on a gamepad. SDL emits both Joy* and Gamepad* events for gamepads: `Hub::set` keeps
     only the kind matching how the device was opened.
+  * Calibrated wheels (`wheels.rs`, `userprofiles/wheels.yaml`, machine-wide by SDL joystick
+    name, written by the GUI's "Wheel calibration" wizard): opened raw (even when SDL maps them
+    as a gamepad, as Batocera's `SDL_GAMECONTROLLERCONFIG` does), their raw events turned into
+    gamepad ones and driven by `input.wheel` over `input.gamepad` (the wheel's mapping defaults to
+    the gamepad's; the GUI's Wheel tab shows that merged table and saves its changes in
+    `input.wheel`, "none" removing a gamepad entry): steering -> `leftx` (calibrated full left / right
+    = -32768 / 32767), gas -> `r2`, brake -> `l2`, clutch -> `+righty` (released 0, pressed
+    32767: the gamepad triggers' range, the reference of the games' test menu calibrations), each
+    end with a 3 % band giving exactly its value; wheel buttons and hat directions -> the gamepad
+    buttons chosen. A game's `input.devices` entry for the device wins (raw map, no calibration).
+    The GUI reads them as gamepads in its Wheel tab captures (their own SDL gamepad events
+    dropped); the Gamepad tab takes only the other gamepads.
   * Initial joystick axes are read at open time (pedals rest at non-zero values).
   * Player slots: `devices.<name>.player`, else the lowest slot not used by another SDL device.
     Keyboards are fixed per `input.keyboard.pN` and share one global key state.

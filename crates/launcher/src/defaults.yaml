@@ -150,6 +150,12 @@ input:
     rightx: rx
     righty: ry
 
+  # Calibrated wheels (GUI "Wheel calibration", userprofiles/wheels.yaml) are read as gamepads:
+  # steering leftx, gas r2, brake l2, clutch +righty, their buttons as gamepad buttons. Their
+  # mapping is the gamepad's above, with these entries over it (same source names; none removes
+  # one): a game's wheel layout when it differs from its gamepad one.
+  wheel: {}
+
   # Keyboards (evdev key names) -> virtual stick, per player.
   keyboard_enabled: true
   keyboard:
@@ -232,8 +238,10 @@ input:
     BTN_8: right
 
   # Devices with their own mapping, by case insensitive substring of the SDL name.
-  # Wheels and other non-gamepad joysticks are only used when listed here, with raw
-  # sources: button0, axis1, +axis2/-axis2 (one half), hat0up/down/left/right.
+  # Wheels calibrated in the GUI (userprofiles/wheels.yaml) are read as gamepads (wheel:
+  # above); other non-gamepad joysticks are only used when listed here, with raw sources:
+  # button0, axis1, +axis2/-axis2 (one half), hat0up/down/left/right. An entry here wins over
+  # the device's calibration.
   #   "G29":
   #     player: 1          # force the player
   #     raw: true          # raw sources even if SDL knows it as a gamepad

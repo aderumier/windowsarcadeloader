@@ -20,8 +20,8 @@ pub enum InputEvent {
     Added { id: u32, name: String, is_pad: bool, axes: Vec<i32> },
     Removed(u32),
     /// Any gamepad (SDL positional names of the profiles).
-    PadButton { name: &'static str, down: bool },
-    PadAxis { name: &'static str, value: i32 },
+    PadButton { id: u32, name: &'static str, down: bool },
+    PadAxis { id: u32, name: &'static str, value: i32 },
     /// Raw joystick (wheels).
     JoyButton { id: u32, index: u8, down: bool },
     JoyAxis { id: u32, index: u8, value: i32 },
@@ -93,13 +93,13 @@ fn read_sdl(tx: &Sender<InputEvent>, wake: &impl Fn()) -> Result<(), String> {
                     handles.remove(&which.raw());
                     InputEvent::Removed(which.raw())
                 }
-                Event::GamepadButtonDown { button, .. } | Event::GamepadButtonUp { button, .. } => {
+                Event::GamepadButtonDown { which, button, .. } | Event::GamepadButtonUp { which, button, .. } => {
                     let down = matches!(ev, Event::GamepadButtonDown { .. });
                     let Some(name) = pad_button_name(button) else { continue };
-                    InputEvent::PadButton { name, down }
+                    InputEvent::PadButton { id: which.raw(), name, down }
                 }
-                Event::GamepadAxisMotion { axis, value, .. } => {
-                    InputEvent::PadAxis { name: pad_axis_name(axis), value: value as i32 }
+                Event::GamepadAxisMotion { which, axis, value, .. } => {
+                    InputEvent::PadAxis { id: which.raw(), name: pad_axis_name(axis), value: value as i32 }
                 }
                 Event::JoyButtonDown { which, button_idx, .. } => {
                     InputEvent::JoyButton { id: which.raw(), index: button_idx, down: true }

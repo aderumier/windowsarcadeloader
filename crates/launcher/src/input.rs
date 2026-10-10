@@ -2,7 +2,8 @@
 //! mice (`guns.rs`).
 //!
 //! Every device is a [`DeviceState`] bound to a player; the hub merges them into the
-//! virtual arcade sticks. Force feedback outputs of the game go back to the player's devices:
+//! virtual arcade sticks. A wheel calibrated in the GUI (`wheels.rs`) is read as a gamepad:
+//! its raw axes and buttons become gamepad ones, the game's gamepad mapping drives it. Force feedback outputs of the game go back to the player's devices:
 //! wheels through evdev (`ffb.rs`), gamepads as SDL rumble.
 
 use std::collections::HashMap;
@@ -20,6 +21,7 @@ use crate::config::Profile;
 use crate::ffb;
 use crate::guns::{self, PointerEvent};
 use crate::mapping::{self, DeviceState, Mapping, RawKey, Source};
+use crate::wheels::{self, Calibration, Wheels};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum DevKey {
@@ -31,6 +33,8 @@ enum DevKey {
 enum Handle {
     Pad(Gamepad),
     Joy(#[allow(dead_code)] Joystick),
+    /// A calibrated wheel: its raw events read as a gamepad's.
+    Wheel(#[allow(dead_code)] Joystick, Calibration),
 }
 
 /// A gamepad's force feedback state (constant force, vibration), played as rumble.
@@ -43,6 +47,10 @@ struct Rumble {
 pub struct Hub<'a> {
     config: &'a Profile,
     gamepad_map: Mapping,
+    /// Calibrated wheels' mapping: `input.wheel` over `input.gamepad`.
+    wheel_map: Mapping,
+    /// Wheel calibrations (`userprofiles/wheels.yaml`).
+    calibrations: Wheels,
     exit_sources: Vec<Source>,
     /// evdev key codes quitting the game.
     exit_keys: Vec<u16>,
@@ -67,6 +75,9 @@ impl<'a> Hub<'a> {
         let mut gamepad = config.input.gamepad.clone();
         gamepad.extend(mapping::stick_dpad(&gamepad, |t| config.uses(t)));
         let gamepad_map = mapping::compile(&gamepad, mapping::parse_pad_source).context("input.gamepad")?;
+        let mut wheel = mapping::wheel_table(&config.input.gamepad, &config.input.wheel);
+        wheel.extend(mapping::stick_dpad(&wheel, |t| config.uses(t)));
+        let wheel_map = mapping::compile(&wheel, mapping::parse_pad_source).context("input.wheel")?;
         let exit_sources = config
             .input
             .exit_combo
@@ -85,6 +96,11 @@ impl<'a> Hub<'a> {
                     .map_err(|_| anyhow::anyhow!("exit_keys: unknown key '{n}'"))
             })
             .collect::<Result<Vec<_>>>()?;
+
+        let calibrations = wheels::load(&config.root).unwrap_or_else(|e| {
+            eprintln!("input: {e:#}");
+            Wheels::new()
+        });
 
         let mut devices = HashMap::new();
         // keyboards read for their mapping, and for the exit keys
@@ -132,6 +148,8 @@ impl<'a> Hub<'a> {
         Ok(Hub {
             config,
             gamepad_map,
+            wheel_map,
+            calibrations,
             exit_sources,
             exit_keys,
             devices,
@@ -244,8 +262,21 @@ impl<'a> Hub<'a> {
         let dev_name = dev_cfg.map(|(m, _)| m.clone()).unwrap_or_default();
         let dev_cfg = dev_cfg.map(|(_, d)| d);
         let player = dev_cfg.and_then(|d| d.player).map(|p| p.saturating_sub(1)).unwrap_or_else(|| self.free_player());
+        // a calibrated wheel (by its joystick name: SDL may know it as a gamepad under another),
+        // unless the game maps the device itself
+        let joy_name = {
+            let n = unsafe { sdl3::sys::joystick::SDL_GetJoystickNameForID(sdl3::sys::joystick::SDL_JoystickID(raw_id)) };
+            if n.is_null() { String::new() } else { unsafe { std::ffi::CStr::from_ptr(n) }.to_string_lossy().into_owned() }
+        };
+        let calibration = dev_cfg.is_none().then(|| wheels::find(&self.calibrations, &joy_name).cloned()).flatten();
 
-        let (handle, mapping) = if is_pad && !dev_cfg.is_some_and(|d| d.raw) {
+        let (handle, mapping) = if let Some(cal) = calibration {
+            let joy = match joy.map(Ok).unwrap_or_else(|| self.joysticks.open(id)) {
+                Ok(j) => j,
+                Err(e) => return eprintln!("input: cannot open wheel {joy_name}: {e}"),
+            };
+            (Handle::Wheel(joy, cal), self.wheel_map.clone())
+        } else if is_pad && !dev_cfg.is_some_and(|d| d.raw) {
             let pad = match self.gamepads.open(id) {
                 Ok(p) => p,
                 Err(e) => return eprintln!("input: cannot open gamepad {name}: {e}"),
@@ -273,15 +304,29 @@ impl<'a> Hub<'a> {
         };
 
         let mut state = DeviceState::new(player, mapping);
-        if let Handle::Joy(j) = &handle {
+        match &handle {
             // pedals rest at a non zero position: read the initial axes
-            for i in 0..j.num_axes() {
-                if let Ok(v) = j.axis(i) {
-                    state.raw.insert(RawKey::JoyAxis(i as u8), v as i32);
+            Handle::Joy(j) => {
+                for i in 0..j.num_axes() {
+                    if let Ok(v) = j.axis(i) {
+                        state.raw.insert(RawKey::JoyAxis(i as u8), v as i32);
+                    }
                 }
             }
+            Handle::Wheel(j, cal) => {
+                for i in 0..j.num_axes() {
+                    if let Ok(v) = j.axis(i) {
+                        state.raw.extend(cal.axis(i as u8, v as i32));
+                    }
+                }
+            }
+            Handle::Pad(_) => {}
         }
-        let kind = if matches!(handle, Handle::Pad(_)) { "gamepad" } else { "joystick" };
+        let kind = match handle {
+            Handle::Pad(_) => "gamepad",
+            Handle::Joy(_) => "joystick",
+            Handle::Wheel(..) => "calibrated wheel (as a gamepad)",
+        };
         eprintln!("input: {kind} '{name}' -> player {}", player + 1);
         if self.config.input.ffb.enabled {
             // the device's evdev node: a wheel when it supports a constant force
@@ -307,17 +352,26 @@ impl<'a> Hub<'a> {
     }
 
     fn set(&mut self, id: JoystickId, key: RawKey, value: i32, from_pad: bool) {
-        // SDL reports gamepads both as gamepad and joystick events: keep the right one
-        let is_pad = matches!(self.handles.get(&id.raw()), Some(Handle::Pad(_)));
-        if is_pad != from_pad {
-            return;
-        }
+        // SDL reports gamepads both as gamepad and joystick events: keep the right one; a
+        // calibrated wheel's joystick events become gamepad ones
+        let values = match self.handles.get(&id.raw()) {
+            Some(Handle::Wheel(_, cal)) if !from_pad => match key {
+                RawKey::JoyAxis(i) => cal.axis(i, value),
+                _ => cal.buttons_of(key, value),
+            },
+            Some(Handle::Pad(_)) if from_pad => vec![(key, value)],
+            Some(Handle::Joy(_)) if !from_pad => vec![(key, value)],
+            _ => return,
+        };
+        let as_pad = from_pad || matches!(self.handles.get(&id.raw()), Some(Handle::Wheel(..)));
         if let Some(dev) = self.devices.get_mut(&DevKey::Sdl(id.raw())) {
-            if self.verbose {
-                eprintln!("input: device {} {key:?} = {value}", id.raw());
+            for (key, value) in values {
+                if self.verbose {
+                    eprintln!("input: device {} {key:?} = {value}", id.raw());
+                }
+                dev.raw.insert(key, value);
             }
-            dev.raw.insert(key, value);
-            if from_pad && dev.all_pressed(&self.exit_sources) {
+            if as_pad && dev.all_pressed(&self.exit_sources) {
                 self.exit_requested = true;
             }
         }
