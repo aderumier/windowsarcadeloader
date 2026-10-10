@@ -78,7 +78,8 @@ gamescope:
   args: [-S, stretch, -f]
 # Files copied into the run directory next to the executable, in place of the game's own:
 # <name in the run directory>: <source, relative to the root> (e.g. a missing config file).
-# A name with a folder ("dir/file") is a path from the game root.
+# A name with a folder ("dir/file") is a path from the game root. A source "{dump}/<path>" is
+# a file of the dump, from its root (a DLL the dump keeps in another folder).
 files: {}
 # Files copied into the dump only when it does not have them yet (default settings or
 # calibration the game then keeps updating): <path from the dump root>: <source>.

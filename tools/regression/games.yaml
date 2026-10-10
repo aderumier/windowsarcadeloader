@@ -5,6 +5,7 @@
 #           coin + start after 30 s, so the game starts), none: no input
 #   skip: reason, the game is listed but not run
 
+"globalvr/Alien Extermination/aliens-extermination.windowsloader": {}
 # "globalvr/FarCry Paradise Lost/farcry-paradise-lost.windowsloader": {}  # not tested
 "globalvr/The Swarm/the-swarm.windowsloader": {}
 # "namcoes3/Star Wars Battle Pod - The Force Awakens/star-wars-battle-pod.windowsloader": {}  # no status

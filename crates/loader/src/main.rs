@@ -7,6 +7,10 @@
 //!
 //! For games that do not import a driver DLL the payload could replace. The loader waits for
 //! the game and exits with its exit code. Built for the game's bitness (i686 here).
+//!
+//! The game is started with `SW_SHOWNORMAL` (as `start` and Explorer do; `CreateProcess`
+//! without it gives `SW_SHOWDEFAULT`, 10): Aliens Extermination passes its `WinMain` show
+//! command as `main`'s argc, glut32's `glutInit` then read 10 arguments and crashed.
 
 #![cfg_attr(not(windows), allow(dead_code))]
 
@@ -18,7 +22,7 @@ use windows_sys::Win32::System::Diagnostics::Debug::{FlushInstructionCache, Read
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
 use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAllocEx, VirtualProtectEx};
 use windows_sys::Win32::System::Threading::{
-    CREATE_SUSPENDED, CreateProcessW, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION, ResumeThread, STARTUPINFOW,
+    CREATE_SUSPENDED, CreateProcessW, STARTF_USESHOWWINDOW, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION, ResumeThread, STARTUPINFOW,
     TerminateProcess, WaitForSingleObject,
 };
 
@@ -160,6 +164,8 @@ fn main() {
     unsafe {
         let mut si: STARTUPINFOW = std::mem::zeroed();
         si.cb = size_of::<STARTUPINFOW>() as u32;
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = 1; // SW_SHOWNORMAL
         let mut pi: PROCESS_INFORMATION = std::mem::zeroed();
         let ok = CreateProcessW(
             std::ptr::null(),

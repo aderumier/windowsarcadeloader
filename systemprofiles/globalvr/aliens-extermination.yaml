@@ -1,0 +1,46 @@
+# Aliens Extermination (Global VR, v1.03 US) - template, override values in
+# userprofiles/globalvr/aliens-extermination.yaml.
+# OpenGL game reading its GVRIO board over HID itself: the payload (started through
+# wal-loader) feeds its gun reader and its panel keys from the virtual sticks (payload
+# aliens.rs, addresses as DemulShooter's Game_GvrAliens.cs).
+system: globalvr
+name: Aliens Extermination
+
+# The movies are DivX 5 AVIs played through Video for Windows: ffdshow's VfW decoder (without
+# it, "failed to open the avi frame" boxes at boot).
+tricks: [ffdshow]
+
+env:
+  WAL_GLOBALVR_ALIENS: "1"
+
+input:
+  # lightguns first, then mice
+  guns_enabled: true
+  # the gun position must not press the d-pad
+  stick_as_dpad: false
+  # right button: the flamethrower, middle button: the special weapon (start on 1 / 2); a
+  # lightgun pointing off the screen reloads when it shoots, as the cabinet's (payload: b6
+  # off screen)
+  gun:
+    BTN_RIGHT: b3
+    BTN_MIDDLE: b2
+    offscreen: b6
+
+# The game imports OpenAL32.dll and alut.dll: the dump keeps Creative's OpenAL (router and
+# its wrap_oal.dll) in DATA, not found there.
+files:
+  OpenAL32.dll: "{dump}/DATA/OpenAL32.dll"
+  wrap_oal.dll: "{dump}/DATA/wrap_oal.dll"
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up, test menu up
+  down: Volume down, test menu down
+  left: none
+  right: none
+  b1: Trigger
+  b2: Special
+  b3: Flamethrower
+  b4: Test menu select
+  b5: Reload (shot off screen)
+  b6: Gun off screen

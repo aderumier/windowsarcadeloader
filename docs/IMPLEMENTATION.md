@@ -622,7 +622,12 @@ JVS I/O board on `COM2` and import no driver DLL, so the payload is injected by
 suspended, its entry point (from the PEB image base) is replaced by a jump to a stub allocated
 in the game that calls `LoadLibraryW(payload)` (address taken locally: Wine maps kernel32 at
 the same address), restores the 5 entry bytes and jumps back. No remote thread. The launcher
-uses it for systems whose `System::loader()` is set (run dir gets `wal-loader.exe`).
+uses it for systems whose `System::loader()` is set (run dir gets `wal-loader.exe`): Type X,
+and Global VR (the payload under its `USBIOExtreme.dll` name, so Far Cry's import of it gets
+the same module; Aliens Extermination imports nothing to replace). The game is created with
+`SW_SHOWNORMAL`, as `start` does: without it Wine gives `SW_SHOWDEFAULT` (10), and Aliens
+Extermination, which passes its `WinMain` show command as `main`'s argc, crashed in
+`glutInit` reading 10 arguments.
 
 JVS board (`jvs.rs`) with `TaitoTypeXGeneric` settings: Taito stick mode (features `01 02 10 00 02 02 00 ...`: 2 players,
 16 switches, 2 coin slots), JVS version 0x30, identifier
@@ -973,6 +978,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | Game id | Game | System | Result | Needed |
 |---|---|---|---|---|
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
+| `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns, movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); `tricks: [ffdshow]` (DivX 5 movies through VfW) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), not tested to the end of a stage yet; new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`) |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | hide dinput8 (loader hack) |

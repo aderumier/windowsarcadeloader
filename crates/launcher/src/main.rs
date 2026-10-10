@@ -284,7 +284,10 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     }
     // profile files are installed like the payloads: copied in place of the game's file
     for (name, src) in &profile.files {
-        let src = profile.path(src);
+        let src = match src.strip_prefix("{dump}") {
+            Ok(rel) => game_root.join(rel),
+            Err(_) => profile.path(src),
+        };
         if !src.is_file() {
             bail!("profile file {} missing", src.display());
         }

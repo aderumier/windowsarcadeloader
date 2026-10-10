@@ -9,6 +9,7 @@
 //!   `WAL_GLOBALVR_WDRIVE`, default `.`.
 //! * `g_arcadeError` of `systemcfg.lua` reset at load (`WAL_GLOBALVR_CLEAR_ERRORS=0` keeps it).
 //! * `hasp.rs`: the game's HASP4 dongle calls.
+//! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
 //! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
 //!   stage changes (`swarm_campaign.rs`: the game started again with the next map).
@@ -17,6 +18,7 @@
 
 #![allow(non_snake_case)]
 
+mod aliens;
 mod config;
 mod gamelog;
 mod hasp;
@@ -43,6 +45,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             config::clear_errors();
         }
         usbio::init();
+        aliens::init();
         hasp::init();
         keyboard::init();
         gamelog::init();
