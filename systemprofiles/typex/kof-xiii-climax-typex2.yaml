@@ -1,0 +1,19 @@
+# The King of Fighters XIII Climax (SNK, Taito Type X2 build) - template, override values in
+# userprofiles/typex/kof-xiii-climax-typex2.yaml.
+system: typex
+name: The King of Fighters XIII Climax (Type X2)
+
+# Type X2 build (JVS on COM2, version CS_Ver.0.1.327.1344).
+# Buttons A B C D = b1 b2 b3 b4 (default mapping).
+
+# Native XACT/XAudio2 in the prefix (as the NESiCA build).
+tricks: [xact]
+
+env:
+  # media.kof is encrypted: its content key comes from Taito's crypto service
+  # (\\.\pipe\TtxAppCtyptPipe), as on the NESiCA build (same RSA key as the dump's
+  # TypeXmulti\txac\303002.key, plaintext key reply).
+  WAL_NESICA_KEY: kofxiiiclimax
+  WAL_NESICA_CRYPT_REPLY: plaintext
+  # Movies: the game looks the video decoder up by name (see the NESiCA build).
+  WAL_DSHOW_FIND_FILTER: "1"
