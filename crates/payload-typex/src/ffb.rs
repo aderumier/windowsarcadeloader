@@ -18,12 +18,23 @@
 //! 0x10, 0x400, 0x200, 0x80, 0x08, 0x100, 0x4000, its own codes, levels 16-30 pushing to the left,
 //! 1-15 to the right.
 //!
+//! `d1gp` (D1GP Arcade): the game drives its TouchSense wheel through the Immersion library,
+//! answered by [`crate::immersion`]. Its force is a spring whose center follows the car (the
+//! self-aligning torque), every frame: played as a constant force toward that center, 2 x the
+//! distance from the wheel (player 1's `lx`, `WAL_DINPUT_WHEEL_AXIS`) up to the spring's
+//! saturation. Its project effects (data/game.ifr) vibrate: `crash*` (impacts) 70% for
+//! 300 ms, `tire1` (skids) 50%, `dirt0` (off road) 40%, `engine*` 12%, the menu's `select` /
+//! `click*` 30% for 150 ms; `tire0` (the normal grip, a slope: the spring plays it) and
+//! `steer*` (friction) are not played.
+//! `WAL_TYPEX_FFB_SPRING` (0-100, default 100) scales the force.
+//!
 //! `WAL_TYPEX_FFB_TRACE=1` logs the values read when they change.
 
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use wal_payload_common::{log, send_output};
-use wal_protocol::output;
+use wal_protocol::{Axis, output};
 use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
@@ -42,6 +53,13 @@ pub(crate) fn init() {
         "chase-hq-2" => {
             log!("ffb: Chase H.Q. 2");
             let mut game = MotorWord { base, trace, traced: -1, game: &CHASE_HQ_2 };
+            std::thread::spawn(move || run(|| game.effects()));
+        }
+        "d1gp" => {
+            let spring = std::env::var("WAL_TYPEX_FFB_SPRING").ok().and_then(|v| v.trim().parse::<i32>().ok()).unwrap_or(100).clamp(0, 100);
+            crate::immersion::init();
+            log!("ffb: D1GP Arcade (force {spring}%)");
+            let mut game = D1gp::new(spring, trace);
             std::thread::spawn(move || run(|| game.effects()));
         }
         "wacky-races" => {
@@ -203,5 +221,74 @@ impl MotorWord {
         };
         let constant = if high == g.high_right { force } else { -force };
         Effects { constant, ..Effects::default() }
+    }
+}
+
+struct D1gp {
+    spring: i32,
+    /// The steering axis (`Axis` index), bit 7 set when inverted.
+    axis: u8,
+    trace: bool,
+    traced: (i32, i32),
+}
+
+impl D1gp {
+    fn new(spring: i32, trace: bool) -> Self {
+        let mut axis = Axis::LeftX as u8;
+        if let Ok(name) = std::env::var("WAL_DINPUT_WHEEL_AXIS") {
+            let name = name.trim();
+            let (a, inverted) = name.strip_prefix('-').map_or((name, false), |a| (a, true));
+            if let Some(a) = Axis::from_name(a) {
+                axis = a as u8 | if inverted { 0x80 } else { 0 };
+            }
+        }
+        D1gp { spring, axis, trace, traced: (0, 0) }
+    }
+
+    fn effects(&mut self) -> Effects {
+        use crate::immersion::{EFFECTS, SPRING_CENTER, SPRING_MIDDLE, SPRING_ON, SPRING_SATURATION};
+        let mut e = Effects::default();
+        let middle = SPRING_MIDDLE.load(Ordering::Relaxed);
+        if SPRING_ON.load(Ordering::Relaxed) && middle > 0 {
+            let target = SPRING_CENTER.load(Ordering::Relaxed) as f32 / middle as f32 - 1.0;
+            let v = wal_payload_common::input(0).axis(Axis::ALL[(self.axis & 0x7F) as usize]) as f32 / 32768.0;
+            let wheel = if self.axis & 0x80 != 0 { -v } else { v };
+            let saturation = SPRING_SATURATION.load(Ordering::Relaxed) as f32 / 10000.0;
+            let force = (2.0 * (target - wheel)).clamp(-saturation, saturation);
+            e.constant = (force * (output::FFB_MAX * self.spring / 100) as f32) as i32;
+        }
+        let mut effects = EFFECTS.lock().unwrap();
+        effects.retain(|(name, start)| pulse(name).is_none_or(|ms| start.elapsed() < Duration::from_millis(ms)));
+        let level = effects
+            .iter()
+            .map(|(name, _)| match name.as_str() {
+                n if n.starts_with("crash") => 70,
+                "tire1" => 50,
+                "dirt0" => 40,
+                n if n.starts_with("engine") => 12,
+                "select" => 30,
+                n if n.starts_with("click") => 30,
+                _ => 0,
+            })
+            .max()
+            .unwrap_or(0);
+        e.vibration = output::FFB_MAX * level / 100;
+        if self.trace {
+            let now = (e.constant / 1000 * 1000, e.vibration);
+            if now != self.traced {
+                log!("ffb: constant {} vibration {}", e.constant, e.vibration);
+                self.traced = now;
+            }
+        }
+        e
+    }
+}
+
+/// The one-shot effects and how long they play (ms).
+fn pulse(name: &str) -> Option<u64> {
+    match name {
+        n if n.starts_with("crash") => Some(300),
+        n if n == "select" || n.starts_with("click") => Some(150),
+        _ => None,
     }
 }
