@@ -1,0 +1,24 @@
+# Super Street Fighter IV Arcade Edition (Capcom, Taito Type X2, export standalone build) -
+# template, override values in userprofiles/typex/super-street-fighter-iv-ae.yaml.
+system: typex
+name: Super Street Fighter IV Arcade Edition (export, standalone)
+
+# 6 buttons (b1-b6 -> btn1-b6, default mapping).
+
+# The game asks for a 1280x720 fullscreen device and draws 1280x720 (a 1920x1080 back buffer
+# showed it in the top left corner): a windowed 1280x720 device, its window borderless over
+# the screen, the picture scaled up and kept 16:9.
+env:
+  WAL_D3D9_WINDOWED_SIZE: 1280x720
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Light Punch
+  b2: Medium Punch
+  b3: Heavy Punch
+  b4: Light Kick
+  b5: Medium Kick
+  b6: Heavy Kick
