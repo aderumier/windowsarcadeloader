@@ -21,3 +21,8 @@ env:
 # the file: Wine's DirectShow MPEG decoder needs the one of the media type (GE-Proton patch
 # ge-video-rework/0077, after GE-Proton11-7); without it, black picture with audio only, then a
 # hang ~10 s in.
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shoot
+  b2: Bomb

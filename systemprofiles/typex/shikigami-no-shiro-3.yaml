@@ -17,3 +17,9 @@ env:
   # It creates a plain overlapped window (Windows adds a caption and border) for its
   # fullscreen Direct3D 8 device: only an empty frame was shown. Borderless popup window.
   WAL_WINDOW_POPUP: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shot
+  b2: Bomb
+  b3: Tension

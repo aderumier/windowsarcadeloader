@@ -21,3 +21,10 @@ env:
   # It polls a Direct3D event query into a 1-byte variable at the top of its stack frame; DXVK
   # writes the whole 4-byte BOOL and overwrites the saved EBP: crash after the first frame.
   WAL_D3D9_QUERY_FIX: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

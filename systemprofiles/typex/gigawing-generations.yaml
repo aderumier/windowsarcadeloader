@@ -23,3 +23,8 @@ files:
   # output, and fullscreen as a borderless screen-sized window (fake fullscreen, stretched
   # keeping the aspect ratio): it stayed a window otherwise.
   dgVoodoo.conf: systemprofiles/typex/files/gigawing-generations/dgVoodoo.conf
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shot
+  b2: Bomb

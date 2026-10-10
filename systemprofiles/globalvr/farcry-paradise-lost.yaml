@@ -37,3 +37,13 @@ input:
 # DirectInput setup, 0..2000). The game rewrites it when calibrating from the test menu.
 files:
   arcade_calibration.txt: systemprofiles/globalvr/files/farcry-paradise-lost/arcade_calibration.txt
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: Trigger
+  b2: Grenade
+  b3: Action

@@ -17,3 +17,10 @@ env:
   WAL_NESICA_CRYPT_REPLY: plaintext
   # Movies: the game looks the video decoder up by name (see the NESiCA build).
   WAL_DSHOW_FIND_FILTER: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

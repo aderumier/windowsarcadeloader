@@ -18,3 +18,8 @@ env:
   # It asks for vsync, which the window does not get (Xwayland): ~400 frames per second, the
   # game (timed by frames) 6 times too fast. 60 frames per second.
   WAL_D3D9_MAX_FPS: "60"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shoot
+  b2: Jump

@@ -8,3 +8,8 @@ name: Raiden III
 hide: [dinput8.dll]
 
 # Buttons Shoot, Bomb = b1, b2 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shoot
+  b2: Bomb

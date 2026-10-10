@@ -12,3 +12,12 @@ native_map:
   b5: btn4
   b6: btn5
   b7: btn6
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Light Punch
+  b2: Medium Punch
+  b3: Heavy Punch
+  b5: Light Kick
+  b6: Medium Kick
+  b7: Heavy Kick

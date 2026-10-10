@@ -19,3 +19,12 @@ env:
   WAL_PATCHES: "0xA79BB:06"
   # only in game2.exe (TestMode.exe loads the payload too)
   WAL_PATCHES_EXE: game2.exe
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4
+  b5: Button 5
+  b6: Button 6

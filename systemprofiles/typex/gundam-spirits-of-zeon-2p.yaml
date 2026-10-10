@@ -26,3 +26,12 @@ env:
   # 640x480 video). DXVK allows any size: a 640x480 texture mapped as 1024 wide, the video
   # cut on the right. Device caps without non-power-of-two textures.
   WAL_D3D9_POW2: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: Trigger
+  b2: 'Action (bazooka, mines)'

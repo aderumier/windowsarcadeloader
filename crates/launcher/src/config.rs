@@ -52,6 +52,7 @@ pub struct Profile {
     pub initial_files: BTreeMap<String, PathBuf>,
     pub env: BTreeMap<String, String>,
     pub native_map: BTreeMap<String, String>,
+    pub controls: BTreeMap<String, String>,
     pub port: u16,
     pub input: InputConfig,
 
@@ -89,6 +90,7 @@ pub struct InputConfig {
     pub deadzone: i16,
     pub stick_as_dpad: bool,
     pub exit_combo: Vec<String>,
+    pub exit_keys: Vec<String>,
     pub gamepad: MapTable,
     pub keyboard_enabled: bool,
     pub keyboard: BTreeMap<String, MapTable>,
@@ -201,7 +203,7 @@ impl Dump {
 
 /// Where `systemprofiles/` is: `--root`, else the current directory, else next to the
 /// launcher (its directory or the one above, e.g. `dist/..`).
-fn profiles_root(root: Option<&Path>) -> Result<PathBuf> {
+pub fn profiles_root(root: Option<&Path>) -> Result<PathBuf> {
     if let Some(r) = root {
         return Ok(std::path::absolute(r)?);
     }
@@ -232,43 +234,31 @@ impl Profile {
 
     /// The profile of game id `<id>` (searched in every system) or `<system>/<id>`.
     fn load_id(id: &str, root: &Path, extra: &[PathBuf]) -> Result<Profile> {
-        let rel = if id.contains('/') {
-            PathBuf::from(format!("{id}.yaml"))
-        } else {
-            let mut found: Vec<PathBuf> = std::fs::read_dir(root.join(SYSTEM_PROFILES))
-                .with_context(|| format!("no {SYSTEM_PROFILES} in {}", root.display()))?
-                .flatten()
-                .map(|system| PathBuf::from(system.file_name()).join(format!("{id}.yaml")))
-                .filter(|rel| root.join(SYSTEM_PROFILES).join(rel).is_file())
-                .collect();
-            match found.len() {
-                1 => found.remove(0),
-                0 => bail!("no system profile for game id {id:?} in {}/{SYSTEM_PROFILES}", root.display()),
-                _ => bail!("game id {id:?} is ambiguous: {found:?}"),
-            }
-        };
-        let root = root.to_path_buf();
-
-        let mut value: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
-        let mut sources = Vec::new();
-        let template = root.join(SYSTEM_PROFILES).join(&rel);
-        let user = root.join(USER_PROFILES).join(&rel);
-        if !template.exists() && !user.exists() {
-            bail!("no profile {} in {}/{{{SYSTEM_PROFILES},{USER_PROFILES}}}", rel.display(), root.display());
+        let layers = Layers::load(id, root)?;
+        let mut value = layers.base;
+        let mut sources = layers.sources;
+        if layers.user_path.exists() {
+            merge(&mut value, layers.user);
+            sources.push(layers.user_path);
         }
-        for layer in [root.join("launcher.yaml"), template, user].into_iter().chain(extra.iter().cloned()) {
+        for layer in extra {
             if layer.exists() {
-                merge(&mut value, read_yaml(&layer)?);
-                sources.push(layer);
+                merge(&mut value, read_yaml(layer)?);
+                sources.push(layer.clone());
             }
         }
+        Profile::from_value(value, root, &layers.id, sources)
+    }
+
+    /// The profile of merged layers.
+    pub fn from_value(value: Value, root: &Path, id: &str, sources: Vec<PathBuf>) -> Result<Profile> {
         if value.get("system").is_none_or(Value::is_null) {
-            bail!("profile {}: 'system' is not set (in {sources:?})", rel.display());
+            bail!("profile {id}: 'system' is not set (in {sources:?})");
         }
-        let mut profile: Profile = serde_yaml_ng::from_value(value)
-            .with_context(|| format!("profile {} (from {sources:?})", rel.display()))?;
-        profile.root = root;
-        profile.id = rel.with_extension("").display().to_string();
+        let mut profile: Profile =
+            serde_yaml_ng::from_value(value).with_context(|| format!("profile {id} (from {sources:?})"))?;
+        profile.root = root.to_path_buf();
+        profile.id = id.to_string();
         profile.sources = sources;
         Ok(profile)
     }
@@ -298,6 +288,86 @@ impl Profile {
     pub fn slug(&self) -> String {
         Path::new(&self.id).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
     }
+}
+
+/// A game's profile layers, apart: the user layer is what the GUI edits.
+pub struct Layers {
+    /// `<system>/<game>`.
+    pub id: String,
+    /// Defaults, `launcher.yaml` and the system profile, merged.
+    pub base: Value,
+    /// Files of `base`, in order.
+    pub sources: Vec<PathBuf>,
+    /// `userprofiles/<system>/<game>.yaml` (an empty mapping when it does not exist).
+    pub user: Value,
+    pub user_path: PathBuf,
+}
+
+impl Layers {
+    /// Layers of game id `<id>` (searched in every system) or `<system>/<id>`.
+    pub fn load(id: &str, root: &Path) -> Result<Layers> {
+        let rel = if id.contains('/') {
+            PathBuf::from(format!("{id}.yaml"))
+        } else {
+            let mut found: Vec<PathBuf> = std::fs::read_dir(root.join(SYSTEM_PROFILES))
+                .with_context(|| format!("no {SYSTEM_PROFILES} in {}", root.display()))?
+                .flatten()
+                .map(|system| PathBuf::from(system.file_name()).join(format!("{id}.yaml")))
+                .filter(|rel| root.join(SYSTEM_PROFILES).join(rel).is_file())
+                .collect();
+            match found.len() {
+                1 => found.remove(0),
+                0 => bail!("no system profile for game id {id:?} in {}/{SYSTEM_PROFILES}", root.display()),
+                _ => bail!("game id {id:?} is ambiguous: {found:?}"),
+            }
+        };
+        let template = root.join(SYSTEM_PROFILES).join(&rel);
+        let user_path = root.join(USER_PROFILES).join(&rel);
+        if !template.exists() && !user_path.exists() {
+            bail!("no profile {} in {}/{{{SYSTEM_PROFILES},{USER_PROFILES}}}", rel.display(), root.display());
+        }
+        let mut base: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
+        let mut sources = Vec::new();
+        for layer in [root.join("launcher.yaml"), template] {
+            if layer.exists() {
+                merge(&mut base, read_yaml(&layer)?);
+                sources.push(layer);
+            }
+        }
+        let user = if user_path.exists() { read_yaml(&user_path)? } else { Value::Mapping(Mapping::new()) };
+        Ok(Layers { id: rel.with_extension("").display().to_string(), base, sources, user, user_path })
+    }
+
+    /// The merged profile.
+    pub fn profile(&self, root: &Path) -> Result<Profile> {
+        let mut value = self.base.clone();
+        let mut sources = self.sources.clone();
+        merge(&mut value, self.user.clone());
+        if self.user_path.exists() {
+            sources.push(self.user_path.clone());
+        }
+        Profile::from_value(value, root, &self.id, sources)
+    }
+}
+
+/// Every game of `systemprofiles/`: `<system>/<game>` ids, sorted.
+pub fn game_ids(root: &Path) -> Result<Vec<String>> {
+    let dir = root.join(SYSTEM_PROFILES);
+    let mut ids = Vec::new();
+    for system in std::fs::read_dir(&dir).with_context(|| format!("reading {}", dir.display()))?.flatten() {
+        if !system.path().is_dir() {
+            continue;
+        }
+        for file in std::fs::read_dir(system.path())?.flatten() {
+            let path = file.path();
+            if path.is_file() && path.extension().is_some_and(|e| e == "yaml") {
+                let stem = path.file_stem().unwrap_or_default().to_string_lossy().into_owned();
+                ids.push(format!("{}/{stem}", system.file_name().to_string_lossy()));
+            }
+        }
+    }
+    ids.sort();
+    Ok(ids)
 }
 
 #[cfg(test)]

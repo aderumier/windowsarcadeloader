@@ -10,3 +10,10 @@ name: 'Daemon Bride: Additional Gain'
 env:
   # encrypted data: crypto service with the BlazBlue Chrono Phantasma key
   WAL_NESICA_KEY: bbcp
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4

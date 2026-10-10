@@ -12,3 +12,15 @@ hide: [dinput8.dll]
 # left Shift, Z, as MAME).
 env:
   WAL_TYPEX_MAHJONG: hot-gimmick-5
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: Kan
+  b2: Pon
+  b3: Chi
+  b4: Reach
+  b5: Ron

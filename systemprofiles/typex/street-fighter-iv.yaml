@@ -10,3 +10,12 @@ hide: [dinput8.dll]
 # No back buffer override: the game queries the desktop size (1920x1080 here) and
 # lays out its 1920x1080 viewport accordingly. Forcing a smaller back buffer
 # (1280x800) made the WM-stretched 1920x1080 window show a cropped, zoomed image.
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Light Punch
+  b2: Medium Punch
+  b3: Heavy Punch
+  b4: Light Kick
+  b5: Medium Kick
+  b6: Heavy Kick

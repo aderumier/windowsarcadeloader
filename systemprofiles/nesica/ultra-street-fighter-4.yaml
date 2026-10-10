@@ -19,3 +19,12 @@ native_map:
 env:
   # encrypted data: crypto service with the Ultra Street Fighter 4 key
   WAL_NESICA_KEY: usf4
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Light Punch
+  b2: Medium Punch
+  b3: Heavy Punch
+  b5: Light Kick
+  b6: Medium Kick
+  b7: Heavy Kick

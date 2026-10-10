@@ -21,3 +21,10 @@ env:
   # Same engine as the NESiCA Final Edition: it polls a Direct3D event query into a 1-byte
   # variable, DXVK writes 4 bytes over the saved EBP.
   WAL_D3D9_QUERY_FIX: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

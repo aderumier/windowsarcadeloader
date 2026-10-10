@@ -40,3 +40,13 @@ env:
   # * 0x1B4B90: the master volume comes from the cabinet's volume knob, an analog input our JVS
   #   board does not report (read as 0: muted); return the maximum.
   WAL_PATCHES: "0x137C70:B801000000C3,0x154E6:9090,0x1779:8007,0x1783:3804,0x1B4B90:B810270000C3"
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: Trigger
+  b2: Reload
+  b3: 'Select (test menu)'

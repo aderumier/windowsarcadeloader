@@ -24,3 +24,7 @@ graphics: d7vk
 env:
   WAL_PATCHES: "0xF804:8B0DA4BF7C0085C97517EB20909090"
   WAL_PATCHES_EXE: game_liong.exe
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button

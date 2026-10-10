@@ -24,3 +24,9 @@ env:
   # back to a host CJK font (Noto Sans CJK here) and the texts (boot warning, version) are far
   # too big. Tuned by eye for that fallback font.
   WAL_FONT_SCALE: "0.28"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Fire
+  b2: Lock On
+  b3: Bomb

@@ -8,3 +8,12 @@ name: The King of Fighters XIII
 # serve: the dump's data is plaintext and the game runs without it.
 # settings.arc asks 1360x768 (ForceDisplaySize); that Reset fails under Wine and the game
 # goes on with a 1280x720 back buffer in a fullscreen window: no WAL_D3D9_FULLSCREEN_SIZE.
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4
+  b5: Button 5
+  b6: Button 6

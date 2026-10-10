@@ -12,3 +12,9 @@ env:
   WAL_NESICA_KEY: magicalbeat
   # (CRC 0x1d396bf2): skip the initialization wait
   WAL_PATCHES: "0x56B21:9090"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3

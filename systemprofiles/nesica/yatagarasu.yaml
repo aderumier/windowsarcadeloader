@@ -27,3 +27,10 @@ env:
   WAL_D3D9_WINDOWED_SIZE: 854x480
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4

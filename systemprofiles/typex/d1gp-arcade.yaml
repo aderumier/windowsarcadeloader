@@ -73,3 +73,17 @@ env:
   # Force feedback: its Immersion TouchSense library calls (the wheel's spring that follows
   # the car, tire and engine effects), answered by the payload (immersion.rs, ffb.rs).
   WAL_TYPEX_FFB: d1gp
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Shift Up
+  b2: Shift Down
+  b3: Side Brake
+  b4: View Change

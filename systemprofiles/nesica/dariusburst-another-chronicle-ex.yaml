@@ -29,3 +29,8 @@ env:
 # 1): coins are then never credited. Same file with JVS on.
 files:
   init.ini: systemprofiles/nesica/files/dariusburst-another-chronicle-ex/init.ini
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shot
+  b2: Burst

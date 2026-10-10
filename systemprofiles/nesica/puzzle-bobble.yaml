@@ -10,3 +10,7 @@ name: Puzzle Bobble
 env:
   # (CRC 0x358ec3ff): NESYS error workaround
   WAL_PATCHES: "0xA77B:A3EC0D4F0090"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shoot

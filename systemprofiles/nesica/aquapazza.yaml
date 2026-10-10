@@ -8,3 +8,10 @@ name: 'Aquapazza: Aquaplus Dream Match'
 hide: [dinput8.dll]
 
 # Buttons A B C D = b1-b4 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

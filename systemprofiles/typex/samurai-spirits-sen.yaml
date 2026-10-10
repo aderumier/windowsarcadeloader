@@ -12,3 +12,10 @@ env:
   # skip two cabinet checks (0xB73DE, 0xB73ED, 0xC640C), 0xCE1C0 returns 1.
   WAL_PATCHES: "0x117A:9090909090,0x1188:9090,0xB73DE:9090,0xB73ED:EB,0xC640C:EB,0xCE1C0:33C040C3"
   WAL_PATCHES_EXE: launcher.exe
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Vertical Slash
+  b2: Horizontal Slash
+  b3: Kick
+  b4: Special

@@ -19,3 +19,12 @@ native_map:
 # run directory.
 files:
   config.ini: systemprofiles/nesica/files/street-fighter-zero-3/config.ini
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Light Punch
+  b2: Medium Punch
+  b3: Heavy Punch
+  b5: Light Kick
+  b6: Medium Kick
+  b7: Heavy Kick
