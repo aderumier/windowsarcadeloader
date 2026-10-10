@@ -110,6 +110,8 @@ struct App {
     running: Option<Running>,
     log: Arc<Mutex<Vec<String>>>,
     show_log: bool,
+    /// When Esc last cancelled a capture: that press does not also close the window.
+    esc_cancel: Option<Instant>,
 }
 
 impl App {
@@ -153,6 +155,7 @@ impl App {
             running: None,
             log: Arc::new(Mutex::new(Vec::new())),
             show_log: false,
+            esc_cancel: None,
         }
     }
 
@@ -282,6 +285,7 @@ impl App {
                 InputEvent::Key(code, true) if code == evdev::KeyCode::KEY_ESC.code() && self.capture.is_some() => {
                     self.capture = None;
                     self.status = "cancelled".into();
+                    self.esc_cancel = Some(Instant::now());
                     continue;
                 }
                 _ => {}
@@ -837,9 +841,20 @@ impl eframe::App for App {
                 ui.toggle_value(&mut self.show_log, "📄 Game log");
             });
         });
+        // Esc (window focused, no game running, no input awaited) quits, as Exit
+        let esc = ui.input(|i| i.key_pressed(egui::Key::Escape))
+            && self.capture.is_none()
+            && self.running.is_none()
+            && self.esc_cancel.is_none_or(|t| t.elapsed() > Duration::from_millis(500));
         egui::Panel::bottom("status").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(&self.status);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let exit = ui.button(egui::RichText::new("Exit").size(16.0)).on_hover_text("quit the launcher (Esc); a running game stops");
+                    if exit.clicked() || esc {
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                });
             });
         });
         if self.show_log {
