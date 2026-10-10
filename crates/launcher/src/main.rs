@@ -5,6 +5,7 @@
 //! runs the game with a wine runner.
 
 mod config;
+mod ffb;
 mod guns;
 mod input;
 mod mapping;
@@ -355,6 +356,10 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
             for (p, stick) in frame.players.iter_mut().enumerate() {
                 script.apply(p, stick);
             }
+        }
+        // force feedback outputs of the game, to the players' devices
+        for o in server.outputs() {
+            hub.output(o);
         }
         // on change, plus a periodic refresh
         if frame != last || last_sent.elapsed() > Duration::from_millis(100) {

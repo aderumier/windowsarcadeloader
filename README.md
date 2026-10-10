@@ -69,12 +69,12 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | pass | 2026-10-07 |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | pass | 2026-10-08 |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
-| `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-07 |
+| `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-10 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | pass | 2026-10-07 |
-| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | pass | 2026-10-09 |
+| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | pass | 2026-10-10 |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | pass | 2026-10-07 |
-| `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | pass | 2026-10-07 |
+| `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | fail: running, window | 2026-10-10 |
 | `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | pass | 2026-10-09 |
 | `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: 100%) | pass | 2026-10-09 |
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | pass | 2026-10-07 |
@@ -98,5 +98,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | pass | 2026-10-07 |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | pass | 2026-10-07 |
 | `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | not in the test |  |
+| `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | pass | 2026-10-10 |
+| `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | pass | 2026-10-10 |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->

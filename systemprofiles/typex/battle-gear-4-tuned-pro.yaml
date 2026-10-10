@@ -1,0 +1,103 @@
+# Battle Gear 4 Tuned Professional 2.08, professional cabinet (Taito, Taito Type X+, driving) -
+# template, override values in userprofiles/typex/battle-gear-4-tuned-pro.yaml.
+# Same dump as battle-gear-4-tuned (its battle-gear-4-tuned-pro.windowsloader file): the
+# game finds the cabinet's second I/O board and runs its wide monitor & clutch mode (1360x768,
+# 6-speed H shifter, clutch pedal; the transmission is chosen per race: AT, sequential, 6MT).
+system: typex
+name: Battle Gear 4 Tuned (professional)
+
+# Cabinet: wheel (steering board on COM1), pedals, SHIFT UP / SHIFT DOWN (sequential shifter,
+# JVS buttons 2 / 3), VIEW, HAZARD, OVER TAKE (JVS up, down, left), SIDE BRAKE (button 1), KEY
+# switch (right) and key reader (the player's key id, payload jvs.rs); here also the H
+# shifter (gears 1-6 = player 2's b1-b6, payload jvs.rs) and the clutch (JVS analog channel 6).
+# Virtual stick: wheel lx, pedals accel/brake, b1 SHIFT UP, b2 SHIFT DOWN, b3 VIEW, b4 HAZARD,
+# b5 OVER TAKE, b6 SIDE BRAKE, b7 KEY. The stick directions are not cabinet inputs.
+native_map:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: btn2
+  b2: btn3
+  b3: up
+  b4: down
+  b5: left
+  b6: btn1
+  b7: right
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1/L1 shift up/down, Y VIEW, X HAZARD, B OVER TAKE,
+  # A SIDE BRAKE.
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    x: b4
+    b: b5
+    a: b6
+    r2: accel
+    l2: brake
+  # Right stick down: clutch.
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl / Alt shift up / down,
+  # Space VIEW, Shift HAZARD, Z OVER TAKE, X SIDE BRAKE, C KEY, V clutch, 5 coin, 1 start.
+  # H shifter on the keypad (player 2): 7 / 1 gears 1 / 2, 8 / 2 gears 3 / 4, 9 / 3 gears 5 / 6
+  # (player 4's keypad keys removed). An H shifter device: player 2, its gear buttons b1-b6, e.g.
+  #   devices:
+  #     "Driving Force Shifter": {player: 2, map: {button0: b1, button1: b2, button2: b3, button3: b4, button4: b5, button5: b6}}
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_V: ry
+    p2:
+      KEY_KP7: b1
+      KEY_KP1: b2
+      KEY_KP8: b3
+      KEY_KP2: b4
+      KEY_KP9: b5
+      KEY_KP3: b6
+    p4:
+      KEY_KP8: none
+      KEY_KP2: none
+      KEY_KP4: none
+      KEY_KP6: none
+      KEY_KP0: none
+      KEY_KPDOT: none
+      KEY_KPENTER: none
+
+env:
+  # Wheel position from the steering board on COM1 (inverted: 0 = full left here).
+  WAL_TYPEX_WHEEL_PORT: COM1
+  WAL_TYPEX_WHEEL_AXIS: "-lx"
+  # Force feedback from its memory (payload ffb.rs): centering spring in a race, wall and car
+  # hits push the wheel, car contacts vibrate.
+  WAL_TYPEX_FFB: battle-gear-4
+  # Gas, brake and clutch on JVS analog channels 3, 4 and 6 (clutch: the right stick's lower
+  # half, 0 at rest).
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,accel,brake,,+ry"
+  # Key reader and the professional cabinet's second board, H shifter.
+  WAL_TYPEX_JVS_LAYOUT: battle-gear-pro
+  # Own data folder: cabinet settings and pedal calibration (clutch) apart from the normal
+  # cabinet's.
+  WAL_TYPEX_DDRIVE: WindowsLoaderPro
+  # The cabinet runs it from the root of E: and it finds its data from the current
+  # directory's drive (E:\data): without it, it waited forever for C:\data\... at boot.
+  WAL_GAME_DRIVE: E
+  # Battle Gear 4 Tuned patches for this executable (CRC 0x14eb3c8a), the dump being
+  # hex-edited: original entry point (the edited one first loads ttx_monitor.dll), original
+  # transmission lookup (the edited one forces an index: no SEQ/6MT in professional mode);
+  # no window menu (LoadMenuA wrapper returns at once); intro fix (distorted 3D scene in the
+  # intro otherwise: a field set to 1.0 in its setup loop, code in padding at 0x57ACE).
+  WAL_PATCHES: "0x2837E0:6A606828AC7C00,0xCBCB8:8B8481940000008B4004,0x1F21B0:C20400,\
+    0x57ACE:896814C740080000803F83C108EB0A,0x57AE7:E91B040000,0x57F01:E9C8FBFFFF90"
+  # Always windowed, 1360x768 in this mode: that back buffer stretched to a screen-sized
+  # borderless window.
+  WAL_D3D9_WINDOWED_SIZE: 1360x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # It reads the PC keyboard through DirectInput too (arrows and keypad shift gears).
+  WAL_DINPUT_DISABLE: "1"

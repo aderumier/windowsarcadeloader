@@ -219,3 +219,13 @@ input:
   #     raw: true          # raw sources even if SDL knows it as a gamepad
   #     map: {axis0: lx, axis2: -accel, axis3: -brake, button0: b1}
   devices: {}
+
+  # Force feedback from the game (payload outputs: constant force, centering spring,
+  # vibration), played on the player's devices: a wheel (its evdev node supports a constant
+  # force) through evdev, its own centering off; a gamepad as rumble (SDL).
+  ffb:
+    enabled: true
+    # Overall strength in percent.
+    gain: 100
+    # Swap the constant force direction (drivers differ).
+    invert: false

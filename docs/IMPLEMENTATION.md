@@ -112,7 +112,10 @@ Frame: `[u8 kind][u8 0][u16 LE payload_len][payload]`.
 
 The launcher sends the full state on every change plus every 100 ms, so a reconnecting payload
 is up to date immediately; unknown kinds are skipped (forward compatible). Bump `VERSION` on an
-incompatible change. Output ids are system-defined (none used yet: lamps, FFB, recoil are TODO).
+incompatible change. Output ids (`protocol::output`): force feedback states for `player` (0..3),
+sent on change (and refreshed every second by the payload): `FFB_CONSTANT` (1,
+-10000 pushed left ..= 10000 pushed right), `FFB_SPRING` (2, centering, 0..=10000),
+`FFB_VIBRATION` (3, 0..=10000). Lamps and recoil are TODO.
 
 ### 4.3 Environment contract (launcher → payload)
 
@@ -200,6 +203,15 @@ those profiles add `tricks: [d3dcompiler_47]`.
     game still receives keys through X11), autorepeat ignored; events reach the main thread
     over an mpsc channel.
   * `exit_combo` (physical gamepad names) sets `exit_requested`.
+  * Force feedback (`ffb.rs`, `input.ffb`: `enabled`, `gain` %, `invert`): the server passes the
+    game's outputs to the main loop (mpsc), `Hub::output` plays them on the SDL devices of that
+    player. A device whose evdev node (`SDL_GetJoystickPathForID`) supports FF_CONSTANT is a
+    wheel: effects through evdev, as linuxloader's evdevFfb.c (constant force at direction
+    0x4000, positive levels pulling left; FF_SPRING centering, else the wheel's autocenter; a
+    sine for the vibration), each uploaded once then updated in place, its autocenter off (the
+    game centers it), FF_GAIN set (else the levels scaled). Gamepads rumble through SDL (strong
+    motor: vibration, weak motor: the constant force, 1.5 s, refreshed by the game). Not SDL's
+    haptic API for wheels.
 
 ### 5.3 Wine (`wine.rs`)
 
@@ -389,7 +401,14 @@ profile), `show` (merged profile).
   (`WAL_NESICA_DDRIVE`, `WAL_TYPEX_DDRIVE`). The kernel32 file imports of the C runtimes
   loaded with the game (`msvcrt`, `msvcr70`-`msvcr120`, `ucrtbase`) are hooked too: games
   doing `fopen("D:/...")` go through the CRT (Chaos Code crashed on `fseek(NULL)`, Ikaruga
-  showed a storage error).
+  showed a storage error). `winmm!mmioOpenA/W` paths are redirected too (Battle Gear 4 opens its
+  music WAVs through them: sound effects but no music otherwise).
+  `WAL_GAME_DRIVE=<letter>`: the game runs from the root of that drive, as on the cabinet:
+  paths on it go to the game directory, `GetCurrentDirectoryA/W` answer `<letter>:\`,
+  `GetLogicalDrives` and `GetDriveTypeA/W` report C:, the redirected drive and it as fixed
+  disks (game executable's imports). Battle Gear 4 (`E`) registers the current directory's drive
+  and every fixed drive in its file library and loads `\data\...` from there: under Wine it
+  polled `C:\data\2D\Effects\sepia.*` forever at boot (white window, "not responding").
 * `patches`: `WAL_PATCHES=<rva>:<hex>,...` game code patches from the profile (keeps game
   knowledge in profiles, e.g. known per-game patches). `WAL_PATCHES_EXE=<file>` limits
   them to one executable: test menus (`TestMode.exe`) load the payload too.
@@ -448,6 +467,8 @@ profile), `show` (merged profile).
   (`CreateWindowExA/W` IAT hooks: `WS_POPUP`, caption/frame/system menu removed). Shikigami no
   Shiro III makes its fullscreen Direct3D 8 device on a plain overlapped window (style 0, so a
   caption and border): the window manager showed an empty frame with the desktop behind.
+  `WAL_HIDE_CURSOR=1`: `LoadCursorA/W` return no cursor and `SetCursor` sets none (Battle
+  Gear 4's window class showed the arrow over the game).
   Always on: `ShowWindow` minimize requests of DXVK's d3d9 (also behind its d3d8) and wined3d
   are dropped. They minimize a fullscreen window when it is deactivated: a game started while
   another fullscreen window (a terminal) kept the focus was minimized at once, out of the
@@ -583,9 +604,9 @@ A bus reset (`F0`) makes the board unaddressed again (sense line, `GetCommModemS
 resets the bus once more after its first polls and only assigns the address when the sense line
 says so (JVS_BOARD_NONE, error 0300, otherwise).
 Switches: start 0x80, service 0x40, up/down/left/right 0x20/0x10/0x08/0x04, btn1 0x02, btn2 0x01,
-second byte btn3-8 0x80..0x04, system byte test 0x80; coins counted on release, `30`/`31`
-decrease/increase. Native names for `native_map`: `start service test coin up down left right
-btn1..btn8`.
+second byte btn3-8 0x80..0x04, third byte (generic `20 01 03` reply) btn9-16 0x80..0x01,
+system byte test 0x80; coins counted on release, `30`/`31` decrease/increase. Native names for
+`native_map`: `start service test coin up down left right btn1..btn16`.
 Other `20` layouts (Gaia Attack 4 asks `20 01 03`: 1 player x 3 bytes) get the requested size,
 as a generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
 the commands after it are answered (otherwise I/O ERROR).
@@ -674,21 +695,51 @@ Medal games (New Super Mario Bros. Wii Coin World, Capcom on Type X2 hardware, 4
     (`native_map` names: up down left right bet start payout medal test select cancel key
     door). The game takes the medals as bets by itself (3 per play).
 
-Driving games (Valve Limit R, Chase H.Q. 2):
+Driving games (Valve Limit R, Chase H.Q. 2, Battle Gear 4 Tuned):
 * Pedals on JVS analog channels: `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...` gives player 1's
-  virtual axis read on each channel (`-axis` inverted, empty: the fixed `WAL_TYPEX_JVS_ANALOG`
-  value), left-justified 16 bits. The features then report 8 analog channels of 10 bits: the
+  virtual axis read on each channel (`-axis` inverted, `+axis` its positive half only: 0 at the
+  center and below, a clutch on a stick axis; empty: the fixed `WAL_TYPEX_JVS_ANALOG` value),
+  left-justified 16 bits. The features then report 8 analog channels of 10 bits: the
   game's JVS library polls `22 n` only for the channels the board declares (`n` = the count).
 * Steering board (`wheel.rs`, `WAL_TYPEX_WHEEL_PORT=COM1`): the wheel's motor driver, which
   also reports the wheel position. 2-byte commands at 38400 baud, a 2-byte reply to each:
   `20` reset -> `A0 00`; `1F` motor stop -> `1F 00` (bit 7 clear: already calibrated, the game
   skips its wheel calibration); `11` starts the position reports, then every command (motor
-  forces) is answered `0x400 | pos` big endian (10 bits, 0 = full right); before that
+  forces) is answered `0x400 | pos` big endian (10 bits, 0 = full right; full left for Battle
+  Gear 4: `WAL_TYPEX_WHEEL_AXIS=-lx`); before that
   `8C A0`. Wheel = player 1's `lx` (`WAL_TYPEX_WHEEL_AXIS`). Forces are not forwarded yet.
 * Valve Limit R is a 4-cabinet link game: a race takes the cabinets of our link group, and
   without a network the lookup failed alike for every NETWORK-ID, so the three absent cabinets
   joined ("WAIT! CHALLENGER(S) STILL SELECTING" for minutes). Its profile patches the group
   lookup to return the NETWORK-ID itself (standalone cabinet).
+* Battle Gear 4 (`WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`, I/O mapping found with
+  its I/O test and its input table: label, type, mask): key reader on the main board, Taito
+  commands `6F` (read), `6D` (status), `70` (UID, last byte non-zero or the game errors), `6A`,
+  `6B` (tag data: a space, the 7-character key id, `W_OK` at 41; id kept in `bg4-key.txt` of the
+  data folder, random: 2 letters, `T`, 4 digits); these replies carry their own report byte.
+  Professional cabinet (`-pro`): a second board answers as node 2 (the sense line reports "all
+  addressed" after its address only). The game runs its wide monitor & clutch mode when it is
+  there (no test menu setting: FACTORY SETTING only resets): 1360x768, 6-speed H shifter, clutch
+  on analog channel 6, the transmission chosen per race. Its shift up / shift down bits (button
+  2, button 3) are inverted and give the H shifter rows (top = shift down, bottom = shift up);
+  node 2's `26` byte gives the lanes (left 0x80, right 0x40) and the shifter mechanism state
+  (0x20 / 0x10 set: not in its 6-speed / sequential configuration, starts in 6-speed), toggled
+  once per start of its `32` output (the mechanism motor: the I/O test's MOTOR TEST, VIEW and
+  HAZARD; toggled on every packet it flipped 60 times a second). Node 2 also reports the coin
+  counters (no credit otherwise) and answers `66` with a report. Gears 1-6 = player 2's virtual
+  b1-b6 (one source maps to one target: a gear needs a lane and a row).
+* Force feedback from the game's memory (`ffb.rs`, `WAL_TYPEX_FFB=battle-gear-4`): every 16 ms
+  the race flag (+0x4A9508), wall / car contact flags (+0x42EBB2 / +0x42EBB3) and speed (float
+  +0x3F3000): in a race a centering spring (`WAL_TYPEX_FFB_SPRING` %), a left hit (wall 0x10,
+  car 0x08) pushes right and a right hit (0x20, 0x02) left with speed / 180 of full force, a
+  car contact (0x01) vibrates. Addresses from FFBArcadePlugin's BG4JP.cpp, not confirmed in a
+  race yet (they stay 0 in the attract demo); `WAL_TYPEX_FFB_TRACE=1` logs them. The steering
+  board's own motor commands (COM1) are not used.
+  `WAL_TYPEX_FFB=chase-hq-2`: the wheel motor command in the game's I/O output word (32 bits at
+  [+0x130B558] + 0x45, read with `ReadProcessMemory`: the pointer is not set at boot), lamp bits
+  cleared, 15 codes each way (as FFBArcadePlugin's ChaseHQ2.cpp): levels 16-30 push right with
+  (31 - level) / 15 of full force, 1-15 left with (16 - level) / 15; no spring. Seen in a race:
+  levels 24, 17, 16, 2, 1, idle code 0x4000 in between.
 
 Mahjong games (Taisen Hot Gimmick 5, `mahjong.rs`, `WAL_TYPEX_MAHJONG=hot-gimmick-5`): the
 game reads its mahjong panel as a keyboard (DirectInput `GetDeviceState`, one call per frame),
@@ -921,7 +972,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
-| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | wal-loader, JVS (wheel, gas, brake on analog channels 2-4; START on btn7, PATO-NITRO btn8, SHIFT up, SHIFT-NITRO down), native DirectPlay 8 (`tricks: [directplay]`: wine's IDirectPlay8Peer::Host is a stub, NETWORK CHECKING forever), its own 800x600 mode (no `WAL_D3D9_FULLSCREEN_SIZE`: it drew an 800x600 viewport in the corner), WMV9 codec (`WAL_VFW_CODECS`), known patch skipping the pedal calibration |
+| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | wal-loader, JVS (wheel, gas, brake on analog channels 2-4; START on btn7, PATO-NITRO btn8, SHIFT up, SHIFT-NITRO down), native DirectPlay 8 (`tricks: [directplay]`: wine's IDirectPlay8Peer::Host is a stub, NETWORK CHECKING forever), its own 800x600 mode (no `WAL_D3D9_FULLSCREEN_SIZE`: it drew an 800x600 viewport in the corner), WMV9 codec (`WAL_VFW_CODECS`), known patch skipping the pedal calibration, force feedback from its motor command (`WAL_TYPEX_FFB`, untested on a wheel) |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, native DirectMusic prefix (exits at start with wine's), `reshade_files` dgVoodoo D3D8 + ReShade dxgi, `tricks: [d3dcompiler_47]`, dgVoodoo.conf with Direct3D 11 output (`files`: the dump asks D3D12, NULL device crash) |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | wal-loader, JVS, native DirectMusic prefix, its window mode (`args: [-window]`) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`): Wine drew its fullscreen 640x480 unscaled in the top-left corner |
 | `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | wal-loader, JVS, guns in the gun board record (4 x 10 bytes, `COM1,!COM3`; no patch of its per-frame gun update, which copies it), volume knob on analog 0 (its volume write not patched out), `WAL_PIN_CWD`, WMV9 + Indeo 5 codecs (`WAL_VFW_CODECS`; ir50_32.dll copied into the dump), `dxvk: false` (first attract video crashed), popup 1280x720 window |
@@ -947,6 +998,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 | `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | wal-loader, JVS (gas/brake on analog channels 1/2), steering board on COM1 (`WAL_TYPEX_WHEEL_PORT`), standalone link patch, `WAL_DINPUT_DISABLE`; `.windowsloader`: `launcher.exe` |
+| `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | wal-loader, JVS (gas/brake on analog channels 3/4, shift up/down on buttons 2/3, key reader: `battle-gear` layout), steering board on COM1 (inverted, `WAL_TYPEX_WHEEL_AXIS=-lx`), `WAL_GAME_DRIVE: E` (data found from the current directory's drive; music through `mmioOpenA`), patches: hex-edited entry point and transmission lookup restored, no window menu, intro fix, wide monitor without the clutch type (the cabinet type check sets both flags: patched to set only the wide monitor one); 1360x768 windowed in a screen-sized popup (`WAL_D3D9_WINDOWED_SIZE`), `WAL_HIDE_CURSOR`, `WAL_DINPUT_DISABLE` (it shifted gears on the PC arrows and keypad), force feedback from its memory (`WAL_TYPEX_FFB`, untested on a wheel) |
+| `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | as `battle-gear-4-tuned` (same dump, second `.windowsloader`), professional cabinet: second JVS board, H shifter (player 2's b1-b6), clutch on analog channel 6 (`+ry`), 1360x768, own data folder (`WAL_TYPEX_DDRIVE: WindowsLoaderPro`), force feedback as the normal cabinet |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

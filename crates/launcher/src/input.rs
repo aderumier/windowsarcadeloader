@@ -2,7 +2,8 @@
 //! mice (`guns.rs`).
 //!
 //! Every device is a [`DeviceState`] bound to a player; the hub merges them into the
-//! virtual arcade sticks.
+//! virtual arcade sticks. Force feedback outputs of the game go back to the player's devices:
+//! wheels through evdev (`ffb.rs`), gamepads as SDL rumble.
 
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -13,9 +14,10 @@ use sdl3::event::Event;
 use sdl3::gamepad::Gamepad;
 use sdl3::joystick::{HatState, Joystick, JoystickId};
 use sdl3::{GamepadSubsystem, JoystickSubsystem};
-use wal_protocol::{InputFrame, MAX_PLAYERS};
+use wal_protocol::{InputFrame, MAX_PLAYERS, Output, output};
 
 use crate::config::Profile;
+use crate::ffb;
 use crate::guns::{self, PointerEvent};
 use crate::mapping::{self, DeviceState, Mapping, RawKey, Source};
 
@@ -27,8 +29,15 @@ enum DevKey {
 }
 
 enum Handle {
-    Pad(#[allow(dead_code)] Gamepad),
+    Pad(Gamepad),
     Joy(#[allow(dead_code)] Joystick),
+}
+
+/// A gamepad's force feedback state (constant force, vibration), played as rumble.
+#[derive(Default, Clone, Copy, PartialEq)]
+struct Rumble {
+    constant: i32,
+    vibration: i32,
 }
 
 pub struct Hub<'a> {
@@ -37,6 +46,8 @@ pub struct Hub<'a> {
     exit_sources: Vec<Source>,
     devices: HashMap<DevKey, DeviceState>,
     handles: HashMap<u32, Handle>,
+    wheels: HashMap<u32, ffb::Wheel>,
+    rumbles: HashMap<u32, Rumble>,
     _sdl: sdl3::Sdl,
     gamepads: GamepadSubsystem,
     joysticks: JoystickSubsystem,
@@ -106,6 +117,8 @@ impl<'a> Hub<'a> {
             exit_sources,
             devices,
             handles: HashMap::new(),
+            wheels: HashMap::new(),
+            rumbles: HashMap::new(),
             _sdl: sdl,
             gamepads,
             joysticks,
@@ -147,6 +160,43 @@ impl<'a> Hub<'a> {
 
     pub fn frame(&self) -> InputFrame {
         mapping::merge(self.devices.values(), self.config.input.deadzone, self.config.input.stick_as_dpad)
+    }
+
+    /// A force feedback output of the game, played on the player's devices: wheels (evdev
+    /// effects), else gamepads (rumble: the strong motor as hard as the vibration, the weak one
+    /// as the constant force pushes).
+    pub fn output(&mut self, o: Output) {
+        if !self.config.input.ffb.enabled || !matches!(o.id, output::FFB_CONSTANT | output::FFB_SPRING | output::FFB_VIBRATION) {
+            return;
+        }
+        let ids: Vec<u32> = self
+            .devices
+            .iter()
+            .filter_map(|(k, d)| match k {
+                DevKey::Sdl(id) if d.player == o.player as usize => Some(*id),
+                _ => None,
+            })
+            .collect();
+        let gain = self.config.input.ffb.gain.min(100) as i64;
+        for id in ids {
+            if let Some(wheel) = self.wheels.get_mut(&id) {
+                wheel.set(o.id, o.value);
+                continue;
+            }
+            let Some(Handle::Pad(pad)) = self.handles.get_mut(&id) else { continue };
+            let r = self.rumbles.entry(id).or_default();
+            let before = *r;
+            match o.id {
+                output::FFB_CONSTANT => r.constant = o.value.abs(),
+                output::FFB_VIBRATION => r.vibration = o.value.max(0),
+                _ => continue,
+            }
+            let scale = |v: i32| (v.min(output::FFB_MAX) as i64 * 0xFFFF / output::FFB_MAX as i64 * gain / 100) as u16;
+            // refreshed by the game every second: the rumble lasts a bit longer
+            if *r != before || r.constant != 0 || r.vibration != 0 {
+                let _ = pad.set_rumble(scale(r.vibration), scale(r.constant), 1500);
+            }
+        }
     }
 
     fn free_player(&self) -> usize {
@@ -208,6 +258,16 @@ impl<'a> Hub<'a> {
         }
         let kind = if matches!(handle, Handle::Pad(_)) { "gamepad" } else { "joystick" };
         eprintln!("input: {kind} '{name}' -> player {}", player + 1);
+        if self.config.input.ffb.enabled {
+            // the device's evdev node: a wheel when it supports a constant force
+            let path = unsafe { sdl3::sys::joystick::SDL_GetJoystickPathForID(sdl3::sys::joystick::SDL_JoystickID(raw_id)) };
+            if !path.is_null() {
+                let path = unsafe { std::ffi::CStr::from_ptr(path) }.to_string_lossy().into_owned();
+                if let Some(wheel) = ffb::Wheel::open(&path, &self.config.input.ffb) {
+                    self.wheels.insert(raw_id, wheel);
+                }
+            }
+        }
         self.devices.insert(DevKey::Sdl(raw_id), state);
         self.handles.insert(raw_id, handle);
     }
@@ -215,6 +275,8 @@ impl<'a> Hub<'a> {
     fn remove(&mut self, id: JoystickId) {
         if self.handles.remove(&id.raw()).is_some() {
             self.devices.remove(&DevKey::Sdl(id.raw()));
+            self.wheels.remove(&id.raw());
+            self.rumbles.remove(&id.raw());
             eprintln!("input: device {} removed", id.raw());
         }
     }

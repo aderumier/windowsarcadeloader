@@ -182,8 +182,21 @@ impl InputFrame {
     }
 }
 
+/// Output ids understood by the launcher. Force feedback outputs are states (sent on change):
+/// the launcher plays them on the player's devices until the next value.
+pub mod output {
+    /// Constant force on the wheel, -10000 (pushed to the left) ..= 10000 (to the right).
+    pub const FFB_CONSTANT: u16 = 1;
+    /// Centering spring strength, 0 ..= 10000.
+    pub const FFB_SPRING: u16 = 2;
+    /// Vibration strength (a sine on wheels, rumble on gamepads), 0 ..= 10000.
+    pub const FFB_VIBRATION: u16 = 3;
+    /// Full scale of the force feedback values.
+    pub const FFB_MAX: i32 = 10000;
+}
+
 /// Output from the game (lamps, force feedback, recoil...), identified by a
-/// system-defined id.
+/// system-defined id ([`output`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Output {
     pub player: u8,
