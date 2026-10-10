@@ -100,6 +100,11 @@ controls:
   service: Service
   test: Test
 
+# Game dumps packed as a SquashFS image (run <image>.squashfs): mounted read-only, the game's
+# writes (settings, saves) in <squashfs_saves>/<image folder>/<image name>/{upper,work}, as
+# Batocera (/userdata/saves: the same save data as games started from EmulationStation).
+squashfs_saves: saves
+
 # TCP port of the input server the payload connects to.
 port: 33700
 

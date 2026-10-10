@@ -176,6 +176,35 @@ pub fn parse_target(name: &str) -> Option<Target> {
     Axis::from_name(base).map(|axis| Target::Axis { axis, invert: sign == Some('-') })
 }
 
+/// The gamepad's left stick as its d-pad: when the four d-pad buttons are on the four
+/// directions the game uses, each stick axis that drives nothing the game uses (a free axis,
+/// unmapped or on an unused one) gets its halves on the same directions. The entries to add.
+pub fn stick_dpad(table: &MapTable, uses: impl Fn(&str) -> bool) -> Vec<(String, String)> {
+    let get = |src: &str| table.iter().find(|(s, _)| s.eq_ignore_ascii_case(src)).map(|(_, d)| d.as_str());
+    let dpad = [("dpup", "up"), ("dpdown", "down"), ("dpleft", "left"), ("dpright", "right")];
+    if !dpad.iter().all(|(b, d)| get(b).is_some_and(|t| t.eq_ignore_ascii_case(d)) && uses(d)) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (axis, neg, pos) in [("leftx", "left", "right"), ("lefty", "up", "down")] {
+        let (minus, plus) = (format!("-{axis}"), format!("+{axis}"));
+        // a half mapped (or set to none) by the user: theirs
+        if get(&minus).is_some() || get(&plus).is_some() {
+            continue;
+        }
+        let free = match get(axis).filter(|d| !d.eq_ignore_ascii_case("none")).and_then(parse_target) {
+            None => true,
+            Some(Target::Axis { axis, .. }) => !uses(axis.name()),
+            Some(Target::Button(_)) => false,
+        };
+        if free {
+            out.push((minus, neg.to_string()));
+            out.push((plus, pos.to_string()));
+        }
+    }
+    out
+}
+
 /// Compiles a table; `parse` is the source parser of the device kind.
 pub fn compile(table: &MapTable, parse: fn(&str) -> Option<Source>) -> Result<Mapping> {
     let mut out = Vec::new();
@@ -358,6 +387,25 @@ mod tests {
         assert_eq!(parse_target("-ly"), Some(Target::Axis { axis: Axis::LeftY, invert: true }));
         assert_eq!(parse_target("b8"), Some(Target::Button(button::B8)));
         assert!(parse_target("b9").is_none());
+    }
+
+    #[test]
+    fn stick_follows_dpad() {
+        let t = |e: &[(&str, &str)]| -> MapTable { e.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect() };
+        let dpad = [("dpup", "up"), ("dpdown", "down"), ("dpleft", "left"), ("dpright", "right")];
+        let mut table = t(&dpad);
+        table.insert("leftx".into(), "lx".into());
+        let all = |_: &str| true;
+        let no_axes = |c: &str| !["lx", "ly"].contains(&c);
+        // the wheel (lx used): x stays, y (unmapped) follows the d-pad
+        assert_eq!(stick_dpad(&table, all), vec![("-lefty".into(), "up".into()), ("+lefty".into(), "down".into())]);
+        assert_eq!(stick_dpad(&table, no_axes).len(), 4);
+        // directions the game does not use, or a half the user mapped
+        assert!(stick_dpad(&table, |c| no_axes(c) && c != "up").is_empty());
+        table.insert("+lefty".into(), "b1".into());
+        assert_eq!(stick_dpad(&table, no_axes).len(), 2);
+        table.remove("dpleft");
+        assert!(stick_dpad(&table, no_axes).is_empty());
     }
 
     #[test]

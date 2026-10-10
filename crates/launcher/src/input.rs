@@ -63,8 +63,10 @@ pub struct Hub<'a> {
 
 impl<'a> Hub<'a> {
     pub fn new(config: &'a Profile) -> Result<Self> {
-        let gamepad_map =
-            mapping::compile(&config.input.gamepad, mapping::parse_pad_source).context("input.gamepad")?;
+        // the left stick on the d-pad's directions when it drives nothing else
+        let mut gamepad = config.input.gamepad.clone();
+        gamepad.extend(mapping::stick_dpad(&gamepad, |t| config.uses(t)));
+        let gamepad_map = mapping::compile(&gamepad, mapping::parse_pad_source).context("input.gamepad")?;
         let exit_sources = config
             .input
             .exit_combo
@@ -366,7 +368,15 @@ pub fn start_keyboards() -> (Receiver<(u16, i32)>, usize) {
         let is_keyboard = dev
             .supported_keys()
             .is_some_and(|k| k.contains(evdev::KeyCode::KEY_A) && k.contains(evdev::KeyCode::KEY_ENTER));
-        if is_keyboard {
+        // lightguns with a keyboard interface (Sinden: its buttons as KEY_1/KEY_2..., made gun
+        // buttons by Batocera, which tags the raw devices not keyboards): not player keys
+        let udev = |key| guns::udev_property(&path, key);
+        let not_keyboard = udev("ID_INPUT_KEYBOARD").as_deref() == Some("0")
+            || udev("ID_INPUT_GUN").as_deref() == Some("1")
+            || dev.name().is_some_and(|n| n.to_ascii_lowercase().contains("lightgun"));
+        if is_keyboard && not_keyboard {
+            eprintln!("input: '{}' ({}) is not read as a keyboard (lightgun)", dev.name().unwrap_or("?"), path.display());
+        } else if is_keyboard {
             eprintln!("input: keyboard '{}' ({})", dev.name().unwrap_or("?"), path.display());
             let tx: Sender<(u16, i32)> = tx.clone();
             std::thread::spawn(move || read_keyboard(dev, tx));

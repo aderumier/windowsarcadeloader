@@ -34,7 +34,7 @@ pub struct Pointer {
 }
 
 /// Value of udev property `key` for an evdev node (`/run/udev/data/c13:<minor>`).
-fn udev_property(path: &Path, key: &str) -> Option<String> {
+pub fn udev_property(path: &Path, key: &str) -> Option<String> {
     use std::os::unix::fs::MetadataExt;
     let rdev = std::fs::metadata(path).ok()?.rdev();
     let (major, minor) = ((rdev >> 8) & 0xfff, (rdev & 0xff) | ((rdev >> 12) & 0xfff00));

@@ -18,10 +18,11 @@ use eframe::egui;
 use serde_yaml_ng::Value;
 
 use crate::config::{self, DUMP_EXT, Dump, Layers, MapTable, Profile, USER_PROFILES};
+use crate::squashfs::{self, DumpFile};
 use bindings::{Captured, Device, Row, RowKind};
 use capture::InputEvent;
 
-/// `userprofiles/` file of the games' dump folders: `<system>/<game>: <folder>`.
+/// `userprofiles/` file of the games' dumps: `<system>/<game>: <folder or SquashFS image>`.
 const GAMEDIRS: &str = "gamedirs.yaml";
 const LOG_LINES: usize = 400;
 const CAPTURE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -40,7 +41,8 @@ pub fn run(root: &Path) -> Result<()> {
         options,
         Box::new(move |cc| {
             let ctx = cc.egui_ctx.clone();
-            Ok(Box::new(App::new(root, capture::start(move || ctx.request_repaint()))))
+            let wake = ctx.clone();
+            Ok(Box::new(App::new(root, capture::start(move || wake.request_repaint()), ctx)))
         }),
     )
     .map_err(|e| anyhow::anyhow!("GUI: {e}"))
@@ -83,6 +85,56 @@ struct Capture {
     rest: HashMap<(u32, u8), i32>,
 }
 
+/// What a game's dump setting gives.
+enum DumpState {
+    NotSet,
+    /// A folder without the game's `.windowsloader`.
+    NoFile,
+    /// Its image being read.
+    Checking,
+    /// `target`: what `run` gets (the `.windowsloader` file or the image).
+    Ready { target: PathBuf, exe: String },
+    Error(String),
+}
+
+type ImageResult = Result<Vec<DumpFile>, String>;
+
+/// SquashFS images' `.windowsloader` files, read in a worker thread.
+struct Images {
+    results: HashMap<PathBuf, Option<ImageResult>>,
+    requests: std::sync::mpsc::Sender<PathBuf>,
+    done: Receiver<(PathBuf, ImageResult)>,
+}
+
+impl Images {
+    fn new(ctx: egui::Context) -> Images {
+        let (requests, todo) = std::sync::mpsc::channel::<PathBuf>();
+        let (finished, done) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for image in todo {
+                let r = squashfs::dump_files(&image).map_err(|e| format!("{e:#}"));
+                if finished.send((image, r)).is_err() {
+                    return;
+                }
+                ctx.request_repaint();
+            }
+        });
+        Images { results: HashMap::new(), requests, done }
+    }
+
+    /// The image's files, once read (asked to the worker the first time).
+    fn get(&mut self, image: &Path) -> Option<&ImageResult> {
+        while let Ok((path, r)) = self.done.try_recv() {
+            self.results.insert(path, Some(r));
+        }
+        if !self.results.contains_key(image) {
+            self.results.insert(image.to_path_buf(), None);
+            let _ = self.requests.send(image.to_path_buf());
+        }
+        self.results.get(image).and_then(Option::as_ref)
+    }
+}
+
 struct Running {
     child: Child,
     game: String,
@@ -112,10 +164,11 @@ struct App {
     show_log: bool,
     /// When Esc last cancelled a capture: that press does not also close the window.
     esc_cancel: Option<Instant>,
+    images: Images,
 }
 
 impl App {
-    fn new(root: PathBuf, inputs: Receiver<InputEvent>) -> App {
+    fn new(root: PathBuf, inputs: Receiver<InputEvent>, ctx: egui::Context) -> App {
         let mut status = String::new();
         let mut games = Vec::new();
         match config::game_ids(&root) {
@@ -156,6 +209,7 @@ impl App {
             log: Arc::new(Mutex::new(Vec::new())),
             show_log: false,
             esc_cancel: None,
+            images: Images::new(ctx),
         }
     }
 
@@ -338,13 +392,50 @@ impl App {
 
     // ---- dumps and launch ----
 
-    fn dump_file(&self, game: &Game) -> Option<PathBuf> {
-        Some(self.gamedirs.get(&game.id)?.join(format!("{}.{DUMP_EXT}", game.slug())))
+    /// The game's dump (folder or image) and whether it can be launched.
+    fn dump_state(&mut self, game: usize) -> DumpState {
+        let g = &self.games[game];
+        let slug = g.slug().to_string();
+        let Some(path) = self.gamedirs.get(&g.id).cloned() else { return DumpState::NotSet };
+        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case(squashfs::EXT)) {
+            if !path.is_file() {
+                return DumpState::Error(format!("{} not found", path.display()));
+            }
+            return match self.images.get(&path) {
+                None => DumpState::Checking,
+                Some(Err(e)) => DumpState::Error(e.clone()),
+                Some(Ok(files)) => match files.iter().find(|f| f.id.eq_ignore_ascii_case(&slug)) {
+                    Some(_) if files.len() > 1 => DumpState::Error(format!(
+                        "several .{DUMP_EXT} files in this image ({}): one per image",
+                        files.iter().map(|f| f.id.as_str()).collect::<Vec<_>>().join(", ")
+                    )),
+                    Some(f) => DumpState::Ready { target: path, exe: f.exe.clone() },
+                    None if files.is_empty() => DumpState::Error(format!("no .{DUMP_EXT} file at this image's root")),
+                    None => DumpState::Error(format!(
+                        "this image has no {slug}.{DUMP_EXT} (it has: {})",
+                        files.iter().map(|f| format!("{}.{DUMP_EXT}", f.id)).collect::<Vec<_>>().join(", ")
+                    )),
+                },
+            };
+        }
+        let file = path.join(format!("{slug}.{DUMP_EXT}"));
+        if !file.is_file() {
+            return DumpState::NoFile;
+        }
+        match Dump::find(&file.to_string_lossy()) {
+            Ok(Some(d)) => DumpState::Ready { target: file, exe: d.exe.display().to_string() },
+            Ok(None) => DumpState::NoFile,
+            Err(e) => DumpState::Error(format!("{e:#}")),
+        }
     }
 
     fn set_gamedir(&mut self, id: &str, dir: Option<PathBuf>) {
         match dir {
-            Some(d) => self.gamedirs.insert(id.to_string(), d),
+            Some(d) => {
+                // read again (the image may have changed)
+                self.images.results.remove(&d);
+                self.gamedirs.insert(id.to_string(), d)
+            }
             None => self.gamedirs.remove(id),
         };
         if let Err(e) = write_gamedirs(&self.root, &self.gamedirs) {
@@ -352,18 +443,28 @@ impl App {
         }
     }
 
-    /// Finds the dumps under a folder (their `<gameid>.windowsloader` files).
+    /// Finds the dumps under a folder: dump folders (their `<gameid>.windowsloader` files) and
+    /// SquashFS images (the `.windowsloader` files at their root).
     fn scan(&mut self, dir: &Path) {
         let mut found = Vec::new();
         find_dump_files(dir, 4, &mut found);
         let mut count = 0;
         for file in found {
-            let stem = file.file_stem().unwrap_or_default().to_string_lossy().to_ascii_lowercase();
-            let Some(parent) = file.parent() else { continue };
-            let ids: Vec<String> = self.games.iter().filter(|g| g.slug() == stem).map(|g| g.id.clone()).collect();
-            for id in ids {
-                self.gamedirs.insert(id, parent.to_path_buf());
-                count += 1;
+            let (ids, target) = if file.extension().is_some_and(|e| e.eq_ignore_ascii_case(squashfs::EXT)) {
+                let r = squashfs::dump_files(&file).map_err(|e| format!("{e:#}"));
+                let ids: Vec<String> = r.as_ref().map(|f| f.iter().map(|f| f.id.to_ascii_lowercase()).collect()).unwrap_or_default();
+                self.images.results.insert(file.clone(), Some(r));
+                (ids, file.clone())
+            } else {
+                let Some(parent) = file.parent() else { continue };
+                (vec![file.file_stem().unwrap_or_default().to_string_lossy().to_ascii_lowercase()], parent.to_path_buf())
+            };
+            for stem in ids {
+                let games: Vec<String> = self.games.iter().filter(|g| g.slug() == stem).map(|g| g.id.clone()).collect();
+                for id in games {
+                    self.gamedirs.insert(id, target.clone());
+                    count += 1;
+                }
             }
         }
         self.status = match write_gamedirs(&self.root, &self.gamedirs) {
@@ -373,8 +474,8 @@ impl App {
     }
 
     fn launch(&mut self, game: usize) {
+        let DumpState::Ready { target: file, .. } = self.dump_state(game) else { return };
         let g = &self.games[game];
-        let Some(file) = self.dump_file(g) else { return };
         let result = (|| -> Result<Child> {
             let exe = std::env::current_exe()?;
             let mut cmd = Command::new(exe);
@@ -459,7 +560,8 @@ impl App {
             ui.label("🔍");
             ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text("search").desired_width(f32::INFINITY));
         });
-        let installed: Vec<bool> = self.games.iter().map(|g| self.dump_file(g).is_some_and(|f| f.is_file())).collect();
+        let installed: Vec<bool> =
+            (0..self.games.len()).map(|i| matches!(self.dump_state(i), DumpState::Ready { .. })).collect();
         ui.horizontal(|ui| {
             ui.checkbox(&mut self.installed_only, "Installed only");
             let count = installed.iter().filter(|i| **i).count();
@@ -551,38 +653,49 @@ impl App {
 
     fn dump_section(&mut self, ui: &mut egui::Ui, index: usize) {
         let g = &self.games[index];
-        let id = g.id.clone();
-        let slug = g.slug().to_string();
-        let dir = self.gamedirs.get(&id).cloned();
-        let file = self.dump_file(g);
+        let (id, slug, name) = (g.id.clone(), g.slug().to_string(), g.name.clone());
+        let path = self.gamedirs.get(&id).cloned();
+        let is_image = path.as_ref().is_some_and(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case(squashfs::EXT)));
+        let state = self.dump_state(index);
         egui::Frame::group(ui.style()).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.label("Game folder:");
-                match &dir {
+                ui.label(if is_image { "Game image:" } else { "Game folder:" });
+                match &path {
                     Some(d) => ui.monospace(d.display().to_string()),
                     None => ui.weak("not set"),
                 };
             });
-            let dump = file.as_ref().filter(|f| f.is_file()).map(|f| Dump::find(&f.to_string_lossy()));
             ui.horizontal(|ui| {
+                let start = path.as_ref().and_then(|d| d.parent()).map(Path::to_path_buf);
                 if ui.button("📂 Choose folder…").clicked() {
-                    let mut dialog = rfd::FileDialog::new().set_title(format!("Game folder of {}", self.games[index].name));
-                    if let Some(d) = dir.as_ref().and_then(|d| d.parent()) {
+                    let mut dialog = rfd::FileDialog::new().set_title(format!("Game folder of {name}"));
+                    if let Some(d) = &start {
                         dialog = dialog.set_directory(d);
                     }
                     if let Some(d) = dialog.pick_folder() {
                         self.set_gamedir(&id, Some(d));
                     }
                 }
-                if dir.is_some() && ui.button("Clear").clicked() {
+                if ui.button("Choose image…").on_hover_text("the dump packed as a SquashFS image (.squashfs)").clicked() {
+                    let mut dialog = rfd::FileDialog::new()
+                        .set_title(format!("SquashFS image of {name}"))
+                        .add_filter("SquashFS image", &[squashfs::EXT]);
+                    if let Some(d) = &start {
+                        dialog = dialog.set_directory(d);
+                    }
+                    if let Some(f) = dialog.pick_file() {
+                        self.set_gamedir(&id, Some(f));
+                    }
+                }
+                if path.is_some() && ui.button("Clear").clicked() {
                     self.set_gamedir(&id, None);
                 }
-                if dir.is_some() && dump.is_none() && ui.button("Choose the game executable…").clicked() {
+                if matches!(state, DumpState::NoFile) && ui.button("Choose the game executable…").clicked() {
                     self.pick_exe(&id, &slug);
                 }
                 ui.separator();
-                let ready = matches!(dump, Some(Ok(Some(_))));
+                let ready = matches!(state, DumpState::Ready { .. });
                 match &self.running {
                     Some(r) => {
                         ui.label(format!("▶ {} running", r.game));
@@ -598,15 +711,20 @@ impl App {
                     }
                 }
             });
-            match (&dir, &dump) {
-                (None, _) => ui.weak(format!("The dump folder holding {slug}.{DUMP_EXT} (Scan finds it in a folder of dumps).")),
-                (Some(_), None) => ui.colored_label(
+            match &state {
+                DumpState::NotSet => ui.weak(format!(
+                    "The dump folder holding {slug}.{DUMP_EXT}, or its SquashFS image (Scan finds them in a folder)."
+                )),
+                DumpState::NoFile => ui.colored_label(
                     ui.visuals().warn_fg_color,
                     format!("No {slug}.{DUMP_EXT} in this folder: choose the game executable to create it."),
                 ),
-                (Some(_), Some(Ok(Some(d)))) => ui.weak(format!("✔ {}", d.exe.display())),
-                (Some(_), Some(Err(e))) => ui.colored_label(ui.visuals().error_fg_color, format!("{e:#}")),
-                (Some(_), Some(Ok(None))) => ui.weak(""),
+                DumpState::Checking => ui.weak("reading the image…"),
+                DumpState::Ready { exe, .. } if is_image => {
+                    ui.weak(format!("✔ {slug}.{DUMP_EXT} in the image: {exe} (mounted with an overlay for its writes)"))
+                }
+                DumpState::Ready { exe, .. } => ui.weak(format!("✔ {exe}")),
+                DumpState::Error(e) => ui.colored_label(ui.visuals().error_fg_color, e),
             };
         });
     }
@@ -703,6 +821,11 @@ impl App {
         let Some(sel) = &self.game else { return };
         let rows = bindings::rows(&sel.profile, device);
         let table = self.table(device);
+        // gamepad: the left stick on the d-pad's directions (as the launcher adds it)
+        let auto: MapTable = match device {
+            Device::Gamepad => crate::mapping::stick_dpad(&table, |t| sel.profile.uses(t)).into_iter().collect(),
+            _ => MapTable::new(),
+        };
         let mut action: Option<Action> = None;
         egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
             egui::Grid::new("mapping").num_columns(3).striped(true).spacing([16.0, 6.0]).show(ui, |ui| {
@@ -710,8 +833,22 @@ impl App {
                     ui.label(egui::RichText::new(&row.label).strong());
                     ui.horizontal_wrapped(|ui| {
                         let bound = bindings::bound(&table, device, row);
-                        if bound.is_empty() {
+                        let automatic = bindings::bound(&auto, device, row);
+                        if bound.is_empty() && automatic.is_empty() {
                             ui.weak("—");
+                        }
+                        for (src, _) in automatic {
+                            let text = format!("{} (auto)", bindings::source_label(device, &src));
+                            ui.add_enabled(
+                                false,
+                                egui::Button::new(egui::RichText::new(text).size(15.0))
+                                    .wrap_mode(egui::TextWrapMode::Extend)
+                                    .min_size(egui::vec2(150.0, 28.0)),
+                            )
+                            .on_disabled_hover_text(
+                                "automatic: the left stick follows the d-pad while it drives nothing the game uses \
+                                 (map the stick to something else to free it)",
+                            );
                         }
                         for (src, inverted) in bound {
                             let mut text = bindings::source_label(device, &src);
@@ -904,7 +1041,8 @@ fn find_dump_files(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
     for e in entries.flatten() {
         let path = e.path();
         let Ok(kind) = e.file_type() else { continue };
-        if kind.is_file() && path.extension().is_some_and(|x| x.eq_ignore_ascii_case(DUMP_EXT)) {
+        let ext = |x: &str| path.extension().is_some_and(|e| e.eq_ignore_ascii_case(x));
+        if kind.is_file() && (ext(DUMP_EXT) || ext(squashfs::EXT)) {
             out.push(path);
         } else if kind.is_dir() && depth > 0 {
             find_dump_files(&path, depth - 1, out);

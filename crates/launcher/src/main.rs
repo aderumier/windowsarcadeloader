@@ -15,6 +15,7 @@ mod mapping;
 mod rundir;
 mod script;
 mod server;
+mod squashfs;
 mod systems;
 mod wine;
 
@@ -36,7 +37,9 @@ usage:
       its user profile, its dump folder, launch).
   arcade-launcher [run] <dump> [--root DIR] [--profile FILE]... [--dry-run] [--input-script FILE]
       Launch a game. <dump> is a game dump directory holding a <gameid>.windowsloader
-      file (the executable path relative to the dump root), or that file. The game id
+      file (the executable path relative to the dump root), that file, or the dump packed
+      as a SquashFS image (<name>.squashfs, mounted with an overlay for its writes in
+      squashfs_saves/<image folder>/<name>: squashfuse and fuse-overlayfs, or root). The game id
       selects systemprofiles/<system>/<gameid>.yaml, merged with userprofiles/.
       --root: where systemprofiles/ is (default: the current directory, else next to
       the launcher). --profile merges a YAML layer last (frontend options, e.g. reshade:
@@ -98,9 +101,12 @@ fn main() {
 
 fn real_main() -> Result<()> {
     let args = parse_args()?;
+    let dump = || args.profile.as_deref().with_context(|| format!("missing <dump>\n{USAGE}"));
+    // a SquashFS image: its game's profile (read from the image, not mounted)
     let load = || -> Result<Profile> {
-        let p = args.profile.as_deref().with_context(|| format!("missing <dump>\n{USAGE}"))?;
-        Profile::load(p, args.root.as_deref(), &args.layers)
+        let p = dump()?;
+        let p = if squashfs::is_image(Path::new(p)) { squashfs::game_id(Path::new(p))? } else { p.to_string() };
+        Profile::load(&p, args.root.as_deref(), &args.layers)
     };
     match args.command.as_str() {
         "gui" => gui::run(&config::profiles_root(args.root.as_deref())?),
@@ -130,7 +136,15 @@ fn real_main() -> Result<()> {
         }
         _ => {
             let script = args.script.as_deref().map(script::Script::load).transpose()?;
-            run(&load()?, args.dry_run, script)
+            let image = Path::new(dump()?);
+            if !squashfs::is_image(image) {
+                return run(&load()?, args.dry_run, script);
+            }
+            // mounted with its overlay for the time of the game
+            let saves = load()?.path(&load()?.squashfs_saves);
+            let mount = squashfs::Mount::new(image, &saves)?;
+            let profile = Profile::load(&mount.dir().to_string_lossy(), args.root.as_deref(), &args.layers)?;
+            run(&profile, args.dry_run, script)
         }
     }
 }
