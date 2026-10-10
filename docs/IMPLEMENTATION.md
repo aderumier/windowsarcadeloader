@@ -43,11 +43,12 @@ crates/
     src/rundir.rs          symlinked run directory
     src/systems/           Linux-side description of each system (payload file, hidden files)
   payload-common/          shared by every payload DLL: TCP client, log, mapping, IAT hooks, paths
+    src/crypto.rs          Taito crypto service (NESiCA, Type X)
+    src/crypto_keys.rs     built-in crypto service keys
   loader/                  wal-loader.exe: starts a game with a payload loaded before its entry point
   payload-typex/           Taito Type X payload (JVS I/O board on COM2), loaded by wal-loader
   payload-nesica/          NESiCAxLive payload = replacement iDmacDrv32.dll
     iDmacDrv32.def         export ordinals of the original driver (see §6.2)
-    src/keys.rs            built-in crypto service keys
     src/news.png           NESYS news picture
     build.rs               passes the .def to the linker
 systemprofiles/<system>/<game>.yaml   game templates (shipped)
@@ -534,11 +535,12 @@ import it statically, so it loads before the game entry point: no injector neede
   `WindowsLoader` entry is a symlink, so data lands in the game directory (saves).
   Legacy data folders of existing dumps are moved into `WindowsLoader` by the launcher at
   start (`rundir::migrate_data_dir`, merged without overwriting). The hook table is a macro: index, name, path arguments, other arguments.
-* **Crypto server** (`crypto.rs`): byte-mode pipe
+* **Crypto server** (`payload-common/src/crypto.rs`, also served by the Type X payload when a
+  profile sets `WAL_NESICA_KEY`: KOF XIII Climax's Type X2 build): byte-mode pipe
   `\\.\pipe\TtxAppCtyptPipe`. Frames `FF FD <u32 size> <PUBLICKEYBLOB>` (game RSA key) and
   `FF FE <u32 size> <SIMPLEBLOB>` (content key encrypted for the service key); `FF FF` escapes
   `FF` in the size. The service key (PRIVATEKEYBLOB, 308 bytes) is `WAL_NESICA_KEY`: a built-in
-  name from `keys.rs` (built in: magicalbeat, bbcf, persona4arena, bbcp,
+  name from `crypto_keys.rs` (built in: magicalbeat, bbcf, persona4arena, bbcp,
   kofxiiiclimax, persona4ultimix, usf4, darius) or a file in the game directory (KOF XIII Climax
   ships `303002.key`, identical to the built-in one). Replies `<u32 len><blob>` (`<u32 0>` on
   error): SIMPLEBLOB for the game key, or for KOF XIII Climax (`WAL_NESICA_CRYPT_REPLY=plaintext`)

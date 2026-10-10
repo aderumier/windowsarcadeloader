@@ -1,6 +1,6 @@
-//! NESiCA crypto server.
+//! Taito crypto service (NESiCA, Type X).
 //!
-//! Encrypted NESiCA games get their content key from the cabinet's crypto service over the
+//! Encrypted NESiCA games (and the Type X2 build of KOF XIII Climax) get their content key from the cabinet's crypto service over the
 //! byte-mode pipe `\\.\pipe\TtxAppCtyptPipe` (sic). The service holds a per-game RSA private
 //! key; the game sends:
 //! - `FF FD <u32 size> <PUBLICKEYBLOB>`: its own RSA public key,
@@ -15,13 +15,15 @@
 //! Windows decrypts with the container's key exchange key; Wine fails with
 //! NTE_BAD_PUBLIC_KEY. The game's import is hooked to pass that key explicitly.
 //!
-//! Options: `WAL_NESICA_KEY` = built-in key name (see `keys.rs`) or key file (PRIVATEKEYBLOB,
+//! Options: `WAL_NESICA_KEY` = built-in key name (see `crypto_keys.rs`) or key file (PRIVATEKEYBLOB,
 //! relative to the game directory, e.g. `303002.key`); default `usf4`.
+//! [`key_configured`]: a profile sets `WAL_NESICA_KEY` (the Type X payload serves the pipe only
+//! then: KOF XIII opens it and runs without it).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
-use wal_payload_common::{iat, log};
+use crate::{iat, log};
 use windows_sys::Win32::Foundation::{GetLastError, HANDLE, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Security::Cryptography::{
     AT_KEYEXCHANGE, CRYPT_EXPORTABLE, CRYPT_NEWKEYSET, CryptGetUserKey, CryptAcquireContextA, CryptDestroyKey, CryptEncrypt, CryptExportKey,
@@ -30,7 +32,7 @@ use windows_sys::Win32::Security::Cryptography::{
 use windows_sys::Win32::Storage::FileSystem::{PIPE_ACCESS_DUPLEX, ReadFile, WriteFile};
 use windows_sys::Win32::System::Pipes::{ConnectNamedPipe, CreateNamedPipeA, DisconnectNamedPipe, PIPE_WAIT};
 
-use crate::keys::KEYS;
+use crate::crypto_keys::KEYS;
 
 const ERROR_BROKEN_PIPE: u32 = 109;
 
@@ -71,7 +73,12 @@ fn load_key() -> Option<Vec<u8>> {
     }
 }
 
-pub(crate) fn start() {
+/// The profile names a key (`WAL_NESICA_KEY`).
+pub fn key_configured() -> bool {
+    std::env::var_os("WAL_NESICA_KEY").is_some()
+}
+
+pub fn start() {
     let reply = match std::env::var("WAL_NESICA_CRYPT_REPLY").as_deref() {
         Ok("plaintext") => Reply::Plaintext,
         _ => Reply::SimpleBlob,
