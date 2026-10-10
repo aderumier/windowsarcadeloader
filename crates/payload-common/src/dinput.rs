@@ -8,6 +8,10 @@
 //! IDirectInput8 vtable, a superset of the older ones): `EnumDevices` lists nothing,
 //! `CreateDevice` returns a fake device whose methods succeed, with zeroed states and no
 //! buffered data. Failing the creation instead would end some games.
+//!
+//! `WAL_KEYBOARD_STATE_DISABLE=1`: the game's `user32!GetKeyboardState` reports no key pressed
+//! (Wacky Races reads START on the PC keyboard's Enter and VIEW on Right Shift that way, next
+//! to its JVS switches).
 
 use std::ffi::c_void;
 
@@ -169,7 +173,18 @@ unsafe extern "system" fn create_iid(_instance: P, _version: u32, _iid: P, out: 
     fake(out)
 }
 
+unsafe extern "system" fn get_keyboard_state(keys: *mut u8) -> i32 {
+    if !keys.is_null() {
+        unsafe { std::ptr::write_bytes(keys, 0, 256) };
+    }
+    1
+}
+
 pub fn init() {
+    if std::env::var("WAL_KEYBOARD_STATE_DISABLE").is_ok_and(|v| v.trim() == "1") {
+        unsafe { iat::hook("user32.dll", "GetKeyboardState", get_keyboard_state as *const () as usize) };
+        log!("dinput: GetKeyboardState reports no key");
+    }
     if !std::env::var("WAL_DINPUT_DISABLE").is_ok_and(|v| v.trim() == "1") {
         return;
     }

@@ -1,0 +1,52 @@
+# Wacky Races (Taito, Taito Type X2, driving) - template, override values in
+# userprofiles/typex/wacky-races.yaml.
+system: typex
+name: Wacky Races
+
+# The dump's Launcher.exe (its root copy, set up to play at once; data\Launcher.exe is the
+# original), wr.ini: 800x600 fullscreen, settings in sv\.
+
+# Cabinet: wheel, gas and brake pedals on JVS analog channels 2, 3 and 4 (no steering board);
+# switches: START and VIEW on the second byte (0x04, 0x08: buttons 8 and 7), the gear LEVER on
+# down; the standard start switch is not read.
+# Virtual stick: wheel lx, pedals accel/brake, b1 LEVER, b2 VIEW.
+native_map:
+  start: btn8
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: down
+  b2: btn7
+  b3: none
+  b4: none
+  b5: none
+  b6: none
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, A / R1 LEVER, Y VIEW.
+  gamepad:
+    a: b1
+    r1: b1
+    y: b2
+    x: none
+    b: none
+    l1: none
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl LEVER, Alt VIEW, 1 start,
+  # 5 coin.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,lx,accel,brake"
+  # Force feedback: the wheel motor command of its I/O output word (payload ffb.rs).
+  WAL_TYPEX_FFB: wacky-races
+  # It reads START / VIEW on the PC keyboard too (Enter, Right Shift).
+  WAL_KEYBOARD_STATE_DISABLE: "1"

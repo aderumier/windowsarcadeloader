@@ -14,6 +14,10 @@
 //! 0x100) cleared: 15 levels each way (codes below), levels 16-30 push to the right with
 //! (31 - level) / 15 of full force, 1-15 to the left with (16 - level) / 15.
 //!
+//! `wacky-races` (Wacky Races): the same, its output word at [+0x7E00590] + 0x45, lamp bits
+//! 0x10, 0x400, 0x200, 0x80, 0x08, 0x100, 0x4000, its own codes, levels 16-30 pushing to the left,
+//! 1-15 to the right.
+//!
 //! `WAL_TYPEX_FFB_TRACE=1` logs the values read when they change.
 
 use std::time::{Duration, Instant};
@@ -37,7 +41,12 @@ pub(crate) fn init() {
         }
         "chase-hq-2" => {
             log!("ffb: Chase H.Q. 2");
-            let mut game = ChaseHq2 { base, trace, traced: -1 };
+            let mut game = MotorWord { base, trace, traced: -1, game: &CHASE_HQ_2 };
+            std::thread::spawn(move || run(|| game.effects()));
+        }
+        "wacky-races" => {
+            log!("ffb: Wacky Races");
+            let mut game = MotorWord { base, trace, traced: -1, game: &WACKY_RACES };
             std::thread::spawn(move || run(|| game.effects()));
         }
         other => log!("ffb: unknown game {other:?}"),
@@ -132,39 +141,67 @@ impl BattleGear4 {
     }
 }
 
-struct ChaseHq2 {
+/// A game whose wheel motor command is in its I/O output word (32 bits at [base + `pointer`]
+/// + 0x45): lamp bits cleared, the code gives a level, 30 down to 1.
+struct MotorGame {
+    pointer: usize,
+    lamps: &'static [i32],
+    /// Codes of levels 30 down to 1.
+    codes: [i32; 30],
+    /// Levels 16-30 push to the right (else to the left; 1-15 the other way).
+    high_right: bool,
+}
+
+const CHASE_HQ_2: MotorGame = MotorGame {
+    pointer: 0x130B558,
+    lamps: &[0x4001, 0x10, 0x400, 0x200, 0x80, 0x08, 0x100],
+    codes: [
+        28672, 24640, 28736, 16624, 30720, 26688, 30784, 24608, 28704, 24672, 28768, 26656, 30752, 26720, 30816,
+        20480, 16448, 20544, 18432, 22528, 18496, 22592, 16416, 20512, 16480, 20576, 18464, 22560, 18528, 22624,
+    ],
+    high_right: true,
+};
+
+const WACKY_RACES: MotorGame = MotorGame {
+    pointer: 0x7E00590,
+    lamps: &[0x10, 0x400, 0x200, 0x80, 0x08, 0x100, 0x4000],
+    codes: [
+        4096, 64, 4160, 2048, 6144, 2112, 6208, 32, 4128, 96, 4192, 2080, 6176, 2144, 6240,
+        12288, 8256, 12352, 10240, 14336, 10304, 14400, 8224, 12320, 8288, 12384, 10272, 14368, 10336, 14432,
+    ],
+    high_right: false,
+};
+
+struct MotorWord {
     base: usize,
     trace: bool,
     traced: i32,
+    game: &'static MotorGame,
 }
 
-/// Chase H.Q. 2's wheel motor codes (lamp bits cleared), level 30 down to 1.
-const CHASE_HQ_2_CODES: [i32; 30] = [
-    28672, 24640, 28736, 16624, 30720, 26688, 30784, 24608, 28704, 24672, 28768, 26656, 30752, 26720, 30816,
-    20480, 16448, 20544, 18432, 22528, 18496, 22592, 16416, 20512, 16480, 20576, 18464, 22560, 18528, 22624,
-];
-
-impl ChaseHq2 {
+impl MotorWord {
     fn effects(&mut self) -> Effects {
-        let Some(raw) = read::<u32>(self.base + 0x130B558).and_then(|p| read::<i32>(p as usize + 0x45)) else {
+        let g = self.game;
+        let Some(raw) = read::<u32>(self.base + g.pointer).and_then(|p| read::<i32>(p as usize + 0x45)) else {
             return Effects::default();
         };
         let mut code = raw;
-        for lamp in [0x4001, 0x10, 0x400, 0x200, 0x80, 0x08, 0x100] {
+        for &lamp in g.lamps {
             if code & lamp == lamp {
                 code -= lamp;
             }
         }
-        let level = CHASE_HQ_2_CODES.iter().position(|c| *c == code).map_or(0, |i| 30 - i as i32);
+        let level = g.codes.iter().position(|c| *c == code).map_or(0, |i| 30 - i as i32);
         if self.trace && level != self.traced {
             log!("ffb: output {raw:#x} motor code {code} level {level}");
             self.traced = level;
         }
-        let constant = match level {
-            16..=30 => output::FFB_MAX * (31 - level) / 15,
-            1..=15 => -(output::FFB_MAX * (16 - level) / 15),
-            _ => 0,
+        let (force, high) = match level {
+            16..=30 => (output::FFB_MAX * (31 - level) / 15, true),
+            1..=15 => (output::FFB_MAX * (16 - level) / 15, false),
+            _ => (0, true),
         };
+        let constant = if high == g.high_right { force } else { -force };
         Effects { constant, ..Effects::default() }
     }
 }
