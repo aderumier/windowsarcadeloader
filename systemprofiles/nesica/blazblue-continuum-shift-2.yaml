@@ -1,0 +1,17 @@
+# BlazBlue Continuum Shift II (NESiCAxLive) - template, override values in
+# userprofiles/nesica/blazblue-continuum-shift-2.yaml.
+system: nesica
+name: BlazBlue Continuum Shift II
+
+# Direct3D 9 game (DXVK).
+# Dinput8.dll of the dump is Microsoft's: use wine's.
+hide: [dinput8.dll]
+
+# Buttons A B C D = b1-b4 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

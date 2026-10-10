@@ -33,6 +33,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | pass | 2026-10-07 |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | pass | 2026-10-07 |
 | `blazblue-chronophantasma` | BlazBlue Chronophantasma 2.03 | nesica | works (user: 100%) | pass | 2026-10-09 |
+| `blazblue-continuum-shift-2` | BlazBlue Continuum Shift II | nesica | works (user: 100%) | pass | 2026-10-11 |
 | `chaos-breaker` | Chaos Breaker | nesica | in fight, music | pass | 2026-10-07 |
 | `chaos-code-103` | Chaos Code: New Sign of Catastrophe 1.03 | nesica | in fight (user) | pass | 2026-10-07 |
 | `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | pass | 2026-10-07 |
