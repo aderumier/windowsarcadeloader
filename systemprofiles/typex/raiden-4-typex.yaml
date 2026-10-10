@@ -14,3 +14,8 @@ env:
   # The game reads DirectInput too (keyboard, joysticks): the PC keyboard's 2 (also P2 start)
   # opens the test menu. JVS only.
   WAL_DINPUT_DISABLE: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shoot
+  b2: Bomb

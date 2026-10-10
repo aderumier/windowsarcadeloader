@@ -14,3 +14,10 @@ native_map:
 env:
   # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800.
   WAL_D3D9_FULLSCREEN_SIZE: 1280x800
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

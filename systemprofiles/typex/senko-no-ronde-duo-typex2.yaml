@@ -12,3 +12,10 @@ name: 'Senko no Ronde DUO: Dis-United Order'
 hide: [xinput1_3.dll, game.exe.manifest, Dlls.XAudio2.manifest, XAudio2_4.dll]
 
 # Buttons M S C A = b1-b4 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: M
+  b2: S
+  b3: C
+  b4: A

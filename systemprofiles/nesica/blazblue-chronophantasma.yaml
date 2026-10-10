@@ -10,3 +10,10 @@ name: BlazBlue Chronophantasma 2.03
 env:
   # encrypted data: crypto service with the BlazBlue Chronophantasma key
   WAL_NESICA_KEY: bbcp
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

@@ -5,3 +5,12 @@ name: Gouketsuji Ichizoku - Matsuri Senzo Kuyou
 
 # 6 buttons (b1-b6 -> btn1-b6, default mapping). Known build
 # (CRC 0x777df862) only through windowed-mode tweaks: no code patches needed.
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4
+  b5: Button 5
+  b6: Button 6

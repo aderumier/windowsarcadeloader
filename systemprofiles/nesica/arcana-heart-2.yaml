@@ -15,3 +15,11 @@ native_map:
 env:
   # Resolution=0: built-in 480p (SD) mode
   WAL_NESICA_REG: "Resolution=1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D
+  b5: E

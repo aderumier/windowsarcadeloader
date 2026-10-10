@@ -7,6 +7,7 @@
 mod config;
 mod ffb;
 mod guns;
+mod gui;
 mod input;
 mod mapping;
 mod rundir;
@@ -28,6 +29,9 @@ use wal_protocol::{InputFrame, env};
 
 const USAGE: &str = "\
 usage:
+  arcade-launcher [gui] [--root DIR]
+      Without a game: the frontend window (every game, its controls mapped per device into
+      its user profile, its dump folder, launch).
   arcade-launcher [run] <dump> [--root DIR] [--profile FILE]... [--dry-run] [--input-script FILE]
       Launch a game. <dump> is a game dump directory holding a <gameid>.windowsloader
       file (the executable path relative to the dump root), or that file. The game id
@@ -73,11 +77,12 @@ fn parse_args() -> Result<Args> {
     }
     let mut positional = positional.into_iter();
     match positional.next() {
-        Some(c) if ["run", "input-test", "show", "prepare"].contains(&c.as_str()) => {
+        Some(c) if ["run", "input-test", "show", "prepare", "gui"].contains(&c.as_str()) => {
             args.command = c;
             args.profile = positional.next();
         }
-        other => args.profile = other,
+        Some(other) => args.profile = Some(other),
+        None => args.command = "gui".into(),
     }
     Ok(args)
 }
@@ -96,6 +101,7 @@ fn real_main() -> Result<()> {
         Profile::load(p, args.root.as_deref(), &args.layers)
     };
     match args.command.as_str() {
+        "gui" => gui::run(&config::profiles_root(args.root.as_deref())?),
         "show" => {
             let p = load()?;
             println!("# {} from {:?}\n{p:#?}", p.id, p.sources);

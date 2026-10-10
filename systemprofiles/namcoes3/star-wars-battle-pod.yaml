@@ -31,3 +31,22 @@ input:
     p1:
       KEY_PAGEUP: b7
       KEY_PAGEDOWN: b8
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: 'Stick up (digital)'
+  down: 'Stick down (digital)'
+  left: 'Stick left (digital)'
+  right: 'Stick right (digital)'
+  lx: Flight stick X
+  ly: Flight stick Y
+  accel: Throttle
+  brake: Throttle back
+  b1: Fire
+  b2: Weapon
+  b3: View Change
+  b4: Enter
+  b5: Menu Up
+  b6: Menu Down
+  b7: 'Throttle up (digital)'
+  b8: 'Throttle down (digital)'

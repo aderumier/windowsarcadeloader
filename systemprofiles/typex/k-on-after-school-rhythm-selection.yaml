@@ -12,3 +12,10 @@ env:
   # stretches the picture to it.
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Red
+  down: Green
+  left: Blue
+  right: none

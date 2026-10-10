@@ -12,3 +12,11 @@ env:
   # Player N: coin = a medal, b1 BET, start START, b2 payout, test (F2) satellite menu
   # (joystick to select, BET/START to enter), service (F1) cancel/error reset.
   WAL_TYPEX_MEDAL_PORT: COM1
+
+# Control names (the GUI's mapping rows).
+controls:
+  coin: Medal
+  b1: Bet
+  b2: Payout
+  service: Cancel / error reset
+  test: Satellite menu

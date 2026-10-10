@@ -44,6 +44,8 @@ pub struct Hub<'a> {
     config: &'a Profile,
     gamepad_map: Mapping,
     exit_sources: Vec<Source>,
+    /// evdev key codes quitting the game.
+    exit_keys: Vec<u16>,
     devices: HashMap<DevKey, DeviceState>,
     handles: HashMap<u32, Handle>,
     wheels: HashMap<u32, ffb::Wheel>,
@@ -70,9 +72,23 @@ impl<'a> Hub<'a> {
             .map(|n| mapping::parse_pad_source(n).with_context(|| format!("exit_combo: unknown button '{n}'")))
             .collect::<Result<_>>()?;
 
+        let exit_keys = config
+            .input
+            .exit_keys
+            .iter()
+            .map(|n| {
+                n.to_ascii_uppercase()
+                    .parse::<evdev::KeyCode>()
+                    .map(|k| k.code())
+                    .map_err(|_| anyhow::anyhow!("exit_keys: unknown key '{n}'"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
         let mut devices = HashMap::new();
-        let keys = if config.input.keyboard_enabled {
-            for (name, table) in &config.input.keyboard {
+        // keyboards read for their mapping, and for the exit keys
+        let keys = if config.input.keyboard_enabled || !exit_keys.is_empty() {
+            let tables = if config.input.keyboard_enabled { config.input.keyboard.iter().collect() } else { Vec::new() };
+            for (name, table) in tables {
                 let player = name
                     .strip_prefix('p')
                     .and_then(|n| n.parse::<usize>().ok())
@@ -82,7 +98,7 @@ impl<'a> Hub<'a> {
                     .with_context(|| format!("input.keyboard.{name}"))?;
                 devices.insert(DevKey::Keyboard(player - 1), DeviceState::new(player - 1, m));
             }
-            Some(start_keyboards())
+            Some(start_keyboards().0)
         } else {
             None
         };
@@ -115,6 +131,7 @@ impl<'a> Hub<'a> {
             config,
             gamepad_map,
             exit_sources,
+            exit_keys,
             devices,
             handles: HashMap::new(),
             wheels: HashMap::new(),
@@ -141,6 +158,12 @@ impl<'a> Hub<'a> {
         if let Some(rx) = &self.keys {
             let pending: Vec<_> = rx.try_iter().collect();
             for (code, value) in pending {
+                if value == 1 && self.exit_keys.contains(&code) {
+                    if !self.exit_requested {
+                        eprintln!("input: exit key pressed");
+                    }
+                    self.exit_requested = true;
+                }
                 for (key, dev) in self.devices.iter_mut() {
                     if matches!(key, DevKey::Keyboard(_)) {
                         dev.raw.insert(RawKey::Key(code), value);
@@ -320,7 +343,7 @@ impl<'a> Hub<'a> {
     }
 }
 
-fn hat_bits(state: HatState) -> i32 {
+pub fn hat_bits(state: HatState) -> i32 {
     match state {
         HatState::Centered => 0,
         HatState::Up => 0x01,
@@ -334,9 +357,11 @@ fn hat_bits(state: HatState) -> i32 {
     }
 }
 
-/// Reads every keyboard with evdev (no grab: the game window still gets its keys).
-fn start_keyboards() -> Receiver<(u16, i32)> {
+/// Reads every keyboard with evdev (no grab: the game window still gets its keys): (key code,
+/// value) events, and the number of keyboards.
+pub fn start_keyboards() -> (Receiver<(u16, i32)>, usize) {
     let (tx, rx) = channel();
+    let mut count = 0;
     for (path, dev) in evdev::enumerate() {
         let is_keyboard = dev
             .supported_keys()
@@ -345,9 +370,10 @@ fn start_keyboards() -> Receiver<(u16, i32)> {
             eprintln!("input: keyboard '{}' ({})", dev.name().unwrap_or("?"), path.display());
             let tx: Sender<(u16, i32)> = tx.clone();
             std::thread::spawn(move || read_keyboard(dev, tx));
+            count += 1;
         }
     }
-    rx
+    (rx, count)
 }
 
 fn read_keyboard(mut dev: evdev::Device, tx: Sender<(u16, i32)>) {

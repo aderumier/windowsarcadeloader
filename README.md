@@ -6,6 +6,9 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 
 * Build: `./build.sh` (`dist/arcade-launcher`, `dist/payloads/*.dll`)
 * Run: `dist/arcade-launcher run <dump>/<gameid>.windowsloader`
+* Frontend: `dist/arcade-launcher` without a game opens the GUI: every game, its controls mapped
+  per device (keyboard, gamepad, wheel) into `userprofiles/`, its dump folder, launch. Esc (any
+  keyboard) or Back+Start stops the game.
 * Regression test: `tools/regression.py` (see its header), then `tools/gamelist.py` to refresh
   the list below
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),

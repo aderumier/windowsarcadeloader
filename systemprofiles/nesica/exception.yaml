@@ -14,3 +14,9 @@ hide: [glu32.dll]
 env:
   # Its config file runs it in a 640x480 window: SDL_SetVideoMode made fullscreen.
   WAL_SDL_FULLSCREEN: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3

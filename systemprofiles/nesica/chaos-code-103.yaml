@@ -18,3 +18,10 @@ native_map:
 env:
   # The game creates a windowed 1280x720 device (white window border): make it fullscreen.
   WAL_D3D9_FULLSCREEN: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

@@ -23,3 +23,10 @@ env:
   # Movies: the game looks the video decoder up by name ("WMVideo Decoder DMO") to splice
   # its SampleGrabber on its out0; Wine's FindFilterByName returns the file reader instead.
   WAL_DSHOW_FIND_FILTER: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

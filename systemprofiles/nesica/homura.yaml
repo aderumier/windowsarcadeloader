@@ -9,3 +9,8 @@ tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, 
 # Direct3D 8 game (DXVK d3d8).
 
 # Buttons A, B = b1, b2 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B

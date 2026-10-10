@@ -13,3 +13,10 @@ tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, 
 env:
   # The game wants 1280x768 fullscreen, not a mode Wine emulates: 1280x800, scaled to the screen.
   WAL_D3D9_FULLSCREEN_SIZE: 1280x800
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4

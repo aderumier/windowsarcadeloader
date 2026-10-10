@@ -8,3 +8,9 @@ name: Ikaruga
 tricks: [fakejapanese]
 
 # Buttons Fire, Polarity, Release = b1-b3 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Fire
+  b2: Polarity
+  b3: Release

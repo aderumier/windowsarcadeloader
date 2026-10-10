@@ -11,3 +11,10 @@ tricks: [d3dx9_37]
 hide: [Dinput8.dll]
 
 # Buttons 1-4 = b1-b4 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4

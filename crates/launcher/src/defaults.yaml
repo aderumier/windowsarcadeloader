@@ -87,6 +87,18 @@ initial_files: {}
 env: {}
 # Virtual stick -> native inputs of the system, for the payload (none = unmapped).
 native_map: {}
+# The game's controls, by virtual stick input, as the GUI lists them for mapping: the
+# cabinet's names (b1: Light Punch, accel: Gas, lx: Wheel...). none hides one; so does a
+# native_map entry set to none.
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
 
 # TCP port of the input server the payload connects to.
 port: 33700
@@ -98,6 +110,9 @@ input:
   stick_as_dpad: true
   # Physical gamepad buttons held together to quit the game.
   exit_combo: [back, start]
+  # Keyboard keys (evdev names) quitting the game, whatever window has the focus (wine
+  # stopped, the launcher exits). [] for a game that needs them.
+  exit_keys: [KEY_ESC]
 
   # SDL gamepads (positional names, Xbox labels) -> virtual arcade stick of the
   # player owning the pad (pads take players 1, 2... in connection order).

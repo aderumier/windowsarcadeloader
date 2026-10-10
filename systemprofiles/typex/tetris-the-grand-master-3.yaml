@@ -16,3 +16,10 @@ env:
   # It creates an overlapped window (caption and border) for its fullscreen OpenGL picture:
   # only an empty frame was shown. Borderless popup window.
   WAL_WINDOW_POPUP: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: 'A (rotate)'
+  b2: 'B (rotate)'
+  b3: 'C (rotate)'
+  b4: 'D (hold)'

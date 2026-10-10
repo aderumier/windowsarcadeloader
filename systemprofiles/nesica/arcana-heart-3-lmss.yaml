@@ -10,3 +10,11 @@ native_map:
   b5: btn6
 
 env:
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D
+  b5: E

@@ -6,3 +6,8 @@ name: Raiden III
 # Direct3D 9 game (DXVK), JVS I/O on COM2.
 
 # Buttons Shoot, Bomb = b1, b2 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Shoot
+  b2: Bomb

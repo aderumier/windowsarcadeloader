@@ -5,3 +5,10 @@ name: BlazBlue Continuum Shift
 
 # Generic Type X2 build (CRC 0x4414288e): wal-loader, JVS, no code patches.
 # 4 buttons (b1-b4 -> btn1-btn4, default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

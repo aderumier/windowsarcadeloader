@@ -60,3 +60,16 @@ env:
   # codec, WMV9VCM.dll, extracted from the dump's wmv9VCMsetup.exe into the game folder
   # (cabextract -F WMV9VCM.dll wmv9VCMsetup.exe), registered at startup (as Gaia Attack 4).
   WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b3: Shift Low/High
+  b4: Shift-Nitro
+  b5: Pato-Nitro
