@@ -4,7 +4,8 @@
 //! opening the port returns a fake handle, each `WriteFile` packet goes to the device handler
 //! and its reply is queued for the game's `ReadFile`. Comm configuration calls succeed.
 //! Several devices per process (one per port, each `install` call), plus optionally silent
-//! ports (`install_sink`).
+//! ports (`install_sink`). The other COM ports the game opens are absent (opening fails), whatever
+//! serial ports the machine has.
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -157,9 +158,12 @@ fn port_handle(name: &str) -> Option<P> {
         log!("serial: {} opened", devices[i].port);
         return Some((FAKE + 4 * i) as P);
     }
-    if name.len() <= 5 && name.to_ascii_uppercase().starts_with("COM") && !is_sink(name) {
+    if name.len() <= 6 && name.to_ascii_uppercase().starts_with("COM") && !is_sink(name) {
+        // Absent, as on a PC without serial ports: Wine maps the machine's own ports (Batocera:
+        // COM1 = /dev/ttyS0), where nothing answers (D1GP: card reader error at boot).
         let ports: Vec<&str> = devices.iter().map(|d| d.port.as_str()).collect();
-        log!("serial: game opens {name}, not emulated (devices on {})", ports.join(", "));
+        log!("serial: game opens {name}, not emulated (devices on {}): absent", ports.join(", "));
+        return Some(absent());
     }
     None
 }
