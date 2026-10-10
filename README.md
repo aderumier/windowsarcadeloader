@@ -98,6 +98,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | pass | 2026-10-07 |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | pass | 2026-10-07 |
 | `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | not in the test |  |
+| `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | not in the test |  |
 | `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | pass | 2026-10-10 |
 | `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | pass | 2026-10-10 |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
