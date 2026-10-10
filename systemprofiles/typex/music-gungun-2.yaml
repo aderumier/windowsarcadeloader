@@ -40,6 +40,14 @@ env:
   # * 0x1B4B90: the master volume comes from the cabinet's volume knob, an analog input our JVS
   #   board does not report (read as 0: muted); return the maximum.
   WAL_PATCHES: "0x137C70:B801000000C3,0x154E6:9090,0x1779:8007,0x1783:3804,0x1B4B90:B810270000C3"
+  # Its 1920x1080 picture in a screen-sized borderless window, whatever the screen's mode
+  # (Batocera's typex2 video mode: 1280x720, no 1920x1080 mode then: "Direct3D device
+  # enumeration failed"): a windowed 1920x1080 device, that size added to the display modes it
+  # checks, stretched to the window (no bars: the guns aim over the whole screen).
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_D3D9_MAX_FPS: "60"
 
 # Control names (the GUI's mapping rows).
 controls:

@@ -17,6 +17,9 @@
 //!   games drawing a smaller picture in the corner of their back buffer (Yatagarasu: 854x480 of
 //!   1280x720), whose size no fullscreen mode has. `Present` source/destination rectangles are
 //!   dropped: whole back buffer to the whole window (Yatagarasu presents to 0,0 1280x720).
+//!   The adapter's display modes also list that size (60 Hz) when the monitor has none: games
+//!   checking for their mode before creating the device run on any screen (Music GunGun! 2:
+//!   1920x1080, "Direct3D device enumeration failed" on a 1280x720 screen).
 //! * `WAL_D3D9_MAX_FPS=<n>`: `Present` waits so that frames come at most `n` per second. Games
 //!   timed by frames, made windowed: Elevator Action asks for vsync (interval one), which the
 //!   window does not get under Xwayland: ~400 frames per second, the game 6 times too fast.
@@ -49,6 +52,8 @@ use crate::{iat, log};
 type HRESULT = i32;
 type P = *mut c_void;
 
+const D3D_GET_ADAPTER_MODE_COUNT: usize = 6;
+const D3D_ENUM_ADAPTER_MODES: usize = 7;
 const D3D_CREATE_DEVICE: usize = 16;
 const D3D_CREATE_DEVICE_EX: usize = 20;
 const DEV_RESET: usize = 16;
@@ -97,6 +102,8 @@ static ORIG_GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_QUERY: AtomicUsize = AtomicUsize::new(0);
 static ORIG_QUERY_GET_DATA: AtomicUsize = AtomicUsize::new(0);
 static ORIG_D3D_CAPS: AtomicUsize = AtomicUsize::new(0);
+static ORIG_MODE_COUNT: AtomicUsize = AtomicUsize::new(0);
+static ORIG_ENUM_MODES: AtomicUsize = AtomicUsize::new(0);
 static ORIG_DEV_CAPS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_TEXTURE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SET_VIEWPORT: AtomicUsize = AtomicUsize::new(0);
@@ -230,6 +237,7 @@ unsafe extern "system" fn create9ex(sdk: u32, out: *mut P) -> HRESULT {
         unsafe {
             patch(*out, D3D_CREATE_DEVICE, create_device as *const () as usize, &ORIG_CREATE_DEVICE);
             patch(*out, D3D_CREATE_DEVICE_EX, create_device_ex as *const () as usize, &ORIG_CREATE_DEVICE_EX);
+            patch_modes(*out);
         }
     }
     hr
@@ -482,11 +490,77 @@ unsafe extern "system" fn reset(dev: P, params: P) -> HRESULT {
     hr
 }
 
+/// D3DDISPLAYMODE.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+struct DisplayMode {
+    width: u32,
+    height: u32,
+    refresh: u32,
+    format: u32,
+}
+
+/// The monitor's mode count, and whether the windowed size (60 Hz) must be added to its modes.
+unsafe fn modes_missing_windowed(d3d: P, adapter: u32, format: u32) -> (u32, Option<(u32, u32)>) {
+    let count: unsafe extern "system" fn(P, u32, u32) -> u32 = unsafe { std::mem::transmute(ORIG_MODE_COUNT.load(Ordering::Relaxed)) };
+    let enumerate: unsafe extern "system" fn(P, u32, u32, u32, *mut DisplayMode) -> HRESULT =
+        unsafe { std::mem::transmute(ORIG_ENUM_MODES.load(Ordering::Relaxed)) };
+    let n = unsafe { count(d3d, adapter, format) };
+    let Some((w, h)) = *WINDOWED_SIZE.lock().unwrap() else { return (n, None) };
+    if adapter != 0 {
+        return (n, None);
+    }
+    let has = (0..n).any(|i| {
+        let mut m = DisplayMode::default();
+        let ok = unsafe { enumerate(d3d, adapter, format, i, &mut m) } >= 0;
+        ok && (m.width, m.height, m.refresh) == (w, h, 60)
+    });
+    (n, (!has).then_some((w, h)))
+}
+
+static MODE_ADDED_LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+unsafe extern "system" fn adapter_mode_count(d3d: P, adapter: u32, format: u32) -> u32 {
+    let (n, extra) = unsafe { modes_missing_windowed(d3d, adapter, format) };
+    if let Some((w, h)) = extra {
+        if !MODE_ADDED_LOGGED.swap(true, Ordering::Relaxed) {
+            log!("d3d9: display mode {w}x{h} at 60 Hz added to the {n} modes of the monitor (windowed size)");
+        }
+    }
+    n + extra.is_some() as u32
+}
+
+unsafe extern "system" fn enum_adapter_modes(d3d: P, adapter: u32, format: u32, index: u32, mode: *mut DisplayMode) -> HRESULT {
+    let (n, extra) = unsafe { modes_missing_windowed(d3d, adapter, format) };
+    match extra {
+        Some((width, height)) if index == n && !mode.is_null() => {
+            unsafe { *mode = DisplayMode { width, height, refresh: 60, format } };
+            0
+        }
+        _ => {
+            let enumerate: unsafe extern "system" fn(P, u32, u32, u32, *mut DisplayMode) -> HRESULT =
+                unsafe { std::mem::transmute(ORIG_ENUM_MODES.load(Ordering::Relaxed)) };
+            unsafe { enumerate(d3d, adapter, format, index, mode) }
+        }
+    }
+}
+
+/// The adapter's display modes list the windowed size (see `WAL_D3D9_WINDOWED_SIZE`).
+unsafe fn patch_modes(d3d: P) {
+    if WINDOWED_SIZE.lock().unwrap().is_some() {
+        unsafe {
+            patch(d3d, D3D_GET_ADAPTER_MODE_COUNT, adapter_mode_count as *const () as usize, &ORIG_MODE_COUNT);
+            patch(d3d, D3D_ENUM_ADAPTER_MODES, enum_adapter_modes as *const () as usize, &ORIG_ENUM_MODES);
+        }
+    }
+}
+
 unsafe extern "system" fn create9(sdk: u32) -> P {
     let orig: unsafe extern "system" fn(u32) -> P = unsafe { std::mem::transmute(ORIG_CREATE9.load(Ordering::Relaxed)) };
     let d3d = unsafe { orig(sdk) };
     if !d3d.is_null() {
         unsafe { patch(d3d, D3D_CREATE_DEVICE, create_device as *const () as usize, &ORIG_CREATE_DEVICE) };
+        unsafe { patch_modes(d3d) };
         if TRACE.load(Ordering::Relaxed) || POW2.load(Ordering::Relaxed) {
             unsafe { patch(d3d, D3D_GET_DEVICE_CAPS, d3d_caps as *const () as usize, &ORIG_D3D_CAPS) };
         }
