@@ -36,6 +36,8 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 GAMES = ROOT / "games"
 # local games/<dir> -> Batocera ES system (/userdata/roms/<system>)
 SYSTEMS = {s: s for s in ["typex", "typex2", "nesicax", "nesicax2", "globalvr", "namcoes3", "rawthrills"]}
+# Type X+ (Battle Gear 4) in Batocera's Type X system
+SYSTEMS["typex+"] = "typex"
 DOC = ROOT / "docs/IMPLEMENTATION.md"
 # statuses of games that do not work
 NOT_WORKING = ("blocked", "not tested", "not playable")
