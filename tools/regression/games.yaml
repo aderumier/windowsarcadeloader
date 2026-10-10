@@ -6,6 +6,7 @@
 #   skip: reason, the game is listed but not run
 
 # "globalvr/FarCry Paradise Lost/farcry-paradise-lost.windowsloader": {}  # not tested
+"globalvr/The Swarm/the-swarm.windowsloader": {}
 # "namcoes3/Star Wars Battle Pod - The Force Awakens/star-wars-battle-pod.windowsloader": {}  # no status
 "nesicax/3D Cosplay Mahjong/3d-cosplay-mahjong.windowsloader": {}
 "nesicax/Akai Katana Shin/akai-katana-shin.windowsloader": {}

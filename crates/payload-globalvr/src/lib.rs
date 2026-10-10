@@ -10,6 +10,7 @@
 //! * `g_arcadeError` of `systemcfg.lua` reset at load (`WAL_GLOBALVR_CLEAR_ERRORS=0` keeps it).
 //! * `hasp.rs`: the game's HASP4 dongle calls.
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
+//! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`.
 //! * `gamelog.rs`: the game's own messages in the payload log (`WAL_GLOBALVR_GAMELOG=1`).
 //! * Profile code patches (`WAL_PATCHES`).
 
@@ -19,6 +20,7 @@ mod config;
 mod gamelog;
 mod hasp;
 mod keyboard;
+mod swarm;
 mod usbio;
 
 use std::ffi::c_void;
@@ -42,6 +44,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         hasp::init();
         keyboard::init();
         gamelog::init();
+        swarm::init();
         log!("globalvr: initialized");
     }
     TRUE

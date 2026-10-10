@@ -27,6 +27,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | Game id | Game | System | Status | Regression test | Run |
 |---|---|---|---|---|---|
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | not in the test |  |
+| `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); TODO: the next chapter after a stage ends (the game exits, its adapter relaunched it) | pass | 2026-10-11 |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | pass | 2026-10-07 |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-10-08 |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | pass | 2026-10-07 |
