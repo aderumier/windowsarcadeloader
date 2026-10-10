@@ -3547,6 +3547,7 @@ dependencies = [
  "serde",
  "serde_yaml_ng",
  "wal-protocol",
+ "x11rb",
 ]
 
 [[package]]

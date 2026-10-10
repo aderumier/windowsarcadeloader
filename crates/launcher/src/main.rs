@@ -6,6 +6,7 @@
 
 mod config;
 mod ffb;
+mod focus;
 #[cfg(all(target_os = "linux", target_env = "gnu"))]
 mod glibc_compat;
 mod guns;
@@ -366,6 +367,8 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     // killed with it at the end
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
     let mut child = cmd.spawn().context("starting wine")?;
+    // its window to the front (a frontend keeping the focus hid it)
+    let mut focus = focus::Focus::new(child.id());
 
     let mut last = InputFrame::default();
     let mut last_sent = Instant::now();
@@ -373,6 +376,9 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     let mut last_check = Instant::now();
     let status = loop {
         hub.poll(Duration::from_millis(4));
+        if let Some(f) = &mut focus {
+            f.poll();
+        }
         let mut frame = hub.frame();
         if let Some(script) = &script {
             for (p, stick) in frame.players.iter_mut().enumerate() {
