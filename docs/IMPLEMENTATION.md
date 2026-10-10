@@ -459,7 +459,9 @@ profile), `show` (merged profile).
   states and no buffered data. Games that still read the keyboard/joysticks next to their I/O
   board (Raiden IV Type X opened its test menu on the PC keyboard's `2`, also P2 start: the
   launcher does not grab the keyboard) only see the board. A fake rather than a failed creation,
-  which some games treat as fatal.
+  which some games treat as fatal. `WAL_KEYBOARD_STATE_DISABLE=1`: the game's
+  `user32!GetKeyboardState` reports no key pressed (Wacky Races read START / VIEW on Enter /
+  Right Shift that way).
 * `window`: `WAL_WINDOW_SIZE=WxH` (or `screen`: the primary monitor's size) forces the size of the game's top-level windows
   (`SetWindowPos`/`MoveWindow` IAT hooks, at 0,0); in window mode Direct3D stretches the back
   buffer to it (Crimzon Clover's DxLib computed a 5-million-pixel high window: X BadAlloc).
@@ -695,7 +697,7 @@ Medal games (New Super Mario Bros. Wii Coin World, Capcom on Type X2 hardware, 4
     (`native_map` names: up down left right bet start payout medal test select cancel key
     door). The game takes the medals as bets by itself (3 per play).
 
-Driving games (Valve Limit R, Chase H.Q. 2, Battle Gear 4 Tuned):
+Driving games (Valve Limit R, Chase H.Q. 2, Battle Gear 4 Tuned, Wacky Races):
 * Pedals on JVS analog channels: `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...` gives player 1's
   virtual axis read on each channel (`-axis` inverted, `+axis` its positive half only: 0 at the
   center and below, a clutch on a stick axis; empty: the fixed `WAL_TYPEX_JVS_ANALOG` value),
@@ -740,6 +742,9 @@ Driving games (Valve Limit R, Chase H.Q. 2, Battle Gear 4 Tuned):
   cleared, 15 codes each way (as FFBArcadePlugin's ChaseHQ2.cpp): levels 16-30 push right with
   (31 - level) / 15 of full force, 1-15 left with (16 - level) / 15; no spring. Seen in a race:
   levels 24, 17, 16, 2, 1, idle code 0x4000 in between.
+  `WAL_TYPEX_FFB=wacky-races`: the same scheme ([+0x7E00590] + 0x45, lamp bits 0x10, 0x400, 0x200,
+  0x80, 0x08, 0x100, 0x4000, FFBArcadePlugin's WackyRaces.cpp codes), levels 16-30 pushing left
+  and 1-15 right. Seen in a race: levels 9, 24.
 
 Mahjong games (Taisen Hot Gimmick 5, `mahjong.rs`, `WAL_TYPEX_MAHJONG=hot-gimmick-5`): the
 game reads its mahjong panel as a keyboard (DirectInput `GetDeviceState`, one call per frame),
@@ -998,6 +1003,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 | `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | wal-loader, JVS (gas/brake on analog channels 1/2), steering board on COM1 (`WAL_TYPEX_WHEEL_PORT`), standalone link patch, `WAL_DINPUT_DISABLE`; `.windowsloader`: `launcher.exe` |
+| `wacky-races` | Wacky Races | typex | works (user: controls, start, view) | wal-loader, JVS (wheel/gas/brake on analog channels 2/3/4, START/VIEW on buttons 8/7, LEVER on down), the dump's root Launcher.exe (set up to play at once), `WAL_KEYBOARD_STATE_DISABLE` (it read START/VIEW on the PC keyboard's Enter/Right Shift), force feedback from its motor command (`WAL_TYPEX_FFB`, untested on a wheel) |
 | `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | original Japanese release (2005): as `battle-gear-4-tuned` (same cabinet, inputs, key reader, `WAL_GAME_DRIVE: E`), patches of this executable (clean: no window menu, intro fix), 800x600 windowed in a screen-sized popup; no force feedback (no addresses for this build) |
 | `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | wal-loader, JVS (gas/brake on analog channels 3/4, shift up/down on buttons 2/3, key reader: `battle-gear` layout), steering board on COM1 (inverted, `WAL_TYPEX_WHEEL_AXIS=-lx`), `WAL_GAME_DRIVE: E` (data found from the current directory's drive; music through `mmioOpenA`), patches: hex-edited entry point and transmission lookup restored, no window menu, intro fix, wide monitor without the clutch type (the cabinet type check sets both flags: patched to set only the wide monitor one); 1360x768 windowed in a screen-sized popup (`WAL_D3D9_WINDOWED_SIZE`), `WAL_HIDE_CURSOR`, `WAL_DINPUT_DISABLE` (it shifted gears on the PC arrows and keypad), force feedback from its memory (`WAL_TYPEX_FFB`, untested on a wheel) |
 | `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | as `battle-gear-4-tuned` (a copy of its dump with this `.windowsloader`), professional cabinet: second JVS board, H shifter (player 2's b1-b6), clutch on analog channel 6 (`+ry`), 1360x768, force feedback as the normal cabinet |
