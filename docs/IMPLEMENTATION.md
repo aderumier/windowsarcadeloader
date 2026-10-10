@@ -110,6 +110,12 @@ Frame: `[u8 kind][u8 0][u16 LE payload_len][payload]`.
 | 1 Hello | both, first message | u16 version, UTF-8 name |
 | 2 Input | launcher → game | 4 × (u32 buttons + 6 × i16 axes) = 64 bytes |
 | 3 Output | game → launcher | u8 player, u16 id, i32 value |
+| 4 Relaunch | game → launcher | UTF-8 arguments, may be empty |
+
+Relaunch: when the game exits, the launcher starts it again (same run directory, input server
+kept) with the profile's arguments plus these (split on spaces), `WAL_RELAUNCH=1` in its
+environment (its payload appends to the log). The latest request wins; Esc still stops. The
+Swarm: one run of the game per stage (payload `swarm_campaign.rs`).
 
 The launcher sends the full state on every change plus every 100 ms, so a reconnecting payload
 is up to date immediately; unknown kinds are skipped (forward compatible). Bump `VERSION` on an
@@ -967,7 +973,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | Game id | Game | System | Result | Needed |
 |---|---|---|---|---|
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
-| `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); TODO: the next chapter after a stage ends (the game exits, its adapter relaunched it) | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands) |
+| `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), not tested to the end of a stage yet; new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`) |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | hide dinput8 (loader hack) |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | - |

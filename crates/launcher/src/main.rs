@@ -362,19 +362,31 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     }
 
     let game_exe = wine.windows_path(&run_exe_dir.join(exe_name));
-    let mut cmd = match system.loader() {
-        // wal-loader <payload> <game> [args]: payload loaded before the game entry point
-        Some(payload) => {
-            let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));
-            cmd.arg(wine.windows_path(&run_exe_dir.join(payload))).arg(&game_exe);
-            cmd
+    // the game command with these arguments; `relaunched`: started again at the payload's
+    // request (WAL_RELAUNCH=1)
+    let game_command = |args: &[String], relaunched: bool| {
+        let mut cmd = match system.loader() {
+            // wal-loader <payload> <game> [args]: payload loaded before the game entry point
+            Some(payload) => {
+                let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));
+                cmd.arg(wine.windows_path(&run_exe_dir.join(payload))).arg(&game_exe);
+                cmd
+            }
+            None => wine.command(&game_exe),
+        };
+        cmd.args(args).current_dir(&run_exe_dir);
+        if relaunched {
+            cmd.env(env::RELAUNCH, "1");
         }
-        None => wine.command(&game_exe),
+        if profile.gamescope.enabled {
+            cmd = gamescope(&profile.gamescope, cmd);
+        }
+        // own process group: whatever the game leaves (gamescope's reaper and its children) is
+        // killed with it at the end
+        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+        cmd
     };
-    cmd.args(&profile.args).current_dir(&run_exe_dir);
-    if profile.gamescope.enabled {
-        cmd = gamescope(&profile.gamescope, cmd);
-    }
+    let mut cmd = game_command(&profile.args, false);
 
     eprintln!("game: {} ({})", profile.name.as_deref().unwrap_or(&profile.id), profile.id);
     eprintln!("profile layers: {:?}", profile.sources);
@@ -392,9 +404,6 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     let stop = stop_flag()?;
     let server = server::Server::start(profile.port)?;
     let mut hub = input::Hub::new(profile)?;
-    // own process group: whatever the game leaves (gamescope's reaper and its children) is
-    // killed with it at the end
-    std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
     let mut child = cmd.spawn().context("starting wine")?;
     // its window to the front (a frontend keeping the focus hid it)
     let mut focus = focus::Focus::new(child.id());
@@ -430,6 +439,16 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
             let _ = wine.wineserver("-k");
         }
         if let Some(status) = child.try_wait()? {
+            // a game ending to be started again with other arguments (The Swarm: each stage
+            // is a run of the game)
+            if let Some(args) = server.take_relaunch().filter(|_| !killing) {
+                eprintln!("launcher: game exited ({status}), started again: {args}");
+                let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stderr(std::process::Stdio::null()).status();
+                let args: Vec<String> = profile.args.iter().cloned().chain(args.split(' ').filter(|a| !a.is_empty()).map(str::to_string)).collect();
+                child = game_command(&args, true).spawn().context("starting wine")?;
+                focus = focus::Focus::new(child.id());
+                continue;
+            }
             break status;
         }
         // a crash (e.g. a stack overflow under WoW64) can end the game's main thread only:

@@ -2,6 +2,7 @@
 //!
 //! The first process creates the log; processes it starts (a launcher starting the game)
 //! inherit `WAL_LOG_APPEND` and append to it, their lines tagged with their executable name.
+//! A game started again at its payload's request (`WAL_RELAUNCH=1`) appends too.
 
 use std::fs::{File, OpenOptions};
 use std::io::Write;
@@ -20,7 +21,9 @@ pub(crate) fn init() {
             let name = exe.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned());
             let _ = TAG.set(format!("[{}] ", name.unwrap_or_default()));
         } else {
-            let _ = File::create(&path);
+            if !crate::relaunched() {
+                let _ = File::create(&path);
+            }
             // SAFETY: payload init, before the game starts other threads
             unsafe { std::env::set_var(APPEND, "1") };
         }

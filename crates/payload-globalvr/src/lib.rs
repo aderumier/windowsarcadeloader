@@ -10,7 +10,8 @@
 //! * `g_arcadeError` of `systemcfg.lua` reset at load (`WAL_GLOBALVR_CLEAR_ERRORS=0` keeps it).
 //! * `hasp.rs`: the game's HASP4 dongle calls.
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
-//! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`.
+//! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
+//!   stage changes (`swarm_campaign.rs`: the game started again with the next map).
 //! * `gamelog.rs`: the game's own messages in the payload log (`WAL_GLOBALVR_GAMELOG=1`).
 //! * Profile code patches (`WAL_PATCHES`).
 
@@ -21,6 +22,7 @@ mod gamelog;
 mod hasp;
 mod keyboard;
 mod swarm;
+mod swarm_campaign;
 mod usbio;
 
 use std::ffi::c_void;

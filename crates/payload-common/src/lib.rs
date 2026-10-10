@@ -125,7 +125,7 @@ fn read_loop(stream: &mut TcpStream) {
                 store(&frame)
             }
             Message::Hello { version, name } => log!("launcher hello: {name} v{version}"),
-            Message::Output(_) => {}
+            Message::Output(_) | Message::Relaunch { .. } => {}
         }
     }
 }
@@ -151,6 +151,19 @@ pub fn input(player: usize) -> StickState {
 
 pub fn connected() -> bool {
     CONNECTED.load(Ordering::Acquire)
+}
+
+/// Asks the launcher to start the game again when it exits, with the profile's arguments
+/// plus `args`. Dropped while disconnected.
+pub fn request_relaunch(args: &str) {
+    if let Some(stream) = WRITER.lock().unwrap().as_mut() {
+        let _ = stream.write_all(&Message::Relaunch { args: args.to_string() }.encode());
+    }
+}
+
+/// Started again at the payload's request ([`request_relaunch`]).
+pub fn relaunched() -> bool {
+    std::env::var(wal_protocol::env::RELAUNCH).is_ok_and(|v| v == "1")
 }
 
 /// Reports a game output to the launcher (dropped while disconnected).

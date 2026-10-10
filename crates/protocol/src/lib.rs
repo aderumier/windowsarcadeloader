@@ -28,6 +28,8 @@ pub mod env {
     pub const LOG: &str = "WAL_LOG";
     /// Native mapping override, `virtual=native` pairs separated by `,`.
     pub const MAP: &str = "WAL_MAP";
+    /// "1": the game was started again at its payload's request ([`Message::Relaunch`]).
+    pub const RELAUNCH: &str = "WAL_RELAUNCH";
 }
 
 /// Digital inputs of the virtual stick, as bits of [`StickState::buttons`].
@@ -212,11 +214,15 @@ pub enum Message {
     Input(InputFrame),
     /// Game -> launcher.
     Output(Output),
+    /// Game -> launcher: when the game exits, start it again with the profile's arguments
+    /// plus these (split on spaces, may be empty). The latest request wins.
+    Relaunch { args: String },
 }
 
 const KIND_HELLO: u8 = 1;
 const KIND_INPUT: u8 = 2;
 const KIND_OUTPUT: u8 = 3;
+const KIND_RELAUNCH: u8 = 4;
 
 impl Message {
     pub fn encode(&self) -> Vec<u8> {
@@ -233,6 +239,7 @@ impl Message {
                 p.extend_from_slice(&o.value.to_le_bytes());
                 (KIND_OUTPUT, p)
             }
+            Message::Relaunch { args } => (KIND_RELAUNCH, args.as_bytes().to_vec()),
         };
         let mut out = Vec::with_capacity(4 + payload.len());
         out.push(kind);
@@ -255,6 +262,7 @@ impl Message {
                 id: u16::from_le_bytes([payload[1], payload[2]]),
                 value: i32::from_le_bytes(payload[3..7].try_into().unwrap()),
             })),
+            KIND_RELAUNCH => Some(Message::Relaunch { args: String::from_utf8_lossy(payload).into_owned() }),
             _ => None,
         }
     }
@@ -292,6 +300,7 @@ mod tests {
             Message::Hello { version: VERSION, name: "nesica".into() },
             Message::Input(frame),
             Message::Output(Output { player: 1, id: 7, value: -5 }),
+            Message::Relaunch { args: "-skiplogos -s levels\\metro\\metro.map 3 7".into() },
         ] {
             let bytes = msg.encode();
             assert_eq!(Message::read_from(&mut bytes.as_slice()).unwrap(), msg);

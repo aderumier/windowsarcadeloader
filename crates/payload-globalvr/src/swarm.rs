@@ -24,6 +24,8 @@
 //! A fire held when the front end ends is ignored until released (the stage selection shot
 //! would otherwise fire in game).
 //!
+//! Stage changes (a run of the game per stage): `swarm_campaign.rs`.
+//!
 //! `WAL_GLOBALVR_SWARM_TRACE=1` logs the commands sent, the aim and buttons once a second, and a
 //! command text the game has not read after 2 s.
 
@@ -92,6 +94,7 @@ pub(crate) fn init() {
         shm.int(off).store(0, Ordering::SeqCst);
     }
     log!("swarm: input adapter on {NAME}");
+    crate::swarm_campaign::init();
     std::thread::spawn(move || Adapter::default().run(shm));
 }
 
@@ -208,6 +211,7 @@ impl Adapter {
                 log!("swarm: P1 {:.3?} {:#x}, P2 {:.3?} {:#x}", aim(0), bits[0], aim(1), bits[1]);
             }
             self.flush(shm);
+            crate::swarm_campaign::poll();
             std::thread::sleep(Duration::from_millis(16));
         }
     }

@@ -17,6 +17,13 @@ input:
   # the gun position must not press the d-pad
   stick_as_dpad: false
 
+# Each stage is a run of the game (the adapter starts it again with the next map): the
+# payload writes this startup file before each run (run token, boot mode, completed stages,
+# high scores), a real file of the run directory (not the dump's), and asks the launcher to
+# start the game again (payload swarm_campaign.rs).
+files:
+  The Swarm/data/ui/scripts/work/pc_start_mode.lua: systemprofiles/globalvr/files/the-swarm/pc_start_mode.lua
+
 # Control names (the GUI's mapping rows).
 controls:
   up: none
