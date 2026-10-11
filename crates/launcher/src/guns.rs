@@ -1,8 +1,10 @@
 //! Lightguns and mice aiming like lightguns, read with evdev (port of batocera-wine-guns).
 //!
-//! * Guns: devices udev tags `ID_INPUT_GUN=1` (fallback without udev data: an absolute
-//!   pointer, `ABS_X`/`ABS_Y` + `BTN_LEFT`, that is not a touchpad). They take players 1, 2...
-//!   in device order (`eventN` number).
+//! * Guns: devices udev tags `ID_INPUT_GUN=1`. When none is tagged (no Batocera gun rules), an
+//!   absolute pointer, `ABS_X`/`ABS_Y` + `BTN_LEFT`, that is not a touchpad nor a virtual
+//!   device (Wolf's/Sunshine's streaming pointers). With tags, only them: a Sinden's raw mouse
+//!   node (untagged, beside its tagged virtual gun) would be a second gun of the same player.
+//!   They take players 1, 2... in device order (`eventN` number).
 //! * Mice (`REL_X`/`REL_Y` + `BTN_LEFT`) fill the remaining players, USB mice first (before a
 //!   laptop's touchpad and TrackPoint): their motion moves a position over a virtual screen of
 //!   `input.mouse_screen` pixels. A touchpad's own mouse node (same HID device as the
@@ -44,9 +46,14 @@ pub fn udev_property(path: &Path, key: &str) -> Option<String> {
     data.lines().find_map(|l| l.strip_prefix("E:")?.strip_prefix(key)?.strip_prefix('=').map(str::to_string))
 }
 
-fn is_gun(path: &Path, dev: &Device) -> bool {
-    if let Some(v) = udev_property(path, "ID_INPUT_GUN") {
-        return v == "1";
+fn is_tagged_gun(path: &Path) -> bool {
+    udev_property(path, "ID_INPUT_GUN").as_deref() == Some("1")
+}
+
+/// Without gun tags: an absolute pointer of a real device.
+fn is_untagged_gun(path: &Path, dev: &Device) -> bool {
+    if udev_property(path, "ID_INPUT_GUN").is_some() || is_virtual(path) {
+        return false;
     }
     let abs = dev.supported_absolute_axes();
     let keys = dev.supported_keys();
@@ -63,6 +70,12 @@ fn is_mouse(dev: &Device) -> bool {
     let rel = dev.supported_relative_axes();
     rel.is_some_and(|r| r.contains(RelativeAxisCode::REL_X) && r.contains(RelativeAxisCode::REL_Y))
         && dev.supported_keys().is_some_and(|k| k.contains(KeyCode::BTN_LEFT))
+}
+
+/// A uinput device (`/sys/devices/virtual/input/...`).
+fn is_virtual(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else { return false };
+    std::fs::canonicalize(format!("/sys/class/input/{name}")).is_ok_and(|p| p.starts_with("/sys/devices/virtual"))
 }
 
 /// The HID device of an evdev node (`/sys/class/input/eventN/device/device`).
@@ -86,20 +99,29 @@ pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], tx: Sender
     devices.sort_by_key(|(p, _)| event_number(p));
     let touchpads: Vec<PathBuf> =
         devices.iter().filter(|(p, d)| is_touchpad(p, d)).filter_map(|(p, _)| hid_device(p)).collect();
+    let tagged = devices.iter().any(|(p, _)| is_tagged_gun(p));
+    let is_gun = |p: &Path, d: &Device| if tagged { is_tagged_gun(p) } else { is_untagged_gun(p, d) };
     let (guns, others): (Vec<_>, Vec<_>) = devices.into_iter().partition(|(p, d)| is_gun(p, d));
     let mut mice: Vec<_> = others
         .into_iter()
-        .filter(|(p, d)| use_mice && is_mouse(d) && !hid_device(p).is_some_and(|h| touchpads.contains(&h)))
+        // `ID_INPUT_MOUSE=0`: a gun's raw node, not a mouse
+        .filter(|(p, d)| {
+            use_mice
+                && is_mouse(d)
+                && udev_property(p, "ID_INPUT_MOUSE").as_deref() != Some("0")
+                && !hid_device(p).is_some_and(|h| touchpads.contains(&h))
+        })
         .collect();
     // plugged-in (USB) mice before the built-in pointers (touchpad, TrackPoint): with
     // `guns_mice: 1` on a laptop, the external mouse aims
     mice.sort_by_key(|(p, _)| (udev_property(p, "ID_BUS").as_deref() != Some("usb"), event_number(p)));
     let mice = mice.into_iter().take(if max_mice == 0 { usize::MAX } else { max_mice });
 
+    let gun_count = guns.len();
     let mut pointers = Vec::new();
     for (path, dev) in guns.into_iter().chain(mice).take(MAX_PLAYERS) {
         let index = pointers.len();
-        let is_gun = is_gun(&path, &dev);
+        let is_gun = index < gun_count;
         let pointer = Pointer { path, name: dev.name().unwrap_or("?").to_string(), is_gun, player: index };
         let tx = tx.clone();
         if is_gun {

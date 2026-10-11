@@ -212,7 +212,8 @@ input:
       KEY_8: coin
 
   # Lightguns and mice aiming like guns (as batocera-wine-guns), for gun games: guns (udev
-  # ID_INPUT_GUN=1, or absolute pointers) take players 1, 2... in device order, then mice
+  # ID_INPUT_GUN=1, or absolute pointers when no device has that tag) take players 1, 2... in
+  # device order, then mice
   # (guns_mouse) the remaining players. Not grabbed: the game still sees them as X11 mice.
   guns_enabled: false
   guns_mouse: true
