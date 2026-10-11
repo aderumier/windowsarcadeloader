@@ -279,7 +279,17 @@ first start downloads no winetricks verbs (Batocera: `install.sh` ships it). It 
 aside then renamed (no partial prefix), without its runner stamp: the runner update rewrites
 what pointed into the building machine's runner (font paths, vkd3d/icu links). Verbs added
 to `prefix_tricks` after it was built are installed as usual (its `.wal-tricks`). Without an archive the
-prefix is created from scratch.
+prefix is created from scratch. The archive is versioned: `prefix-archive.sh` writes
+`<prefix>.version` (a build timestamp) next to it, the unpacked prefix keeps it in
+`.wal-prefix-version`. A prefix of another version is replaced by the archive's at the next
+start, the old prefix's `drive_c/users` (the games' saves) and `drive_c/wal` (run directories)
+moved into it: a new archive reaches a machine that has a prefix already (Batocera), without
+winetricks downloads there.
+ffdshow (Aliens Extermination's DivX movies through VfW) also registers DirectShow video and
+audio decoders of high merit (MPEG-4, H.264, MP3, AC3...): right after its install the launcher
+whitelists them to `aliens.exe` and turns off its compatibility manager (a dialog asking every
+other game whether to use ffdshow, blocking it 5 s: The Swarm's intro froze), `TRICK_SETTINGS`
+in `wine.rs`. Its VfW codec is not restricted.
 The verbs' native DLLs (DirectMusic, xact, d3dx9, d3dcompiler...) serve every game, as the
 old common prefix did: many games rely on one they do not list (Chaos Code's d3dx9_37). Native
 dsound is the exception, native only for the games listing it (wine's builtin for the others,

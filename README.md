@@ -27,7 +27,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | Game id | Game | System | Status | Regression test | Run |
 |---|---|---|---|---|---|
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | not in the test |  |
-| `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns, movies | fail: started, running, window, audio | 2026-10-11 |
+| `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns, movies | pass | 2026-10-11 |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), not tested to the end of a stage yet; new high scores not saved | pass | 2026-10-11 |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | pass | 2026-10-07 |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-10-08 |

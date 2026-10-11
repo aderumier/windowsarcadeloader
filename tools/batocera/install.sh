@@ -17,5 +17,7 @@ cp tools/batocera/arcade-launcher-gui tools/batocera/icon.png "$DEST/"
 if [ -f wine-prefix/full.tar.gz ]; then
     mkdir -p "$DEST/wine-prefix"
     cp wine-prefix/full.tar.gz "$DEST/wine-prefix/"
+    # its version: prefixes unpacked from an older archive are updated
+    [ -f wine-prefix/full.version ] && cp wine-prefix/full.version "$DEST/wine-prefix/"
 fi
 echo "installed in $DEST"

@@ -31,6 +31,26 @@ const D3D_DLLS: [&str; 5] = ["d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"];
 /// (native DirectPlay: kept away from the games that never needed it).
 const ISOLATED_TRICKS: [&str; 2] = ["dsound", "directplay"];
 
+/// Registry settings applied right after a winetricks verb (`reg add` arguments): ffdshow's
+/// DirectShow video and audio decoders (high merit: MPEG-4, H.264, MP3, AC3...) would serve
+/// every game of the shared prefix instead of wine's own; whitelisted to the games needing
+/// them, without the compatibility manager (`isCompMgr`: a dialog asking the other games
+/// whether to use ffdshow, blocking them 5 s: The Swarm's intro). Its VfW codec
+/// (ffdshow_vfw, AVIs through avifil32) is not restricted.
+const TRICK_SETTINGS: &[(&str, &[&[&str]])] = &[(
+    "ffdshow",
+    &[
+        &["HKCU\\Software\\GNU\\ffdshow", "/v", "isWhitelist", "/t", "REG_DWORD", "/d", "1", "/f"],
+        &["HKCU\\Software\\GNU\\ffdshow", "/v", "whitelist", "/t", "REG_SZ", "/d", "aliens.exe", "/f"],
+        &["HKCU\\Software\\GNU\\ffdshow", "/v", "isBlacklist", "/t", "REG_DWORD", "/d", "0", "/f"],
+        &["HKCU\\Software\\GNU\\ffdshow", "/v", "isCompMgr", "/t", "REG_DWORD", "/d", "0", "/f"],
+        &["HKCU\\Software\\GNU\\ffdshow_audio", "/v", "isWhitelist", "/t", "REG_DWORD", "/d", "1", "/f"],
+        &["HKCU\\Software\\GNU\\ffdshow_audio", "/v", "whitelist", "/t", "REG_SZ", "/d", "aliens.exe", "/f"],
+        &["HKCU\\Software\\GNU\\ffdshow_audio", "/v", "isBlacklist", "/t", "REG_DWORD", "/d", "0", "/f"],
+        &["HKCU\\Software\\GNU\\ffdshow_audio", "/v", "isCompMgr", "/t", "REG_DWORD", "/d", "0", "/f"],
+    ],
+)];
+
 /// DLLs a winetricks verb sets to native (its `w_override_dlls`).
 fn trick_dlls(verb: &str) -> Vec<String> {
     match verb {
@@ -287,20 +307,37 @@ impl Wine {
     /// the prefix does not exist yet. Without its runner stamp, the runner update below rewrites
     /// what points into the runner of the machine that built it (font paths, links); verbs
     /// added since are installed by `apply_tricks` (`.wal-tricks` of the archive).
+    ///
+    /// Versioned archives (`<prefix>.version` next to it, `tools/prefix-archive.sh`): a prefix
+    /// unpacked from another version (its `.wal-prefix-version`) is replaced by the archive's,
+    /// keeping the old prefix's `drive_c/users` (the games' saves) and `drive_c/wal` (run
+    /// directories: files games keep next to their executable). A new archive reaches machines
+    /// that have a prefix already, with no winetricks download there.
     fn unpack_prefix(&self) -> Result<()> {
-        let archive = self.prefix.with_file_name(format!(
-            "{}.tar.gz",
-            self.prefix.file_name().unwrap_or_default().to_string_lossy()
-        ));
-        if self.prefix.exists() || !archive.is_file() {
+        let name = self.prefix.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let archive = self.prefix.with_file_name(format!("{name}.tar.gz"));
+        if !archive.is_file() {
             return Ok(());
         }
-        eprintln!("wine: unpacking prefix {}", archive.display());
+        let version = fs::read_to_string(self.prefix.with_file_name(format!("{name}.version")))
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty());
+        let stamp = self.prefix.join(".wal-prefix-version");
+        let update = self.prefix.exists();
+        if update {
+            let current = fs::read_to_string(&stamp).unwrap_or_default();
+            match &version {
+                Some(v) if current.trim() != v => {
+                    eprintln!("wine: prefix archive version {v} (prefix: {}): updating the prefix, saves kept", current.trim())
+                }
+                _ => return Ok(()),
+            }
+        } else {
+            eprintln!("wine: unpacking prefix {}", archive.display());
+        }
         // unpacked aside then renamed: an interrupted unpack leaves no partial prefix
-        let tmp = self.prefix.with_file_name(format!(
-            "{}.unpack",
-            self.prefix.file_name().unwrap_or_default().to_string_lossy()
-        ));
+        let tmp = self.prefix.with_file_name(format!("{name}.unpack"));
         if tmp.exists() {
             fs::remove_dir_all(&tmp)?;
         }
@@ -319,7 +356,29 @@ impl Wine {
             bail!("unpacking {} failed: {status}", archive.display());
         }
         let _ = fs::remove_file(tmp.join(".wal-update-timestamp"));
-        fs::rename(&tmp, &self.prefix)?;
+        if update {
+            for dir in ["drive_c/users", "drive_c/wal"] {
+                let (from, to) = (self.prefix.join(dir), tmp.join(dir));
+                if from.exists() {
+                    if to.exists() {
+                        fs::remove_dir_all(&to)?;
+                    }
+                    fs::rename(&from, &to).with_context(|| format!("moving {} into the new prefix", from.display()))?;
+                }
+            }
+            let old = self.prefix.with_file_name(format!("{name}.old"));
+            if old.exists() {
+                fs::remove_dir_all(&old)?;
+            }
+            fs::rename(&self.prefix, &old)?;
+            fs::rename(&tmp, &self.prefix)?;
+            fs::remove_dir_all(&old)?;
+        } else {
+            fs::rename(&tmp, &self.prefix)?;
+        }
+        if let Some(v) = &version {
+            fs::write(&stamp, v)?;
+        }
         Ok(())
     }
 
@@ -354,6 +413,13 @@ impl Wine {
             if !status.success() {
                 bail!("winetricks {verb} failed: {status}");
             }
+            for args in TRICK_SETTINGS.iter().filter(|(v, _)| v == verb).flat_map(|(_, s)| s.iter()) {
+                let status = self.command("reg").arg("add").args(*args).status().context("running wine reg")?;
+                if !status.success() {
+                    bail!("winetricks {verb}: reg add {} failed: {status}", args.join(" "));
+                }
+            }
+            self.wineserver("-w")?;
             let mut list = fs::read_to_string(&stamp).unwrap_or_default();
             list.push_str(verb);
             list.push('\n');
