@@ -26,6 +26,10 @@ input:
     BTN_MIDDLE: b2
     offscreen: b6
 
+# The trigger also presses start: shoot to start or join, no start button needed.
+native_map:
+  b1: trigger+start
+
 # The game imports OpenAL32.dll and alut.dll: the dump keeps Creative's OpenAL (router and
 # its wrap_oal.dll) in DATA, not found there.
 files:
@@ -47,7 +51,7 @@ controls:
   down: Volume down, test menu down
   left: none
   right: none
-  b1: Trigger
+  b1: Trigger (and start)
   b2: Special
   b3: Flamethrower
   b4: Test menu select

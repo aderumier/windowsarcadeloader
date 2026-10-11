@@ -1,7 +1,8 @@
 //! Virtual stick button -> native system input mapping.
 //!
 //! Each system declares its native inputs and a default mapping; a game profile
-//! can override it through `WAL_MAP`, e.g. `b5=btn6,b6=none`.
+//! can override it through `WAL_MAP`, e.g. `b5=btn6,b6=none`; `b1=trigger+start` presses
+//! several native inputs.
 
 use crate::log;
 use wal_protocol::{StickState, button};
@@ -35,12 +36,14 @@ impl<N: Copy> ButtonMap<N> {
             return;
         };
         self.entries.retain(|(m, _)| *m != mask);
-        if native.eq_ignore_ascii_case("none") {
-            return;
-        }
-        match natives.iter().find(|(name, _)| name.eq_ignore_ascii_case(native)) {
-            Some((_, n)) => self.entries.push((mask, *n)),
-            None => log!("mapping: unknown native input '{native}'"),
+        for native in native.split('+').map(str::trim) {
+            if native.eq_ignore_ascii_case("none") {
+                continue;
+            }
+            match natives.iter().find(|(name, _)| name.eq_ignore_ascii_case(native)) {
+                Some((_, n)) => self.entries.push((mask, *n)),
+                None => log!("mapping: unknown native input '{native}'"),
+            }
         }
     }
 

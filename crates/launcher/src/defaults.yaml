@@ -94,7 +94,8 @@ env:
   # too fast where vsync is not given (high refresh rate screens, VRR, windowed games on
   # some drivers). "0": no limit.
   WAL_D3D9_MAX_FPS: "60"
-# Virtual stick -> native inputs of the system, for the payload (none = unmapped).
+# Virtual stick -> native inputs of the system, for the payload (none = unmapped, a+b presses
+# both: b1: trigger+start).
 native_map: {}
 # The game's controls, by virtual stick input, as the GUI lists them for mapping: the
 # cabinet's names (b1: Light Punch, accel: Gas, lx: Wheel...). none hides one; so does a
