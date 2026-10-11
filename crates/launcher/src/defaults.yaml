@@ -85,7 +85,11 @@ files: {}
 # calibration the game then keeps updating): <path from the dump root>: <source>.
 initial_files: {}
 # Extra environment variables of the game process (system options, wine settings).
-env: {}
+env:
+  # Direct3D 9/8 presents held to 60 per second: arcade games are timed by frames and ran
+  # too fast where vsync is not given (high refresh rate screens, VRR, windowed games on
+  # some drivers). "0": no limit.
+  WAL_D3D9_MAX_FPS: "60"
 # Virtual stick -> native inputs of the system, for the payload (none = unmapped).
 native_map: {}
 # The game's controls, by virtual stick input, as the GUI lists them for mapping: the

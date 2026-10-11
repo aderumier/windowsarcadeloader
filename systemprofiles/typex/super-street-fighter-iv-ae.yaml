@@ -13,10 +13,6 @@ env:
   WAL_D3D9_ASPECT: "16:9"
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
-  # Timed by frames: windowed, it relies on the window's vsync, which some setups do not
-  # give (high refresh rate screens, VRR, some drivers): up to ~800 fps, the game far too
-  # fast. Presents held to 60 per second.
-  WAL_D3D9_MAX_FPS: "60"
 
 # Control names (the GUI's mapping rows).
 controls:

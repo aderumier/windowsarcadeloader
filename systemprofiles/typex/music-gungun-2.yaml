@@ -47,7 +47,6 @@ env:
   WAL_D3D9_WINDOWED_SIZE: 1920x1080
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
-  WAL_D3D9_MAX_FPS: "60"
 
 # Control names (the GUI's mapping rows).
 controls:

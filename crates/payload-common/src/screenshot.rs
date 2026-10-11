@@ -22,9 +22,10 @@
 //!   The adapter's display modes also list that size (60 Hz) when the monitor has none: games
 //!   checking for their mode before creating the device run on any screen (Music GunGun! 2:
 //!   1920x1080, "Direct3D device enumeration failed" on a 1280x720 screen).
-//! * `WAL_D3D9_MAX_FPS=<n>`: `Present` waits so that frames come at most `n` per second. Games
-//!   timed by frames, made windowed: Elevator Action asks for vsync (interval one), which the
-//!   window does not get under Xwayland: ~400 frames per second, the game 6 times too fast.
+//! * `WAL_D3D9_MAX_FPS=<n>`: `Present` waits so that frames come at most `n` per second (d3d9
+//!   and d3d8; 60 by default in the launcher's defaults, 0: no limit). Games timed by frames
+//!   rely on vsync, which a window does not always get: Elevator Action under Xwayland ran at
+//!   ~400 frames per second, Street Fighter IV at up to 800 on a setup without vsync.
 //! * `WAL_D3D9_ASPECT=<w>:<h>`: windowed devices present to the largest centered rectangle of
 //!   that aspect ratio in the window, black bars around. For games stretching a 4:3 picture over
 //!   a wide back buffer (Elevator Action: 1280x768), with `WAL_D3D9_WINDOWED_SIZE` and a
@@ -1031,6 +1032,8 @@ mod d3d8 {
     }
 
     unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
+        super::pace_present();
+        super::count_present();
         if let Some(path) = screenshot_due() {
             if let Err(e) = unsafe { capture(dev, &path) } {
                 log!("screenshot: {path}: {e}");

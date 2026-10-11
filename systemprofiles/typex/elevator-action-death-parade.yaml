@@ -52,7 +52,6 @@ env:
   WAL_D3D9_ASPECT: "9:16"
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
-  WAL_D3D9_MAX_FPS: "60"
 
 controls:
   left: none
