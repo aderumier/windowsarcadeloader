@@ -49,6 +49,7 @@ mod cmd {
     pub const GAME_FREE_END_REQUEST: u32 = 0x2A;
     pub const INCOME_FREE_START_REQUEST: u32 = 0x2B;
 
+    pub const NW_ERROR_NOTICE: u32 = 0x101;
     pub const NWRECOVER_NOTICE: u32 = 0x103;
     pub const CERT_INIT_NOTICE: u32 = 0x107;
     pub const CLIENT_START_REPLY: u32 = 0x10D;
@@ -197,6 +198,12 @@ fn http_access(pipe: &Pipe, data: &[u8]) {
         let n = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let _ = std::fs::write(format!("{}\\http-{n:02}.bin", crate::drive::data_dir()), data);
     }
+    // `WAL_NESYS_OBJECT_REPLY=none`: object storage requests unanswered (the request then
+    // times out in the game)
+    if header.contains("multipart/form-data") && std::env::var("WAL_NESYS_OBJECT_REPLY").is_ok_and(|v| v == "none") {
+        log!("nesys: http object storage request left unanswered");
+        return;
+    }
     send(pipe, HTTPACCESS_START, &Out::default().u32(1).0);
     // card service protocol (`card_id=...&command=...&data=<xml>&type=...` form posts):
     // result `1` (OK) and a newline (the game skips these 2 bytes), then the XML data. Million
@@ -284,6 +291,13 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
         CONNECT_REQUEST => {
             send(pipe, CONNECT_REPLY, &[]);
             thread::sleep(Duration::from_millis(30));
+            // `WAL_NESICA_NESYS_OFFLINE=1`: the service runs but the network is down (NW_ERROR,
+            // code of a real service capture): the game plays offline (no online downloads),
+            // instead of waiting for the service as with no service at all
+            if std::env::var("WAL_NESICA_NESYS_OFFLINE").is_ok_and(|v| v == "1") {
+                send(pipe, NW_ERROR_NOTICE, &Out::default().u32(0x2000_0011).0);
+                return;
+            }
             // the network is up
             send(pipe, NWRECOVER_NOTICE, &[]);
             thread::sleep(Duration::from_millis(30));

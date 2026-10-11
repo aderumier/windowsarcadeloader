@@ -92,10 +92,15 @@ fn with_settings<R>(f: impl FnOnce(&mut BTreeMap<String, i32>) -> R) -> R {
     f(map)
 }
 
-fn get(name: String, default: i32) -> i32 {
+/// `NxL2Get*Setting(name, int *found)`: the value (0 when unknown) and, when `found` is not
+/// NULL, 1 / 0 in it (the second argument is not a default: the game passes a pointer or NULL).
+unsafe fn get(name: String, found: *mut i32) -> i32 {
     let v = with_settings(|m| m.get(&name).copied());
-    log!("nxl2: setting {name} = {v:?} (default {default})");
-    v.unwrap_or(default)
+    log!("nxl2: setting {name} = {v:?}");
+    if !found.is_null() {
+        unsafe { *found = v.is_some() as i32 };
+    }
+    v.unwrap_or(0)
 }
 
 fn set(name: String, value: i32) {
@@ -282,27 +287,27 @@ pub extern "C" fn NxL2GetAutoEndRemainderTime() -> i32 {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn NxL2GetGameSettingW(name: *const u16, default: i32) -> i32 {
+pub unsafe extern "C" fn NxL2GetGameSettingW(name: *const u16, found: *mut i32) -> i32 {
     first_call("NxL2GetGameSettingW");
-    get(unsafe { wide(name) }, default)
+    unsafe { get(wide(name), found) }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn NxL2GetGameSettingA(name: *const c_char, default: i32) -> i32 {
+pub unsafe extern "C" fn NxL2GetGameSettingA(name: *const c_char, found: *mut i32) -> i32 {
     first_call("NxL2GetGameSettingA");
-    get(unsafe { narrow(name) }, default)
+    unsafe { get(narrow(name), found) }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn NxL2GetSystemSettingW(name: *const u16, default: i32) -> i32 {
+pub unsafe extern "C" fn NxL2GetSystemSettingW(name: *const u16, found: *mut i32) -> i32 {
     first_call("NxL2GetSystemSettingW");
-    get(unsafe { wide(name) }, default)
+    unsafe { get(wide(name), found) }
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn NxL2GetSystemSettingA(name: *const c_char, default: i32) -> i32 {
+pub unsafe extern "C" fn NxL2GetSystemSettingA(name: *const c_char, found: *mut i32) -> i32 {
     first_call("NxL2GetSystemSettingA");
-    get(unsafe { narrow(name) }, default)
+    unsafe { get(narrow(name), found) }
 }
 
 #[unsafe(no_mangle)]

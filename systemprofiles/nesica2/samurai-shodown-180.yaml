@@ -9,10 +9,13 @@ name: Samurai Shodown (1.80.00)
 payload_install: [Onion/Plugins/NxL2CorePlugin/NxL2Core.dll]
 
 env:
-  # The certificate's server list: `ms`, `ss` as the other NESiCAxLive 2 games, and `s3`
-  # (NxL2NESYSLib.dll: NULL dereference without it).
+  # Offline NESYS: the service answers but reports the network down (NW_ERROR), as other
+  # loaders run it. Online, the game reads its card object storage (character data, type 442)
+  # before every fight and waits forever on "loading..." for a reply format we do not know.
+  WAL_NESICA_NESYS_OFFLINE: "1"
+  # Online only: the certificate's server list (`ms`, `ss`, and `s3`: NxL2NESYSLib.dll crashed
+  # without it).
   WAL_NESICA_NESYS_HOST: card_id=7020392010281502,ms=127.0.0.1,ss=127.0.0.1,s3=127.0.0.1
-
 # Control names (the GUI's mapping rows).
 controls:
   b1: A

@@ -679,11 +679,14 @@ name, cdecl; `iDmacDrv32.def`) and the `nesica2` system installs it as `NxL2Core
   cabinet: the API has a single player; versus is a link between cabinets): service 0x1, start
   0x2, test 0x4, up/down/left/right 0x8-0x40, buttons 1-6 0x80-0x1000. `native_map` applies.
 * Coins: the FastIO coin counter, `NxL2DecreaseCoinCount` consumes it; coin and I/O status 0 (OK).
-* Settings by name (`NxL2Get/SetGameSetting*`, `NxL2GetSystemSetting*`, `default` argument
-  returned for unknown names): built-in defaults (volumes 100, 1 coin 1 credit...), the profile's
-  `WAL_NXL2_SETTINGS=Name=value,...`, then `nxl2-settings.txt` of the D: data folder (written by
-  `NxL2UpdateGameSetting`, test menu changes). Million Arthur passes 0 as default: its volumes
-  were 0 without settings.
+* Settings by name (`NxL2Get/SetGameSetting*`, `NxL2GetSystemSetting*`): `int Get(name, int
+  *found)` returns the value (0 when unknown) and writes 1 / 0 to `found` when not NULL (seen in
+  the original DLL). It used to be read as a `default` argument: the games pass a pointer (or
+  NULL), returned as the value of every unknown setting (Samurai Shodown's
+  `IsOnlineMatchEnabled`, `CPUTime`, `WinLimit`... got a pointer value). Values: built-in
+  defaults (volumes 100, 1 coin 1 credit...), the profile's `WAL_NXL2_SETTINGS=Name=value,...`,
+  then `nxl2-settings.txt` of the D: data folder (written by `NxL2UpdateGameSetting`, test menu
+  changes).
 * `NxL2GetAutoEndRemainderTime` -1 (0 made the game quit at boot), `NxL2CheckStoreOpenTime` -1
   (no closing announcement), `NxL2GetGameID` the registry `GameKind`.
 * Card: `NxL2IsRFIDRead` is true while the `card` virtual input's card is inserted,
@@ -704,6 +707,13 @@ name, cdecl; `iDmacDrv32.def`) and the `nesica2` system installs it as `NxL2Core
   `/root/match_conf` (its `record` children), a `_com_error` E_POINTER abort ("Runtime Error!")
   when missing. The reply is `1\n` + `<root><match_conf></match_conf></root>` (no online
   match). `WAL_NESYS_HTTP_DUMP=1` writes each request to `http-<seq>.bin` in the data folder.
+* `WAL_NESICA_NESYS_OFFLINE=1`: the service answers the start and connect requests, then sends
+  `NW_ERROR` (0x101, code 0x20000011 of a real capture) instead of the network notice and the
+  certificate: the game plays offline. Without any service (`WAL_NESICA_NESYS=0`) Samurai
+  Shodown waits forever on "initializing network". Samurai Shodown runs this way (as other
+  loaders do): online, it reads its card object storage before each fight (below) and waits.
+* `<module>!<rva>:<hex>` entries of `WAL_PATCHES` patch a DLL loaded after the payload (an
+  Unreal plugin's library), applied as soon as it is loaded.
 * The second u32 after the reply header is what the games' NESYS libraries read as the
   request's error code (Samurai Shodown's `NxL2NESYSLib.dll`: -1 = failed, 0 = parse the body;
   nothing compares an HTTP status with 200). Samurai Shodown's card object storage (multipart
@@ -1206,8 +1216,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), its HTTP card-service reads answered (`/root/match_conf`), native d3dx9_42 |
 | `kof-xiv` | The King of Fighters XIV | nesica2 | works (user: 100%), NESiCA network connected | 64-bit NxL2Core.dll replacement (`wal_nesica64.dll`), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), `Resolution=1` (1080p: 1920x1080 window; 0 = 1280x720) |
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | as KOF XIV (64-bit NxL2Core.dll replacement, NESYS `ms`/`ss`, `Resolution=1`), dump's 32-bit dinput8 hidden; runner fix `winedmo-seek-flush` (hung after START: movie seek deadlock) |
-| `samurai-shodown-130` | Samurai Shodown (1.30.00) | nesica2 | BLOCKED: boots, NESYS online, coins and START; stays on "loading..." before the first fight (story and arcade): its card object storage read (type 442) has no known reply | Unreal Engine 4: `Onion-Win64-Shipping.exe` started directly, payload as the plugin's `NxL2Core.dll` (`payload_install`), NESYS `ms`/`ss`/`s3` keys (its `NxL2NESYSLib.dll` crashed without `s3`) |
-| `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | BLOCKED: as 1.30.00 (same NESYS library) | as 1.30.00 |
+| `samurai-shodown-130` | Samurai Shodown (1.30.00) | nesica2 | in game (as 1.80.00, same setup; user tested 1.80.00) | Unreal Engine 4: `Onion-Win64-Shipping.exe` started directly, payload as the plugin's `NxL2Core.dll` (`payload_install`), NESYS offline (`WAL_NESICA_NESYS_OFFLINE`: online it waits for its card object storage before each fight) |
+| `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | in game (user: fights start), NESYS offline | as 1.30.00 |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
