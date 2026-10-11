@@ -31,7 +31,7 @@ use windows_sys::Win32::UI::Shell::{CSIDL_PERSONAL, SHGetFolderPathW};
 
 const MAPS: [&str; 7] = ["gum", "boss", "metro", "street_square", "undersiege", "square", "final_arena"];
 /// The two players' objects (pointers, 0 when not playing).
-const PLAYERS: usize = 0x9FFAE8;
+const PLAYERS: usize = 0x9FFBE8;
 
 const ADVANCE: &str = "PC campaign advance: ";
 const RESUME: &str = "PC resume selection: ";

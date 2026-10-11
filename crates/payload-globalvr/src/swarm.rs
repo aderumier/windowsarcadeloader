@@ -16,7 +16,7 @@
 //! | 72 | start requests, bit per player (the game clears them) |
 //! | 80 | game: 1 once its window is fullscreen |
 //! | 84 | game: 1 in the front end (title, stage selection) |
-//! | 128 | command text: console commands separated by `\n`, NUL terminated, < 350 bytes |
+//! | 128 | command text: console commands separated by `\n`, NUL terminated, < 128 bytes |
 //!
 //! In game the buttons go as console commands on their changes (`+char_attack P`,
 //! `-char_attack P`, `char_throw P`, `+char_block P 2 2`, `-char_block P 2 2`); in the front
@@ -24,7 +24,8 @@
 //! A fire held when the front end ends is ignored until released (the stage selection shot
 //! would otherwise fire in game).
 //!
-//! Stage changes (a run of the game per stage): `swarm_campaign.rs`.
+//! Stage changes (a run of the game per stage): `swarm_campaign.rs`. Imports the dump left
+//! unresolved (a Lua error crashed the game): `swarm_imports.rs`.
 //!
 //! `WAL_GLOBALVR_SWARM_TRACE=1` logs the commands sent, the aim and buttons once a second, and a
 //! command text the game has not read after 2 s.
@@ -42,7 +43,9 @@ use windows_sys::Win32::System::SystemInformation::GetTickCount;
 const NAME: &str = "Local\\SwarmPcInputV1";
 const SIZE: usize = 512;
 const MAGIC: i32 = 1398231107;
-const TEXT_MAX: usize = 350;
+/// The adapter's limit is 350, but in the front end the game cuts the text at 127 bytes (a NUL
+/// at 255): a cut command is a Lua syntax error.
+const TEXT_MAX: usize = 128;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Native {
@@ -95,6 +98,7 @@ pub(crate) fn init() {
     }
     log!("swarm: input adapter on {NAME}");
     crate::swarm_campaign::init();
+    crate::swarm_imports::init();
     std::thread::spawn(move || Adapter::default().run(shm));
 }
 

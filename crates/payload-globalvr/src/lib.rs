@@ -12,7 +12,8 @@
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
 //! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
-//!   stage changes (`swarm_campaign.rs`: the game started again with the next map).
+//!   stage changes (`swarm_campaign.rs`: the game started again with the next map) and the
+//!   imports its dump left unresolved (`swarm_imports.rs`).
 //! * `gamelog.rs`: the game's own messages in the payload log (`WAL_GLOBALVR_GAMELOG=1`).
 //! * Profile code patches (`WAL_PATCHES`).
 
@@ -25,6 +26,7 @@ mod hasp;
 mod keyboard;
 mod swarm;
 mod swarm_campaign;
+mod swarm_imports;
 mod usbio;
 
 use std::ffi::c_void;
