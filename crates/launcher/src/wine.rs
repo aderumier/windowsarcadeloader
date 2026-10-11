@@ -31,25 +31,9 @@ const D3D_DLLS: [&str; 5] = ["d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"];
 /// (native DirectPlay: kept away from the games that never needed it).
 const ISOLATED_TRICKS: [&str; 2] = ["dsound", "directplay"];
 
-/// Registry settings applied right after a winetricks verb (`reg add` arguments): ffdshow's
-/// DirectShow video and audio decoders (high merit: MPEG-4, H.264, MP3, AC3...) would serve
-/// every game of the shared prefix instead of wine's own; whitelisted to the games needing
-/// them, without the compatibility manager (`isCompMgr`: a dialog asking the other games
-/// whether to use ffdshow, blocking them 5 s: The Swarm's intro). Its VfW codec
-/// (ffdshow_vfw, AVIs through avifil32) is not restricted.
-const TRICK_SETTINGS: &[(&str, &[&[&str]])] = &[(
-    "ffdshow",
-    &[
-        &["HKCU\\Software\\GNU\\ffdshow", "/v", "isWhitelist", "/t", "REG_DWORD", "/d", "1", "/f"],
-        &["HKCU\\Software\\GNU\\ffdshow", "/v", "whitelist", "/t", "REG_SZ", "/d", "aliens.exe", "/f"],
-        &["HKCU\\Software\\GNU\\ffdshow", "/v", "isBlacklist", "/t", "REG_DWORD", "/d", "0", "/f"],
-        &["HKCU\\Software\\GNU\\ffdshow", "/v", "isCompMgr", "/t", "REG_DWORD", "/d", "0", "/f"],
-        &["HKCU\\Software\\GNU\\ffdshow_audio", "/v", "isWhitelist", "/t", "REG_DWORD", "/d", "1", "/f"],
-        &["HKCU\\Software\\GNU\\ffdshow_audio", "/v", "whitelist", "/t", "REG_SZ", "/d", "aliens.exe", "/f"],
-        &["HKCU\\Software\\GNU\\ffdshow_audio", "/v", "isBlacklist", "/t", "REG_DWORD", "/d", "0", "/f"],
-        &["HKCU\\Software\\GNU\\ffdshow_audio", "/v", "isCompMgr", "/t", "REG_DWORD", "/d", "0", "/f"],
-    ],
-)];
+/// Registry settings applied right after a winetricks verb (`reg add` arguments), for verbs
+/// whose defaults would affect the other games of the shared prefix.
+const TRICK_SETTINGS: &[(&str, &[&[&str]])] = &[];
 
 /// DLLs a winetricks verb sets to native (its `w_override_dlls`).
 fn trick_dlls(verb: &str) -> Vec<String> {

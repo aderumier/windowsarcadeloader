@@ -285,11 +285,11 @@ prefix is created from scratch. The archive is versioned: `prefix-archive.sh` wr
 start, the old prefix's `drive_c/users` (the games' saves) and `drive_c/wal` (run directories)
 moved into it: a new archive reaches a machine that has a prefix already (Batocera), without
 winetricks downloads there.
-ffdshow (Aliens Extermination's DivX movies through VfW) also registers DirectShow video and
-audio decoders of high merit (MPEG-4, H.264, MP3, AC3...): right after its install the launcher
-whitelists them to `aliens.exe` and turns off its compatibility manager (a dialog asking every
-other game whether to use ffdshow, blocking it 5 s: The Swarm's intro froze), `TRICK_SETTINGS`
-in `wine.rs`. Its VfW codec is not restricted.
+Verbs whose defaults would affect the other games of the shared prefix get registry settings
+right after their install (`TRICK_SETTINGS` in `wine.rs`, none at the moment: ffdshow, tried for
+Aliens Extermination's DivX movies, registers DirectShow decoders of high merit for every
+game and asked each one whether to use it; the game's movie error boxes are patched out
+instead).
 The verbs' native DLLs (DirectMusic, xact, d3dx9, d3dcompiler...) serve every game, as the
 old common prefix did: many games rely on one they do not list (Chaos Code's d3dx9_37). Native
 dsound is the exception, native only for the games listing it (wine's builtin for the others,
@@ -988,7 +988,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | Game id | Game | System | Result | Needed |
 |---|---|---|---|---|
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
-| `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns, movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); `tricks: [ffdshow]` (DivX 5 movies through VfW) |
+| `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns, movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), not tested to the end of a stage yet; new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`) |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | hide dinput8 (loader hack) |

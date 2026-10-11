@@ -6,12 +6,12 @@
 system: globalvr
 name: Aliens Extermination
 
-# The movies are DivX 5 AVIs played through Video for Windows: ffdshow's VfW decoder (without
-# it, "failed to open the avi frame" boxes at boot).
-tricks: [ffdshow]
-
 env:
   WAL_GLOBALVR_ALIENS: "1"
+  # The movies are DivX 5 AVIs (Video for Windows), not decoded here: the game then shows
+  # "Failed To Open The AVI Stream / Frame" message boxes and goes on without the movie. Their
+  # MessageBoxA calls -> add esp,0x10 (its 4 arguments): no boxes, no codec to install.
+  WAL_PATCHES: "0x4813B:83C410909090,0x4821D:83C410909090"
 
 input:
   # lightguns first, then mice
