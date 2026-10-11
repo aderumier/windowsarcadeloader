@@ -82,7 +82,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | not in the test |  |
 | `samurai-shodown-130` | Samurai Shodown (1.30.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | not in the test |  |
 | `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | not in the test |  |
-| `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card progress not kept yet | not in the test |  |
+| `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected, card saved (player name option) | not in the test |  |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-10 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |

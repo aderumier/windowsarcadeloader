@@ -304,6 +304,51 @@ fn session_xml(param: &[u8]) -> String {
     )
 }
 
+/// Card server XML data types (Fighting EX Layer): a write is its read + 512, its `<data>`
+/// fields are those of the read's answer, `/root/<element>`.
+const CARD_XML_READS: [(u32, &str); 2] = [(259, "card"), (264, "card_bdata")];
+
+/// A card server XML write (`<root><info>...</info><data>fields</data></root>`, the card id in
+/// `<info>`): the read type it answers and that answer, `<root><element>fields</element></root>`
+/// with the card id.
+fn xml_card_write(card: &[u8], data_type: u32) -> Option<(u32, String)> {
+    let (read_type, element) = CARD_XML_READS.iter().find(|(t, _)| *t + 512 == data_type)?;
+    let text = String::from_utf8_lossy(card);
+    let inner = |name: &str| {
+        let (open, close) = (format!("<{name}>"), format!("</{name}>"));
+        let start = text.find(&open)? + open.len();
+        Some(text[start..start + text[start..].find(&close)?].to_string())
+    };
+    let card_id = inner("card_id").unwrap_or_default();
+    let fields = inner("data")?.replace("<card_id/>", "");
+    let fields = match fields.contains("<card_id>") {
+        true => fields,
+        false => format!("\r\n\t\t<card_id>{card_id}</card_id>{fields}"),
+    };
+    Some((
+        *read_type,
+        format!("<?xml version='1.0' encoding='UTF-8'?>\r\n<root>\r\n\t<{element}>{fields}</{element}>\r\n</root>\r\n"),
+    ))
+}
+
+/// `WAL_NESICA_PLAYER_NAME`: the player name of a saved card's answer (`<player_name>`; the
+/// game registers a new card as NO-NAME and has no name entry: the card server's web site set it).
+fn with_player_name(card: Vec<u8>) -> Vec<u8> {
+    let Some(name) = std::env::var("WAL_NESICA_PLAYER_NAME").ok().filter(|n| !n.is_empty()) else {
+        return card;
+    };
+    let text = String::from_utf8_lossy(&card);
+    let (open, close) = ("<player_name>", "</player_name>");
+    let Some(start) = text.find(open).map(|i| i + open.len()) else {
+        return card;
+    };
+    let Some(end) = text[start..].find(close).map(|e| start + e) else {
+        return card;
+    };
+    let name = name.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    format!("{}{name}{}", &text[..start], &text[end..]).into_bytes()
+}
+
 fn card_status(times: u32, data: &[u8]) -> Vec<u8> {
     Out::default().u32(1).u32(times).u32(times).u32(data.len() as u32).bytes(data).0
 }
@@ -375,6 +420,9 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             if card.is_empty() && u32_at(data, 16) == CARD_GET_SESSION {
                 card = session_xml(&data[24.min(data.len())..]).into_bytes();
             }
+            if u32_at(data, 16) == CARD_XML_READS[0].0 && !card.is_empty() {
+                card = with_player_name(card);
+            }
             card.truncate(16383);
             card.push(0);
             if card.len() == 1 {
@@ -388,7 +436,15 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             let size = (u32_at(data, 28) as usize).min(data.len().saturating_sub(32));
             let card = &data[32.min(data.len())..32 + size];
             let file = card_file(data, u32_at(data, 24));
-            if let Err(e) = std::fs::write(&file, card) {
+            if std::env::var("WAL_NESYS_HTTP_DUMP").is_ok_and(|v| v == "1") {
+                log!("nesys: card update type {} data {:?}", u32_at(data, 24), String::from_utf8_lossy(card));
+            }
+            // card server XML writes: saved as the answer of their read
+            let (file, saved) = match xml_card_write(card, u32_at(data, 24)) {
+                Some((read_type, answer)) => (card_file(data, read_type), answer.into_bytes()),
+                None => (file, card.to_vec()),
+            };
+            if let Err(e) = std::fs::write(&file, &saved) {
                 log!("nesys: cannot save {file}: {e}");
             }
             send(pipe, CARD_UPDATE_REPLY, &card_status(100, card));

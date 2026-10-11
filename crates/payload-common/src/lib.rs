@@ -39,6 +39,8 @@ pub mod sdl;
 #[cfg(windows)]
 pub mod vfw;
 #[cfg(windows)]
+pub mod wcase;
+#[cfg(windows)]
 pub mod window;
 #[cfg(windows)]
 pub mod workarea;
@@ -90,6 +92,7 @@ pub fn start(name: &'static str) {
             sdl::init();
             codepage::init();
             dinput::init();
+            wcase::init();
         }
         std::thread::spawn(move || connection_loop(name, port));
     });

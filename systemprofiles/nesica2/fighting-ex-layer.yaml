@@ -12,6 +12,9 @@ env:
   # The card is inserted when the game asks for it after START (no card input on a gamepad;
   # without a card the game waits on its card screen until its countdown ends).
   WAL_NESICA_CARD_AUTO: "1"
+  # The game's case-insensitive string compares fold ASCII themselves: Wine's towlower made the
+  # game stop ~5 s twice after a fight ("not responding").
+  WAL_FAST_WCASE: "1"
 
 # Control names (the GUI's mapping rows).
 controls:

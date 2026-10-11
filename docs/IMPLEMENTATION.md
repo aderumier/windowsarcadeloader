@@ -531,6 +531,10 @@ profile), `show` (merged profile).
 * `codepage`: `WAL_ANSI_CODEPAGE=<cp>` makes the game's own `MultiByteToWideChar` /
   `WideCharToMultiByte` calls on CP_ACP use `<cp>` (932): Raiden IV converts its Shift-JIS
   movie name ("raiden4_ｃ50.m1v") itself.
+* `wcase`: `WAL_FAST_WCASE=1` makes the game's own `_wcsicmp`, `_wcsnicmp`, `towlower`,
+  `towupper` (C runtime imports) fold ASCII themselves (others: the original functions). Wine's
+  `towlower` maps each character with `LCMapStringW`: Fighting EX Layer stopped ~5 s twice after
+  each match (GNOME "not responding").
 * `dinput`: `WAL_DINPUT_DISABLE=1` gives the game a fake DirectInput (`DirectInputCreateA/W/Ex`,
   `DirectInput8Create` IAT hooks): no devices enumerated, created devices succeed with zeroed
   states and no buffered data. Games that still read the keyboard/joysticks next to their I/O
@@ -701,7 +705,16 @@ name, cdecl; `iDmacDrv32.def`) and the `nesica2` system installs it as `NxL2Core
   fcol1-3; empty = a new card, NO-NAME), 264 binary data (`/root/card_bdata`), 401 session
   (`/root/session`: card_id, mac_addr, session_id, expires, player_id, answered by the payload;
   empty = "このNESiCAはご利用いただけません", card refused). `WAL_NESYS_HTTP_DUMP=1` also logs
-  the card select parameters.
+  the card select parameters and card updates.
+* Card progress (Fighting EX Layer): the game writes type 771 (`<data>` player_name, score_i1,
+  achieve_status, fcol1-3) and 776 (`<data>` bdata: base64 of an encrypted blob, "ZACY" + size,
+  fixed key: 77 bytes differ between two saves; bdata_size) after each match. A write is its
+  read + 512: its `<data>` is saved as the read's answer (`/root/card`, `/root/card_bdata`, the
+  card id added) in `card_<id>_<read type>.bin`. The card screen's wins/losses/rank count
+  versus matches between cabinets (not changed by CPU matches).
+* `WAL_NESICA_PLAYER_NAME`: the `<player_name>` of a saved card's answer (a new card is
+  registered as NO-NAME; there is no name entry, the card server's web site set it). The game
+  then writes the card back with that name.
 * Every function logs its first call (`nxl2: <name> called`).
 * 64-bit games (The King of Fighters XIV: Direct3D 11, XAudio2.8) get the payload's x86_64
   build, `wal_nesica64.dll` (`System::payloads64`, chosen when the executable is PE32+; same
@@ -1229,7 +1242,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | as KOF XIV (64-bit NxL2Core.dll replacement, NESYS `ms`/`ss`, `Resolution=1`), dump's 32-bit dinput8 hidden; runner fix `winedmo-seek-flush` (hung after START: movie seek deadlock) |
 | `samurai-shodown-130` | Samurai Shodown (1.30.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | Unreal Engine 4: `Onion-Win64-Shipping.exe` started directly, payload as the plugin's `NxL2Core.dll` (`payload_install`), NESYS offline (`WAL_NESICA_NESYS_OFFLINE`: online it waits for its card object storage before each fight) |
 | `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | as 1.30.00 |
-| `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card progress not kept yet (a new NO-NAME card each time) | Unreal Engine 4: `EXF-Win64-Shipping.exe` started directly, its `NxL2Core.dll` replaced by the 64-bit payload; NESYS `ms`/`ss`, card reissue replies and session (§6.2b), card inserted automatically (`WAL_NESICA_CARD_AUTO`) |
+| `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card saved (user: name shown, no freeze after a match) | Unreal Engine 4: `EXF-Win64-Shipping.exe` started directly, its `NxL2Core.dll` replaced by the 64-bit payload; NESYS `ms`/`ss`, card reissue replies and session (§6.2b), card inserted automatically (`WAL_NESICA_CARD_AUTO`), card writes saved as their reads, ASCII case folding (`WAL_FAST_WCASE`: Wine's towlower stalled the game ~5 s twice after a match) |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
