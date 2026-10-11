@@ -78,20 +78,33 @@ impl Encoder {
     }
 }
 
-/// A received request: node and the command bytes (without size and checksum).
-pub struct Request<'a> {
+/// A received request: node and the command bytes (unescaped, without size and checksum).
+pub struct Request {
     pub node: u8,
-    pub commands: &'a [u8],
+    pub commands: Vec<u8>,
 }
 
-/// Splits a raw request. Requests are not unescaped (boards never receive E0/D0 in practice).
-pub fn parse(packet: &[u8]) -> Option<Request<'_>> {
+/// Splits a raw request, unescaped: `D0 xx` is `xx + 1` (Gaia Attack 4 sends lamp outputs
+/// holding E0).
+pub fn parse(packet: &[u8]) -> Option<Request> {
     if packet.len() < 4 {
         return None;
     }
-    let size = packet[2] as usize;
-    let end = (3 + size.saturating_sub(1)).min(packet.len());
-    Some(Request { node: packet[1], commands: &packet[3..end] })
+    let mut raw = Vec::with_capacity(packet.len());
+    let mut escaped = false;
+    for &b in &packet[1..] {
+        if b == MARK && !escaped {
+            escaped = true;
+        } else {
+            raw.push(b.wrapping_add(escaped as u8));
+            escaped = false;
+        }
+    }
+    if raw.len() < 2 {
+        return None;
+    }
+    let end = (2 + (raw[1] as usize).saturating_sub(1)).min(raw.len());
+    Some(Request { node: raw[0], commands: raw[2..end].to_vec() })
 }
 
 #[cfg(test)]
@@ -130,5 +143,12 @@ mod tests {
         let r = parse(&[0xE0, 0xFF, 0x03, 0xF0, 0xD9, 0xCB]).unwrap();
         assert_eq!(r.node, 0xFF);
         assert_eq!(r.commands, &[0xF0, 0xD9]);
+    }
+
+    #[test]
+    fn parse_escaped_request() {
+        // 32 03 99 E0 00 (E0 sent as D0 DF), then 21 01
+        let r = parse(&[0xE0, 0x01, 0x08, 0x32, 0x03, 0x99, 0xD0, 0xDF, 0x00, 0x21, 0x01, 0x00]).unwrap();
+        assert_eq!(r.commands, &[0x32, 0x03, 0x99, 0xE0, 0x00, 0x21, 0x01]);
     }
 }

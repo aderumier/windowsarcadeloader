@@ -41,7 +41,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
     }
     let arg = |c: &[u8], i: usize| c.get(i).copied().unwrap_or(0);
     let mut r = Encoder::new();
-    let mut cmds = req.commands;
+    let mut cmds = &req.commands[..];
     while !cmds.is_empty() {
         let step = match cmds[0] {
             0xF0 => 2, // bus reset

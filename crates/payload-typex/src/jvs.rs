@@ -90,13 +90,22 @@ const DEFAULT_MAP: &[(&str, &str)] = &[
 
 struct Board {
     map: ButtonMap<Native>,
-    coins: [u16; 2],
-    coin_held: [bool; 2],
+    /// Coin counter of each slot; a player's coins go to their slot, or to the last one the
+    /// game reads (`21 nn`) when it reads fewer: one shared coin slot for the 4 guns of Gaia
+    /// Attack 4.
+    coins: [u16; 4],
+    coin_held: [bool; 4],
+    coin_slots: usize,
     /// `WAL_TYPEX_JVS_LAYOUT=haunted-museum`: the gun cabinets' switch wiring (Haunted Museum
     /// 1/2) for `20 01 03` (1 player, 3 bytes): P1 start on up 0x20, P2 start on down 0x10;
     /// third byte: service 0x08, P2/P1 action 0x40/0x80 active low (coins: the coin counter). With the generic reply the actions read as held and up/down as
     /// both starts.
     haunted_museum: bool,
+    /// `WAL_TYPEX_JVS_LAYOUT=gaia-attack-4`: the Haunted Museum wiring with 4 players (found
+    /// with scripted inputs): P1 / P2 start on up 0x20 / down 0x10, P3 / P4 start in the third
+    /// byte (0x80 / 0x40, Haunted Museum II's action bits), service 0x08 there. The plain start
+    /// bit (0x80) does nothing.
+    gaia_attack: bool,
     /// `WAL_TYPEX_JVS_LAYOUT=block-king`: Block King Ball Shooter's switches for `20 01 03`
     /// (found with its switch test): first byte service 0x40, left (P1) start 0x20, right (P2)
     /// start 0x10, cannon 0x08 (button 2); second byte SELECT 0x08 (button 4), ENTER 0x04
@@ -210,6 +219,7 @@ pub(crate) fn init() {
     let layout = std::env::var("WAL_TYPEX_JVS_LAYOUT").unwrap_or_default();
     let (haunted_museum, block_king) = (layout.trim() == "haunted-museum", layout.trim() == "block-king");
     let elevator_action = layout.trim() == "elevator-action";
+    let gaia_attack = layout.trim() == "gaia-attack-4";
     let battle_gear = match layout.trim() {
         "battle-gear" => Some(BattleGear::new(false)),
         "battle-gear-pro" => Some(BattleGear::new(true)),
@@ -226,9 +236,11 @@ pub(crate) fn init() {
     }
     *BOARD.lock().unwrap() = Some(Board {
         map: ButtonMap::new(NATIVES, DEFAULT_MAP),
-        coins: [0; 2],
-        coin_held: [false; 2],
+        coins: [0; 4],
+        coin_held: [false; 4],
+        coin_slots: 2,
         haunted_museum,
+        gaia_attack,
         block_king,
         elevator_action,
         analog_fixed,
@@ -290,7 +302,7 @@ fn player(map: &ButtonMap<Native>, stick: &StickState) -> (u8, u8, bool, bool, u
 
 fn process(packet: &[u8]) -> Vec<u8> {
     let Some(req) = parse(packet) else { return Vec::new() };
-    let cmds = req.commands;
+    let cmds = &req.commands[..];
     let mut guard = BOARD.lock().unwrap();
     let Some(board) = guard.as_mut() else { return Vec::new() };
     let pro = board.battle_gear.as_ref().is_some_and(|b| b.pro);
@@ -311,13 +323,14 @@ fn process(packet: &[u8]) -> Vec<u8> {
     }
 
     // input state (coins counted on release)
-    let sticks = [wal_payload_common::input(0), wal_payload_common::input(1)];
+    let sticks = [0, 1, 2, 3].map(wal_payload_common::input);
     let players: Vec<_> = sticks.iter().map(|s| player(&board.map, s)).collect();
-    for (slot, p) in players.iter().enumerate() {
-        if board.coin_held[slot] && !p.3 {
+    for (n, p) in players.iter().enumerate() {
+        if board.coin_held[n] && !p.3 {
+            let slot = n.min(board.coin_slots.max(1) - 1);
             board.coins[slot] = board.coins[slot].saturating_add(1);
         }
-        board.coin_held[slot] = p.3;
+        board.coin_held[n] = p.3;
     }
     let test = players.iter().any(|p| p.2);
 
@@ -390,6 +403,16 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 let bytes = [b0, p1.1 | p2.1, p1.4 | p2.4, 0];
                 (3, std::iter::once(if test { 0x80 } else { 0 }).chain((0..arg(2) as usize).map(|k| bytes.get(k).copied().unwrap_or(0))).collect())
             }
+            0x20 if board.gaia_attack && arg(1) == 1 => {
+                let start = |n: usize| players[n].0 & 0x80 != 0;
+                let b0 = if start(0) { 0x20 } else { 0 } | if start(1) { 0x10 } else { 0 };
+                let mut b2 = if start(2) { 0x80 } else { 0 } | if start(3) { 0x40 } else { 0 };
+                if players.iter().any(|p| p.0 & 0x40 != 0) {
+                    b2 |= 0x08;
+                }
+                let bytes = [b0, 0, b2];
+                (3, std::iter::once(if test { 0x80 } else { 0 }).chain((0..arg(2) as usize).map(|k| bytes.get(k).copied().unwrap_or(0))).collect())
+            }
             0x20 if board.haunted_museum && arg(1) == 1 => {
                 let (p1, p2) = (players[0], players[1]);
                 let mut b0 = 0;
@@ -433,6 +456,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
             }
             0x21 => {
                 let slots = arg(1) as usize;
+                board.coin_slots = slots;
                 let mut v = Vec::new();
                 for s in 0..slots {
                     let c = board.coins.get(s).copied().unwrap_or(0);

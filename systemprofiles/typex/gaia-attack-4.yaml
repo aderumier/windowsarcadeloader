@@ -38,6 +38,9 @@ env:
   WAL_ANSI_CODEPAGE: "932"
   # No patch of its per-frame gun update (+0x113E80, stubbed by loaders that write the gun
   # state itself): it is what copies the gun board record into the game.
+  # The cabinet's JVS switches (1 player block, 1 coin slot read): P1 / P2 start on up / down,
+  # P3 / P4 start in the third byte; every player's coins in the one slot.
+  WAL_TYPEX_JVS_LAYOUT: gaia-attack-4
   # Analog channel 0 is the cabinet's volume knob (as the Haunted Museum games; no sound at
   # 0 or with its volume write patched out): 75 %.
   WAL_TYPEX_JVS_ANALOG: C000
