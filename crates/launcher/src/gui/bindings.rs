@@ -17,6 +17,8 @@ pub enum Device {
     Wheel,
     /// Raw joysticks (`input.devices`): wheels not calibrated, pedals, shifters.
     Joystick,
+    /// Lightguns and mice aiming like guns (`input.gun`).
+    Gun,
 }
 
 impl Device {
@@ -25,6 +27,7 @@ impl Device {
             Device::Keyboard => mapping::parse_key_source(name),
             Device::Gamepad | Device::Wheel => mapping::parse_pad_source(name),
             Device::Joystick => mapping::parse_joy_source(name),
+            Device::Gun => mapping::parse_gun_source(name),
         }
     }
 }
@@ -107,6 +110,7 @@ fn full_axis(device: Device, src: &str) -> bool {
         Device::Keyboard => false,
         Device::Gamepad | Device::Wheel => ["leftx", "lefty", "rightx", "righty"].contains(&s.as_str()),
         Device::Joystick => s.starts_with("axis"),
+        Device::Gun => s == "x" || s == "y",
     }
 }
 
@@ -153,6 +157,10 @@ pub enum Captured {
     JoyHat(u8, u8),
     /// Axis index, value, value at rest (a pedal rests at one end).
     JoyAxis(u8, i32, i32),
+    /// Gun / mouse position: 0 = x, 1 = y.
+    GunAxis(u8),
+    /// A gun pointing off the screen.
+    GunOffscreen,
 }
 
 /// A raw axis resting at one end: a pedal.
@@ -177,6 +185,9 @@ pub fn binding(c: Captured, row: &Row) -> Option<(String, String)> {
             };
             (format!("hat{i}{dir}"), false)
         }
+        Captured::GunAxis(axis) if row.kind == RowKind::Analog => ((if axis == 0 { "x" } else { "y" }).to_string(), false),
+        Captured::GunAxis(_) => return None,
+        Captured::GunOffscreen => ("offscreen".to_string(), false),
         Captured::PadAxis(name @ ("l2" | "r2"), _) => (name.to_string(), false),
         Captured::PadAxis(name, v) => match row.kind {
             // moving toward the negative side: inverted
@@ -197,7 +208,12 @@ pub fn binding(c: Captured, row: &Row) -> Option<(String, String)> {
     // a whole axis only from a stick or wheel axis (a trigger is half of one)
     let digital = matches!(
         c,
-        Captured::Key(_) | Captured::PadButton(_) | Captured::JoyButton(_) | Captured::JoyHat(..) | Captured::PadAxis("l2" | "r2", _)
+        Captured::Key(_)
+            | Captured::PadButton(_)
+            | Captured::JoyButton(_)
+            | Captured::JoyHat(..)
+            | Captured::PadAxis("l2" | "r2", _)
+            | Captured::GunOffscreen
     );
     if digital && row.kind == RowKind::Analog {
         return None;
@@ -291,6 +307,7 @@ pub fn source_label(device: Device, src: &str) -> String {
         Device::Gamepad => pad_label(src),
         Device::Wheel => wheel_label(src),
         Device::Joystick => joy_label(src),
+        Device::Gun => gun_label(src),
     }
 }
 
@@ -414,6 +431,25 @@ fn wheel_label(src: &str) -> String {
     }
 }
 
+/// Gun and mouse inputs (buttons as batocera-wine-guns names them).
+fn gun_label(src: &str) -> String {
+    let up = src.to_ascii_uppercase();
+    match up.as_str() {
+        "X" => "Aim X".into(),
+        "Y" => "Aim Y".into(),
+        "OFFSCREEN" => "Pointing off screen".into(),
+        "BTN_LEFT" => "Trigger (left button)".into(),
+        "BTN_RIGHT" => "Right button".into(),
+        "BTN_MIDDLE" => "Middle button".into(),
+        "BTN_SIDE" => "Side button".into(),
+        "BTN_EXTRA" => "Extra button".into(),
+        _ => match up.strip_prefix("BTN_") {
+            Some(n) if n.chars().all(|c| c.is_ascii_digit()) => format!("Button {n}"),
+            _ => key_label(src),
+        },
+    }
+}
+
 fn joy_label(src: &str) -> String {
     let lower = src.to_ascii_lowercase();
     let (sign, base) = match lower.chars().next() {
@@ -462,6 +498,12 @@ mod tests {
         assert_eq!(b(Captured::JoyAxis(2, -20000, 32767), &row("accel", RowKind::Pedal)).unwrap(), "axis2:-accel");
         assert_eq!(b(Captured::JoyAxis(2, 20000, -32768), &row("brake", RowKind::Pedal)).unwrap(), "axis2:brake");
         assert_eq!(b(Captured::JoyHat(0, 8), &row("b2", RowKind::Button)).unwrap(), "hat0left:b2");
+        assert_eq!(b(Captured::GunAxis(1), &row("ly", RowKind::Analog)).unwrap(), "y:ly");
+        assert_eq!(b(Captured::Key(0x110), &row("b1", RowKind::Button)).unwrap(), "BTN_LEFT:b1");
+        assert_eq!(b(Captured::Key(0x101), &row("coin", RowKind::Button)).unwrap(), "BTN_1:coin");
+        assert_eq!(b(Captured::GunAxis(0), &row("lx", RowKind::Negative)), None);
+        assert_eq!(b(Captured::GunOffscreen, &row("b6", RowKind::Button)).unwrap(), "offscreen:b6");
+        assert_eq!(b(Captured::GunOffscreen, &row("lx", RowKind::Analog)), None);
     }
 
     #[test]
@@ -507,5 +549,9 @@ mod tests {
         assert_eq!(source_label(Device::Wheel, "r2"), "Gas pedal");
         assert_eq!(source_label(Device::Wheel, "r1"), "RB (R1)");
         assert_eq!(source_label(Device::Joystick, "hat0up"), "Hat 0 up");
+        assert_eq!(source_label(Device::Gun, "BTN_LEFT"), "Trigger (left button)");
+        assert_eq!(source_label(Device::Gun, "BTN_5"), "Button 5");
+        assert_eq!(source_label(Device::Gun, "x"), "Aim X");
+        assert_eq!(row_of(Device::Gun, "x", "lx"), Some(("lx".into(), RowKind::Analog, false)));
     }
 }

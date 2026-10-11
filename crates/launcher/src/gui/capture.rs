@@ -1,5 +1,6 @@
-//! Physical inputs of the GUI: SDL3 gamepads/joysticks and evdev keyboards, read in background
-//! threads as the launcher reads them, sent to the window as events (mapping capture).
+//! Physical inputs of the GUI: SDL3 gamepads/joysticks, evdev keyboards, lightguns and mice,
+//! read in background threads as the launcher reads them, sent to the window as events (mapping
+//! capture).
 
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -9,7 +10,9 @@ use sdl3::event::Event;
 use sdl3::gamepad::{Axis as PadAxis, Button as PadButton, Gamepad};
 use sdl3::joystick::Joystick;
 
+use crate::guns;
 use crate::input;
+use crate::mapping::RawKey;
 
 pub enum InputEvent {
     /// The number of keyboards read (0: no access to /dev/input).
@@ -26,6 +29,13 @@ pub enum InputEvent {
     JoyButton { id: u32, index: u8, down: bool },
     JoyAxis { id: u32, index: u8, value: i32 },
     JoyHat { id: u32, index: u8, bits: u8 },
+    /// The lightguns and mice found: (name, is a gun), in player order.
+    Pointers(Vec<(String, bool)>),
+    /// A gun or mouse button (evdev code), pressed.
+    GunKey { code: u16, down: bool },
+    /// A gun or mouse position: axis 0 = x, 1 = y (-32768 left/top..32767).
+    GunAxis { index: usize, axis: u8, value: i32 },
+    GunOffscreen { index: usize, offscreen: bool },
 }
 
 /// Starts the readers; `wake` is called after each event (repaint).
@@ -39,6 +49,27 @@ pub fn start(wake: impl Fn() + Send + Clone + 'static) -> Receiver<InputEvent> {
             wake();
             for (code, value) in keys {
                 if tx.send(InputEvent::Key(code, value != 0)).is_err() {
+                    return;
+                }
+                wake();
+            }
+        });
+    }
+    {
+        let (tx, wake) = (tx.clone(), wake.clone());
+        std::thread::spawn(move || {
+            let (gun_tx, events) = channel();
+            let found = guns::start(true, 0, [1920, 1080], gun_tx);
+            let _ = tx.send(InputEvent::Pointers(found.into_iter().map(|p| (p.name, p.is_gun)).collect()));
+            wake();
+            for (index, key, value) in events {
+                let ev = match key {
+                    RawKey::Key(code) => InputEvent::GunKey { code, down: value != 0 },
+                    RawKey::GunAxis(axis) => InputEvent::GunAxis { index, axis, value },
+                    RawKey::GunOffscreen => InputEvent::GunOffscreen { index, offscreen: value != 0 },
+                    _ => continue,
+                };
+                if tx.send(ev).is_err() {
                     return;
                 }
                 wake();

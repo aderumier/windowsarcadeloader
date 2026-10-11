@@ -1,5 +1,5 @@
 //! Frontend window (`arcade-launcher` without a game): every supported game, its controls
-//! mapped per device (keyboard, gamepad, wheel) into its user profile, its dump folder, and
+//! mapped per device (keyboard, gamepad, wheel, lightgun) into its user profile, its dump folder, and
 //! its launch.
 
 mod bindings;
@@ -87,6 +87,16 @@ struct Capture {
     started: Instant,
     /// Raw joystick axes when the capture started: (device, axis) -> value.
     rest: HashMap<(u32, u8), i32>,
+    /// Gun / mouse positions when the capture started.
+    gun_rest: Vec<[i32; 2]>,
+}
+
+/// A lightgun or a mouse aiming like one (player order).
+struct Pointer {
+    name: String,
+    is_gun: bool,
+    pos: [i32; 2],
+    offscreen: bool,
 }
 
 /// What a game's dump setting gives.
@@ -162,6 +172,8 @@ struct App {
     inputs: Receiver<InputEvent>,
     keyboards: Option<usize>,
     devices: BTreeMap<u32, Connected>,
+    /// Lightguns and mice (None: not read yet).
+    pointers: Option<Vec<Pointer>>,
     status: String,
     running: Option<Running>,
     log: Arc<Mutex<Vec<String>>>,
@@ -218,6 +230,7 @@ impl App {
             inputs,
             keyboards: None,
             devices: BTreeMap::new(),
+            pointers: None,
             status,
             running: None,
             log: Arc::new(Mutex::new(Vec::new())),
@@ -257,6 +270,7 @@ impl App {
             Device::Gamepad => vec!["input".into(), "gamepad".into()],
             Device::Wheel => vec!["input".into(), "wheel".into()],
             Device::Joystick => vec!["input".into(), "devices".into(), self.joystick.clone()?, "map".into()],
+            Device::Gun => vec!["input".into(), "gun".into()],
         })
     }
 
@@ -269,6 +283,7 @@ impl App {
             Device::Gamepad => input.gamepad.clone(),
             Device::Wheel => crate::mapping::wheel_table(&input.gamepad, &input.wheel),
             Device::Joystick => self.joystick.as_ref().and_then(|w| input.devices.get(w)).map(|d| d.map.clone()).unwrap_or_default(),
+            Device::Gun => input.gun.clone(),
         }
     }
 
@@ -340,7 +355,8 @@ impl App {
             .iter()
             .flat_map(|(id, d)| d.axes.iter().enumerate().map(move |(i, v)| ((*id, i as u8), *v)))
             .collect();
-        self.capture = Some(Capture { device, row, replace, started: Instant::now(), rest });
+        let gun_rest = self.pointers.iter().flatten().map(|p| p.pos).collect();
+        self.capture = Some(Capture { device, row, replace, started: Instant::now(), rest, gun_rest });
     }
 
     /// The calibration of a connected device.
@@ -407,6 +423,24 @@ impl App {
                 InputEvent::Removed(id) => {
                     self.devices.remove(&id);
                 }
+                InputEvent::Pointers(ref found) => {
+                    self.pointers = Some(
+                        found
+                            .iter()
+                            .map(|(name, is_gun)| Pointer { name: name.clone(), is_gun: *is_gun, pos: [0, 0], offscreen: false })
+                            .collect(),
+                    );
+                }
+                InputEvent::GunAxis { index, axis, value } => {
+                    if let Some(p) = self.pointers.as_mut().and_then(|p| p.get_mut(index)) {
+                        p.pos[axis as usize & 1] = value;
+                    }
+                }
+                InputEvent::GunOffscreen { index, offscreen } => {
+                    if let Some(p) = self.pointers.as_mut().and_then(|p| p.get_mut(index)) {
+                        p.offscreen = offscreen;
+                    }
+                }
                 InputEvent::JoyAxis { id, index, value } => {
                     if let Some(d) = self.devices.get_mut(&id) {
                         if let Some(slot) = d.axes.get_mut(index as usize) {
@@ -459,6 +493,15 @@ impl App {
             (Device::Joystick, InputEvent::JoyAxis { id, index, value }) if self.joystick_matches(*id) => {
                 let rest = c.rest.get(&(*id, *index)).copied().unwrap_or(0);
                 ((value - rest).abs() > threshold).then_some(Captured::JoyAxis(*index, *value, rest))
+            }
+            (Device::Gun, InputEvent::GunKey { code, down: true }) => Some(Captured::Key(*code)),
+            (Device::Gun, InputEvent::GunOffscreen { offscreen: true, .. }) if c.row.kind != RowKind::Analog => {
+                Some(Captured::GunOffscreen)
+            }
+            // aiming: the axis moved far from where it was
+            (Device::Gun, InputEvent::GunAxis { index, axis, value }) if c.row.kind == RowKind::Analog => {
+                let rest = c.gun_rest.get(*index).map_or(0, |p| p[*axis as usize & 1]);
+                ((value - rest).abs() > threshold).then_some(Captured::GunAxis(*axis))
             }
             _ => None,
         }
@@ -693,7 +736,13 @@ impl App {
             return;
         }
         ui.horizontal(|ui| {
-            let tabs = [(Device::Keyboard, "⌨ Keyboard"), (Device::Gamepad, "🎮 Gamepad"), (Device::Wheel, "🚗 Wheel"), (Device::Joystick, "🕹 Other joystick")];
+            let tabs = [
+                (Device::Keyboard, "⌨ Keyboard"),
+                (Device::Gamepad, "🎮 Gamepad"),
+                (Device::Wheel, "🚗 Wheel"),
+                (Device::Gun, "🔫 Lightgun"),
+                (Device::Joystick, "🕹 Other joystick"),
+            ];
             for (d, label) in tabs {
                 if ui.selectable_label(self.tab == d, egui::RichText::new(label).size(16.0)).clicked() {
                     self.tab = d;
@@ -751,6 +800,7 @@ impl App {
                 }
             }
             Device::Joystick => self.joystick_header(ui),
+            Device::Gun => self.gun_header(ui),
         }
         ui.add_space(4.0);
         if self.tab == Device::Joystick && self.joystick.is_none() {
@@ -853,6 +903,43 @@ impl App {
             Ok(()) => format!("wrote {}", file.display()),
             Err(e) => format!("writing {}: {e}", file.display()),
         };
+    }
+
+    fn gun_header(&mut self, ui: &mut egui::Ui) {
+        let Some(sel) = &self.game else { return };
+        let enabled = sel.profile.input.guns_enabled;
+        let base = sel.layers.base.get("input").and_then(|i| i.get("guns_enabled")).and_then(Value::as_bool).unwrap_or(false);
+        ui.label(
+            "Every lightgun, then every mouse aiming like one (players in device order: guns first). \
+             Aim = the gun position (x / y), pointing off screen = a gun aiming outside the screen.",
+        );
+        let mut on = enabled;
+        ui.checkbox(&mut on, "Lightguns and mice read in this game");
+        if on != enabled {
+            // the user layer only when it differs from the game's default
+            self.set_user(&["input", "guns_enabled"], (on != base).then_some(Value::Bool(on)));
+        }
+        match &self.pointers {
+            None => {
+                ui.weak("looking for lightguns and mice…");
+            }
+            Some(p) if p.is_empty() => {
+                ui.weak("No lightgun or mouse readable in /dev/input (add your user to the input group).");
+            }
+            Some(pointers) => {
+                for (i, p) in pointers.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("P{} {} {}", i + 1, if p.is_gun { "🔫" } else { "🖱" }, p.name));
+                        for (axis, v) in ["x", "y"].iter().zip(p.pos) {
+                            ui.add(egui::ProgressBar::new((v as f32 + 32768.0) / 65535.0).desired_width(70.0).text(*axis));
+                        }
+                        if p.offscreen {
+                            ui.weak("off screen");
+                        }
+                    });
+                }
+            }
+        }
     }
 
     fn joystick_header(&mut self, ui: &mut egui::Ui) {
@@ -983,6 +1070,8 @@ impl App {
                         if waiting {
                             let what = match (device, row.kind) {
                                 (Device::Keyboard, _) => "press a key",
+                                (Device::Gun, RowKind::Analog) => "aim the gun across the screen",
+                                (Device::Gun, _) => "pull the trigger or press a gun button",
                                 (_, RowKind::Analog) => "move the axis (right / down)",
                                 (_, RowKind::Pedal) => "press the pedal / trigger",
                                 _ => "press a button",
