@@ -32,6 +32,15 @@ files:
   OpenAL32.dll: "{dump}/DATA/OpenAL32.dll"
   wrap_oal.dll: "{dump}/DATA/wrap_oal.dll"
 
+# The game renders at a fixed 1920x1080 (glutInitWindowSize, GLUT game mode
+# "1920x1080:32@60"): on a smaller screen the mode change fails or the window is larger than
+# the screen, the picture (intro movie, game) going off it. A 1920x1080 gamescope screen,
+# scaled to the real one with its aspect kept (fit: black bars on a 16:10 or 4:3 screen).
+gamescope:
+  enabled: true
+  width: 1920
+  height: 1080
+  args: [-S, fit, -f]
 # Control names (the GUI's mapping rows).
 controls:
   up: Volume up, test menu up

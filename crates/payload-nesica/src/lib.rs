@@ -32,6 +32,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("nesica");
         patches::apply();
+        wal_payload_common::memdiff::start();
         // The game reads its settings before opening the I/O driver: write them now.
         registry::init();
         drive::init();

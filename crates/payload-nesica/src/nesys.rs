@@ -174,36 +174,62 @@ fn c_str(d: &[u8]) -> String {
 }
 
 /// HTTP request the game sends through the service (NESiCAxLive 2 games: `ms` server of the
-/// certificate). Request: `{ char url[1024], proxy[1024], authName[32], authPassword[32];
-/// u16 httpPort, proxyPort; u32 sequence, timeout, mode, dataSize; char httpHeader[1024];
-/// data }`. Answered `HTTPACCESS_START` {u32 1}, then `HTTPACCESS_REPLY` `{ char
-/// httpHeader[1025] (aligned 4); u32 httpStatusCode, errorCode, sequence, dataSize; data }`.
+/// certificate). Request (as sent by Million Arthur / SNK games): `{ char url[1024],
+/// proxy[1024], authName[32], authPassword[32]; u32 ?, port (+0x844), sequence?, timeout?,
+/// mode?, dataSize (+0x854); char httpHeader[1025]; data (+0xC59) }`. Answered
+/// `HTTPACCESS_START` {u32 1}, then `HTTPACCESS_REPLY` `{ char httpHeader[1025] (aligned 4);
+/// u32 httpStatusCode, errorCode, sequence, dataSize; data }`.
 fn http_access(pipe: &Pipe, data: &[u8]) {
     use cmd::{HTTPACCESS_REPLY, HTTPACCESS_START};
-    const FIXED: usize = 1024 + 1024 + 32 + 32 + 4 + 16 + 1024;
+    const HEADER: usize = 0x858;
+    const BODY: usize = HEADER + 1025;
     let url = c_str(data.get(..1024).unwrap_or_default());
-    let port = data.get(2112..2114).map_or(0, |b| u16::from_le_bytes([b[0], b[1]]));
-    let sequence = u32_at(data, 2116);
-    let size = (u32_at(data, 2128) as usize).min(data.len().saturating_sub(FIXED));
-    let header = c_str(data.get(2132..2132 + 1024).unwrap_or_default());
-    let body = data.get(FIXED..FIXED + size).unwrap_or_default();
-    log!("nesys: http {url} port {port} seq {sequence} header {header:?}");
+    let port = u32_at(data, 0x844);
+    let sequence = u32_at(data, 0x848);
+    let size = (u32_at(data, 0x854) as usize).min(data.len().saturating_sub(BODY));
+    let header = c_str(data.get(HEADER..BODY).unwrap_or_default());
+    let body = data.get(BODY..BODY + size).unwrap_or_default();
+    let fields: Vec<String> = (0..6).map(|i| format!("{:#x}", u32_at(data, 0x840 + 4 * i))).collect();
+    log!("nesys: http {url} port {port} seq {sequence} fields {} header {header:?}", fields.join(" "));
     log!("nesys: http body {}", String::from_utf8_lossy(body));
     if std::env::var("WAL_NESYS_HTTP_DUMP").is_ok() {
-        let _ = std::fs::write(format!("{}\\http-{sequence}.bin", crate::drive::data_dir()), data);
+        static COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        let n = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let _ = std::fs::write(format!("{}\\http-{n:02}.bin", crate::drive::data_dir()), data);
     }
     send(pipe, HTTPACCESS_START, &Out::default().u32(1).0);
     // card service protocol (`card_id=...&command=...&data=<xml>&type=...` form posts):
     // result `1` (OK) and a newline (the game skips these 2 bytes), then the XML data. Million
     // Arthur's first request (type 8456) reads `/root/match_conf` (`record` children): no
     // online match configuration.
-    let reply_body: &[u8] =
-        b"1\n<?xml version='1.0' encoding='UTF-8'?>\n<root>\n<match_conf></match_conf>\n</root>\n";
+    // Multipart posts (`object_data`, `bucket_id`, `index`: the card object storage, Samurai
+    // Shodown's character data before a fight): 404, no stored object.
+    let object_storage = header.contains("multipart/form-data");
+    // `WAL_NESYS_OBJECT_REPLY=<status>:<body>` (`\n` escapes): experiments
+    let object_reply = std::env::var("WAL_NESYS_OBJECT_REPLY").ok().and_then(|v| {
+        let (status, body) = v.split_once(':')?;
+        Some((status.parse::<u32>().ok()?, body.replace("\\n", "\n").into_bytes()))
+    });
+    let custom_body;
+    let (status, status_line, reply_body): (u32, &str, &[u8]) = if object_storage && let Some((status, body)) = object_reply {
+        custom_body = body;
+        (status, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n", &custom_body)
+    } else if object_storage {
+        (404, "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n", b"")
+    } else {
+        (
+            200,
+            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n",
+            b"1\n<?xml version='1.0' encoding='UTF-8'?>\n<root>\n<match_conf></match_conf>\n</root>\n",
+        )
+    };
     let reply = Out::default()
-        .str("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", 1025)
-        .align4()
-        .u32(200)
-        .u32(0)
+        .str(status_line, 1025)
+        .align4();
+    // `WAL_NESYS_HTTP_SWAP=1`: the status in the second field (experiment)
+    let swap = object_storage && std::env::var("WAL_NESYS_HTTP_SWAP").is_ok_and(|v| v == "1");
+    let reply = if swap { reply.u32(0).u32(status) } else { reply.u32(status).u32(0) };
+    let reply = reply
         .u32(sequence)
         .u32(reply_body.len() as u32)
         .bytes(reply_body);

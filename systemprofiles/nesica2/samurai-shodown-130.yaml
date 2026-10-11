@@ -1,0 +1,21 @@
+# Samurai Shodown 1.30.00 (SNK, NESiCAxLive 2, 64-bit Unreal Engine 4) - template, override
+# values in userprofiles/nesica2/samurai-shodown-130.yaml.
+system: nesica2
+name: Samurai Shodown (1.30.00)
+
+# The real executable is started directly (game.exe is Unreal's launcher stub). The game loads
+# NxL2Core.dll at run time from its Unreal plugin folder: the payload's x86_64 build goes there.
+# Its NESYS client is the game's own NxL2NESYSLib.dll (served by the payload's NESYS pipe).
+payload_install: [Onion/Plugins/NxL2CorePlugin/NxL2Core.dll]
+
+env:
+  # The certificate's server list: `ms`, `ss` as the other NESiCAxLive 2 games, and `s3`
+  # (NxL2NESYSLib.dll: NULL dereference without it).
+  WAL_NESICA_NESYS_HOST: card_id=7020392010281502,ms=127.0.0.1,ss=127.0.0.1,s3=127.0.0.1
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

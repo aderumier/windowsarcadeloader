@@ -160,6 +160,10 @@ Adding a profile key: add it to `defaults.yaml` (with a comment) **and** to `Pro
 
 Mapping tables can disable an inherited entry with the value `none`.
 
+`payload_install: [<path>, ...]`: where the system's payload is installed, paths from the dump
+root, in place of its default name (Samurai Shodown loads `NxL2Core.dll` at run time from its
+Unreal plugin folder `Onion/Plugins/NxL2CorePlugin/`).
+
 `exe_fixed_base: true`: the run directory gets a copy of the executable without DYNAMIC_BASE, so
 Wine maps it at its preferred base (rebuilt executables whose absolute addresses the
 relocations miss). `initial_files`: files installed in the dump only when missing (default
@@ -440,7 +444,11 @@ profile), `show` (merged profile).
   `demuxer_destroy` faults during probing are caught by Wine.
 * `serial`: emulated serial devices (IAT hooks of CreateFile/ReadFile/WriteFile/comm calls,
   a fake handle and reply queue per device, one device per port: each `install` adds one);
-  used by the NESiCA card reader, the Type X JVS board and the medal board. Overlapped calls
+  used by the NESiCA card reader, the Type X JVS board and the medal board. Calls passed
+  through to Windows keep their last error untouched (no environment lookup or logging after
+  them changes it): Unreal's overlapped `ReadFile` returns FALSE with `ERROR_IO_PENDING`, and a
+  lazy `WAL_TRACE_FILES` lookup in the hook turned it into 203 (Samurai Shodown: "ReadFile
+  Failed! Error code = cb"). Overlapped calls
   complete at once (`OVERLAPPED` result set, event signaled), `ClearCommError` reports the
   queued reply bytes. Logs the first 40 packets (`WAL_SERIAL_TRACE=<n>`: the first n). Any other COM port the
   game opens is absent (open fails, logged), whatever ports the machine has: Wine maps the machine's own
@@ -469,6 +477,10 @@ profile), `show` (merged profile).
   `NxL2Update`): when it stops for 5 s every thread of the game is suspended in turn and its
   stack logged (`hang:` lines; on x64 the exact call stack from the unwind tables, else a
   stack scan). A frozen game ("not responding", no crash) shows what it waits on.
+* `memdiff`: `WAL_MEMDIFF=<module>,...` compares those modules' loaded code sections with their
+  files 30 s and 90 s after start and logs each changed range (`memdiff: module+rva file ->
+  memory`): what another loader's DLL patches in memory (none for the packed NxL2Core.dll
+  wrapper tried with Samurai Shodown).
 * `crash`: vectored exception handler logging the first access violations and MSVC C++
   exceptions (thrown type, `std::exception` message): address as
   `module+offset`, registers, EBP frame chain, stack scan, and for write overruns the text
@@ -692,6 +704,13 @@ name, cdecl; `iDmacDrv32.def`) and the `nesica2` system installs it as `NxL2Core
   `/root/match_conf` (its `record` children), a `_com_error` E_POINTER abort ("Runtime Error!")
   when missing. The reply is `1\n` + `<root><match_conf></match_conf></root>` (no online
   match). `WAL_NESYS_HTTP_DUMP=1` writes each request to `http-<seq>.bin` in the data folder.
+* The second u32 after the reply header is what the games' NESYS libraries read as the
+  request's error code (Samurai Shodown's `NxL2NESYSLib.dll`: -1 = failed, 0 = parse the body;
+  nothing compares an HTTP status with 200). Samurai Shodown's card object storage (multipart
+  posts: `object_data`, `bucket_id`, `index`, `type` 442, read before the first fight) is
+  answered 404 for now; its expected reply body is not known yet (the game stays on
+  "loading..."). Experiments: `WAL_NESYS_OBJECT_REPLY=<status>:<body>` (`\n` escapes) and
+  `WAL_NESYS_HTTP_SWAP=1` (status in the second field, object storage only).
 * `WAL_NESYS_TRACE=1` (`nesystrace.rs`): logs the game's messages on the NESYS pipe both ways,
   whatever serves it (finding what a game expects; Million Arthur opens the pipe once at boot).
 
@@ -1134,7 +1153,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | Game id | Game | System | Result | Needed |
 |---|---|---|---|---|
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
-| `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns, movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out |
+| `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns, movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), not tested to the end of a stage yet; new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`) |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | `tricks: [d3dx9_37]` (Wine fails its .cfx effects, crash) |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | hide dinput8 (loader hack) |
@@ -1187,6 +1206,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), its HTTP card-service reads answered (`/root/match_conf`), native d3dx9_42 |
 | `kof-xiv` | The King of Fighters XIV | nesica2 | works (user: 100%), NESiCA network connected | 64-bit NxL2Core.dll replacement (`wal_nesica64.dll`), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), `Resolution=1` (1080p: 1920x1080 window; 0 = 1280x720) |
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | as KOF XIV (64-bit NxL2Core.dll replacement, NESYS `ms`/`ss`, `Resolution=1`), dump's 32-bit dinput8 hidden; runner fix `winedmo-seek-flush` (hung after START: movie seek deadlock) |
+| `samurai-shodown-130` | Samurai Shodown (1.30.00) | nesica2 | BLOCKED: boots, NESYS online, coins and START; stays on "loading..." before the first fight (story and arcade): its card object storage read (type 442) has no known reply | Unreal Engine 4: `Onion-Win64-Shipping.exe` started directly, payload as the plugin's `NxL2Core.dll` (`payload_install`), NESYS `ms`/`ss`/`s3` keys (its `NxL2NESYSLib.dll` crashed without `s3`) |
+| `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | BLOCKED: as 1.30.00 (same NESYS library) | as 1.30.00 |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |

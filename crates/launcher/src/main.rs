@@ -276,8 +276,13 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         Some(p) if rundir::is_pe64(&exe) => p,
         _ => system.payloads(),
     };
-    let mut payloads: Vec<(PathBuf, &str)> =
-        system_payloads.iter().map(|p| (payload_dir.join(p.file), p.install_as)).collect();
+    let mut payloads: Vec<(PathBuf, &str)> = match system_payloads.first() {
+        // the profile's install paths, for the system's payload file
+        Some(p) if !profile.payload_install.is_empty() => {
+            profile.payload_install.iter().map(|path| (payload_dir.join(p.file), path.as_str())).collect()
+        }
+        _ => system_payloads.iter().map(|p| (payload_dir.join(p.file), p.install_as)).collect(),
+    };
     if system.loader().is_some() {
         payloads.push((payload_dir.join("wal-loader.exe"), "wal-loader.exe"));
     }

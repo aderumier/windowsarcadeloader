@@ -9,6 +9,8 @@ pub mod codepage;
 #[cfg(windows)]
 pub mod crash;
 #[cfg(windows)]
+pub mod memdiff;
+#[cfg(windows)]
 pub mod crypto;
 #[cfg(windows)]
 mod crypto_keys;

@@ -71,6 +71,8 @@ pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
     if HOOKED.swap(true, Ordering::Relaxed) {
         return;
     }
+    // read now: an environment lookup inside a hook sets the thread's last error
+    trace_files();
     let hooks: [(&str, usize); COUNT] = [
         ("CreateFileA", create_file_a as *const () as usize),
         ("CreateFileW", create_file_w as *const () as usize),
@@ -208,7 +210,21 @@ fn is_traced_pipe(h: P) -> bool {
     trace_files() && PIPES.lock().unwrap().contains(&(h as usize))
 }
 
+/// Runs `f` (logging) without changing the thread's last error, which the game reads after
+/// the call we pass through (Unreal's overlapped ReadFile: ERROR_IO_PENDING).
+fn keep_last_error<R>(f: impl FnOnce() -> R) -> R {
+    use windows_sys::Win32::Foundation::{GetLastError, SetLastError};
+    let error = unsafe { GetLastError() };
+    let r = f();
+    unsafe { SetLastError(error) };
+    r
+}
+
 fn trace_open(name: String, handle: P) {
+    keep_last_error(|| trace_open_inner(name, handle))
+}
+
+fn trace_open_inner(name: String, handle: P) {
     if trace_files() {
         if name.to_ascii_lowercase().contains("\\pipe\\") && handle as isize != -1 {
             PIPES.lock().unwrap().push(handle as usize);
@@ -278,8 +294,9 @@ unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut
     }
     let Some(device) = device(h) else {
         let r = unsafe { orig::<unsafe extern "system" fn(P, *const u8, u32, *mut u32, P) -> i32>(2)(h, buf, n, written, ov) };
-        if is_traced_pipe(h) {
-            log!("file: pipe {h:?} write {n} bytes overlapped {} -> {r} err {}", !ov.is_null(), unsafe { windows_sys::Win32::Foundation::GetLastError() });
+        if keep_last_error(|| is_traced_pipe(h)) {
+            let err = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+            keep_last_error(|| log!("file: pipe {h:?} write {n} bytes overlapped {} -> {r} err {err}", !ov.is_null()));
         }
         return r;
     };
@@ -319,9 +336,10 @@ unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, 
     }
     let Some(device) = device(h) else {
         let r = unsafe { orig::<unsafe extern "system" fn(P, *mut u8, u32, *mut u32, P) -> i32>(3)(h, buf, n, read, ov) };
-        if is_traced_pipe(h) {
+        if keep_last_error(|| is_traced_pipe(h)) {
             let got = if read.is_null() { 0 } else { unsafe { *read } };
-            log!("file: pipe {h:?} read {n} -> {r} got {got} overlapped {} err {}", !ov.is_null(), unsafe { windows_sys::Win32::Foundation::GetLastError() });
+            let err = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+            keep_last_error(|| log!("file: pipe {h:?} read {n} -> {r} got {got} overlapped {} err {err}", !ov.is_null()));
         }
         return r;
     };

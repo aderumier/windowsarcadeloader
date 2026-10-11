@@ -28,6 +28,10 @@ prefix: wine-prefix/full
 wow64: true
 # Built payload DLLs (build.sh output).
 payloads_dir: dist/payloads
+# Paths in the dump (relative to its root) where the system's payload is installed, in place
+# of its default name (e.g. NESiCAxLive 2 games loading NxL2Core.dll from an Unreal plugin
+# folder: `Onion/Plugins/NxL2CorePlugin/NxL2Core.dll`). Empty: the system's default.
+payload_install: []
 wine_debug: "-all"
 # d3d8-11/dxgi through the runner's DXVK (false: wine builtin wined3d).
 dxvk: true
