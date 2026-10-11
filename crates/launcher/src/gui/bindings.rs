@@ -138,6 +138,8 @@ pub fn bound(table: &MapTable, device: Device, row: &Row) -> Vec<(String, bool)>
     table
         .iter()
         .filter(|(_, d)| !d.eq_ignore_ascii_case("none"))
+        // `b1,start`: bound to both rows
+        .flat_map(|(s, d)| d.split(',').map(move |d| (s, d.trim())))
         .filter_map(|(s, d)| {
             let (t, k, inv) = row_of(device, s, d)?;
             (t == row.target && k == row.kind).then(|| (s.clone(), inv))

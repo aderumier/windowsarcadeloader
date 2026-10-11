@@ -12,6 +12,9 @@ dxvk: false
 input:
   guns_enabled: true
   stick_as_dpad: false
+  # the trigger also presses its player's start (joining the game by shooting)
+  gun:
+    BTN_LEFT: b1,start
 
 # The dump's MINIGUN.INI keeps settings and rankings in another data folder: same file,
 # with WindowsLoader.

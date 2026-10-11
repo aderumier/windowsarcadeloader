@@ -2,7 +2,8 @@
 //!
 //! A mapping table associates source names (`x`, `l2`, `+axis2`, `hat0up`, `KEY_Z`...) with
 //! virtual stick targets (`b1`..`b8`, `up`, `start`, `lx`, `-accel`...). A leading `-`
-//! on an axis target inverts it. `none` disables a default entry.
+//! on an axis target inverts it. `none` disables a default entry. A source drives several
+//! targets separated by commas (`BTN_LEFT: b1,start`: a gun's trigger also presses start).
 //!
 //! Conversions: digital -> axis gives a full deflection, analog -> button presses past
 //! the deadzone, a full range axis -> pedal is rescaled from -32768..32767 to 0..32767.
@@ -235,8 +236,10 @@ pub fn compile(table: &MapTable, parse: fn(&str) -> Option<Source>) -> Result<Ma
             continue;
         }
         let Some(s) = parse(src) else { bail!("unknown input '{src}'") };
-        let Some(t) = parse_target(dst) else { bail!("unknown virtual stick input '{dst}' (for '{src}')") };
-        out.push((s, t));
+        for dst in dst.split(',').map(str::trim) {
+            let Some(t) = parse_target(dst) else { bail!("unknown virtual stick input '{dst}' (for '{src}')") };
+            out.push((s, t));
+        }
     }
     Ok(out)
 }
@@ -442,7 +445,7 @@ mod tests {
 
     #[test]
     fn gun_sources() {
-        let table: MapTable = [("x", "lx"), ("y", "ly"), ("BTN_LEFT", "b1"), ("offscreen", "b4")]
+        let table: MapTable = [("x", "lx"), ("y", "ly"), ("BTN_LEFT", "b1, start"), ("offscreen", "b4")]
             .iter()
             .map(|(a, b)| (a.to_string(), b.to_string()))
             .collect();
@@ -454,7 +457,7 @@ mod tests {
         let c = dev.contribution(8000);
         assert_eq!(c.axis(Axis::LeftX), -32768);
         assert_eq!(c.axis(Axis::LeftY), 12345);
-        assert_eq!(c.buttons, button::B1 | button::B4);
+        assert_eq!(c.buttons, button::B1 | button::START | button::B4);
         assert!(parse_gun_source("BTN_MIDDLE").is_some());
     }
 }
