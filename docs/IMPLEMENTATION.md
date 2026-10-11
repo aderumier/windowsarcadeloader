@@ -690,7 +690,18 @@ name, cdecl; `iDmacDrv32.def`) and the `nesica2` system installs it as `NxL2Core
 * `NxL2GetAutoEndRemainderTime` -1 (0 made the game quit at boot), `NxL2CheckStoreOpenTime` -1
   (no closing announcement), `NxL2GetGameID` the registry `GameKind`.
 * Card: `NxL2IsRFIDRead` is true while the `card` virtual input's card is inserted,
-  `NxL2GetRFIDID` its 16-character id (`WAL_NESICA_CARD_ID`).
+  `NxL2GetRFIDID` its 16-character id (`WAL_NESICA_CARD_ID`). `WAL_NESICA_CARD_AUTO=1` inserts it
+  when the game starts a card read (`NxL2RequestRFID`; a gamepad has no card input).
+* NESYS card requests of Fighting EX Layer, after the card is read: reissue test (0x10) and
+  reissue (0x11), answered 0x117 / 0x118 (the replies have no force takeover entry: the request
+  number + 0x107 from 0xF on) with a card status (status 1, the client parses 0x111-0x119
+  alike; without a reply the game waits on its card screen until its countdown). Then card
+  selects by XML (`<root><info>` with card_id, tenpo, mac_addr, game_id), the card server's
+  request types: 259 card (`/root/card`: card_id, player_name, score_i1, achieve_status,
+  fcol1-3; empty = a new card, NO-NAME), 264 binary data (`/root/card_bdata`), 401 session
+  (`/root/session`: card_id, mac_addr, session_id, expires, player_id, answered by the payload;
+  empty = "このNESiCAはご利用いただけません", card refused). `WAL_NESYS_HTTP_DUMP=1` also logs
+  the card select parameters.
 * Every function logs its first call (`nxl2: <name> called`).
 * 64-bit games (The King of Fighters XIV: Direct3D 11, XAudio2.8) get the payload's x86_64
   build, `wal_nesica64.dll` (`System::payloads64`, chosen when the executable is PE32+; same
@@ -1218,6 +1229,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | as KOF XIV (64-bit NxL2Core.dll replacement, NESYS `ms`/`ss`, `Resolution=1`), dump's 32-bit dinput8 hidden; runner fix `winedmo-seek-flush` (hung after START: movie seek deadlock) |
 | `samurai-shodown-130` | Samurai Shodown (1.30.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | Unreal Engine 4: `Onion-Win64-Shipping.exe` started directly, payload as the plugin's `NxL2Core.dll` (`payload_install`), NESYS offline (`WAL_NESICA_NESYS_OFFLINE`: online it waits for its card object storage before each fight) |
 | `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | as 1.30.00 |
+| `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card progress not kept yet (a new NO-NAME card each time) | Unreal Engine 4: `EXF-Win64-Shipping.exe` started directly, its `NxL2Core.dll` replaced by the 64-bit payload; NESYS `ms`/`ss`, card reissue replies and session (§6.2b), card inserted automatically (`WAL_NESICA_CARD_AUTO`) |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |

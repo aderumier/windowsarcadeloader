@@ -31,6 +31,8 @@ mod cmd {
     pub const CARD_SELECT_REQUEST: u32 = 0x9;
     pub const CARD_INSERT_REQUEST: u32 = 0xA;
     pub const CARD_UPDATE_REQUEST: u32 = 0xB;
+    pub const CARD_REISSUE_TEST_REQUEST: u32 = 0x10;
+    pub const CARD_REISSUE_REQUEST: u32 = 0x11;
     pub const RANKING_DATA_REQUEST: u32 = 0x13;
     pub const LOCALNW_INFO_REQUEST: u32 = 0x14;
     pub const GLOBALADDR_REQUEST: u32 = 0x15;
@@ -59,6 +61,9 @@ mod cmd {
     pub const CARD_SELECT_REPLY: u32 = 0x111;
     pub const CARD_INSERT_REPLY: u32 = 0x112;
     pub const CARD_UPDATE_REPLY: u32 = 0x113;
+    // 0x114 buys item, 0x115 takeover, 0x116 decrease (no reply for the force takeover request)
+    pub const CARD_REISSUE_TEST_REPLY: u32 = 0x117;
+    pub const CARD_REISSUE_REPLY: u32 = 0x118;
     pub const RANKING_DATA_REPLY: u32 = 0x11A;
     pub const LOCALNW_INFO_REPLY: u32 = 0x11B;
     pub const LOCALNW_INFO_NOTICE: u32 = 0x11C;
@@ -279,6 +284,26 @@ fn card_file(card_id: &[u8], data_type: u32) -> String {
     format!("{}\\card_{id}_{data_type}.bin", crate::drive::data_dir())
 }
 
+/// Card data type of a session read (Fighting EX Layer, after the card is accepted): no
+/// session (no data) is "this NESiCA cannot be used".
+const CARD_GET_SESSION: u32 = 401;
+
+/// The session of a session read, whose parameter is `<root><info>...<card_id>`,
+/// `<mac_addr>...`: the card server's `/root/session` answer.
+fn session_xml(param: &[u8]) -> String {
+    let param = String::from_utf8_lossy(param);
+    let tag = |name: &str| {
+        let open = format!("<{name}>");
+        let start = param.find(&open).map(|i| i + open.len());
+        start.and_then(|s| param[s..].find('<').map(|e| param[s..s + e].to_string())).unwrap_or_default()
+    };
+    format!(
+        "<?xml version='1.0' encoding='UTF-8'?>\r\n<root>\r\n\t<session>\r\n\t\t<card_id>{}</card_id>\r\n\t\t<mac_addr>{}</mac_addr>\r\n\t\t<session_id>12345678901234567890123456789012</session_id>\r\n\t\t<expires>9999</expires>\r\n\t\t<player_id>1</player_id>\r\n\t</session>\r\n</root>\r\n",
+        tag("card_id"),
+        tag("mac_addr")
+    )
+}
+
 fn card_status(times: u32, data: &[u8]) -> Vec<u8> {
     Out::default().u32(1).u32(times).u32(times).u32(data.len() as u32).bytes(data).0
 }
@@ -342,7 +367,14 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
         CARD_SELECT_REQUEST => {
             // { char cardId[16]; u32 dataType; u32 paramSize; ... }
             let file = card_file(data, u32_at(data, 16));
+            if std::env::var("WAL_NESYS_HTTP_DUMP").is_ok_and(|v| v == "1") {
+                let param = &data[24.min(data.len())..];
+                log!("nesys: card select type {} param {:?}", u32_at(data, 16), String::from_utf8_lossy(param));
+            }
             let mut card = std::fs::read(&file).unwrap_or_default();
+            if card.is_empty() && u32_at(data, 16) == CARD_GET_SESSION {
+                card = session_xml(&data[24.min(data.len())..]).into_bytes();
+            }
             card.truncate(16383);
             card.push(0);
             if card.len() == 1 {
@@ -361,6 +393,11 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             }
             send(pipe, CARD_UPDATE_REPLY, &card_status(100, card));
         }
+        // Fighting EX Layer, at a card insertion: { char cardId[16]; u32 }. The reply is a card
+        // status as the other card replies (the client parses 0x111-0x119 alike); the game only
+        // checks its status (1), without it it waits on the card screen until its timeout.
+        CARD_REISSUE_TEST_REQUEST => send(pipe, CARD_REISSUE_TEST_REPLY, &card_status(100, &[])),
+        CARD_REISSUE_REQUEST => send(pipe, CARD_REISSUE_REPLY, &card_status(100, &[])),
         INCOME_START_REQUEST | INCOME_END_REQUEST | INCOME_CONTINUE_REQUEST | INCOME_FREE_START_REQUEST => {
             send(pipe, INCOME_STATUS_REPLY, &Out::default().u32(0).u32(1).0)
         }

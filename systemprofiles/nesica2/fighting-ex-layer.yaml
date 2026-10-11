@@ -1,0 +1,21 @@
+# Fighting EX Layer 1.3.1 Rev 006 (Arika, NESiCAxLive 2, 64-bit Unreal Engine 4) - template,
+# override values in userprofiles/nesica2/fighting-ex-layer.yaml.
+system: nesica2
+name: Fighting EX Layer
+
+# The real executable is started directly (Game.exe is Unreal's launcher stub). It imports
+# NxL2Core.dll next to it: the payload's x86_64 build replaces it.
+
+env:
+  # The certificate's server list, as KOF XIV (`ms` and `ss`).
+  WAL_NESICA_NESYS_HOST: card_id=7020392010281502,ms=127.0.0.1,ss=127.0.0.1
+  # The card is inserted when the game asks for it after START (no card input on a gamepad;
+  # without a card the game waits on its card screen until its countdown ends).
+  WAL_NESICA_CARD_AUTO: "1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

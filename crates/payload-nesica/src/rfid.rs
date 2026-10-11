@@ -6,7 +6,8 @@
 //! The card is inserted/removed by the virtual stick `card` input of any player (toggle).
 //!
 //! Options: `WAL_NESICA_RFID=0` disables it, `WAL_NESICA_RFID_PORT` (default `COM2`),
-//! `WAL_NESICA_CARD_ID` (16 digits, default `7020392010281502`).
+//! `WAL_NESICA_CARD_ID` (16 digits, default `7020392010281502`), `WAL_NESICA_CARD_AUTO=1`
+//! inserts the card when a NESiCAxLive 2 game asks for one (no card input on a gamepad).
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -135,6 +136,13 @@ fn process(packet: &[u8]) -> Vec<u8> {
 /// The `card` virtual input's card is in the reader (for the NESiCAxLive 2 API).
 pub(crate) fn card_inserted() -> bool {
     INSERTED.load(Ordering::Relaxed)
+}
+
+/// A NESiCAxLive 2 game starts a card read: `WAL_NESICA_CARD_AUTO=1` inserts the card.
+pub(crate) fn card_requested() {
+    if std::env::var("WAL_NESICA_CARD_AUTO").is_ok_and(|v| v == "1") && !INSERTED.swap(true, Ordering::Relaxed) {
+        log!("rfid: card inserted (auto)");
+    }
 }
 
 /// The card's 16-character id.

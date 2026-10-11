@@ -336,6 +336,7 @@ pub extern "C" fn NxL2UpdateGameSetting() {
 #[unsafe(no_mangle)]
 pub extern "C" fn NxL2RequestRFID() -> i32 {
     first_call("NxL2RequestRFID");
+    rfid::card_requested();
     1
 }
 
