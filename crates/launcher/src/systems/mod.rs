@@ -21,6 +21,10 @@ pub trait System {
     fn name(&self) -> &'static str;
     /// Payload DLLs replacing game files, loaded by the game itself.
     fn payloads(&self) -> &'static [Payload];
+    /// Payloads for a 64-bit (PE32+) game executable, when the system has both kinds.
+    fn payloads64(&self) -> Option<&'static [Payload]> {
+        None
+    }
     /// Game files never exposed to the game.
     fn hidden(&self) -> &'static [&'static str] {
         &[]

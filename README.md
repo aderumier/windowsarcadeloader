@@ -77,7 +77,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | works (user: 100%), opening video | pass | 2026-10-09 |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | pass | 2026-10-07 |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | pass | 2026-10-08 |
-| `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | BLOCKED: boots offline (NESYS off) to its intro movie, attract mode, title, coins and START; the movies after START are white (the game's own .pmt movies: 8-bit frames through a 256-color palette texture, a white output when the palette is empty); with NESYS on it stays on 初期化中です (initializing: certified, then nothing) | not in the test |  |
+| `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | not in the test |  |
+| `kof-xiv` | The King of Fighters XIV | nesica2 | works (user: 100%), NESiCA network connected | not in the test |  |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-10 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |

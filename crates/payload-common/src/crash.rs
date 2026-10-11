@@ -20,6 +20,8 @@ fn readable(addr: usize, len: usize) -> bool {
 }
 
 const EXCEPTION_ACCESS_VIOLATION: i32 = 0xC000_0005_u32 as i32;
+/// MSVC C++ `throw` (`'msc'`).
+const EXCEPTION_MSVC_CPP: i32 = 0xE06D_7363_u32 as i32;
 const EXCEPTION_CONTINUE_SEARCH: i32 = 0;
 const MAX_REPORTS: u32 = 3;
 
@@ -45,10 +47,53 @@ fn symbolize(addr: usize) -> Option<String> {
 
 unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
     let record = unsafe { &*(*info).ExceptionRecord };
-    if record.ExceptionCode != EXCEPTION_ACCESS_VIOLATION || REPORTS.fetch_add(1, Ordering::Relaxed) >= MAX_REPORTS {
+    let code = record.ExceptionCode;
+    if (code != EXCEPTION_ACCESS_VIOLATION && code != EXCEPTION_MSVC_CPP) || REPORTS.fetch_add(1, Ordering::Relaxed) >= MAX_REPORTS {
         return EXCEPTION_CONTINUE_SEARCH;
     }
     let addr = record.ExceptionAddress as usize;
+    if code == EXCEPTION_MSVC_CPP {
+        log_cpp_exception(record);
+    } else {
+        log_access_violation(record, addr);
+    }
+    log_context(info);
+    EXCEPTION_CONTINUE_SEARCH
+}
+
+/// C++ exception thrown by the game (an uncaught one ends in "Runtime Error! ... terminate it in
+/// an unusual way"): the thrown type (32-bit ThrowInfo: absolute pointers) and, for
+/// `std::exception`, its message (`{vfptr, const char* what, ...}`).
+fn log_cpp_exception(record: &windows_sys::Win32::System::Diagnostics::Debug::EXCEPTION_RECORD) {
+    let (object, throw_info) = (record.ExceptionInformation[1], record.ExceptionInformation[2]);
+    #[allow(unused_mut)]
+    let mut name = String::new();
+    #[cfg(target_arch = "x86")]
+    unsafe {
+        let at = |a: usize| if readable(a, 4) { Some(std::ptr::read_volatile(a as *const usize)) } else { None };
+        // ThrowInfo +0xC -> CatchableTypeArray {n, types[]}; CatchableType +4 -> TypeDescriptor, name at +8
+        if let Some(types) = at(throw_info + 0xC)
+            && let Some(first) = at(types + 4)
+            && let Some(desc) = at(first + 4)
+            && readable(desc + 8, 64)
+        {
+            name = (0..64).map(|i| std::ptr::read_volatile((desc + 8 + i) as *const u8)).take_while(|b| *b != 0).map(|b| b as char).collect();
+        }
+        if let Some(what) = at(object + 4)
+            && readable(what, 1)
+        {
+            let text: String = (0..160)
+                .map(|i| if readable(what + i, 1) { std::ptr::read_volatile((what + i) as *const u8) } else { 0 })
+                .take_while(|b| *b != 0)
+                .map(|b| if (0x20..0x7f).contains(&b) { b as char } else { '.' })
+                .collect();
+            log!("crash: C++ exception what: {text}");
+        }
+    }
+    log!("crash: C++ exception {name} (object {object:#x}, throw info {throw_info:#x}) at {:#x}", record.ExceptionAddress as usize);
+}
+
+fn log_access_violation(record: &windows_sys::Win32::System::Diagnostics::Debug::EXCEPTION_RECORD, addr: usize) {
     let (op, target) = (record.ExceptionInformation[0], record.ExceptionInformation[1]);
     log!(
         "crash: access violation ({} {target:#x}) at {addr:#x} {}",
@@ -62,6 +107,10 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
         let text: String = bytes.iter().map(|b| if (0x20..0x7f).contains(b) { *b as char } else { '.' }).collect();
         log!("crash: bytes before {target:#x}: {text}");
     }
+}
+
+fn log_context(info: *mut EXCEPTION_POINTERS) {
+    let _ = info;
     #[cfg(target_arch = "x86")]
     unsafe {
         let c = &*(*info).ContextRecord;
@@ -83,7 +132,7 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
         // stack scan: return addresses into modules
         let esp = c.Esp as usize as *const usize;
         let mut found = 0;
-        for i in 0..512 {
+        for i in 0..4096 {
             if !readable(esp.add(i) as usize, 4) {
                 break;
             }
@@ -94,11 +143,10 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
             if let Some(sym) = symbolize(v) {
                 log!("crash:   [esp+{:#05x}] {v:#010x} {sym}", i * 4);
                 found += 1;
-                if found >= 24 {
+                if found >= 48 {
                     break;
                 }
             }
         }
     }
-    EXCEPTION_CONTINUE_SEARCH
 }

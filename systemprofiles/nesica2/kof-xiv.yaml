@@ -1,0 +1,25 @@
+# The King of Fighters XIV Arcade Ver. (SNK, NESiCAxLive 2, 64-bit) - template, override
+# values in userprofiles/nesica2/kof-xiv.yaml.
+system: nesica2
+name: The King of Fighters XIV
+
+# 64-bit game (Direct3D 11, XAudio2.8): NxL2Core.dll replaced by the payload's x86_64 build
+# (inputs, coins, settings, card reader). The game talks to the NESYS service on its pipe
+# itself (needed: served by the payload).
+
+env:
+  # The certificate's server list: the game also reads `ms` and `ss` (crash at +0x41d87
+  # without them).
+  WAL_NESICA_NESYS_HOST: card_id=7020392010281502,ms=127.0.0.1,ss=127.0.0.1
+  # 1080p (the cabinet setting): 1920x1080 window. 0 = 1280x720; the renderer's own
+  # `fullScreen` option (+0x77DA6C) set to 1 went back to a window after its start.
+  WAL_NXL2_SETTINGS: Resolution=1
+
+# Buttons A B C D = b1-b4 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

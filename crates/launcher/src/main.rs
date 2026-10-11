@@ -272,8 +272,12 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     let exe_subdir = game_dir.strip_prefix(game_root)?;
 
     let payload_dir = profile.path(&profile.payloads_dir);
+    let system_payloads = match system.payloads64() {
+        Some(p) if rundir::is_pe64(&exe) => p,
+        _ => system.payloads(),
+    };
     let mut payloads: Vec<(PathBuf, &str)> =
-        system.payloads().iter().map(|p| (payload_dir.join(p.file), p.install_as)).collect();
+        system_payloads.iter().map(|p| (payload_dir.join(p.file), p.install_as)).collect();
     if system.loader().is_some() {
         payloads.push((payload_dir.join("wal-loader.exe"), "wal-loader.exe"));
     }

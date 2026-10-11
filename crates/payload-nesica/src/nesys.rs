@@ -36,6 +36,8 @@ mod cmd {
     pub const GLOBALADDR_REQUEST: u32 = 0x15;
     pub const ADAPTER_INFO_REQUEST: u32 = 0x17;
     pub const SERVICE_VERSION_REQUEST: u32 = 0x18;
+    pub const HTTPACCESS_GET_REQUEST: u32 = 0x1A;
+    pub const HTTPACCESS_POST_REQUEST: u32 = 0x1B;
     pub const UPLOAD_CONFIG_REQUEST: u32 = 0x1C;
     pub const INCOME_START_REQUEST: u32 = 0x1D;
     pub const INCOME_END_REQUEST: u32 = 0x1E;
@@ -62,6 +64,8 @@ mod cmd {
     pub const GLOBALADDR_REPLY: u32 = 0x11D;
     pub const ADAPTER_INFO_REPLY: u32 = 0x11F;
     pub const SERVICE_VERSION_REPLY: u32 = 0x120;
+    pub const HTTPACCESS_START: u32 = 0x121;
+    pub const HTTPACCESS_REPLY: u32 = 0x122;
     pub const UPLOAD_CONFIG_REPLY: u32 = 0x123;
     pub const INCOME_STATUS_REPLY: u32 = 0x124;
     pub const SET_INCOME_MODE_REPLY: u32 = 0x125;
@@ -165,6 +169,47 @@ fn send(pipe: &Pipe, command: u32, data: &[u8]) {
     }
 }
 
+fn c_str(d: &[u8]) -> String {
+    String::from_utf8_lossy(d.split(|b| *b == 0).next().unwrap_or_default()).into_owned()
+}
+
+/// HTTP request the game sends through the service (NESiCAxLive 2 games: `ms` server of the
+/// certificate). Request: `{ char url[1024], proxy[1024], authName[32], authPassword[32];
+/// u16 httpPort, proxyPort; u32 sequence, timeout, mode, dataSize; char httpHeader[1024];
+/// data }`. Answered `HTTPACCESS_START` {u32 1}, then `HTTPACCESS_REPLY` `{ char
+/// httpHeader[1025] (aligned 4); u32 httpStatusCode, errorCode, sequence, dataSize; data }`.
+fn http_access(pipe: &Pipe, data: &[u8]) {
+    use cmd::{HTTPACCESS_REPLY, HTTPACCESS_START};
+    const FIXED: usize = 1024 + 1024 + 32 + 32 + 4 + 16 + 1024;
+    let url = c_str(data.get(..1024).unwrap_or_default());
+    let port = data.get(2112..2114).map_or(0, |b| u16::from_le_bytes([b[0], b[1]]));
+    let sequence = u32_at(data, 2116);
+    let size = (u32_at(data, 2128) as usize).min(data.len().saturating_sub(FIXED));
+    let header = c_str(data.get(2132..2132 + 1024).unwrap_or_default());
+    let body = data.get(FIXED..FIXED + size).unwrap_or_default();
+    log!("nesys: http {url} port {port} seq {sequence} header {header:?}");
+    log!("nesys: http body {}", String::from_utf8_lossy(body));
+    if std::env::var("WAL_NESYS_HTTP_DUMP").is_ok() {
+        let _ = std::fs::write(format!("{}\\http-{sequence}.bin", crate::drive::data_dir()), data);
+    }
+    send(pipe, HTTPACCESS_START, &Out::default().u32(1).0);
+    // card service protocol (`card_id=...&command=...&data=<xml>&type=...` form posts):
+    // result `1` (OK) and a newline (the game skips these 2 bytes), then the XML data. Million
+    // Arthur's first request (type 8456) reads `/root/match_conf` (`record` children): no
+    // online match configuration.
+    let reply_body: &[u8] =
+        b"1\n<?xml version='1.0' encoding='UTF-8'?>\n<root>\n<match_conf></match_conf>\n</root>\n";
+    let reply = Out::default()
+        .str("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", 1025)
+        .align4()
+        .u32(200)
+        .u32(0)
+        .u32(sequence)
+        .u32(reply_body.len() as u32)
+        .bytes(reply_body);
+    send(pipe, HTTPACCESS_REPLY, &reply.0);
+}
+
 /// Little-endian struct builder following the C layout of the replies.
 #[derive(Default)]
 struct Out(Vec<u8>);
@@ -216,7 +261,9 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             // the network is up
             send(pipe, NWRECOVER_NOTICE, &[]);
             thread::sleep(Duration::from_millis(30));
-            let server = "card_id=7020392010281502";
+            // the server's `key=value,...` list (`WAL_NESICA_NESYS_HOST`): KOF XIV also reads
+            // `ms` and `ss` (NULL dereference without them)
+            let server = std::env::var("WAL_NESICA_NESYS_HOST").unwrap_or_else(|_| "card_id=7020392010281502".into());
             let news = "./WindowsLoader/news.png";
             let reply = Out::default()
                 // NESYS_TENPO_TABLE
@@ -232,6 +279,7 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
                 .str(news, 1024)
                 .u32(server.len() as u32)
                 .bytes(server.as_bytes());
+            log!("nesys: server {server}");
             send(pipe, CERT_INIT_NOTICE, &reply.0);
             // experiments: extra notices after the certificate, `0x105,0x10c[:payload hex]`
             if let Ok(extra) = std::env::var("WAL_NESICA_NESYS_EXTRA") {
@@ -316,6 +364,7 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
                 .str(MAC, 64);
             send(pipe, ADAPTER_INFO_REPLY, &reply.0);
         }
+        HTTPACCESS_GET_REQUEST | HTTPACCESS_POST_REQUEST => http_access(pipe, data),
         _ => log!("nesys: unhandled command {command:#x}"),
     }
 }

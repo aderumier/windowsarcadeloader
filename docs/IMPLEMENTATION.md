@@ -450,7 +450,8 @@ profile), `show` (merged profile).
 * `patches`: `WAL_PATCHES=<rva>:<hex>,...` game code patches from the profile (keeps game
   knowledge in profiles, e.g. known per-game patches). `WAL_PATCHES_EXE=<file>` limits
   them to one executable: test menus (`TestMode.exe`) load the payload too.
-* `crash`: vectored exception handler logging the first access violations: address as
+* `crash`: vectored exception handler logging the first access violations and MSVC C++
+  exceptions (thrown type, `std::exception` message): address as
   `module+offset`, registers, EBP frame chain, stack scan, and for write overruns the text
   being written (found Cosplay Mahjong's overflow of a D3DX error message).
 * `screenshot` (d3d9 and d3d8 shims): `WAL_SCREENSHOT=<s>` writes the back buffer every s seconds
@@ -650,8 +651,72 @@ name, cdecl; `iDmacDrv32.def`) and the `nesica2` system installs it as `NxL2Core
 * Card: `NxL2IsRFIDRead` is true while the `card` virtual input's card is inserted,
   `NxL2GetRFIDID` its 16-character id (`WAL_NESICA_CARD_ID`).
 * Every function logs its first call (`nxl2: <name> called`).
+* 64-bit games (The King of Fighters XIV: Direct3D 11, XAudio2.8) get the payload's x86_64
+  build, `wal_nesica64.dll` (`System::payloads64`, chosen when the executable is PE32+; same
+  source, `build.sh` builds both).
+* `WAL_NESICA_NESYS_HOST`: the server list of the NESYS certificate (`CERT_INIT_NOTICE`,
+  `key=value,...`, default `card_id=...`). KOF XIV also reads `ms` and `ss` from it and crashed
+  on the missing keys (NULL string, `game.exe+0x41d87`) right after the certificate.
+* HTTP access through the service (`HTTPACCESS_GET/POST_REQUEST` 0x1A/0x1B, `http_access` in
+  `nesys.rs`): request `{url[1024], proxy[1024], auth 32+32, 6 x u32 (port at +0x844, body size
+  at +0x854), header[1025], body}`, answered `HTTPACCESS_START` {1} then `HTTPACCESS_REPLY`
+  `{header[1025] aligned 4, u32 status 200, error 0, sequence, size, body}`. Million Arthur posts
+  card-service reads to the certificate's `ms` server (`card_id=...&command=256&data=<xml>&
+  type=8456` / `9220`) and parses the body from its third byte (`1\n` then the XML) with MSXML:
+  `/root/match_conf` (its `record` children), a `_com_error` E_POINTER abort ("Runtime Error!")
+  when missing. The reply is `1\n` + `<root><match_conf></match_conf></root>` (no online
+  match). `WAL_NESYS_HTTP_DUMP=1` writes each request to `http-<seq>.bin` in the data folder.
 * `WAL_NESYS_TRACE=1` (`nesystrace.rs`): logs the game's messages on the NESYS pipe both ways,
   whatever serves it (finding what a game expects; Million Arthur opens the pipe once at boot).
+
+**NESYS online for a new NESiCAxLive 2 game (how KOF XIV and Million Arthur were brought up).**
+These games embed their own NESYS client library (`NxLNesys*` classes in KOF XIV) and talk to
+the `nesys_games` pipe themselves (not through `NxL2Core.dll`). Expected sequence, all logged by
+`nesys:` lines (`WAL_NESYS_TRACE=1` for the raw bytes): `CLIENT_START` 0x1 -> 0x10D;
+`CONNECT_REQUEST` 0x2 -> 0x10E, notices 0x103 (network up) and 0x107 (certificate); then the
+game asks the service version 0x18, global address 0x15, adapter 0x17, local network 0x14,
+income mode 0x20, and (Million Arthur) HTTP posts 0x1B; later 0x4 game start, 0x1D income start.
+* Start with NESYS on and `WAL_NESICA_NESYS_HOST: card_id=7020392010281502,ms=127.0.0.1,ss=127.0.0.1`
+  (both games need `ms` and `ss`; the NESiCA 1 games only read `card_id`, hence not the default).
+* Nothing sent after the 0x107 certificate, stuck on 初期化中です (the green NESiCA icon only
+  means certified): the game's session waits for a value the certificate lacks. Million Arthur:
+  its CERT_INIT handler (found through the `card_id` string's references) stores `ms` at
+  session +0x20, and the session's state machine (step 1 -> 8, its `+0x1c`, each step gated by
+  a field set from a notice, then a request) never leaves step 1 while it is NULL. KOF XIV
+  crashed on it instead (NULL `ms`, `game.exe+0x41d87`).
+* `crash: access violation` right after a NESYS message: look at the faulting code's string
+  arguments (keys looked up in the certificate's list, XML paths...).
+* "Microsoft Visual C++ Runtime Library: Runtime Error! ... terminate it in an unusual way":
+  an uncaught C++ exception; the crash log names it (`crash: C++ exception .?AV_com_error@@` =
+  a COM/MSXML smart-pointer call, HRESULT 0x80004003 = a NULL node) with the return addresses
+  of the thrower; the XPath strings next to the call give the node the game wants
+  (`/root/match_conf`).
+* An unanswered request logs `nesys: unhandled command 0x..` and the game waits: the command
+  ids (requests 0x1-0x2B, replies and notices 0x101-0x12A) are listed in `nesys.rs` (`cmd`).
+* HTTP posts: dump them (`WAL_NESYS_HTTP_DUMP=1`), the form's `type` says what is read; reply
+  formats differ per game (Million Arthur skips 2 bytes and wants XML; the Groove Coaster card
+  server format is `1\n1,1\n<xml>`). Only the replies the game parses matter: find the parse
+  code from the reply handler (0x122: the client copies the body to its session object) and
+  its XPath strings.
+* NxL2 settings the game reads are logged (`nxl2: setting <name> = ...`): e.g. KOF XIV's
+  `Resolution` (0 = 720p, 1 = 1080p).
+
+**Million Arthur white screen (2026-10-11, offline only).** Not seen with NESYS online (user:
+training and story modes fine); offline (NESYS off), with DXVK the picture turns white at the
+first coin after the title (~25 s) and stays white through character select: only the HUD
+(credits, icons, "Please Wait") draws over it. It is not the .pmt movies: a reference build of
+the game (a Wine bottle image) goes on to the selection menu on the Batocera box. Already the
+first boot dialogs (初期化中です, the offline notice) are washed out to white/pink with our DXVK,
+dark red with wined3d (which goes black later). Tried without effect: `Resolution=2`. That
+reference differs from us by:
+* its DXVK: Batocera's Wine 9.22 (`wine-tkg` core, `dxvk=1`) with Batocera's DXVK, ours the
+  GE-Proton runner's (next test: run with that DXVK build);
+* its `NxL2Core.dll` replacement, set from `NXL2Core.ini`: `RESOLUTION=2`,
+  `IS_GAME_SELECT_ENABLE=1`, `AMIC_HARDWARE_SUPPORT=1`, `CHARA_SELECT_TIME=1`, volumes 100 (our
+  payload reports `IsGameSelectEnable=0`);
+* ReShade 4.5.4 as the game folder's `d3d9.dll` (a CRT shader preset), between the game and
+  DXVK; it logs a 3840x2160 back buffer;
+* XAudio2_5 / XACTEngine3_5 registered with regsvr32 before the run.
 
 ### 6.3 Type X (`crates/payload-typex`, `crates/loader`)
 
@@ -1093,7 +1158,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | works (user: 100%), opening video | key usf4, hide Microsoft dinput8 (blocks on raw HID devices), 6-button map |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | hide ReShade, `WAL_ANSI_CODEPAGE: 932`, language files with "MS Gothic" instead of "ＭＳ ゴシック" (`files`, fakejapanese: squares otherwise), picture drawn 854x480 in a 1280x720 back buffer and presented to 0,0 1280x720: `WAL_D3D9_WINDOWED_SIZE: 854x480` (also turns its fullscreen Reset windowed, drops the Present rectangles) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`) |
-| `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | BLOCKED: boots offline (NESYS off) to its intro movie, attract mode, title, coins and START; the movies after START are white (the game's own .pmt movies: 8-bit frames through a 256-color palette texture, a white output when the palette is empty); with NESYS on it stays on 初期化中です (initializing: certified, then nothing) | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS off, native d3dx9_42; TODO: the palette upload of the .pmt movies, what NESYS must send after the certificate (`WAL_NESYS_TRACE`) |
+| `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), its HTTP card-service reads answered (`/root/match_conf`), native d3dx9_42 |
+| `kof-xiv` | The King of Fighters XIV | nesica2 | works (user: 100%), NESiCA network connected | 64-bit NxL2Core.dll replacement (`wal_nesica64.dll`), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), `Resolution=1` (1080p: 1920x1080 window; 0 = 1280x720) |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
@@ -1165,4 +1231,4 @@ TODO, roughly by priority:
 * NESiCA: verify card insertion/NESYS card data in a real play session; per-game patches.
 * Settings the batocera script has and the launcher does not: fonts, redistributable installs,
   save-file linking, virtual desktop, FSR, NVAPI, hidraw.
-* More systems (Type X JVS, ...), 64-bit payloads (`x86_64-pc-windows-gnu`).
+* More systems (Type X JVS, ...).

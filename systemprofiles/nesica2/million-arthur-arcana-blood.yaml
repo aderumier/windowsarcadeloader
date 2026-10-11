@@ -14,10 +14,9 @@ tricks: [d3dx9_42]
 hide: [dinput8.dll]
 
 env:
-  # With the NESYS service emulated it stays on 初期化中です (initializing: connected and
-  # certified, it sends nothing more); without it: "communication failed, starting offline",
-  # then attract mode and title.
-  WAL_NESICA_NESYS: "0"
+  # The certificate's server list: the game also reads `ms` and `ss`; without them its
+  # NESYS session never leaves its first step (stuck on 初期化中です, "initializing").
+  WAL_NESICA_NESYS_HOST: card_id=7020392010281502,ms=127.0.0.1,ss=127.0.0.1
 
 # Buttons A B C D = b1-b4 (default mapping).
 

@@ -7,7 +7,7 @@ PROFILE=${PROFILE:-release}
 
 cargo build --profile "$PROFILE" -p wal-launcher
 cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-loader
-cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3
+cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica
 
 # copy + rename: works while a previous launcher is running ("Text file busy")
 install_file() {
@@ -19,5 +19,6 @@ for f in wal_nesica.dll wal_typex.dll wal_globalvr.dll wal_tsunami.dll wal-loade
     install_file "target/i686-pc-windows-gnu/$PROFILE/$f" "dist/payloads/$f"
 done
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_namcoes3.dll" dist/payloads/wal_namcoes3.dll
+install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_nesica.dll" dist/payloads/wal_nesica64.dll
 echo "built: dist/arcade-launcher dist/payloads/"
 ls dist/payloads

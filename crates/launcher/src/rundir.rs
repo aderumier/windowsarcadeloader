@@ -246,6 +246,14 @@ mod tests {
     }
 }
 
+/// Whether `exe` is a 64-bit (x86-64) PE executable.
+pub fn is_pe64(exe: &Path) -> bool {
+    let mut head = [0u8; 0x400];
+    let Ok(n) = fs::File::open(exe).and_then(|mut f| std::io::Read::read(&mut f, &mut head)) else { return false };
+    let pe = u32::from_le_bytes(head[0x3C..0x40].try_into().unwrap()) as usize;
+    n >= pe + 6 && &head[pe..pe + 4] == b"PE\0\0" && u16::from_le_bytes([head[pe + 4], head[pe + 5]]) == 0x8664
+}
+
 /// Copies the PE executable `src` to `dst` (replacing the link) without the DYNAMIC_BASE flag:
 /// Wine then maps it at its preferred base instead of relocating it.
 pub fn copy_fixed_base(src: &Path, dst: &Path) -> Result<()> {
