@@ -150,3 +150,175 @@ fn log_context(info: *mut EXCEPTION_POINTERS) {
         }
     }
 }
+
+/// Hang reporter: `heartbeat()` is called by the game's main loop (a per-frame API call);
+/// when it stops for 5 s, the thread that called it last is suspended and its instruction
+/// pointer and the module addresses on its stack are logged (`hang:` lines), once per stall,
+/// at most 3 times. The game window "not responding" without a crash: what it waits on.
+pub fn heartbeat() {
+    use std::sync::atomic::AtomicU64;
+    use std::sync::Once;
+    use windows_sys::Win32::System::SystemInformation::GetTickCount64;
+    use windows_sys::Win32::System::Threading::GetCurrentThreadId;
+
+    static LAST: AtomicU64 = AtomicU64::new(0);
+    static THREAD: AtomicU32 = AtomicU32::new(0);
+    static START: Once = Once::new();
+    LAST.store(unsafe { GetTickCount64() }, Ordering::Relaxed);
+    THREAD.store(unsafe { GetCurrentThreadId() }, Ordering::Relaxed);
+    START.call_once(|| {
+        std::thread::spawn(|| {
+            let mut reported = false;
+            let mut dumps = 0;
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let idle = unsafe { GetTickCount64() }.saturating_sub(LAST.load(Ordering::Relaxed));
+                if idle < 5000 {
+                    reported = false;
+                } else if !reported && dumps < 3 {
+                    reported = true;
+                    dumps += 1;
+                    log!("hang: main loop stopped for {idle} ms");
+                    let main = THREAD.load(Ordering::Relaxed);
+                    dump_thread(main, 48);
+                    // what the main thread may wait on: the game's other threads
+                    for id in other_threads(main) {
+                        dump_thread(id, 16);
+                    }
+                }
+            }
+        });
+    });
+}
+
+/// The process's threads except `main` and the calling one.
+fn other_threads(main: u32) -> Vec<u32> {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, THREADENTRY32, Thread32First, Thread32Next,
+    };
+    use windows_sys::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
+
+    let mut ids = Vec::new();
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+    if snapshot == INVALID_HANDLE_VALUE {
+        return ids;
+    }
+    let (pid, me) = unsafe { (GetCurrentProcessId(), GetCurrentThreadId()) };
+    let mut entry: THREADENTRY32 = unsafe { std::mem::zeroed() };
+    entry.dwSize = std::mem::size_of::<THREADENTRY32>() as u32;
+    let mut more = unsafe { Thread32First(snapshot, &mut entry) } != 0;
+    while more {
+        if entry.th32OwnerProcessID == pid && entry.th32ThreadID != main && entry.th32ThreadID != me {
+            ids.push(entry.th32ThreadID);
+        }
+        more = unsafe { Thread32Next(snapshot, &mut entry) } != 0;
+    }
+    unsafe { CloseHandle(snapshot) };
+    ids
+}
+
+fn dump_thread(id: u32, max: usize) {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Diagnostics::Debug::{CONTEXT, GetThreadContext};
+    use windows_sys::Win32::System::Threading::{
+        OpenThread, ResumeThread, SuspendThread, THREAD_GET_CONTEXT, THREAD_SUSPEND_RESUME,
+    };
+
+    let thread = unsafe { OpenThread(THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME, 0, id) };
+    if thread.is_null() {
+        log!("hang: cannot open thread {id}");
+        return;
+    }
+    let mut context: CONTEXT = unsafe { std::mem::zeroed() };
+    #[cfg(target_arch = "x86_64")]
+    {
+        context.ContextFlags = windows_sys::Win32::System::Diagnostics::Debug::CONTEXT_FULL_AMD64;
+    }
+    #[cfg(target_arch = "x86")]
+    {
+        context.ContextFlags = windows_sys::Win32::System::Diagnostics::Debug::CONTEXT_FULL_X86;
+    }
+    unsafe { SuspendThread(thread) };
+    let ok = unsafe { GetThreadContext(thread, &mut context) } != 0;
+    #[cfg(target_arch = "x86_64")]
+    let (ip, sp) = (context.Rip as usize, context.Rsp as usize);
+    #[cfg(target_arch = "x86")]
+    let (ip, sp) = (context.Eip as usize, context.Esp as usize);
+    // read the stack while the thread is stopped
+    let word = std::mem::size_of::<usize>();
+    let mut found = Vec::new();
+    if ok {
+        for i in 0..8192 {
+            let at = sp + i * word;
+            if !readable(at, word) {
+                break;
+            }
+            let v = unsafe { std::ptr::read_volatile(at as *const usize) };
+            if v >= 0x10000
+                && let Some(sym) = symbolize(v)
+            {
+                found.push((i * word, v, sym));
+                if found.len() >= max {
+                    break;
+                }
+            }
+        }
+    }
+    // x64: the exact call stack from the unwind tables (the stack scan above also shows stale
+    // return addresses)
+    #[cfg(target_arch = "x86_64")]
+    let frames = if ok { unwind(context) } else { Vec::new() };
+    unsafe {
+        ResumeThread(thread);
+        CloseHandle(thread);
+    }
+    #[cfg(target_arch = "x86_64")]
+    for (depth, ip) in frames.iter().enumerate() {
+        log!("hang:   thread {id} frame {depth}: {ip:#x} {}", symbolize(*ip).unwrap_or_default());
+    }
+    if !ok {
+        log!("hang: no context for thread {id}");
+        return;
+    }
+    log!("hang: thread {id} at {ip:#x} {} (sp {sp:#x})", symbolize(ip).unwrap_or_default());
+    for (off, v, sym) in found {
+        log!("hang:   [sp+{off:#06x}] {v:#x} {sym}");
+    }
+}
+
+/// Call stack of a suspended thread's context (x64 unwind data, leaf frames popped).
+#[cfg(target_arch = "x86_64")]
+fn unwind(mut context: windows_sys::Win32::System::Diagnostics::Debug::CONTEXT) -> Vec<usize> {
+    use windows_sys::Win32::System::Diagnostics::Debug::{RtlLookupFunctionEntry, RtlVirtualUnwind, UNW_FLAG_NHANDLER};
+
+    let mut frames = Vec::new();
+    for _ in 0..32 {
+        let ip = context.Rip;
+        if ip < 0x10000 {
+            break;
+        }
+        frames.push(ip as usize);
+        let mut base = 0u64;
+        let entry = unsafe { RtlLookupFunctionEntry(ip, &mut base, std::ptr::null_mut()) };
+        if entry.is_null() {
+            // leaf function: the return address is on top of the stack
+            let sp = context.Rsp as usize;
+            if !readable(sp, 8) {
+                break;
+            }
+            context.Rip = unsafe { std::ptr::read_volatile(sp as *const u64) };
+            context.Rsp += 8;
+        } else {
+            let mut handler_data = std::ptr::null_mut();
+            let mut establisher = 0u64;
+            unsafe {
+                RtlVirtualUnwind(UNW_FLAG_NHANDLER, base, ip, entry, &mut context, &mut handler_data, &mut establisher, std::ptr::null_mut());
+            }
+        }
+        if context.Rip == ip as u64 {
+            break;
+        }
+    }
+    frames
+}

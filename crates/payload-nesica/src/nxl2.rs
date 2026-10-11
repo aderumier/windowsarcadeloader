@@ -134,7 +134,10 @@ pub extern "C" fn NxL2Delete() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn NxL2Update() {
-    first_call("NxL2Update");}
+    first_call("NxL2Update");
+    // called every frame: a stalled main loop is reported (`hang:` lines)
+    wal_payload_common::crash::heartbeat();
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn NxL2GetInput() -> u32 {

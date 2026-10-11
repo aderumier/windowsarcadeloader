@@ -55,7 +55,7 @@
 use std::ffi::c_void;
 use std::io::Write;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::{iat, log};
@@ -122,6 +122,9 @@ static TRACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new
 static POW2: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static QUERY_FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+/// A fullscreen device could not be created (a display mode the screen does not have: Xorg
+/// only offers the output's real modes, a TV has no 1280x800): devices are windowed from then on.
+static WINDOWED_FALLBACK: AtomicBool = AtomicBool::new(false);
 static WINDOWED_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static ASPECT: Mutex<Option<(u32, u32)>> = Mutex::new(None);
@@ -540,14 +543,59 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
         log!("d3d: back buffer {old_w}x{old_h} (windowed {old_windowed}) -> windowed {w}x{h}");
     }
     let windowed = unsafe { *p.add(windowed_index) } != 0;
-    let Some((w, h)) = *FULLSCREEN_SIZE.lock().unwrap() else { return };
-    if !windowed {
+    if !windowed && let Some((w, h)) = *FULLSCREEN_SIZE.lock().unwrap() {
         let (old_w, old_h) = unsafe { (*p, *p.add(1)) };
         unsafe {
             *p = w;
             *p.add(1) = h;
         }
         log!("d3d9: fullscreen back buffer {old_w}x{old_h} -> {w}x{h}");
+    }
+    if !windowed && WINDOWED_FALLBACK.load(Ordering::Relaxed) {
+        unsafe { make_windowed(params, windowed_index) };
+    }
+}
+
+/// Present parameters made windowed, same back buffer (Direct3D stretches it to the window).
+unsafe fn make_windowed(params: P, windowed_index: usize) {
+    let p = params as *mut u32;
+    unsafe {
+        *p.add(windowed_index) = 1;
+        *p.add(windowed_index + 4) = 0; // refresh rate: 0 when windowed
+    }
+}
+
+/// A failed fullscreen device creation: retried windowed, the game window made a borderless
+/// window over the whole screen. True when `params` were changed (worth a retry).
+unsafe fn fullscreen_fallback(hr: HRESULT, params: P, windowed_index: usize, device_window_index: usize, focus: P) -> bool {
+    if params.is_null() || unsafe { *(params as *const u32).add(windowed_index) } != 0 {
+        return false;
+    }
+    let p = params as *const u32;
+    let (w, h) = unsafe { (*p, *p.add(1)) };
+    WINDOWED_FALLBACK.store(true, Ordering::Relaxed);
+    unsafe { make_windowed(params, windowed_index) };
+    let device_window = unsafe { *p.add(device_window_index) } as usize as P;
+    let hwnd = if device_window.is_null() { focus } else { device_window };
+    unsafe { cover_screen(hwnd) };
+    log!("d3d: fullscreen {w}x{h} device failed ({hr:#x}): windowed {w}x{h} device over the whole screen");
+    true
+}
+
+/// `hwnd` as a borderless window covering the primary screen.
+unsafe fn cover_screen(hwnd: P) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_STYLE, GetSystemMetrics, GetWindowLongW, HWND_TOP, SM_CXSCREEN, SM_CYSCREEN, SWP_FRAMECHANGED, SWP_SHOWWINDOW,
+        SetWindowLongW, SetWindowPos, WS_CAPTION, WS_POPUP, WS_THICKFRAME,
+    };
+    if hwnd.is_null() {
+        return;
+    }
+    let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+    unsafe {
+        let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+        SetWindowLongW(hwnd, GWL_STYLE, ((style & !(WS_CAPTION | WS_THICKFRAME)) | WS_POPUP) as i32);
+        SetWindowPos(hwnd, HWND_TOP, 0, 0, w, h, SWP_SHOWWINDOW | SWP_FRAMECHANGED);
     }
 }
 
@@ -644,7 +692,13 @@ unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window:
     let orig: unsafe extern "system" fn(P, u32, u32, P, u32, P, *mut P) -> HRESULT =
         unsafe { std::mem::transmute(ORIG_CREATE_DEVICE.load(Ordering::Relaxed)) };
     unsafe { override_size(params) };
-    let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
+    let mut hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
+    if hr < 0 {
+        unsafe { log_failure(hr, params, flags) };
+        if unsafe { fullscreen_fallback(hr, params, 8, 7, window) } {
+            hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
+        }
+    }
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
         unsafe { remember_window(params, window) };
         unsafe { show_device_window() };
@@ -997,7 +1051,10 @@ mod d3d8 {
         let orig: unsafe extern "system" fn(P, u32, u32, P, u32, P, *mut P) -> HRESULT =
             unsafe { std::mem::transmute(ORIG_CREATE_DEVICE.load(Ordering::Relaxed)) };
         unsafe { override_size_at(params, WINDOWED) };
-        let hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
+        let mut hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
+        if hr < 0 && unsafe { super::fullscreen_fallback(hr, params, WINDOWED, 6, window) } {
+            hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
+        }
         if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
             if !params.is_null() {
                 let p = params as *const u32;

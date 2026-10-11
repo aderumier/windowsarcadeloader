@@ -355,6 +355,21 @@ place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships 
   PE and unix sides must come from the same tree (the unixlib interface changed since 11-7).
   Installed in the runner (previous files `*.pre-ge-master`) **and** in the prefix
   (`syswow64/`, `system32/`): Wine loads the prefix's copies, a runner-only change is ignored.
+* `winedmo-seek-flush` (2026-10-11, `winedmo.dll` i386 and x86_64, same tree, previous files
+  `*.pre-seek-flush`): GE's DirectShow parser (`dlls/winedmo/winedmo_quartz_parser.c`)
+  `dmo_seeking_SetPositions` took each output pin's `flushing_cs` before flushing downstream;
+  its stream thread holds that lock during `Receive`, and a renderer may block in `Receive`
+  until it is flushed: a seek deadlocked. SNK Heroines (its own renderer, looping movies)
+  hung right after START. The downstream BeginFlush now comes first (as Windows and Wine's
+  other parsers). Found with the hang watchdog (`crash.rs`, §6.1).
+* Backups of replaced runner files go to `<runner>/hotfix-backups/<dll dir>/`, never next to
+  the runner's DLLs: the prefix update (`wineboot -u`) copies everything in
+  `lib/wine/*-windows/` into `system32`/`syswow64` and registers it, and the old
+  `qasf.dll.pre-ge-master` became the registered DMO Wrapper Filter and WM ASF Reader
+  (`{94297043-...}`, `{187463A0-...}`, 32 and 64 bits): DirectShow movies mixed the old qasf
+  with the new winedmo. To repair a prefix: delete the `*.dll.<suffix>` copies in
+  `system32`/`syswow64`, then `wine regsvr32 qasf.dll` and
+  `wine C:\windows\syswow64\regsvr32.exe qasf.dll` (or let the next prefix update do it).
 * Games shipping Wine's own DLLs (e.g. a dump with Wine 10.16's `d3d8/ddraw/wined3d.dll`):
   Wine loads those builtin-format DLLs **from the game dir** even with `=b` overrides, mixing
   Wine versions. `hide:` them in the profile (check with `WINEDEBUG=+loaddll`).
@@ -450,6 +465,10 @@ profile), `show` (merged profile).
 * `patches`: `WAL_PATCHES=<rva>:<hex>,...` game code patches from the profile (keeps game
   knowledge in profiles, e.g. known per-game patches). `WAL_PATCHES_EXE=<file>` limits
   them to one executable: test menus (`TestMode.exe`) load the payload too.
+* `crash`: hang watchdog (`heartbeat()`, called by a per-frame game API: the NESiCA 2
+  `NxL2Update`): when it stops for 5 s every thread of the game is suspended in turn and its
+  stack logged (`hang:` lines; on x64 the exact call stack from the unwind tables, else a
+  stack scan). A frozen game ("not responding", no crash) shows what it waits on.
 * `crash`: vectored exception handler logging the first access violations and MSVC C++
   exceptions (thrown type, `std::exception` message): address as
   `module+offset`, registers, EBP frame chain, stack scan, and for write overruns the text
@@ -474,6 +493,13 @@ profile), `show` (merged profile).
   `Present` to N frames per second: windowed devices get no vsync under Xwayland (Elevator
   Action asks interval one and ran at ~400 fps, 6 times too fast; DXVK's maxFrameRate had no
   effect). `WAL_D3D9_TRACE` also logs presents per second. Failing Resets are logged.
+  Always on: a fullscreen device that cannot be created (Direct3D 8 and 9) is retried windowed
+  with the same back buffer, the game window made a borderless window over the whole screen
+  (Direct3D stretches the picture to it), and later devices and resets stay windowed. Under
+  Xorg Wine only offers the output's real modes: on a TV without 1280x800 the 1280x768 Type X /
+  NESiCA games (`WAL_D3D9_FULLSCREEN_SIZE: 1280x800`) failed `CreateDevice` with
+  D3DERR_NOTAVAILABLE and quit at boot (Chaos Breaker's log on an AMD Batocera; Battle
+  Fantasia and Block King had the same symptom there, working only with a forced odd video mode).
 * Games loading d3d9/d3d8 at run time (DxLib's Direct3D 9Ex in Crimzon Clover, Magical Beat)
   go through the game's `GetProcAddress`, also hooked: `Direct3DCreate9`, `Direct3DCreate9Ex`
   (`CreateDeviceEx`, `PresentEx`, `ResetEx` wrapped too) and `Direct3DCreate8`.
@@ -1160,6 +1186,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | hide ReShade, `WAL_ANSI_CODEPAGE: 932`, language files with "MS Gothic" instead of "ＭＳ ゴシック" (`files`, fakejapanese: squares otherwise), picture drawn 854x480 in a 1280x720 back buffer and presented to 0,0 1280x720: `WAL_D3D9_WINDOWED_SIZE: 854x480` (also turns its fullscreen Reset windowed, drops the Present rectangles) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`) |
 | `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), its HTTP card-service reads answered (`/root/match_conf`), native d3dx9_42 |
 | `kof-xiv` | The King of Fighters XIV | nesica2 | works (user: 100%), NESiCA network connected | 64-bit NxL2Core.dll replacement (`wal_nesica64.dll`), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), `Resolution=1` (1080p: 1920x1080 window; 0 = 1280x720) |
+| `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | as KOF XIV (64-bit NxL2Core.dll replacement, NESYS `ms`/`ss`, `Resolution=1`), dump's 32-bit dinput8 hidden; runner fix `winedmo-seek-flush` (hung after START: movie seek deadlock) |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |

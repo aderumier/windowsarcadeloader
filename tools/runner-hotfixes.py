@@ -4,7 +4,10 @@
 Usage: tools/runner-hotfixes.py [runner dir...]   (default: every runner in wine-runners/)
 
 Each fix matches an exact byte sequence (unique in the file) and is skipped when the runner
-does not contain it (other builds, already fixed). The original file is kept as <file>.orig.
+does not contain it (other builds, already fixed). The original file is kept as
+<runner>/hotfix-backups/<dll dir>/<file>.orig: never next to the runner's DLLs, which the
+prefix update copies into system32/syswow64 and registers (a `qasf.dll.pre-*` backup there
+became the registered DirectShow DMO wrapper and ASF reader).
 
 * winedmo-wow64-demuxer-destroy: 32-bit games, `wow64_demuxer_destroy` passes a
   `demuxer_create_params` to `demuxer_destroy`, which reads the demuxer handle from the
@@ -65,8 +68,9 @@ def apply(runner: pathlib.Path) -> None:
             state = "applied" if data.count(new) == 1 else "not applicable"
             print(f"{runner.name}: {name}: {state}")
             continue
-        backup = path.with_name(path.name + ".orig")
+        backup = runner / "hotfix-backups" / path.parent.name / (path.name + ".orig")
         if not backup.exists():
+            backup.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(path, backup)
         tmp = path.with_name(path.name + ".tmp")
         tmp.write_bytes(data.replace(old, new))
