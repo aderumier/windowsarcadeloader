@@ -17,6 +17,8 @@ does not contain it (other builds, already fixed). The original file is kept as 
   lightgun's ttyACM (its software's link to the gun) then stays dead: one of two guns no
   longer moved nor clicked after each game. The probe is skipped (the `params->serial` test
   jumps over it, as the 002-fix-mountmgr-serial-noctty patch of the loader's Wine builds).
+  The Batocera runner ships mountmgr.so rebuilt from the GE sources without the probe (not
+  applicable there); this byte patch is for a fresh GE-Proton11-7 download.
 """
 
 import pathlib
