@@ -40,10 +40,11 @@ pub trait System {
 pub fn by_name(name: &str) -> Result<Box<dyn System>> {
     Ok(match name.to_ascii_lowercase().as_str() {
         "nesica" | "nesicax" | "nesicaxlive" => Box::new(nesica::Nesica),
+        "nesica2" | "nesicax2" | "nesicaxlive2" => Box::new(nesica::Nesica2),
         "typex" | "typex2" => Box::new(typex::TypeX),
         "globalvr" => Box::new(globalvr::GlobalVr),
         "namcoes3" => Box::new(namcoes3::NamcoEs3),
         "tsunami" => Box::new(tsunami::Tsunami),
-        _ => bail!("unknown system '{name}' (supported: nesica, typex, globalvr, namcoes3, tsunami)"),
+        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami)"),
     })
 }

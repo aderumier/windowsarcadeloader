@@ -32,3 +32,22 @@ impl System for Nesica {
         &["WindowsLoader"]
     }
 }
+
+/// Taito NESiCAxLive 2: the game imports `NxL2Core.dll` (the NESiCAxLive 2 API, on top of the
+/// FastIO driver): the same payload replaces it (`nxl2.rs`). Options as `nesica`, plus
+/// `WAL_NXL2_SETTINGS`: game/system settings, `Name=value,...`.
+pub struct Nesica2;
+
+impl System for Nesica2 {
+    fn name(&self) -> &'static str {
+        "nesica2"
+    }
+
+    fn payloads(&self) -> &'static [Payload] {
+        &[Payload { file: "wal_nesica.dll", install_as: "NxL2Core.dll" }]
+    }
+
+    fn data_dirs(&self) -> &'static [&'static str] {
+        &["WindowsLoader"]
+    }
+}

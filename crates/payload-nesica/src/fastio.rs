@@ -166,6 +166,22 @@ fn native_state() -> [u8; 16] {
     d
 }
 
+/// Switches of the FastIO input register 0x4120 (players 1/2), for the NESiCAxLive 2 API.
+pub(crate) fn switches() -> u32 {
+    le(&native_state()[0..4])
+}
+
+/// Coins inserted and not consumed yet (every player's coin presses), for the NESiCAxLive 2
+/// API.
+pub(crate) fn coins() -> u32 {
+    coin_counter(0)
+}
+
+/// Consumes `n` coins of `coins()`.
+pub(crate) fn consume_coins(n: u32) {
+    COINS[0].fetch_sub(n.min(0x3FFF) as i32, Ordering::Relaxed);
+}
+
 fn coin_edge(pressed: bool) -> u32 {
     // the game counts one coin per read returning 1: report each press once
     if pressed {

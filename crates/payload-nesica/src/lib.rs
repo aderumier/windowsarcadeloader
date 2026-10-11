@@ -5,6 +5,9 @@
 //! entry point without any injector, implements the FastIO driver API on top of the
 //! virtual arcade stick, and starts the other emulated services (registry, NESYS).
 //!
+//! NESiCAxLive 2 games import `NxL2Core.dll` instead: the same DLL is installed under that name
+//! (system `nesica2`) and implements its API (`nxl2.rs`) on top of the FastIO emulation.
+//!
 
 #![allow(non_snake_case)]
 
@@ -12,6 +15,8 @@ mod crypttrace;
 mod drive;
 mod fastio;
 mod nesys;
+mod nesystrace;
+mod nxl2;
 mod registry;
 mod rfid;
 
@@ -34,6 +39,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         rfid::init();
         fastio::init();
         crypttrace::init();
+        nesystrace::init();
         if std::env::var("WAL_NESICA_NESYS").map_or(true, |v| v != "0") {
             nesys::start();
         }

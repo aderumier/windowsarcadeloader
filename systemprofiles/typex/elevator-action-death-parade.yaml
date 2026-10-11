@@ -1,0 +1,66 @@
+# Elevator Action Death Parade (Taito, Taito Type X2, 2P light guns) - template, override
+# values in userprofiles/typex/elevator-action-death-parade.yaml.
+system: typex
+name: Elevator Action Death Parade
+
+# The dump's dinput8.dll is another loader's input hack.
+hide: [dinput8.dll]
+
+# PhysX 2.8.1 game: its PhysXLoader.dll loads the PhysX system software's runtime (the scene
+# was never created without it: crash at the first stage).
+tricks: [physx]
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # middle button: the gun's action button (b3); start is shooting the screen
+  gun:
+    BTN_MIDDLE: b3
+
+# JVS switches (the cabinet layout of payload jvs.rs, found with the game's switch test): each
+# gun's button = its player's button 1 (b2, right click); the elevator panel: action = left (b3,
+# middle click), up / down; SELECT = button 7 (b4), ENTER = button 8 (start). The trigger is
+# only the gun's.
+native_map:
+  b1: none
+  b2: btn1
+  b3: left
+  b4: btn7
+  start: btn8
+  left: none
+  right: none
+
+env:
+  WAL_TYPEX_GUNS: elevator-action-death-parade
+  WAL_TYPEX_JVS_LAYOUT: elevator-action
+  # The master volume is the cabinet's volume knob, a JVS analog input (0: silent): maximum.
+  WAL_TYPEX_JVS_ANALOG: FFC0,FFC0,FFC0,FFC0,FFC0,FFC0,FFC0
+  # Known patches: 0x84396 jne -> jmp (attraction door board error 0x604), 0x88ABA je -> jne;
+  # the attraction door checks of the test menu (0xC4E20) and of the game (0x3EBA0) return
+  # true: the game drives its doors.
+  WAL_PATCHES: "0x84396:EB,0x88ABA:85,0xC4E20:B001C3,0x3EBA0:B001C3"
+  # The cabinet's elevator doors and its wall around the screen, drawn with the dump's
+  # pictures (payload doors.rs; WAL_TYPEX_BEZEL: "0": doors only, black bars).
+  WAL_TYPEX_DOORS: "Attraction Doors Pack"
+  # "1": each player's crosshair (the dump's P1.png / P2.png) while their gun moves.
+  WAL_TYPEX_CROSSHAIRS: "0"
+  # Portrait 720x1280 picture (the cabinet's screen): a windowed 720x1280 device in a
+  # screen-sized borderless window. doors.rs shows the screen composed from it (picture,
+  # doors, bezel) in a window of its own over it; without it the picture is presented to a
+  # centered 9:16 rectangle.
+  WAL_D3D9_WINDOWED_SIZE: 720x1280
+  WAL_D3D9_ASPECT: "9:16"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_D3D9_MAX_FPS: "60"
+
+controls:
+  left: none
+  right: none
+  b1: Trigger
+  b2: Gun button (gun right button)
+  b3: Elevator action button (gun middle button)
+  b4: Select (test menu)
+  start: Enter (test menu)
+  up: Elevator up button
+  down: Elevator down button

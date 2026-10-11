@@ -132,6 +132,16 @@ fn process(packet: &[u8]) -> Vec<u8> {
     r.finish()
 }
 
+/// The `card` virtual input's card is in the reader (for the NESiCAxLive 2 API).
+pub(crate) fn card_inserted() -> bool {
+    INSERTED.load(Ordering::Relaxed)
+}
+
+/// The card's 16-character id.
+pub(crate) fn card_id() -> String {
+    std::env::var("WAL_NESICA_CARD_ID").unwrap_or_else(|_| "7020392010281502".into())
+}
+
 pub(crate) fn init() {
     if std::env::var("WAL_NESICA_RFID").is_ok_and(|v| v == "0") {
         return;

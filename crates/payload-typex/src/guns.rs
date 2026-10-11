@@ -7,12 +7,18 @@
 //! build of each game).
 //!
 //! Gun of a player = its virtual stick: position `lx`/`ly`, trigger `b1`; offscreen when the
-//! position is at an edge of the screen (lightguns report the edge off screen) or `b2` is held
-//! (reload with a mouse or a gun's second button).
+//! position is at an edge of the screen (lightguns report the edge off screen) or the game's
+//! reload button is held (`b2` but in Elevator Action Death Parade, whose right button is the
+//! gun's: reload with a mouse or a gun's second button).
+//!
+//! The guns aim over the whole screen; a game shown in part of it (Elevator Action Death
+//! Parade's portrait picture between its bezel) reports that area (`set_picture`): positions
+//! are taken relative to it, outside it the gun is off screen.
 //!
 //! `WAL_TYPEX_GUN_PLAYERS=2,1`: the virtual player driving each gun (default 1,2...), e.g. to
 //! calibrate gun 2 with a single mouse.
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use wal_payload_common::{log, serial};
@@ -51,6 +57,8 @@ struct Game {
     coin_counters: &'static [u32],
     /// Code/data patches the gun mode needs, applied at startup: (RVA, bytes).
     patches: &'static [(u32, &'static [u8])],
+    /// Virtual button holding the gun off screen (reload), 0: none (aiming at the edge only).
+    reload: u32,
 }
 
 const GAIA_ATTACK_4: Game = Game {
@@ -71,6 +79,7 @@ const GAIA_ATTACK_4: Game = Game {
     shared_touch: false,
     coin_counters: &[],
     patches: &[],
+    reload: button::B2,
 };
 
 const MUSIC_GUNGUN_2: Game = Game {
@@ -90,6 +99,7 @@ const MUSIC_GUNGUN_2: Game = Game {
     shared_touch: false,
     coin_counters: &[],
     patches: &[],
+    reload: button::B2,
 };
 
 const HAUNTED_MUSEUM: Game = Game {
@@ -109,6 +119,7 @@ const HAUNTED_MUSEUM: Game = Game {
     shared_touch: false,
     coin_counters: &[],
     patches: &[],
+    reload: button::B2,
 };
 
 const HAUNTED_MUSEUM_2: Game = Game {
@@ -127,6 +138,7 @@ const HAUNTED_MUSEUM_2: Game = Game {
     shared_touch: false,
     coin_counters: &[],
     patches: &[],
+    reload: button::B2,
 };
 
 const BLOCK_KING_BALL_SHOOTER: Game = Game {
@@ -147,6 +159,7 @@ const BLOCK_KING_BALL_SHOOTER: Game = Game {
     shared_touch: true,
     coin_counters: &[],
     patches: &[],
+    reload: button::B2,
 };
 
 /// Mobile Suit Gundam Spirits of Zeon ("patched I/O" builds, `ioemulation = TRUE`): the gun
@@ -179,6 +192,7 @@ const GUNDAM_SOZ: Game = Game {
     // credits, bookkeeping
     coin_counters: &[0x26FB88, 0x26FBC8],
     patches: &[],
+    reload: button::B2,
 };
 
 /// Its 2-screen mode (`num_display = 2`, a 1280x480 picture): each player aims at their own
@@ -194,20 +208,65 @@ const GUNDAM_SOZ_2P: Game = Game {
     coin_counters: &[0x26FB88, 0x26FBC8],
     // its embedded config: num_display = 1 -> 2
     patches: &[(0x175868, b"2")],
+    reload: button::B2,
 };
 
-const GAMES: &[Game] = &[GUNDAM_SOZ, GUNDAM_SOZ_2P, BLOCK_KING_BALL_SHOOTER, GAIA_ATTACK_4, MUSIC_GUNGUN_2, HAUNTED_MUSEUM, HAUNTED_MUSEUM_2];
+const ELEVATOR_ACTION_DEATH_PARADE: Game = Game {
+    name: "elevator-action-death-parade",
+    // gun board connected (state 2); each gun's sensor error bytes cleared
+    constants: &[(0x201C10, 0x02), (0x201BE8, 0x00), (0x201BE9, 0x00), (0x201BF2, 0x00), (0x201BF3, 0x00)],
+    // The gun board record the game reads (10 bytes a gun: sensor errors +0/+1, offscreen
+    // +2/+3, x +4, y +6, trigger +8), written by its packet parser only, which never runs on
+    // the silent port. Axes 0..0x3FF0. The gun button (also its JVS bit) is a byte of the game's
+    // player state.
+    guns: &[
+        Gun { trigger: &[0x201BF0], offscreen: &[0x201BEA, 0x201BEB], x: &[0x201BEC], y: &[0x201BEE], trigger_edge: None, auto_fire: None, x_offset: 0, bits: &[(0x212235, 0x01, button::B2)] },
+        Gun { trigger: &[0x201BFA], offscreen: &[0x201BF4, 0x201BF5], x: &[0x201BF6], y: &[0x201BF8], trigger_edge: None, auto_fire: None, x_offset: 0, bits: &[(0x21228D, 0x01, button::B2)] },
+    ],
+    range: 16368,
+    range_y: 16368,
+    shared_touch: false,
+    coin_counters: &[],
+    patches: &[],
+    // right click is the gun's button: off screen only aiming outside the picture
+    reload: 0,
+};
+
+const GAMES: &[Game] = &[GUNDAM_SOZ, GUNDAM_SOZ_2P, BLOCK_KING_BALL_SHOOTER, GAIA_ATTACK_4, MUSIC_GUNGUN_2, HAUNTED_MUSEUM, HAUNTED_MUSEUM_2, ELEVATOR_ACTION_DEATH_PARADE];
 
 /// Edge band of the -32768..=32767 position in which the gun counts as off screen
 /// (<= 1 or >= 254 on 0..=255).
 const EDGE: i32 = 32768 - 256;
 
-fn offscreen(stick: &StickState) -> bool {
+/// Area of the screen showing the game's picture: left, right, top, bottom as fractions of the
+/// screen (f32 bits), the whole screen by default.
+static PICTURE: [AtomicU32; 4] = [AtomicU32::new(0), AtomicU32::new(0x3F80_0000), AtomicU32::new(0), AtomicU32::new(0x3F80_0000)];
+
+/// The game's picture covers this part of the screen (fractions).
+pub(crate) fn set_picture(left: f32, right: f32, top: f32, bottom: f32) {
+    for (a, v) in PICTURE.iter().zip([left, right, top, bottom]) {
+        a.store(v.to_bits(), Ordering::Relaxed);
+    }
+}
+
+/// -32768..=32767 over the screen -> -32768..=32767 over the picture (`lo`..`hi` fractions),
+/// and whether it is outside.
+fn in_picture(v: i16, lo: usize, hi: usize) -> (i16, bool) {
+    let (lo, hi) = (f32::from_bits(PICTURE[lo].load(Ordering::Relaxed)), f32::from_bits(PICTURE[hi].load(Ordering::Relaxed)));
+    if lo <= 0.0 && hi >= 1.0 {
+        return (v, false);
+    }
+    let f = (v as f32 + 32768.0) / 65535.0;
+    let g = (f - lo) / (hi - lo).max(1e-6);
+    ((g.clamp(0.0, 1.0) * 65535.0 - 32768.0).round() as i16, !(0.0..=1.0).contains(&g))
+}
+
+fn offscreen(stick: &StickState, reload: u32) -> bool {
     let at_edge = |a: Axis| {
         let v = stick.axis(a) as i32;
         v <= -EDGE || v >= EDGE - 1
     };
-    stick.pressed(button::B2) || at_edge(Axis::LeftX) || at_edge(Axis::LeftY)
+    (reload != 0 && stick.pressed(reload)) || at_edge(Axis::LeftX) || at_edge(Axis::LeftY)
 }
 
 /// -32768..=32767 -> 0..=range.
@@ -277,12 +336,14 @@ fn run(game: &'static Game) {
             }
             let edge = trigger && !held[player];
             held[player] = trigger;
-            let off = offscreen(&stick) as u8;
+            let (sx, out_x) = in_picture(stick.axis(Axis::LeftX), 0, 1);
+            let (sy, out_y) = in_picture(stick.axis(Axis::LeftY), 2, 3);
+            let off = (offscreen(&stick, game.reload) || out_x || out_y) as u8;
             for &rva in gun.offscreen {
                 byte(rva, off);
             }
-            let x = (position(stick.axis(Axis::LeftX), game.range) - gun.x_offset) as u16;
-            let y = position(stick.axis(Axis::LeftY), game.range_y) as u16;
+            let x = (position(sx, game.range) - gun.x_offset) as u16;
+            let y = position(sy, game.range_y) as u16;
             for &(rva, mask, b) in gun.bits {
                 let at = (base + rva as usize) as *mut u8;
                 let v = unsafe { std::ptr::read_volatile(at) };

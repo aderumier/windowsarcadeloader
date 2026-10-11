@@ -77,6 +77,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | works (user: 100%), opening video | pass | 2026-10-09 |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | pass | 2026-10-07 |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | pass | 2026-10-08 |
+| `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | BLOCKED: boots offline (NESYS off) to its intro movie, attract mode, title, coins and START; the movies after START are white (the game's own .pmt movies: 8-bit frames through a 256-color palette texture, a white output when the palette is empty); with NESYS on it stays on 初期化中です (initializing: certified, then nothing) | not in the test |  |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-10 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
@@ -96,6 +97,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | not in the test |  |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | pass | 2026-10-07 |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | pass | 2026-10-07 |
+| `elevator-action-death-parade` | Elevator Action Death Parade | typex | works (user: 100%, perfect), 2 guns, attraction doors and bezel, crosshairs option | pass | 2026-10-11 |
 | `king-of-fighters-xiii` | The King of Fighters XIII | typex | works (user: 100%) | pass | 2026-10-09 |
 | `kof-xiii-climax-typex2` | The King of Fighters XIII Climax (Type X2) | typex | works (user: 100%) | pass | 2026-10-10 |
 | `music-gungun-2` | Music GunGun! 2 | typex | works (user: perfect), attract movie, sound, 2 guns | pass | 2026-10-09 |

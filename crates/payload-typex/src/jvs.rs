@@ -102,6 +102,12 @@ struct Board {
     /// start 0x10, cannon 0x08 (button 2); second byte SELECT 0x08 (button 4), ENTER 0x04
     /// (button 3). The standard start bit 0x80 is not read.
     block_king: bool,
+    /// `WAL_TYPEX_JVS_LAYOUT=elevator-action`: Elevator Action Death Parade's cabinet for
+    /// `20 01 04` (found with its switch test): one block for both guns, each gun's button its
+    /// own bit (player 1's button 1 0x02, player 2's 0x01), the elevator panel (up 0x20, action
+    /// 0x08 on left, down 0x10), service 0x40, SELECT / ENTER (buttons 7 / 8) from either
+    /// player.
+    elevator_action: bool,
     /// `WAL_TYPEX_JVS_ANALOG=v0,v1,...` (hex): fixed analog channel values (default 0).
     analog_fixed: Vec<u16>,
     /// `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...`: player 1's virtual axis read on each
@@ -203,6 +209,7 @@ static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 pub(crate) fn init() {
     let layout = std::env::var("WAL_TYPEX_JVS_LAYOUT").unwrap_or_default();
     let (haunted_museum, block_king) = (layout.trim() == "haunted-museum", layout.trim() == "block-king");
+    let elevator_action = layout.trim() == "elevator-action";
     let battle_gear = match layout.trim() {
         "battle-gear" => Some(BattleGear::new(false)),
         "battle-gear-pro" => Some(BattleGear::new(true)),
@@ -223,6 +230,7 @@ pub(crate) fn init() {
         coin_held: [false; 2],
         haunted_museum,
         block_king,
+        elevator_action,
         analog_fixed,
         analog_inputs,
         battle_gear,
@@ -372,6 +380,16 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 let bytes = [b0, b1, 0];
                 (3, std::iter::once(if test { 0x80 } else { 0 }).chain((0..arg(2) as usize).map(|k| bytes.get(k).copied().unwrap_or(0))).collect())
             }
+            0x20 if board.elevator_action && arg(1) == 1 => {
+                // Elevator Action Death Parade: one 4-byte block for the whole cabinet. Each
+                // gun's button is its own bit (player 1's native button 1: 0x02, player 2's:
+                // 0x01); the elevator panel (up 0x20, action 0x08 = left, down 0x10), service,
+                // SELECT / ENTER (buttons 7 / 8) from either player
+                let (p1, p2) = (players[0], players[1]);
+                let b0 = ((p1.0 | p2.0) & 0xFC) | (p1.0 & 0x02) | ((p2.0 & 0x02) >> 1);
+                let bytes = [b0, p1.1 | p2.1, p1.4 | p2.4, 0];
+                (3, std::iter::once(if test { 0x80 } else { 0 }).chain((0..arg(2) as usize).map(|k| bytes.get(k).copied().unwrap_or(0))).collect())
+            }
             0x20 if board.haunted_museum && arg(1) == 1 => {
                 let (p1, p2) = (players[0], players[1]);
                 let mut b0 = 0;
@@ -469,8 +487,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
             }
             0x66 if pro => (3, vec![0x01]),
             // Gaia Attack 4 polls `67 xx` in every packet: unknown, acknowledged so the
-            // commands after it (coins, analogs) are answered
-            0x67 => (2, vec![]),
+            // commands after it (coins, analogs) are answered; Elevator Action Death Parade
+            // polls `7D 00` the same way
+            0x67 | 0x7D => (2, vec![]),
             other => {
                 log!("jvs: unknown command {other:#04x}");
                 (cmds.len() - i, vec![])
@@ -478,7 +497,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
         };
         // commands with outputs/acks: data commands get a report
         // byte when they are not the first one
-        if matches!(cmds[i], 0x08 | 0x11..=0x14 | 0x20..=0x22 | 0x26 | 0x2E | 0x30..=0x37 | 0x65 | 0x67) {
+        if matches!(cmds[i], 0x08 | 0x11..=0x14 | 0x20..=0x22 | 0x26 | 0x2E | 0x30..=0x37 | 0x65 | 0x67 | 0x7D) {
             rep(&mut bytes);
         }
         out.extend(&bytes);

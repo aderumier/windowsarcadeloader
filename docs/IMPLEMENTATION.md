@@ -295,7 +295,10 @@ old common prefix did: many games rely on one they do not list (Chaos Code's d3d
 dsound is the exception, native only for the games listing it (wine's builtin for the others,
 in their WINEDLLOVERRIDES): it crashes the CRI audio games (Gaia Attack 4, Haunted Museum,
 Street Fighter IV...). Native DirectPlay (`directplay`, Chase H.Q. 2) is kept the same way,
-for the games listing it only. `dll_overrides` (`<dll>: n | b | ...`) has the last word. The overrides
+for the games listing it only. `physx` (PhysX system software, legacy 2.x runtimes) serves the
+PhysX 2.8.1 games whose `PhysXLoader.dll` looks the runtime up in the registry (Elevator Action
+Death Parade: no PhysX scene without it, crash at the first stage). `d3dx9_42`: Million Arthur
+Arcana Blood imports it. `dll_overrides` (`<dll>: n | b | ...`) has the last word. The overrides
 are written `*<dll>`: wine looks up `*dsound` before `dsound`, in the environment then the
 registry, and winetricks writes `*dsound` keys, which a plain `dsound=b` would not beat. A
 game that cannot share the prefix sets its own `prefix` (and `prefix_tricks`).
@@ -624,6 +627,32 @@ import it statically, so it loads before the game entry point: no injector neede
   patches from `NesicaGeneric.cpp`. Games also try the NESiCAxLive launcher pipe
   (`\\.\pipe\NxLPipe...`); nobody emulates it and the games tested do not need it. Game detection by CRC is not needed: the profile says which game it is.
 
+### 6.2b NESiCAxLive 2 (system `nesica2`, `crates/payload-nesica/src/nxl2.rs`)
+
+NESiCAxLive 2 games (Million Arthur Arcana Blood) import `NxL2Core.dll` instead of the FastIO
+driver. The original talks to the cabinet's NESiCAxLive 2 system program (shared memory
+`NxLMMF_<guid>`, a launcher mapping `E408D848-...` holding the game settings as an `N2CD` blob of
+typed name/value entries, `NxL2Init` fails without it and the game quits), to `iDmacDrv32.dll`
+and to the card reader on a COM port. The NESiCA payload exports the 33 `NxL2*` functions (by
+name, cdecl; `iDmacDrv32.def`) and the `nesica2` system installs it as `NxL2Core.dll`
+(`iDmacDrv32.dll` is then not loaded):
+* `NxL2GetInput`: player 1's FastIO switches rearranged as the original does (one player per
+  cabinet: the API has a single player; versus is a link between cabinets): service 0x1, start
+  0x2, test 0x4, up/down/left/right 0x8-0x40, buttons 1-6 0x80-0x1000. `native_map` applies.
+* Coins: the FastIO coin counter, `NxL2DecreaseCoinCount` consumes it; coin and I/O status 0 (OK).
+* Settings by name (`NxL2Get/SetGameSetting*`, `NxL2GetSystemSetting*`, `default` argument
+  returned for unknown names): built-in defaults (volumes 100, 1 coin 1 credit...), the profile's
+  `WAL_NXL2_SETTINGS=Name=value,...`, then `nxl2-settings.txt` of the D: data folder (written by
+  `NxL2UpdateGameSetting`, test menu changes). Million Arthur passes 0 as default: its volumes
+  were 0 without settings.
+* `NxL2GetAutoEndRemainderTime` -1 (0 made the game quit at boot), `NxL2CheckStoreOpenTime` -1
+  (no closing announcement), `NxL2GetGameID` the registry `GameKind`.
+* Card: `NxL2IsRFIDRead` is true while the `card` virtual input's card is inserted,
+  `NxL2GetRFIDID` its 16-character id (`WAL_NESICA_CARD_ID`).
+* Every function logs its first call (`nxl2: <name> called`).
+* `WAL_NESYS_TRACE=1` (`nesystrace.rs`): logs the game's messages on the NESYS pipe both ways,
+  whatever serves it (finding what a game expects; Million Arthur opens the pipe once at boot).
+
 ### 6.3 Type X (`crates/payload-typex`, `crates/loader`)
 
 Type X / X2 games (and NESiCA games built on Type X I/O like 3D Cosplay Mahjong) talk to a
@@ -659,7 +688,7 @@ Other `20` layouts (Gaia Attack 4 asks `20 01 03`: 1 player x 3 bytes) get the r
 as a generic reply; `67 xx` (unknown, polled by Gaia Attack 4) is acknowledged so
 the commands after it are answered (otherwise I/O ERROR).
 
-Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2|haunted-museum|haunted-museum-2|block-king-ball-shooter`):
+Lightgun games (`guns.rs`, `WAL_TYPEX_GUNS=gaia-attack-4|music-gungun-2|haunted-museum|haunted-museum-2|block-king-ball-shooter|elevator-action-death-parade`):
 per-game input code. The gun board's port (`WAL_TYPEX_GUN_PORT`, comma separated, default
 `COM1`) is a silent serial device (`serial::install_sink`: writes accepted, nothing read; a
 `!COMn` entry is absent instead, its open fails as on a PC without it), and a
@@ -829,6 +858,32 @@ for outputs (recoil, damage, lamps: `SetOutputValue(...)` reads). Port those val
 `WAL_TYPEX_GUNS` game entry; check the RVAs against our dump (DemulShooter targets a given
 build: compare the bytes at the NOP addresses before trusting them). Its axis ranges are the
 game's native ones (convert from our 0..=16384 / virtual stick range).
+
+Elevator Action Death Parade (`WAL_TYPEX_GUNS=elevator-action-death-parade`): the gun board
+record at +0x201BE8 (10 bytes a gun: sensor error flags +0/+1 cleared, offscreen +2/+3, x +4,
+y +6 in 0..0x3FF0, trigger +8), board state +0x201C10 = 2 (connected), each gun's button
+(`b2`, right click) a byte of its player's state (+0x212235, +0x21228D) and a JVS bit; no reload
+button (aiming off the picture reloads). Its JVS board is polled with `7D 00` (unknown,
+acknowledged like `67 xx`: unanswered, the analog read after it was lost and the game started
+in its gunsight calibration screen) and reads a single 4-byte switch block for the whole
+cabinet (`WAL_TYPEX_JVS_LAYOUT=elevator-action`, from its switch test: system 0x80 test; byte 0
+service 0x40, elevator panel up 0x20 / down 0x10 / action 0x08, 1P gun button 0x02, 2P gun
+button 0x01; byte 1 SELECT 0x08, ENTER 0x04): both players' switches merged, each player's
+button 1 its own gun button. Master volume = JVS analog input (the cabinet's volume knob, 0:
+silent).
+
+Attraction doors (`doors.rs`, `WAL_TYPEX_DOORS=<folder>`): the cabinet is an elevator whose two
+physical doors close in front of the screen between stages and shake during some scenes. The
+game drives them through `doors(left, right, speed)` (+0xC4B10; 0.0 open .. 1.0 closed, travel
+time 4000 - 3000 x speed ms) and `vibration(level, power, time ms)` (+0xC4C40), which return at
+once without the door board: their entries are hooked (5-byte jump, first instructions in a
+trampoline; prologue bytes checked) and the doors are drawn over the back buffer before each
+`Present` (`screenshot::set_overlay`): the dump's `DoorLeft.png` / `DoorRight.png` of
+`Attraction Doors Pack/1280x720 alt` (each half of the 720x1280 portrait picture) in system
+memory surfaces of the back buffer's format, copied with `UpdateSurface` (kept across resets);
+a door moves toward its target at its travel speed, the vibration alternates it by power/200
+every 33 ms. Known patches make the door checks of the test menu (+0xC4E20) and of the game
+(+0x3EBA0) return true, so the game drives its doors.
 
 Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the game's
 `SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), for Type X2 games (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
@@ -1038,6 +1093,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | works (user: 100%), opening video | key usf4, hide Microsoft dinput8 (blocks on raw HID devices), 6-button map |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | hide ReShade, `WAL_ANSI_CODEPAGE: 932`, language files with "MS Gothic" instead of "ＭＳ ゴシック" (`files`, fakejapanese: squares otherwise), picture drawn 854x480 in a 1280x720 back buffer and presented to 0,0 1280x720: `WAL_D3D9_WINDOWED_SIZE: 854x480` (also turns its fullscreen Reset windowed, drops the Present rectangles) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`) |
+| `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | BLOCKED: boots offline (NESYS off) to its intro movie, attract mode, title, coins and START; the movies after START are white (the game's own .pmt movies: 8-bit frames through a 256-color palette texture, a white output when the palette is empty); with NESYS on it stays on 初期化中です (initializing: certified, then nothing) | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS off, native d3dx9_42; TODO: the palette upload of the .pmt movies, what NESYS must send after the certificate (`WAL_NESYS_TRACE`) |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
@@ -1057,6 +1113,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | wal-loader, JVS (re-init after bus reset), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA); TODO: dispenser (reference "Skip Boot Check") |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
+| `elevator-action-death-parade` | Elevator Action Death Parade | typex | works (user: 100%, perfect), 2 guns, attraction doors and bezel, crosshairs option | wal-loader, JVS (`7D` acknowledged, cabinet switch layout `elevator-action`, volume knob on analog), guns in the gun board record (`WAL_TYPEX_GUNS`, aim relative to the picture), attraction doors and bezel drawn from the dump's pictures in a screen composed over the game's window (`WAL_TYPEX_DOORS`, `doors.rs`; crosshairs `WAL_TYPEX_CROSSHAIRS`), PhysX 2.8.1 system runtime (`tricks: [physx]`), portrait 720x1280 windowed device, 60 fps, known patches (door board error, door checks) |
 | `king-of-fighters-xiii` | The King of Fighters XIII | typex | works (user: 100%) | wal-loader, JVS (native 1280x720 in a fullscreen window, no override) |
 | `kof-xiii-climax-typex2` | The King of Fighters XIII Climax (Type X2) | typex | works (user: 100%) | wal-loader, JVS, Taito crypto service (`WAL_NESICA_KEY: kofxiiiclimax`, plaintext reply: media.kof is encrypted, black screen without it), dshow find-filter, xact, as the NESiCA build |
 | `music-gungun-2` | Music GunGun! 2 | typex | works (user: perfect), attract movie, sound, 2 guns | wal-loader, JVS, guns in both gun records (`WAL_TYPEX_GUNS`), `WAL_PIN_CWD`, patches: 0x137C70, 60 Hz-only mode enumeration (screens at 120 Hz), 1920x1080 instead of 1360x768 (no such Xwayland mode), volume knob at maximum (muted otherwise); start keys = trigger; GE-master video DLLs (0080: attract movie hung) |

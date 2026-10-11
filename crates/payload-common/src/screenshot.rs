@@ -41,6 +41,14 @@
 //! * `WAL_D3D9_POW2=1`: device caps report power-of-two textures only (conditional
 //!   non-power-of-two), as the GPUs of the time.
 //!
+//! * `set_overlay(draw, reset)`: payloads draw over the d3d9 back buffer before each `Present`
+//!   (and before the screenshot): Elevator Action Death Parade's elevator doors and bezel.
+//!   `draw(device, window)` may return a swap chain of its own (an additional swap chain, its
+//!   own window) in which it composed the screen from the game's back buffer: that one is
+//!   presented (and captured by `WAL_SCREENSHOT`) instead of the game's.
+//!   `reset(device)` is called before the device is reset (release default-pool resources).
+//!   Needs the shims enabled by one of the options above.
+//!
 //! Direct3D 8 differs in the vtable slots and structure layouts only (see `mod d3d8`).
 
 use std::ffi::c_void;
@@ -121,6 +129,58 @@ static FRAME_PERIOD: Mutex<Option<Duration>> = Mutex::new(None);
 /// The device's window (hDeviceWindow, else the focus window): `Present` with a null window
 /// draws to it.
 static DEVICE_WINDOW: AtomicUsize = AtomicUsize::new(0);
+/// `set_overlay`: called with the device before each d3d9 `Present`, and before its resets.
+static OVERLAY: AtomicUsize = AtomicUsize::new(0);
+static OVERLAY_RESET: AtomicUsize = AtomicUsize::new(0);
+
+/// Draws over the back buffer of the game's Direct3D 9 device before each `Present`:
+/// `draw(device, window)` returns the swap chain to present instead of the game's when it
+/// composed the screen in a swap chain of its own; `reset(device)` runs before the device is
+/// reset.
+pub fn set_overlay(draw: unsafe fn(P, P) -> Option<P>, reset: unsafe fn(P)) {
+    OVERLAY_RESET.store(reset as usize, Ordering::Relaxed);
+    OVERLAY.store(draw as usize, Ordering::Relaxed);
+}
+
+/// Stops drawing over the picture.
+pub fn clear_overlay() {
+    OVERLAY.store(0, Ordering::Relaxed);
+}
+
+unsafe fn draw_overlay(dev: P, window: P) -> Option<P> {
+    let f = OVERLAY.load(Ordering::Relaxed);
+    if f == 0 {
+        return None;
+    }
+    let f: unsafe fn(P, P) -> Option<P> = unsafe { std::mem::transmute(f) };
+    let window = if window.is_null() { DEVICE_WINDOW.load(Ordering::Relaxed) as P } else { window };
+    unsafe { f(dev, window) }
+}
+
+/// Presents the overlay's swap chain (captured first when a screenshot is due).
+unsafe fn present_overlay(dev: P, chain: P) -> HRESULT {
+    const CHAIN_PRESENT: usize = 3;
+    const CHAIN_GET_BACK_BUFFER: usize = 5;
+    if let Some(path) = screenshot_due() {
+        let get: unsafe extern "system" fn(P, u32, u32, *mut P) -> HRESULT = unsafe { std::mem::transmute(method(chain, CHAIN_GET_BACK_BUFFER)) };
+        let mut back: P = std::ptr::null_mut();
+        if unsafe { get(chain, 0, 0, &mut back) } >= 0 && !back.is_null() {
+            if let Err(e) = unsafe { capture_surface(dev, back, &path) } {
+                log!("screenshot: {path}: {e}");
+            }
+        }
+    }
+    let present: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(method(chain, CHAIN_PRESENT)) };
+    unsafe { present(chain, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), 0) }
+}
+
+unsafe fn overlay_reset(dev: P) {
+    let f = OVERLAY_RESET.load(Ordering::Relaxed);
+    if f != 0 {
+        let f: unsafe fn(P) = unsafe { std::mem::transmute(f) };
+        unsafe { f(dev) };
+    }
+}
 
 struct State {
     interval: Duration,
@@ -375,11 +435,17 @@ unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, wind
 unsafe extern "system" fn present_ex(dev: P, src: P, dst: P, window: P, dirty: P, flags: u32) -> HRESULT {
     pace_present();
     count_present();
-    unsafe { maybe_capture(dev) };
+    let composed = unsafe { draw_overlay(dev, window) };
+    if composed.is_none() {
+        unsafe { maybe_capture(dev) };
+    }
+    let orig: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT_EX.load(Ordering::Relaxed)) };
+    if let Some(chain) = composed {
+        return unsafe { present_overlay(dev, chain) };
+    }
     let (src, dst) = whole_window(src, dst);
     let mut rect = [0i32; 4];
     let dst = unsafe { aspect_rect(dst, window, &mut rect) };
-    let orig: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT_EX.load(Ordering::Relaxed)) };
     unsafe { orig(dev, src, dst, window, dirty, flags) }
 }
 
@@ -413,6 +479,7 @@ unsafe fn fullscreen_mode(params: P, mode: P, fallback: &mut DisplayModeEx) -> P
 }
 
 unsafe extern "system" fn reset_ex(dev: P, params: P, mode: P) -> HRESULT {
+    unsafe { overlay_reset(dev) };
     unsafe { override_size(params) };
     let mut fallback = DisplayModeEx::default();
     let mode = unsafe { fullscreen_mode(params, mode, &mut fallback) };
@@ -484,6 +551,7 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
 }
 
 unsafe extern "system" fn reset(dev: P, params: P) -> HRESULT {
+    unsafe { overlay_reset(dev) };
     unsafe { override_size(params) };
     let orig: unsafe extern "system" fn(P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_RESET.load(Ordering::Relaxed)) };
     let hr = unsafe { orig(dev, params) };
@@ -652,11 +720,17 @@ fn count_present() {
 unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
     pace_present();
     count_present();
-    unsafe { maybe_capture(dev) };
+    let composed = unsafe { draw_overlay(dev, window) };
+    if composed.is_none() {
+        unsafe { maybe_capture(dev) };
+    }
+    let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
+    if let Some(chain) = composed {
+        return unsafe { present_overlay(dev, chain) };
+    }
     let (src, dst) = whole_window(src, dst);
     let mut rect = [0i32; 4];
     let dst = unsafe { aspect_rect(dst, window, &mut rect) };
-    let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
     unsafe { orig(dev, src, dst, window, dirty) }
 }
 
@@ -759,6 +833,13 @@ unsafe fn capture(dev: P, path: &str) -> Result<(), String> {
         if get_back_buffer(dev, 0, 0, 0, &mut back) < 0 || back.is_null() {
             return Err("GetBackBuffer failed".into());
         }
+        capture_surface(dev, back, path)
+    }
+}
+
+/// Writes render target `back` (released) as a BMP.
+unsafe fn capture_surface(dev: P, back: P, path: &str) -> Result<(), String> {
+    unsafe {
         let get_desc: unsafe extern "system" fn(P, *mut SurfaceDesc) -> HRESULT = std::mem::transmute(method(back, SURF_GET_DESC));
         let mut desc = SurfaceDesc::default();
         get_desc(back, &mut desc);

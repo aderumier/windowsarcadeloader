@@ -1,0 +1,29 @@
+# Million Arthur Arcana Blood (NESiCAxLive 2) - template, override values in
+# userprofiles/nesica2/million-arthur-arcana-blood.yaml.
+system: nesica2
+name: Million Arthur Arcana Blood
+
+# Direct3D 9 game, XAudio2 / XACT. NxL2Core.dll replaced by the payload (inputs, coins,
+# settings, card reader). One player per cabinet: the NESiCAxLive 2 API has the inputs of a
+# single player (versus is a link between cabinets).
+
+# Native D3DX 9.42 (the game imports d3dx9_42).
+tricks: [d3dx9_42]
+
+# The dump's dinput8.dll is another loader's input hack.
+hide: [dinput8.dll]
+
+env:
+  # With the NESYS service emulated it stays on 初期化中です (initializing: connected and
+  # certified, it sends nothing more); without it: "communication failed, starting offline",
+  # then attract mode and title.
+  WAL_NESICA_NESYS: "0"
+
+# Buttons A B C D = b1-b4 (default mapping).
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D
