@@ -11,6 +11,12 @@ does not contain it (other builds, already fixed). The original file is kept as 
   uninitialized `url` field: leaked demuxers, faults, and a glibc "free(): invalid size" abort
   when a DirectShow movie is stopped (Battle Fantasia: coin during the attract movie).
   Upstream Wine 2110c64d89cc; compiled fix: store the handle at offset 0 of the params.
+* mountmgr-serial-probe (x86_64 and i386): mountmgr checks each /dev/ttyS*, ttyUSB*, ttyACM*
+  by opening it without O_NOCTTY in winedevice.exe, a session leader without a terminal
+  (setsid): the first one becomes its controlling tty, hung up when the game exits. A Sinden
+  lightgun's ttyACM (its software's link to the gun) then stays dead: one of two guns no
+  longer moved nor clicked after each game. The probe is skipped (the `params->serial` test
+  jumps over it, as the 002-fix-mountmgr-serial-noctty patch of the loader's Wine builds).
 """
 
 import pathlib
@@ -27,6 +33,22 @@ FIXES = [
         bytes.fromhex("488b07488dbdc0feffff488985d0feffff"),
         # ...; mov %rax,-0x140(%rbp)
         bytes.fromhex("488b07488dbdc0feffff488985c0feffff"),
+    ),
+    (
+        "mountmgr-serial-probe",
+        "lib/wine/x86_64-unix/mountmgr.so",
+        # mov 0x10(%rdi),%eax; test %eax,%eax; je +0x2d (probe); mov 0x8(%rdi),%rdi; xor %esi,%esi; xor %eax,%eax
+        bytes.fromhex("8b471085c0742d488b7f0831f631c0"),
+        # ...; jmp +0x2d
+        bytes.fromhex("8b471085c0eb2d488b7f0831f631c0"),
+    ),
+    (
+        "mountmgr-serial-probe",
+        "lib/wine/i386-unix/mountmgr.so",
+        # mov 0x8(%edi),%ecx; test %ecx,%ecx; je +0x3c (probe); sub $8,%esp; push $0; push 0x4(%edi)
+        bytes.fromhex("8b4f0885c9743c83ec086a00ff7704"),
+        # ...; jmp +0x3c
+        bytes.fromhex("8b4f0885c9eb3c83ec086a00ff7704"),
     ),
 ]
 
