@@ -1,4 +1,4 @@
-//! Raw Thrills PC cabinets (The Fast and the Furious, its Drift, Super Bikes and SuperCars,
+//! Raw Thrills PC cabinets (The Fast and the Furious, its Drift, Super Bikes 1 / 2 and SuperCars,
 //! Nicktoons Nitro Racing, H2O Overdrive, Super Alpine Racer, X-Games Snowboarder, Winter X
 //! Games SnoCross).
 //!
@@ -7,8 +7,9 @@
 //!
 //! Payload options (profile `env`):
 //! - `WAL_RAWTHRILLS_GAME`: `fnf` / `drift` / `superbikes` / `nicktoons` / `h2overdrive` (JAMMA
-//!   USB board reports), `supercars` / `alpine` / `snowboarder` / `snocross` (`SetControl`): the
-//!   game's board from the virtual sticks
+//!   USB board reports), `supercars` / `alpine` / `snowboarder` / `snocross` (`SetControl`),
+//!   `superbikes2` (the game's keyboard and analog tables): the game's board from the virtual
+//!   sticks
 //! - `WAL_RAWTHRILLS_BRAKE`: `switch` or `analog` brake (default: the game's, Super Bikes
 //!   and Drift switch, The Fast and the Furious analog)
 //! - `WAL_RAWTHRILLS_DDRIVE`: folder for the game's `D:\` paths (logs, personal bests),
@@ -19,7 +20,8 @@
 //! volup voldown view button2 button3 tunes gear1..gear4 shiftup (SHIFT) shiftdown` (H2O
 //! Overdrive: `start coin1 coin2 service test bill volup voldown view view2 view3`; ski games:
 //! `start view1 view2 view3 tunes coin1 coin2 test service bill volup voldown start2`;
-//! SnoCross: `start snowball view coin1 coin2 test service bill volup voldown`); player
+//! SnoCross: `start snowball view coin1 coin2 test service bill volup voldown`; Super Bikes 2:
+//! `start view tunes shift shiftdown coin1 coin2 test service bill volup voldown brake`); player
 //! 2's coin is coin 2, the keypad the numeric keypad (`WAL_RAWTHRILLS_KEYPAD=0`: off).
 
 use super::{Payload, System};

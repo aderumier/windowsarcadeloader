@@ -1147,6 +1147,18 @@ return at once. It still reads the PC keyboard's developer keys: Space (ends the
 Escape. Force feedback: the handlebar force the race computes (`0x99ab6c`, -1.2401..1.2401,
 positive pushing left), read every poll, sent as `FFB_CONSTANT`.
 
+The Fast and the Furious Super Bikes 2 (`sb2.rs`, `superbikes2`, 2010 build): the SuperCars
+engine, but the dump's input functions read every board code as a keyboard key (`and ecx,
+0xff; jmp` in place of the board test): a board code reads the keyboard state byte `code &
+0xff` of the game's table (bit 0 held, bit 1 pressed once), its analog codes a dword of the
+game's analog table (0..255, turned into floats through the test menu's calibration). The
+game's DirectInput keyboard is not created (its input init removed); a thread writes those
+bytes and dwords from the virtual sticks: START, VIEW, TUNES, SHIFT, the developer key Down
+(shift down), coins, test, service, bill, volume, the digital brake (or the brake pedal past
+a third), the keypad; lean, throttle, brake. Build fixes: the back buffer format kept
+(R5G6B5 crashed), Space (ends the race) made Escape, no error box on close, no Watson, no
+Escape box, files' base path empty.
+
 Nicktoons Nitro Racing (`sdaemon.rs`, `nicktoons`): the JAMMA USB board engine of The Fast and
 the Furious (same parser, board init, status check, keyboard input functions, motor force
 function), a kart: analog gas and brake, no gearbox, view; its IO flags already the board only.
@@ -1405,6 +1417,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | wal-loader, as `fast-and-furious` (§6.3b), switch brake, 4 or 6 speed lever, screen size back to 640x480 (`WAL_PATCHES`: the dump's data said 1280x720, menus in the corner), force feedback from its wheel motor force (untested on a wheel) |
 | `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | wal-loader, H2O board inputs through the game's `SetControl` (§6.3b), 4 speed lever from shift up/down, files' base path left empty, its 1360x768 picture in a windowed device over the screen (Direct3D 8 interval fix), force feedback from its force board's force (untested on a wheel) |
 | `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, keyboard ramp 1 s (lean, throttle), switch brake, shift down = developer key made a board input |
+| `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user) | wal-loader, board inputs written to the game's keyboard and analog tables (the dump reads board codes as keys, §6.3b), 4 coins per credit, lean / throttle / brake calibrated in the test menu, back buffer format fix, Space made Escape |
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | in progress (untested) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b, The Fast and the Furious engine), first boot resets audits and checks every file (about a minute), force feedback from its wheel motor force |
 | `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | wal-loader, inputs through the game's `SetControl` without a board (§6.3b), DXVK's d3d8 (dump's d3d8to9 hidden), picture rotated for a vertical monitor (no rotation yet) |
 | `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | as Super Alpine Racer, landscape |

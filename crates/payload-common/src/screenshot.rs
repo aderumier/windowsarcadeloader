@@ -43,6 +43,8 @@
 //!   non-power-of-two), as the GPUs of the time.
 //! * `WAL_D3D9_MULTITHREADED=1`: devices are created with `D3DCREATE_MULTITHREADED`, for
 //!   games using the device from more than one thread without it.
+//! * `WAL_HANG_REPORT=1`: each `Present` is the hang reporter's heartbeat
+//!   ([`crate::crash::heartbeat`]): a main loop stopped for 5 s logs where its thread waits.
 //!
 //! * `set_overlay(draw, reset)`: payloads draw over the d3d9 back buffer before each `Present`
 //!   (and before the screenshot): Elevator Action Death Parade's elevator doors and bezel.
@@ -785,6 +787,9 @@ fn count_present() {
 }
 
 unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
+    if std::env::var_os("WAL_HANG_REPORT").is_some() {
+        crate::crash::heartbeat();
+    }
     pace_present();
     count_present();
     let composed = unsafe { draw_overlay(dev, window) };
@@ -1101,6 +1106,9 @@ mod d3d8 {
     }
 
     unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
+        if std::env::var_os("WAL_HANG_REPORT").is_some() {
+            crate::crash::heartbeat();
+        }
         super::pace_present();
         super::count_present();
         if let Some(path) = screenshot_due() {

@@ -1,0 +1,59 @@
+# The Fast and the Furious Super Bikes 2 (Raw Thrills, 2010) - template, override values in
+# userprofiles/rawthrills/fast-and-furious-super-bikes-2.yaml.
+system: rawthrills
+name: The Fast and the Furious Super Bikes 2
+
+# Direct3D 8 game (sdaemon.exe): the payload (started through wal-loader) writes the board's
+# inputs where this dump reads them (its keyboard table, its analog table) from the virtual
+# sticks (payload sb2.rs), its keyboard/mouse controls off. 4 coins per credit by default;
+# lean, throttle and brake are calibrated in the test menu.
+env:
+  WAL_RAWTHRILLS_GAME: superbikes2
+
+# The bike: handlebar = lx, throttle = accel, brake = brake (analog; past a third of its
+# travel also the digital brake) or b3, START (also the nitrous) = start, VIEW = b1, TUNES =
+# b2, SHIFT = b6, bill acceptor = b4, volume up / down (test menu navigation) = up / down,
+# player 2's coin = coin 2. The cabinet's keypad is the PC's numeric keypad (NumLock on;
+# * = . or *, # = + or Enter).
+native_map: {}
+
+input:
+  # leaning must not press the d-pad
+  stick_as_dpad: false
+  # Left stick handlebar, R2 throttle, L2 or A brake, X view, Y tunes, R1 shift, B bill, d-pad
+  # up / down volume up / down.
+  gamepad:
+    r2: accel
+    l2: brake
+    r1: b6
+    a: b3
+    b: b4
+  # keyboard lean and throttle: full in 1 s (the brake is a button: Down = b3)
+  keyboard_ramp_ms: 1000
+  # Keyboard (player 1): Left / Right handlebar, Up throttle, Down brake (b3), Ctrl view, Alt
+  # tunes, X shift, Left Shift bill, Page Up / Page Down volume up / down, 1 start (nitrous),
+  # 5 coin, 6 coin 2.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: b3
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Handlebar
+  accel: Throttle
+  brake: Brake
+  start: Start (nitrous)
+  b1: View
+  b2: Tunes
+  b3: Brake (button)
+  b4: Bill
+  b6: Shift
