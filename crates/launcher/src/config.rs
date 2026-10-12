@@ -97,6 +97,7 @@ pub struct InputConfig {
     pub wheel: MapTable,
     pub keyboard_enabled: bool,
     pub keyboard: BTreeMap<String, MapTable>,
+    pub keyboard_ramp_ms: u32,
     pub guns_enabled: bool,
     pub guns_mouse: bool,
     pub guns_mice: usize,

@@ -8,14 +8,14 @@
 
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use sdl3::event::Event;
 use sdl3::gamepad::Gamepad;
 use sdl3::joystick::{HatState, Joystick, JoystickId};
 use sdl3::{GamepadSubsystem, JoystickSubsystem};
-use wal_protocol::{InputFrame, MAX_PLAYERS, Output, output};
+use wal_protocol::{Axis, InputFrame, MAX_PLAYERS, Output, StickState, output};
 
 use crate::config::Profile;
 use crate::ffb;
@@ -65,6 +65,9 @@ pub struct Hub<'a> {
     keys: Option<Receiver<(u16, i32)>>,
     pointers: Option<Receiver<PointerEvent>>,
     pub exit_requested: bool,
+    /// Keyboards' ramped stick axes per player (`input.keyboard_ramp_ms`), and when they moved.
+    ramped: [[i16; Axis::COUNT]; MAX_PLAYERS],
+    last_frame: Instant,
     /// Print device events (input test mode).
     pub verbose: bool,
 }
@@ -163,6 +166,8 @@ impl<'a> Hub<'a> {
             keys,
             pointers,
             exit_requested: false,
+            ramped: [[0; Axis::COUNT]; MAX_PLAYERS],
+            last_frame: Instant::now(),
             verbose: false,
         })
     }
@@ -201,8 +206,46 @@ impl<'a> Hub<'a> {
         }
     }
 
-    pub fn frame(&self) -> InputFrame {
-        mapping::merge(self.devices.values(), self.config.input.deadzone, self.config.input.stick_as_dpad)
+    /// The virtual sticks. Keyboards' axes (sticks, pedals) move to a held key's full
+    /// deflection in `input.keyboard_ramp_ms` (0: at once), as an analog stick or pedal pushed
+    /// progressively.
+    pub fn frame(&mut self) -> InputFrame {
+        let deadzone = self.config.input.deadzone;
+        let ramp_ms = self.config.input.keyboard_ramp_ms;
+        let now = Instant::now();
+        let elapsed = now.duration_since(self.last_frame).as_micros() as i64;
+        self.last_frame = now;
+        if ramp_ms == 0 {
+            return mapping::merge(self.devices.values(), deadzone, self.config.input.stick_as_dpad);
+        }
+        // the keyboards of each player, merged then ramped
+        let mut sticks = Vec::new();
+        let mut keyboards = [None::<StickState>; MAX_PLAYERS];
+        for (key, dev) in &self.devices {
+            let c = dev.contribution(deadzone);
+            match (key, keyboards.get_mut(dev.player)) {
+                (DevKey::Keyboard(_), Some(slot)) => {
+                    let k = slot.get_or_insert_with(StickState::default);
+                    k.buttons |= c.buttons;
+                    for (a, v) in k.axes.iter_mut().zip(c.axes) {
+                        if v.unsigned_abs() > a.unsigned_abs() {
+                            *a = v;
+                        }
+                    }
+                }
+                _ => sticks.push((dev.player, c)),
+            }
+        }
+        let step = (32768 * elapsed / (ramp_ms as i64 * 1000)).clamp(1, 65536) as i32;
+        for (player, k) in keyboards.iter_mut().enumerate() {
+            let Some(k) = k else { continue };
+            for (current, target) in self.ramped[player].iter_mut().zip(k.axes.iter_mut()) {
+                *current = mapping::ramp(*current, *target, step);
+                *target = *current;
+            }
+            sticks.push((player, *k));
+        }
+        mapping::merge_sticks(sticks.into_iter(), deadzone, self.config.input.stick_as_dpad)
     }
 
     /// A force feedback output of the game, played on the player's devices: wheels (evdev

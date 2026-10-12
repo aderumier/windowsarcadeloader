@@ -168,6 +168,10 @@ input:
 
   # Keyboards (evdev key names) -> virtual stick, per player.
   keyboard_enabled: true
+  # Keys driving an axis (sticks, pedals) reach full deflection in this many milliseconds, as
+  # an analog stick or pedal pushed progressively (steering, gas); released: back at once.
+  # 0: at once.
+  keyboard_ramp_ms: 0
   keyboard:
     p1:
       KEY_UP: up

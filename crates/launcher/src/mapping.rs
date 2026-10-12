@@ -332,13 +332,18 @@ fn axis_value(value: Value, pedal: bool, invert: bool) -> i16 {
 
 /// Merges device contributions into the virtual sticks.
 pub fn merge<'a>(devices: impl Iterator<Item = &'a DeviceState>, deadzone: i16, stick_as_dpad: bool) -> InputFrame {
+    merge_sticks(devices.map(|d| (d.player, d.contribution(deadzone))), deadzone, stick_as_dpad)
+}
+
+/// Merges (player, contribution) pairs into the virtual sticks: buttons ORed, the largest
+/// deflection of each axis kept.
+pub fn merge_sticks(sticks: impl Iterator<Item = (usize, StickState)>, deadzone: i16, stick_as_dpad: bool) -> InputFrame {
     let mut frame = InputFrame::default();
-    for dev in devices {
-        if dev.player >= MAX_PLAYERS {
+    for (player, c) in sticks {
+        if player >= MAX_PLAYERS {
             continue;
         }
-        let c = dev.contribution(deadzone);
-        let p = &mut frame.players[dev.player];
+        let p = &mut frame.players[player];
         p.buttons |= c.buttons;
         for (slot, v) in p.axes.iter_mut().zip(c.axes) {
             if v.unsigned_abs() > slot.unsigned_abs() {
@@ -367,9 +372,30 @@ pub fn merge<'a>(devices: impl Iterator<Item = &'a DeviceState>, deadzone: i16, 
     frame
 }
 
+/// One step of a keyboard stick ramp: `current` moved toward `target` by at most `step`.
+/// Released: back to the center at once; reversed: from the center.
+pub fn ramp(current: i16, target: i16, step: i32) -> i16 {
+    let t = target as i32;
+    if t == 0 {
+        return 0;
+    }
+    let c = if current as i32 * t < 0 { 0 } else { current as i32 };
+    (if t > c { (c + step).min(t) } else { (c - step).max(t) }) as i16
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ramps_toward_the_target() {
+        assert_eq!(ramp(0, 32767, 10000), 10000);
+        assert_eq!(ramp(30000, 32767, 10000), 32767);
+        assert_eq!(ramp(-10000, -32768, 10000), -20000);
+        // release and reverse at once
+        assert_eq!(ramp(20000, 0, 1000), 0);
+        assert_eq!(ramp(20000, -32768, 1000), -1000);
+    }
 
     #[test]
     fn default_gamepad_compiles() {
