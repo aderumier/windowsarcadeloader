@@ -562,6 +562,11 @@ unsafe fn make_windowed(params: P, windowed_index: usize) {
     unsafe {
         *p.add(windowed_index) = 1;
         *p.add(windowed_index + 4) = 0; // refresh rate: 0 when windowed
+        // Direct3D 8: FullScreen_PresentationInterval must be 0 when windowed (SuperCars asked
+        // 1: D3DERR_INVALIDCALL); Direct3D 9's PresentationInterval stays
+        if windowed_index == d3d8::WINDOWED {
+            *p.add(windowed_index + 5) = 0;
+        }
     }
 }
 
@@ -1031,7 +1036,7 @@ mod d3d8 {
     const SURF_UNLOCK_RECT: usize = 10;
     /// D3DPRESENT_PARAMETERS (8): Width, Height, Format, Count, MultiSample, SwapEffect,
     /// hDeviceWindow, Windowed, ...
-    const WINDOWED: usize = 7;
+    pub(super) const WINDOWED: usize = 7;
 
     pub static ORIG_CREATE8: AtomicUsize = AtomicUsize::new(0);
     static ORIG_CREATE_DEVICE: AtomicUsize = AtomicUsize::new(0);
