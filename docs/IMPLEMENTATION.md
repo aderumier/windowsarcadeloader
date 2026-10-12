@@ -47,6 +47,7 @@ crates/
     src/crypto_keys.rs     built-in crypto service keys
   loader/                  wal-loader.exe: starts a game with a payload loaded before its entry point
   payload-typex/           Taito Type X payload (JVS I/O board on COM2), loaded by wal-loader
+  payload-rawthrills/      Raw Thrills PC payload (JAMMA USB board reports), loaded by wal-loader
   payload-nesica/          NESiCAxLive payload = replacement iDmacDrv32.dll
     iDmacDrv32.def         export ordinals of the original driver (see §6.2)
     src/news.png           NESYS news picture
@@ -220,6 +221,10 @@ those profiles add `tricks: [d3dcompiler_47]`.
     The GUI reads them as gamepads in its Wheel tab captures (their own SDL gamepad events
     dropped); the Gamepad tab takes only the other gamepads.
   * Initial joystick axes are read at open time (pedals rest at non-zero values).
+  * `keyboard_ramp_ms` (default 0): a key driving an axis (sticks, pedals) reaches full
+    deflection in that time, as an analog stick or pedal pushed progressively (`Hub::frame`:
+    each player's keyboards merged, then `mapping::ramp` per axis); released, the axis is back at
+    once, reversed it starts from the center. Super Bikes: 1000 (lean and throttle).
   * Player slots: `devices.<name>.player`, else the lowest slot not used by another SDL device.
     Keyboards are fixed per `input.keyboard.pN` and share one global key state.
   * evdev keyboards: one reader thread per device that has KEY_A and KEY_ENTER, no grab (the
@@ -512,6 +517,8 @@ profile), `show` (merged profile).
   NESiCA games (`WAL_D3D9_FULLSCREEN_SIZE: 1280x800`) failed `CreateDevice` with
   D3DERR_NOTAVAILABLE and quit at boot (Chaos Breaker's log on an AMD Batocera; Battle
   Fantasia and Block King had the same symptom there, working only with a forced odd video mode).
+  Direct3D 8 windowed devices need a `FullScreen_PresentationInterval` of 0: the retry clears
+  it (SuperCars asked 1360x768 with interval one, D3DERR_INVALIDCALL windowed otherwise).
 * Games loading d3d9/d3d8 at run time (DxLib's Direct3D 9Ex in Crimzon Clover, Magical Beat)
   go through the game's `GetProcAddress`, also hooked: `Direct3DCreate9`, `Direct3DCreate9Ex`
   (`CreateDeviceEx`, `PresentEx`, `ResetEx` wrapped too) and `Direct3DCreate8`.
@@ -1039,6 +1046,55 @@ Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the 
 `HKLM\...\Drivers32` at startup, the DLL being in the game directory (Gaia Attack 4's WMV9 AVIs,
 codec extracted from the dump's `wmv9VCMsetup.exe`).
 
+### 6.3b Raw Thrills (`crates/payload-rawthrills`)
+
+Raw Thrills PC cabinets read their JAMMA USB I/O board (HID) themselves: no driver DLL to
+replace, the payload is started by `wal-loader`. `D:\` (logs, personal bests) goes to
+`WindowsLoader` (`WAL_RAWTHRILLS_DDRIVE`).
+
+The `sdaemon.exe` games, one engine (`sdaemon.rs`, `WAL_RAWTHRILLS_GAME`: `fnf` The Fast and
+the Furious 2006 build, `drift` Drift 2010 build, `superbikes` Super Bikes 2010 build; an address table per game, each
+patch site checked against its expected bytes; the module doc has the details):
+
+* The board is not opened: its init (open + I/O thread) is replaced by a thread building the
+  board's 4-byte reports from the virtual sticks and handing them to the game's own parser,
+  which keeps the held flags and pressed-once latches of the inputs (`0x1000..0x1010`) and the
+  analog bytes; the per-frame board check always finds the board. Reports: `80` switches
+  (coins, start, brake / handbrake, service, test, bill) and volume, `A0` gas / brake, `C0`
+  wheel or handlebar, keypad key, buttons 1-3, TUNES, gear switches, `E0` DIP switches
+  (default 0: networking off, machine 1; `WAL_RAWTHRILLS_DIPS`: before the board answers they
+  read 0xFF, networking on, and the game waited for its linked cabinets).
+* The base path of its files (the current directory) is left empty: the run directory's long
+  path overran its fixed path buffers (a return into a file name's text after "Checking files").
+* The dumps' DirectInput keyboard/mouse controls (IO flags `0x700`) are set back to the board
+  only and the developer keys always read released (Space ends a race).
+* Brake type: the game's (Super Bikes a switch, The Fast and the Furious an analog pedal with a
+  separate HANDBRAKE), `WAL_RAWTHRILLS_BRAKE=analog|switch`. Pedals released read 1: the
+  calibration skips 0 as the throttle minimum ("Max Must Be Greater Than Min").
+* Gears (manual): Super Bikes shifts up on SHIFT (`0x1005`) and has no shift down (the game
+  shifts down when braking): its developer key Down is made input `0x1006` (`shiftdown`); in
+  the garage SHIFT changes the bike colour, TUNES the character, the neon colour cycles while
+  the brake is held (`shiftdown` out of a race, game state not 0xB / 0xC). The Fast and the
+  Furious has a 4 position lever (the gear switch held): `shiftup` / `shiftdown` move a lever
+  kept by the payload, `gear1`..`gear4` for a real H shifter. Drift: the same, or a 6 speed
+  gate from switch pairs with its `-6speed` (column 0x1005 / 0x1006, row 0x1007 / 0x1008).
+* Force feedback (The Fast and the Furious, Drift): the game drives its wheel motor through the
+  parallel port (PortTalk, absent: the port stays disabled), its force function (`0x46de10`,
+  Drift `0x48a830`)
+  (float -1..1 -> one byte, under 0x80 pushing left) replaced: the force goes to the launcher
+  as `FFB_CONSTANT` (-force x 10000), no port I/O.
+* Keypad (12 keys) read from the PC's numeric keypad; player 2's coin is coin 2.
+
+The H2O board games (`h2o.rs`, `WAL_RAWTHRILLS_GAME=supercars`: The Fast and the Furious
+SuperCars, 2014 build; USB board through libusb): the game keeps its inputs behind
+`SetControl(code, value)` (`0x4a9510`): switches `0x10000 + n` (START, buttons 1-2, MUSIC
+`0x10003`, gear lever `0x10005..0x10008`, coins, test, service, bill, volume, digital brake
+`0x10010`, keypad `0x10080..`), analog `0x10020..0x10022` (wheel, gas, brake, 0..4095). A
+thread calls it from the virtual sticks (switches on change, analog every poll). The input
+init (DirectInput keyboard/mouse, USB board) is not called, the board counts as present, its
+message sender returns at once, the files' base path is left empty. Force feedback: the force
+board's `0x402cf0(float)` replaced, the force sent as `FFB_CONSTANT`.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -1289,6 +1345,10 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | original Japanese release (2005): as `battle-gear-4-tuned` (same cabinet, inputs, key reader, `WAL_GAME_DRIVE: E`), patches of this executable (clean: no window menu, intro fix), 800x600 windowed in a screen-sized popup, force feedback from its memory (`WAL_TYPEX_FFB=battle-gear-4-original`), attract movie through DirectShow on its game drive (it crashed ~20 s after boot when not found) |
 | `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | wal-loader, JVS (gas/brake on analog channels 3/4, shift up/down on buttons 2/3, key reader: `battle-gear` layout), steering board on COM1 (inverted, `WAL_TYPEX_WHEEL_AXIS=-lx`), `WAL_GAME_DRIVE: E` (data found from the current directory's drive; music through `mmioOpenA`), patches: hex-edited entry point and transmission lookup restored, no window menu, intro fix, wide monitor without the clutch type (the cabinet type check sets both flags: patched to set only the wide monitor one); 1360x768 windowed in a screen-sized popup (`WAL_D3D9_WINDOWED_SIZE`), `WAL_HIDE_CURSOR`, `WAL_DINPUT_DISABLE` (it shifted gears on the PC arrows and keypad), force feedback from its memory (`WAL_TYPEX_FFB`, untested on a wheel) |
 | `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | as `battle-gear-4-tuned` (a copy of its dump with this `.windowsloader`), professional cabinet: second JVS board, H shifter (player 2's b1-b6), clutch on analog channel 6 (`+ry`), 1360x768, force feedback as the normal cabinet |
+| `fast-and-furious` | The Fast and the Furious | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, IO flags back to the board, analog brake + HANDBRAKE, 4 speed lever from shift up/down, keyboard ramp 0.5 s, force feedback from its wheel motor force (untested on a wheel); The Fast and the Furious Drift: dump missing |
+| `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | wal-loader, as `fast-and-furious` (§6.3b), switch brake, 4 or 6 speed lever, screen size back to 640x480 (`WAL_PATCHES`: the dump's data said 1280x720, menus in the corner), force feedback from its wheel motor force (untested on a wheel) |
+| `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | wal-loader, H2O board inputs through the game's `SetControl` (§6.3b), 4 speed lever from shift up/down, files' base path left empty, its 1360x768 picture in a windowed device over the screen (Direct3D 8 interval fix), force feedback from its force board's force (untested on a wheel) |
+| `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, keyboard ramp 1 s (lean, throttle), switch brake, shift down = developer key made a board input |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

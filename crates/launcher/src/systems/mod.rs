@@ -4,6 +4,7 @@
 mod globalvr;
 mod namcoes3;
 mod nesica;
+mod rawthrills;
 mod tsunami;
 mod typex;
 
@@ -49,6 +50,7 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
         "globalvr" => Box::new(globalvr::GlobalVr),
         "namcoes3" => Box::new(namcoes3::NamcoEs3),
         "tsunami" => Box::new(tsunami::Tsunami),
-        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami)"),
+        "rawthrills" => Box::new(rawthrills::RawThrills),
+        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills)"),
     })
 }

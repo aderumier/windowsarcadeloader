@@ -1,0 +1,59 @@
+# The Fast and the Furious Super Bikes (Raw Thrills, 2006) - template, override values in
+# userprofiles/rawthrills/fast-and-furious-super-bikes.yaml.
+system: rawthrills
+name: The Fast and the Furious Super Bikes
+
+# Direct3D 8 game (sdaemon.exe) reading its JAMMA USB board itself: the payload (started
+# through wal-loader) hands the game's report parser the board's reports built from the
+# virtual sticks (payload sdaemon.rs).
+env:
+  WAL_RAWTHRILLS_GAME: superbikes
+
+# The bike: handlebar = lx, throttle = accel, brake lever (a switch) = b3 or the brake pedal
+# past a third of its travel, START (also the nitrous) = start, VIEW = b1, TUNES = b2, bill
+# acceptor = b4, shift down / up (manual transmission) = b5 / b6, volume up / down (test menu
+# navigation) = up / down, player 2's coin = coin 2. The cabinet's keypad is the PC's numeric
+# keypad (NumLock on; * = . or *, # = + or Enter).
+native_map: {}
+
+input:
+  # leaning must not press the d-pad
+  stick_as_dpad: false
+  # Left stick handlebar, R2 throttle, L2 or A brake, X view, Y tunes, L1 / R1 shift down / up,
+  # B bill, d-pad up / down volume up / down.
+  gamepad:
+    r2: accel
+    l2: brake
+    l1: b5
+    r1: b6
+    a: b3
+    b: b4
+  # keyboard lean and throttle: full in 1 s (the brake is a button: Down = b3)
+  keyboard_ramp_ms: 1000
+  # Keyboard (player 1): Left / Right handlebar, Up throttle, Down brake (b3), Ctrl view, Alt
+  # tunes, Left Shift bill, Page Up / Page Down volume up / down, 1 start (nitrous), 5 coin, 6 coin 2.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: b3
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Handlebar
+  accel: Throttle
+  brake: Brake
+  start: Start (nitrous)
+  b1: View
+  b2: Tunes
+  b3: Brake (button)
+  b4: Bill
+  b5: Shift down
+  b6: Shift up

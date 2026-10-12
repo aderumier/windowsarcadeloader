@@ -1,0 +1,67 @@
+# The Fast and the Furious (Raw Thrills, 2004) - template, override values in
+# userprofiles/rawthrills/fast-and-furious.yaml.
+system: rawthrills
+name: The Fast and the Furious
+
+# Direct3D 8 game (sdaemon.exe) reading its JAMMA USB board itself: the payload (started
+# through wal-loader) hands the game's report parser the board's reports built from the
+# virtual sticks (payload sdaemon.rs). Force feedback: the wheel motor force the game sends to
+# its parallel port, played on player 1's wheel (constant force) or gamepad (rumble).
+env:
+  WAL_RAWTHRILLS_GAME: fnf
+
+# The car: wheel = lx, gas = accel, brake = brake (analog), HANDBRAKE = b3, START = start,
+# buttons 1 / 2 / 3 (VIEW...) = b1 / b7 / b8, TUNES = b2, bill acceptor = b4, 4 speed gear
+# lever (manual transmission): shift down / up = b5 / b6 (a real H shifter: native
+# gear1..gear4), volume up / down (test menu navigation) = up / down, player 2's coin = coin 2.
+# The cabinet's keypad is the PC's numeric keypad (NumLock on; * = . or *, # = + or Enter).
+native_map:
+  b3: handbrake
+  b7: button2
+  b8: button3
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, X / d-pad left / d-pad right buttons 1 / 2 / 3, Y tunes,
+  # A handbrake, B bill, L1 / R1 shift down / up, d-pad up / down volume up / down.
+  gamepad:
+    r2: accel
+    l2: brake
+    l1: b5
+    r1: b6
+    a: b3
+    b: b4
+    dpleft: b7
+    dpright: b8
+  # keyboard steering, gas and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Space handbrake, Ctrl / C / V
+  # buttons 1 / 2 / 3, Alt tunes, Left Shift bill, Z / X shift down / up (W / X on AZERTY),
+  # Page Up / Page Down volume up / down, 1 start, 5 coin, 6 coin 2.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Button 1 (view)
+  b7: Button 2
+  b8: Button 3
+  b2: Tunes
+  b3: Handbrake
+  b4: Bill
+  b5: Shift down
+  b6: Shift up

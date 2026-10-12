@@ -1,0 +1,15 @@
+[package]
+name = "wal-payload-rawthrills"
+description = "Raw Thrills PC cabinet payload: the JAMMA USB I/O board fed from the virtual sticks, loaded by wal-loader"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_rawthrills"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Memory", "Win32_System_SystemServices", "Win32_UI_Input_KeyboardAndMouse"] }

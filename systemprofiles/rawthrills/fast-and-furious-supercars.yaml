@@ -1,0 +1,63 @@
+# The Fast and the Furious SuperCars (Raw Thrills, 2014 build) - template, override values in
+# userprofiles/rawthrills/fast-and-furious-supercars.yaml.
+system: rawthrills
+name: The Fast and the Furious SuperCars
+
+# Direct3D 8 game (sdaemon.exe) on the H2O board (USB): the payload (started through
+# wal-loader) sets its inputs through the game's SetControl from the virtual sticks (payload
+# h2o.rs). Force feedback: the force board's force, played on player 1's wheel (constant
+# force) or gamepad (rumble).
+env:
+  WAL_RAWTHRILLS_GAME: supercars
+
+# The car: wheel = lx, gas = accel, brake = brake (analog; past a third of its travel also the
+# digital brake) or b3, START = start, buttons 1 / 2 = b1 / b7, MUSIC = b2, bill
+# acceptor = b4, gear lever (manual transmission, 4 positions): shift down / up = b5 / b6 (a
+# real H shifter: native gear1..gear4), volume up / down (test menu navigation) = up / down,
+# player 2's coin = coin 2. The cabinet's keypad is the PC's numeric keypad (NumLock on;
+# * = . or *, # = + or Enter).
+native_map: {}
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, A digital brake, X / d-pad left buttons 1 / 2, Y music,
+  # B bill, L1 / R1 shift down / up, d-pad up / down volume up / down.
+  gamepad:
+    r2: accel
+    l2: brake
+    l1: b5
+    r1: b6
+    a: b3
+    b: b4
+    dpleft: b7
+  # keyboard steering, gas and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Space digital brake, Ctrl / C
+  # buttons 1 / 2, Alt music, Left Shift bill, Z / X shift down / up (W / X on AZERTY),
+  # Page Up / Page Down volume up / down, 1 start, 5 coin, 6 coin 2.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Button 1
+  b2: Music
+  b3: Brake (digital)
+  b4: Bill
+  b5: Shift down
+  b6: Shift up
+  b7: Button 2

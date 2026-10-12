@@ -3606,6 +3606,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-payload-rawthrills"
+version = "0.1.0"
+dependencies = [
+ "wal-payload-common",
+ "wal-protocol",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "wal-payload-tsunami"
 version = "0.1.0"
 dependencies = [
