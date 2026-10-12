@@ -1,0 +1,54 @@
+# Winter X Games SnoCross (Raw Thrills, 2022 build 1.58) - template, override values in
+# userprofiles/rawthrills/winter-x-games-snocross.yaml.
+system: rawthrills
+name: Winter X Games SnoCross
+
+# Direct3D 8 game (sdaemon.exe). No I/O board: the game's own "No I/O Board found" path, its
+# inputs set through its SetControl from the virtual sticks (payload h2o.rs), its
+# keyboard/mouse controls off; the dump's protection traps undone. Force feedback: the
+# handlebar force the race computes, played on player 1's wheel (constant force) or gamepad
+# (rumble).
+env:
+  WAL_RAWTHRILLS_GAME: snocross
+
+# The snowmobile: handlebar = lx, throttle = accel, brake = brake, START (also the nitro) =
+# start or b3, VIEW = b1, snowballs = b2, bill acceptor = b4, volume up / down (test menu
+# navigation) = up / down, player 2's coin = coin 2.
+native_map: {}
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  # Left stick handlebar, R2 throttle, L2 brake, A nitro, X view, Y snowballs, B bill, d-pad
+  # up / down volume up / down.
+  gamepad:
+    r2: accel
+    l2: brake
+    a: b3
+    b: b4
+  # keyboard steering, throttle and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  # Keyboard (player 1): Left / Right handlebar, Up throttle, Down brake, Space nitro, Ctrl
+  # view, Alt snowballs, Left Shift bill, Page Up / Page Down volume up / down, 1 start, 5 coin.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Handlebar
+  accel: Throttle
+  brake: Brake
+  b1: View
+  b2: Snowballs
+  b3: Nitro
+  b4: Bill

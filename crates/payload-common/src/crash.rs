@@ -32,7 +32,7 @@ pub fn init() {
 }
 
 /// `module+offset` for an address inside a loaded module.
-fn symbolize(addr: usize) -> Option<String> {
+pub fn symbolize(addr: usize) -> Option<String> {
     let mut module: HMODULE = std::ptr::null_mut();
     let flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
     if unsafe { GetModuleHandleExW(flags, addr as *const u16, &mut module) } == 0 || module.is_null() {

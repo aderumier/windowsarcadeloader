@@ -41,6 +41,8 @@
 //!   (finding how a game sizes its pictures).
 //! * `WAL_D3D9_POW2=1`: device caps report power-of-two textures only (conditional
 //!   non-power-of-two), as the GPUs of the time.
+//! * `WAL_D3D9_MULTITHREADED=1`: devices are created with `D3DCREATE_MULTITHREADED`, for
+//!   games using the device from more than one thread without it.
 //!
 //! * `set_overlay(draw, reset)`: payloads draw over the d3d9 back buffer before each `Present`
 //!   (and before the screenshot): Elevator Action Death Parade's elevator doors and bezel.
@@ -120,6 +122,7 @@ static ORIG_CREATE_TEXTURE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SET_VIEWPORT: AtomicUsize = AtomicUsize::new(0);
 static TRACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static POW2: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static MULTITHREADED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static QUERY_FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 /// A fullscreen device could not be created (a display mode the screen does not have: Xorg
@@ -252,7 +255,9 @@ pub fn init() {
     TRACE.store(trace, Ordering::Relaxed);
     let pow2 = std::env::var("WAL_D3D9_POW2").is_ok_and(|v| v == "1");
     POW2.store(pow2, Ordering::Relaxed);
-    if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && max_fps.is_none() && !force && !query_fix && !trace && !pow2 {
+    let multithreaded = std::env::var("WAL_D3D9_MULTITHREADED").is_ok_and(|v| v == "1");
+    MULTITHREADED.store(multithreaded, Ordering::Relaxed);
+    if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && max_fps.is_none() && !force && !query_fix && !trace && !pow2 && !multithreaded {
         return;
     }
     // the game and the DLLs of its directory (engines creating the device themselves)
@@ -696,6 +701,8 @@ unsafe extern "system" fn create9(sdk: u32) -> P {
 unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window: P, flags: u32, params: P, out: *mut P) -> HRESULT {
     let orig: unsafe extern "system" fn(P, u32, u32, P, u32, P, *mut P) -> HRESULT =
         unsafe { std::mem::transmute(ORIG_CREATE_DEVICE.load(Ordering::Relaxed)) };
+    // D3DCREATE_MULTITHREADED
+    let flags = if MULTITHREADED.load(Ordering::Relaxed) { flags | 0x4 } else { flags };
     unsafe { override_size(params) };
     let mut hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
     if hr < 0 {

@@ -1,0 +1,51 @@
+# X-Games Snowboarder (Raw Thrills, 2019) - template, override values in
+# userprofiles/rawthrills/x-games-snowboarder.yaml.
+system: rawthrills
+name: X-Games Snowboarder
+
+# Direct3D 8 game (sdaemon.exe), landscape. No I/O board: the game's own "No I/O Board found"
+# path, its inputs set through its SetControl from the virtual sticks (payload h2o.rs), its
+# keyboard/mouse controls off.
+env:
+  WAL_RAWTHRILLS_GAME: snowboarder
+# The dump's d3d8.dll (d3d8to9) crashes assembling its shaders with Wine's d3dx9: DXVK's d3d8.
+hide: [d3d8.dll]
+
+# The board: swing = lx, tilt = rx, START = start, VIEW 1 / 2 = b1 / b2, bill acceptor = b4,
+# volume up / down (test menu navigation) = up / down, player 2's coin = coin 2. Swing and
+# tilt are calibrated in the test menu (Calibration).
+native_map: {}
+
+input:
+  # swinging must not press the d-pad
+  stick_as_dpad: false
+  # Left stick swing, right stick tilt, L1 / R1 tilt left / right, X / Y views 1 / 2, B bill,
+  # d-pad up / down volume up / down.
+  gamepad:
+    l1: -rx
+    r1: rx
+    b: b4
+  # keyboard swing and tilt: full in 0.3 s
+  keyboard_ramp_ms: 300
+  # Keyboard (player 1): Left / Right swing, Z / X tilt left / right (W / X on AZERTY), Ctrl /
+  # Alt views 1 / 2, Left Shift bill, Page Up / Page Down volume up / down, 1 start, 5 coin.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_Z: -rx
+      KEY_X: rx
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Swing
+  rx: Tilt
+  b1: View 1
+  b2: View 2
+  b4: Bill

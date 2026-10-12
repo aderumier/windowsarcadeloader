@@ -1,10 +1,14 @@
-//! Raw Thrills PC cabinets (The Fast and the Furious, its Drift and Super Bikes).
+//! Raw Thrills PC cabinets (The Fast and the Furious, its Drift, Super Bikes and SuperCars,
+//! Nicktoons Nitro Racing, H2O Overdrive, Super Alpine Racer, X-Games Snowboarder, Winter X
+//! Games SnoCross).
 //!
 //! The games read their JAMMA USB I/O board (HID) themselves and import no driver DLL to
 //! replace: the payload is started with the game through `wal-loader`.
 //!
 //! Payload options (profile `env`):
-//! - `WAL_RAWTHRILLS_GAME`: `fnf` / `drift` / `superbikes`, the game's board from the virtual sticks
+//! - `WAL_RAWTHRILLS_GAME`: `fnf` / `drift` / `superbikes` / `nicktoons` / `h2overdrive` (JAMMA
+//!   USB board reports), `supercars` / `alpine` / `snowboarder` / `snocross` (`SetControl`): the
+//!   game's board from the virtual sticks
 //! - `WAL_RAWTHRILLS_BRAKE`: `switch` or `analog` brake (default: the game's, Super Bikes
 //!   and Drift switch, The Fast and the Furious analog)
 //! - `WAL_RAWTHRILLS_DDRIVE`: folder for the game's `D:\` paths (logs, personal bests),
@@ -12,8 +16,11 @@
 //! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
 //!
 //! Native inputs for `native_map`: `start coin1 coin2 brake handbrake service test bill
-//! volup voldown view button2 button3 tunes gear1..gear4 shiftup (SHIFT) shiftdown`; player 2's coin is
-//! coin 2, the keypad the numeric keypad (`WAL_RAWTHRILLS_KEYPAD=0`: off).
+//! volup voldown view button2 button3 tunes gear1..gear4 shiftup (SHIFT) shiftdown` (H2O
+//! Overdrive: `start coin1 coin2 service test bill volup voldown view view2 view3`; ski games:
+//! `start view1 view2 view3 tunes coin1 coin2 test service bill volup voldown start2`;
+//! SnoCross: `start snowball view coin1 coin2 test service bill volup voldown`); player
+//! 2's coin is coin 2, the keypad the numeric keypad (`WAL_RAWTHRILLS_KEYPAD=0`: off).
 
 use super::{Payload, System};
 

@@ -1,0 +1,56 @@
+# H2O Overdrive (Raw Thrills, 2009) - template, override values in
+# userprofiles/rawthrills/h2o-overdrive.yaml.
+system: rawthrills
+name: H2O Overdrive
+
+# Direct3D 9 game (sdaemon.exe, 2010 "Triton" build) reading its JAMMA USB board itself: the
+# payload (started through wal-loader) fakes the board's open and feeds the game's report
+# parser the board's reports built from the virtual sticks (payload sdaemon.rs). Force
+# feedback: the wheel force the game writes, played on player 1's wheel (constant force) or
+# gamepad (rumble).
+env:
+  WAL_RAWTHRILLS_GAME: h2overdrive
+
+# The boat: wheel = lx, throttle lever (neutral at rest in the middle) forward = accel,
+# reverse = brake, START (also the boost) = start, boost (START's input too) = b3, VIEW = b1,
+# bill acceptor = b4, volume up / down (test menu navigation) = up / down, player 2's coin =
+# coin 2. The cabinet's keypad is the PC's numeric keypad (NumLock on; * = . or *, # = + or
+# Enter): it selects the tracks and the boats.
+native_map: {}
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 throttle forward, L2 reverse, A boost, X view, B bill, d-pad
+  # up / down volume up / down.
+  gamepad:
+    r2: accel
+    l2: brake
+    a: b3
+    b: b4
+  # keyboard steering and throttle: full in 0.5 s
+  keyboard_ramp_ms: 500
+  # Keyboard (player 1): Left / Right wheel, Up throttle forward, Down reverse, Space boost,
+  # Ctrl view, Left Shift bill, Page Up / Page Down volume up / down, 1 start, 5 coin, 6 coin 2.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Throttle forward
+  brake: Throttle reverse
+  start: Start (boost)
+  b3: Boost
+  b1: View
+  b4: Bill

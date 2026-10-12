@@ -1053,8 +1053,9 @@ replace, the payload is started by `wal-loader`. `D:\` (logs, personal bests) go
 `WindowsLoader` (`WAL_RAWTHRILLS_DDRIVE`).
 
 The `sdaemon.exe` games, one engine (`sdaemon.rs`, `WAL_RAWTHRILLS_GAME`: `fnf` The Fast and
-the Furious 2006 build, `drift` Drift 2010 build, `superbikes` Super Bikes 2010 build; an address table per game, each
-patch site checked against its expected bytes; the module doc has the details):
+the Furious 2006 build, `drift` Drift 2010 build, `superbikes` Super Bikes 2010 build,
+`h2overdrive` H2O Overdrive 2010 build; an address table per game, each patch site checked
+against its expected bytes; the module doc has the details):
 
 * The board is not opened: its init (open + I/O thread) is replaced by a thread building the
   board's 4-byte reports from the virtual sticks and handing them to the game's own parser,
@@ -1085,6 +1086,36 @@ patch site checked against its expected bytes; the module doc has the details):
   as `FFB_CONSTANT` (-force x 10000), no port I/O.
 * Keypad (12 keys) read from the PC's numeric keypad; player 2's coin is coin 2.
 
+H2O Overdrive (2010 "Triton" build, a later variant of the engine): the JAMMA USB board is a
+device object the game allocates and opens. The board's `Open` (SetupAPI/HID, its I/O thread)
+is replaced by a fake that keeps the device and marks the board open, and the board's
+per-frame poll is replaced in place: it fills the reports from the virtual sticks and hands
+each to the game's report parser (device + report in registers). Once the board reads as
+present the update reads its state only through `GetStatusBlock`, replaced by that poll then
+the original state copy. The game's input device copies the board's 62 byte state block into
+named channels: Wheel, Gas (the throttle lever: neutral in the middle, forward / reverse from
+the gas / brake), Start (also the boost, its own control too), View1..3 (the `C0` report's
+button byte, active low), Gear (its high nibble, unused, sent released), Test / Service and
+VolumeUp / VolumeDown (the `80` report, both pairs swapped against the older games), Coin1,
+Coin2, Bill, and the keypad: 12 keys in the `C0` report's key nibble (the tracks and boats
+selection). The `80` report's brake switch feeds no channel, the `E0` report is not used.
+Service and test presses go through the game's press detector, which reads event rings its
+gated-off keyboard poller would write: a trampoline at its entry writes the virtual buttons'
+edges to those rings; `GetAsyncKeyState` is hooked for the same keys. The boot additionally
+needs the board's PortTalk channel: the game opens `\\.\PortTalk` (the Raw Thrills PortTalk
+driver) and must get a handle, then fires `DeviceIoControl` calls it does not check; the
+driver is absent, so the game's `CreateFileA` / `DeviceIoControl` imports are hooked: the
+channel opens as a fake device, every control succeeds (output zeroed). Movies: the game
+handed Bink FMOD's sound output handle as a DirectSound object (not one under Wine): the
+attract movies crashed at random; the handle is not fetched, Bink opens its own DirectSound.
+Force feedback: the game's wheel force float (positive pushing left), read every frame, sent
+as `FFB_CONSTANT` (on change and every second).
+
+All Raw Thrills games: the cabinet reboot (`ExitWindowsEx`, H2O Overdrive leaving its service
+menu) asks the launcher to start the game again, the process ended at once (its Direct3D
+device's teardown crashed in DXVK); `ExitProcess` is logged with the game addresses on the
+stack.
+
 The H2O board games (`h2o.rs`, `WAL_RAWTHRILLS_GAME=supercars`: The Fast and the Furious
 SuperCars, 2014 build; USB board through libusb): the game keeps its inputs behind
 `SetControl(code, value)` (`0x4a9510`): switches `0x10000 + n` (START, buttons 1-2, MUSIC
@@ -1094,6 +1125,30 @@ thread calls it from the virtual sticks (switches on change, analog every poll).
 init (DirectInput keyboard/mouse, USB board) is not called, the board counts as present, its
 message sender returns at once, the files' base path is left empty. Force feedback: the force
 board's `0x402cf0(float)` replaced, the force sent as `FFB_CONSTANT`.
+
+The same `SetControl` engine, later builds (`h2o.rs`, `alpine` Super Alpine Racer 1.50,
+`snowboarder` X-Games Snowboarder 1.23, `snocross` Winter X Games SnoCross 1.58): the board's
+named inputs (`start1 view1..3 tunes gear1..4 coin1 coin2 test service bill volup voldown
+start2 keypad adc1..3`) bound to the same codes. These take the game's own path without a
+board ("No I/O Board found. Using keyboard/mouse."; forcing the board present makes the game
+wait for it forever): only the input init (DirectInput keyboard/mouse) is removed and the
+thread feeds `SetControl`. Ski games: swing `adc1`, edge / tilt `adc3` (calibrated in the test
+menu), views `0x10001` / `0x10002`; Super Alpine Racer draws for a vertical monitor (rotated in
+its 1360x768 back buffer), X-Games Snowboarder is landscape. Their dumps' `d3d8.dll` (d3d8to9)
+crashes assembling shaders with Wine's d3dx9: hidden, DXVK's d3d8. SnoCross: handlebar,
+throttle, brake `adc1..3`, START also the nitro, snowballs `0x10001`, view `0x10004`; its dump
+carries protection traps, undone (fatal C runtime heap check, a `jmp $` once a counter reaches
+2, a feature check made 1), the cabinet mode flag (USB restarts, reboots on board errors) not
+set, a graphics crash skipped, the base path left empty. Unlike the ski builds, its no board
+path reboots ("Unable to initialize I/O Board!"): the I/O init result is taken as success, the
+reboot made its final idle loop, the "I/O BOARD MISSING" displays and the force board init
+return at once. It still reads the PC keyboard's developer keys: Space (ends the game) made
+Escape. Force feedback: the handlebar force the race computes (`0x99ab6c`, -1.2401..1.2401,
+positive pushing left), read every poll, sent as `FFB_CONSTANT`.
+
+Nicktoons Nitro Racing (`sdaemon.rs`, `nicktoons`): the JAMMA USB board engine of The Fast and
+the Furious (same parser, board init, status check, keyboard input functions, motor force
+function), a kart: analog gas and brake, no gearbox, view; its IO flags already the board only.
 
 ### 6.4 Batocera integration
 
@@ -1349,6 +1404,11 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | wal-loader, as `fast-and-furious` (§6.3b), switch brake, 4 or 6 speed lever, screen size back to 640x480 (`WAL_PATCHES`: the dump's data said 1280x720, menus in the corner), force feedback from its wheel motor force (untested on a wheel) |
 | `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | wal-loader, H2O board inputs through the game's `SetControl` (§6.3b), 4 speed lever from shift up/down, files' base path left empty, its 1360x768 picture in a windowed device over the screen (Direct3D 8 interval fix), force feedback from its force board's force (untested on a wheel) |
 | `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, keyboard ramp 1 s (lean, throttle), switch brake, shift down = developer key made a board input |
+| `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | in progress (untested) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b, The Fast and the Furious engine), first boot resets audits and checks every file (about a minute), force feedback from its wheel motor force |
+| `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | wal-loader, inputs through the game's `SetControl` without a board (§6.3b), DXVK's d3d8 (dump's d3d8to9 hidden), picture rotated for a vertical monitor (no rotation yet) |
+| `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | as Super Alpine Racer, landscape |
+| `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | wal-loader, inputs through the game's `SetControl` (§6.3b), no board: I/O init taken as success, no reboot, board missing displays off; the dump's protection traps undone, keyboard developer key Space (ends the game) made Escape, base path empty, force feedback from its handlebar force (untested on a wheel) |
+| `h2o-overdrive` | H2O Overdrive | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), the board's `Open` faked, its poll and `GetStatusBlock` replaced, service / test edges written to the press detector's rings, throttle lever centered (gas forward, brake reverse), boost its own control, Bink's sound not taken from FMOD (attract movie crash), service menu exit reboot = relaunch, keypad selects the tracks and boats, force feedback from the game's wheel force float (untested on a wheel) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

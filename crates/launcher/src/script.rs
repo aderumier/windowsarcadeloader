@@ -1,7 +1,8 @@
 //! Scripted virtual stick input, for automated game tests (`--input-script FILE`).
 //!
 //! One step per line: `<seconds since launch> p<player> <inputs...>`; the inputs (virtual
-//! stick button names, or pedal axes `accel`/`brake`, fully pressed) are held until the
+//! stick button names, pedal axes `accel`/`brake` fully pressed, stick axes fully deflected
+//! `lx+`, `lx-`, `ry+`...) are held until the
 //! player's next step, `-` releases everything. `#` starts a comment. Script inputs are
 //! OR-ed with the real devices (a scripted pedal overrides the real one while held).
 //!
@@ -18,11 +19,11 @@ use std::time::Instant;
 use anyhow::{Context, Result, bail};
 use wal_protocol::{Axis, MAX_PLAYERS, StickState, button};
 
-/// Inputs held by one script step: buttons, and pedal axes pressed fully.
+/// Inputs held by one script step: buttons, and axes at full deflection (pedals pressed).
 #[derive(Clone, Copy, Default)]
 struct Held {
     buttons: u32,
-    pedals: [bool; Axis::COUNT],
+    axes: [Option<i16>; Axis::COUNT],
 }
 
 pub struct Script {
@@ -51,8 +52,16 @@ impl Script {
                     .context("player p1..p4")?;
                 let mut held = Held::default();
                 for w in words.filter(|w| *w != "-") {
-                    match Axis::from_name(w).filter(|a| a.is_pedal()) {
-                        Some(a) => held.pedals[a as usize] = true,
+                    let stick = |sign: char, v: i16| {
+                        w.strip_suffix(sign).and_then(Axis::from_name).filter(|a| !a.is_pedal()).map(|a| (a, v))
+                    };
+                    let axis = Axis::from_name(w)
+                        .filter(|a| a.is_pedal())
+                        .map(|a| (a, i16::MAX))
+                        .or_else(|| stick('+', i16::MAX))
+                        .or_else(|| stick('-', i16::MIN));
+                    match axis {
+                        Some((a, v)) => held.axes[a as usize] = Some(v),
                         None => held.buttons |= button::from_name(w).with_context(|| format!("unknown input '{w}'"))?,
                     }
                 }
@@ -75,9 +84,9 @@ impl Script {
             return;
         };
         stick.buttons |= held.buttons;
-        for (axis, pressed) in stick.axes.iter_mut().zip(held.pedals) {
-            if pressed {
-                *axis = i16::MAX;
+        for (axis, held) in stick.axes.iter_mut().zip(held.axes) {
+            if let Some(v) = held {
+                *axis = v;
             }
         }
     }
