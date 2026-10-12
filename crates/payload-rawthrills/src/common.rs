@@ -86,10 +86,21 @@ pub(crate) unsafe extern "C" fn motor_force_byte(force: f32) -> u8 {
     if f < 0.0 { byte | 0x80 } else { byte }
 }
 
-/// Sends the motor force on change and every second (a launcher connecting late).
+/// The centering spring's strength, 0 ..= 10000 (games driving one).
+static SPRING: AtomicI32 = AtomicI32::new(0);
+
+/// Keeps a game's centering spring strength (0..=1) for the launcher.
+pub(crate) fn set_spring(strength: f32) {
+    let s = if strength.is_nan() { 0.0 } else { strength.clamp(0.0, 1.0) };
+    SPRING.store((s * output::FFB_MAX as f32) as i32, Ordering::Relaxed);
+}
+
+/// Sends the motor force (and the spring) on change and every second (a launcher connecting
+/// late).
 #[derive(Default)]
 pub(crate) struct FfbSender {
     sent: Option<(i32, Instant)>,
+    spring: Option<(i32, Instant)>,
 }
 
 impl FfbSender {
@@ -105,6 +116,15 @@ impl FfbSender {
             }
             send_output(0, output::FFB_CONSTANT, value);
             self.sent = Some((value, Instant::now()));
+        }
+        let spring = SPRING.load(Ordering::Relaxed);
+        let due = match self.spring {
+            Some((v, at)) => v != spring || at.elapsed() > Duration::from_secs(1),
+            None => spring != 0,
+        };
+        if due {
+            send_output(0, output::FFB_SPRING, spring);
+            self.spring = Some((spring, Instant::now()));
         }
     }
 }

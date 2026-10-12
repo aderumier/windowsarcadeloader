@@ -1108,8 +1108,9 @@ driver is absent, so the game's `CreateFileA` / `DeviceIoControl` imports are ho
 channel opens as a fake device, every control succeeds (output zeroed). Movies: the game
 handed Bink FMOD's sound output handle as a DirectSound object (not one under Wine): the
 attract movies crashed at random; the handle is not fetched, Bink opens its own DirectSound.
-Force feedback: the game's wheel force float (positive pushing left), read every frame, sent
-as `FFB_CONSTANT` (on change and every second).
+Force feedback: the game's wheel force float (positive pushing right) and its centering
+spring stiffness, read every frame, sent as `FFB_CONSTANT` / `FFB_SPRING` (on change and
+every second).
 
 All Raw Thrills games: the cabinet reboot (`ExitWindowsEx`, H2O Overdrive leaving its service
 menu) asks the launcher to start the game again, the process ended at once (its Direct3D

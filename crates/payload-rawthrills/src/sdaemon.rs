@@ -109,9 +109,10 @@
 //! thread). The handle is not fetched (`0x501b70` `je` made `jmp`): Bink opens its own
 //! DirectSound.
 //!
-//! Force feedback: the game's wheel force, a float at `0x792C58` (positive pushing left,
-//! written by the race), is read every frame and sent to the launcher as
-//! [`output::FFB_CONSTANT`] (on change and every second).
+//! Force feedback: the game's wheel force, a float at `0x792C58` (positive pushing right,
+//! written by the race), and its centering spring stiffness (`0x792C54`, 0..1.25), read every
+//! frame and sent to the launcher as [`output::FFB_CONSTANT`] / [`output::FFB_SPRING`] (on
+//! change and every second).
 
 use std::ptr::{addr_of, addr_of_mut};
 use std::sync::Mutex;
@@ -122,7 +123,7 @@ use std::time::Duration;
 use wal_payload_common::{log, mapping::ButtonMap};
 use wal_protocol::{Axis, StickState, button};
 
-use crate::common::{FfbSender, KEYPAD_NONE, Site, keypad_key, matches, motor_force_byte, pedal, redirect, set_motor, write};
+use crate::common::{FfbSender, KEYPAD_NONE, Site, keypad_key, matches, motor_force_byte, pedal, redirect, set_motor, set_spring, write};
 
 /// How the dump sets its IO flags (DirectInput, keyboard, mouse), turned into the board only.
 enum IoFlags {
@@ -488,7 +489,8 @@ struct H2o {
     /// (0: Bink opens its own DirectSound). Under Wine FMOD's output is not DirectSound, Bink
     /// broke its caller's `esi` and crashed (the attract movies, at random).
     movie_sound: Site,
-    /// The game's wheel force float (positive pushes left).
+    /// The game's wheel force float (positive pushes right), its spring stiffness the float
+    /// before it (0..1.25).
     ffb: usize,
 }
 
@@ -927,8 +929,11 @@ unsafe extern "C" fn h2o_build() {
     if !H2O_BUILT.swap(true, Ordering::SeqCst) {
         log!("{}: first board poll (device {:#x})", H2OVERDRIVE.name, H2O_DEVICE.load(Ordering::SeqCst));
     }
+    // the force: positive pushes right; the spring stiffness just before it (0..1.25)
     let f = unsafe { std::ptr::read_volatile(H2OVERDRIVE.ffb as *const f32) };
-    set_motor(f);
+    set_motor(-f);
+    let stiffness = unsafe { std::ptr::read_volatile((H2OVERDRIVE.ffb - 4) as *const f32) };
+    set_spring(stiffness / 1.25);
     H2O_FFB.get_or_init(Default::default).lock().unwrap().poll();
     let p1 = wal_payload_common::input(0);
     let (mut switches, mut panel, mut views) = (0u8, 0u8, 0u8);
