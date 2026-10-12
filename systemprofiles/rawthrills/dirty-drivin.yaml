@@ -1,0 +1,61 @@
+# Dirty Drivin' (Raw Thrills, 2011 build 1.14) - template, override values in
+# userprofiles/rawthrills/dirty-drivin.yaml.
+system: rawthrills
+name: Dirty Drivin'
+
+# Direct3D 9 game (sdaemon.exe), without its cabinet hardware: the payload (started through
+# wal-loader) writes the steering and throttle of its developer keyboard device, its START /
+# crank / VIEW keys, the coins through its coin board's callback and the TEST / SERVICE /
+# volume switches from the virtual sticks (payload dd.rs), the PC's keyboard no longer
+# driving it. Force feedback: the race's wheel force, played on player 1's wheel (constant
+# force) or gamepad (rumble).
+
+# Its effects are HLSL compiled at load: Wine's d3dx9_42 / d3dcompiler_42 fail one and the
+# race crashes drawing with the missing effect (NULL).
+tricks: [d3dx9_42, d3dcompiler_42]
+
+env:
+  WAL_RAWTHRILLS_GAME: dirtydrivin
+  # its race runs out of the 2 GB address space: 4 GB (as a large address aware build)
+  WINE_LARGE_ADDRESS_AWARE: "1"
+
+# The truck: wheel = lx, gas = accel, brake = brake (taken off the gas, as the cabinet's),
+# START = start, VIEW = b1, crank = b2, bill acceptor = b4, volume up / down (test menu
+# navigation) = up / down, player 2's coin = coin 2.
+native_map: {}
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, X view, Y crank, B bill, d-pad up / down volume
+  # up / down.
+  gamepad:
+    r2: accel
+    l2: brake
+    b: b4
+  # keyboard steering, gas and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl view, Alt crank, Left
+  # Shift bill, Page Up / Page Down volume up / down, 1 start, 5 coin, 6 coin 2.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  start: Start
+  b1: View
+  b2: Crank
+  b4: Bill

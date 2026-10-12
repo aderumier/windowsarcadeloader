@@ -12,6 +12,8 @@
 //!   X-Games Snowboarder, Winter X Games SnoCross: the inputs through the game's `SetControl`.
 //! * `sb2.rs`: The Fast and the Furious Super Bikes 2: the board inputs in the game's keyboard
 //!   table (the dump reads them as keys), the analog values as its floats.
+//! * `dd.rs`: Dirty Drivin': its developer keyboard's floats and keys, the coin board's
+//!   callback, the switch latches.
 //! * `D:\` (logs, personal bests) redirected to `WindowsLoader` (`WAL_RAWTHRILLS_DDRIVE`).
 //! * The cabinet reboot (`ExitWindowsEx`, H2O Overdrive leaving its service menu): the game is
 //!   started again by the launcher instead, the process ended at once (its Direct3D device's
@@ -21,6 +23,7 @@
 #![allow(non_snake_case)]
 
 mod common;
+mod dd;
 mod h2o;
 mod sb2;
 mod sdaemon;
@@ -39,7 +42,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         drive::init("WAL_RAWTHRILLS_DDRIVE", "WindowsLoader");
         reboot_init();
         let game = std::env::var("WAL_RAWTHRILLS_GAME").unwrap_or_default();
-        if !h2o::init(game.trim()) && !sb2::init(game.trim()) {
+        if !h2o::init(game.trim()) && !sb2::init(game.trim()) && !dd::init(game.trim()) {
             sdaemon::init();
         }
         log!("rawthrills: initialized");

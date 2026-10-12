@@ -49,7 +49,7 @@ lib64_dirs: []
 # every game, except dsound's and directplay's: native only for the games listing them.
 prefix_tricks: [
   dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound,
-  dswave, dsdmo, gmdls, d3dcompiler_47, d3dx9_31, d3dx9_33, d3dx9_37, d3dx9_42, d3dx9_43, xact, fakejapanese,
+  dswave, dsdmo, gmdls, d3dcompiler_42, d3dcompiler_47, d3dx9_31, d3dx9_33, d3dx9_37, d3dx9_42, d3dx9_43, xact, fakejapanese,
   directplay, physx,
 ]
 # winetricks verbs the game needs (installed when the prefix does not have them yet): the

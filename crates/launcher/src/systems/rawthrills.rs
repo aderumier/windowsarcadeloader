@@ -1,6 +1,6 @@
 //! Raw Thrills PC cabinets (The Fast and the Furious, its Drift, Super Bikes 1 / 2 and SuperCars,
 //! Nicktoons Nitro Racing, H2O Overdrive, Super Alpine Racer, X-Games Snowboarder, Winter X
-//! Games SnoCross).
+//! Games SnoCross, Dirty Drivin').
 //!
 //! The games read their JAMMA USB I/O board (HID) themselves and import no driver DLL to
 //! replace: the payload is started with the game through `wal-loader`.
@@ -8,8 +8,8 @@
 //! Payload options (profile `env`):
 //! - `WAL_RAWTHRILLS_GAME`: `fnf` / `drift` / `superbikes` / `nicktoons` / `h2overdrive` (JAMMA
 //!   USB board reports), `supercars` / `alpine` / `snowboarder` / `snocross` (`SetControl`),
-//!   `superbikes2` (the game's keyboard and analog tables): the game's board from the virtual
-//!   sticks
+//!   `superbikes2` (the game's keyboard and analog tables), `dirtydrivin` (its developer
+//!   keyboard, coin callback and switch latches): the game's board from the virtual sticks
 //! - `WAL_RAWTHRILLS_BRAKE`: `switch` or `analog` brake (default: the game's, Super Bikes
 //!   and Drift switch, The Fast and the Furious analog)
 //! - `WAL_RAWTHRILLS_DDRIVE`: folder for the game's `D:\` paths (logs, personal bests),
