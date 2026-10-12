@@ -13,6 +13,7 @@ mod guns;
 mod gui;
 mod input;
 mod mapping;
+mod nesica_card;
 mod rundir;
 mod script;
 mod server;
@@ -368,6 +369,14 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     if !profile.native_map.is_empty() {
         let map: Vec<String> = profile.native_map.iter().map(|(k, v)| format!("{k}={v}")).collect();
         wine.set_env(env::MAP, &map.join(","));
+    }
+    // the player's NESiCA card (GUI), before the profile's own values
+    if matches!(system.name(), "nesica" | "nesica2") {
+        match nesica_card::load(&profile.root) {
+            Ok(Some(card)) => nesica_card::env(&card).into_iter().for_each(|(k, v)| wine.set_env(k, &v)),
+            Ok(None) => {}
+            Err(e) => eprintln!("launcher: {e:#}"),
+        }
     }
     for (k, v) in &profile.env {
         wine.set_env(k, v);

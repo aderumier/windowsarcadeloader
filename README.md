@@ -11,6 +11,9 @@ emulating each cabinet's I/O, dongle and network services in the game process.
   keyboard) or Back+Start stops the game. "Wheel calibration" calibrates a wheel and its pedals
   once (`userprofiles/wheels.yaml`): it is then read as a gamepad with the gamepad's full ranges;
   each game's Wheel tab maps it, by default as its gamepad mapping.
+  "NESiCA card" sets the player's card of every NESiCA game (`userprofiles/nesica-card.yaml`):
+  card id ("New card": a fresh one) and player name (games whose card has one: Fighting EX
+  Layer); each game keeps its own progress on it.
 * Regression test: `tools/regression.py` (see its header), then `tools/gamelist.py` to refresh
   the list below
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),

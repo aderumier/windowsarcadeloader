@@ -21,6 +21,7 @@ use serde_yaml_ng::Value;
 use crate::config::{self, DUMP_EXT, Dump, Layers, MapTable, Profile, USER_PROFILES};
 use crate::squashfs::{self, DumpFile};
 use crate::mapping::RawKey;
+use crate::nesica_card::{self, Card};
 use crate::wheels::{self, Calibration, Wheels};
 use bindings::{Captured, Device, Row, RowKind};
 use calibration::{Step, Wizard};
@@ -187,6 +188,10 @@ struct App {
     wizard: Option<Wizard>,
     /// The last gamepad button a calibrated wheel pressed (the window's test).
     wheel_pressed: Option<&'static str>,
+    /// The NESiCA card window (`nesica_card.rs`): the card edited, and as saved.
+    show_card: bool,
+    card: Card,
+    card_saved: Option<Card>,
 }
 
 impl App {
@@ -215,6 +220,11 @@ impl App {
             status = format!("{e:#}");
             Wheels::new()
         });
+        let card_saved = nesica_card::load(&root).unwrap_or_else(|e| {
+            status = format!("{e:#}");
+            None
+        });
+        let card = card_saved.clone().unwrap_or_else(|| Card { card_id: nesica_card::DEFAULT_ID.into(), player_name: String::new() });
         App {
             root,
             games,
@@ -241,6 +251,9 @@ impl App {
             show_wheels: false,
             wizard: None,
             wheel_pressed: None,
+            show_card: false,
+            card,
+            card_saved,
         }
     }
 
@@ -1146,6 +1159,63 @@ impl App {
         }
     }
 
+    fn card_window(&mut self, ctx: &egui::Context) {
+        if !self.show_card {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("🎫 NESiCA card").open(&mut open).default_width(460.0).show(ctx, |ui| {
+            ui.label(
+                "The card every NESiCA game reads (inserted with the card input, F4, or by the game \
+                 itself when its profile says so). Each game keeps its own progress on it. A new \
+                 card id starts over in every game.",
+            );
+            ui.add_space(8.0);
+            egui::Grid::new("card").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                ui.label("Player name");
+                ui.add(egui::TextEdit::singleline(&mut self.card.player_name).char_limit(nesica_card::NAME_MAX).hint_text("the game's own"))
+                    .on_hover_text("shown by the games whose card has a name (Fighting EX Layer); empty: the game's (NO-NAME)");
+                ui.end_row();
+                ui.label("Card id");
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut self.card.card_id).char_limit(16).font(egui::TextStyle::Monospace));
+                    if ui.button("🔄 New card").on_hover_text("a new card id: no progress in any game").clicked() {
+                        self.card.card_id = nesica_card::new_id();
+                    }
+                });
+                ui.end_row();
+            });
+            let valid = nesica_card::valid_id(&self.card.card_id);
+            if !valid {
+                ui.colored_label(ui.visuals().error_fg_color, "the card id is 16 digits");
+            }
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let changed = self.card_saved.as_ref() != Some(&self.card);
+                if ui.add_enabled(valid && changed, egui::Button::new("💾 Save")).clicked() {
+                    self.status = match nesica_card::save(&self.root, &self.card) {
+                        Ok(()) => {
+                            self.card_saved = Some(self.card.clone());
+                            "saved the NESiCA card".into()
+                        }
+                        Err(e) => format!("{e:#}"),
+                    };
+                }
+                if changed && let Some(saved) = &self.card_saved {
+                    if ui.button("Undo").clicked() {
+                        self.card = saved.clone();
+                    }
+                }
+                if self.card_saved.is_none() {
+                    ui.label(format!("not saved: the games use card {}", nesica_card::DEFAULT_ID));
+                }
+            });
+        });
+        if !open {
+            self.show_card = false;
+        }
+    }
+
     fn save_calibrations(&mut self) {
         self.status = match wheels::save(&self.root, &self.calibrations) {
             Ok(()) => "saved the wheel calibrations".into(),
@@ -1355,6 +1425,8 @@ impl eframe::App for App {
                 ui.toggle_value(&mut self.show_log, "📄 Game log");
                 ui.toggle_value(&mut self.show_wheels, "🚗 Wheel calibration")
                     .on_hover_text("calibrate a wheel and its pedals: then read as a gamepad in every game");
+                ui.toggle_value(&mut self.show_card, "🎫 NESiCA card")
+                    .on_hover_text("your player card in every NESiCA game: player name and card id");
             });
         });
         // Esc (window focused, no game running, no input awaited) quits, as Exit
@@ -1383,6 +1455,7 @@ impl eframe::App for App {
             });
         }
         self.wheels_window(ui.ctx());
+        self.card_window(ui.ctx());
         egui::Panel::left("games").resizable(true).default_size(320.0).show(ui, |ui| self.game_list(ui));
         egui::CentralPanel::default().show(ui, |ui| match self.selected {
             Some(i) => self.game_page(ui, i),

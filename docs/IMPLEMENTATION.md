@@ -712,6 +712,10 @@ name, cdecl; `iDmacDrv32.def`) and the `nesica2` system installs it as `NxL2Core
   read + 512: its `<data>` is saved as the read's answer (`/root/card`, `/root/card_bdata`, the
   card id added) in `card_<id>_<read type>.bin`. The card screen's wins/losses/rank count
   versus matches between cabinets (not changed by CPU matches).
+* The player's card (`crates/launcher/src/nesica_card.rs`, `userprofiles/nesica-card.yaml`,
+  the GUI's "NESiCA card" window: card id, "New card" = `7020392` + 9 random digits, player
+  name): the launcher sets `WAL_NESICA_CARD_ID` / `WAL_NESICA_PLAYER_NAME` for the nesica and
+  nesica2 systems, before the profile's `env` (which wins). The saves are by card id.
 * `WAL_NESICA_PLAYER_NAME`: the `<player_name>` of a saved card's answer (a new card is
   registered as NO-NAME; there is no name entry, the card server's web site set it). The game
   then writes the card back with that name.
