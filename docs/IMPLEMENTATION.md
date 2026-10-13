@@ -1178,9 +1178,15 @@ coin 1, coin 2, bill; audits and credits), TEST / SERVICE / volume through the s
 the game copies into its switch table every frame (`0x98c490..`). Its effects are HLSL
 compiled at load: Wine's d3dx9_42 / d3dcompiler_42 fail one and the race crashes on the
 missing effect (`tricks: [d3dx9_42, d3dcompiler_42]`); its race needs a 4 GB address space
-(`WINE_LARGE_ADDRESS_AWARE=1`). Display: native 1368x768 back buffer scaled over a borderless
-screen-sized window (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE=screen`),
-fixing the black frame on larger Xorg modes (user confirmed).
+(`WINE_LARGE_ADDRESS_AWARE=1`). Display (2026-10-13): native fullscreen, user confirmed
+booting and fullscreen with `args: [-WinPC, -Windowed, -r, 1360x768]` and the rebuilt
+payload. This arcade build still creates a 1368x768 fullscreen device with those arguments.
+Batocera Xorg at 1920x1080 selected 1280x800 instead, clipping the right-hand crank prompt.
+Its machine user profile now enables Gamescope (`width: 1368`, `height: 768`,
+`args: [-S, stretch, -f]`): a captured 1920x1080 output shows the whole prompt, and the
+device log confirms 1368x768. Local Wayland keeps the native fullscreen configuration.
+Removed the forced windowed back buffer and screen-sized window overrides: the experimental
+resize path failed a D3D reset (`0x8876086c`), recreated a 680x384 device and rendered black.
 Force feedback: the race's wheel force (`0x886ec4`), mirrored
 on tracks 8-14 (`0x96f770`). Build fixes: the hardware init result ignored, no reboot or
 watchdog, no hang on a missing device.
@@ -1205,6 +1211,35 @@ the fix). Force feedback: the wheel force the game sets (`[[0x18ae0d8]+0x1b4]+0x
 Nicktoons Nitro Racing (`sdaemon.rs`, `nicktoons`): the JAMMA USB board engine of The Fast and
 the Furious (same parser, board init, status check, keyboard input functions, motor force
 function), a kart: analog gas and brake, no gearbox, view; its IO flags already the board only.
+The board device object is supplied for its status paths, lamp/watchdog writes accepted,
+and its cabinet feature check emulated. Normal gameplay contains 105 inline AMD 3DNow
+math blocks: modern CPUs faulted at `FEMMS` (`0x4b4c10`), leaving a white startup screen.
+`nicktoons_3dnow.rs` verifies the complete blocks against fingerprints before replacing
+them with SSE2 trampolines, preserving XMM registers, flags, stack operands and 64-bit
+memory access widths. Boot, calibration and gameplay are user-confirmed working (100%).
+The dump's opening `movies/bump640.ogg` (Theora), `rtlogo.m1v` and `bump2.m2v` contain
+video streams only; no embedded audio track was found with ffprobe.
+
+Batman (`batman.rs`, `batman`): Direct3D 11, RIO over libusb bulk transfers through the
+shared `rio.rs` transport (Cars continues to use interrupt transfers). Gameplay, calibration
+and controls are user-confirmed working. Batman's switch assignments differ from Cars: switch 7
+fires, 8 is the digital brake and 9 starts. Default keyboard: 1 start, Left Ctrl fire,
+Left Alt view, Space brake button, arrows steer / gas / brake. The brake pedal also presses switch 8 past a
+third of its travel. Its type 2 report additionally carries keypad nibbles at payload byte
+17 (numeric keypad with NumLock on; decimal/multiply for *, add/Enter for #).
+Controls, including the Space brake button and keypad, are user-confirmed. Level loading
+then hung in the deliberate spin at `0x12fb710`: the HASP cabinet check (`0x1384dc0`)
+returned failure. Both the check and its caller are verified before the check is replaced
+with success and cabinet mode `0x1a70c44` set to 3 (the primary cabinet dongle mode).
+Mode 2 is a service dongle and draws a green SERVICE overlay; it is not used. Level loading
+now starts (user-confirmed); the green overlay is gone with mode 3 (screenshot verified).
+Force feedback reads the game's float at image +`0x7ef524` (`0x1abf524` in this build),
+normalized by 1.2 and clamped to full scale; positive pushes left. The address and scale
+come from [FFB Arcade Plugin's Batman implementation](https://github.com/Boomslangnz/FFBArcadePlugin/blob/master/Game%20Files/Batman.cpp),
+verified against this executable's own FFB debug display. Its read instruction is checked
+before enabling output. The RIO loop sends constant force through the launcher (gamepad
+rumble fallback), including zero when the game releases the force. Runtime output verified
+(`ffb: first motor force -499`); physical wheel testing pending.
 
 ### 6.4 Batocera integration
 
@@ -1463,7 +1498,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user: 100%) | wal-loader, inputs sampled in the game's input poll (§6.3b), Start also drives the developer Space input, analog full scale 255, 4 coins per credit, lean / throttle / brake calibrated in the test menu, back buffer format fix, race-ending Space check disabled |
 | `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | wal-loader, developer keyboard floats and keys (`GetAsyncKeyState` hooked), coins through the coin board callback, switch latches, `tricks: [d3dx9_42, d3dcompiler_42]` (race crashed on a missing effect), `WINE_LARGE_ADDRESS_AWARE=1`, force feedback |
 | `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | wal-loader, RIO board emulated behind libusb0, HASP dongle faked, calibration clamp fix, `tricks: [d3dx9_43, d3dcompiler_43]`, force feedback |
-| `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | in progress (untested) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b, The Fast and the Furious engine), first boot resets audits and checks every file (about a minute), force feedback from its wheel motor force |
+| `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | works (user: 100%) | wal-loader, JAMMA board and cabinet feature check emulated, 105 verified 3DNow math blocks replaced by SSE2, calibration and gameplay confirmed, opening movie has no embedded audio track, force feedback from its wheel motor force (untested on a wheel) |
+| `batman` | Batman | rawthrills | works (user-confirmed gameplay and controls; FFB wheel test pending) | wal-loader, RIO board over libusb bulk transfers, wheel and pedals, fire / start / brake switches corrected, numeric keypad, cabinet check emulated to avoid level-loading spin, force feedback from game float (wheel test pending) |
 | `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | wal-loader, inputs through the game's `SetControl` without a board (§6.3b), DXVK's d3d8 (dump's d3d8to9 hidden), picture rotated for a vertical monitor (no rotation yet) |
 | `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | as Super Alpine Racer, landscape |
 | `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | wal-loader, inputs through the game's `SetControl` (§6.3b), no board: I/O init taken as success, no reboot, board missing displays off; the dump's protection traps undone, keyboard developer key Space (ends the game) made Escape, base path empty, force feedback from its handlebar force (untested on a wheel) |

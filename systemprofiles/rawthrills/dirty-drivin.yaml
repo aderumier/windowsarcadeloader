@@ -14,12 +14,12 @@ name: Dirty Drivin'
 # race crashes drawing with the missing effect (NULL).
 tricks: [d3dx9_42, d3dcompiler_42]
 
+# Tested launch arguments; this arcade build still creates a native fullscreen device.
+# Keep its own display geometry: forcing windowed buffers/resizes breaks initialization.
+args: [-WinPC, -Windowed, -r, 1360x768]
+
 env:
   WAL_RAWTHRILLS_GAME: dirtydrivin
-  # Scale the native picture across a borderless screen-sized window on Xorg.
-  WAL_D3D9_WINDOWED_SIZE: 1368x768
-  WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: screen
   # its race runs out of the 2 GB address space: 4 GB (as a large address aware build)
   WINE_LARGE_ADDRESS_AWARE: "1"
 

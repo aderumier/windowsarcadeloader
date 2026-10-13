@@ -135,7 +135,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user: 100%) | not in the test |  |
 | `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | not in the test |  |
 | `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | not in the test |  |
-| `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | in progress (untested) | not in the test |  |
+| `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | works (user: 100%) | not in the test |  |
+| `batman` | Batman | rawthrills | works (user-confirmed gameplay and controls; FFB wheel test pending) | not in the test |  |
 | `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | not in the test |  |
 | `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | not in the test |  |
 | `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | not in the test |  |

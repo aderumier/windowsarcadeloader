@@ -235,6 +235,15 @@ const NICKTOONS: Game = Game {
     ffb: Some((0x485010, &[0xa1, 0xc8, 0x57, 0x64, 0x00, 0x85, 0xc0, 0x75, 0x03])),
 };
 
+/// Nicktoons also checks the opened board object directly during boot and every frame.
+/// The report thread replaces its reader; accept its lamp/watchdog writes without HID I/O.
+const NICKTOONS_BOARD_SEND: Site = (0x4aabd0, &[0x56, 0x8b, 0x74, 0x24, 0x08, 0x33, 0xc9]);
+const NICKTOONS_BOARD_STATE: usize = 0x1e57b08;
+static NICKTOONS_DEVICE: OnceLock<usize> = OnceLock::new();
+/// Cabinet feature check: without a HASP key, the SDK waits on its network license
+/// manager. Emulate the successful cabinet check at the game boundary instead.
+const NICKTOONS_FEATURE_CHECK: Site = (0x44a8e0, &[0x51, 0xa1, 0x88, 0xef, 0x5b, 0x00]);
+
 /// Gear switches of each gear, 4 position lever.
 const LEVER_4: [u8; 4] = [0x10, 0x20, 0x40, 0x80];
 /// Drift's 6 speed gate: column (0x10 left, 0x20 right) and row (0x40 up, 0x80 down).
@@ -327,12 +336,28 @@ pub(crate) fn init() {
         sites.push(shift_down_key);
     }
     sites.extend(g.ffb);
+    if g.name == NICKTOONS.name {
+        sites.push(NICKTOONS_BOARD_SEND);
+        sites.push(NICKTOONS_FEATURE_CHECK);
+    }
     if let Some((site, _)) = sites.iter().find(|s| !matches(**s)) {
         log!("{}: unexpected code at {site:#x}, not this build, left alone", g.name);
         return;
     }
+    if g.name == NICKTOONS.name && !crate::nicktoons_3dnow::init() {
+        return;
+    }
     let _ = GAME.set(g);
     map();
+    if g.name == NICKTOONS.name {
+        // A real object, rather than a sentinel handle: the game's status paths may read it.
+        let device = *NICKTOONS_DEVICE.get_or_init(|| Box::into_raw(Box::new([0u8; 256])) as usize);
+        write(NICKTOONS_BOARD_STATE, &(device as u32).to_le_bytes());
+        write(NICKTOONS_BOARD_SEND.0, &[0x33, 0xc0, 0xc3]);
+        write(NICKTOONS_FEATURE_CHECK.0, &[0xb8, 1, 0, 0, 0, 0xc3]);
+        log!("nicktoons: board object present, lamp/watchdog writes accepted without HID");
+        log!("nicktoons: cabinet feature check emulated");
+    }
     redirect(g.board_init.0, board_init as *const () as usize);
     write(g.board_check.0, &[0x90, 0x90]);
     write(g.base_path.0, &[0x33, 0xc0, 0xc3]);

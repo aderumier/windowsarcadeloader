@@ -1,0 +1,44 @@
+# Batman (Raw Thrills) - override values in userprofiles/rawthrills/batman.yaml.
+system: rawthrills
+name: Batman
+
+# Direct3D 11; the game's RIO reader uses libusb bulk transfers.
+# Force feedback: game wheel force -> wheel constant force / gamepad rumble.
+env:
+  WAL_RAWTHRILLS_GAME: batman
+  WINE_LARGE_ADDRESS_AWARE: "1"
+
+tricks: [d3dcompiler_43, d3dx10_43, d3dx11_43]
+
+# 1 start, Left Ctrl fire, Left Alt view, Space brake button; arrows steer / gas / brake.
+# Numeric keypad (NumLock on): cabinet keypad; decimal/multiply = *, add/Enter = #.
+native_map: {}
+input:
+  stick_as_dpad: false
+  keyboard_ramp_ms: 500
+  gamepad:
+    r2: accel
+    l2: brake
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  start: Start
+  b1: Fire
+  b2: View
+  b3: Brake button
+  b4: none
+  b5: Bill
