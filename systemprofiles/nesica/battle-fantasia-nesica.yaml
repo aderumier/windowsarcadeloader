@@ -1,0 +1,27 @@
+# Battle Fantasia (NESiCAxLive, game.exe CRC32 0xed6d3c26).
+# Override values in userprofiles/nesica/battle-fantasia-nesica.yaml.
+# This release still uses JVS on COM2: load the Type X payload.
+system: typex
+name: Battle Fantasia (NESiCAxLive)
+
+# Buttons: usual layout A=Button1 B=Button4 C=Button2 D=Button5 G=Button3; virtual top
+# row b1-b4 = A B C D, b5 = G.
+native_map:
+  b1: btn1
+  b2: btn4
+  b3: btn2
+  b4: btn5
+  b5: btn3
+
+env:
+  # The game wants 1280x768 fullscreen, not a mode Wine emulates: use 1280x800 (16:10, scaled
+  # to the screen by Wine's fullscreen hack).
+  WAL_D3D9_FULLSCREEN_SIZE: 1280x800
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D
+  b5: G

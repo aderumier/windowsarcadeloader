@@ -7,6 +7,9 @@
 //! button 1 0x02, button 2 0x01. Switch byte 2: buttons 3-8 0x80/0x40/0x20/0x10/0x08/0x04.
 //! System byte: test 0x80. Coins count up when the coin input is released.
 //!
+//! `WAL_TYPEX_JVS_DLLS`: comma-separated I/O DLL paths to load and hook before startup
+//! (e.g. `bin/xioman.dll` for Source-engine cabinets). Default: executable only.
+//!
 //! Analog channels: `WAL_TYPEX_JVS_ANALOG` (fixed values, e.g. a volume knob) and
 //! `WAL_TYPEX_JVS_ANALOG_INPUTS` (player 1's axes, e.g. the pedals of driving games).
 //!
@@ -117,6 +120,8 @@ struct Board {
     /// 0x08 on left, down 0x10), service 0x40, SELECT / ENTER (buttons 7 / 8) from either
     /// player.
     elevator_action: bool,
+    /// Cyber Diver's two handle switches are active low (JVS buttons 7/8).
+    cyber_diver: bool,
     /// `WAL_TYPEX_JVS_ANALOG=v0,v1,...` (hex): fixed analog channel values (default 0).
     analog_fixed: Vec<u16>,
     /// `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...`: player 1's virtual axis read on each
@@ -243,14 +248,73 @@ pub(crate) fn init() {
         gaia_attack,
         block_king,
         elevator_action,
+        cyber_diver: std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v == "cyber-diver"),
         analog_fixed,
         analog_inputs,
         battle_gear,
         addresses: 0,
     });
     let port = std::env::var("WAL_TYPEX_JVS_PORT").unwrap_or_else(|_| "COM2".into());
-    serial::install(&port, process);
+    let mut modules = vec![unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize];
+    if let Ok(dlls) = std::env::var("WAL_TYPEX_JVS_DLLS") {
+        for name in dlls.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            let Ok(path) = std::ffi::CString::new(name) else { continue };
+            let module = unsafe { windows_sys::Win32::System::LibraryLoader::LoadLibraryA(path.as_ptr().cast()) };
+            if module.is_null() {
+                log!("jvs: cannot load I/O module {name}");
+            } else {
+                modules.push(module as usize);
+                log!("jvs: serial hooks in I/O module {name}");
+                if std::env::var("WAL_TYPEX_XIO_CALIBRATION").is_ok_and(|v| v == "1") {
+                    unsafe { install_xio_calibration(module); }
+                }
+            }
+        }
+    }
+    serial::install_in(&port, process, &modules);
     log!("jvs: I/O board on {port}");
+}
+
+static XIO_CALIBRATION: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// XIO receives four min/max pairs at offset 0x30 in its analog parameter block.
+/// A fresh Cyber Diver dump loads zero pairs without testmode.exe to calibrate them.
+#[cfg(target_arch = "x86")]
+unsafe fn install_xio_calibration(module: windows_sys::Win32::Foundation::HMODULE) {
+    use windows_sys::Win32::System::{LibraryLoader::GetProcAddress, Memory::{VirtualProtect, PAGE_READWRITE}};
+    let Some(get) = (unsafe { GetProcAddress(module, c"?GetXIO@@YAPAVIXioManager@@XZ".as_ptr().cast()) }) else { return };
+    let get: unsafe extern "C" fn() -> *mut usize = unsafe { std::mem::transmute(get) };
+    let object = unsafe { get() };
+    if object.is_null() { return; }
+    let table = unsafe { *object } as *mut usize;
+    let slot = unsafe { table.add(0x28 / 4) };
+    let mut old = 0;
+    if unsafe { VirtualProtect(slot.cast(), 4, PAGE_READWRITE, &mut old) } == 0 { return; }
+    XIO_CALIBRATION.store(unsafe { *slot }, Ordering::Relaxed);
+    unsafe {
+        *slot = xio_calibration as *const () as usize;
+        VirtualProtect(slot.cast(), 4, old, &mut old);
+    }
+    log!("jvs: XIO fallback calibration installed");
+}
+
+#[cfg(not(target_arch = "x86"))]
+unsafe fn install_xio_calibration(_: windows_sys::Win32::Foundation::HMODULE) {}
+
+#[cfg(target_arch = "x86")]
+unsafe extern "thiscall" fn xio_calibration(object: *mut usize, parameters: *const u8) -> i32 {
+    let mut values = [0u8; 64];
+    // The original setter only reads these initialized calibration words.
+    unsafe { std::ptr::copy_nonoverlapping(parameters.add(0x30), values.as_mut_ptr().add(0x30), 16); }
+    for pair in values[0x30..0x40].chunks_exact_mut(4) {
+        if pair[..2] == pair[2..] {
+            // Symmetric around 0x8000; retain every valid saved calibration pair.
+            pair.copy_from_slice(&[1, 0, 0xff, 0xff]);
+        }
+    }
+    let original: unsafe extern "thiscall" fn(*mut usize, *const u8) -> i32 =
+        unsafe { std::mem::transmute(XIO_CALIBRATION.load(Ordering::Relaxed)) };
+    unsafe { original(object, values.as_ptr()) }
 }
 
 /// One `WAL_TYPEX_JVS_ANALOG_INPUTS` entry: `accel`, `-lx` (inverted), `+ry` (positive half),
@@ -449,7 +513,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 // reply: the 3 switch bytes of each player, padded with zeros
                 let mut v = vec![if test { 0x80 } else { 0 }];
                 for p in players.iter().take(arg(1).min(2) as usize) {
-                    let bytes = [p.0, p.1, p.4];
+                    let bytes = [p.0, p.1 ^ if board.cyber_diver { 0x0c } else { 0 }, p.4];
                     v.extend((0..arg(2) as usize).map(|k| bytes.get(k).copied().unwrap_or(0)));
                 }
                 (3, v)
@@ -492,7 +556,11 @@ fn process(packet: &[u8]) -> Vec<u8> {
             0x05 => (3, vec![]),
             // watchdog kick (New Super Mario Bros. Wii Coin World polls it with `01 01`)
             0x08 => (1, vec![0x00]),
-            0x23 | 0x25 => (2, vec![]),
+            0x23 => (2, vec![]),
+            // Screen position: each requested channel is a pair of 16-bit coordinates.
+            // Cyber Diver's XIO parser consumes report+4 bytes even without a touch device;
+            // omitting them rejects the complete combined switch/coin/analog report.
+            0x25 => (2, vec![0; arg(1) as usize * 4]),
             0x65 => (2, vec![0xA0]),
             // Battle Gear key reader (these replies carry their own report byte)
             0x6F if board.battle_gear.is_some() => (1, vec![0x01]),
@@ -521,7 +589,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
         };
         // commands with outputs/acks: data commands get a report
         // byte when they are not the first one
-        if matches!(cmds[i], 0x08 | 0x11..=0x14 | 0x20..=0x22 | 0x26 | 0x2E | 0x30..=0x37 | 0x65 | 0x67 | 0x7D) {
+        if matches!(cmds[i], 0x08 | 0x11..=0x14 | 0x20..=0x22 | 0x25 | 0x26 | 0x2E | 0x30..=0x37 | 0x65 | 0x67 | 0x7D) {
             rep(&mut bytes);
         }
         out.extend(&bytes);

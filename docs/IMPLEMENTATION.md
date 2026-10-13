@@ -538,6 +538,8 @@ profile), `show` (merged profile).
 * `codepage`: `WAL_ANSI_CODEPAGE=<cp>` makes the game's own `MultiByteToWideChar` /
   `WideCharToMultiByte` calls on CP_ACP use `<cp>` (932): Raiden IV converts its Shift-JIS
   movie name ("raiden4_ｃ50.m1v") itself.
+  `WAL_ANSI_CODEPAGE_DLLS=<name>,...` applies those hooks and `GetACP` to named game DLLs
+  as they load (up to 60 seconds), for Source engine's text conversion in Cyber Diver.
 * `wcase`: `WAL_FAST_WCASE=1` makes the game's own `_wcsicmp`, `_wcsnicmp`, `towlower`,
   `towupper` (C runtime imports) fold ASCII themselves (others: the original functions). Wine's
   `towlower` maps each character with `LCMapStringW`: Fighting EX Layer stopped ~5 s twice after
@@ -578,6 +580,15 @@ fine (they start after the loader lock is released), registry writes and IAT pat
 under Wine. Never wait on a thread from DllMain.
 
 ### 6.2 NESiCA (`crates/payload-nesica`)
+
+Battle Fantasia and Spica Adventure's NESiCA releases retain JVS on `COM2` rather than
+FastIO. Their profiles live under `systemprofiles/nesica/` but select `system: typex` to
+load `wal_typex.dll` through wal-loader. Separate ids `battle-fantasia-nesica` and
+`spica-adventure-nesica` keep them distinct from the existing Type X profiles and saves.
+Both are user-confirmed working 100%, with picture and audio verified during testing.
+Battle Fantasia (`game.exe` CRC32 `0xed6d3c26`) uses the existing A/B/C/D/G button layout
+and `WAL_D3D9_FULLSCREEN_SIZE=1280x800`; the older executable's code patches are not
+applied. Spica Adventure (`0x739bde93`) uses the standard JVS buttons and needs no patches.
 
 Built as `wal_nesica.dll`, installed as `iDmacDrv32.dll` (Taito Type X FastIO driver). Games
 import it statically, so it loads before the game entry point: no injector needed.
@@ -809,6 +820,23 @@ reference differs from us by:
 * XAudio2_5 / XACTEngine3_5 registered with regsvr32 before the run.
 
 ### 6.3 Type X (`crates/payload-typex`, `crates/loader`)
+
+Cyber Diver starts `hl2.exe` directly with `-ac -io 1 -nesys 0`; `-io 0` selects
+dummy controls. Its serial calls live in the late-loaded `bin/xioman.dll`, loaded and
+hooked before startup with `WAL_TYPEX_JVS_DLLS`. Its combined input poll ends with
+`25 01`: XIO requires a report byte and four coordinate bytes for that command even
+without a touch device. Omitting them rejects the whole switch/coin/analog update.
+With the corrected reply, credits work. The start screen (`gamescene.dll`) checks
+XIO system switch 1: JVS down (`0x100000` in XIO). JVS button 3 is a handle button.
+The cabinet's normalized axes use analog channels
+1/2 for aim and 3/4, inverted, for movement; all unused channels are centered at
+`0x8000`. `WAL_TYPEX_XIO_CALIBRATION=1` supplies a symmetric `1..65535` range for
+each invalid equal min/max pair passed to XIO (this dump loads `0..0`, causing full
+deflection at rest); valid calibration is preserved. The `cyber-diver` layout inverts
+the two active-low handle buttons (JVS buttons 7/8). Gameplay and controls are
+user-confirmed working 100%. Code page 932 hooks are enabled in the Source DLLs, but some
+dynamic Japanese labels remain garbled. Test launches `testmode.exe`, absent from this dump;
+the failed external-process launch hangs the client.
 
 Type X / X2 games (and NESiCA games built on Type X I/O like 3D Cosplay Mahjong) talk to a
 JVS I/O board on `COM2` and import no driver DLL, so the payload is injected by
@@ -1240,6 +1268,10 @@ verified against this executable's own FFB debug display. Its read instruction i
 before enabling output. The RIO loop sends constant force through the launcher (gamepad
 rumble fallback), including zero when the game releases the force. Runtime output verified
 (`ffb: first motor force -499`); physical wheel testing pending.
+Batocera at 1920x1080 uses a machine user override at
+`userprofiles/rawthrills/batman.yaml`: Gamescope enabled, width 1368, height 768,
+`args: [-S, stretch, -f]`. Fullscreen gameplay is screenshot-verified and user-confirmed;
+the shared profile keeps the local display settings.
 
 ### 6.4 Batocera integration
 
@@ -1399,6 +1431,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | hide dinput8 (loader hack) |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | - |
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | D: data in WindowsLoader |
+| `battle-fantasia-nesica` | Battle Fantasia (NESiCAxLive) | nesica | works (user: 100%) | Type X JVS payload through wal-loader, 1280x800, A/B/C/D/G layout; no executable patches needed |
+| `spica-adventure-nesica` | Spica Adventure (NESiCAxLive) | nesica | works (user: 100%) | Type X JVS payload through wal-loader, standard attack / jump buttons; no executable patches needed |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | key bbcf, shop hours patch |
 | `blazblue-chronophantasma` | BlazBlue Chronophantasma 2.03 | nesica | works (user: 100%) | - |
 | `blazblue-continuum-shift-2` | BlazBlue Continuum Shift II | nesica | works (user: 100%) | hide MS dinput8 |
@@ -1451,6 +1485,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card saved (user: name shown, no freeze after a match) | Unreal Engine 4: `EXF-Win64-Shipping.exe` started directly, its `NxL2Core.dll` replaced by the 64-bit payload; NESYS `ms`/`ss`, card reissue replies and session (§6.2b), card inserted automatically (`WAL_NESICA_CARD_AUTO`), card writes saved as their reads, ASCII case folding (`WAL_FAST_WCASE`: Wine's towlower stalled the game ~5 s twice after a match) |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
+| `cyber-diver` | Cyber Diver | typex | works (user: 100%) | Source client hl2.exe, -io 1, serial hooks in bin/xioman.dll, complete JVS 0x25 reply, cabinet start and active-low switches, fallback axis calibration; offline; some Japanese labels garbled; testmode.exe absent |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
 | `blazblue-continuum-shift` | BlazBlue Continuum Shift | typex | works (user: 100%) | wal-loader, JVS, no patch (generic Type X2 build) |

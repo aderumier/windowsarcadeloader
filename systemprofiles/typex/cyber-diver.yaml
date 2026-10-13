@@ -1,0 +1,60 @@
+# Cyber Diver (Type X2 / Source engine).
+# Override values in userprofiles/typex/cyber-diver.yaml.
+system: typex
+name: Cyber Diver
+
+# gamescene checks XIO system switch 1: JVS down (0x100000 in XIO).
+# JVS button 3 is the handle's thumb switch, not the cabinet start button.
+native_map:
+  start: down
+  up: none
+  down: none
+  left: none
+  right: none
+  b3: btn7
+  b4: btn8
+  b5: none
+  b6: none
+
+# Start the Source client directly. The supplied -io 0 selects dummy controls;
+# -io 1 selects the XIO/JVS cabinet board emulated by the payload.
+args: [-console, -hideconsole, -window, -novid, -game, bs09, -heapsize, "512000", -width, "1360", -height, "768", -ac, -io, "1", -nesys, "0", +bs_ipf_show, +cl_recordreplay, "0", +demo_recordcommands, "0"]
+
+env:
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_ANSI_CODEPAGE_DLLS: engine.dll,Client.dll,vgui2.dll,vguimatsurface.dll,vstdlib.dll,tier0.dll
+  WAL_FONT_CODEPAGE: "932"
+  WAL_TYPEX_JVS_DLLS: bin/xioman.dll
+  WAL_TYPEX_XIO_CALIBRATION: "1"
+  WAL_TYPEX_JVS_LAYOUT: cyber-diver
+  # XIO uses channels 1/2 for aim and 3/4 (inverted) for movement.
+  # Unused channels must remain centered, rather than at the minimum value.
+  WAL_TYPEX_JVS_ANALOG: 8000,8000,8000,8000,8000,8000,8000,8000
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",rx,ry,-ly,-lx"
+
+input:
+  stick_as_dpad: false
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly
+      KEY_DOWN: ly
+      KEY_A: -lx
+      KEY_D: lx
+      KEY_W: -ly
+      KEY_S: ly
+      KEY_J: -rx
+      KEY_L: rx
+      KEY_I: -ry
+      KEY_K: ry
+
+controls:
+  lx: Move sideways
+  ly: Move forward / back
+  rx: Aim horizontally
+  ry: Aim vertically
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4

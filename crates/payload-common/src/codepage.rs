@@ -3,6 +3,8 @@
 //! Japanese games convert Shift-JIS file names themselves: Raiden IV's movie
 //! "raiden4_ｃ50.m1v" was not found under a western code page (white intro). The d3dx9 DLL
 //! shipped with the game is hooked too: K-On! draws Shift-JIS text with its `DrawTextA`.
+//! `WAL_ANSI_CODEPAGE_DLLS=<name>,...` also hooks named, late-loaded game DLLs,
+//! including their GetACP calls (Source engine keeps its text conversion in DLLs).
 
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
@@ -31,17 +33,45 @@ pub fn init() {
         }
     }
     for base in modules {
-        unsafe {
-            if let Some(o) = iat::hook_module(base, "kernel32.dll", "MultiByteToWideChar", mb2wc as *const () as usize) {
-                ORIG_MB2WC.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed).ok();
+        install(base, false);
+    }
+    if let Ok(names) = std::env::var("WAL_ANSI_CODEPAGE_DLLS") {
+        let mut pending: Vec<String> = names.split(',').map(str::trim)
+            .filter(|s| !s.is_empty()).map(str::to_owned).collect();
+        std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+            while !pending.is_empty() && std::time::Instant::now() < deadline {
+                pending.retain(|name| {
+                    let wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
+                    let base = unsafe { GetModuleHandleW(wide.as_ptr()) } as usize;
+                    if base == 0 { return true; }
+                    install(base, true);
+                    log!("codepage: ANSI conversions in {name} use code page {cp}");
+                    false
+                });
+                std::thread::sleep(std::time::Duration::from_millis(10));
             }
-            if let Some(o) = iat::hook_module(base, "kernel32.dll", "WideCharToMultiByte", wc2mb as *const () as usize) {
-                ORIG_WC2MB.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed).ok();
-            }
-        }
+            for name in pending { log!("codepage: module not loaded: {name}"); }
+        });
     }
     log!("codepage: game ANSI conversions use code page {cp}");
 }
+
+fn install(base: usize, report_acp: bool) {
+    unsafe {
+        if let Some(o) = iat::hook_module(base, "kernel32.dll", "MultiByteToWideChar", mb2wc as *const () as usize) {
+            ORIG_MB2WC.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed).ok();
+        }
+        if let Some(o) = iat::hook_module(base, "kernel32.dll", "WideCharToMultiByte", wc2mb as *const () as usize) {
+            ORIG_WC2MB.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed).ok();
+        }
+        if report_acp {
+            iat::hook_module(base, "kernel32.dll", "GetACP", get_acp as *const () as usize);
+        }
+    }
+}
+
+unsafe extern "system" fn get_acp() -> u32 { CODEPAGE.load(Ordering::Relaxed) }
 
 fn codepage(cp: u32) -> u32 {
     if cp == CP_ACP || cp == CP_THREAD_ACP { CODEPAGE.load(Ordering::Relaxed) } else { cp }
