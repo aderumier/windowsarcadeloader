@@ -284,7 +284,10 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         }
         _ => system_payloads.iter().map(|p| (payload_dir.join(p.file), p.install_as)).collect(),
     };
-    if system.loader().is_some() {
+    // A system may have no payload for one executable architecture. In that case run the game
+    // directly instead of starting wal-loader with a payload from the other architecture.
+    let loader = if system_payloads.is_empty() { None } else { system.loader() };
+    if loader.is_some() {
         payloads.push((payload_dir.join("wal-loader.exe"), "wal-loader.exe"));
     }
     for (src, _) in &payloads {
@@ -386,7 +389,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     // the game command with these arguments; `relaunched`: started again at the payload's
     // request (WAL_RELAUNCH=1)
     let game_command = |args: &[String], relaunched: bool| {
-        let mut cmd = match system.loader() {
+        let mut cmd = match loader {
             // wal-loader <payload> <game> [args]: payload loaded before the game entry point
             Some(payload) => {
                 let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));

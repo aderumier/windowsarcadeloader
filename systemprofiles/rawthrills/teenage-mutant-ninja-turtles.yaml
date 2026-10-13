@@ -1,0 +1,36 @@
+# Teenage Mutant Ninja Turtles (Raw Thrills, version 1.59, 64-bit Unity) - template; tune
+# controls in userprofiles/rawthrills/teenage-mutant-ninja-turtles.yaml.
+system: rawthrills
+name: Teenage Mutant Ninja Turtles
+
+# The patched IOManager reads the launcher's standard four-player input frame.
+# Cabinet volume: Page Up increases, Page Down decreases. The game's developer
+# keyboard shortcuts are disabled so they cannot overlap player controls.
+native_map: {}
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    a: b1
+    b: b2
+    x: b3
+    y: none
+    r1: none
+    l1: none
+    r2: none
+    l2: none
+    start: start
+    back: coin
+
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  coin: Coin
+  lx: Move
+  ly: Move
+  start: Start
+  b1: Attack
+  b2: Jump
+  b3: Turtle Power

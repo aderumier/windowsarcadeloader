@@ -140,6 +140,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | not in the test |  |
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | works (user: 100%) | not in the test |  |
 | `batman` | Batman | rawthrills | works (user-confirmed gameplay and controls; FFB wheel test pending) | not in the test |  |
+| `teenage-mutant-ninja-turtles` | Teenage Mutant Ninja Turtles | rawthrills | works (user: 100%), four-player controls, test menu, variable-height jump, videos | not in the test |  |
 | `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | not in the test |  |
 | `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | not in the test |  |
 | `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | not in the test |  |

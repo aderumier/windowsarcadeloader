@@ -2,8 +2,9 @@
 //! Nicktoons Nitro Racing, H2O Overdrive, Super Alpine Racer, X-Games Snowboarder, Winter X
 //! Games SnoCross, Dirty Drivin', Cars).
 //!
-//! The games read their JAMMA USB I/O board (HID) themselves and import no driver DLL to
-//! replace: the payload is started with the game through `wal-loader`.
+//! Most games read their JAMMA USB I/O board (HID) themselves and import no driver DLL to
+//! replace: the payload is started with the game through `wal-loader`. TMNT is the exception:
+//! its patched Unity input poll reads the launcher's common input socket directly.
 //!
 //! Payload options (profile `env`):
 //! - `WAL_RAWTHRILLS_GAME`: `fnf` / `drift` / `superbikes` / `nicktoons` / `h2overdrive` (JAMMA
@@ -36,6 +37,12 @@ impl System for RawThrills {
 
     fn payloads(&self) -> &'static [Payload] {
         &[Payload { file: "wal_rawthrills.dll", install_as: "wal_rawthrills.dll" }]
+    }
+
+    fn payloads64(&self) -> Option<&'static [Payload]> {
+        // TMNT's patched Unity IOManager reads the launcher's input socket directly; it needs
+        // no architecture-specific Raw Thrills board payload.
+        Some(&[])
     }
 
     fn data_dirs(&self) -> &'static [&'static str] {
