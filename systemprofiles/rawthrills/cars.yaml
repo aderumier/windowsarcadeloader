@@ -9,6 +9,11 @@ name: Cars
 # force the game sets, played on player 1's wheel (constant force) or gamepad (rumble).
 env:
   WAL_RAWTHRILLS_GAME: cars
+  # Keep the game's native render size, then stretch it over a borderless screen-sized
+  # window. Its own window/presentation size leaves a black frame on larger Xorg modes.
+  WAL_D3D9_WINDOWED_SIZE: 1368x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
 
 # Its effects are HLSL compiled at load: Wine's d3dx9_43 / d3dcompiler_43 fail them and the
 # cars are not drawn.

@@ -1194,7 +1194,10 @@ logout, read, write, encrypt, decrypt) is faked: the game encrypts "Flynn Lives"
 checks it decrypts back (identity), the serial number read at 0x28 (`WAL_CARS_SERIAL`);
 without it the game reboots. The calibrated steering / gas clamp made unsigned (an infinite
 scale while calibrating crashed). Its effects need native `d3dx9_43` / `d3dcompiler_43`
-(cars not drawn). Force feedback: the wheel force the game sets (`[[0x18ae0d8]+0x1b4]+0x258`).
+(cars not drawn). Display: native 1368x768 back buffer in a borderless screen-sized window
+(`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE=screen`), scaled over the
+whole screen (the game's own window left a black frame on larger Xorg modes; user confirmed
+the fix). Force feedback: the wheel force the game sets (`[[0x18ae0d8]+0x1b4]+0x258`).
 
 Nicktoons Nitro Racing (`sdaemon.rs`, `nicktoons`): the JAMMA USB board engine of The Fast and
 the Furious (same parser, board init, status check, keyboard input functions, motor force
