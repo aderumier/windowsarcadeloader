@@ -1178,7 +1178,10 @@ coin 1, coin 2, bill; audits and credits), TEST / SERVICE / volume through the s
 the game copies into its switch table every frame (`0x98c490..`). Its effects are HLSL
 compiled at load: Wine's d3dx9_42 / d3dcompiler_42 fail one and the race crashes on the
 missing effect (`tricks: [d3dx9_42, d3dcompiler_42]`); its race needs a 4 GB address space
-(`WINE_LARGE_ADDRESS_AWARE=1`). Force feedback: the race's wheel force (`0x886ec4`), mirrored
+(`WINE_LARGE_ADDRESS_AWARE=1`). Display: native 1368x768 back buffer scaled over a borderless
+screen-sized window (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE=screen`),
+fixing the black frame on larger Xorg modes (user confirmed).
+Force feedback: the race's wheel force (`0x886ec4`), mirrored
 on tracks 8-14 (`0x96f770`). Build fixes: the hardware init result ignored, no reboot or
 watchdog, no hang on a missing device.
 

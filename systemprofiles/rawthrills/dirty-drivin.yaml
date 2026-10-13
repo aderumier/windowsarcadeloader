@@ -16,6 +16,10 @@ tricks: [d3dx9_42, d3dcompiler_42]
 
 env:
   WAL_RAWTHRILLS_GAME: dirtydrivin
+  # Scale the native picture across a borderless screen-sized window on Xorg.
+  WAL_D3D9_WINDOWED_SIZE: 1368x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
   # its race runs out of the 2 GB address space: 4 GB (as a large address aware build)
   WINE_LARGE_ADDRESS_AWARE: "1"
 
