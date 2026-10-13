@@ -1124,7 +1124,12 @@ SuperCars, 2014 build; USB board through libusb): the game keeps its inputs behi
 `0x10010`, keypad `0x10080..`), analog `0x10020..0x10022` (wheel, gas, brake, 0..4095). A
 thread calls it from the virtual sticks (switches on change, analog every poll). The input
 init (DirectInput keyboard/mouse, USB board) is not called, the board counts as present, its
-message sender returns at once, the files' base path is left empty. Force feedback: the force
+message sender returns at once, the files' base path is left empty. The removed input init
+also sets analog full scale (`0x10042`, at `0x477f910`): it is supplied as 4095 every poll.
+Without it, the normalized steering and pedals divided by zero even with valid calibration
+(locally reproduced: raw left / center / right 0 / 2048 / 4095, full scale 0; fixed: normalized
+steering -1 / approximately 0 / +1).
+Force feedback: the force
 board's `0x402cf0(float)` replaced, the force sent as `FFB_CONSTANT`.
 
 The same `SetControl` engine, later builds (`h2o.rs`, `alpine` Super Alpine Racer 1.50,
@@ -1447,7 +1452,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | as `battle-gear-4-tuned` (a copy of its dump with this `.windowsloader`), professional cabinet: second JVS board, H shifter (player 2's b1-b6), clutch on analog channel 6 (`+ry`), 1360x768, force feedback as the normal cabinet |
 | `fast-and-furious` | The Fast and the Furious | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, IO flags back to the board, analog brake + HANDBRAKE, 4 speed lever from shift up/down, keyboard ramp 0.5 s, force feedback from its wheel motor force (untested on a wheel); The Fast and the Furious Drift: dump missing |
 | `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | wal-loader, as `fast-and-furious` (§6.3b), switch brake, 4 or 6 speed lever, screen size back to 640x480 (`WAL_PATCHES`: the dump's data said 1280x720, menus in the corner), force feedback from its wheel motor force (untested on a wheel) |
-| `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | wal-loader, H2O board inputs through the game's `SetControl` (§6.3b), 4 speed lever from shift up/down, files' base path left empty, its 1360x768 picture in a windowed device over the screen (Direct3D 8 interval fix), force feedback from its force board's force (untested on a wheel) |
+| `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | wal-loader, H2O board inputs through the game's `SetControl` (§6.3b), analog full scale 4095 (normalized steering / pedals otherwise divided by zero), 4 speed lever from shift up/down, files' base path left empty, its 1360x768 picture in a windowed device over the screen (Direct3D 8 interval fix), force feedback from its force board's force (untested on a wheel) |
 | `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, keyboard ramp 1 s (lean, throttle), switch brake, shift down = developer key made a board input |
 | `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user: 100%) | wal-loader, inputs sampled in the game's input poll (§6.3b), Start also drives the developer Space input, analog full scale 255, 4 coins per credit, lean / throttle / brake calibrated in the test menu, back buffer format fix, race-ending Space check disabled |
 | `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | wal-loader, developer keyboard floats and keys (`GetAsyncKeyState` hooked), coins through the coin board callback, switch latches, `tricks: [d3dx9_42, d3dcompiler_42]` (race crashed on a missing effect), `WINE_LARGE_ADDRESS_AWARE=1`, force feedback |

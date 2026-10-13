@@ -23,7 +23,9 @@
 //! The board is not used: the input init (`0x4741db`, DirectInput keyboard/mouse and the USB
 //! board) is not called, the board counts as present (`0x401ab0` -> 1) and the board message
 //! sender (`0x4c27f0`) returns at once. The base path of the files (`0x4a7ee0`) is left empty
-//! (the run directory's long path overruns the game's path buffers).
+//! (the run directory's long path overruns the game's path buffers). The removed input init
+//! also sets the analog full scale: `0x10042` is supplied as 4095, otherwise the game's
+//! normalized steering and pedals divide by zero even after calibration.
 //!
 //! The ski and SnoCross builds take the game's own path without a board instead ("No I/O
 //! Board found. Using keyboard/mouse.": the board init's 3 tries fail, `0x10040` board present
@@ -69,6 +71,8 @@ struct Game {
     default_map: &'static [(&'static str, &'static str)],
     /// Analog codes sent every poll, from the virtual stick's axes.
     analogs: &'static [(u32, Axis)],
+    /// Full scale (`0x10042`) normally set by the removed input init, when needed.
+    analog_max: Option<u32>,
     /// A 4 position gear lever (codes `0x10005..0x10008`).
     gears: bool,
     /// Code pressed with the brake pedal past a third of its travel.
@@ -89,6 +93,7 @@ const SUPERCARS: Game = Game {
     natives: NATIVES,
     default_map: DEFAULT_MAP,
     analogs: &[(0x10020, Axis::LeftX), (0x10021, Axis::Accel), (0x10022, Axis::Brake)],
+    analog_max: Some(4095),
     gears: true,
     brake_switch: Some(0x10010),
     fixes: &[],
@@ -107,6 +112,7 @@ const ALPINE: Game = Game {
     natives: SKI_NATIVES,
     default_map: SKI_DEFAULT_MAP,
     analogs: &[(0x10020, Axis::LeftX), (0x10022, Axis::RightX)],
+    analog_max: None,
     gears: false,
     brake_switch: None,
     fixes: &[],
@@ -195,6 +201,7 @@ const SNOCROSS: Game = Game {
     natives: SNOCROSS_NATIVES,
     default_map: SNOCROSS_DEFAULT_MAP,
     analogs: &[(0x10020, Axis::LeftX), (0x10021, Axis::Accel), (0x10022, Axis::Brake)],
+    analog_max: None,
     gears: false,
     brake_switch: None,
     fixes: &[
@@ -396,6 +403,9 @@ fn run(g: &'static Game, set_control: unsafe extern "C" fn(u32, u32) -> u32, key
                     set_control(new, 1);
                 }
                 sent.keypad = key;
+            }
+            if let Some(maximum) = g.analog_max {
+                set_control(0x10042, maximum);
             }
             for (code, axis) in g.analogs {
                 set_control(*code, analog(&stick, *axis));
