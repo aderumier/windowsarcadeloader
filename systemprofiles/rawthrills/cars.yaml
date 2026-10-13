@@ -1,0 +1,61 @@
+# Cars (Raw Thrills, 2012 build 1.42, the 4 GB patched sdaemon.exe) - template, override
+# values in userprofiles/rawthrills/cars.yaml.
+system: rawthrills
+name: Cars
+
+# Direct3D 9 game: the payload (started through wal-loader) emulates its I/O board, the RIO,
+# behind its libusb0 imports (payload cars.rs): switches and analog channels from the virtual
+# sticks. Wheel and gas are calibrated in the test menu (hold TEST). Force feedback: the wheel
+# force the game sets, played on player 1's wheel (constant force) or gamepad (rumble).
+env:
+  WAL_RAWTHRILLS_GAME: cars
+
+# Its effects are HLSL compiled at load: Wine's d3dx9_43 / d3dcompiler_43 fail them and the
+# cars are not drawn.
+tricks: [d3dx9_43, d3dcompiler_43]
+
+# The car: wheel = lx, gas = accel, brake = brake, START = start, VIEW = b1, jump = b2, flip
+# = b3, chatter = b4, bill acceptor = b5, volume up / down (test menu navigation) = up /
+# down, player 2's coin = coin 2.
+native_map: {}
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, X view, A jump, B flip, Y chatter, d-pad up / down
+  # volume up / down.
+  gamepad:
+    r2: accel
+    l2: brake
+    a: b2
+    b: b3
+    y: b4
+    x: b1
+  # keyboard steering and gas: full in 0.5 s
+  keyboard_ramp_ms: 500
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Page Up / Page Down volume
+  # up / down, 1 start, 5 coin, 6 coin 2, F2 test (hold), F1 service.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  start: Start
+  b1: View
+  b2: Jump
+  b3: Flip
+  b4: Chatter
+  b5: Bill

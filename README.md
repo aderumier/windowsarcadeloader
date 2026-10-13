@@ -85,7 +85,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | not in the test |  |
 | `samurai-shodown-130` | Samurai Shodown (1.30.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | not in the test |  |
 | `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | not in the test |  |
-| `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected, card saved (player name option) | not in the test |  |
+| `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card saved (user: name shown, no freeze after a match) | not in the test |  |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-10 |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
@@ -128,5 +128,17 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | not in the test |  |
 | `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | pass | 2026-10-10 |
 | `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | pass | 2026-10-10 |
+| `fast-and-furious` | The Fast and the Furious | rawthrills | works (user: 100%) | not in the test |  |
+| `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | not in the test |  |
+| `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | not in the test |  |
+| `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | not in the test |  |
+| `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user) | not in the test |  |
+| `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | not in the test |  |
+| `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | not in the test |  |
+| `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | in progress (untested) | not in the test |  |
+| `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | not in the test |  |
+| `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | not in the test |  |
+| `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | not in the test |  |
+| `h2o-overdrive` | H2O Overdrive | rawthrills | works (user: 100%) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->

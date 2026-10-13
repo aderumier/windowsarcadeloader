@@ -1173,6 +1173,20 @@ missing effect (`tricks: [d3dx9_42, d3dcompiler_42]`); its race needs a 4 GB add
 on tracks 8-14 (`0x96f770`). Build fixes: the hardware init result ignored, no reboot or
 watchdog, no hang on a missing device.
 
+Cars (`cars.rs`, `cars`, 2012 build 1.42, the dump's 4 GB patched `sdaemon.exe`): the game
+reads its I/O board, the RIO (USB `VID_0C70&PID_0780`), through libusb0 (a reader thread of
+its own, 64-byte interrupt packets parsed by type). Its libusb0 imports are answered by the
+payload: one bus with the RIO, every call succeeding, writes accepted, each read a type 2
+packet: switches as 4-bit transition counters (odd: pressed), two a byte, high nibble first
+(coin 1 / 2, bill, SERVICE, TEST, volume up / down, START, VIEW, flip, jump, chatter), and the
+12-bit analog channels (steering, gas, brake: high nibbles in bytes 11-12, low bytes in
+13-16; calibrated in the test menu). Its HASP dongle (the API statically linked: login,
+logout, read, write, encrypt, decrypt) is faked: the game encrypts "Flynn Lives" at start and
+checks it decrypts back (identity), the serial number read at 0x28 (`WAL_CARS_SERIAL`);
+without it the game reboots. The calibrated steering / gas clamp made unsigned (an infinite
+scale while calibrating crashed). Its effects need native `d3dx9_43` / `d3dcompiler_43`
+(cars not drawn). Force feedback: the wheel force the game sets (`[[0x18ae0d8]+0x1b4]+0x258`).
+
 Nicktoons Nitro Racing (`sdaemon.rs`, `nicktoons`): the JAMMA USB board engine of The Fast and
 the Furious (same parser, board init, status check, keyboard input functions, motor force
 function), a kart: analog gas and brake, no gearbox, view; its IO flags already the board only.
@@ -1433,6 +1447,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, keyboard ramp 1 s (lean, throttle), switch brake, shift down = developer key made a board input |
 | `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user) | wal-loader, board inputs written to the game's keyboard and analog tables (the dump reads board codes as keys, §6.3b), 4 coins per credit, lean / throttle / brake calibrated in the test menu, back buffer format fix, Space made Escape |
 | `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | wal-loader, developer keyboard floats and keys (`GetAsyncKeyState` hooked), coins through the coin board callback, switch latches, `tricks: [d3dx9_42, d3dcompiler_42]` (race crashed on a missing effect), `WINE_LARGE_ADDRESS_AWARE=1`, force feedback |
+| `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | wal-loader, RIO board emulated behind libusb0, HASP dongle faked, calibration clamp fix, `tricks: [d3dx9_43, d3dcompiler_43]`, force feedback |
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | in progress (untested) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b, The Fast and the Furious engine), first boot resets audits and checks every file (about a minute), force feedback from its wheel motor force |
 | `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | wal-loader, inputs through the game's `SetControl` without a board (§6.3b), DXVK's d3d8 (dump's d3d8to9 hidden), picture rotated for a vertical monitor (no rotation yet) |
 | `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | as Super Alpine Racer, landscape |
