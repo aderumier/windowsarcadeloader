@@ -132,7 +132,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | not in the test |  |
 | `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | not in the test |  |
 | `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | not in the test |  |
-| `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user) | not in the test |  |
+| `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user: 100%) | not in the test |  |
 | `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | not in the test |  |
 | `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | not in the test |  |
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | in progress (untested) | not in the test |  |

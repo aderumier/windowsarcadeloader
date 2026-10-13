@@ -5,8 +5,9 @@ name: The Fast and the Furious Super Bikes 2
 
 # Direct3D 8 game (sdaemon.exe): the payload (started through wal-loader) writes the board's
 # inputs where this dump reads them (its keyboard table, its analog table) from the virtual
-# sticks (payload sb2.rs), its keyboard/mouse controls off. 4 coins per credit by default;
-# lean, throttle and brake are calibrated in the test menu.
+# sticks in the game's input poll (payload sb2.rs), its keyboard/mouse controls off. START
+# also drives the dump's developer Space input to leave attract mode. 4 coins per credit by
+# default; lean, throttle and brake are calibrated in the test menu.
 env:
   WAL_RAWTHRILLS_GAME: superbikes2
 

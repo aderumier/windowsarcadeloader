@@ -1152,11 +1152,15 @@ engine, but the dump's input functions read every board code as a keyboard key (
 0xff; jmp` in place of the board test): a board code reads the keyboard state byte `code &
 0xff` of the game's table (bit 0 held, bit 1 pressed once), its analog codes a dword of the
 game's analog table (0..255, turned into floats through the test menu's calibration). The
-game's DirectInput keyboard is not created (its input init removed); a thread writes those
-bytes and dwords from the virtual sticks: START, VIEW, TUNES, SHIFT, the developer key Down
+game's DirectInput keyboard is not created (its input init removed); its input poll is
+replaced to write those bytes and dwords from the virtual sticks on the game thread (also
+in the test menu's polling loops): START, VIEW, TUNES, SHIFT, the developer key Down
 (shift down), coins, test, service, bill, volume, the digital brake (or the brake pedal past
-a third), the keypad; lean, throttle, brake. Build fixes: the back buffer format kept
-(R5G6B5 crashed), Space (ends the race) made Escape, no error box on close, no Watson, no
+a third), the keypad; lean, throttle, brake. START also drives the developer Space input
+used by this dump to leave attract mode. Analog full scale (`0x10042`) is set to 255 (the
+removed hardware init left it at zero, causing division by zero). Build fixes: the back
+buffer format kept (R5G6B5 crashed), the race-ending Space check uses an unmapped key
+(Escape shared its byte with VIEW), no error box on close, no Watson, no
 Escape box, files' base path empty.
 
 Dirty Drivin' (`dd.rs`, `dirtydrivin`, 2011 build 1.14): without its cabinet hardware (Raw
@@ -1445,7 +1449,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | wal-loader, as `fast-and-furious` (§6.3b), switch brake, 4 or 6 speed lever, screen size back to 640x480 (`WAL_PATCHES`: the dump's data said 1280x720, menus in the corner), force feedback from its wheel motor force (untested on a wheel) |
 | `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | wal-loader, H2O board inputs through the game's `SetControl` (§6.3b), 4 speed lever from shift up/down, files' base path left empty, its 1360x768 picture in a windowed device over the screen (Direct3D 8 interval fix), force feedback from its force board's force (untested on a wheel) |
 | `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, keyboard ramp 1 s (lean, throttle), switch brake, shift down = developer key made a board input |
-| `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user) | wal-loader, board inputs written to the game's keyboard and analog tables (the dump reads board codes as keys, §6.3b), 4 coins per credit, lean / throttle / brake calibrated in the test menu, back buffer format fix, Space made Escape |
+| `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user: 100%) | wal-loader, inputs sampled in the game's input poll (§6.3b), Start also drives the developer Space input, analog full scale 255, 4 coins per credit, lean / throttle / brake calibrated in the test menu, back buffer format fix, race-ending Space check disabled |
 | `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | wal-loader, developer keyboard floats and keys (`GetAsyncKeyState` hooked), coins through the coin board callback, switch latches, `tricks: [d3dx9_42, d3dcompiler_42]` (race crashed on a missing effect), `WINE_LARGE_ADDRESS_AWARE=1`, force feedback |
 | `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | wal-loader, RIO board emulated behind libusb0, HASP dongle faked, calibration clamp fix, `tricks: [d3dx9_43, d3dcompiler_43]`, force feedback |
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | in progress (untested) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b, The Fast and the Furious engine), first boot resets audits and checks every file (about a minute), force feedback from its wheel motor force |
