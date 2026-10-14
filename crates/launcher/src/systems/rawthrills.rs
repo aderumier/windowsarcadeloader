@@ -1,6 +1,6 @@
 //! Raw Thrills PC cabinets (The Fast and the Furious, its Drift, Super Bikes 1 / 2 and SuperCars,
 //! Nicktoons Nitro Racing, H2O Overdrive, Super Alpine Racer, X-Games Snowboarder, Winter X
-//! Games SnoCross, Dirty Drivin', Cars, Guitar Hero Arcade EDITION).
+//! Games SnoCross, Dirty Drivin', Cars, Guitar Hero Arcade EDITION, Frogger).
 //!
 //! Most games read their JAMMA USB I/O board (HID) themselves and import no driver DLL to
 //! replace: the payload is started with the game through `wal-loader`. TMNT reads the common
@@ -12,8 +12,9 @@
 //!   `fnf` / `drift` / `superbikes` / `nicktoons` / `h2overdrive` (JAMMA
 //!   USB board reports), `supercars` / `alpine` / `snowboarder` / `snocross` (`SetControl`),
 //!   `superbikes2` (the game's keyboard and analog tables), `dirtydrivin` (its developer
-//!   keyboard, coin callback and switch latches), `cars` (its RIO board behind libusb0): the
-//!   game's board from the virtual sticks
+//!   keyboard, coin callback and switch latches), `cars` (its RIO board behind libusb0),
+//!   `frogger` (its serial JAMMA input reports, USB watchdog and HASP stub):
+//!   the game's board from the virtual sticks
 //! - `WAL_RAWTHRILLS_BRAKE`: `switch` or `analog` brake (default: the game's, Super Bikes
 //!   and Drift switch, The Fast and the Furious analog)
 //! - `WAL_RAWTHRILLS_DDRIVE`: folder for the game's `D:\` paths (logs, personal bests),
@@ -25,7 +26,8 @@
 //! Overdrive: `start coin1 coin2 service test bill volup voldown view view2 view3`; ski games:
 //! `start view1 view2 view3 tunes coin1 coin2 test service bill volup voldown start2`;
 //! SnoCross: `start snowball view coin1 coin2 test service bill volup voldown`; Super Bikes 2:
-//! `start view tunes shift shiftdown coin1 coin2 test service bill volup voldown brake`); player
+//! `start view tunes shift shiftdown coin1 coin2 test service bill volup voldown brake`;
+//! Frogger: `start coin1 coin2 test service volup voldown`); player
 //! 2's coin is coin 2, the keypad the numeric keypad (`WAL_RAWTHRILLS_KEYPAD=0`: off).
 
 use super::{Payload, System};

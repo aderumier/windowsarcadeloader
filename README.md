@@ -137,6 +137,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | not in the test |  |
 | `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user: 100%) | not in the test |  |
 | `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | not in the test |  |
+| `frogger` | Frogger (2011 redemption) | rawthrills | works (user: 100%), two-player controls, service menu, volume | not in the test |  |
 | `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | not in the test |  |
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | works (user: 100%) | not in the test |  |
 | `batman` | Batman | rawthrills | works (user-confirmed gameplay and controls; FFB wheel test pending) | not in the test |  |

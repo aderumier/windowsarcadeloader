@@ -1,0 +1,43 @@
+# Frogger (Raw Thrills / ICE, 2011 "S" engine) - template, override values in
+# userprofiles/rawthrills/frogger.yaml.
+system: rawthrills
+name: Frogger
+
+# Two-player redemption game (sdaemon.exe): the payload fakes its USB watchdog,
+# feeds button edge counters through its serial JAMMA board, and stubs HASP imports.
+#
+# Its "S" engine build is a rebuilt PE (preferred base 0x230000, absolute addresses not
+# relocated): it must load at its preferred base, its DYNAMIC_BASE flag stripped.
+exe_fixed_base: true
+
+env:
+  WAL_RAWTHRILLS_GAME: frogger
+
+# Start / coin (players 1 / 2), test, service from the virtual sticks; d-pad up / down
+# volume up / down.
+native_map: {}
+
+input:
+  exit_keys: [KEY_ESC]
+  gamepad:
+    a: start
+    x: coin
+    b: test
+    l1: service
+    dpup: up
+    dpdown: down
+  keyboard:
+    p1:
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Volume up
+  down: Volume down
+  left: none
+  right: none
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

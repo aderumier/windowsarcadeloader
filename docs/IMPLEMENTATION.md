@@ -1156,6 +1156,18 @@ Back + Start exit shortcuts so those inputs remain available to the game. Withou
 XInput connection emulation, the game ignored the injected state despite the correct memory
 writes. Gameplay and controls work (user: 100%).
 
+Frogger (2011 redemption, `WAL_RAWTHRILLS_GAME=frogger`) uses a serial JAMMA board for
+cabinet controls and a USBIO watchdog for status. The payload answers the serial probe,
+feeds modulo-16 button edge counters in `S` reports for both players' starts and coins,
+test, service and volume, and fakes USBIO discovery, version and pipe setup. Watchdog reads
+become pending between reports and complete through the game's OVERLAPPED event; returning
+an endless stream of synchronous reports trapped its update loop, freezing the animal rows
+while water continued animating. The serial `WaitCommEvent` hook uses its three-argument
+Win32 ABI, avoiding stack corruption. HASP imports are stubbed, and the rebuilt executable
+loads at its preferred base (`exe_fixed_base: true`). Both players complete rounds; holding
+Test enters the service menu, volume buttons navigate, and Escape exits. User-confirmed 100%.
+See [FROGGER_CRASH_FINDINGS.md](FROGGER_CRASH_FINDINGS.md) for the decoder and report layout.
+
 All Raw Thrills games: the cabinet reboot (`ExitWindowsEx`, H2O Overdrive leaving its service
 menu) asks the launcher to start the game again, the process ended at once (its Direct3D
 device's teardown crashed in DXVK); `ExitProcess` is logged with the game addresses on the
@@ -1548,6 +1560,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fast-and-furious-super-bikes` | The Fast and the Furious Super Bikes | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), files' base path left empty, keyboard ramp 1 s (lean, throttle), switch brake, shift down = developer key made a board input |
 | `fast-and-furious-super-bikes-2` | The Fast and the Furious Super Bikes 2 | rawthrills | works (user: 100%) | wal-loader, inputs sampled in the game's input poll (§6.3b), Start also drives the developer Space input, analog full scale 255, 4 coins per credit, lean / throttle / brake calibrated in the test menu, back buffer format fix, race-ending Space check disabled |
 | `dirty-drivin` | Dirty Drivin' | rawthrills | works (user: 100%) | wal-loader, developer keyboard floats and keys (`GetAsyncKeyState` hooked), coins through the coin board callback, switch latches, `tricks: [d3dx9_42, d3dcompiler_42]` (race crashed on a missing effect), `WINE_LARGE_ADDRESS_AWARE=1`, force feedback |
+| `frogger` | Frogger (2011 redemption) | rawthrills | works (user: 100%), two-player controls, service menu, volume | wal-loader, serial JAMMA button edge counters, bounded asynchronous USBIO watchdog reports, HASP stub, fixed-base executable; attract freeze and WaitCommEvent stack corruption fixed |
 | `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | wal-loader, RIO board emulated behind libusb0, HASP dongle faked, calibration clamp fix, `tricks: [d3dx9_43, d3dcompiler_43]`, force feedback |
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | works (user: 100%) | wal-loader, JAMMA board and cabinet feature check emulated, 105 verified 3DNow math blocks replaced by SSE2, calibration and gameplay confirmed, opening movie has no embedded audio track, force feedback from its wheel motor force (untested on a wheel) |
 | `batman` | Batman | rawthrills | works (user-confirmed gameplay and controls; FFB wheel test pending) | wal-loader, RIO board over libusb bulk transfers, wheel and pedals, fire / start / brake switches corrected, numeric keypad, cabinet check emulated to avoid level-loading spin, force feedback from game float (wheel test pending) |

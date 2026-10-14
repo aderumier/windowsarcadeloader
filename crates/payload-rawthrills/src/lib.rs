@@ -17,6 +17,8 @@
 //! * `dd.rs`: Dirty Drivin': its developer keyboard's floats and keys, the coin board's
 //!   callback, the switch latches.
 //! * `guitarhero.rs`: Guitar Hero Arcade EDITION: gamepad state from the two virtual sticks.
+//! * `frogger.rs`: Frogger (2011 "S" engine): the USB I/O board's open, IOCTLs and pipes, the
+//!   serial JAMMA button reports, the USB watchdog and the HASP dongle's imports stubbed out.
 //! * `D:\` (logs, personal bests) redirected to `WindowsLoader` (`WAL_RAWTHRILLS_DDRIVE`).
 //! * The cabinet reboot (`ExitWindowsEx`, H2O Overdrive leaving its service menu): the game is
 //!   started again by the launcher instead, the process ended at once (its Direct3D device's
@@ -29,6 +31,7 @@ mod batman;
 mod cars;
 mod common;
 mod dd;
+mod frogger;
 mod h2o;
 mod guitarhero;
 mod rio;
@@ -50,7 +53,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         drive::init("WAL_RAWTHRILLS_DDRIVE", "WindowsLoader");
         reboot_init();
         let game = std::env::var("WAL_RAWTHRILLS_GAME").unwrap_or_default();
-        if !guitarhero::init(game.trim()) && !h2o::init(game.trim()) && !sb2::init(game.trim()) && !dd::init(game.trim()) && !cars::init(game.trim()) && !batman::init(game.trim()) {
+        if !frogger::init(game.trim()) && !guitarhero::init(game.trim()) && !h2o::init(game.trim()) && !sb2::init(game.trim()) && !dd::init(game.trim()) && !cars::init(game.trim()) && !batman::init(game.trim()) {
             sdaemon::init();
         }
         log!("rawthrills: initialized");
