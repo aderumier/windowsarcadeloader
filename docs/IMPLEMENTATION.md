@@ -180,8 +180,10 @@ files itself; saves do not require a cabinet shutdown.
 Mario Kart's 32-bit payload identifies v1.10.22 and v1.18.16 by their PE timestamp and
 image size before applying dongle patches; each patch also checks its original bytes.
 The v1.18.16 dongle persistence helper uses `ret 4`, unlike v1.10.22's `ret`.
-Both versions have guarded offline Content Router branch patches (v1.18.16 has an
-additional link-up error branch). The offline ShareK IPC
+Both versions have guarded offline Content Router bypasses. v1.18.16 also skips
+the router subsystem's error-registrar calls, including E05-02 when a LAN interface
+discovers a non-cabinet router; unrelated device errors still use the normal handler.
+The offline ShareK IPC
 adapter exposes the 61-slot dual COM interface from `ipccl.dll` (including the
 process-reboot getter v1.18.16 calls during startup); it does not connect to ShareK.
 
