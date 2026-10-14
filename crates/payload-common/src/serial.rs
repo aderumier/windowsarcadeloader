@@ -89,6 +89,8 @@ pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
         ("GetCommTimeouts", get_comm_timeouts as *const () as usize),
         ("SetCommTimeouts", set_comm_timeouts as *const () as usize),
         ("PurgeComm", purge_comm as *const () as usize),
+        ("WriteFileEx", write_file_ex as *const () as usize),
+        ("ReadFileEx", read_file_ex as *const () as usize),
     ];
     let kernel32 = unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) };
     for (idx, (name, f)) in hooks.into_iter().enumerate() {
@@ -189,7 +191,7 @@ fn port_w(name: *const u16) -> Option<P> {
 }
 
 // Original functions (previous IAT entries), by hook index.
-const COUNT: usize = 15;
+const COUNT: usize = 17;
 static ORIG: [AtomicUsize; COUNT] = [const { AtomicUsize::new(0) }; COUNT];
 
 fn orig<F: Copy>(idx: usize) -> F {
@@ -352,6 +354,36 @@ unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, 
         unsafe { *read = count as u32 };
     }
     unsafe { complete(ov, count as u32) };
+    1
+}
+
+type IoCompletion = Option<unsafe extern "system" fn(u32, u32, *mut windows_sys::Win32::System::IO::OVERLAPPED)>;
+
+/// The ES3 game uses the Ex variants for its COM1 JVS stream. Complete fake-port
+/// operations inline so the callback sees the same byte counts as the synchronous path.
+unsafe extern "system" fn write_file_ex(h: P, buf: *const u8, n: u32, ov: *mut windows_sys::Win32::System::IO::OVERLAPPED, cb: IoCompletion) -> i32 {
+    let Some(device) = device(h) else {
+        return unsafe { orig::<unsafe extern "system" fn(P, *const u8, u32, *mut windows_sys::Win32::System::IO::OVERLAPPED, IoCompletion) -> i32>(15)(h, buf, n, ov, cb) };
+    };
+    let packet = unsafe { std::slice::from_raw_parts(buf, n as usize) };
+    let reply = (device.handler)(packet);
+    trace(packet, &reply);
+    device.replies.lock().unwrap().extend(reply);
+    unsafe { complete(ov.cast(), n) };
+    if let Some(cb) = cb { unsafe { cb(0, n, ov) }; }
+    1
+}
+
+unsafe extern "system" fn read_file_ex(h: P, buf: *mut u8, n: u32, ov: *mut windows_sys::Win32::System::IO::OVERLAPPED, cb: IoCompletion) -> i32 {
+    let Some(device) = device(h) else {
+        return unsafe { orig::<unsafe extern "system" fn(P, *mut u8, u32, *mut windows_sys::Win32::System::IO::OVERLAPPED, IoCompletion) -> i32>(16)(h, buf, n, ov, cb) };
+    };
+    let mut q = device.replies.lock().unwrap();
+    let count = (n as usize).min(q.len());
+    for i in 0..count { unsafe { *buf.add(i) = q.pop_front().unwrap() }; }
+    drop(q);
+    unsafe { complete(ov.cast(), count as u32) };
+    if let Some(cb) = cb { unsafe { cb(0, count as u32, ov) }; }
     1
 }
 

@@ -3597,6 +3597,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-payload-namcoes3x"
+version = "0.1.0"
+dependencies = [
+ "wal-payload-common",
+ "wal-protocol",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "wal-payload-nesica"
 version = "0.1.0"
 dependencies = [

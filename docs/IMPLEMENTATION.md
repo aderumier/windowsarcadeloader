@@ -170,6 +170,21 @@ Wine maps it at its preferred base (rebuilt executables whose absolute addresses
 relocations miss). `initial_files`: files installed in the dump only when missing (default
 settings, calibration the game then updates).
 
+`drives: {f: F, g: G}` maps cabinet drive letters to persistent directories inside the dump
+root, creating them when missing. C: and Z: are reserved. Mario Kart Arcade GP DX uses these
+two separate volumes for redundant Test Mode saves (`F:\\TestMode`, `G:\\TestMode`),
+bookkeeping and other cabinet data. Without the mappings its temporary save files fail to
+open, so operator settings revert on every launch. The game creates timestamped settings
+files itself; saves do not require a cabinet shutdown.
+
+Mario Kart's 32-bit payload identifies v1.10.22 and v1.18.16 by their PE timestamp and
+image size before applying dongle patches; each patch also checks its original bytes.
+The v1.18.16 dongle persistence helper uses `ret 4`, unlike v1.10.22's `ret`.
+Both versions have guarded offline Content Router branch patches (v1.18.16 has an
+additional link-up error branch). The offline ShareK IPC
+adapter exposes the 61-slot dual COM interface from `ipccl.dll` (including the
+process-reboot getter v1.18.16 calls during startup); it does not connect to ShareK.
+
 `gamescope.enabled: true` runs the game command in gamescope (`gamescope -w <width> -h
 <height> <args> -- wine ...`, default args `-S stretch -f`): an X server of the game's own
 screen size, scaled to the real screen. For screen modes the desktop does not have (Wine on
@@ -1452,6 +1467,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 
 | Game id | Game | System | Result | Needed |
 |---|---|---|---|---|
+| `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented | version-aware dongle skip (v1.10.22 and v1.18.16), offline router/network bypass, 61-slot IPC compatibility object, Namco ES3 JVS steering and pedals, test-menu settings saved on F:/G: game drives, fullscreen DXVK; force feedback from the game's steering-force float (1.18 offsets implemented; physical wheel output unverified) |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |

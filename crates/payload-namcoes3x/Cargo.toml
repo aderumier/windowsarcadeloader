@@ -1,0 +1,22 @@
+[package]
+name = "wal-payload-namcoes3x"
+description = "Namco ES3 32-bit Banapass reader, DirectInput wheel and force feedback"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_bngrw"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+] }

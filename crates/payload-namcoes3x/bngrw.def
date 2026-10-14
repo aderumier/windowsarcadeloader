@@ -1,0 +1,24 @@
+; Match the decorated stdcall imports used by Mario Kart GP DX's bngrw.dll.
+EXPORTS
+    "_BngRwAttach@24"=BngRwAttach@24
+    "_BngRwDevReset@12"=BngRwDevReset@12
+    "_BngRwExReadMifareAllBlock@8"=BngRwExReadMifareAllBlock@8
+    "_BngRwFin@0"=BngRwFin@0
+    "_BngRwGetFwVersion@4"=BngRwGetFwVersion@4
+    "_BngRwGetStationID@4"=BngRwGetStationID@4
+    "_BngRwGetTotalRetryCount@4"=BngRwGetTotalRetryCount@4
+    "_BngRwGetVersion@0"=BngRwGetVersion@0
+    "_BngRwInit@0"=BngRwInit@0
+    "_BngRwIsCmdExec@4"=BngRwIsCmdExec@4
+    "_BngRwReqAction@16"=BngRwReqAction@16
+    "_BngRwReqAiccAuth@28"=BngRwReqAiccAuth@28
+    "_BngRwReqBeep@16"=BngRwReqBeep@16
+    "_BngRwReqCancel@4"=BngRwReqCancel@4
+    "_BngRwReqFwCleanup@12"=BngRwReqFwCleanup@12
+    "_BngRwReqFwVersionup@16"=BngRwReqFwVersionup@16
+    "_BngRwReqLatchID@12"=BngRwReqLatchID@12
+    "_BngRwReqLed@16"=BngRwReqLed@16
+    "_BngRwReqSendMailTo@40"=BngRwReqSendMailTo@40
+    "_BngRwReqSendUrlTo@32"=BngRwReqSendUrlTo@32
+    "_BngRwReqWaitTouch@20"=BngRwReqWaitTouch@20
+    "_BngRwSetLedPower@12"=BngRwSetLedPower@12

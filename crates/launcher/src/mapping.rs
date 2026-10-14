@@ -224,7 +224,14 @@ pub fn stick_dpad(table: &MapTable, uses: impl Fn(&str) -> bool) -> Vec<(String,
 /// A calibrated wheel's table: the gamepad's, the wheel's own entries over it.
 pub fn wheel_table(gamepad: &MapTable, wheel: &MapTable) -> MapTable {
     let mut table = gamepad.clone();
-    table.extend(wheel.iter().map(|(s, d)| (s.clone(), d.clone())));
+    // A wheel mapping overrides the gamepad mapping for the same physical source. In
+    // particular, a calibrated brake pedal arrives as `l2`: on a gamepad that may be a
+    // digital button, while on a wheel it needs to stay an analog pedal axis. `none` also
+    // removes the inherited gamepad mapping for this source.
+    for (source, target) in wheel {
+        table.retain(|inherited, _| !inherited.eq_ignore_ascii_case(source));
+        table.insert(source.clone(), target.clone());
+    }
     table
 }
 

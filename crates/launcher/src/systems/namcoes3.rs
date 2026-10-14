@@ -1,4 +1,4 @@
-//! Namco ES3 (Windows x64 PC): Star Wars Battle Pod - The Force Awakens.
+//! Namco ES3: 32-bit Mario Kart GP DX and 64-bit Star Wars Battle Pod.
 //!
 //! The dump's executable is the cabinet launcher `Launcher\RSLauncher.exe`, which starts
 //! `Binaries\Win64\SWArcGame-Win64-Shipping.exe`. Both import the HASP HL dongle library
@@ -27,10 +27,22 @@ impl System for NamcoEs3 {
     }
 
     fn payloads(&self) -> &'static [Payload] {
-        &[
+        // The 32-bit board DLL is also the game's Banapass reader import. It hooks DirectInput
+        // for the virtual wheel and reads the game's force-feedback value.
+        &[Payload { file: "wal_bngrw.dll", install_as: "bngrw.dll" }]
+    }
+
+    fn loader(&self) -> Option<&'static str> {
+        // Mario Kart v1.10.22 does not import bngrw.dll, so load the same payload
+        // at the executable entry point. Newer 32-bit builds load it themselves.
+        Some("bngrw.dll")
+    }
+
+    fn payloads64(&self) -> Option<&'static [Payload]> {
+        Some(&[
             Payload { file: "wal_namcoes3.dll", install_as: "Launcher/hasp_windows_x64_100610.dll" },
             Payload { file: "wal_namcoes3.dll", install_as: "Binaries/Win64/hasp_windows_x64_100610.dll" },
-        ]
+        ])
     }
 
     fn hidden(&self) -> &'static [&'static str] {

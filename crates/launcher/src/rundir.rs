@@ -271,3 +271,23 @@ pub fn copy_fixed_base(src: &Path, dst: &Path) -> Result<()> {
     eprintln!("launcher: {} loads at its preferred base", dst.display());
     Ok(())
 }
+
+/// Enables IMAGE_FILE_LARGE_ADDRESS_AWARE in a copy of a PE32 executable.
+pub fn copy_large_address_aware(src: &Path, dst: &Path) -> Result<()> {
+    let _ = fs::remove_file(dst);
+    fs::copy(src, dst).with_context(|| format!("copying executable to {}", dst.display()))?;
+    let mut exe = fs::read(dst)?;
+    if exe.len() < 0x40 || &exe[0..2] != b"MZ" {
+        bail!("{} is not a PE executable", src.display());
+    }
+    let pe = u32::from_le_bytes(exe[0x3c..0x40].try_into().unwrap()) as usize;
+    if pe + 24 > exe.len() || &exe[pe..pe + 4] != b"PE\0\0" {
+        bail!("{} has an invalid PE header", src.display());
+    }
+    let magic = u16::from_le_bytes(exe[pe + 24..pe + 26].try_into().unwrap());
+    if magic != 0x10b { bail!("{} is not a 32-bit PE executable", src.display()); }
+    let flags_at = pe + 22;
+    let flags = u16::from_le_bytes(exe[flags_at..flags_at + 2].try_into().unwrap()) | 0x20;
+    exe[flags_at..flags_at + 2].copy_from_slice(&flags.to_le_bytes());
+    fs::write(dst, exe).with_context(|| format!("patching Large Address Aware flag in {}", dst.display()))
+}

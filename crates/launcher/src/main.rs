@@ -286,7 +286,9 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     };
     // A system may have no payload for one executable architecture. In that case run the game
     // directly instead of starting wal-loader with a payload from the other architecture.
-    let loader = if system_payloads.is_empty() { None } else { system.loader() };
+    // wal-loader is built for 32-bit games. A system may also have 64-bit payloads
+    // (Namco ES3 Battle Pod), which are loaded through the game's own imports.
+    let loader = if system_payloads.is_empty() || rundir::is_pe64(&exe) { None } else { system.loader() };
     if loader.is_some() {
         payloads.push((payload_dir.join("wal-loader.exe"), "wal-loader.exe"));
     }
@@ -308,6 +310,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     }
 
     wine.prepare_prefix()?;
+    wine.map_game_drives(&profile.drives, game_root)?;
     wine.apply_tricks(&profile.prefix_tricks)?;
     wine.apply_tricks(&profile.tricks)?;
     let keep: Vec<&str> = profile.dll_overrides.keys().map(|d| d.trim_start_matches('*')).collect();
@@ -363,6 +366,8 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         rundir::build_tree(&run_dir, game_root, &hide, &[exe_subdir.to_path_buf()], &payload_refs)?;
         if profile.exe_fixed_base {
             rundir::copy_fixed_base(&exe, &run_dir.join(exe_subdir).join(exe_name))?;
+        } else if profile.large_address_aware {
+            rundir::copy_large_address_aware(&exe, &run_dir.join(exe_subdir).join(exe_name))?;
         }
     }
     let run_exe_dir = run_dir.join(exe_subdir);
@@ -428,6 +433,19 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     let stop = stop_flag()?;
     let server = server::Server::start(profile.port)?;
     let mut hub = input::Hub::new(profile)?;
+    for helper in &profile.pre_launch {
+        let helper_path = run_exe_dir.join(helper);
+        let helper_path = wine.windows_path(&helper_path);
+        eprintln!("launcher: running pre-launch helper {helper}");
+        let status = wine
+            .command(&helper_path)
+            .current_dir(&run_exe_dir)
+            .status()
+            .with_context(|| format!("running pre-launch helper {helper}"))?;
+        if !status.success() {
+            bail!("pre-launch helper {helper} failed: {status}");
+        }
+    }
     let mut child = cmd.spawn().context("starting wine")?;
     // its window to the front (a frontend keeping the focus hid it)
     let mut focus = focus::Focus::new(child.id());

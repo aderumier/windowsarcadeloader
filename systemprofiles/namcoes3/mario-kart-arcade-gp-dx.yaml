@@ -1,0 +1,77 @@
+# Mario Kart Arcade GP DX (Namco ES3, 32-bit DirectInput racing game).
+system: namcoes3
+name: Mario Kart Arcade GP DX
+
+# The cabinet game's wheel and controls are DirectInput. The 32-bit bngrw replacement exposes
+# the launcher input as a fake wheel and supplies the Banapass reader and memory FFB bridge.
+large_address_aware: true
+pre_launch: [PreprocessAmAuth.exe]
+tricks: [vcrun2010, d3dx9_43, d3dx10_43]
+
+# Separate cabinet data volumes: the game writes redundant Test Mode/settings copies
+# with timestamped names and temporary files, then reloads them on the next boot.
+drives:
+  f: F
+  g: G
+
+env:
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_DINPUT_WHEEL: "WAL Mario Kart GP DX Wheel"
+  WAL_DINPUT_WHEEL_AXIS: lx
+  WAL_DINPUT_WHEEL_Y_AXIS: brake
+  WAL_DINPUT_WHEEL_Z_AXIS: accel
+  WAL_NAMCOES3_FFB_SPRING: "0"
+  WAL_NAMCOES3_JVS_PORT: COM1,COM3
+
+input:
+  stick_as_dpad: false
+  # Keyboard steering and pedals reach full travel in half a second.
+  keyboard_ramp_ms: 500
+  gamepad:
+    x: b1
+    a: b2
+    l2: brake
+    y: b5
+    r2: accel
+    leftx: lx
+    start: start
+    back: coin
+    l3: service
+    r3: test
+    guide: card
+    dpup: b7
+    dpdown: b8
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_LEFTCTRL: b1
+      KEY_LEFTALT: b2
+      KEY_ENTER: b4
+      KEY_SPACE: b5
+      KEY_Z: b7
+      KEY_X: b8
+      KEY_1: start
+      KEY_5: coin
+      KEY_F1: service
+      KEY_F2: test
+      KEY_F4: card
+
+controls:
+  lx: Steering wheel
+  accel: Gas pedal
+  brake: Brake pedal
+  b1: Enter switch
+  b2: Mario button
+  b3: Brake
+  b5: Item
+  b7: Menu up
+  b8: Menu down
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: Banapass card

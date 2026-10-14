@@ -238,6 +238,12 @@ mod wheel {
     static NAME: OnceLock<String> = OnceLock::new();
     /// The steering axis (`Axis` index), bit 7 set when inverted.
     static STEER: AtomicU8 = AtomicU8::new(Axis::LeftX as u8);
+    /// Virtual input axes for X, Y and Z. 0xff means a parked, unused axis.
+    static INPUT_AXES: [AtomicU8; 3] = [
+        AtomicU8::new(Axis::LeftX as u8),
+        AtomicU8::new(0xff),
+        AtomicU8::new(0xff),
+    ];
     /// (min, max) of the X, Y and Z axes, set by the game.
     static RANGES: [(AtomicI32, AtomicI32); 3] = [
         (AtomicI32::new(0), AtomicI32::new(65535)),
@@ -276,6 +282,17 @@ mod wheel {
             match Axis::from_name(a) {
                 Some(a) => STEER.store(a as u8 | if inverted { 0x80 } else { 0 }, Ordering::Relaxed),
                 None => log!("dinput: unknown wheel axis {axis:?}"),
+            }
+        }
+        INPUT_AXES[0].store(STEER.load(Ordering::Relaxed), Ordering::Relaxed);
+        for (i, key) in ["WAL_DINPUT_WHEEL_Y_AXIS", "WAL_DINPUT_WHEEL_Z_AXIS"].into_iter().enumerate() {
+            if let Ok(value) = std::env::var(key) {
+                let value = value.trim();
+                let (value, invert) = value.strip_prefix('-').map_or((value, false), |axis| (axis, true));
+                match Axis::from_name(value) {
+                    Some(axis) => INPUT_AXES[i + 1].store(axis as u8 | if invert { 0x80 } else { 0 }, Ordering::Relaxed),
+                    None => log!("dinput: unknown wheel axis {key}={value:?}"),
+                }
             }
         }
         log!("dinput: wheel {name:?}");
@@ -389,7 +406,7 @@ mod wheel {
                 let size = (*caps).clamp(4, 44) as usize;
                 std::ptr::write_bytes(caps.add(1) as *mut u8, 0, size - 4);
                 // dwFlags DIDC_ATTACHED, dwDevType, dwAxes, dwButtons, dwPOVs
-                for (i, v) in [1, DEV_TYPE, 3, 0, 0].into_iter().enumerate() {
+                for (i, v) in [1, DEV_TYPE, 3, 32, 0].into_iter().enumerate() {
                     if 4 * (i + 2) <= size {
                         *caps.add(i + 1) = v;
                     }
@@ -402,13 +419,14 @@ mod wheel {
     /// `EnumObjects(lpCallback, pvRef, dwFlags)`: the 3 absolute axes (when asked).
     unsafe fn enum_objects(cb: EnumCallback, context: P, flags: u32, wide: bool) -> i32 {
         // DIDFT_ALL, or a type mask with DIDFT_AXIS / DIDFT_ABSAXIS
-        if flags != 0 && flags & 3 == 0 {
+        if flags != 0 && flags & 7 == 0 {
             return DI_OK;
         }
         let chars = if wide { 2 } else { 1 };
         let size = 32 + 260 * chars + 24;
         let mut object = [0u8; 0x240];
         for i in 0..3 {
+            if flags != 0 && flags & 3 == 0 { break; }
             object.fill(0);
             let o = object.as_mut_ptr();
             unsafe {
@@ -419,6 +437,23 @@ mod wheel {
                 put_str(o.add(32), 260, AXIS_NAMES[i], wide);
                 if cb(o, context) == 0 {
                     break; // DIENUM_STOP
+                }
+            }
+        }
+        if flags == 0 || flags & 4 != 0 {
+            for i in 0..32 {
+                object.fill(0);
+                let o = object.as_mut_ptr();
+                unsafe {
+                    (o as *mut u32).write_unaligned(size as u32);
+                    // GUID_Button, with the button index carried by dwType.
+                    let button_guid = guid(0xA36D_02F0, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]);
+                    std::ptr::copy_nonoverlapping(button_guid.as_ptr(), o.add(4), 16);
+                    (o.add(20) as *mut u32).write_unaligned(0x30 + i as u32);
+                    (o.add(24) as *mut u32).write_unaligned(4 | (i as u32) << 8);
+                    let label = format!("Button {}", i + 1);
+                    put_str(o.add(32), 260, &label, wide);
+                    if cb(o, context) == 0 { break; }
                 }
             }
         }
@@ -486,10 +521,15 @@ mod wheel {
         if data.is_null() {
             return DI_OK;
         }
-        let s = STEER.load(Ordering::Relaxed);
-        let v = crate::input(0).axis_u16(Axis::ALL[(s & 0x7F) as usize]);
-        let v = if s & 0x80 != 0 { !v } else { v };
-        let axes = [scaled(0, v), scaled(1, 0), scaled(2, 0)];
+        let stick = crate::input(0);
+        let axes = std::array::from_fn::<_, 3, _>(|i| {
+            let mapped = INPUT_AXES[i].load(Ordering::Relaxed);
+            let value = if mapped & 0x7f == 0x7f { 0 } else {
+                let value = stick.axis_u16(Axis::ALL[(mapped & 0x7f) as usize]);
+                if mapped & 0x80 != 0 { !value } else { value }
+            };
+            scaled(i, value)
+        });
         unsafe {
             std::ptr::write_bytes(data, 0, size as usize);
             for (i, a) in axes.iter().enumerate() {
@@ -502,6 +542,14 @@ mod wheel {
                 if 0x20 + 4 * (i + 1) <= size as usize {
                     (data.add(0x20 + 4 * i) as *mut u32).write_unaligned(u32::MAX);
                 }
+            }
+            for i in 0..8 {
+                let value = ((stick.buttons >> (i + 4)) & 1) as u8 * 0x80;
+                if 0x30 + i < size as usize { *data.add(0x30 + i) = value; }
+            }
+            for i in 0..4 {
+                let value = ((stick.buttons >> (i + 12)) & 1) as u8 * 0x80;
+                if 0x38 + i < size as usize { *data.add(0x38 + i) = value; }
             }
         }
         DI_OK

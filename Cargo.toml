@@ -8,6 +8,7 @@ members = [
     "crates/payload-typex",
     "crates/payload-globalvr",
     "crates/payload-namcoes3",
+    "crates/payload-namcoes3x",
     "crates/payload-tsunami",
     "crates/payload-rawthrills",
     "crates/loader",

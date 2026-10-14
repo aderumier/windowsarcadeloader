@@ -29,6 +29,8 @@ pub struct Profile {
     pub system: String,
     pub name: Option<String>,
     pub args: Vec<String>,
+    /// Windows executables to run from the game directory before the game starts.
+    pub pre_launch: Vec<String>,
     pub runner: String,
     pub runners_dir: PathBuf,
     pub prefix: PathBuf,
@@ -48,9 +50,12 @@ pub struct Profile {
     pub reshade: bool,
     pub reshade_files: Vec<String>,
     pub exe_fixed_base: bool,
+    pub large_address_aware: bool,
     pub gamescope: GamescopeConfig,
     pub files: BTreeMap<String, PathBuf>,
     pub initial_files: BTreeMap<String, PathBuf>,
+    /// Cabinet drive letters mapped to persistent directories relative to the dump root.
+    pub drives: BTreeMap<String, PathBuf>,
     pub env: BTreeMap<String, String>,
     pub native_map: BTreeMap<String, String>,
     pub controls: BTreeMap<String, String>,

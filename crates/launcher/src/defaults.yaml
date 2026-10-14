@@ -14,6 +14,8 @@ name: null
 # The game executable comes from the dump: <dump>/<gameid>.windowsloader holds its path
 # relative to the dump root (the whole dump root is mirrored into the run directory).
 args: []
+# Windows executables to run from the game directory before the game starts.
+pre_launch: []
 
 runner: GE-Proton11-7-x86_64
 runners_dir: wine-runners
@@ -71,6 +73,9 @@ reshade_files: []
 # directory, the dump untouched): for executables whose hex edits left absolute addresses the
 # relocations do not cover (Haunted Museum II: crash on a non-relocated address).
 exe_fixed_base: false
+# Copies the executable and enables the PE Large Address Aware flag (32-bit games that need
+# a 4 GB patch): the original dump remains untouched.
+large_address_aware: false
 # Runs the game in gamescope (its own X server, the picture scaled to the screen): for games
 # needing a screen mode the desktop does not have (Gundam Spirits of Zeon 2 players: 1280x480).
 # width/height: the game's screen (gamescope -w/-h), args: the rest (output, scaler, window).
@@ -88,6 +93,9 @@ files: {}
 # Files copied into the dump only when it does not have them yet (default settings or
 # calibration the game then keeps updating): <path from the dump root>: <source>.
 initial_files: {}
+# Cabinet drive letters -> directories relative to the dump root. Created on launch and
+# mapped in Wine, so the game's settings and saves stay with this dump.
+drives: {}
 # Extra environment variables of the game process (system options, wine settings).
 env:
   # Direct3D 9/8 presents held to 60 per second: arcade games are timed by frames and ran

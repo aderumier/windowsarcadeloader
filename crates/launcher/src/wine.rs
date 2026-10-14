@@ -149,6 +149,34 @@ impl Wine {
         self.env.push((key.into(), value.into()));
     }
 
+    /// Maps cabinet data drives to persistent folders of this game's dump.
+    pub fn map_game_drives(&self, drives: &std::collections::BTreeMap<String, PathBuf>, game_root: &Path) -> Result<()> {
+        for (letter, directory) in drives {
+            let letter = letter.trim_end_matches(':').to_ascii_lowercase();
+            if letter.len() != 1 || !letter.as_bytes()[0].is_ascii_alphabetic() || matches!(letter.as_str(), "c" | "z") {
+                bail!("invalid cabinet drive {letter:?}: use a letter other than C or Z");
+            }
+            if directory.as_os_str().is_empty() || directory.is_absolute()
+                || directory.components().any(|c| !matches!(c, std::path::Component::Normal(_)))
+            {
+                bail!("drive {letter}: directory must be relative to the dump root: {}", directory.display());
+            }
+            let target = game_root.join(directory);
+            eprintln!("wine: drive {letter}: -> {}", target.display());
+            if self.dry_run { continue; }
+            fs::create_dir_all(&target).with_context(|| format!("creating drive {letter}: directory {}", target.display()))?;
+            let target = target.canonicalize()?;
+            let link = self.prefix.join("dosdevices").join(format!("{letter}:"));
+            if fs::symlink_metadata(&link).is_ok() {
+                if !link.is_symlink() { bail!("cabinet drive {} is not a symlink", link.display()); }
+                if link.canonicalize().ok().as_ref() == Some(&target) { continue; }
+                fs::remove_file(&link)?;
+            }
+            std::os::unix::fs::symlink(&target, &link).with_context(|| format!("mapping drive {letter}:"))?;
+        }
+        Ok(())
+    }
+
     /// `dll[,dll...]=mode` in WINEDLLOVERRIDES. Wine looks up `*<dll>` first, in the
     /// environment then in the registry, before the plain name: winetricks writes `*dsound`
     /// keys, which would win over a plain `dsound=b`. The names get the `*` too.
@@ -530,4 +558,34 @@ fn link_all(src_dir: &Path, dst_dir: &Path, filter: impl Fn(&str) -> bool) -> Re
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cabinet_drives_preserve_separate_saves_across_launches() {
+        let root = std::env::temp_dir().join(format!("wal-cabinet-drives-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let prefix = root.join("prefix");
+        let game = root.join("game");
+        fs::create_dir_all(prefix.join("dosdevices")).unwrap();
+        let wine = Wine { runner: PathBuf::new(), dxvk_runner: None, prefix, dry_run: false, env: vec![], overrides: vec![] };
+        let drives = [("f".into(), PathBuf::from("F")), ("g".into(), PathBuf::from("G"))].into();
+        wine.map_game_drives(&drives, &game).unwrap();
+        for (letter, data) in [("f", "primary settings"), ("g", "backup settings")] {
+            let save = wine.unix_path(&format!("{letter}:\\TestMode\\testmode.bin")).unwrap();
+            fs::create_dir_all(save.parent().unwrap()).unwrap();
+            fs::write(save, data).unwrap();
+        }
+        wine.map_game_drives(&drives, &game).unwrap();
+        assert_eq!(fs::read_to_string(game.join("F/TestMode/testmode.bin")).unwrap(), "primary settings");
+        assert_eq!(fs::read_to_string(game.join("G/TestMode/testmode.bin")).unwrap(), "backup settings");
+        for letter in ["c", "z", "bad"] {
+            assert!(wine.map_game_drives(&[(letter.into(), PathBuf::from("F"))].into(), &game).is_err());
+        }
+        assert!(wine.map_game_drives(&[("f".into(), PathBuf::from("../outside"))].into(), &game).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
 }
