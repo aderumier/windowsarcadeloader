@@ -16,6 +16,7 @@
 //! * `nicktoons_3dnow.rs`: Nicktoons math blocks translated from AMD 3DNow to SSE2.
 //! * `dd.rs`: Dirty Drivin': its developer keyboard's floats and keys, the coin board's
 //!   callback, the switch latches.
+//! * `guitarhero.rs`: Guitar Hero Arcade EDITION: gamepad state from the two virtual sticks.
 //! * `D:\` (logs, personal bests) redirected to `WindowsLoader` (`WAL_RAWTHRILLS_DDRIVE`).
 //! * The cabinet reboot (`ExitWindowsEx`, H2O Overdrive leaving its service menu): the game is
 //!   started again by the launcher instead, the process ended at once (its Direct3D device's
@@ -29,6 +30,7 @@ mod cars;
 mod common;
 mod dd;
 mod h2o;
+mod guitarhero;
 mod rio;
 mod nicktoons_3dnow;
 mod sb2;
@@ -48,7 +50,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         drive::init("WAL_RAWTHRILLS_DDRIVE", "WindowsLoader");
         reboot_init();
         let game = std::env::var("WAL_RAWTHRILLS_GAME").unwrap_or_default();
-        if !h2o::init(game.trim()) && !sb2::init(game.trim()) && !dd::init(game.trim()) && !cars::init(game.trim()) && !batman::init(game.trim()) {
+        if !guitarhero::init(game.trim()) && !h2o::init(game.trim()) && !sb2::init(game.trim()) && !dd::init(game.trim()) && !cars::init(game.trim()) && !batman::init(game.trim()) {
             sdaemon::init();
         }
         log!("rawthrills: initialized");

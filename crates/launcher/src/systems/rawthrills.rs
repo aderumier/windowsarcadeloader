@@ -1,13 +1,15 @@
 //! Raw Thrills PC cabinets (The Fast and the Furious, its Drift, Super Bikes 1 / 2 and SuperCars,
 //! Nicktoons Nitro Racing, H2O Overdrive, Super Alpine Racer, X-Games Snowboarder, Winter X
-//! Games SnoCross, Dirty Drivin', Cars).
+//! Games SnoCross, Dirty Drivin', Cars, Guitar Hero Arcade EDITION).
 //!
 //! Most games read their JAMMA USB I/O board (HID) themselves and import no driver DLL to
-//! replace: the payload is started with the game through `wal-loader`. TMNT is the exception:
-//! its patched Unity input poll reads the launcher's common input socket directly.
+//! replace: the payload is started with the game through `wal-loader`. TMNT reads the common
+//! input socket in its patched Unity poll; Guitar Hero Arcade feeds the game's internal guitar
+//! state from that same input stream.
 //!
 //! Payload options (profile `env`):
-//! - `WAL_RAWTHRILLS_GAME`: `fnf` / `drift` / `superbikes` / `nicktoons` / `h2overdrive` (JAMMA
+//! - `WAL_RAWTHRILLS_GAME`: `guitarhero` (Guitar Hero Arcade's internal inputs),
+//!   `fnf` / `drift` / `superbikes` / `nicktoons` / `h2overdrive` (JAMMA
 //!   USB board reports), `supercars` / `alpine` / `snowboarder` / `snocross` (`SetControl`),
 //!   `superbikes2` (the game's keyboard and analog tables), `dirtydrivin` (its developer
 //!   keyboard, coin callback and switch latches), `cars` (its RIO board behind libusb0): the

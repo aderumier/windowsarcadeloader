@@ -1,0 +1,42 @@
+# Guitar Hero Arcade EDITION (Raw Thrills, game 1.0.5 / OS 8.4, 2009).
+system: rawthrills
+name: Guitar Hero Arcade EDITION
+
+# Other loaders' input wrappers conflict with the game's virtual controllers.
+hide: [xinput1_3.dll, Xinputter.ini, dinput8.dll]
+
+# The payload emulates two connected XInput controllers and feeds their internal guitar state.
+env:
+  WAL_RAWTHRILLS_GAME: guitarhero
+
+input:
+  # Escape and Back + Start are game controls; let the game handle its own exit flow.
+  exit_keys: []
+  exit_combo: []
+  stick_as_dpad: false
+  gamepad:
+    start: start
+    dpup: up
+    dpdown: down
+    a: b1
+    b: b2
+    x: b3
+    y: b4
+    l1: b5
+    r1: none
+    r2: none
+    l2: none
+    lefty: ly
+
+# Each connected gamepad is one guitar (player 1 then player 2). D-pad up/down strum,
+# A/B/X/Y/LB are green/red/yellow/blue/orange frets, Start is Start, and left-stick Y is tilt.
+controls:
+  up: Strum up
+  down: Strum down
+  start: Start
+  b1: Green fret
+  b2: Red fret
+  b3: Yellow fret
+  b4: Blue fret
+  b5: Orange fret
+  ly: Guitar tilt

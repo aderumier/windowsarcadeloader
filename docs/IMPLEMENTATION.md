@@ -1140,6 +1140,22 @@ Force feedback: the game's wheel force float (positive pushing right) and its ce
 spring stiffness, read every frame, sent as `FFB_CONSTANT` / `FFB_SPRING` (on change and
 every second).
 
+Guitar Hero Arcade EDITION (game 1.0.5 / OS 8.4) is a Guitar Hero III build. Its GHA payload
+bridge follows OpenParrot's GHA loader and shared `XInputEmu.cpp`: it emulates two connected
+XInput controllers (the executable imports state, capabilities and audio GUIDs by ordinals
+2, 4 and 5), disables hardware state writes, feeds the internal controller state from both
+virtual sticks, writes `AspyrConfig.xml` and the Local AppData copy,
+and selects the unlocked main-menu or attract-mode PAK files. AWL's `HKLM\SOFTWARE\Aspyr\Guitar
+Hero III` open/create requests are redirected to a real per-user registry key, avoiding the
+invalid-handle/permissions failure under Wine. The payload also grants the Game Explorer
+`VerifyAccess` check and preserves OpenParrot's window title, sizing, drag, cursor, and right-click
+minimize behavior. Defaults follow the dump's `teknoparrot.ini` (fullscreen, HD resolution patch,
+unlocked menu); `WAL_RAWTHRILLS_GHA_WINDOWED`, `WAL_RAWTHRILLS_GHA_HD_PATCH`, and
+`WAL_RAWTHRILLS_GHA_UNLOCK_MAIN_MENU` override those options. The launcher disables Escape and
+Back + Start exit shortcuts so those inputs remain available to the game. Without the shared
+XInput connection emulation, the game ignored the injected state despite the correct memory
+writes. Gameplay and controls work (user: 100%).
+
 All Raw Thrills games: the cabinet reboot (`ExitWindowsEx`, H2O Overdrive leaving its service
 menu) asks the launcher to start the game again, the process ended at once (its Direct3D
 device's teardown crashed in DXVK); `ExitProcess` is logged with the game addresses on the
@@ -1540,6 +1556,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | as Super Alpine Racer, landscape |
 | `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | wal-loader, inputs through the game's `SetControl` (§6.3b), no board: I/O init taken as success, no reboot, board missing displays off; the dump's protection traps undone, keyboard developer key Space (ends the game) made Escape, base path empty, force feedback from its handlebar force (untested on a wheel) |
 | `h2o-overdrive` | H2O Overdrive | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), the board's `Open` faked, its poll and `GetStatusBlock` replaced, service / test edges written to the press detector's rings, throttle lever centered (gas forward, brake reverse), boost its own control, Bink's sound not taken from FMOD (attract movie crash), service menu exit reboot = relaunch, keypad selects the tracks and boats, force feedback from the game's wheel force float (untested on a wheel) |
+| `guitar-hero-arcade` | Guitar Hero Arcade EDITION | rawthrills | works (user: 100%) | Guitar Hero III game 1.0.5 / OS 8.4; two connected virtual guitars, OpenParrot GHA input, per-user Aspyr registry redirect, generated config and menu PAK selection, Game Explorer and window behavior |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
