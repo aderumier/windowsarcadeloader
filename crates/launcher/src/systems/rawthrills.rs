@@ -50,6 +50,12 @@ impl System for RawThrills {
         Some(&[])
     }
 
+    fn hidden(&self) -> &'static [&'static str] {
+        // another loader's input settings: with them, the dump's libusb0.dll takes that
+        // loader's path and crashes at start (Super Alpine Racer)
+        &["monitor_input.bin", "monitor_misc.bin"]
+    }
+
     fn data_dirs(&self) -> &'static [&'static str] {
         // the game's D: data (default WAL_RAWTHRILLS_DDRIVE)
         &["WindowsLoader"]

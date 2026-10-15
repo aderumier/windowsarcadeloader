@@ -77,7 +77,9 @@ pub fn build(run_dir: &Path, game_dir: &Path, hide: &[String], payloads: &[(&Pat
     let excluded = |name: &str| {
         hide.iter().any(|h| h.eq_ignore_ascii_case(name)) || payloads.iter().any(|(_, n)| n.eq_ignore_ascii_case(name))
     };
-    for entry in fs::read_dir(game_dir).with_context(|| format!("reading {}", game_dir.display()))?.flatten() {
+    // a folder only the profile files have: nothing of the game to link
+    let game_files = if game_dir.exists() { Some(fs::read_dir(game_dir)) } else { None };
+    for entry in game_files.transpose().with_context(|| format!("reading {}", game_dir.display()))?.into_iter().flatten().flatten() {
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
         if excluded(&name_str) {
@@ -230,6 +232,20 @@ mod tests {
         build_tree(&run, &game, &[], &[PathBuf::new()], &[]).unwrap();
         assert_eq!(fs::read_to_string(run.join(&file)).unwrap(), "game");
         assert!(run.join("Data").is_symlink());
+        fs::remove_dir_all(&t).unwrap();
+    }
+
+    #[test]
+    fn profile_file_in_new_folder() {
+        let t = tmp("newdir");
+        let (game, run, src) = (t.join("game"), t.join("run"), t.join("effect.fx"));
+        fs::create_dir_all(&game).unwrap();
+        fs::write(game.join("game.exe"), "").unwrap();
+        fs::write(&src, "fx").unwrap();
+        let file = PathBuf::from("Shaders/Sub/effect.fx");
+        build_tree(&run, &game, &[], &[PathBuf::new()], &[(src.as_path(), file.clone())]).unwrap();
+        assert_eq!(fs::read_to_string(run.join(&file)).unwrap(), "fx");
+        assert!(run.join("game.exe").is_symlink());
         fs::remove_dir_all(&t).unwrap();
     }
 
