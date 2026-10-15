@@ -18,8 +18,8 @@ args: [-simmobile]
 
 env:
   WAL_RAWTHRILLS_GAME: injustice
-  # Full screen: a borderless window of the screen's size (the game renders at its window's
-  # size and saves it in UDKSystemSettings.ini), no mouse cursor.
+  # Full screen: the payload starts UE3's full screen mode at the screen's resolution; its
+  # windows borderless and of the screen's size before that, no mouse cursor.
   WAL_WINDOW_SIZE: screen
   WAL_WINDOW_POPUP: "1"
   WAL_HIDE_CURSOR: "1"

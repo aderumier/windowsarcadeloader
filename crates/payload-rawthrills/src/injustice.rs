@@ -9,9 +9,16 @@
 //! * the NTI smart card reader through WinSCard (absent: free play, handled by the game);
 //! * a webcam per player through OpenCV, its frames decoded by ZBar: the character cards are
 //!   barcodes shown to the camera.
+//!
+//! Full screen: the game runs at the screen's resolution in UE3's own full screen mode (its
+//! command line gets `ResX=<w> ResY=<h> FULLSCREEN`). In a window it sizes its window to the
+//! resolution saved in UDKGame/Config/UDKSystemSettings.ini (1136x640 when generated from the
+//! defaults), shrunk to fit the desktop, and draws at that size in the corner of a larger window.
 
 use std::ffi::c_void;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
+
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
 
 use wal_payload_common::{iat, log};
 
@@ -66,6 +73,7 @@ pub fn init(game: &str) -> bool {
     if game != "injustice" {
         return false;
     }
+    fullscreen_init();
     crate::rio::enable_status_reports();
     crate::rio::init("injustice", NATIVES, P1_MAP, P2_MAP, true, || 0.0);
     hasp_init();
@@ -78,6 +86,38 @@ pub fn init(game: &str) -> bool {
         unsafe { iat::hook("WinSCard.dll", name, f) };
     }
     true
+}
+
+// ── Full screen ──────────────────────────────────────────────────────────────────────────────
+//
+// UE3 reads its command line with GetCommandLineW (appCmdLine): the screen's resolution and
+// full screen mode are added to it.
+
+static COMMAND_LINE: OnceLock<Vec<u16>> = OnceLock::new();
+
+fn fullscreen_init() {
+    let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+    if w <= 0 || h <= 0 {
+        return;
+    }
+    let hook = unsafe { iat::hook("kernel32.dll", "GetCommandLineW", get_command_line_w as *const () as usize) };
+    let Some(original) = hook else {
+        log!("injustice: GetCommandLineW not imported, resolution left to the game");
+        return;
+    };
+    let original: unsafe extern "system" fn() -> *const u16 = unsafe { std::mem::transmute(original) };
+    let line = unsafe {
+        let p = original();
+        let len = (0..).take_while(|&i| *p.add(i) != 0).count();
+        String::from_utf16_lossy(std::slice::from_raw_parts(p, len))
+    };
+    let line = format!("{line} ResX={w} ResY={h} FULLSCREEN");
+    log!("injustice: command line {line}");
+    let _ = COMMAND_LINE.set(line.encode_utf16().chain([0]).collect());
+}
+
+unsafe extern "system" fn get_command_line_w() -> *const u16 {
+    COMMAND_LINE.get().map_or(std::ptr::null(), |l| l.as_ptr())
 }
 
 // ── Card dispensers ──────────────────────────────────────────────────────────────────────────
