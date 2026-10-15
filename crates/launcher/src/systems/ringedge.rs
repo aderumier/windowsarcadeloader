@@ -5,6 +5,7 @@
 //! They import no driver DLL: the payload is loaded by `wal-loader`.
 //!
 //! Payload options (profile `env`):
+//! - `WAL_RINGEDGE_BOARD`: `ringedge2` for RingEdge 2 games (platform id `AAL2`)
 //! - `WAL_RINGEDGE_SAVE`: folder of the SRAM and EEPROM files (default `sv`)
 //! - `WAL_RINGEDGE_PCP`: keychip / master answers `key=value;...` (e.g. the game id)
 //! - `WAL_RINGEDGE_FOREGROUND`: arguments of the cabinet's applications the game hands over

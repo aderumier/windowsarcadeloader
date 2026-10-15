@@ -1,0 +1,15 @@
+# Guilty Gear XX Accent Core Plus R (Sega RingEdge 2).
+# Override values in userprofiles/ringedge/guilty-gear-xx-accent-core-plus-r.yaml.
+system: ringedge
+name: Guilty Gear XX Accent Core Plus R
+
+env:
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBYG
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge, its challenge file
+  WAL_RINGEDGE_DS_TABLE: "0x1bd33c,0x1bd348"
+  WAL_RINGEDGE_DS_FILE: SBYG_Table.dat
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x18f900"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x2cc3f0,0x2cc8f8,0x2d8c48,0x2d9568,0x2d9974,0x2d9978,0x2d9c10,0x2d9c24,0x2d9c28,0x2d9c9c,0x2ddee0,0x2e1ec0"

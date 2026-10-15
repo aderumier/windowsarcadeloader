@@ -1385,7 +1385,7 @@ parts: `amcus/` (AMAuthd replacement), `board/` (NA-JV JVS board, Banapass seria
 
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 
-RingEdge games (Virtua Tennis 4) link Sega's amLib statically and import no driver DLL: the
+RingEdge games (Virtua Tennis 4; RingEdge 2: Guilty Gear XX Accent Core Plus R) link Sega's amLib statically and import no driver DLL: the
 payload is loaded by `wal-loader`. amLib talks to the cabinet's kernel drivers, to the system
 services (`mxmaster`, `mxkeychip`) over TCP, and to the JVS board. Each piece found from the
 game's amLib (its own error strings name every function):
@@ -1420,6 +1420,15 @@ game's amLib (its own error strings name every function):
   `MAC_ORDER`; then 10000 32-byte SSD records), and a fixed challenge with its 4 MACs in the
   executable. The payload looks the challenge up in both (`WAL_RINGEDGE_DS_FILE`,
   `WAL_RINGEDGE_DS_TABLE`): no keychip secret needed.
+- **RingEdge 2** (`WAL_RINGEDGE_BOARD=ringedge2`, newer amLib 1.11). amPlatform's board type
+  picks amBackup's SRAM layout: with platform `AAL` and maker `NEC` it reads a fifth OEM
+  string, `AAL2` for a RingEdge 2 (4-byte aligned backup records; the RingEdge 1 layout's
+  512-byte alignment fails with "invalid address"), and amSram's access unit (`0x9C406004`)
+  is 4. amAuth (ALL.Net / NESiCA authentication, `nxAuth.exe` on the cabinet) is one more PCP
+  service, TCP 40190: replies `<command>=ok` (`app.property=set&id=<sub game id>`,
+  `accounting=start&code=100&player=<n>`), `current.status=ok&error=0&icon=normal&exit=false`,
+  `system.time=ok&time=YYYYMMDDhhmmss`; without it the game waits forever before its window.
+  The fixed DS challenge and its MACs are the same in both games (an amLib constant).
 - **JVS.** amJvs opens `\\.\mxjvs` (driver mode), configures it with the serial calls and
   exchanges each packet with `DeviceIoControl` `0x9C402000`; the Type X board (Sega
   837-14572, moved to payload-common `jvs_board.rs`) answers through `serial::transact`. The
@@ -1698,6 +1707,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `h2o-overdrive` | H2O Overdrive | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), the board's `Open` faked, its poll and `GetStatusBlock` replaced, service / test edges written to the press detector's rings, throttle lever centered (gas forward, brake reverse), boost its own control, Bink's sound not taken from FMOD (attract movie crash), service menu exit reboot = relaunch, keypad selects the tracks and boats, force feedback from the game's wheel force float (untested on a wheel) |
 | `guitar-hero-arcade` | Guitar Hero Arcade EDITION | rawthrills | works (user: 100%) | Guitar Hero III game 1.0.5 / OS 8.4; two connected virtual guitars, OpenParrot GHA input, per-user Aspyr registry redirect, generated config and menu PAK selection, Game Explorer and window behavior |
 | `virtua-tennis-4` | Virtua Tennis 4 | ringedge | works (user: 100%), test menu | wal-loader, amLib devices (SRAM, SMBus EEPROM and push switches, SMBIOS platform id), keychip and master PCP services with the DS28CN01 MACs from the game's table, JVS on `\\.\mxjvs` (§6.3d), test button relaunches into the test menu (`-t`) |
+| `guilty-gear-xx-accent-core-plus-r` | Guilty Gear XX Accent Core Plus R | ringedge | works (user: 100%) | RingEdge 2 (§6.3d): platform `AAL2`, amAuth PCP service (TCP 40190), 4-byte SRAM access unit, keychip MACs from `SBYG_Table.dat` |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

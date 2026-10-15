@@ -13,7 +13,8 @@
 //! * `\\.\columba` (amPlatform): physical memory reads (`0x9C406104`: `{u64 address, u32 1,
 //!   u32 size}`, the bytes back) of the BIOS area, where amPlatform finds the SMBIOS tables
 //!   (legacy `_DMI_` entry point) and reads the BIOS version and date, the system manufacturer
-//!   (`NEC`: RingEdge) and the platform id (third OEM string: `AAL` RingEdge, `AAM` RingWide).
+//!   (`NEC`: RingEdge) and the platform id (third OEM string: `AAL` RingEdge, `AAM` RingWide;
+//!   with `WAL_RINGEDGE_BOARD=ringedge2` a fifth one, `AAL2`: RingEdge 2).
 //!   A small SMBIOS image is served at 0xF0000.
 //! * `\\.\mxsuperio` (amHm: hardware monitor): fake handle answering the version calls,
 //!   everything else logged.
@@ -50,6 +51,12 @@ const SMBUS_PATH: &str = "\\\\.\\mxsmbus";
 static SRAM_HANDLE: AtomicUsize = AtomicUsize::new(0);
 static EEPROM: Mutex<Option<std::fs::File>> = Mutex::new(None);
 
+/// `WAL_RINGEDGE_BOARD=ringedge2`: a RingEdge 2 board.
+fn ringedge2() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_RINGEDGE_BOARD").is_ok_and(|b| b == "ringedge2"))
+}
+
 /// The save folder, absolute (the game changes its current directory).
 fn save_dir() -> String {
     static DIR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
@@ -84,6 +91,8 @@ fn orig<F: Copy>(idx: usize) -> F {
 }
 
 pub(crate) fn init() {
+    // read now: an environment lookup inside a hook sets the thread's last error
+    let _ = ringedge2();
     let dir = save_dir();
     let _ = std::fs::create_dir_all(&dir);
     // the SRAM file: created at its full size, the game formats it
@@ -222,6 +231,12 @@ unsafe extern "system" fn device_io_control(
         // driver versions: 1.x
         (_, 0x9C40_6000 | 0x9C40_6008) if out.len() >= 4 => {
             out[..4].copy_from_slice(&0x0001_0001u32.to_le_bytes());
+            Some(4)
+        }
+        // access unit (RingEdge 2's amSram): 4 bytes, its backup records are 4-byte aligned
+        (_, 0x9C40_6004) if sram && out.len() >= 4 => {
+            let unit: u32 = if ringedge2() { 4 } else { 512 };
+            out[..4].copy_from_slice(&unit.to_le_bytes());
             Some(4)
         }
         // IOCTL_DISK_GET_DRIVE_GEOMETRY: 4096 sectors of 512 bytes
@@ -379,8 +394,13 @@ fn bios_image() -> &'static [u8] {
         smbios_struct(&mut table, 0, 0, &[1, 2, 0, 0xE8, 3, 0x0F, 0, 0, 0, 0, 0, 0, 0, 0], &["American Megatrends Inc.", "080015", "07/30/2010"]);
         // system: manufacturer, product
         smbios_struct(&mut table, 1, 1, &[1, 2, 0, 0], &["NEC", "RINGEDGE"]);
-        // OEM strings: the third is the platform id
-        smbios_struct(&mut table, 11, 2, &[3], &["SEGA", "RINGEDGE", &platform]);
+        // OEM strings: the third is the platform id, the fifth `AAL2` on a RingEdge 2 (amBackup's
+        // SRAM layout: 4-byte aligned records)
+        if ringedge2() {
+            smbios_struct(&mut table, 11, 2, &[5], &["SEGA", "RINGEDGE2", &platform, "-", "AAL2"]);
+        } else {
+            smbios_struct(&mut table, 11, 2, &[3], &["SEGA", "RINGEDGE", &platform]);
+        }
         smbios_struct(&mut table, 127, 3, &[], &[]);
         let mut image = vec![0u8; 0x10000];
         let mut entry = [0u8; 15];

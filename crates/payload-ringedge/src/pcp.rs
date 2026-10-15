@@ -1,6 +1,7 @@
 //! The RingEdge system services amLib talks to over PCP on 127.0.0.1, served by the payload:
-//! `mxmaster` (amMaster: application control, TCP 40100) and `mxkeychip` (amDongle: the
-//! keychip, TCP 40106, its binary data channel 40107).
+//! `mxmaster` (amMaster: application control, TCP 40100), `mxkeychip` (amDongle: the
+//! keychip, TCP 40106, its binary data channel 40107) and the auth service (amAuth, RingEdge 2:
+//! TCP 40190).
 //!
 //! PCP is a text protocol: the service sends the prompt `>`, the client a request line
 //! `key=value&key=value\r\n` (`?` for a query, e.g. `keychip.appboot.gameid=?&cache=1`), the
@@ -34,6 +35,7 @@ use wal_payload_common::log;
 const MXMASTER: u16 = 40100;
 const MXKEYCHIP: u16 = 40106;
 const MXKEYCHIP_DATA: u16 = 40107;
+const AUTH: u16 = 40190;
 
 const DEFAULTS: &[(&str, &str)] = &[
     ("keychip.version", "0104"),
@@ -75,7 +77,7 @@ pub(crate) fn start() {
     let _ = values();
     let _ = ds_table();
     let _ = ds_file();
-    for (port, name) in [(MXMASTER, "mxmaster"), (MXKEYCHIP, "mxkeychip"), (MXKEYCHIP_DATA, "mxkeychip data")] {
+    for (port, name) in [(MXMASTER, "mxmaster"), (MXKEYCHIP, "mxkeychip"), (MXKEYCHIP_DATA, "mxkeychip data"), (AUTH, "auth")] {
         match TcpListener::bind(("127.0.0.1", port)) {
             Ok(listener) => {
                 std::thread::spawn(move || {
@@ -87,7 +89,7 @@ pub(crate) fn start() {
             Err(e) => log!("pcp: cannot listen on {port} ({name}): {e}"),
         }
     }
-    log!("pcp: mxmaster on {MXMASTER}, mxkeychip on {MXKEYCHIP}/{MXKEYCHIP_DATA}");
+    log!("pcp: mxmaster on {MXMASTER}, mxkeychip on {MXKEYCHIP}/{MXKEYCHIP_DATA}, auth on {AUTH}");
 }
 
 fn serve(mut stream: TcpStream, name: &str, binary: bool) {
@@ -118,7 +120,7 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
         while let Some(end) = line.windows(2).position(|w| w == b"\r\n") {
             let request = String::from_utf8_lossy(&line[..end]).into_owned();
             line.drain(..end + 2);
-            let reply = answer(&request);
+            let reply = if name == "auth" { auth_answer(&request) } else { answer(&request) };
             log!("pcp: {name}: {request} -> {reply}");
             if stream.write_all(format!("{reply}\r\n>").as_bytes()).is_err() {
                 return;
@@ -126,6 +128,22 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
         }
     }
     log!("pcp: {name}: client disconnected");
+}
+
+/// The auth service's reply (amAuth, RingEdge 2: ALL.Net / NESiCA authentication): the command
+/// with `ok` (`busy`, `ng`: failures), then the values asked.
+fn auth_answer(request: &str) -> String {
+    let command = request.split('&').next().unwrap_or("").split('=').next().unwrap_or("");
+    match command {
+        // no error, network icon normal, not asked to exit
+        "current.status" => format!("{command}=ok&error=0&icon=normal&exit=false"),
+        "system.time" => {
+            let mut t: windows_sys::Win32::Foundation::SYSTEMTIME = unsafe { std::mem::zeroed() };
+            unsafe { windows_sys::Win32::System::SystemInformation::GetLocalTime(&mut t) };
+            format!("{command}=ok&time={:04}{:02}{:02}{:02}{:02}{:02}", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond)
+        }
+        _ => format!("{command}=ok"),
+    }
 }
 
 /// The reply to one request: its first key with the value.

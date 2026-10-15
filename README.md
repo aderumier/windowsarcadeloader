@@ -150,5 +150,6 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `h2o-overdrive` | H2O Overdrive | rawthrills | works (user: 100%) | not in the test |  |
 | `guitar-hero-arcade` | Guitar Hero Arcade EDITION | rawthrills | works (user: 100%) | not in the test |  |
 | `virtua-tennis-4` | Virtua Tennis 4 | ringedge | works (user: 100%), test menu | not in the test |  |
+| `guilty-gear-xx-accent-core-plus-r` | Guilty Gear XX Accent Core Plus R | ringedge | works (user: 100%) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->
