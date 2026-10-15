@@ -7,7 +7,7 @@ name: Injustice Arcade
 # Two-player fighter with four buttons per player (no joystick), on the RIO USB board.
 # b5 buys a character card from the player's dispenser. The character cards are barcodes the
 # cabinet's webcams read: a virtual card per player, chosen on an overlay with the (otherwise
-# unused) directions, put on / taken off the reader with the card toggle.
+# unused) directions, scanned with the card button.
 
 # The cabinet runs the PC build in UE3's mobile simulation: -simmobile selects the arcade
 # configuration (UDKGame/Config/Mobile-UDK*.ini). Without it the PC defaults are generated
@@ -67,7 +67,7 @@ controls:
   down: Next card
   left: 10 cards back
   right: 10 cards on
-  card: Card on reader
+  card: Scan card
   start: Start
   coin: Coin
   service: Service

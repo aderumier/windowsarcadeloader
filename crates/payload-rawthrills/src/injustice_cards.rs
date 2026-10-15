@@ -7,8 +7,9 @@
 //! into the gray frame handed to the real `zbar_scan_image`, so the game's own decoding runs.
 //!
 //! The card is chosen on an overlay drawn over the game (`SwapBuffers`): up/down browse the 130
-//! cards (left/right by 10), the `card` toggle puts the selected card on the reader and takes it
-//! off. The selections are kept in `WindowsLoader\cards.txt`.
+//! cards (left/right by 10), each press of the `card` toggle scans the selected card (shown to
+//! the camera for a few seconds, as a card held up and taken away). The selections are kept in
+//! `WindowsLoader\cards.txt`.
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -188,15 +189,21 @@ const CODE128: [&str; 107] = [
 
 struct Player {
     selected: usize,
-    on_reader: bool,
-    /// The panel stays shown until then (browsing), and while the card is on the reader.
+    /// The `card` toggle's state: each change is a scan.
+    toggle: bool,
+    /// The card is in front of the camera until then.
+    scan_until: Option<Instant>,
+    /// The panel stays shown until then (browsing, scanning).
     shown_until: Option<Instant>,
 }
 
 static PLAYERS: Mutex<[Player; 2]> = Mutex::new([
-    Player { selected: 0, on_reader: false, shown_until: None },
-    Player { selected: 0, on_reader: false, shown_until: None },
+    Player { selected: 0, toggle: false, scan_until: None, shown_until: None },
+    Player { selected: 0, toggle: false, scan_until: None, shown_until: None },
 ]);
+
+/// How long a scanned card stays in front of the camera.
+const SCAN: Duration = Duration::from_secs(3);
 
 const SHOW: Duration = Duration::from_secs(4);
 const REPEAT_DELAY: Duration = Duration::from_millis(400);
@@ -231,11 +238,12 @@ fn run_inputs() {
         let mut changed = false;
         for (i, p) in players.iter_mut().enumerate() {
             let stick = wal_payload_common::input(i);
-            let on = stick.pressed(button::CARD);
-            if on != p.on_reader {
-                p.on_reader = on;
+            let toggle = stick.pressed(button::CARD);
+            if toggle != p.toggle {
+                p.toggle = toggle;
+                p.scan_until = Some(now + SCAN);
                 p.shown_until = Some(now + SHOW);
-                log!("injustice: P{} card {} ({})", i + 1, if on { "on the reader" } else { "removed" }, CARDS[p.selected].0);
+                log!("injustice: P{} card scanned ({})", i + 1, CARDS[p.selected].0);
             }
             for (k, (b, step)) in [(button::UP, -1isize), (button::DOWN, 1), (button::LEFT, -10), (button::RIGHT, 10)].into_iter().enumerate() {
                 let fire = match (stick.pressed(b), held[i][k]) {
@@ -271,7 +279,8 @@ fn run_inputs() {
 /// The barcode of the card on player `i`'s reader.
 fn card_on_reader(i: usize) -> Option<&'static str> {
     let players = PLAYERS.lock().unwrap();
-    players.get(i).filter(|p| p.on_reader).map(|p| CARDS[p.selected].1)
+    let now = Instant::now();
+    players.get(i).filter(|p| p.scan_until.is_some_and(|t| now < t)).map(|p| CARDS[p.selected].1)
 }
 
 // ── Code 128 ─────────────────────────────────────────────────────────────────────────────────
@@ -473,7 +482,7 @@ pub(crate) fn panels() -> [(usize, bool, bool); 2] {
     let players = PLAYERS.lock().unwrap();
     [0, 1].map(|i| {
         let p = &players[i];
-        (p.selected, p.on_reader, p.on_reader || p.shown_until.is_some_and(|t| now < t))
+        (p.selected, p.scan_until.is_some_and(|t| now < t), p.shown_until.is_some_and(|t| now < t))
     })
 }
 

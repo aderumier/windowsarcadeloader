@@ -1,7 +1,7 @@
 //! Injustice Arcade's card picker, drawn over the game before each `SwapBuffers` (the mobile
 //! simulation renders with OpenGL): a panel per player listing the cards around the selected
-//! one, while browsing and while the card is on the reader. Fixed-function GL with the game's
-//! state saved around it; the text is a GDI bitmap font (`wglUseFontBitmapsW`).
+//! one, while browsing and scanning. Fixed-function GL with the game's state saved around it;
+//! the text is a GDI bitmap font (`wglUseFontBitmapsW`).
 
 use std::ffi::c_void;
 use std::sync::OnceLock;
@@ -306,7 +306,7 @@ unsafe fn panel(gl: &Gl, base: u32, player: usize, selected: usize, on_reader: b
         y += 4.0;
         if on_reader {
             (gl.glColor4f)(0.4, 1.0, 0.4, 1.0);
-            text(gl, base, x0 + 12.0, y, "ON THE READER  (card: remove)");
+            text(gl, base, x0 + 12.0, y, "SCANNING...");
         } else {
             (gl.glColor4f)(0.8, 0.8, 0.8, 1.0);
             text(gl, base, x0 + 12.0, y, "up/down/left/right  card: scan");
