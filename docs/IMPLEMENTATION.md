@@ -1318,6 +1318,43 @@ Batocera at 1920x1080 uses a machine user override at
 `args: [-S, stretch, -f]`. Fullscreen gameplay is screenshot-verified and user-confirmed;
 the shared profile keeps the local display settings.
 
+### 6.3c Namco ES3 (`crates/payload-namcoes3x`)
+
+The 32-bit ES3 payload is installed as the game's Banapass reader DLL (`bngrw.dll`); Mario
+Kart Arcade GP DX is its game. Main reference for ES3 games:
+[bananatools](https://gitea.tendokyu.moe/TeamTofuShop/bananatools) (public domain,
+segatools-style hooks for Bandai Namco PC hardware). Its `mkachook` targets MKDX and its
+`dist/mkac/bananatools.ini` gives the game's identity (game id `SBZB`, game cd `MK31`,
+ALL.Net version `1.10`, CA config version `18.16`, network `192.168.112.0`). Other useful
+parts: `amcus/` (AMAuthd replacement), `board/` (NA-JV JVS board, Banapass serial reader
+`bpreader`), `platform/` (dongle, network environment, DNS redirects).
+
+- **AMCUS auth (`amcus.rs`).** The game creates the cabinet auth daemon's COM object
+  (`AMCUS/AMAuthd.exe`, interface `IAuth`, CLSID {4603BB03-058D-43D9-B96F-639BE908C1ED},
+  local server). Under Wine the call fails: error 0x1a at boot, network treated as down,
+  Banapass cards refused ("you can't use the Banapassport card at this time"). The
+  `CoCreateInstance` hook returns an in-process object ported from bananatools'
+  `amcus/iauth.c`. The game's own wrappers sit at 0x401000-0x401c30 (v1.18.16): slot 9
+  `GetUpdaterState` (200-byte state, read by about twenty wrappers), 10 cabinet config, 11
+  version info, 14 ALL.Net answer, 18 MUCHA board auth, 19 updater state (must report 1),
+  20, 23. Every slot takes one pointer or one dword after `this` in this 32-bit build, so
+  bananatools' 64-bit `int64` parameters must not be copied.
+- **Card server.** The card-server client talks HTTPS (WinHttp, default port, flag
+  `WINHTTP_FLAG_SECURE`) to `192.168.112.254`, paths `/<region>/<api>/<function>`. All
+  WinHttp strings are UTF-16. `WAL_NAMCOES3_CARD_SERVER` redirects that host to another
+  `host:port` as plain HTTP (`netlog.rs`); `WAL_NAMCOES3_PROFILE_SERVER=1` serves a fully
+  unlocked profile there (`profile.rs`, data from
+  [MKDX-Unlocked-Profile](https://github.com/Harmmmm/MKDX-Unlocked-Profile):
+  `server/getStatus`, `amid/getAmidInfo_bf`, `player/getData`, `judgement/getData`).
+- **Test menu.** Two IC card options: the reader, and the card *vendor* (the Banapass
+  vending unit behind the STR board). Enabling the vendor without one hangs the boot on
+  E23-01 "IC CARD VENDOR DISCONNECT ERROR" (error code 0x62 from 0x6032ea): keep it off.
+- **Auto accelerate.** With the accelerator released the race code (0x663400) sets a kart
+  flag (`[car+0x9a]`) that forces full throttle ("auto accel is on!"). The payload turns
+  the flag's `je` at 0x66389f into a `jmp` unless `WAL_NAMCOES3_AUTO_ACCEL=1`. Found with a
+  temporary hardware write watchpoint on the kart's throttle input; pedal values themselves
+  were correct.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this

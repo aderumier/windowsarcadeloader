@@ -10,9 +10,11 @@ use std::time::Duration;
 
 use wal_protocol::{button, output};
 
+mod amcus;
 mod jvs;
 mod ipc;
 mod netlog;
+mod profile;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -65,6 +67,7 @@ fn thread_input() {
     unsafe { patch_mkdx_net_check(); }
     unsafe { patch_mkdx_str_check(); }
     unsafe { patch_mkdx_auto_accel(); }
+    unsafe { hook_game_log(); }
     wal_payload_common::dinput::init();
     jvs::init(&[game_base()]);
     unsafe {
@@ -73,9 +76,33 @@ fn thread_input() {
             wal_payload_common::log!("namcoes3: hooked game IPC COM activation");
         }
         netlog::init();
+        // The built-in unlocked-profile card server, on the redirected card-server address.
+        if std::env::var("WAL_NAMCOES3_PROFILE_SERVER").is_ok_and(|v| v.trim() == "1") {
+            if let Some((host, port)) = netlog::card_server() {
+                profile::start(format!("{host}:{port}"));
+            }
+        }
         hook_error_registrar();
     }
     std::thread::spawn(force_feedback_loop);
+    // TEMP debug: online/offline flags.
+    std::thread::spawn(|| {
+        let base = game_base();
+        let at = |n: usize| base + n - 0x400000;
+        let mut last = String::new();
+        loop {
+            let net = safe_read::<u32>(at(0xec2a0c)).unwrap_or(0) as usize;
+            let auth = safe_read::<u32>(at(0xec2a04)).and_then(|p| safe_read::<u32>(p as usize)).unwrap_or(0) as usize;
+            let l = format!("flags: net={net:#x} db0={:?} auth={auth:#x} cdc={:?} ce0={:?} ce4={:?} ce8={:?}",
+                if net != 0 { safe_read::<u8>(net + 0xdb0) } else { None },
+                if auth != 0 { safe_read::<u8>(auth + 0xcdc) } else { None },
+                if auth != 0 { safe_read::<u8>(auth + 0xce0) } else { None },
+                if auth != 0 { safe_read::<u32>(auth + 0xce4) } else { None },
+                if auth != 0 { safe_read::<u32>(auth + 0xce8) } else { None });
+            if l != last { wal_payload_common::log!("{l}"); last = l; }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    });
 }
 
 /// MKDX checks for a physical Namco Content Router during boot and
@@ -202,7 +229,7 @@ unsafe fn patch_mkdx_auto_accel() {
     if game_version() != Some(MkdxVersion::V11816) { return; }
     let base = game_base();
     if base == 0 { return; }
-    // cmp byte [esi+0x9a], 0 ; je +0x226  ->  ... ; nop ; jmp +0x226
+    // cmp byte [esi+0x9a], 0 ; je +0x226  ->  ... ; nop ; jmp +0x226 (patched below)
     let expected: &[u8] = &[0x80, 0xbe, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x84, 0x26, 0x02, 0x00, 0x00];
     let address = (base + 0x263898) as *mut u8;
     if unsafe { std::slice::from_raw_parts(address, expected.len()) } != expected {
@@ -219,6 +246,49 @@ unsafe fn patch_mkdx_auto_accel() {
         FlushInstructionCache(GetCurrentProcess(), jump.cast(), 2);
     }
     wal_payload_common::log!("namcoes3: disabled v1.18.16 auto-accelerate");
+}
+
+/// Debug (`WAL_NAMCOES3_GAME_LOG=1`): the game's own log lines (Shift-JIS, formatted by its
+/// logger at nominal 0x830d70) are appended raw to `mkdx-game.log` in the run directory. The
+/// logger's sink (0x868d60, stdcall level/text/length) is disabled in the release build; it
+/// jumps here instead.
+unsafe fn hook_game_log() {
+    if !std::env::var("WAL_NAMCOES3_GAME_LOG").is_ok_and(|v| v.trim() == "1") { return; }
+    if game_version() != Some(MkdxVersion::V11816) { return; }
+    let base = game_base();
+    // The sink's entry (push ebp; mov ebp,esp; push -1) becomes a jump to ours: same
+    // arguments, same `ret 0xc`, the original is never needed.
+    let entry = (base + 0x468d60) as *mut u8;
+    if unsafe { std::slice::from_raw_parts(entry, 5) } != [0x55, 0x8b, 0xec, 0x6a, 0xff] {
+        wal_payload_common::log!("namcoes3: game log signature mismatch; skipped");
+        return;
+    }
+    let rel = (game_log_sink as usize as i32).wrapping_sub(entry as i32 + 5).to_le_bytes();
+    let mut old = 0;
+    if unsafe { VirtualProtect(entry.cast(), 5, PAGE_EXECUTE_READWRITE, &mut old) } == 0 { return; }
+    unsafe {
+        *entry = 0xe9;
+        std::ptr::copy_nonoverlapping(rel.as_ptr(), entry.add(1), 4);
+        VirtualProtect(entry.cast(), 5, old, &mut old);
+        FlushInstructionCache(GetCurrentProcess(), entry.cast(), 5);
+    }
+    wal_payload_common::log!("namcoes3: game log -> mkdx-game.log");
+}
+
+unsafe extern "system" fn game_log_sink(_level: u32, text: *const u8, len: u32) -> u32 {
+    use std::io::Write;
+    if text.is_null() { return 0; }
+    let bytes = unsafe { std::slice::from_raw_parts(text, len.min(0x3ff) as usize) };
+    static FILE: std::sync::Mutex<Option<std::fs::File>> = std::sync::Mutex::new(None);
+    let mut file = FILE.lock().unwrap();
+    if file.is_none() {
+        *file = std::fs::OpenOptions::new().create(true).append(true).open("mkdx-game.log").ok();
+    }
+    if let Some(f) = file.as_mut() {
+        let _ = f.write_all(bytes);
+        if !bytes.ends_with(b"\n") { let _ = f.write_all(b"\n"); }
+    }
+    0
 }
 
 /// The boot steering (STR/force-feedback) self-test polls the board until its
@@ -339,9 +409,12 @@ unsafe fn patch_mkdx_dongle() {
         ],
         MkdxVersion::V11816 => &[
             (0x208130, &[0x55, 0x8b, 0xec, 0x6a, 0xff], &[0xb0, 0x01, 0xc2, 0x04, 0x00], "poll"),
+            // Skip loading the saved dongle data and clear its offline-grace flag (copied to
+            // [mgr+0xcdc]): with it set the game runs in offline mode and refuses Banapass
+            // cards; the in-process AMCUS auth reports the cabinet online instead.
             (0x207ae9,
                 &[0xe8, 0x32, 0x07, 0x00, 0x00, 0x8a, 0x97, 0xe0, 0x0c, 0x00, 0x00],
-                &[0x90, 0x90, 0x90, 0x90, 0x90, 0xb2, 0x01, 0x90, 0x90, 0x90, 0x90], "init"),
+                &[0x90, 0x90, 0x90, 0x90, 0x90, 0xb2, 0x00, 0x90, 0x90, 0x90, 0x90], "init"),
             (0x207c50, &[0x55, 0x8b, 0xec], &[0xb0, 0x01, 0xc3], "update"),
         ],
     };
@@ -375,6 +448,12 @@ unsafe extern "system" fn co_create_instance(
         if !out.is_null() { unsafe { *out = (&ipc::OBJECT as *const ipc::Object).cast_mut().cast(); } }
         static LOGGED: std::sync::Once = std::sync::Once::new();
         LOGGED.call_once(|| wal_payload_common::log!("namcoes3: supplied offline IPC COM adapter"));
+        return 0;
+    }
+    if !clsid.is_null() && unsafe { std::slice::from_raw_parts(clsid, 16) } == amcus::CLSID {
+        if !out.is_null() { unsafe { *out = (&amcus::OBJECT as *const amcus::Object).cast_mut().cast(); } }
+        static LOGGED: std::sync::Once = std::sync::Once::new();
+        LOGGED.call_once(|| wal_payload_common::log!("namcoes3: supplied in-process AMCUS auth (IAuth)"));
         return 0;
     }
     let original = CO_CREATE_INSTANCE.load(Ordering::Relaxed);

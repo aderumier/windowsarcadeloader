@@ -28,6 +28,11 @@ env:
   # The game's auto-accelerate assist (full throttle while the pedal is released): off.
   WAL_NAMCOES3_AUTO_ACCEL: "0"
   WAL_NAMCOES3_JVS_PORT: COM1,COM3
+  # Banapass card server: the cabinet server (HTTPS on 192.168.112.254) is redirected here as
+  # plain HTTP, and the built-in server answers a card with a fully unlocked profile.
+  WAL_NAMCOES3_CARD_SERVER: "127.0.0.1:49200"
+  WAL_NAMCOES3_PROFILE_SERVER: "1"
+  WAL_NAMCOES3_PROFILE_NAME: "Unlocked"
 
 # The game's own options, for the GUI's Options tab (its env variables above).
 options:
@@ -39,6 +44,25 @@ options:
         description: >-
           The game's assist that drives at full throttle while the accelerator pedal is
           released ("auto accel is on!"). Off: the kart only moves with the pedal.
+  - title: Banapass card
+    options:
+      - key: WAL_NAMCOES3_PROFILE_SERVER
+        label: Unlocked profile server
+        kind: bool
+        description: >-
+          Answer a card with a fully unlocked profile (every kart, character and course),
+          from a server built into the loader. Off: the card server address below must
+          point at another server.
+      - key: WAL_NAMCOES3_PROFILE_NAME
+        label: Player name
+        kind: text
+        description: The name of the unlocked profile (32 characters at most).
+      - key: WAL_NAMCOES3_CARD_SERVER
+        label: Card server
+        kind: text
+        description: >-
+          host:port the game's card server requests go to, as plain HTTP (the built-in
+          server listens there too).
   - title: Force feedback
     options:
       - key: WAL_NAMCOES3_FFB_MODE
