@@ -112,6 +112,15 @@ pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
     }
 }
 
+/// One request/reply exchange with the device behind the fake handle `h` (drivers that pass
+/// the packets with `DeviceIoControl`, e.g. RingEdge's `\\.\mxjvs`). `None`: not a device handle.
+pub fn transact(h: P, packet: &[u8]) -> Option<Vec<u8>> {
+    let device = device(h)?;
+    let reply = (device.handler)(packet);
+    trace(packet, &reply);
+    Some(reply)
+}
+
 /// Opens `ports` (comma separated) as silent devices: writes succeed, reads return nothing.
 /// A `!` prefix (`!COM3`) makes the port absent instead: opening it fails.
 /// Call after [`install`], which installs the hooks.

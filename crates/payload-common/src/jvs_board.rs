@@ -1,4 +1,6 @@
-//! JVS I/O board for Taito Type X: Taito stick mode (2 players, 16 switches), JVS version 0x30.
+//! JVS I/O board of Taito Type X and Sega RingEdge cabinets (Sega 837-14572 "Type 3"): Taito
+//! stick mode (2 players, 16 switches), JVS version 0x30. The options keep their Type X
+//! names (`WAL_TYPEX_JVS_*`) on every system.
 //!
 //! Replies: one report byte for the packet, then each command's data; the commands after
 //! the first add their own report byte.
@@ -21,9 +23,9 @@
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
 
-use wal_payload_common::jvs::{Encoder, parse};
-use wal_payload_common::mapping::ButtonMap;
-use wal_payload_common::{drive, log, serial};
+use crate::jvs::{Encoder, parse};
+use crate::mapping::ButtonMap;
+use crate::{drive, log, serial};
 use wal_protocol::{Axis, StickState, button};
 
 const IDENTIFIER: &[u8] = b"SEGA CORPORATION;I/O BD JVS;837-14572;Ver1.00;2005/10\0";
@@ -220,7 +222,8 @@ fn key_id() -> [u8; 7] {
 
 static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 
-pub(crate) fn init() {
+/// Starts the board on `WAL_TYPEX_JVS_PORT`, else `default_port` (Type X `COM2`, RingEdge `COM4`).
+pub fn init(default_port: &str) {
     let layout = std::env::var("WAL_TYPEX_JVS_LAYOUT").unwrap_or_default();
     let (haunted_museum, block_king) = (layout.trim() == "haunted-museum", layout.trim() == "block-king");
     let elevator_action = layout.trim() == "elevator-action";
@@ -254,7 +257,7 @@ pub(crate) fn init() {
         battle_gear,
         addresses: 0,
     });
-    let port = std::env::var("WAL_TYPEX_JVS_PORT").unwrap_or_else(|_| "COM2".into());
+    let port = std::env::var("WAL_TYPEX_JVS_PORT").unwrap_or_else(|_| default_port.into());
     let mut modules = vec![unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize];
     if let Ok(dlls) = std::env::var("WAL_TYPEX_JVS_DLLS") {
         for name in dlls.split(',').map(str::trim).filter(|s| !s.is_empty()) {
@@ -387,7 +390,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
     }
 
     // input state (coins counted on release)
-    let sticks = [0, 1, 2, 3].map(wal_payload_common::input);
+    let sticks = [0, 1, 2, 3].map(crate::input);
     let players: Vec<_> = sticks.iter().map(|s| player(&board.map, s)).collect();
     for (n, p) in players.iter().enumerate() {
         if board.coin_held[n] && !p.3 {
@@ -605,7 +608,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
 fn node2(board: &mut Board, cmds: &[u8]) -> Vec<u8> {
     let coins = board.coins;
     let Some(bg) = board.battle_gear.as_mut() else { return Vec::new() };
-    let gear = BattleGear::gear(&wal_payload_common::input(1));
+    let gear = BattleGear::gear(&crate::input(1));
     let mut coin_change = None;
     let mut out = Encoder::new();
     out.push(0x01);

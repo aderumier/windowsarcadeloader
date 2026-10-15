@@ -1,0 +1,12 @@
+# Virtua Tennis 4 (Sega RingEdge).
+# Override values in userprofiles/ringedge/virtua-tennis-4.yaml.
+system: ringedge
+name: Virtua Tennis 4
+
+env:
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge, its challenge file
+  WAL_RINGEDGE_DS_TABLE: "0x3a3094,0x3a30a0"
+  WAL_RINGEDGE_DS_FILE: archive/SBWX_Table.dat
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x301f60"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x406870,0x407178,0x407494,0x407498,0x4074a0,0x4078b0,0x407bd0,0x40b010,0x40b018,0x417368,0x4180a0,0x41c080,0x420248"

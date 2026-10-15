@@ -1,6 +1,6 @@
 # Windows Arcade Loader
 
-Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami)
+Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge)
 on Linux with Wine: a Linux launcher (inputs, Wine prefix and runner) and per-system payload DLLs
 emulating each cabinet's I/O, dongle and network services in the game process.
 
@@ -149,5 +149,6 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | not in the test |  |
 | `h2o-overdrive` | H2O Overdrive | rawthrills | works (user: 100%) | not in the test |  |
 | `guitar-hero-arcade` | Guitar Hero Arcade EDITION | rawthrills | works (user: 100%) | not in the test |  |
+| `virtua-tennis-4` | Virtua Tennis 4 | ringedge | works (user: 100%), test menu | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->

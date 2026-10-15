@@ -48,6 +48,7 @@ crates/
   loader/                  wal-loader.exe: starts a game with a payload loaded before its entry point
   payload-typex/           Taito Type X payload (JVS I/O board on COM2), loaded by wal-loader
   payload-rawthrills/      Raw Thrills PC payload (JAMMA USB board reports), loaded by wal-loader
+  payload-ringedge/        Sega RingEdge payload (amLib devices, keychip/master PCP services), loaded by wal-loader
   payload-nesica/          NESiCAxLive payload = replacement iDmacDrv32.dll
     iDmacDrv32.def         export ordinals of the original driver (see §6.2)
     src/news.png           NESYS news picture
@@ -868,7 +869,7 @@ the same module; Aliens Extermination imports nothing to replace). The game is c
 Extermination, which passes its `WinMain` show command as `main`'s argc, crashed in
 `glutInit` reading 10 arguments.
 
-JVS board (`jvs.rs`) with `TaitoTypeXGeneric` settings: Taito stick mode (features `01 02 10 00 02 02 00 ...`: 2 players,
+JVS board (payload-common `jvs_board.rs`, shared with RingEdge) with `TaitoTypeXGeneric` settings: Taito stick mode (features `01 02 10 00 02 02 00 ...`: 2 players,
 16 switches, 2 coin slots), JVS version 0x30, identifier
 `SEGA CORPORATION;I/O BD JVS;837-14572;Ver1.00;2005/10`, the usual report-byte quirks.
 `WAL_TYPEX_JVS_LAYOUT=haunted-museum`: the gun cabinets' switch wiring for `20 01 03` (1 player
@@ -1382,6 +1383,49 @@ parts: `amcus/` (AMAuthd replacement), `board/` (NA-JV JVS board, Banapass seria
   temporary hardware write watchpoint on the kart's throttle input; pedal values themselves
   were correct.
 
+### 6.3d Sega RingEdge (`crates/payload-ringedge`)
+
+RingEdge games (Virtua Tennis 4) link Sega's amLib statically and import no driver DLL: the
+payload is loaded by `wal-loader`. amLib talks to the cabinet's kernel drivers, to the system
+services (`mxmaster`, `mxkeychip`) over TCP, and to the JVS board. Each piece found from the
+game's amLib (its own error strings name every function):
+
+- **amLib's log (`amlog.rs`).** The release build keeps amLib's log calls, `log(function,
+  line, format, ...)`, each gated by its module's level variable. `WAL_RINGEDGE_AMLOG=<rva>`
+  replaces the function with a stub writing to the payload log and
+  `WAL_RINGEDGE_AMLOG_LEVELS` sets the levels: every remaining failure shows by name
+  ("amSramInit(177): CreateFileA Error!!"). Virtua Tennis 4's addresses are in its profile.
+- **Devices (`devices.rs`).** `\\.\mxsram` is the save folder's `SRAM.bin` (2 MB; version
+  IOCTL `0x9C406000`, size by `IOCTL_DISK_GET_DRIVE_GEOMETRY`, then plain reads and writes).
+  The SMBus driver (device interface class `5c49e1fe-...`, SetupDi faked) carries the EEPROM
+  (I2C 0x57, `E2PROM.bin`, 32-byte block transfers `0x9C40200C`) and the PCA9535 I/O expander
+  (0x20, byte transfers `0x9C402004`): its port 1 holds the main board's TEST (0x04) and
+  SERVICE (0x08) push switches, active low, which the test menu reads (the game reads the
+  JVS board's). `\\.\columba` reads physical memory: amPlatform scans 0xF0000 for the
+  `_DMI_` entry point, reads 64 KB of SMBIOS structures (the table must start at or below
+  0xF0000), and takes the system manufacturer (`NEC`) and the third OEM string as the
+  platform id (`AAL` RingEdge). `\\.\mxsuperio` (hardware monitor) stays absent: amHm logs
+  "not found" and the game goes on. Blank SRAM and EEPROM are formatted by amLib itself.
+- **PCP services (`pcp.rs`).** mxmaster on TCP 40100, mxkeychip on 40106 (its binary channel
+  40107 unused so far). Text protocol: prompt `>`, request `key=?&cache=1\r\n`, answer
+  `key=value\r\n`. Keychip values are text (game id `SBWX`, billing ids) or hex bytes
+  (region, flags). `mxmaster.foreground.next=<n>`: the game hands over to another
+  application and exits (test button: 3, the test menu = the same executable with `-t`): the
+  payload asks the launcher to relaunch with that application's arguments
+  (`WAL_RINGEDGE_FOREGROUND`, default `3=-t`).
+- **Keychip MAC (DS28CN01).** amDongle asks `keychip.ds.compute=<7-byte challenge>&page=<n>`
+  every 100 ms and compares the 20-byte answer with MACs it already knows, else error 0949
+  "Keychip Not Found": 100 records loaded at random from the game's `SBWX_Table.dat` (10000
+  records of 87 bytes: the challenge, then 4 page MACs whose bytes are shuffled, order in
+  `MAC_ORDER`; then 10000 32-byte SSD records), and a fixed challenge with its 4 MACs in the
+  executable. The payload looks the challenge up in both (`WAL_RINGEDGE_DS_FILE`,
+  `WAL_RINGEDGE_DS_TABLE`): no keychip secret needed.
+- **JVS.** amJvs opens `\\.\mxjvs` (driver mode), configures it with the serial calls and
+  exchanges each packet with `DeviceIoControl` `0x9C402000`; the Type X board (Sega
+  837-14572, moved to payload-common `jvs_board.rs`) answers through `serial::transact`. The
+  sense line is DSR: modem status 0x10 before the address, 0x30 after (with the Type X values
+  amJvs assigns 31 boards: error 6401 "JVS I/O board is not connected").
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -1653,6 +1697,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | wal-loader, inputs through the game's `SetControl` (§6.3b), no board: I/O init taken as success, no reboot, board missing displays off; the dump's protection traps undone, keyboard developer key Space (ends the game) made Escape, base path empty, force feedback from its handlebar force (untested on a wheel) |
 | `h2o-overdrive` | H2O Overdrive | rawthrills | works (user: 100%) | wal-loader, JAMMA USB board reports to the game's parser (§6.3b), the board's `Open` faked, its poll and `GetStatusBlock` replaced, service / test edges written to the press detector's rings, throttle lever centered (gas forward, brake reverse), boost its own control, Bink's sound not taken from FMOD (attract movie crash), service menu exit reboot = relaunch, keypad selects the tracks and boats, force feedback from the game's wheel force float (untested on a wheel) |
 | `guitar-hero-arcade` | Guitar Hero Arcade EDITION | rawthrills | works (user: 100%) | Guitar Hero III game 1.0.5 / OS 8.4; two connected virtual guitars, OpenParrot GHA input, per-user Aspyr registry redirect, generated config and menu PAK selection, Game Explorer and window behavior |
+| `virtua-tennis-4` | Virtua Tennis 4 | ringedge | works (user: 100%), test menu | wal-loader, amLib devices (SRAM, SMBus EEPROM and push switches, SMBIOS platform id), keychip and master PCP services with the DS28CN01 MACs from the game's table, JVS on `\\.\mxjvs` (§6.3d), test button relaunches into the test menu (`-t`) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

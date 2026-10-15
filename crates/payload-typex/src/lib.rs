@@ -1,7 +1,7 @@
 //! Taito Type X payload, loaded by `wal-loader` (Type X games import no driver DLL).
 //!
 //! * JVS I/O board on the serial port (`WAL_TYPEX_JVS_PORT`, default `COM2`), fed by the
-//!   virtual arcade sticks (`jvs.rs`, in Taito
+//!   virtual arcade sticks (payload-common `jvs_board.rs`, in Taito
 //!   stick mode).
 //! * `D:\` redirected to a game folder (`WAL_TYPEX_DDRIVE`, default `WindowsLoader`).
 //! * Profile code patches (`WAL_PATCHES`).
@@ -23,7 +23,6 @@ mod doors;
 mod ffb;
 mod guns;
 mod immersion;
-mod jvs;
 mod mahjong;
 mod medal;
 mod sram;
@@ -42,7 +41,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         wal_payload_common::start("typex");
         patches::apply();
         drive::init("WAL_TYPEX_DDRIVE", "WindowsLoader");
-        jvs::init();
+        wal_payload_common::jvs_board::init("COM2");
         medal::init();
         wheel::init();
         mahjong::init();

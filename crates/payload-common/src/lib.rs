@@ -25,6 +25,8 @@ pub mod dshow;
 #[cfg(windows)]
 pub mod iat;
 pub mod jvs;
+#[cfg(windows)]
+pub mod jvs_board;
 pub mod log;
 pub mod mapping;
 pub mod paths;
