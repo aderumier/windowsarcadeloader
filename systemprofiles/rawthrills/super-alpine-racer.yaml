@@ -9,8 +9,12 @@ name: Super Alpine Racer
 # controls off.
 env:
   WAL_RAWTHRILLS_GAME: alpine
-# The dump's d3d8.dll (d3d8to9) crashes assembling its shaders with Wine's d3dx9: DXVK's d3d8.
-hide: [d3d8.dll]
+# ReShade setup (ArcCabView: the picture rotated to the landscape screen, bezel): dgVoodoo's
+# D3D8 (Direct3D 11) as d3d8.dll, ReShade as d3d11.dll, ArcCabView/ and ReShade.ini. Without
+# it (reshade: false, or a dump without d3d11.dll), both are hidden and the portrait picture
+# goes through DXVK's d3d8: the dump's own d3d8.dll (d3d8to9) crashes assembling its shaders
+# with Wine's d3dx9.
+reshade_files: [d3d8.dll, d3d11.dll]
 
 # The skis: swing = lx, edge = rx, START = start, VIEW 1 / 2 = b1 / b2, bill acceptor = b4,
 # volume up / down (test menu navigation) = up / down, player 2's coin = coin 2. Swing and

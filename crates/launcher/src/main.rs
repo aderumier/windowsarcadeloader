@@ -318,12 +318,28 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     for (dll, mode) in &profile.dll_overrides {
         wine.override_dll(&format!("{dll}={mode}"));
     }
-    let reshade: &[String] = if profile.reshade { &profile.reshade_files } else { &[] };
+    // a ReShade setup is used when the dump has all of its files (dumps without one, or with
+    // only some of them, run the game's own picture)
+    let use_reshade = profile.reshade && {
+        let names: Vec<String> = std::fs::read_dir(&game_dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_ascii_lowercase())
+            .collect();
+        let missing: Vec<&String> =
+            profile.reshade_files.iter().filter(|f| !names.contains(&f.to_ascii_lowercase())).collect();
+        if !missing.is_empty() && missing.len() < profile.reshade_files.len() {
+            eprintln!("launcher: ReShade setup incomplete ({missing:?} missing): not used");
+        }
+        missing.is_empty()
+    };
+    let reshade: &[String] = if use_reshade { &profile.reshade_files } else { &[] };
     wine.setup_d3d(profile.dxvk, reshade)?;
     wine.setup_ddraw(profile.graphics)?;
 
     let mut hide: Vec<String> = profile.hide.clone();
-    if !profile.reshade {
+    if !use_reshade {
         hide.extend(profile.reshade_files.iter().cloned());
     }
     hide.extend(system.hidden().iter().map(|s| s.to_string()));

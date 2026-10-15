@@ -65,7 +65,7 @@ dll_overrides: {}
 hide: []
 # ReShade setup shipped by some dumps (rotation of vertical games to a landscape screen with a
 # bezel): its files, as the profile lists them (ReShade DLLs and what they chain to, e.g.
-# d3d8to9 or dgVoodoo). true uses them when the dump has them (they load before DXVK/wined3d),
+# d3d8to9 or dgVoodoo). true uses them when the dump has them all (they load before DXVK/wined3d),
 # false hides them (the game's own picture, portrait for vertical games).
 reshade: true
 reshade_files: []
