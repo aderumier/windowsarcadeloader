@@ -1,0 +1,16 @@
+# Blade Arcus from Shining 2.10.00 (Sega RingEdge 2).
+# Override values in userprofiles/ringedge/blade-arcus-from-shining.yaml.
+system: ringedge
+name: Blade Arcus from Shining
+
+env:
+  # no Aime banner over the attract mode ("offline, no Aime play"): its scene test always
+  # takes the hide branch
+  WAL_PATCHES: "0x1749b6:EB"
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge
+  WAL_RINGEDGE_DS_TABLE: "0x2c1d84,0x2c1d90"
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x24e6c0"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x39b678,0x39ba60,0x39c380,0x39c888,0x39cdb0,0x39cdb8,0x3a9108,0x3a910c,0x3a9110,0x3a9520,0x3a9598,0x3a984c,0x3ada80,0x3b1a60"
