@@ -25,14 +25,20 @@ env:
   WAL_DINPUT_WHEEL_Z_AXIS: accel
   WAL_NAMCOES3_FFB_SPRING: "0"
   WAL_NAMCOES3_FFB_MODE: "custom"
+  # The game's auto-accelerate assist (full throttle while the pedal is released): off.
+  WAL_NAMCOES3_AUTO_ACCEL: "0"
   WAL_NAMCOES3_JVS_PORT: COM1,COM3
-  WAL_SERIAL_TRACE: "100000"
-  # Screen captures (shot-NNNN.bmp in the game directory): the boot network self-test runs
-  # about 1-2 minutes after start, so the captures show whether it still raises an error.
-  WAL_SCREENSHOT: "20"
 
 # The game's own options, for the GUI's Options tab (its env variables above).
 options:
+  - title: Gameplay
+    options:
+      - key: WAL_NAMCOES3_AUTO_ACCEL
+        label: Auto accelerate
+        kind: bool
+        description: >-
+          The game's assist that drives at full throttle while the accelerator pedal is
+          released ("auto accel is on!"). Off: the kart only moves with the pedal.
   - title: Force feedback
     options:
       - key: WAL_NAMCOES3_FFB_MODE

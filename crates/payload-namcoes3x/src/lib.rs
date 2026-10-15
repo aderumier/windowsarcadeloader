@@ -64,6 +64,7 @@ fn thread_input() {
     unsafe { patch_mkdx_content_router(); }
     unsafe { patch_mkdx_net_check(); }
     unsafe { patch_mkdx_str_check(); }
+    unsafe { patch_mkdx_auto_accel(); }
     wal_payload_common::dinput::init();
     jvs::init(&[game_base()]);
     unsafe {
@@ -189,6 +190,35 @@ unsafe fn patch_mkdx_net_check() {
         }
         wal_payload_common::log!("namcoes3: skipped {} game-server ping check ({name})", version.name());
     }
+}
+
+/// The race code (nominal 0x663400) turns on an auto-accelerate assist ("auto accel is on!")
+/// while the accelerator is released: a kart flag (`[car+0x9a]`) makes it write full
+/// throttle into the kart's input, whatever the pedal says. `WAL_NAMCOES3_AUTO_ACCEL=0` (the
+/// default) turns the flag's `je` into a `jmp`, so the forced-throttle branch never runs and
+/// the pedal value is used as is.
+unsafe fn patch_mkdx_auto_accel() {
+    if std::env::var("WAL_NAMCOES3_AUTO_ACCEL").is_ok_and(|v| v.trim() != "0") { return; }
+    if game_version() != Some(MkdxVersion::V11816) { return; }
+    let base = game_base();
+    if base == 0 { return; }
+    // cmp byte [esi+0x9a], 0 ; je +0x226  ->  ... ; nop ; jmp +0x226
+    let expected: &[u8] = &[0x80, 0xbe, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x84, 0x26, 0x02, 0x00, 0x00];
+    let address = (base + 0x263898) as *mut u8;
+    if unsafe { std::slice::from_raw_parts(address, expected.len()) } != expected {
+        wal_payload_common::log!("namcoes3: auto-accel signature mismatch; skipped");
+        return;
+    }
+    let jump = unsafe { address.add(7) };
+    let mut old = 0;
+    if unsafe { VirtualProtect(jump.cast(), 2, PAGE_EXECUTE_READWRITE, &mut old) } == 0 { return; }
+    unsafe {
+        *jump = 0x90;
+        *jump.add(1) = 0xe9;
+        VirtualProtect(jump.cast(), 2, old, &mut old);
+        FlushInstructionCache(GetCurrentProcess(), jump.cast(), 2);
+    }
+    wal_payload_common::log!("namcoes3: disabled v1.18.16 auto-accelerate");
 }
 
 /// The boot steering (STR/force-feedback) self-test polls the board until its
