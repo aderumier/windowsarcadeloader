@@ -9,6 +9,7 @@
 
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 
 use wal_payload_common::jvs::Encoder;
 use wal_payload_common::mapping::ButtonMap;
@@ -73,6 +74,13 @@ const DEFAULT_MAP: &[(&str, &str)] = &[
 /// Per poll, how far digital steering moves the wheel.
 const RAMP: i32 = 16;
 
+/// The STR board performs the steering self-test asynchronously: the result
+/// record at offset 0x35 only appears once the check completes. The FFB-off
+/// boot stops polling long before that (it never needs the check), while the
+/// FFB-on boot waits for it. A delay longer than the FFB-off give-up window
+/// (~0.1 s) reproduces both.
+const STEER_DELAY: Duration = Duration::from_secs(2);
+
 struct Board {
     map: ButtonMap<Native>,
     /// Raw bytes written by the game, up to a complete packet.
@@ -86,6 +94,12 @@ struct Board {
     steering: i32,
     /// Driver state last answered on the STR stream; idle state re-arms the next check.
     str_served: i32,
+    /// When the game first polled the steering check (0x35), if it did.
+    str_steering_since: Option<Instant>,
+    /// Offset the last steering-check record was served at.
+    str_steer_off: i32,
+    /// Steering-check records served (0..=5).
+    str_steer_count: u32,
 }
 
 static BOARD: Mutex<Option<Board>> = Mutex::new(None);
@@ -103,6 +117,9 @@ pub(crate) fn init(modules: &[usize]) {
         test_toggle: flag("WAL_NAMCOES3_TEST_TOGGLE", true),
         steering: 0x80,
         str_served: -1,
+        str_steering_since: None,
+        str_steer_off: -1,
+        str_steer_count: 0,
     });
     // JVS SENSE/CTS is clear until the host assigns an address, then asserted.
     serial::MODEM_STATUS[0].store(0, Ordering::Relaxed);
@@ -145,7 +162,27 @@ fn str_record(step: usize) -> Vec<u8> {
     data[1] = b'A';
     data[4] = b'1'; // boot check status
     if step == 3 {
+        data[2] = 1; // the 10-byte record requires record[2] != 0
         data[5] = 0x38; // card dispenser present / not sold out
+        data[6] = b'1';
+    }
+    if len > 1 { data[len - 1] = 0x03; } // ETX
+    data
+}
+
+/// Steering-check records: a second round of the STR record stream, read at
+/// offsets 0x35, 0x3C, 0x43, 0x59, 0x63 (same lengths as the boot records).
+/// The game validates `record[4]=='1'` and, for the 10-byte record,
+/// `record[2]!=0`.
+fn str_check_record(step: usize) -> Vec<u8> {
+    let len = [7, 7, 0x16, 0x0A, 7][step];
+    let mut data = vec![0; len];
+    data[0] = 0x02; // STX
+    data[1] = b'A';
+    data[4] = b'1'; // check status: ok
+    if step == 3 {
+        data[2] = 0x01; // the 10-byte record requires record[2] != 0
+        data[5] = 0x38;
         data[6] = b'1';
     }
     if len > 1 { data[len - 1] = 0x03; } // ETX
@@ -360,10 +397,14 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                 }
                 0x15 => {
                     let form = arg(3) as u8;
+                    if form != 0x20 {
+                        log!("jvs: 70 15 off {off:02x} form {form:02x} extra {extra:02x}", off = arg(2), extra = arg(4));
+                    }
                     if form == 0x20 {
                         let state = str_reader_state();
                         if state == -1 {
                             board.str_served = -1;
+                            board.str_steering_since = None;
                             rep.push(0); // no STR record while the driver is idle
                         } else {
                             // The memory probe is version/build dependent. If it
@@ -376,16 +417,51 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                             } else {
                                 -1
                             };
-                            if step < 0 || step == board.str_served {
+                            if (0..=4).contains(&step) && step != board.str_served {
+                                let record = str_record(step as usize);
+                                rep.push(record.len() as u8);
+                                rep.extend_from_slice(&record);
+                                board.str_served = step;
+                                log!("jvs: STR boot record {} ({} bytes{})", step, record.len(), if state == -2 { ", fallback" } else { "" });
+                            } else if board.str_served >= 4 {
+                                // Boot records are done; the game now reads the
+                                // steering-check record stream: five records
+                                // (7, 7, 22, 10, 7 bytes) at 0x35, 0x3C,
+                                // 0x43, 0x59, 0x63, advancing by each record's
+                                // length. The real board runs the self-test
+                                // asynchronously, so the first record only
+                                // appears once STEER_DELAY has passed.
+                                let off = arg(2) as i32;
+                                let step = board.str_steer_count as usize;
+                                if step >= 5 {
+                                    rep.push(0); // check stream finished
+                                } else if off != board.str_steer_off {
+                                    // The game advanced to the next offset;
+                                    // serve the next check record. The first
+                                    // one waits for the async self-test delay.
+                                    let ready = if step == 0 {
+                                        let now = Instant::now();
+                                        let since = *board.str_steering_since.get_or_insert(now);
+                                        now.duration_since(since) >= STEER_DELAY
+                                    } else {
+                                        true
+                                    };
+                                    if ready {
+                                        let record = str_check_record(step);
+                                        rep.push(record.len() as u8);
+                                        rep.extend_from_slice(&record);
+                                        board.str_steer_off = off;
+                                        board.str_steer_count = step as u32 + 1;
+                                        log!("jvs: STR check record {} ({} bytes) at off {off:02x}", step, record.len());
+                                    } else {
+                                        rep.push(0);
+                                    }
+                                } else {
+                                    rep.push(0); // still polling the same offset
+                                }
+                            } else {
                                 rep.push(0);
-                                i += 4;
-                                continue;
                             }
-                            let record = str_record(step as usize);
-                            rep.push(record.len() as u8);
-                            rep.extend_from_slice(&record);
-                            board.str_served = step;
-                            log!("jvs: STR boot record {} ({} bytes{})", step, record.len(), if state == -2 { ", fallback" } else { "" });
                         }
                     } else {
                         rep.push(0); // form A is a presence probe
@@ -394,6 +470,9 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                 }
                 0x16 => {
                     board.str_served = -1;
+                    board.str_steering_since = None;
+                    board.str_steer_off = -1;
+                    board.str_steer_count = 0;
                     4
                 }
                 sub => {

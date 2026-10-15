@@ -102,6 +102,23 @@ env:
   # too fast where vsync is not given (high refresh rate screens, VRR, windowed games on
   # some drivers). "0": no limit.
   WAL_D3D9_MAX_FPS: "60"
+# The game's own options, for the GUI's Options tab (only games declaring any show it):
+# its environment variables with a label, a control (text, a bool 1/0 checkbox, a number
+# (slider when min and max are set), a choice among the values), a range and a hover
+# description. The GUI saves a value to the user profile (env:) when it differs from the
+# game's default; the group's title is omitted for an untitled group.
+#   - title: Force feedback
+#     options:
+#       - key: WAL_GAME_FFB_MODE
+#         label: Effect type
+#         kind: choice
+#         choices: [real, custom]
+#       - key: WAL_GAME_FFB_STEER
+#         label: Steer strength
+#         kind: number
+#         min: 0
+#         max: 100
+options: []
 # Virtual stick -> native inputs of the system, for the payload (none = unmapped, a+b presses
 # both: b1: trigger+start).
 native_map: {}

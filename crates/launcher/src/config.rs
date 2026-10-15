@@ -57,6 +57,9 @@ pub struct Profile {
     /// Cabinet drive letters mapped to persistent directories relative to the dump root.
     pub drives: BTreeMap<String, PathBuf>,
     pub env: BTreeMap<String, String>,
+    /// The game's own options for the GUI's Options tab (its environment variables).
+    #[serde(default)]
+    pub options: Vec<OptionGroup>,
     pub native_map: BTreeMap<String, String>,
     pub controls: BTreeMap<String, String>,
     pub squashfs_saves: PathBuf,
@@ -128,6 +131,62 @@ pub struct DeviceConfig {
     pub raw: bool,
     #[serde(default)]
     pub map: MapTable,
+}
+
+/// A group of a game's own options, declared in its system profile (`options`): the GUI's
+/// Options tab lists them under its title, the values in the profile's `env`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OptionGroup {
+    /// The group's title (omitted: an untitled group).
+    #[serde(default)]
+    pub title: Option<String>,
+    pub options: Vec<GameOption>,
+}
+
+/// A game's own option, declared in its system profile: an environment variable (`env`)
+/// the GUI's Options tab edits, saved to the user profile when it differs from the game's
+/// default.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GameOption {
+    /// The environment variable the option is stored in.
+    pub key: String,
+    /// The GUI's label (the variable's name when omitted).
+    #[serde(default)]
+    pub label: Option<String>,
+    /// The GUI's control (omitted: a text field).
+    #[serde(default = "default_option_kind")]
+    pub kind: OptionKind,
+    /// The values a `choice` offers.
+    #[serde(default)]
+    pub choices: Vec<String>,
+    /// A `number`'s range (both set: a slider).
+    #[serde(default)]
+    pub min: Option<i32>,
+    #[serde(default)]
+    pub max: Option<i32>,
+    /// The GUI's hover text.
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+fn default_option_kind() -> OptionKind {
+    OptionKind::Text
+}
+
+/// The GUI control of a game's own option.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OptionKind {
+    /// A free text field.
+    Text,
+    /// A checkbox ("1" on, "0" off).
+    Bool,
+    /// A number (a slider between `min` and `max` when both are set).
+    Number,
+    /// One of `choices`.
+    Choice,
 }
 
 /// Deep merge: maps key by key, anything else replaced.
@@ -461,6 +520,57 @@ mod tests {
         assert_eq!((p3.id.as_str(), p3.exe.as_str()), ("nesica/game", ""));
         assert!(Profile::load("nesica/game", Some(&dir), &[]).is_ok());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn game_options() {
+        let yaml = r#"
+system: test
+env:
+  WAL_X_FFB_MODE: custom
+  WAL_X_FFB_STEER: "25"
+options:
+  - title: Force feedback
+    options:
+      - key: WAL_X_FFB_MODE
+        label: Effect type
+        kind: choice
+        choices: [real, custom]
+      - key: WAL_X_FFB_STEER
+        label: Steer
+        kind: number
+        min: 0
+        max: 100
+        description: the steer strength
+      - key: WAL_X_TRACE
+        label: Trace
+        kind: bool
+  - options:
+      - key: WAL_X_DEVICE
+"#;
+        let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
+        merge(&mut v, serde_yaml_ng::from_str(yaml).unwrap());
+        let p = Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap();
+        assert_eq!(p.options.len(), 2);
+        assert_eq!(p.options[0].title.as_deref(), Some("Force feedback"));
+        assert_eq!(p.options[1].title, None);
+        let [mode, steer, trace] = p.options[0].options.as_slice() else {
+            panic!("options");
+        };
+        assert_eq!(mode.kind, OptionKind::Choice);
+        assert_eq!(mode.choices, vec!["real".to_string(), "custom".to_string()]);
+        assert_eq!((steer.kind, steer.min, steer.max), (OptionKind::Number, Some(0), Some(100)));
+        assert_eq!((trace.kind, trace.label.as_deref()), (OptionKind::Bool, Some("Trace")));
+        // the kind defaults to a text field (the untitled group's option)
+        let [device] = p.options[1].options.as_slice() else {
+            panic!("options");
+        };
+        assert_eq!(device.kind, OptionKind::Text);
+        // a profile without an options key has none
+        let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
+        merge(&mut v, serde_yaml_ng::from_str("system: test\n").unwrap());
+        let p = Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap();
+        assert!(p.options.is_empty());
     }
 
     #[test]

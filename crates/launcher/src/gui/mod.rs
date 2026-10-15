@@ -18,7 +18,7 @@ use anyhow::{Context, Result};
 use eframe::egui;
 use serde_yaml_ng::Value;
 
-use crate::config::{self, DUMP_EXT, Dump, Layers, MapTable, Profile, USER_PROFILES};
+use crate::config::{self, DUMP_EXT, Dump, GameOption, Layers, MapTable, OptionKind, Profile, USER_PROFILES};
 use crate::squashfs::{self, DumpFile};
 use crate::mapping::RawKey;
 use crate::nesica_card::{self, Card};
@@ -70,6 +70,31 @@ impl Game {
 struct Selected {
     layers: Layers,
     profile: Profile,
+}
+
+/// The game page's tab: one of the input mapping tables, or the game's own options.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Tab {
+    Keyboard,
+    Gamepad,
+    Wheel,
+    Gun,
+    Joystick,
+    Options,
+}
+
+impl Tab {
+    /// The tab's mapping table (Options has none).
+    fn device(self) -> Option<Device> {
+        match self {
+            Tab::Keyboard => Some(Device::Keyboard),
+            Tab::Gamepad => Some(Device::Gamepad),
+            Tab::Wheel => Some(Device::Wheel),
+            Tab::Gun => Some(Device::Gun),
+            Tab::Joystick => Some(Device::Joystick),
+            Tab::Options => None,
+        }
+    }
 }
 
 /// A connected SDL device.
@@ -164,7 +189,9 @@ struct App {
     selected: Option<usize>,
     game: Option<Selected>,
     gamedirs: BTreeMap<String, PathBuf>,
-    tab: Device,
+    tab: Tab,
+    /// The Options tab's text fields' drafts, until Enter or the field loses the focus.
+    option_buffers: BTreeMap<String, String>,
     /// Keyboard tab: player 1-4.
     kb_player: usize,
     /// Wheel tab: the `input.devices` name (substring of the device name).
@@ -233,7 +260,8 @@ impl App {
             selected: None,
             game: None,
             gamedirs,
-            tab: Device::Gamepad,
+            tab: Tab::Gamepad,
+            option_buffers: BTreeMap::new(),
             kb_player: 1,
             joystick: None,
             capture: None,
@@ -261,6 +289,9 @@ impl App {
         self.selected = Some(index);
         self.capture = None;
         self.joystick = None;
+        // the previous game's text drafts are its (the profile still loaded), then forgotten
+        self.commit_option_buffers();
+        self.option_buffers.clear();
         let id = &self.games[index].id;
         match Layers::load(id, &self.root).and_then(|layers| Ok(Selected { profile: layers.profile(&self.root)?, layers })) {
             Ok(sel) => {
@@ -694,6 +725,178 @@ impl App {
         }
     }
 
+    // ---- game options ----
+
+    /// The option's value in use (the merged profile's environment, empty when unset).
+    fn option_value(&self, key: &str) -> String {
+        self.game
+            .as_ref()
+            .and_then(|sel| sel.profile.env.get(key))
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// The option's value in the game's default (without the user layer).
+    fn option_base(&self, key: &str) -> Option<String> {
+        self.game
+            .as_ref()?
+            .layers
+            .base
+            .get("env")
+            .and_then(|e| e.get(key))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    }
+
+    /// The option differs from the game's default (the user layer sets it).
+    fn option_modified(&self, key: &str) -> bool {
+        self.game
+            .as_ref()
+            .and_then(|sel| sel.layers.user.get("env"))
+            .is_some_and(|e| e.get(key).is_some())
+    }
+
+    /// Sets (None: removes) the option in the user layer, when it differs from the game's
+    /// default.
+    fn set_option(&mut self, key: &str, value: Option<String>) {
+        let store = value.filter(|v| self.option_base(key).as_deref() != Some(v.as_str()));
+        self.set_user(&["env", key], store.map(Value::String));
+    }
+
+    /// A text field's draft, committed (saved when it differs from the value in use).
+    fn commit_option_buffer(&mut self, key: &str) {
+        let Some(buf) = self.option_buffers.get(key).cloned() else { return };
+        let buf = buf.trim();
+        if buf == self.option_value(key) {
+            return;
+        }
+        self.set_option(key, Some(buf.to_string()));
+        self.option_buffers.insert(key.to_string(), buf.to_string());
+    }
+
+    /// Every text field's draft committed (leaving the Options tab or the game).
+    fn commit_option_buffers(&mut self) {
+        for key in self.option_buffers.keys().cloned().collect::<Vec<_>>() {
+            self.commit_option_buffer(&key);
+        }
+    }
+
+    /// The option back to the game's default (removed from the user layer).
+    fn reset_option(&mut self, key: &str) {
+        self.option_buffers.remove(key);
+        self.set_option(key, None);
+    }
+
+    /// Every declared option back to the game's default.
+    fn reset_all_options(&mut self) {
+        let Some(sel) = &mut self.game else { return };
+        let keys: Vec<String> =
+            sel.profile.options.iter().flat_map(|g| g.options.iter()).map(|o| o.key.clone()).collect();
+        if let Some(env) = sel.layers.user.get_mut("env").and_then(Value::as_mapping_mut) {
+            for key in &keys {
+                env.remove(&Value::String(key.clone()));
+            }
+        }
+        self.option_buffers.clear();
+        self.save_user();
+    }
+
+    /// The game's own options (the system profile's `options`), its environment variables.
+    fn options_page(&mut self, ui: &mut egui::Ui) {
+        let Some(sel) = &self.game else { return };
+        let options = sel.profile.options.clone();
+        ui.label(
+            "The game's own options (its environment variables). Changes are saved to your profile \
+             and apply from the next launch.",
+        );
+        let mut reset_all = false;
+        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+            let mut first = true;
+            for group in &options {
+                if group.options.is_empty() {
+                    continue;
+                }
+                if !first {
+                    ui.add_space(8.0);
+                }
+                first = false;
+                if let Some(title) = &group.title {
+                    ui.strong(title);
+                }
+                egui::Grid::new("game-options").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                    for opt in &group.options {
+                        let label = ui.label(opt.label.as_deref().unwrap_or(&opt.key));
+                        label.on_hover_text(option_hover(opt));
+                        ui.horizontal(|ui| {
+                            self.option_control(ui, opt);
+                            if self.option_modified(&opt.key) {
+                                ui.weak("·");
+                                if ui.small_button("↺").on_hover_text("reset to the game's default").clicked() {
+                                    self.reset_option(&opt.key);
+                                }
+                            }
+                        });
+                        ui.end_row();
+                    }
+                });
+            }
+            ui.add_space(10.0);
+            if ui.button("Reset all to the game's defaults").clicked() {
+                reset_all = true;
+            }
+        });
+        if reset_all {
+            self.reset_all_options();
+        }
+    }
+
+    /// One option's control (its value: the merged profile's environment variable).
+    fn option_control(&mut self, ui: &mut egui::Ui, opt: &GameOption) {
+        let current = self.option_value(&opt.key);
+        match opt.kind {
+            OptionKind::Bool => {
+                let mut on = matches!(current.as_str(), "1" | "true" | "on");
+                if ui.checkbox(&mut on, "").changed() {
+                    self.set_option(&opt.key, Some(if on { "1".into() } else { "0".into() }));
+                }
+            }
+            OptionKind::Number => {
+                let (min, max) = (opt.min.unwrap_or(0), opt.max.unwrap_or(i32::MAX));
+                let mut value: i32 = current.parse().unwrap_or(min).clamp(min, max);
+                let changed = if let (Some(min), Some(max)) = (opt.min, opt.max) {
+                    ui.add_sized([180.0, 0.0], egui::Slider::new(&mut value, min..=max)).changed()
+                } else {
+                    ui.add(egui::DragValue::new(&mut value)).changed()
+                };
+                if changed {
+                    self.set_option(&opt.key, Some(value.to_string()));
+                }
+            }
+            OptionKind::Choice => {
+                let selected = if opt.choices.contains(&current) { current.clone() } else { "…".to_string() };
+                egui::ComboBox::from_id_salt(format!("option-{}", opt.key))
+                    .selected_text(selected)
+                    .show_ui(ui, |ui| {
+                        for c in &opt.choices {
+                            if ui.selectable_label(current == *c, c).clicked() {
+                                self.set_option(&opt.key, Some(c.clone()));
+                            }
+                        }
+                    });
+            }
+            OptionKind::Text => {
+                let buf = self.option_buffers.entry(opt.key.clone()).or_insert_with(|| current.clone());
+                let edit = ui
+                    .add(egui::TextEdit::singleline(buf).desired_width(240.0).font(egui::TextStyle::Monospace))
+                    .on_hover_text(opt.key.clone());
+                let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+                if edit.lost_focus() || (enter && edit.has_focus()) {
+                    self.commit_option_buffer(&opt.key);
+                }
+            }
+        }
+    }
+
     // ---- UI ----
 
     fn game_list(&mut self, ui: &mut egui::Ui) {
@@ -748,24 +951,39 @@ impl App {
             ui.colored_label(ui.visuals().error_fg_color, "profile error (see the status bar)");
             return;
         }
+        let has_options = self
+            .game
+            .as_ref()
+            .is_some_and(|sel| sel.profile.options.iter().any(|g| !g.options.is_empty()));
         ui.horizontal(|ui| {
             let tabs = [
-                (Device::Keyboard, "⌨ Keyboard"),
-                (Device::Gamepad, "🎮 Gamepad"),
-                (Device::Wheel, "🚗 Wheel"),
-                (Device::Gun, "🔫 Lightgun"),
-                (Device::Joystick, "🕹 Other joystick"),
+                (Tab::Keyboard, "⌨ Keyboard"),
+                (Tab::Gamepad, "🎮 Gamepad"),
+                (Tab::Wheel, "🚗 Wheel"),
+                (Tab::Gun, "🔫 Lightgun"),
+                (Tab::Joystick, "🕹 Other joystick"),
             ];
-            for (d, label) in tabs {
-                if ui.selectable_label(self.tab == d, egui::RichText::new(label).size(16.0)).clicked() {
-                    self.tab = d;
+            for (t, label) in tabs {
+                if ui.selectable_label(self.tab == t, egui::RichText::new(label).size(16.0)).clicked() {
+                    self.commit_option_buffers();
+                    self.tab = t;
                     self.capture = None;
                 }
+            }
+            if has_options
+                && ui
+                    .selectable_label(self.tab == Tab::Options, egui::RichText::new("⚙ Options").size(16.0))
+                    .on_hover_text("the game's own options")
+                    .clicked()
+            {
+                self.commit_option_buffers();
+                self.tab = Tab::Options;
+                self.capture = None;
             }
         });
         ui.separator();
         match self.tab {
-            Device::Keyboard => {
+            Tab::Keyboard => {
                 ui.horizontal(|ui| {
                     ui.label("Player");
                     for p in 1..=wal_protocol::MAX_PLAYERS {
@@ -782,7 +1000,7 @@ impl App {
                     }
                 });
             }
-            Device::Gamepad => {
+            Tab::Gamepad => {
                 let pads: Vec<&str> = self
                     .devices
                     .values()
@@ -795,7 +1013,7 @@ impl App {
                     format!("Every gamepad (players in connection order): {}", pads.join(", "))
                 });
             }
-            Device::Wheel => {
+            Tab::Wheel => {
                 let wheels: Vec<&str> = self
                     .devices
                     .values()
@@ -812,11 +1030,16 @@ impl App {
                     ui.label(format!("Connected: {}", wheels.join(", ")));
                 }
             }
-            Device::Joystick => self.joystick_header(ui),
-            Device::Gun => self.gun_header(ui),
+            Tab::Joystick => self.joystick_header(ui),
+            Tab::Gun => self.gun_header(ui),
+            Tab::Options => {}
+        }
+        if self.tab == Tab::Options {
+            self.options_page(ui);
+            return;
         }
         ui.add_space(4.0);
-        if self.tab == Device::Joystick && self.joystick.is_none() {
+        if self.tab == Tab::Joystick && self.joystick.is_none() {
             return;
         }
         self.mapping_table(ui);
@@ -1028,7 +1251,7 @@ impl App {
     }
 
     fn mapping_table(&mut self, ui: &mut egui::Ui) {
-        let device = self.tab;
+        let Some(device) = self.tab.device() else { return };
         let Some(sel) = &self.game else { return };
         let rows = bindings::rows(&sel.profile, device);
         let table = self.table(device);
@@ -1396,6 +1619,14 @@ enum Action {
     Cancel,
     Reset,
     Forget,
+}
+
+/// An option's hover text: its environment variable, and its description when it has one.
+fn option_hover(opt: &GameOption) -> String {
+    match &opt.description {
+        Some(d) => format!("{}\n\n{d}", opt.key),
+        None => opt.key.clone(),
+    }
 }
 
 fn live_is_empty(devices: &BTreeMap<u32, Connected>, wheel: Option<&str>) -> bool {

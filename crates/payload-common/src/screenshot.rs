@@ -264,8 +264,11 @@ pub fn init() {
     }
     // the game and the DLLs of its directory (engines creating the device themselves)
     let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
-    let hooks: [(&str, &str, usize, &AtomicUsize); 3] = [
+    // Direct3DCreate9Ex too: games importing only the 9Ex entry point (Mario Kart GP DX)
+    // never resolve Direct3DCreate9, so their devices would escape the shims.
+    let hooks: [(&str, &str, usize, &AtomicUsize); 4] = [
         ("d3d9.dll", "Direct3DCreate9", create9 as *const () as usize, &ORIG_CREATE9),
+        ("d3d9.dll", "Direct3DCreate9Ex", create9ex as *const () as usize, &ORIG_CREATE9EX),
         ("d3d8.dll", "Direct3DCreate8", d3d8::create8 as *const () as usize, &d3d8::ORIG_CREATE8),
         ("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize, &ORIG_GET_PROC_ADDRESS),
     ];

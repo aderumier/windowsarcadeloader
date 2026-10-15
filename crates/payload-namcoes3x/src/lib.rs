@@ -12,10 +12,11 @@ use wal_protocol::{button, output};
 
 mod jvs;
 mod ipc;
+mod netlog;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE, VirtualAlloc, VirtualProtect};
 use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
@@ -61,6 +62,8 @@ fn thread_input() {
     wal_payload_common::log!("namcoes3: executable build {:?}", game_version());
     unsafe { patch_mkdx_dongle(); }
     unsafe { patch_mkdx_content_router(); }
+    unsafe { patch_mkdx_net_check(); }
+    unsafe { patch_mkdx_str_check(); }
     wal_payload_common::dinput::init();
     jvs::init(&[game_base()]);
     unsafe {
@@ -68,6 +71,8 @@ fn thread_input() {
             CO_CREATE_INSTANCE.store(original, Ordering::Relaxed);
             wal_payload_common::log!("namcoes3: hooked game IPC COM activation");
         }
+        netlog::init();
+        hook_error_registrar();
     }
     std::thread::spawn(force_feedback_loop);
 }
@@ -146,6 +151,142 @@ unsafe fn patch_mkdx_content_router() {
         }
         wal_payload_common::log!("namcoes3: skipped {} offline Content Router check ({name})", version.name());
     }
+}
+
+/// The boot self-test pings the cabinet game server with ICMP (`IcmpSendEcho`) and
+/// raises E22-12 (code 0x10) through the shared error registrar when no reply arrives.
+/// Offline the server is unreachable, so the raise fires and the game halts on the error
+/// screen after the steering check. Suppress it exactly like the Content Router raises:
+/// replace the registrar `call` with the registrar's false return plus its stdcall
+/// argument cleanup. The preceding `push 0x10` and the following `mov edi,[esp+0x14]`
+/// restore are left untouched, so the stack and control flow are unchanged.
+unsafe fn patch_mkdx_net_check() {
+    let Some(version) = game_version() else { return; };
+    let base = game_base();
+    if base == 0 { return; }
+    let patches: &[(usize, &[u8], &[u8], &str)] = match version {
+        MkdxVersion::V11816 => &[
+            // 0x6047EC: game-server ping failed -> error registrar call (push 0x10 first).
+            (0x2047ec, &[0xe8, 0xcf, 0x4d, 0x00, 0x00], &[0x31, 0xc0, 0x83, 0xc4, 0x04], "ping-e2212"),
+        ],
+        MkdxVersion::V11022 => &[],
+    };
+    for (rva, expected, replacement, name) in patches {
+        let address = (base + rva) as *mut u8;
+        if unsafe { std::slice::from_raw_parts(address, expected.len()) } != *expected {
+            wal_payload_common::log!("namcoes3: net-check {name} signature mismatch; skipped");
+            continue;
+        }
+        let mut old = 0;
+        if unsafe { VirtualProtect(address.cast(), replacement.len(), PAGE_EXECUTE_READWRITE, &mut old) } == 0 {
+            wal_payload_common::log!("namcoes3: net-check {name} VirtualProtect failed");
+            continue;
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(replacement.as_ptr(), address, replacement.len());
+            VirtualProtect(address.cast(), replacement.len(), old, &mut old);
+            FlushInstructionCache(GetCurrentProcess(), address.cast(), replacement.len());
+        }
+        wal_payload_common::log!("namcoes3: skipped {} game-server ping check ({name})", version.name());
+    }
+}
+
+/// The boot steering (STR/force-feedback) self-test polls the board until its
+/// done-flag is set, then reports success; after ~4800 polls (~120 s) with the
+/// flag still clear it raises E22-12 (code 0x61) and the game halts on the error
+/// screen. The check's success path (nominal 0x602e47) re-reads the device each
+/// poll and branches on the done-flag byte at [device+0x49]. Replace that flag
+/// check with a flag *set*: `mov byte [eax+0x49], 1` followed by NOPs, so the
+/// self-test reports complete on the first poll and the game boots straight to
+/// the title with FFB enabled. `eax` holds the STR device at this point (loaded
+/// at 0x602e47), and the surrounding null/device guards are left untouched.
+unsafe fn patch_mkdx_str_check() {
+    let Some(version) = game_version() else { return; };
+    let base = game_base();
+    if base == 0 { return; }
+    let patches: &[(usize, &[u8], &[u8], &str)] = match version {
+        MkdxVersion::V11816 => &[
+            // 0x602E55: cmp byte [eax+0x49],0 / je 0x602EF7  ->  mov [eax+0x49],1 + nop*6
+            (0x202e55,
+             &[0x80, 0x78, 0x49, 0x00, 0x0f, 0x84, 0x98, 0x00, 0x00, 0x00],
+             &[0xc6, 0x40, 0x49, 0x01, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90],
+             "str-steering-skip"),
+        ],
+        MkdxVersion::V11022 => &[],
+    };
+    for (rva, expected, replacement, name) in patches {
+        let address = (base + rva) as *mut u8;
+        if unsafe { std::slice::from_raw_parts(address, expected.len()) } != *expected {
+            wal_payload_common::log!("namcoes3: STR-check {name} signature mismatch; skipped");
+            continue;
+        }
+        let mut old = 0;
+        if unsafe { VirtualProtect(address.cast(), replacement.len(), PAGE_EXECUTE_READWRITE, &mut old) } == 0 {
+            wal_payload_common::log!("namcoes3: STR-check {name} VirtualProtect failed");
+            continue;
+        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(replacement.as_ptr(), address, replacement.len());
+            VirtualProtect(address.cast(), replacement.len(), old, &mut old);
+            FlushInstructionCache(GetCurrentProcess(), address.cast(), replacement.len());
+        }
+        wal_payload_common::log!("namcoes3: skipped {} boot steering self-test ({name})", version.name());
+    }
+}
+
+/// Diagnostic: inline-hook the shared error registrar (nominal 0x6095c0) so every error
+/// the boot self-test raises is logged with its code and caller. This tells us which
+/// check still fails when the router/ping raises are already suppressed.
+unsafe fn hook_error_registrar() {
+    if game_version() != Some(MkdxVersion::V11816) { return; }
+    let base = game_base();
+    if base == 0 { return; }
+    let registrar = base + 0x2095c0; // nominal 0x6095c0
+    let resume = base + 0x2095c6;    // nominal 0x6095c6 (mov eax,[0xec2a04])
+    let hook = err_registrar_hook as usize;
+    let trampoline = unsafe {
+        VirtualAlloc(std::ptr::null_mut(), 0x100, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)
+    } as usize;
+    if trampoline == 0 {
+        wal_payload_common::log!("namcoes3: ERR-REG hook VirtualAlloc failed");
+        return;
+    }
+    let mut t: Vec<u8> = Vec::new();
+    t.push(0x55); // push ebp
+    t.push(0x8b); t.push(0xec); // mov ebp, esp
+    t.push(0x55); // push ebp (arg)
+    t.push(0xe8); t.extend_from_slice(&((hook as i32) - ((trampoline + 9) as i32)).to_le_bytes()); // call hook
+    t.push(0x83); t.push(0xe4); t.push(0xf8); // and esp, 0xfffffff8
+    t.push(0xe9); t.extend_from_slice(&((resume as i32) - ((trampoline + 17) as i32)).to_le_bytes()); // jmp resume
+    unsafe {
+        std::ptr::copy_nonoverlapping(t.as_ptr(), trampoline as *mut u8, t.len());
+    }
+    // jmp trampoline over the registrar's first 5 bytes
+    let rel = ((trampoline as i32) - ((registrar + 5) as i32)).to_le_bytes();
+    let mut old = 0;
+    if unsafe { VirtualProtect(registrar as *mut _, 5, PAGE_EXECUTE_READWRITE, &mut old) } == 0 {
+        wal_payload_common::log!("namcoes3: ERR-REG hook VirtualProtect failed");
+        return;
+    }
+    unsafe {
+        std::ptr::write(registrar as *mut u8, 0xe9);
+        std::ptr::copy_nonoverlapping(rel.as_ptr(), (registrar + 1) as *mut u8, 4);
+        VirtualProtect(registrar as *mut _, 5, old, &mut old);
+        FlushInstructionCache(GetCurrentProcess(), registrar as *mut _, 5);
+    }
+    wal_payload_common::log!("namcoes3: hooked error registrar (diagnostic)");
+}
+
+/// stdcall, one arg = the registrar's EBP frame. Logs the error code ([ebp+8]) and the
+/// caller's return address ([ebp+4]).
+unsafe extern "system" fn err_registrar_hook(frame: usize) {
+    if frame < 0x10000 { return; }
+    let code = unsafe { *(frame as *const u32).add(2) };
+    let retaddr = unsafe { *(frame as *const u32).add(1) } as usize;
+    // Rebase the caller onto the nominal 0x400000 image for readability.
+    let base = game_base();
+    let nominal = if base != 0 { retaddr - base + 0x400000 } else { retaddr };
+    wal_payload_common::log!("namcoes3: ERR-REG code {code:#04x} from nominal {nominal:#010x}");
 }
 
 /// Version-specific dongle compatibility patches, with PE identity and original bytes
@@ -233,20 +374,156 @@ fn safe_read<T: Copy + Default>(address: usize) -> Option<T> {
     (ok != 0).then_some(value)
 }
 
+/// Game state read for the "custom" force feedback (the FFB Arcade Plugin's
+/// MarioKartGPDX1.18Custom.cpp): instead of passing through the game's own small FFB value,
+/// it synthesizes effects from what the kart is doing (surface, drift, boost, hits, ...).
+/// The offsets are the 1.18 ones and are checked against v1.18.16.
+#[derive(Clone, Copy, Default, PartialEq)]
+struct CustomState {
+    shake: u32,      // 0xAC72F4: 0x400004 while the screen is shaking (big hit)
+    kart: u32,       // 0xAC2A30: local kart object
+    surface: u8,     // [kart+0x66C]: 3 dirt, 4 grass, 7 water, 8 bridge, 9 carpet, 10 bump, 11 rough, 12 tile, 14 sand
+    on_ground: u8,   // [kart+0x69C]: 1 when on the ground
+    in_race: u8,     // pointer chain: 1 only during a race
+    speed: f32,      // [kart+0x580]
+    coins: u8,       // 0xAB9110: coin count (changes on pickup)
+    weapon: u8,      // 0xAC5C0D: weapon (changes on pickup / use)
+    wheel: u8,       // 0xAC6EAD: steering 0..=255, 128 straight
+    boost: u8,       // [0xAAD0BC+0x3A4]: 1 while boosting
+    drift: u8,       // [kart+0x6B8]: 1 while drifting
+    game_state: u8,  // [0xAAEE58+0x44]
+}
+
+fn read_custom_state(base: usize) -> CustomState {
+    let kart = safe_read::<u32>(base + 0xAC2A30).unwrap_or(0) as usize;
+    let in_race = safe_read::<u32>(base + 0xAAFAB8)
+        .and_then(|p| safe_read::<u32>(p as usize + 0x44))
+        .and_then(|p| safe_read::<u32>(p as usize + 0x70))
+        .and_then(|p| safe_read::<u32>(p as usize + 0x108))
+        .and_then(|p| safe_read::<u32>(p as usize + 0x98))
+        .and_then(|p| safe_read::<u8>(p as usize + 0x4C4))
+        .unwrap_or(0);
+    CustomState {
+        shake: safe_read::<u32>(base + 0xAC72F4).unwrap_or(0),
+        kart: kart as u32,
+        surface: safe_read::<u8>(kart + 0x66C).unwrap_or(0),
+        on_ground: safe_read::<u8>(kart + 0x69C).unwrap_or(0),
+        in_race,
+        speed: safe_read::<f32>(kart + 0x580).unwrap_or(0.0),
+        coins: safe_read::<u8>(base + 0xAB9110).unwrap_or(0),
+        weapon: safe_read::<u8>(base + 0xAC5C0D).unwrap_or(0),
+        wheel: safe_read::<u8>(base + 0xAC6EAD).unwrap_or(0),
+        boost: safe_read::<u32>(base + 0xAAD0BC).and_then(|p| safe_read::<u8>(p as usize + 0x3A4)).unwrap_or(0),
+        drift: safe_read::<u8>(kart + 0x6B8).unwrap_or(0),
+        game_state: safe_read::<u32>(base + 0xAAEE58).and_then(|p| safe_read::<u8>(p as usize + 0x44)).unwrap_or(0),
+    }
+}
+
+/// A 0..=100 percentage from an env var (0 disables the effect), with a default.
+fn ffb_percent(var: &str, default: i32) -> i32 {
+    std::env::var(var).ok().and_then(|v| v.trim().parse::<i32>().ok()).unwrap_or(default).clamp(0, 100)
+}
+
 fn force_feedback_loop() {
     let base = game_base();
     // These force-feedback offsets belong to v1.18.16, not v1.10.22.
     if game_version() != Some(MkdxVersion::V11816) { return; }
     let spring = std::env::var("WAL_NAMCOES3_FFB_SPRING").ok().and_then(|v| v.parse::<i32>().ok()).unwrap_or(0).clamp(0, 10000);
-    let mut last = [i32::MIN; 2];
+    // `real` (default) passes through the game's own small FFB value. `custom` synthesizes
+    // effects from game state (surface, drift, boost, hits, ...) like the FFB Arcade Plugin's
+    // MarioKartGPDX1.18Custom.cpp — it feels much richer.
+    let custom = std::env::var("WAL_NAMCOES3_FFB_MODE").ok().is_some_and(|v| v.trim().eq_ignore_ascii_case("custom"));
+    let trace = std::env::var("WAL_NAMCOES3_FFB_TRACE").is_ok_and(|v| v == "1");
+    if custom {
+        wal_payload_common::log!(
+            "namcoes3: FFB mode custom (steer={} shake={} boost={} drift={} terrain={} pickup={})",
+            ffb_percent("WAL_NAMCOES3_FFB_STEER", 25), ffb_percent("WAL_NAMCOES3_FFB_SHAKE", 80),
+            ffb_percent("WAL_NAMCOES3_FFB_BOOST", 60), ffb_percent("WAL_NAMCOES3_FFB_DRIFT", 50),
+            ffb_percent("WAL_NAMCOES3_FFB_TERRAIN", 45), ffb_percent("WAL_NAMCOES3_FFB_PICKUP", 50),
+        );
+    } else {
+        wal_payload_common::log!("namcoes3: FFB mode real (game pass-through)");
+    }
+    // Custom effect strengths as 0..=1.
+    let steer   = ffb_percent("WAL_NAMCOES3_FFB_STEER", 25) as f32 / 100.0;
+    let shake   = ffb_percent("WAL_NAMCOES3_FFB_SHAKE", 80) as f32 / 100.0;
+    let boost   = ffb_percent("WAL_NAMCOES3_FFB_BOOST", 60) as f32 / 100.0;
+    let drift   = ffb_percent("WAL_NAMCOES3_FFB_DRIFT", 50) as f32 / 100.0;
+    let terrain = ffb_percent("WAL_NAMCOES3_FFB_TERRAIN", 45) as f32 / 100.0;
+    let pickup  = ffb_percent("WAL_NAMCOES3_FFB_PICKUP", 50) as f32 / 100.0;
+
+    let mut last = [i32::MIN; 2];                 // [constant, vibration]
+    let mut last_sig = CustomState::default();    // for the trace
+    // Edge-triggered ("transient") effect expiry times.
+    let mut coin_until = std::time::Instant::now();
+    let mut weapon_until = std::time::Instant::now();
+    let mut land_until = std::time::Instant::now();
+    let mut prev: Option<CustomState> = None;
+
     loop {
-        let force = safe_read::<u32>(base + 0xAAEEA0)
-            .and_then(|ptr| safe_read::<u32>(ptr as usize + 8))
-            .and_then(|ptr| safe_read::<f32>(ptr as usize + 0xBC8))
-            .filter(|v| v.is_finite())
-            .unwrap_or(0.0)
-            .clamp(-1.0, 1.0);
-        let values = [(force * output::FFB_MAX as f32) as i32, (force.abs() * output::FFB_MAX as f32) as i32];
+        let st = read_custom_state(base);
+        if trace {
+            // Only log when a discrete field changes (speed/wheel churn every frame); the line
+            // still shows the current speed/wheel for inspection.
+            let sig = CustomState { shake: st.shake, surface: st.surface, on_ground: st.on_ground,
+                in_race: st.in_race, coins: st.coins, weapon: st.weapon, boost: st.boost,
+                drift: st.drift, game_state: st.game_state, kart: 0, speed: 0.0, wheel: 0 };
+            if sig != last_sig {
+                wal_payload_common::log!(
+                    "ffb-trace: shake={:#010x} kart={:#x} surface={} ground={} race={} speed={:.2} coins={} weapon={} wheel={} boost={} drift={} gs={}",
+                    st.shake, st.kart, st.surface, st.on_ground, st.in_race, st.speed,
+                    st.coins, st.weapon, st.wheel, st.boost, st.drift, st.game_state,
+                );
+                last_sig = sig;
+            }
+        }
+        let (constant, vibration) = if custom {
+            // Edge detection for transient effects.
+            if let Some(p) = prev {
+                let now = std::time::Instant::now();
+                if st.coins != p.coins { coin_until = now + Duration::from_millis(200); }
+                if st.weapon != p.weapon { weapon_until = now + Duration::from_millis(300); }
+                if p.on_ground == 0 && st.on_ground == 1 { land_until = now + Duration::from_millis(120); }
+            }
+            prev = Some(st);
+            let now = std::time::Instant::now();
+            let (mut con, mut vib) = (0.0f32, 0.0f32);
+            if st.in_race == 1 {
+                // Constant force in the steering direction, proportional to how far off-center.
+                if st.wheel < 128 { con -= steer * (128 - st.wheel as i32) as f32 / 128.0; }
+                else if st.wheel > 128 { con += steer * (st.wheel as i32 - 128) as f32 / 128.0; }
+                // Big shake: wall / kart / item hits.
+                if st.shake == 0x400004 { vib += shake; }
+                // Nitro boost.
+                if st.boost == 1 { vib += boost; }
+                // Drift.
+                if st.drift == 1 { vib += drift; }
+                // Surface rumble while on the ground and moving.
+                if st.on_ground == 1 && st.speed > 0.1 {
+                    match st.surface {
+                        3 | 4 | 7 | 8 | 9 | 11 | 12 | 14 => vib += terrain,
+                        10 => vib += terrain * 0.6,   // speed bump: shorter, lighter
+                        _ => {}
+                    }
+                }
+                // Transient pickups / landing.
+                if now < coin_until { vib += pickup; }
+                if now < weapon_until { vib += pickup; }
+                if now < land_until { vib += pickup * 1.2; }
+            }
+            let constant = (con.clamp(-1.0, 1.0) * output::FFB_MAX as f32) as i32;
+            let vibration = (vib.clamp(0.0, 1.0) * output::FFB_MAX as f32) as i32;
+            (constant, vibration)
+        } else {
+            let force = safe_read::<u32>(base + 0xAAEEA0)
+                .and_then(|ptr| safe_read::<u32>(ptr as usize + 8))
+                .and_then(|ptr| safe_read::<f32>(ptr as usize + 0xBC8))
+                .filter(|v| v.is_finite())
+                .unwrap_or(0.0)
+                .clamp(-1.0, 1.0);
+            ((force * output::FFB_MAX as f32) as i32, (force.abs() * output::FFB_MAX as f32) as i32)
+        };
+        let values = [constant, vibration];
         for (i, id) in [output::FFB_CONSTANT, output::FFB_VIBRATION].into_iter().enumerate() {
             if last[i] != values[i] {
                 wal_payload_common::send_output(0, id, values[i]);

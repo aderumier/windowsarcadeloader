@@ -17,12 +17,80 @@ drives:
 env:
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
-  WAL_DINPUT_WHEEL: "WAL Mario Kart GP DX Wheel"
+  # The cabinet wheel's exact DirectInput product name: the game only enables force feedback
+  # (and takes the I/O board switches) while a device by this name is present.
+  WAL_DINPUT_WHEEL: "Immersion TouchSense Steering Wheel (USB HID)"
   WAL_DINPUT_WHEEL_AXIS: lx
   WAL_DINPUT_WHEEL_Y_AXIS: brake
   WAL_DINPUT_WHEEL_Z_AXIS: accel
   WAL_NAMCOES3_FFB_SPRING: "0"
+  WAL_NAMCOES3_FFB_MODE: "custom"
   WAL_NAMCOES3_JVS_PORT: COM1,COM3
+  WAL_SERIAL_TRACE: "100000"
+  # Screen captures (shot-NNNN.bmp in the game directory): the boot network self-test runs
+  # about 1-2 minutes after start, so the captures show whether it still raises an error.
+  WAL_SCREENSHOT: "20"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Force feedback
+    options:
+      - key: WAL_NAMCOES3_FFB_MODE
+        label: Effect type
+        kind: choice
+        choices: [real, custom]
+        description: >-
+          real: the game's own force feedback, passed through as is. custom: effects
+          synthesized from the game state (steering, wall hits, drift, boost, surfaces,
+          pickups).
+      - key: WAL_NAMCOES3_FFB_STEER
+        label: Steering
+        kind: number
+        min: 0
+        max: 100
+        description: The constant force while steering (custom).
+      - key: WAL_NAMCOES3_FFB_SHAKE
+        label: Impact
+        kind: number
+        min: 0
+        max: 100
+        description: The shake on a wall, kart or item hit (custom).
+      - key: WAL_NAMCOES3_FFB_BOOST
+        label: Boost
+        kind: number
+        min: 0
+        max: 100
+        description: The rumble of a nitro boost (custom).
+      - key: WAL_NAMCOES3_FFB_DRIFT
+        label: Drift
+        kind: number
+        min: 0
+        max: 100
+        description: The rumble while drifting (custom).
+      - key: WAL_NAMCOES3_FFB_TERRAIN
+        label: Surface
+        kind: number
+        min: 0
+        max: 100
+        description: The rumble of the ground (dirt, grass, sand, water, ...) (custom).
+      - key: WAL_NAMCOES3_FFB_PICKUP
+        label: Pickup
+        kind: number
+        min: 0
+        max: 100
+        description: The blip of a coin, a weapon or a landing (custom).
+      - key: WAL_NAMCOES3_FFB_SPRING
+        label: Wheel spring
+        kind: number
+        min: 0
+        max: 10000
+        description: The wheel's centering force.
+  - title: Debug
+    options:
+      - key: WAL_NAMCOES3_FFB_TRACE
+        label: Trace the force feedback
+        kind: bool
+        description: Log every force feedback state change to the game log.
 
 input:
   stick_as_dpad: false

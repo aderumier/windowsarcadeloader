@@ -12,9 +12,13 @@
 //! `WAL_DINPUT_WHEEL=<product name>`: the same fake DirectInput, with one DirectInput 8 game
 //! controller (a driving wheel) under that product name: `EnumDevices` lists it, its X, Y and
 //! Z axes take the ranges the game sets (`DIPROP_RANGE`, default 0-65535), X follows player
-//! 1's `lx` (`WAL_DINPUT_WHEEL_AXIS`, `-` inverts), Y and Z stay released, no buttons. D1GP
-//! Arcade's cabinet wheel is a USB "Immersion TouchSense Steering Wheel": the game steers with
-//! its X axis and takes the I/O board's switches only while such a device is present.
+//! 1's `lx` (`WAL_DINPUT_WHEEL_AXIS`, `-` inverts), Y and Z stay released, no buttons. The
+//! cabinet wheels (D1GP Arcade, Mario Kart GP DX) are USB "Immersion TouchSense Steering
+//! Wheel" devices: the game steers with the X axis, gates its I/O board switches and its
+//! force feedback option on that exact product name, and drives the FFB through DirectInput
+//! effects (`CreateEffect` / `SetParameters`). The fake wheel therefore also reports
+//! `DIDC_FORCEFEEDBACK` and accepts effect creation, so a forced-FFB boot does not wait on a
+//! motor that is not there.
 //!
 //! `WAL_KEYBOARD_STATE_DISABLE=1`: the game's `user32!GetKeyboardState` reports no key pressed
 //! (Wacky Races reads START on the PC keyboard's Enter and VIEW on Right Shift that way, next
@@ -93,6 +97,18 @@ unsafe extern "system" fn get_device_state(_this: P, size: u32, data: *mut u8) -
 
 /// `GetDeviceData(cbObjectData, rgdod, pdwInOut, dwFlags)`: no buffered events.
 unsafe extern "system" fn get_device_data(_this: P, _size: u32, _data: P, count: *mut u32, _flags: u32) -> i32 {
+    {
+        // Diagnostic: is the game polling buffered events instead of GetDeviceState?
+        static LAST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as u64);
+        let last = LAST.load(std::sync::atomic::Ordering::Relaxed);
+        if now - last >= 2000 {
+            LAST.store(now, std::sync::atomic::Ordering::Relaxed);
+            log!("dinput: GetDeviceData called (no buffered events)");
+        }
+    }
     if !count.is_null() {
         unsafe { *count = 0 };
     }
@@ -232,7 +248,7 @@ mod wheel {
 
     use wal_protocol::Axis;
 
-    use super::{DEVICE_VTABLE, DI_OK, Object, P, VTable};
+    use super::{ok0, ok1, ok2, ok3, query_interface, ref_count, DEVICE_VTABLE, DI_OK, Object, P, VTable};
     use crate::log;
 
     static NAME: OnceLock<String> = OnceLock::new();
@@ -399,14 +415,17 @@ mod wheel {
         VTable(v)
     }
 
-    /// `GetCapabilities(lpDIDevCaps)`: DIDEVCAPS, attached, 3 axes.
+    /// DIDC_ATTACHED | DIDC_FORCEFEEDBACK.
+    const CAPS_FLAGS: u32 = 1 | 0x100;
+
+    /// `GetCapabilities(lpDIDevCaps)`: DIDEVCAPS, attached, FFB capable, 3 axes.
     unsafe extern "system" fn get_capabilities(_this: P, caps: *mut u32) -> i32 {
         if !caps.is_null() {
             unsafe {
                 let size = (*caps).clamp(4, 44) as usize;
                 std::ptr::write_bytes(caps.add(1) as *mut u8, 0, size - 4);
-                // dwFlags DIDC_ATTACHED, dwDevType, dwAxes, dwButtons, dwPOVs
-                for (i, v) in [1, DEV_TYPE, 3, 32, 0].into_iter().enumerate() {
+                // dwFlags, dwDevType, dwAxes, dwButtons, dwPOVs, then the FFB timing fields.
+                for (i, v) in [CAPS_FLAGS, DEV_TYPE, 3, 32, 0, 10_000, 1, 1, 1, 0x0001_0000].into_iter().enumerate() {
                     if 4 * (i + 2) <= size {
                         *caps.add(i + 1) = v;
                     }
@@ -504,6 +523,7 @@ mod wheel {
             },
         };
         for a in axes {
+            log!("dinput: wheel axis {a} range {min}..{max}");
             RANGES[a].0.store(min, Ordering::Relaxed);
             RANGES[a].1.store(max, Ordering::Relaxed);
         }
@@ -530,6 +550,20 @@ mod wheel {
             };
             scaled(i, value)
         });
+        {
+            // Diagnostic: the values the game reads from the wheel, at most twice a second.
+            static LAST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_millis() as u64);
+            let last = LAST.load(Ordering::Relaxed);
+            if now - last >= 500 {
+                LAST.store(now, Ordering::Relaxed);
+                log!("dinput: wheel state X={} Y={} Z={} (steer/brake/accel from stick lx={} accel={} brake={})",
+                    axes[0], axes[1], axes[2],
+                    stick.axis(Axis::LeftX), stick.axis(Axis::Accel), stick.axis(Axis::Brake));
+            }
+        }
         unsafe {
             std::ptr::write_bytes(data, 0, size as usize);
             for (i, a) in axes.iter().enumerate() {
@@ -565,6 +599,147 @@ mod wheel {
         DI_OK
     }
 
+    // ---- Force feedback -----------------------------------------------------
+    //
+    // The cabinet wheel's motor is driven by the launcher from the game's memory float; the
+    // game side only needs the DirectInput effect interface to succeed. The predefined effect
+    // GUIDs of di.h, with their `DIEFT_*` type in the low byte.
+    const EFFECTS: &[(u32, u32)] = &[
+        (0x1354_1C20, 0x01), // constant force
+        (0x1354_1C21, 0x02), // ramp
+        (0x1354_1C22, 0x04), // square
+        (0x1354_1C23, 0x04), // sine
+        (0x1354_1C24, 0x04), // triangle
+        (0x1354_1C25, 0x04), // sawtooth up
+        (0x1354_1C26, 0x04), // sawtooth down
+        (0x1354_1C27, 0x08), // spring
+        (0x1354_1C28, 0x08), // damper
+        (0x1354_1C29, 0x08), // inertia
+        (0x1354_1C2A, 0x08), // friction
+        (0x1354_1C2B, 0x10), // custom
+    ];
+
+    fn effect_guid(first: u32) -> [u8; 16] {
+        let [a, b, c, d] = first.to_le_bytes();
+        [a, b, c, d, 0x33, 0x8E, 0x33, 0x11, 0xD0, 0x9A, 0xD0, 0x00, 0xA0, 0xC9, 0xA0, 0x6E]
+    }
+
+    /// `sizeof(DIEFFECT)` with `dwStartDelay` (DirectX 6+).
+    const DIEFFECT_SIZE: u32 = 0x38;
+
+    /// The GUID of the effect created last, for `GetEffectGuid`.
+    static EFFECT_GUID: std::sync::Mutex<[u8; 16]> = std::sync::Mutex::new([0u8; 16]);
+    /// An effect was created by the game.
+    static EFFECT_CREATED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    static EFFECT: Object = Object { vtable: EFFECT_VTABLE.0.as_ptr() };
+    static EFFECT_VTABLE: VTable<13> = VTable([
+        query_interface as *const (),
+        ref_count as *const (), // AddRef
+        ref_count as *const (), // Release
+        ok3 as *const (), // Initialize
+        effect_get_guid as *const (),
+        ok2 as *const (), // GetParameters: keep the game's values
+        ok2 as *const (), // SetParameters
+        ok2 as *const (), // Start
+        ok0 as *const (), // Stop
+        effect_status as *const (),
+        ok0 as *const (), // Download
+        ok0 as *const (), // Unload
+        ok1 as *const (), // Escape
+    ]);
+
+    unsafe extern "system" fn effect_get_guid(_this: P, out: P) -> i32 {
+        if !out.is_null() {
+            unsafe { std::ptr::copy_nonoverlapping(EFFECT_GUID.lock().unwrap().as_ptr(), out as *mut u8, 16); }
+        }
+        DI_OK
+    }
+
+    /// `GetEffectStatus(lpdwStatus)`: the effect is playing.
+    unsafe extern "system" fn effect_status(_this: P, out: P) -> i32 {
+        if !out.is_null() {
+            unsafe { (out as *mut u32).write_unaligned(1) };
+        }
+        DI_OK
+    }
+
+    /// `CreateEffect(rguidSrc, lpdiEffect, lplpDirectInputEffect)`
+    unsafe extern "system" fn create_effect(_this: P, guid: *const u8, _effect: P, out: *mut P) -> i32 {
+        if out.is_null() {
+            return super::DIERR_DEVICENOTREG;
+        }
+        if !guid.is_null() {
+            unsafe { EFFECT_GUID.lock().unwrap().copy_from_slice(std::slice::from_raw_parts(guid, 16)); }
+        }
+        if EFFECT_CREATED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            log!("dinput: another fake FFB effect created");
+        } else {
+            log!("dinput: fake FFB effect created");
+        }
+        unsafe { *out = &EFFECT as *const Object as P };
+        DI_OK
+    }
+
+    /// Fills a zeroed `DIEFFECT` with a predefined effect's defaults.
+    unsafe fn effect_struct(out: *mut u8, flags: u32) {
+        unsafe {
+            std::ptr::write_bytes(out, 0, DIEFFECT_SIZE as usize);
+            (out as *mut u32).write_unaligned(DIEFFECT_SIZE);
+            out.add(4).cast::<u32>().write_unaligned(flags); // dwFlags
+            out.add(8).cast::<u32>().write_unaligned(1_000_000); // dwDuration, 1 s
+            out.add(20).cast::<u32>().write_unaligned(0xFFFF); // dwGain, 100%
+            out.add(24).cast::<u32>().write_unaligned(1); // cAxes
+            out.add(28).cast::<u32>().write_unaligned(0); // rgdwAxes[0] = X
+        }
+    }
+
+    /// `EnumEffects(lpCallback, pvRef, dwFlags)`: the predefined effect types.
+    unsafe extern "system" fn enum_effects(_this: P, cb: EnumCallback, context: P, flags: u32) -> i32 {
+        let mut effect = [0u8; 0x40];
+        for &(_, type_flags) in EFFECTS {
+            if flags != 0 && flags & 0xFF != type_flags & 0xFF {
+                continue;
+            }
+            let stop = unsafe {
+                effect_struct(effect.as_mut_ptr(), type_flags);
+                cb(effect.as_ptr(), context) == 0 // DIENUM_STOP
+            };
+            if stop {
+                break;
+            }
+        }
+        DI_OK
+    }
+
+    /// `GetEffectInfo(dwEffectType, lpguid, lpeffect)`
+    unsafe extern "system" fn get_effect_info(_this: P, r#type: u32, guid: *mut u8, effect: *mut u8) -> i32 {
+        let Some(&(first, flags)) = EFFECTS.iter().find(|(_, f)| f & 0xFF == r#type & 0xFF) else {
+            return super::DIERR_UNSUPPORTED;
+        };
+        if !guid.is_null() {
+            let g = effect_guid(first);
+            unsafe { std::ptr::copy_nonoverlapping(g.as_ptr(), guid, 16) };
+        }
+        if !effect.is_null() {
+            unsafe { effect_struct(effect, flags) };
+        }
+        DI_OK
+    }
+
+    /// `GetForceFeedbackState()`: FFB is active.
+    unsafe extern "system" fn ffb_state(_this: P) -> i32 {
+        1
+    }
+
+    /// `EnumCreatedEffectObjects(lpCallback, pvRef, dwFlags)`
+    unsafe extern "system" fn enum_created(_this: P, cb: EnumCallback, context: P, _flags: u32) -> i32 {
+        if EFFECT_CREATED.load(std::sync::atomic::Ordering::Relaxed) {
+            unsafe { cb(&EFFECT as *const Object as *const u8, context) };
+        }
+        DI_OK
+    }
+
     static WHEEL_A: Object = Object { vtable: WHEEL_A_VTABLE.0.as_ptr() };
     static WHEEL_W: Object = Object { vtable: WHEEL_W_VTABLE.0.as_ptr() };
     static WHEEL_A_VTABLE: VTable<32> = wheel_vtable(enum_objects_a as *const ());
@@ -578,6 +753,12 @@ mod wheel {
         v[6] = set_property as *const ();
         v[9] = get_device_state as *const ();
         v[15] = get_device_info as *const ();
+        // DirectInput 7/8 force feedback
+        v[18] = create_effect as *const ();
+        v[19] = enum_effects as *const ();
+        v[20] = get_effect_info as *const ();
+        v[21] = ffb_state as *const ();
+        v[23] = enum_created as *const ();
         VTable(v)
     }
 }
