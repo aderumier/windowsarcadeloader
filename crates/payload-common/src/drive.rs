@@ -354,6 +354,31 @@ fn cwd_wide(p: *const u16) -> Redirected<u16> {
 const COUNT: usize = 26;
 static ORIG: [AtomicUsize; COUNT] = [const { AtomicUsize::new(0) }; COUNT];
 
+/// `WAL_FILE_TRACE=1`: the game's failed `CreateFileA/W` opens are logged (path, error), to
+/// find the file a game stops on (a dump missing a file, an unreadable one).
+fn file_trace() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_FILE_TRACE").is_ok_and(|v| v == "1"))
+}
+
+fn trace_failed_open(function: &str, path: usize, wide: bool) {
+    use windows_sys::Win32::Foundation::{GetLastError, SetLastError};
+    let error = unsafe { GetLastError() };
+    let text = if path == 0 {
+        String::new()
+    } else if wide {
+        let p = path as *const u16;
+        let len = (0..).take_while(|&i| unsafe { *p.add(i) } != 0).count();
+        String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(p, len) })
+    } else {
+        let p = path as *const u8;
+        let len = (0..).take_while(|&i| unsafe { *p.add(i) } != 0).count();
+        String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(p, len) }).into_owned()
+    };
+    log!("drive: {function}({text}) failed: error {error}");
+    unsafe { SetLastError(error) };
+}
+
 macro_rules! hooks {
     ($($idx:literal $name:ident [$conv:ident; $($p:ident: $pt:ty),+] ($($a:ident: $t:ty),*) -> $ret:ty;)*) => {
         $(
@@ -361,7 +386,12 @@ macro_rules! hooks {
                 $(let $p = $conv($p);)+
                 let original: unsafe extern "system" fn($($pt,)+ $($t),*) -> $ret =
                     unsafe { std::mem::transmute(ORIG[$idx].load(Ordering::Relaxed)) };
-                unsafe { original($($p.ptr(),)+ $($a),*) }
+                let ret = unsafe { original($($p.ptr(),)+ $($a),*) };
+                // CreateFileA/W: INVALID_HANDLE_VALUE
+                if $idx <= 1 && ret as isize == -1 && file_trace() {
+                    trace_failed_open(stringify!($name), [$($p.ptr() as usize),+][0], $idx == 1);
+                }
+                ret
             }
         )*
 
