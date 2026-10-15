@@ -33,6 +33,9 @@ mod common;
 mod dd;
 mod frogger;
 mod h2o;
+mod injustice;
+mod injustice_cards;
+mod injustice_overlay;
 mod guitarhero;
 mod rio;
 mod nicktoons_3dnow;
@@ -53,7 +56,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         drive::init("WAL_RAWTHRILLS_DDRIVE", "WindowsLoader");
         reboot_init();
         let game = std::env::var("WAL_RAWTHRILLS_GAME").unwrap_or_default();
-        if !frogger::init(game.trim()) && !guitarhero::init(game.trim()) && !h2o::init(game.trim()) && !sb2::init(game.trim()) && !dd::init(game.trim()) && !cars::init(game.trim()) && !batman::init(game.trim()) {
+        if !frogger::init(game.trim()) && !guitarhero::init(game.trim()) && !h2o::init(game.trim()) && !injustice::init(game.trim()) && !sb2::init(game.trim()) && !dd::init(game.trim()) && !cars::init(game.trim()) && !batman::init(game.trim()) {
             sdaemon::init();
         }
         log!("rawthrills: initialized");

@@ -1,10 +1,10 @@
-//! Shared RIO USB board for Cars and Batman (VID 0x0c70, PID 0x0780).
+//! Shared RIO USB board for Cars, Batman and Injustice (VID 0x0c70, PID 0x0780).
 //! Type 2 packets contain switch transition counters and four 12-bit analog channels.
 //! Cars uses interrupt transfers; Batman uses bulk transfers with the same packet layout.
 
 use crate::common::{FfbSender, set_motor};
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 use std::time::Duration;
 use wal_payload_common::{log, mapping::ButtonMap};
 use wal_protocol::{Axis, button};
@@ -39,10 +39,21 @@ const SWITCH_NIBBLES: [(u8, usize, bool); 19] = [
 ];
 
 static MAP: OnceLock<ButtonMap<u8>> = OnceLock::new();
+/// Player 2's buttons (two-player cabinets), from the second virtual stick.
+static MAP2: OnceLock<ButtonMap<u8>> = OnceLock::new();
 static NAME: OnceLock<&'static str> = OnceLock::new();
 static COUNTERS: [AtomicU8; 0x13] = [const { AtomicU8::new(0) }; 0x13];
 static BULK: OnceLock<bool> = OnceLock::new();
 static TRACE: OnceLock<bool> = OnceLock::new();
+/// Interleave type 1 (status) reports with the inputs: Injustice waits for both.
+static STATUS: AtomicBool = AtomicBool::new(false);
+static READS: AtomicU32 = AtomicU32::new(0);
+
+/// Status reports (type 1) every 25th read: the game waits for one before it accepts the board.
+/// Byte 7 is the reset cause: 0x40 a power-on reset (0x80 the watchdog, 0 invalid).
+pub(crate) fn enable_status_reports() {
+    STATUS.store(true, Ordering::Relaxed);
+}
 
 /// A libusb-win32 `struct usb_bus` / `struct usb_device` (the fields the game reads).
 #[repr(C)]
@@ -121,6 +132,7 @@ pub(crate) fn init(
     name: &'static str,
     natives: &'static [(&'static str, u8)],
     default_map: &'static [(&'static str, &'static str)],
+    p2_map: &'static [(&'static str, &'static str)],
     bulk: bool,
     force: fn() -> f32,
 ) -> bool {
@@ -159,6 +171,9 @@ pub(crate) fn init(
     let _ = BULK.set(bulk);
     let _ = TRACE.set(std::env::var("WAL_RIO_TRACE").is_ok_and(|v| v == "1"));
     MAP.get_or_init(|| ButtonMap::new(natives, default_map));
+    if !p2_map.is_empty() {
+        MAP2.get_or_init(|| ButtonMap::with_defaults(natives, p2_map));
+    }
     std::thread::spawn(move || run(force));
     log!("{name}: RIO board emulated behind libusb0, inputs from the virtual sticks");
     true
@@ -197,6 +212,13 @@ unsafe extern "C" fn usb_control_msg(_h: usize, _rt: i32, _r: i32, _v: i32, _i: 
 unsafe extern "C" fn usb_interrupt_read(_h: usize, _ep: i32, bytes: *mut u8, size: i32, _timeout: i32) -> i32 {
     std::thread::sleep(READ_PERIOD);
     let mut packet = [0u8; PACKET];
+    if STATUS.load(Ordering::Relaxed) && READS.fetch_add(1, Ordering::Relaxed) % 25 == 0 {
+        packet[0] = 1;
+        packet[7] = 0x40;
+        let n = (size.max(0) as usize).min(PACKET);
+        unsafe { std::ptr::copy_nonoverlapping(packet.as_ptr(), bytes, n) };
+        return n as i32;
+    }
     packet[0] = 2;
     let p = &mut packet[3..];
     for (id, byte, high) in SWITCH_NIBBLES {
@@ -216,7 +238,7 @@ unsafe extern "C" fn usb_interrupt_read(_h: usize, _ep: i32, bytes: *mut u8, siz
         p[11 + i / 2] |= (((v >> 8) & 0x0f) as u8) << shift;
         p[13 + i] = *v as u8;
     }
-    if BULK.get().copied().unwrap_or(false) {
+    if BULK.get().copied().unwrap_or(false) && MAP2.get().is_none() {
         // Batman consumes two keypad nibbles after the analog bytes (0xf: released).
         let key = if std::env::var("WAL_RAWTHRILLS_KEYPAD").is_ok_and(|v| v == "0") {
             crate::common::KEYPAD_NONE
@@ -253,11 +275,16 @@ fn run(force: fn() -> f32) {
         let stick = wal_payload_common::input(0);
         let mut down = [false; 0x13];
         map.for_each_pressed(&stick, |id| down[id as usize] = true);
-        if BULK.get().copied().unwrap_or(false) && stick.axis_u8(Axis::Brake) > 85 {
-            down[0x08] = true;
-        }
-        if wal_payload_common::input(1).pressed(button::COIN) {
-            down[0x01] = true;
+        if let Some(map2) = MAP2.get() {
+            map2.for_each_pressed(&wal_payload_common::input(1), |id| down[id as usize] = true);
+        } else {
+            // single-player cabinets: Batman's brake pedal, a second coin slot
+            if BULK.get().copied().unwrap_or(false) && stick.axis_u8(Axis::Brake) > 85 {
+                down[0x08] = true;
+            }
+            if wal_payload_common::input(1).pressed(button::COIN) {
+                down[0x01] = true;
+            }
         }
         for (id, (&d, h)) in down.iter().zip(held.iter_mut()).enumerate() {
             if d != *h {

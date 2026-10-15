@@ -1,6 +1,6 @@
 //! Raw Thrills PC cabinets (The Fast and the Furious, its Drift, Super Bikes 1 / 2 and SuperCars,
 //! Nicktoons Nitro Racing, H2O Overdrive, Super Alpine Racer, X-Games Snowboarder, Winter X
-//! Games SnoCross, Dirty Drivin', Cars, Guitar Hero Arcade EDITION, Frogger).
+//! Games SnoCross, Dirty Drivin', Cars, Guitar Hero Arcade EDITION, Frogger, Injustice Arcade).
 //!
 //! Most games read their JAMMA USB I/O board (HID) themselves and import no driver DLL to
 //! replace: the payload is started with the game through `wal-loader`. TMNT reads the common
@@ -13,7 +13,8 @@
 //!   USB board reports), `supercars` / `alpine` / `snowboarder` / `snocross` (`SetControl`),
 //!   `superbikes2` (the game's keyboard and analog tables), `dirtydrivin` (its developer
 //!   keyboard, coin callback and switch latches), `cars` (its RIO board behind libusb0),
-//!   `frogger` (its serial JAMMA input reports, USB watchdog and HASP stub):
+//!   `frogger` (its serial JAMMA input reports, USB watchdog and HASP stub), `injustice`
+//!   (its RIO board, HASP dongle and virtual barcode cards on emulated webcams):
 //!   the game's board from the virtual sticks
 //! - `WAL_RAWTHRILLS_BRAKE`: `switch` or `analog` brake (default: the game's, Super Bikes
 //!   and Drift switch, The Fast and the Furious analog)

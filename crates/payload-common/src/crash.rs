@@ -15,17 +15,41 @@ use crate::log;
 
 /// `len` bytes at `addr` can be read. The handler must never fault itself: a fault while
 /// reporting left Music GunGun! 2 hanging (stack scan past the top of a new thread's stack).
+/// `IsBadReadPtr` raises a first-chance access violation on unmapped addresses (a VEH-visible
+/// AV under wine 11.18, one per call, exhausting the report quota): a `VirtualQuery` page
+/// walk instead.
 fn readable(addr: usize, len: usize) -> bool {
-    addr >= 0x10000 && unsafe { windows_sys::Win32::System::Memory::IsBadReadPtr(addr as *const _, len) } == 0
+    use windows_sys::Win32::System::Memory::{
+        MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_GUARD, PAGE_NOACCESS, VirtualQuery,
+    };
+    addr >= 0x10000 && {
+        let end = addr.saturating_add(len);
+        let mut page = addr & !0xFFF;
+        while page < end {
+            let mut info = MEMORY_BASIC_INFORMATION::default();
+            if unsafe { VirtualQuery(page as *const _, &mut info, std::mem::size_of::<MEMORY_BASIC_INFORMATION>()) } == 0 {
+                return false;
+            }
+            if info.State != MEM_COMMIT || info.Protect & (PAGE_NOACCESS | PAGE_GUARD) != 0 {
+                return false;
+            }
+            page = (info.BaseAddress as usize).wrapping_add(info.RegionSize as usize).max(page + 1);
+        }
+        true
+    }
 }
 
 const EXCEPTION_ACCESS_VIOLATION: i32 = 0xC000_0005_u32 as i32;
 /// MSVC C++ `throw` (`'msc'`).
 const EXCEPTION_MSVC_CPP: i32 = 0xE06D_7363_u32 as i32;
 const EXCEPTION_CONTINUE_SEARCH: i32 = 0;
-const MAX_REPORTS: u32 = 3;
+const MAX_REPORTS: u32 = 8;
 
-static REPORTS: AtomicU32 = AtomicU32::new(0);
+// Separate quotas: a burst of C++ exceptions (the game's fatal-error throw path dispatches
+// several before the dialog) must not suppress the access-violation dump, which carries the
+// real crash stack (the report quota was otherwise exhausted before the fatal AV).
+static AV_REPORTS: AtomicU32 = AtomicU32::new(0);
+static CPP_REPORTS: AtomicU32 = AtomicU32::new(0);
 
 pub fn init() {
     unsafe { AddVectoredExceptionHandler(1, Some(handler)) };
@@ -48,16 +72,28 @@ pub fn symbolize(addr: usize) -> Option<String> {
 unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
     let record = unsafe { &*(*info).ExceptionRecord };
     let code = record.ExceptionCode;
-    if (code != EXCEPTION_ACCESS_VIOLATION && code != EXCEPTION_MSVC_CPP) || REPORTS.fetch_add(1, Ordering::Relaxed) >= MAX_REPORTS {
+    let reports = if code == EXCEPTION_ACCESS_VIOLATION {
+        &AV_REPORTS
+    } else if code == EXCEPTION_MSVC_CPP {
+        &CPP_REPORTS
+    } else {
+        return EXCEPTION_CONTINUE_SEARCH;
+    };
+    if reports.fetch_add(1, Ordering::Relaxed) >= MAX_REPORTS {
         return EXCEPTION_CONTINUE_SEARCH;
     }
     let addr = record.ExceptionAddress as usize;
+    log!(
+        "crash: [tid {:x}] {}",
+        unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() },
+        if code == EXCEPTION_MSVC_CPP { "C++ exception" } else { "access violation" }
+    );
     if code == EXCEPTION_MSVC_CPP {
         log_cpp_exception(record);
     } else {
         log_access_violation(record, addr);
     }
-    log_context(info);
+    log_context(info, code == EXCEPTION_ACCESS_VIOLATION);
     EXCEPTION_CONTINUE_SEARCH
 }
 
@@ -109,15 +145,26 @@ fn log_access_violation(record: &windows_sys::Win32::System::Diagnostics::Debug:
     }
 }
 
-fn log_context(info: *mut EXCEPTION_POINTERS) {
-    let _ = info;
+fn log_context(info: *mut EXCEPTION_POINTERS, raw_stack: bool) {
+    let _ = (info, raw_stack);
     #[cfg(target_arch = "x86")]
     unsafe {
         let c = &*(*info).ContextRecord;
         log!(
-            "crash: eax={:08x} ebx={:08x} ecx={:08x} edx={:08x} esi={:08x} edi={:08x} ebp={:08x} esp={:08x}",
-            c.Eax, c.Ebx, c.Ecx, c.Edx, c.Esi, c.Edi, c.Ebp, c.Esp
+            "crash: eip={:08x} eax={:08x} ebx={:08x} ecx={:08x} edx={:08x} esi={:08x} edi={:08x} ebp={:08x} esp={:08x}",
+            c.Eip, c.Eax, c.Ebx, c.Ecx, c.Edx, c.Esi, c.Edi, c.Ebp, c.Esp
         );
+        // For an access violation the first stack word is the return address of the faulting
+        // call: dump the raw stack top even for words that do not resolve to a module.
+        if raw_stack {
+            let esp = c.Esp as usize;
+            if readable(esp, 128) {
+                let words: Vec<String> = (0..32)
+                    .map(|i| format!("{:08x}", std::ptr::read_volatile((esp + i * 4) as *const usize)))
+                    .collect();
+                log!("crash:   raw stack: {}", words.join(" "));
+            }
+        }
         // EBP frame chain: [ebp] = caller ebp, [ebp+4] = return address
         let mut ebp = c.Ebp as usize;
         for depth in 0..16 {

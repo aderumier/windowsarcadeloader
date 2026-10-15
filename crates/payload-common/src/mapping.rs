@@ -30,6 +30,15 @@ impl<N: Copy> ButtonMap<N> {
         map
     }
 
+    /// The `defaults` alone, without the `WAL_MAP` overrides (a second player's map).
+    pub fn with_defaults(natives: &[(&str, N)], defaults: &[(&str, &str)]) -> Self {
+        let mut map = ButtonMap { entries: Vec::new() };
+        for (v, n) in defaults {
+            map.set(natives, v, n);
+        }
+        map
+    }
+
     fn set(&mut self, natives: &[(&str, N)], virt: &str, native: &str) {
         let Some(mask) = button::from_name(virt) else {
             log!("mapping: unknown virtual button '{virt}'");

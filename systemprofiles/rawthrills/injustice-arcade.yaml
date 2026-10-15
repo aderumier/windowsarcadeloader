@@ -1,0 +1,77 @@
+# Injustice Arcade (Raw Thrills / NetherRealm, UDK game 1.74 / OS 21.43, 2022) - template,
+# override values in userprofiles/rawthrills/injustice-arcade.yaml.
+#
+# Needs wine >= 11.18: with GE-Proton11-7 (wine 11.0) a deterministic access
+# violation kills the game at t+7.45, before the frontend (with or without the
+# payload). A wine 11.0/11.18 difference in early startup.
+system: rawthrills
+name: Injustice Arcade
+
+# Two-player fighter with four buttons per player (no joystick), on the RIO USB board.
+# b5 buys a character card from the player's dispenser. The character cards are barcodes the
+# cabinet's webcams read: a virtual card per player, chosen on an overlay with the (otherwise
+# unused) directions, put on / taken off the reader with the card toggle.
+
+# The cabinet runs the PC build in UE3's mobile simulation: -simmobile selects the arcade
+# configuration (UDKGame/Config/Mobile-UDK*.ini). Without it the PC defaults are generated
+# instead, with the engine's plain GameViewportClient where the game expects its own
+# RawGameViewportClient: its native code then writes past the smaller object (a garbage
+# collector "Unknown token" fatal error ~40 s after boot).
+args: [-simmobile]
+
+env:
+  WAL_RAWTHRILLS_GAME: injustice
+  # Full screen: a borderless window of the screen's size (the game renders at its window's
+  # size and saves it in UDKSystemSettings.ini), no mouse cursor.
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  gamepad:
+    b: card
+  keyboard:
+    p1:
+      KEY_UP: up
+      KEY_DOWN: down
+      KEY_LEFT: left
+      KEY_RIGHT: right
+      KEY_LEFTCTRL: b1
+      KEY_LEFTALT: b2
+      KEY_SPACE: b3
+      KEY_LEFTSHIFT: b4
+      KEY_Z: b5
+      KEY_1: start
+      KEY_5: coin
+      KEY_F1: service
+      KEY_F2: test
+      KEY_F4: card
+    p2:
+      KEY_R: up
+      KEY_F: down
+      KEY_D: left
+      KEY_G: right
+      KEY_A: b1
+      KEY_S: b2
+      KEY_Q: b3
+      KEY_W: b4
+      KEY_E: b5
+      KEY_2: start
+      KEY_6: coin
+      KEY_H: card
+
+controls:
+  b1: Normal attack
+  b2: Heavy attack
+  b3: Block
+  b4: Special
+  b5: Buy card
+  up: Previous card
+  down: Next card
+  left: 10 cards back
+  right: 10 cards on
+  card: Card on reader
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

@@ -85,6 +85,6 @@ pub(crate) fn init(name: &str) -> bool {
         log!("batman: unexpected force address code, force feedback disabled");
         || 0.0
     };
-    crate::rio::init("batman", NATIVES, DEFAULT_MAP, true, force);
+    crate::rio::init("batman", NATIVES, DEFAULT_MAP, &[], true, force);
     true
 }

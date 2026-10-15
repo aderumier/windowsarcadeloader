@@ -1318,6 +1318,33 @@ Batocera at 1920x1080 uses a machine user override at
 `args: [-S, stretch, -f]`. Fullscreen gameplay is screenshot-verified and user-confirmed;
 the shared profile keeps the local display settings.
 
+Injustice Arcade (`injustice.rs`, `injustice_cards.rs`, `injustice_overlay.rs`, `injustice`,
+2022 UDK build 1.74): the dump's `sdaemon.exe` is the game unwrapped from its HASP envelope
+(image base 0x3c0000, a rebuilt import table). The cabinet runs it in UE3's mobile simulation:
+`-simmobile` selects its arcade configuration (`Mobile-UDK*.ini`); without it the PC defaults
+are generated with the engine's plain `GameViewportClient` where the game's native code
+expects its larger `RawGameViewportClient`, writes past it and the garbage collector stops on
+an "Unknown token" ~40 s after boot. WinSCard (the NTI smart card reader, absent: free play)
+answers a context and no reader; its hooks are stdcall (cdecl ones left the caller's stack 16
+bytes off: a crash at the logo). The HASP API linked into the game (login, logout, read,
+write, encrypt, decrypt) is redirected to a dongle memory in `WindowsLoader\dongle.bin`: after
+6 failed logins the frontend spins on purpose (`jmp $`, the window stops responding); its
+dword at 0x30 is the number of cards the operator may still dispense (none: "authorize more
+cards", no game starts), refilled at each start. The RIO board is `rio.rs`'s bulk transport
+with a second player's map and type 1 status reports (byte 7 0x40: a power-on reset), its 19
+switches from the game's button table (coins, bill, test, service, volume, starts, the
+players' normal / heavy / block / special, the card dispensers' vend buttons). The card
+dispensers' sensor reads answer ready, not empty / low / jammed. Character cards: each player
+shows a Code 128 card to a webcam (OpenCV `VideoCapture`, decoded by ZBar). The per-player
+device lookup returns the player's camera, the capture calls give blank 640x480 frames, and
+while a player's virtual card is on the reader its barcode is drawn into the gray frame handed
+to the real `zbar_scan_image`: the game's own decoding runs. The card (130, from
+[injustice-arcade-cards](https://github.com/CB9001/injustice-arcade-cards)) is chosen on an
+overlay drawn before `SwapBuffers` (fixed-function OpenGL, GDI bitmap font) with the
+directions, put on / off the reader with the card toggle; selections in
+`WindowsLoader\cards.txt`. The first boot checks all its files (9 GB, minutes) once.
+Full screen: a borderless window of the screen's size (the game renders at its window's size).
+
 ### 6.3c Namco ES3 (`crates/payload-namcoes3x`)
 
 The 32-bit ES3 payload is installed as the game's Banapass reader DLL (`bngrw.dll`); Mario
@@ -1619,6 +1646,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `cars` | Cars | rawthrills | in game (user: accel, TEST, calibration) | wal-loader, RIO board emulated behind libusb0, HASP dongle faked, calibration clamp fix, `tricks: [d3dx9_43, d3dcompiler_43]`, force feedback |
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | works (user: 100%) | wal-loader, JAMMA board and cabinet feature check emulated, 105 verified 3DNow math blocks replaced by SSE2, calibration and gameplay confirmed, opening movie has no embedded audio track, force feedback from its wheel motor force (untested on a wheel) |
 | `batman` | Batman | rawthrills | works (user-confirmed gameplay and controls; FFB wheel test pending) | wal-loader, RIO board over libusb bulk transfers, wheel and pedals, fire / start / brake switches corrected, numeric keypad, cabinet check emulated to avoid level-loading spin, force feedback from game float (wheel test pending) |
+| `injustice-arcade` | Injustice Arcade | rawthrills | works (user: 100%, virtual card readers) | wal-loader, `-simmobile`, HASP dongle emulated (cards authorized refilled), RIO board over libusb bulk transfers with status reports, card dispensers ready, webcams emulated: virtual barcode cards chosen on an OpenGL overlay, full screen; open: an intermittent crash in the attract movie (Bink) |
 | `teenage-mutant-ninja-turtles` | Teenage Mutant Ninja Turtles | rawthrills | works (user: 100%), four-player controls, test menu, variable-height jump, videos | TMNT 1.59 (`TMNT.exe`); run `tools/build-tmnt-direct-input.sh <game directory>` to patch `IOManager.Update` with direct launcher input before `UpdateCombinedInputs`, including per-frame counter snapshots and hold timers; WALInput disabled and TMNTTPPlugin input writer disabled; menu developer keyboard shortcuts disabled to avoid player overlap; Page Up / Page Down for volume; `Pawn.UpdateJump` uses a local height/gravity helper instead of the TeknoParrot host call, restoring landing and hold-dependent jump height; bundled Windows `OrenVid.dll` playback works; no winhttp override |
 | `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | wal-loader, inputs through the game's `SetControl` without a board (§6.3b), DXVK's d3d8 (dump's d3d8to9 hidden), picture rotated for a vertical monitor (no rotation yet) |
 | `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | as Super Alpine Racer, landscape |

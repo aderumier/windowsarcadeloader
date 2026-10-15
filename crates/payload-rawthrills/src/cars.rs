@@ -90,7 +90,7 @@ pub(crate) fn init(name: &str) -> bool {
     if !name.eq_ignore_ascii_case("cars") {
         return false;
     }
-    if !crate::rio::init("cars", NATIVES, DEFAULT_MAP, false, wheel_force) {
+    if !crate::rio::init("cars", NATIVES, DEFAULT_MAP, &[], false, wheel_force) {
         return true;
     }
     if PATCHES.iter().all(|(s, _)| matches(*s)) {
