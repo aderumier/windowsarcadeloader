@@ -1,9 +1,6 @@
 # Injustice Arcade (Raw Thrills / NetherRealm, UDK game 1.74 / OS 21.43, 2022) - template,
 # override values in userprofiles/rawthrills/injustice-arcade.yaml.
-#
-# Needs wine >= 11.18: with GE-Proton11-7 (wine 11.0) a deterministic access
-# violation kills the game at t+7.45, before the frontend (with or without the
-# payload). A wine 11.0/11.18 difference in early startup.
+
 system: rawthrills
 name: Injustice Arcade
 
