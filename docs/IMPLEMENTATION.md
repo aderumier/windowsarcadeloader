@@ -1428,7 +1428,15 @@ game's amLib (its own error strings name every function):
   service, TCP 40190: replies `<command>=ok` (`app.property=set&id=<sub game id>`,
   `accounting=start&code=100&player=<n>`), `current.status=ok&error=0&icon=normal&exit=false`,
   `system.time=ok&time=YYYYMMDDhhmmss`; without it the game waits forever before its window.
-  The fixed DS challenge and its MACs are the same in both games (an amLib constant).
+  The fixed DS challenge and its MACs are the same in all these games (an amLib constant).
+  amAuth 1.40 (Under Night In-Birth Exe:Late) asks more: `serial.id=ok&keychip=<id>&main=<id>`,
+  `close.time=ok&time=alltime`, `place.info=ok&size=206` with the 206-byte shop record on the
+  auth data channel (TCP 40191, sent zeroed), `title.server.address=ok&ipaddr=0` (a number;
+  no online server, no Aime card play), `card.info` (Aime reader) acknowledged. Its attract
+  mode then shows an Aime banner ("offline, no Aime play" after 2 s offline, else the access
+  code hint): a profile patch skips the banner choice (`0x32a502:EB31`; Late[st]:
+  `0x2baac6:EB31`). Late's amJvs uses the serial port (`WAL_TYPEX_JVS_PORT: COM4`), Late[st]'s
+  the `\\.\mxjvs` driver.
 - **JVS.** amJvs opens `\\.\mxjvs` (driver mode), configures it with the serial calls and
   exchanges each packet with `DeviceIoControl` `0x9C402000`; the Type X board (Sega
   837-14572, moved to payload-common `jvs_board.rs`) answers through `serial::transact`. The
@@ -1708,6 +1716,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `guitar-hero-arcade` | Guitar Hero Arcade EDITION | rawthrills | works (user: 100%) | Guitar Hero III game 1.0.5 / OS 8.4; two connected virtual guitars, OpenParrot GHA input, per-user Aspyr registry redirect, generated config and menu PAK selection, Game Explorer and window behavior |
 | `virtua-tennis-4` | Virtua Tennis 4 | ringedge | works (user: 100%), test menu | wal-loader, amLib devices (SRAM, SMBus EEPROM and push switches, SMBIOS platform id), keychip and master PCP services with the DS28CN01 MACs from the game's table, JVS on `\\.\mxjvs` (§6.3d), test button relaunches into the test menu (`-t`) |
 | `guilty-gear-xx-accent-core-plus-r` | Guilty Gear XX Accent Core Plus R | ringedge | works (user: 100%) | RingEdge 2 (§6.3d): platform `AAL2`, amAuth PCP service (TCP 40190), 4-byte SRAM access unit, keychip MACs from `SBYG_Table.dat` |
+| `under-night-in-birth-exe-late` | Under Night In-Birth Exe:Late | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `RingGame.exe.orig` (the dump's `RingGame.exe` is patched), amAuth 1.40 commands, JVS on COM4 |
+| `under-night-in-birth-exe-late-st` | Under Night In-Birth Exe:Late[st] | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), newer version of the same game: `RingGame.exe.orig`, amAuth 1.40 commands, JVS on `\\.\mxjvs` |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

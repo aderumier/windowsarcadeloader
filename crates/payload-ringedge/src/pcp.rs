@@ -36,6 +36,9 @@ const MXMASTER: u16 = 40100;
 const MXKEYCHIP: u16 = 40106;
 const MXKEYCHIP_DATA: u16 = 40107;
 const AUTH: u16 = 40190;
+const AUTH_DATA: u16 = 40191;
+/// `place.info`'s binary record (shop information), sent on the auth data channel: empty.
+const PLACE_INFO_SIZE: usize = 0xCE;
 
 const DEFAULTS: &[(&str, &str)] = &[
     ("keychip.version", "0104"),
@@ -53,6 +56,7 @@ const DEFAULTS: &[(&str, &str)] = &[
     ("keychip.billing.playcount", "00000000"),
     ("keychip.billing.nearfull", "00000000"),
     ("mxmaster.logging_available", "0"),
+    ("auth.serial.main", "AAVE-01A00000001"),
     ("mxmaster.develop", "0"),
 ];
 
@@ -77,19 +81,22 @@ pub(crate) fn start() {
     let _ = values();
     let _ = ds_table();
     let _ = ds_file();
-    for (port, name) in [(MXMASTER, "mxmaster"), (MXKEYCHIP, "mxkeychip"), (MXKEYCHIP_DATA, "mxkeychip data"), (AUTH, "auth")] {
+    for (port, name) in [(MXMASTER, "mxmaster"), (MXKEYCHIP, "mxkeychip"), (MXKEYCHIP_DATA, "mxkeychip data"), (AUTH, "auth"), (AUTH_DATA, "auth data")] {
         match TcpListener::bind(("127.0.0.1", port)) {
             Ok(listener) => {
                 std::thread::spawn(move || {
                     for stream in listener.incoming().flatten() {
-                        std::thread::spawn(move || serve(stream, name, port == MXKEYCHIP_DATA));
+                        std::thread::spawn(move || match port {
+                            AUTH_DATA => serve_place_info(stream),
+                            _ => serve(stream, name, port == MXKEYCHIP_DATA),
+                        });
                     }
                 });
             }
             Err(e) => log!("pcp: cannot listen on {port} ({name}): {e}"),
         }
     }
-    log!("pcp: mxmaster on {MXMASTER}, mxkeychip on {MXKEYCHIP}/{MXKEYCHIP_DATA}, auth on {AUTH}");
+    log!("pcp: mxmaster on {MXMASTER}, mxkeychip on {MXKEYCHIP}/{MXKEYCHIP_DATA}, auth on {AUTH}/{AUTH_DATA}");
 }
 
 fn serve(mut stream: TcpStream, name: &str, binary: bool) {
@@ -130,6 +137,12 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
     log!("pcp: {name}: client disconnected");
 }
 
+/// The auth data channel: the `place.info` record.
+fn serve_place_info(mut stream: TcpStream) {
+    log!("pcp: auth data: place.info record sent");
+    let _ = stream.write_all(&[0u8; PLACE_INFO_SIZE]);
+}
+
 /// The auth service's reply (amAuth, RingEdge 2: ALL.Net / NESiCA authentication): the command
 /// with `ok` (`busy`, `ng`: failures), then the values asked.
 fn auth_answer(request: &str) -> String {
@@ -137,6 +150,18 @@ fn auth_answer(request: &str) -> String {
     match command {
         // no error, network icon normal, not asked to exit
         "current.status" => format!("{command}=ok&error=0&icon=normal&exit=false"),
+        // the game's online server (a number: the address as an integer): none
+        "title.server.address" => format!("{command}=ok&ipaddr=0"),
+        // open all day
+        "close.time" => format!("{command}=ok&time=alltime"),
+        // the record follows on the data channel
+        "place.info" => format!("{command}=ok&size={PLACE_INFO_SIZE}"),
+        // the keychip's and the main board's serial ids
+        "serial.id" => {
+            let keychip = values().get("keychip.billing.keyid").map_or("", |v| v.as_str());
+            let main = values().get("auth.serial.main").map_or("", |v| v.as_str());
+            format!("{command}=ok&keychip={keychip}&main={main}")
+        }
         "system.time" => {
             let mut t: windows_sys::Win32::Foundation::SYSTEMTIME = unsafe { std::mem::zeroed() };
             unsafe { windows_sys::Win32::System::SystemInformation::GetLocalTime(&mut t) };

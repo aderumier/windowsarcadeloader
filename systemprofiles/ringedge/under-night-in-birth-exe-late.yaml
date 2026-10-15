@@ -1,0 +1,19 @@
+# Under Night In-Birth Exe:Late (Sega RingEdge 2). Runs RingGame.exe.orig: RingGame.exe is a
+# patched copy (amLib checks returning at once).
+# Override values in userprofiles/ringedge/under-night-in-birth-exe-late.yaml.
+system: ringedge
+name: Under Night In-Birth Exe:Late
+
+env:
+  # no Aime banner over the attract mode: after 2 s offline it reads "offline, no Aime play",
+  # otherwise the Aime access code hint; the banner choice jumps past both
+  WAL_PATCHES: "0x32a502:EB31"
+  # its amJvs uses the serial port
+  WAL_TYPEX_JVS_PORT: COM4
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge
+  WAL_RINGEDGE_DS_TABLE: "0x44cd2c,0x44cd38"
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x91e10"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x505438,0x505820,0x505c30,0x506138,0x506140,0x512490,0x512db0,0x5132d8,0x513570,0x51357c,0x513580,0x513600,0x517838,0x51b818"
