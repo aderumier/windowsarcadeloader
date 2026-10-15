@@ -1,0 +1,14 @@
+# Koihime Enbu (Sega RingEdge 2). Its APM network client (apms-api) stays offline; the
+# winweb/ files it looks for first are absent, it falls back to windata/.
+# Override values in userprofiles/ringedge/koihime-enbu.yaml.
+system: ringedge
+name: Koihime Enbu
+
+env:
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge
+  WAL_RINGEDGE_DS_TABLE: "0x279914,0x279920"
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x217e50"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x2f3368,0x2f3750,0x2f4078,0x2f40f0,0x2f44fc,0x2f4500,0x2f4508,0x300858,0x300860,0x301528,0x301540,0x305778,0x309758"
