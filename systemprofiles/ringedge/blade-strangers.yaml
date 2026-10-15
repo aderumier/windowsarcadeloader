@@ -1,0 +1,13 @@
+# Blade Strangers (Sega RingEdge 2).
+# Override values in userprofiles/ringedge/blade-strangers.yaml.
+system: ringedge
+name: Blade Strangers
+
+env:
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge
+  WAL_RINGEDGE_DS_TABLE: "0x42b674,0x42b680"
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x35f2a0"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x5975a8,0x597990,0x5982b0,0x5987b4,0x5987b8,0x5a4b08,0x5a4b0c,0x5a4b10,0x5a4f20,0x5a54c4,0x5a5774,0x5a99a8,0x5ad988"
