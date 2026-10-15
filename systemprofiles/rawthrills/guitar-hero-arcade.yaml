@@ -10,8 +10,9 @@ env:
   WAL_RAWTHRILLS_GAME: guitarhero
 
 input:
-  # Escape and Back + Start are game controls; let the game handle its own exit flow.
-  exit_keys: []
+  # Escape exits the launcher (as in the other games). It also opens the game's own menu,
+  # so a press in gameplay closes the game; the game's Back + Start is the in-game exit.
+  exit_keys: [KEY_ESC]
   exit_combo: []
   stick_as_dpad: false
   gamepad:
