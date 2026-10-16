@@ -165,6 +165,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `guilty-gear-xrd-sign` | Guilty Gear Xrd -SIGN- | ringedge | works (user: 100%) | not in the test |  |
 | `dengeki-bunko-fighting-climax` | Dengeki Bunko: Fighting Climax | ringedge | works (user: 100%) | not in the test |  |
 | `dengeki-bunko-fighting-climax-ignition` | Dengeki Bunko: Fighting Climax Ignition | ringedge | works (user: 100%) | not in the test |  |
+| `under-defeat-hd-plus` | Under Defeat HD+ | ringedge | works (user: 100%) | not in the test |  |
 | `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%), 2D mode | not in the test |  |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
