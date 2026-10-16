@@ -19,6 +19,8 @@ pub mod dinput;
 #[cfg(windows)]
 pub mod drive;
 #[cfg(windows)]
+pub mod joystick;
+#[cfg(windows)]
 pub mod font;
 #[cfg(windows)]
 pub mod dshow;
@@ -94,6 +96,7 @@ pub fn start(name: &'static str) {
             sdl::init();
             codepage::init();
             dinput::init();
+            joystick::init();
             wcase::init();
         }
         std::thread::spawn(move || connection_loop(name, port));

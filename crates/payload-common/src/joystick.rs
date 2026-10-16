@@ -1,0 +1,42 @@
+//! `WAL_JOYSTICK_DISABLE=1`: the game's winmm joystick API sees no joystick (`joyGetNumDevs`
+//! 0, the other calls `JOYERR_UNPLUGGED`). Some arcade builds also read a PC game controller
+//! with `joyGetPosEx` next to their I/O board: Ge-Sen Love Plus Pengo!'s ship drifted right
+//! from a pad's axis at rest (a trigger at its minimum), while its test menu, reading the
+//! board, showed every input right.
+
+use crate::{iat, log};
+
+const JOYERR_UNPLUGGED: u32 = 167;
+
+extern "system" fn joy_get_num_devs() -> u32 {
+    0
+}
+
+extern "system" fn joy_unplugged_2(_id: u32, _info: *mut u8) -> u32 {
+    JOYERR_UNPLUGGED
+}
+
+extern "system" fn joy_unplugged_3(_id: u32, _caps: *mut u8, _size: u32) -> u32 {
+    JOYERR_UNPLUGGED
+}
+
+pub fn init() {
+    if !std::env::var("WAL_JOYSTICK_DISABLE").is_ok_and(|v| v.trim() == "1") {
+        return;
+    }
+    let hooks: [(&str, usize); 6] = [
+        ("joyGetNumDevs", joy_get_num_devs as *const () as usize),
+        ("joyGetPos", joy_unplugged_2 as *const () as usize),
+        ("joyGetPosEx", joy_unplugged_2 as *const () as usize),
+        ("joyGetDevCapsA", joy_unplugged_3 as *const () as usize),
+        ("joyGetDevCapsW", joy_unplugged_3 as *const () as usize),
+        ("joySetCapture", joy_unplugged_3 as *const () as usize),
+    ];
+    let mut n = 0;
+    for (name, f) in hooks {
+        if unsafe { iat::hook("winmm.dll", name, f) }.is_some() {
+            n += 1;
+        }
+    }
+    log!("joystick: winmm joysticks hidden ({n} functions)");
+}
