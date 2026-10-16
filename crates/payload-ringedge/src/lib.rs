@@ -17,6 +17,7 @@
 mod amlog;
 mod cg;
 mod devices;
+mod ffb;
 mod nvasm;
 mod pcp;
 mod touch;
@@ -49,6 +50,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         }
         devices::init();
         cg::init();
+        ffb::init();
         touch::init();
         pcp::start();
         log!("ringedge: initialized");

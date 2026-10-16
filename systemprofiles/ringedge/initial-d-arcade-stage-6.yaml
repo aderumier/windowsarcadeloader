@@ -51,6 +51,8 @@ env:
   WAL_TYPEX_JVS_ANALOG_INPUTS: "lx*0.35,accel,brake"
   # its amJvs uses the serial port
   WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # the wheel's drive board (force feedback: road forces, vibrations, centering spring)
+  WAL_RINGEDGE_FFB: COM1
   # platform id AAL2: amBackup's RingEdge 2 SRAM layout
   WAL_RINGEDGE_BOARD: ringedge2
   WAL_RINGEDGE_DS_FILE: SBUU_Table.dat
