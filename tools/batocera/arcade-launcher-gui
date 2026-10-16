@@ -7,4 +7,10 @@ if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ] && command -v getLocalXDisplay
     export DISPLAY=$(getLocalXDisplay)
 fi
 cd "$DIR" || exit 1
+# through the generator (rom "config"), as games: it gives SDL the pads' ES mappings
+EMULATORLAUNCHER=/userdata/system/rgs/emulatorlauncher
+if [ -x "$EMULATORLAUNCHER" ]; then
+    exec "$EMULATORLAUNCHER" -system typex -emulator windows-arcade-loader -core windows-arcade-loader \
+        -rom config >/userdata/system/logs/arcade-launcher-gui.log 2>&1
+fi
 exec "$DIR/arcade-launcher" gui --root "$DIR" >/userdata/system/logs/arcade-launcher-gui.log 2>&1
