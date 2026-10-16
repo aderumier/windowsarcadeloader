@@ -1,0 +1,17 @@
+# Caladrius AC (Sega RingEdge 2).
+# Override values in userprofiles/ringedge/caladrius-ac.yaml.
+system: ringedge
+name: Caladrius AC
+
+env:
+  # its own init gives up when the cabinet's credit settings record (backup record 7, made by
+  # the system menu) is invalid: amCredit stays uninitialized and the main loop spins. Going
+  # on lets amCreditInit take its default settings.
+  WAL_PATCHES: "0x13fc1:9090"
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge
+  WAL_RINGEDGE_DS_TABLE: "0x1c3534,0x1c3540"
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x1572b0"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x2d7410,0x2d7418,0x2d7858,0x2d7c40,0x2e3f90,0x2e4220,0x2e422c,0x2e4238,0x2e423c,0x2e4240,0x2e4b60,0x2e5068,0x2e50f0,0x2e5668,0x2e5ba0,0x2e8ff8,0x2e9210,0x2e9218,0x2e9320,0x2ed300"
