@@ -9,7 +9,8 @@
 //!   (`0x9C40200C`: `{u8 status, u8 protocol (9 read, 8 write), u16 address, u16 register, u8
 //!   length, u8 data[32]}`) and byte transfers (`0x9C402004`). The EEPROM (address 0x57) is
 //!   `E2PROM.bin` of the save folder; other devices read as zero, but the PCA9535 I/O
-//!   expander's push switches (TEST, SERVICE: [`smbus_byte`]).
+//!   expander's push switches (TEST, SERVICE: [`smbus_byte`]) and DIP switches
+//!   ([`dip_switches`]).
 //! * `\\.\columba` (amPlatform): physical memory reads (`0x9C406104`: `{u64 address, u32 1,
 //!   u32 size}`, the bytes back) of the BIOS area, where amPlatform finds the SMBIOS tables
 //!   (legacy `_DMI_` entry point) and reads the BIOS version and date, the system manufacturer
@@ -93,6 +94,7 @@ fn orig<F: Copy>(idx: usize) -> F {
 pub(crate) fn init() {
     // read now: an environment lookup inside a hook sets the thread's last error
     let _ = ringedge2();
+    let _ = dip_switches();
     let dir = save_dir();
     let _ = std::fs::create_dir_all(&dir);
     // the SRAM file: created at its full size, the game formats it
@@ -337,6 +339,18 @@ const PCA9535_ADDRESS: u8 = 0x20;
 const PUSHSW_TEST: u8 = 0x04;
 const PUSHSW_SERVICE: u8 = 0x08;
 
+/// The main board's DIP switches, PCA9535 input port 0 (active low): `WAL_RINGEDGE_DIPSW`
+/// (hex, the switches on as amDipsw returns them; default FF, all on). Games read their
+/// monitor resolution there: all on, Virtua Tennis 4, Koihime Enbu and Under Night render
+/// 1920x1080 (all off: 640x480, 640x480, 1280x720). Ge-Sen Love Plus Pengo! only accepts bits
+/// 0x70 at 0x00, 0x10 or 0x40 ("ERROR 0910 Wrong Resolution Setting" otherwise).
+fn dip_switches() -> u8 {
+    static VALUE: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
+    *VALUE.get_or_init(|| {
+        std::env::var("WAL_RINGEDGE_DIPSW").ok().and_then(|v| u8::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()).unwrap_or(0xFF)
+    })
+}
+
 /// Byte transfer (`0x9C402004`): `{status, protocol (5 read, 4 write), address, register, 0,
 /// data}`. The PCA9535's input port 1 has the main board's TEST and SERVICE push switches (the
 /// test menu reads them; the game reads the JVS board's), from any player's test / service.
@@ -355,6 +369,9 @@ fn smbus_byte(req: &[u8], out: &mut [u8]) -> usize {
             port &= !PUSHSW_SERVICE;
         }
         out[5] = port;
+    } else if req[1] == 5 && req[2] == PCA9535_ADDRESS && req[3] == 0 && n > 5 {
+        // the DIP switches, active low
+        out[5] = !dip_switches();
     }
     smbus_trace("byte", req, &out[..n]);
     n

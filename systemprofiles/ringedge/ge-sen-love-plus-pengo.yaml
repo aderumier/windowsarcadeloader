@@ -1,0 +1,18 @@
+# Ge-Sen Love Plus Pengo! (Sega RingEdge 2).
+# Override values in userprofiles/ringedge/ge-sen-love-plus-pengo.yaml.
+system: ringedge
+name: Ge-Sen Love Plus Pengo!
+
+env:
+  # DIP switches: its resolution bits (0x70) must be 0x00, 0x10 or 0x40, "ERROR 0910 Wrong
+  # Resolution Setting" with all on (the default); 0x00: 1280x720
+  WAL_RINGEDGE_DIPSW: "8F"
+  # its amJvs uses the serial port
+  WAL_TYPEX_JVS_PORT: COM4
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge
+  WAL_RINGEDGE_DS_TABLE: "0x233bfc,0x233c08"
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x3ec20"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x27da28,0x27de10,0x27de84,0x27de88,0x27e390,0x27ecac,0x27ecb0,0x27f0c0,0x27f350,0x28b6a0,0x28b6a4,0x28b6a8,0x28b7c4,0x28b7c8,0x28bd40,0x28c278,0x28f6d0,0x28f8e8,0x28f8f8,0x2938d8"

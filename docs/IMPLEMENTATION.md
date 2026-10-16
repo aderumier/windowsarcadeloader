@@ -1401,7 +1401,10 @@ game's amLib (its own error strings name every function):
   (I2C 0x57, `E2PROM.bin`, 32-byte block transfers `0x9C40200C`) and the PCA9535 I/O expander
   (0x20, byte transfers `0x9C402004`): its port 1 holds the main board's TEST (0x04) and
   SERVICE (0x08) push switches, active low, which the test menu reads (the game reads the
-  JVS board's). `\\.\columba` reads physical memory: amPlatform scans 0xF0000 for the
+  JVS board's); port 0 the DIP switches, also active low, where games read their monitor
+  resolution (`WAL_RINGEDGE_DIPSW`, default `FF` all on: 1920x1080 for Virtua Tennis 4, Koihime
+  Enbu, Under Night; Ge-Sen Love Plus Pengo! refuses it, "ERROR 0910 Wrong Resolution
+  Setting": `8F`, 1280x720). `\\.\columba` reads physical memory: amPlatform scans 0xF0000 for the
   `_DMI_` entry point, reads 64 KB of SMBIOS structures (the table must start at or below
   0xF0000), and takes the system manufacturer (`NEC`) and the third OEM string as the
   platform id (`AAL` RingEdge). `\\.\mxsuperio` (hardware monitor) stays absent: amHm logs
@@ -1724,6 +1727,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `caladrius-ac` | Caladrius AC | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `SILVER_AMP_R_ROM.exe`, JVS on `\\.\mxjvs`; its own init (no amLibInit) gives up on an invalid credit settings record (backup record 7, made by the system menu) and amCredit stays uninitialized (main loop spins): profile patch `0x13fc1:9090` goes on, amCreditInit takes its defaults |
 | `melty-blood-actress-again-current-code-re2` | Melty Blood Actress Again Current Code (RE2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `MBAA_RWMasterBuild.exe.orig` (the dump's `.exe` is patched), amLib 1.21, JVS on COM4 |
 | `phantom-breaker-another-code` | Phantom Breaker: Another Code | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `pbac_ringedge2.exe`, JVS on `\\.\mxjvs`; a windowed 800x600 device with its 16:9 picture in the middle 800x450: borderless screen-sized window, `WAL_D3D9_SOURCE` presents that band stretched |
+| `ge-sen-love-plus-pengo` | Ge-Sen Love Plus Pengo! | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `glpp.exe`, JVS on COM4, DIP switches `8F` (resolution bits valid: native 1280x720) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
