@@ -6,6 +6,7 @@ mod namcoes3;
 mod nesica;
 mod rawthrills;
 mod ringedge;
+mod segashell;
 mod tsunami;
 mod typex;
 
@@ -53,6 +54,7 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
         "tsunami" => Box::new(tsunami::Tsunami),
         "rawthrills" => Box::new(rawthrills::RawThrills),
         "ringedge" => Box::new(ringedge::RingEdge),
-        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge)"),
+        "segashell" => Box::new(segashell::SegaShell),
+        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell)"),
     })
 }

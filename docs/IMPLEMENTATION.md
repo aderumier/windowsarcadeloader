@@ -49,6 +49,7 @@ crates/
   payload-typex/           Taito Type X payload (JVS I/O board on COM2), loaded by wal-loader
   payload-rawthrills/      Raw Thrills PC payload (JAMMA USB board reports), loaded by wal-loader
   payload-ringedge/        Sega RingEdge payload (amLib devices, keychip/master PCP services), loaded by wal-loader
+  payload-segashell/       Sega Amusements Shell payload (the Shell's TCP service, the I/O board), loaded by wal-loader
   payload-nesica/          NESiCAxLive payload = replacement iDmacDrv32.dll
     iDmacDrv32.def         export ordinals of the original driver (see §6.2)
     src/news.png           NESYS news picture
@@ -1455,6 +1456,48 @@ game's amLib (its own error strings name every function):
   sense line is DSR: modem status 0x10 before the address, 0x30 after (with the Type X values
   amJvs assigns 31 boards: error 6401 "JVS I/O board is not connected").
 
+### 6.3e Sega Amusements Shell (`crates/payload-segashell`)
+
+Sega Amusements' Windows PC cabinets (Transformers: Shadows Rising, 2018): the cabinet runs
+Sega's `Shell.exe` (coins, credits, settings, bookkeeping, the test menu) and the game beside
+it. The dump keeps the cabinet's `C:\sega` tree (`Sega/Transformers2/Transformers2.exe`,
+`Sega/ShellData/*.ini` the Shell's settings the game reads, `../ShellData/` from its folder);
+the game ships its `.map`/`.pdb`, so every address below has a name. System `segashell`,
+payload `wal_segashell.dll` loaded by `wal-loader`.
+
+- **Shell service (`shell.rs`).** The game connects to 127.0.0.1:18888 (`CShellMgr`). Packets:
+  `TFM`, command id and data length (2 bytes each, big endian), 4 zero bytes, the data. Game
+  commands 0x00-0x1c (`GAME_MSG_KEEPALIVE`, `LAUNCHED_OK`, `ASSETS_LOADED`, `ATTRACT_*`,
+  `START_PRESSED` (player), `GAME_START`, `PLAYERS_IN_GAME`, `STAGE_*`, `TRIGGER_RECOIL`,
+  `GAME_END`..., `SECURITY_CHALLENGE`) plus 0x1d (lamps, several times a second); Shell
+  commands 0x40 `SET_SKU`, 0x41 `SETCREDIT` (data: the credit count), 0x42
+  `SECURITY_AUTHENTICATE`, 0x43 `RESET`, 0x44 `EXIT`. The payload logs the game's events and
+  owns the credits (a coin press adds one, `SETCREDIT`); the dump's settings are free play.
+  Security: the game sends a random 4-byte challenge every few seconds and quits after 5
+  unanswered; the answer is a byte-scrambled value the game checks with
+  `CShellMgr::AuthenticateData`. A profile patch clears the constructor's "security enabled"
+  flag instead.
+- **I/O board (`board.rs`).** The "SAE board" is a USB game controller the game reads through
+  DirectInput (the first joystick, `DIJOYSTATE`, axes set to -1000..1000) into a record:
+  6 buttons in two alternating sets (current / previous, for presses: P1 start 0, P2 start 1,
+  P1 trigger 2, P2 trigger 3, lever 4 front / 5 back), the guns 0-255 (`(1000 - axis) * 255 /
+  1000`: reversed). `WAL_SEGASHELL_BOARD=<rva>` replaces `CSAEBoard::Update` (thiscall) with
+  one filling the record from the virtual sticks (both axes reversed); a patch makes
+  `CSAEBoard::IsActive` true (the lever is only read on an active board). Reload is aiming off
+  screen. The Shell's gun calibration (`ShellData.ini` `Xmin`/`Xmax`...) is not a range of
+  the raw values: the full 0-255 spans the screen.
+- **Display.** The resolution comes from `SetInitialResolution(argc, argv)`, whose command line
+  names (`-hdtv`...) are overwritten by `DefaultResolution()` (index 15, 1920x1080, when a check
+  passes, else 14, 1280x720). `WAL_SEGASHELL_DEFAULT_RESOLUTION=<rva>` makes it return 14
+  unless `WAL_SEGASHELL_FULLHD=1` (game option): integrated GPUs drop below 60 frames per
+  second in stages at 1080p. The game paces itself (`CFrameRateMgr`: a 300 Hz timer, frames a
+  whole number of ticks); its vsync wait on top missed refreshes (~22 frames per second), so
+  vsync is off (`DXVK_CONFIG` `d3d9.presentInterval = 0`) and the launcher's frame limit too.
+  At start it builds its 594 standard shaders a batch per frame ("SYSTEM INITIALIZING...
+  LOADING", about a minute).
+- **Test menu.** The game has none (its test mode entry is never called): the cabinet's test
+  menu is the Shell's.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -1742,6 +1785,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `guilty-gear-xrd-sign` | Guilty Gear Xrd -SIGN- | ringedge | works (user: 100%) | as Xrd Rev 2 (same engine and Aime banner code, patch at its own address), `game.bat`'s arguments |
 | `dengeki-bunko-fighting-climax` | Dengeki Bunko: Fighting Climax | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `RingGame.exe`, JVS on COM4; Aime banner choice skipped by a patch (as Under Night); vsync off (`DXVK_CONFIG` `d3d9.presentInterval = 0`), paced by the 60 fps limit: its vsync wait plus its own sleeps ran it at ~26 frames per second |
 | `dengeki-bunko-fighting-climax-ignition` | Dengeki Bunko: Fighting Climax Ignition | ringedge | works (user: 100%) | as Fighting Climax, but `RingGame.exe.orig` (the .exe is a patched copy) and JVS on `\\.\mxjvs`; banner patch at its own address |
+| `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), self-paced without vsync |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

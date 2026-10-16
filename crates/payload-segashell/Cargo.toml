@@ -1,0 +1,15 @@
+[package]
+name = "wal-payload-segashell"
+description = "Sega Amusements Shell payload: the Shell's TCP service (credits) and the I/O board, loaded by wal-loader"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_segashell"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_SystemServices"] }

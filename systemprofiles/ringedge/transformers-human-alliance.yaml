@@ -17,10 +17,11 @@ input:
   guns_enabled: true
   stick_as_dpad: false
   # the trigger also presses its player's start (joining the game by shooting); the right
-  # button: the gun's side button (JVS button 2)
+  # button: the gun's side button (JVS button 2), the middle one inserts a coin
   gun:
     BTN_LEFT: b1,start
     BTN_RIGHT: b2
+    BTN_MIDDLE: coin
 
 controls:
   b1: Trigger

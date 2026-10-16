@@ -1,6 +1,6 @@
 # Windows Arcade Loader
 
-Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge)
+Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge, Sega Amusements Shell PCs)
 on Linux with Wine: a Linux launcher (inputs, Wine prefix and runner) and per-system payload DLLs
 emulating each cabinet's I/O, dongle and network services in the game process.
 
@@ -165,5 +165,6 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `guilty-gear-xrd-sign` | Guilty Gear Xrd -SIGN- | ringedge | works (user: 100%) | not in the test |  |
 | `dengeki-bunko-fighting-climax` | Dengeki Bunko: Fighting Climax | ringedge | works (user: 100%) | not in the test |  |
 | `dengeki-bunko-fighting-climax-ignition` | Dengeki Bunko: Fighting Climax Ignition | ringedge | works (user: 100%) | not in the test |  |
+| `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->
