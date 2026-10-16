@@ -14,7 +14,8 @@
 //!
 //! Analog channels: `WAL_TYPEX_JVS_ANALOG` (fixed values, e.g. a volume knob) and
 //! `WAL_TYPEX_JVS_ANALOG_INPUTS` (player 1's axes, e.g. the pedals of driving games; `p2:lx`:
-//! another player's, e.g. the guns of Transformers: Human Alliance).
+//! another player's, e.g. the guns of Transformers: Human Alliance; `lx*0.35`: scaled around the
+//! center).
 //!
 //! `WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`: Battle Gear 4's key reader (Taito
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
@@ -46,6 +47,9 @@ enum Native {
     Left,
     Right,
     Btn(u8),
+    /// Player 2's switch bits (first byte, second byte), from any player's stick: Initial D's
+    /// shifter (player 2's directions and buttons) driven from the wheel's own buttons.
+    P2(u8, u8),
 }
 
 const NATIVES: &[(&str, Native)] = &[
@@ -74,6 +78,19 @@ const NATIVES: &[(&str, Native)] = &[
     ("btn14", Native::Btn(14)),
     ("btn15", Native::Btn(15)),
     ("btn16", Native::Btn(16)),
+    ("p2start", Native::P2(0x80, 0)),
+    ("p2up", Native::P2(0x20, 0)),
+    ("p2down", Native::P2(0x10, 0)),
+    ("p2left", Native::P2(0x08, 0)),
+    ("p2right", Native::P2(0x04, 0)),
+    ("p2btn1", Native::P2(0x02, 0)),
+    ("p2btn2", Native::P2(0x01, 0)),
+    ("p2btn3", Native::P2(0, 0x80)),
+    ("p2btn4", Native::P2(0, 0x40)),
+    ("p2btn5", Native::P2(0, 0x20)),
+    ("p2btn6", Native::P2(0, 0x10)),
+    ("p2btn7", Native::P2(0, 0x08)),
+    ("p2btn8", Native::P2(0, 0x04)),
 ];
 
 /// Virtual stick -> JVS; games override with `WAL_MAP` (profile `native_map`).
@@ -131,7 +148,9 @@ struct Board {
     /// channel (`-axis` inverted; empty: the fixed value). When set, the features report 8
     /// analog channels: games poll `22` only for the channels the board declares (Valve
     /// Limit R: gas on channel 1, brake on channel 2).
-    analog_inputs: Vec<Option<(usize, AnalogInput)>>,
+    /// `axis*0.35`: scaled around the center (Initial D: the cabinet's steering sensor covers
+    /// about a third of the channel, a full PC wheel turn would be far too much).
+    analog_inputs: Vec<Option<(usize, AnalogInput, f32)>>,
     /// `WAL_TYPEX_JVS_OUTPUTS=<n>`: general purpose outputs declared in the features (0: none).
     outputs: u8,
     battle_gear: Option<BattleGear>,
@@ -331,7 +350,7 @@ unsafe extern "thiscall" fn xio_calibration(object: *mut usize, parameters: *con
 /// One `WAL_TYPEX_JVS_ANALOG_INPUTS` entry: `accel`, `-lx` (inverted), `+ry` (positive half),
 /// empty for none; player 1's axis, `p<n>:` before it another player's (`p2:-ly`). Returns the
 /// player (0 based) and the input.
-fn analog_input(entry: &str) -> Option<(usize, AnalogInput)> {
+fn analog_input(entry: &str) -> Option<(usize, AnalogInput, f32)> {
     let entry = entry.trim();
     let (player, entry) = match entry.split_once(':') {
         Some((p, rest)) if p.len() == 2 && p.starts_with('p') => match p[1..].parse::<usize>() {
@@ -343,6 +362,16 @@ fn analog_input(entry: &str) -> Option<(usize, AnalogInput)> {
         },
         _ => (0, entry),
     };
+    let (entry, scale) = match entry.split_once('*') {
+        Some((e, f)) => match f.trim().parse::<f32>() {
+            Ok(f) => (e.trim(), f),
+            Err(_) => {
+                log!("jvs: bad analog scale {f:?}");
+                (e.trim(), 1.0)
+            }
+        },
+        None => (entry, 1.0),
+    };
     let (name, kind): (&str, fn(Axis) -> AnalogInput) = match entry.as_bytes().first() {
         Some(b'-') => (&entry[1..], AnalogInput::Inverted),
         Some(b'+') => (&entry[1..], AnalogInput::Positive),
@@ -352,25 +381,29 @@ fn analog_input(entry: &str) -> Option<(usize, AnalogInput)> {
     if axis.is_none() && !name.is_empty() {
         log!("jvs: unknown analog input {entry:?}");
     }
-    axis.map(|a| (player, kind(a)))
+    axis.map(|a| (player, kind(a), scale))
 }
 
 /// Analog channel value, left-justified 16 bits (10 significant bits, as the features say).
 fn analog(board: &Board, sticks: &[StickState; 4], channel: usize) -> u16 {
-    let Some((player, input)) = board.analog_inputs.get(channel).copied().flatten() else {
+    let Some((player, input, scale)) = board.analog_inputs.get(channel).copied().flatten() else {
         return board.analog_fixed.get(channel).copied().unwrap_or(0);
     };
     let stick = &sticks[player];
-    match input {
-        AnalogInput::Axis(axis) => stick.axis_u16(axis) & 0xFFC0,
-        AnalogInput::Inverted(axis) => !stick.axis_u16(axis) & 0xFFC0,
-        AnalogInput::Positive(axis) => ((stick.axis(axis).max(0) as u32 * 2) as u16) & 0xFFC0,
-    }
+    let value = match input {
+        AnalogInput::Axis(axis) => stick.axis_u16(axis),
+        AnalogInput::Inverted(axis) => !stick.axis_u16(axis),
+        AnalogInput::Positive(axis) => (stick.axis(axis).max(0) as u32 * 2) as u16,
+    };
+    let value = if scale == 1.0 { value } else { (32768.0 + (value as f32 - 32768.0) * scale).clamp(0.0, 65535.0) as u16 };
+    value & 0xFFC0
 }
 
-/// (switch byte 1, switch byte 2, test, coin, switch byte 3) of a player.
-fn player(map: &ButtonMap<Native>, stick: &StickState) -> (u8, u8, bool, bool, u8) {
+/// (switch byte 1, switch byte 2, test, coin, switch byte 3) of a player, and its
+/// [`Native::P2`] bits.
+fn player(map: &ButtonMap<Native>, stick: &StickState) -> ((u8, u8, bool, bool, u8), (u8, u8)) {
     let (mut b1, mut b2, mut test, mut coin, mut b3) = (0u8, 0u8, false, false, 0u8);
+    let mut other = (0u8, 0u8);
     map.for_each_pressed(stick, |n| match n {
         Native::Start => b1 |= 0x80,
         Native::Service => b1 |= 0x40,
@@ -385,8 +418,12 @@ fn player(map: &ButtonMap<Native>, stick: &StickState) -> (u8, u8, bool, bool, u
         Native::Btn(_) => {}
         Native::Test => test = true,
         Native::Coin => coin = true,
+        Native::P2(x1, x2) => {
+            other.0 |= x1;
+            other.1 |= x2;
+        }
     });
-    (b1, b2, test, coin, b3)
+    ((b1, b2, test, coin, b3), other)
 }
 
 fn process(packet: &[u8]) -> Vec<u8> {
@@ -413,7 +450,12 @@ fn process(packet: &[u8]) -> Vec<u8> {
 
     // input state (coins counted on release)
     let sticks = [0, 1, 2, 3].map(crate::input);
-    let players: Vec<_> = sticks.iter().map(|s| player(&board.map, s)).collect();
+    let both: Vec<_> = sticks.iter().map(|s| player(&board.map, s)).collect();
+    let mut players: Vec<_> = both.iter().map(|b| b.0).collect();
+    for (_, (x1, x2)) in &both {
+        players[1].0 |= x1;
+        players[1].1 |= x2;
+    }
     for (n, p) in players.iter().enumerate() {
         if board.coin_held[n] && !p.3 {
             let slot = n.min(board.coin_slots.max(1) - 1);
