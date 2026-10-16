@@ -1,0 +1,8 @@
+# Dead or Alive 5 Ultimate Arcade (Sega RingEdge 2). Runs DOA5A.exe.
+# Override values in userprofiles/ringedge/dead-or-alive-5-ultimate-arcade.yaml.
+system: ringedge
+name: Dead or Alive 5 Ultimate Arcade
+
+env:
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
