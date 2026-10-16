@@ -1,0 +1,52 @@
+# Transformers: Human Alliance (Sega RingEdge 2), 2 player lightgun game.
+# Runs exe/TF_Gun_R_Ring_dumped.exe (the dump has no other game executable).
+# Override values in userprofiles/ringedge/transformers-human-alliance.yaml.
+system: ringedge
+name: "Transformers: Human Alliance"
+
+# dumped executables: .rdata left writable, the C runtime then stops ("R6002 floating point
+# support not loaded")
+readonly_sections:
+  exe/TF_Gun_R_Ring_dumped.exe: [.rdata]
+  exe/TestMode_dumped.exe: [.rdata]
+
+# another loader's force feedback and output plugins shipped in the dump
+hide: [dinput8.dll, OutputBlaster.dll, exe/OutputBlaster.dll]
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the trigger also presses its player's start (joining the game by shooting); the right
+  # button: the gun's side button (JVS button 2)
+  gun:
+    BTN_LEFT: b1,start
+    BTN_RIGHT: b2
+
+controls:
+  b1: Trigger
+  b2: Gun side button
+
+env:
+  # crashes in game without
+  WINE_LARGE_ADDRESS_AWARE: "1"
+  # the 20 general purpose outputs of the Sega I/O board (lamps, recoil): without them, Error
+  # 6402 "JVS I/O board does not fulfill the game spec"
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  # the guns on the JVS board's analog channels: 1/2 player 1 Y/X, 3/4 player 2 Y/X, inverted
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "-ly,-lx,p2:-ly,p2:-lx"
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBYR
+  # the test button (application 3): its test menu program, its JVS board on COM4
+  WAL_RINGEDGE_FOREGROUND: "3=exe=TestMode_dumped.exe -t"
+  WAL_TYPEX_JVS_PORT: mxjvs,COM4
+  # test menu: its main menu adds two item fields its constructor never sets (zero in a fresh
+  # heap on the cabinet, leftovers under Wine: crash), zeroed instead
+  WAL_PATCHES_EXE: TestMode_dumped.exe
+  WAL_PATCHES: "0x1ac4a:31C9894E60894E5C909090"
+  # the keychip MACs and SSD answers amDongle checks: its challenge file
+  WAL_RINGEDGE_DS_FILE: ../fs/table/SBYR_Table.dat
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x2a3150"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x964770,0x964a00,0x964e0c,0x965120,0x965128,0x971478,0x9748cc,0x9748d0,0x9748d8,0x9748e8,0x975208,0x975780,0x975cb8,0x975ed0,0x975ed8,0x976058,0x97a038,0x97e200"
+  # WAL_RINGEDGE_GAMELOG: "0x413230"

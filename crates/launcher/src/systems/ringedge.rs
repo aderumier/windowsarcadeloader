@@ -11,10 +11,11 @@
 //! - `WAL_RINGEDGE_SAVE`: folder of the SRAM and EEPROM files (default `sv`)
 //! - `WAL_RINGEDGE_PCP`: keychip / master answers `key=value;...` (e.g. the game id)
 //! - `WAL_RINGEDGE_FOREGROUND`: arguments of the cabinet's applications the game hands over
-//!   to (relaunch), `<n>=<arguments>;...` (default `3=-t`: the test menu)
+//!   to (relaunch), `<n>=<arguments>;...` (default `3=-t`: the test menu); `exe=<file>
+//!   <arguments>` runs another executable of the game directory (a separate test menu)
 //! - `WAL_RINGEDGE_AMLOG`, `WAL_RINGEDGE_AMLOG_LEVELS`: amLib's log in the payload log
-//! - `WAL_TYPEX_JVS_PORT`: port of the JVS board (default `mxjvs`, the JVS driver; `COM4`:
-//!   games using the serial port)
+//! - `WAL_TYPEX_JVS_PORT`: port(s) of the JVS board, comma separated (default `mxjvs`, the JVS
+//!   driver; `COM4`: games using the serial port)
 //! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
 
 use super::{Payload, System};

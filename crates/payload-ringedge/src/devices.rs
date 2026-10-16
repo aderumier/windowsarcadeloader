@@ -17,8 +17,8 @@
 //!   (`NEC`: RingEdge) and the platform id (third OEM string: `AAL` RingEdge, `AAM` RingWide;
 //!   with `WAL_RINGEDGE_BOARD=ringedge2` a fifth one, `AAL2`: RingEdge 2).
 //!   A small SMBIOS image is served at 0xF0000.
-//! * `\\.\mxsuperio` (amHm: hardware monitor): fake handle answering the version calls,
-//!   everything else logged.
+//! * `\\.\mxsuperio` (amHm: hardware monitor): a Winbond-like Super I/O chip ([`superio`]),
+//!   other calls logged.
 //! * `\\.\mxjvs` (amJvs' driver mode): a serial port of the JVS board (configured with the comm
 //!   calls), each packet exchanged with `DeviceIoControl` `0x9C402000` (packet in, reply out).
 //!
@@ -253,6 +253,11 @@ unsafe extern "system" fn device_io_control(
         }
         (H_SMBUS, 0x9C40_200C) if req.len() >= 7 && out.len() >= 7 => Some(smbus_block(req, out)),
         (H_SMBUS, 0x9C40_2004) if req.len() >= 7 && out.len() >= 7 => Some(smbus_byte(req, out)),
+        (H_SUPERIO, 0x9C40_2004 | 0x9C40_200C) if req.len() >= 3 && out.len() >= req.len() => Some(superio(code, req, out)),
+        (H_SUPERIO, 0x9C40_A010) if req.len() >= 3 => {
+            superio_write(req);
+            Some(0)
+        }
         (H_COLUMBA, 0x9C40_6104) if req.len() >= 16 => {
             let address = u64::from_le_bytes(req[0..8].try_into().unwrap());
             let size = (u32::from_le_bytes(req[12..16].try_into().unwrap()) as usize).min(out.len());
@@ -375,6 +380,46 @@ fn smbus_byte(req: &[u8], out: &mut [u8]) -> usize {
     }
     smbus_trace("byte", req, &out[..n]);
     n
+}
+
+// ── mxsuperio: the hardware monitor's Super I/O chip ─────────────────────────────────────
+
+/// The hardware monitor registers of the 2 chips, written by amHm (`0x9C40A010`).
+static MONITOR: Mutex<[[u8; 256]; 2]> = Mutex::new(monitor_defaults());
+
+const fn monitor_defaults() -> [[u8; 256]; 2] {
+    let mut r = [[0u8; 256]; 2];
+    r[0][0x48] = 0x2D;
+    r[1][0x48] = 0x2D;
+    r
+}
+
+/// `0x9C402004` `{chip, 0x0B, register, data}`: configuration registers, the chip id
+/// (0x20:0x21 = 0xA020, a Winbond hardware monitor: amHm accepts 0xA020 and 0xA230);
+/// `0x9C40200C` `{chip, register, data}`: the hardware monitor registers ([`MONITOR`]: 0x48
+/// is the monitor's address, 0x10..0x6F), written with `0x9C40A010`. Transformers: Human
+/// Alliance does not start without a hardware monitor (amHmInit).
+fn superio(code: u32, req: &[u8], out: &mut [u8]) -> usize {
+    let n = req.len();
+    out[..n].copy_from_slice(req);
+    let (reg, data) = if code == 0x9C40_2004 { (req[2], 3) } else { (req[1], 2) };
+    let value = match (code, reg) {
+        (0x9C40_2004, 0x20) => 0xA0,
+        (0x9C40_2004, 0x21) => 0x20,
+        (0x9C40_200C, _) => MONITOR.lock().unwrap()[req[0] as usize & 1][reg as usize],
+        _ => 0,
+    };
+    if data < n {
+        out[data] = value;
+    }
+    smbus_trace("superio", req, &out[..n]);
+    n
+}
+
+/// `0x9C40A010` `{chip, register, data}`: a hardware monitor register write.
+fn superio_write(req: &[u8]) {
+    MONITOR.lock().unwrap()[req[0] as usize & 1][req[1] as usize] = req[2];
+    smbus_trace("superio write", req, &[]);
 }
 
 // ── columba: the BIOS area with an SMBIOS table ──────────────────────────────────────────

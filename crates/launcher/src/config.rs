@@ -51,6 +51,7 @@ pub struct Profile {
     pub reshade_files: Vec<String>,
     pub exe_fixed_base: bool,
     pub large_address_aware: bool,
+    pub readonly_sections: BTreeMap<String, Vec<String>>,
     pub gamescope: GamescopeConfig,
     pub files: BTreeMap<String, PathBuf>,
     pub initial_files: BTreeMap<String, PathBuf>,

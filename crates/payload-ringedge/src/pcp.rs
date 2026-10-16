@@ -1,7 +1,8 @@
 //! The RingEdge system services amLib talks to over PCP on 127.0.0.1, served by the payload:
 //! `mxmaster` (amMaster: application control, TCP 40100), `mxkeychip` (amDongle: the
 //! keychip, TCP 40106, its binary data channel 40107) and the auth service (amAuth, RingEdge 2:
-//! TCP 40190).
+//! TCP 40190). The test menus also open the installer (amInstall, 40102), the game delivery
+//! services (amGdeliver 40108, amGcatcher 40110) and the storage service (40115).
 //!
 //! PCP is a text protocol: the service sends the prompt `>`, the client a request line
 //! `key=value&key=value\r\n` (`?` for a query, e.g. `keychip.appboot.gameid=?&cache=1`), the
@@ -17,13 +18,17 @@
 //! starts the game again with that application's arguments: `WAL_RINGEDGE_FOREGROUND=
 //! <n>=<arguments>;...` (default `3=-t`, others: no argument).
 //!
+//! `keychip.ssd.proof=<challenge>`: the keychip's answer to a 16-byte challenge, checked
+//! against the challenge file's SSD records (Transformers: Human Alliance).
+//!
 //! `keychip.ds.compute=<challenge>&page=<n>`: the keychip's DS28CN01 SHA-1 MAC (20 bytes) of a
 //! 7-byte challenge for one of its 4 pages. amDongle checks the answer against MACs it knows:
 //! challenges from the game's challenge file (`SBWX_Table.dat`: 10000 records of 87 bytes, the
 //! challenge then the MACs of the 4 pages, each stored with its bytes shuffled, see
 //! [`MAC_ORDER`]; then the SSD records) and a fixed one in the executable, followed by its 4
 //! MACs. Both are looked up: `WAL_RINGEDGE_DS_FILE=<file>` (from the game directory) and
-//! `WAL_RINGEDGE_DS_TABLE=<challenge rva>,<macs rva>` (read in the game's memory).
+//! the fixed one found in the running executable ([`ds_table`], or `WAL_RINGEDGE_DS_TABLE=
+//! <challenge rva>,<macs rva>`).
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -35,6 +40,10 @@ use wal_payload_common::log;
 const MXMASTER: u16 = 40100;
 const MXKEYCHIP: u16 = 40106;
 const MXKEYCHIP_DATA: u16 = 40107;
+const MXINSTALLER: u16 = 40102;
+const MXGDELIVER: u16 = 40108;
+const MXGCATCHER: u16 = 40110;
+const MXSTORAGE: u16 = 40115;
 const AUTH: u16 = 40190;
 const AUTH_DATA: u16 = 40191;
 /// `place.info`'s binary record (shop information), sent on the auth data channel: empty.
@@ -81,7 +90,18 @@ pub(crate) fn start() {
     let _ = values();
     let _ = ds_table();
     let _ = ds_file();
-    for (port, name) in [(MXMASTER, "mxmaster"), (MXKEYCHIP, "mxkeychip"), (MXKEYCHIP_DATA, "mxkeychip data"), (AUTH, "auth"), (AUTH_DATA, "auth data")] {
+    let services = [
+        (MXMASTER, "mxmaster"),
+        (MXINSTALLER, "mxinstaller"),
+        (MXKEYCHIP, "mxkeychip"),
+        (MXKEYCHIP_DATA, "mxkeychip data"),
+        (MXGDELIVER, "mxgdeliver"),
+        (MXGCATCHER, "mxgcatcher"),
+        (MXSTORAGE, "mxstorage"),
+        (AUTH, "auth"),
+        (AUTH_DATA, "auth data"),
+    ];
+    for (port, name) in services {
         match TcpListener::bind(("127.0.0.1", port)) {
             Ok(listener) => {
                 std::thread::spawn(move || {
@@ -127,7 +147,11 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
         while let Some(end) = line.windows(2).position(|w| w == b"\r\n") {
             let request = String::from_utf8_lossy(&line[..end]).into_owned();
             line.drain(..end + 2);
-            let reply = if name == "auth" { auth_answer(&request) } else { answer(&request) };
+            let reply = match name {
+                "auth" => auth_answer(&request),
+                "mxmaster" | "mxkeychip" => answer(&request),
+                _ => service_answer(&request),
+            };
             log!("pcp: {name}: {request} -> {reply}");
             if stream.write_all(format!("{reply}\r\n>").as_bytes()).is_err() {
                 return;
@@ -180,6 +204,9 @@ fn answer(request: &str) -> String {
         log!("pcp: next application {value}: relaunch with '{args}'");
         wal_payload_common::request_relaunch(&args);
     }
+    if key == "keychip.ssd.proof" {
+        return format!("{key}={}", ssd_proof(value));
+    }
     if key == "keychip.ds.compute" {
         return format!("{key}={}", ds_compute(request));
     }
@@ -194,6 +221,13 @@ fn answer(request: &str) -> String {
             format!("{key}=0")
         }
     }
+}
+
+/// The other services (installer, game delivery, storage): `request=<name>&...` answered
+/// `response=<name>&result=success`.
+fn service_answer(request: &str) -> String {
+    let name = request.split('&').find_map(|p| p.strip_prefix("request=")).unwrap_or("");
+    format!("response={name}&result=success")
 }
 
 /// The MAC for `keychip.ds.compute=<challenge hex>&page=<n>`, hex: the game's table entry for
@@ -213,12 +247,42 @@ fn ds_compute(request: &str) -> String {
             for (m, &i) in mac.iter_mut().zip(MAC_ORDER.iter()) {
                 *m = stored[i];
             }
+        } else if let Some(at) = find_in_image(&bytes, true) {
+            // a dump's own records: amDongle's 100 records (challenge + the 4 MACs, 87 bytes)
+            // kept in its data as filled at dump time (Transformers' test menu uses them as is)
+            let at = at + 7 + page * 20;
+            mac.copy_from_slice(unsafe { std::slice::from_raw_parts(at as *const u8, 20) });
         } else {
             log!("pcp: keychip.ds.compute: unknown challenge {challenge}");
         }
     }
     hex(&mac)
 }
+
+/// The answer to `keychip.ssd.proof=<16-byte challenge>`, hex: the challenge file's SSD record
+/// for it (after the DS records: 10000 records of 32 bytes, the challenge then the answer,
+/// shuffled, see [`SSD_ORDER`]), else zero.
+fn ssd_proof(challenge: &str) -> String {
+    let bytes: Vec<u8> = (0..challenge.len() / 2).filter_map(|i| u8::from_str_radix(challenge.get(i * 2..i * 2 + 2)?, 16).ok()).collect();
+    let mut answer = [0u8; 16];
+    let records = ds_file().get(DS_RECORD * DS_RECORDS..).unwrap_or(&[]);
+    match records.chunks_exact(32).find(|r| bytes.len() == 16 && r[..16] == bytes[..]) {
+        Some(record) => {
+            for (a, &i) in answer.iter_mut().zip(SSD_ORDER.iter()) {
+                *a = record[16 + i];
+            }
+        }
+        // a dump's own SSD records (challenge + answer), as the DS ones
+        None => match find_in_image(&bytes, true).filter(|_| bytes.len() == 16) {
+            Some(at) => answer.copy_from_slice(unsafe { std::slice::from_raw_parts((at + 16) as *const u8, 16) }),
+            None => log!("pcp: keychip.ssd.proof: unknown challenge {challenge}"),
+        },
+    }
+    hex(&answer)
+}
+
+/// Answer byte `j` is byte `SSD_ORDER[j]` of the 16 answer bytes of its SSD record.
+const SSD_ORDER: [usize; 16] = [6, 8, 4, 12, 7, 13, 1, 10, 2, 3, 11, 14, 15, 0, 5, 9];
 
 /// Challenge file: records of the challenge and the 4 MACs.
 const DS_RECORD: usize = 87;
@@ -250,18 +314,43 @@ fn hex(d: &[u8]) -> String {
     d.iter().map(|b| format!("{b:02X}")).collect()
 }
 
-/// The game's fixed challenge (7 bytes) and the MACs of the 4 pages (`WAL_RINGEDGE_DS_TABLE`).
+/// amDongle's fixed challenge, the same in every game (its 4 MACs follow it, 12 bytes after).
+const FIXED_CHALLENGE: [u8; 7] = [0x2C, 0xFE, 0xCB, 0xC7, 0x1C, 0xF1, 0xE4];
+
+/// The game's fixed challenge (7 bytes) and the MACs of the 4 pages: found in the executable's
+/// image (the same table in every game so far), else `WAL_RINGEDGE_DS_TABLE=<challenge
+/// rva>,<macs rva>`. The scan also works in a game's other programs (its test menu).
 fn ds_table() -> Option<(&'static [u8], &'static [u8])> {
     static TABLE: OnceLock<Option<(usize, usize)>> = OnceLock::new();
     let (challenge, macs) = (*TABLE.get_or_init(|| {
+        let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+        if let Some(at) = find_in_image(&FIXED_CHALLENGE, false) {
+            log!("pcp: keychip fixed challenge at +{:#x}", at - base);
+            return Some((at, at + 12));
+        }
         let spec = std::env::var("WAL_RINGEDGE_DS_TABLE").ok()?;
         let (c, m) = spec.split_once(',')?;
         let parse = |s: &str| usize::from_str_radix(s.trim().trim_start_matches("0x"), 16).ok();
-        let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
         Some((base + parse(c)?, base + parse(m)?))
     }))?;
     // read-only data of the game executable, mapped for the process lifetime
     Some(unsafe { (std::slice::from_raw_parts(challenge as *const u8, 7), std::slice::from_raw_parts(macs as *const u8, 80)) })
+}
+
+/// The address of `needle` in the game executable's image (its headers' SizeOfImage): the
+/// first or the `last` one.
+fn find_in_image(needle: &[u8], last: bool) -> Option<usize> {
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    unsafe {
+        let pe = base + std::ptr::read_unaligned((base + 0x3C) as *const u32) as usize;
+        if std::ptr::read_unaligned(pe as *const u32) != 0x4550 {
+            return None;
+        }
+        let size = std::ptr::read_unaligned((pe + 24 + 56) as *const u32) as usize;
+        let image = std::slice::from_raw_parts(base as *const u8, size);
+        let mut matches = image.windows(needle.len()).enumerate().filter(|(_, w)| *w == needle).map(|(i, _)| base + i);
+        if last { matches.last() } else { matches.next() }
+    }
 }
 
 /// Arguments of the cabinet's application `n` (`WAL_RINGEDGE_FOREGROUND`).

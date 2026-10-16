@@ -13,7 +13,8 @@
 //! (e.g. `bin/xioman.dll` for Source-engine cabinets). Default: executable only.
 //!
 //! Analog channels: `WAL_TYPEX_JVS_ANALOG` (fixed values, e.g. a volume knob) and
-//! `WAL_TYPEX_JVS_ANALOG_INPUTS` (player 1's axes, e.g. the pedals of driving games).
+//! `WAL_TYPEX_JVS_ANALOG_INPUTS` (player 1's axes, e.g. the pedals of driving games; `p2:lx`:
+//! another player's, e.g. the guns of Transformers: Human Alliance).
 //!
 //! `WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`: Battle Gear 4's key reader (Taito
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
@@ -130,7 +131,9 @@ struct Board {
     /// channel (`-axis` inverted; empty: the fixed value). When set, the features report 8
     /// analog channels: games poll `22` only for the channels the board declares (Valve
     /// Limit R: gas on channel 1, brake on channel 2).
-    analog_inputs: Vec<Option<AnalogInput>>,
+    analog_inputs: Vec<Option<(usize, AnalogInput)>>,
+    /// `WAL_TYPEX_JVS_OUTPUTS=<n>`: general purpose outputs declared in the features (0: none).
+    outputs: u8,
     battle_gear: Option<BattleGear>,
     /// Addresses assigned since the last bus reset (2 boards with `battle-gear-pro`).
     addresses: u8,
@@ -222,7 +225,8 @@ fn key_id() -> [u8; 7] {
 
 static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 
-/// Starts the board on `WAL_TYPEX_JVS_PORT`, else `default_port` (Type X `COM2`, RingEdge `COM4`).
+/// Starts the board on `WAL_TYPEX_JVS_PORT` (ports separated by commas), else `default_port`
+/// (Type X `COM2`, RingEdge `mxjvs`).
 pub fn init(default_port: &str) {
     let layout = std::env::var("WAL_TYPEX_JVS_LAYOUT").unwrap_or_default();
     let (haunted_museum, block_king) = (layout.trim() == "haunted-museum", layout.trim() == "block-king");
@@ -254,6 +258,7 @@ pub fn init(default_port: &str) {
         cyber_diver: std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v == "cyber-diver"),
         analog_fixed,
         analog_inputs,
+        outputs: std::env::var("WAL_TYPEX_JVS_OUTPUTS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0),
         battle_gear,
         addresses: 0,
     });
@@ -274,7 +279,10 @@ pub fn init(default_port: &str) {
             }
         }
     }
-    serial::install_in(&port, process, &modules);
+    // a list: the same board on each (a RingEdge game on mxjvs, its test menu on COM4)
+    for port in port.split(',').map(str::trim).filter(|p| !p.is_empty()) {
+        serial::install_in(port, process, &modules);
+    }
     log!("jvs: I/O board on {port}");
 }
 
@@ -321,9 +329,20 @@ unsafe extern "thiscall" fn xio_calibration(object: *mut usize, parameters: *con
 }
 
 /// One `WAL_TYPEX_JVS_ANALOG_INPUTS` entry: `accel`, `-lx` (inverted), `+ry` (positive half),
-/// empty for none.
-fn analog_input(entry: &str) -> Option<AnalogInput> {
+/// empty for none; player 1's axis, `p<n>:` before it another player's (`p2:-ly`). Returns the
+/// player (0 based) and the input.
+fn analog_input(entry: &str) -> Option<(usize, AnalogInput)> {
     let entry = entry.trim();
+    let (player, entry) = match entry.split_once(':') {
+        Some((p, rest)) if p.len() == 2 && p.starts_with('p') => match p[1..].parse::<usize>() {
+            Ok(n @ 1..=4) => (n - 1, rest.trim()),
+            _ => {
+                log!("jvs: unknown analog input player {p:?}");
+                return None;
+            }
+        },
+        _ => (0, entry),
+    };
     let (name, kind): (&str, fn(Axis) -> AnalogInput) = match entry.as_bytes().first() {
         Some(b'-') => (&entry[1..], AnalogInput::Inverted),
         Some(b'+') => (&entry[1..], AnalogInput::Positive),
@@ -333,16 +352,19 @@ fn analog_input(entry: &str) -> Option<AnalogInput> {
     if axis.is_none() && !name.is_empty() {
         log!("jvs: unknown analog input {entry:?}");
     }
-    axis.map(kind)
+    axis.map(|a| (player, kind(a)))
 }
 
 /// Analog channel value, left-justified 16 bits (10 significant bits, as the features say).
-fn analog(board: &Board, stick: &StickState, channel: usize) -> u16 {
-    match board.analog_inputs.get(channel).copied().flatten() {
-        Some(AnalogInput::Axis(axis)) => stick.axis_u16(axis) & 0xFFC0,
-        Some(AnalogInput::Inverted(axis)) => !stick.axis_u16(axis) & 0xFFC0,
-        Some(AnalogInput::Positive(axis)) => ((stick.axis(axis).max(0) as u32 * 2) as u16) & 0xFFC0,
-        None => board.analog_fixed.get(channel).copied().unwrap_or(0),
+fn analog(board: &Board, sticks: &[StickState; 4], channel: usize) -> u16 {
+    let Some((player, input)) = board.analog_inputs.get(channel).copied().flatten() else {
+        return board.analog_fixed.get(channel).copied().unwrap_or(0);
+    };
+    let stick = &sticks[player];
+    match input {
+        AnalogInput::Axis(axis) => stick.axis_u16(axis) & 0xFFC0,
+        AnalogInput::Inverted(axis) => !stick.axis_u16(axis) & 0xFFC0,
+        AnalogInput::Positive(axis) => ((stick.axis(axis).max(0) as u32 * 2) as u16) & 0xFFC0,
     }
 }
 
@@ -427,10 +449,18 @@ fn process(packet: &[u8]) -> Vec<u8> {
             0x13 => (1, vec![COMM_VERSION]),
             // features, Taito stick: 2 players x 16 switches, 2 coin slots (+ 8 analog
             // channels of 10 bits for the games reading axes)
-            0x14 if !board.analog_inputs.is_empty() => {
-                (1, vec![0x01, 0x02, 0x10, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x08, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x00])
+            0x14 => {
+                let mut f = vec![0x01, 0x02, 0x10, 0x00, 0x02, 0x02, 0x00, 0x00];
+                if !board.analog_inputs.is_empty() {
+                    f.extend_from_slice(&[0x03, 0x08, 0x0A, 0x00]);
+                }
+                if board.outputs > 0 {
+                    // general purpose outputs (lamps, gun recoil): `32` writes
+                    f.extend_from_slice(&[0x12, board.outputs, 0x00, 0x00]);
+                }
+                f.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+                (1, f)
             }
-            0x14 => (1, vec![0x01, 0x02, 0x10, 0x00, 0x02, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]),
             0x15 => (cmds[i..].iter().position(|b| *b == 0).map_or(cmds.len() - i, |p| p + 1), vec![0x01, 0x01, 0x05]),
             0x20 if (arg(1), arg(2)) == (2, 2) || arg(1) == 0 => {
                 // Taito stick: system byte + 2 bytes per player for both players
@@ -533,8 +563,8 @@ fn process(packet: &[u8]) -> Vec<u8> {
             }
             0x22 => {
                 // analog channels: fixed values (the Haunted Museum games read their volume
-                // knob on channel 0, 0: silent) or player 1's axes
-                (2, (0..arg(1).max(1) as usize).flat_map(|c| analog(board, &sticks[0], c).to_be_bytes()).collect())
+                // knob on channel 0, 0: silent) or the players' axes
+                (2, (0..arg(1).max(1) as usize).flat_map(|c| analog(board, &sticks, c).to_be_bytes()).collect())
             }
             0x26 => (2, vec![0; arg(1) as usize]),
             0x2E => (2, vec![0; 4]),

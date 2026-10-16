@@ -288,6 +288,35 @@ pub fn copy_fixed_base(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Clears IMAGE_SCN_MEM_WRITE of the sections `names` (e.g. `.rdata`) in the run directory's
+/// executable `dst`: a copy of `src`, or the copy another option already made.
+pub fn readonly_sections(src: &Path, dst: &Path, names: &[String]) -> Result<()> {
+    let copied = fs::symlink_metadata(dst).is_ok_and(|m| m.file_type().is_file());
+    let mut data = fs::read(if copied { dst } else { src }).with_context(|| format!("reading {}", src.display()))?;
+    let pe = data.get(0x3C..0x40).map(|b| u32::from_le_bytes(b.try_into().unwrap()) as usize).context("not a PE file")?;
+    if data.get(pe..pe + 4) != Some(b"PE\0\0") || data.len() < pe + 24 {
+        bail!("{}: not a PE file", src.display());
+    }
+    let count = u16::from_le_bytes([data[pe + 6], data[pe + 7]]) as usize;
+    let optional = u16::from_le_bytes([data[pe + 20], data[pe + 21]]) as usize;
+    let table = pe + 24 + optional;
+    let mut changed = Vec::new();
+    for i in 0..count {
+        let at = table + 40 * i;
+        let Some(header) = data.get(at..at + 40) else { break };
+        let name = String::from_utf8_lossy(&header[..8]).trim_end_matches('\0').to_string();
+        if names.iter().any(|n| *n == name) {
+            let flags = u32::from_le_bytes(header[36..40].try_into().unwrap()) & !0x8000_0000;
+            data[at + 36..at + 40].copy_from_slice(&flags.to_le_bytes());
+            changed.push(name);
+        }
+    }
+    let _ = fs::remove_file(dst);
+    fs::write(dst, data).with_context(|| format!("writing {}", dst.display()))?;
+    eprintln!("launcher: {} sections read-only: {}", dst.display(), changed.join(", "));
+    Ok(())
+}
+
 /// Enables IMAGE_FILE_LARGE_ADDRESS_AWARE in a copy of a PE32 executable.
 pub fn copy_large_address_aware(src: &Path, dst: &Path) -> Result<()> {
     let _ = fs::remove_file(dst);

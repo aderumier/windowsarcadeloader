@@ -160,5 +160,6 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `melty-blood-actress-again-current-code-re2` | Melty Blood Actress Again Current Code (RE2) | ringedge | works (user: 100%) | not in the test |  |
 | `phantom-breaker-another-code` | Phantom Breaker: Another Code | ringedge | works (user: 100%) | not in the test |  |
 | `ge-sen-love-plus-pengo` | Ge-Sen Love Plus Pengo! | ringedge | works (user: 100%) | not in the test |  |
+| `transformers-human-alliance` | Transformers: Human Alliance | ringedge | works (user: 100%) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->

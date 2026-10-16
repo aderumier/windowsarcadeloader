@@ -1407,22 +1407,31 @@ game's amLib (its own error strings name every function):
   Setting": `8F`, 1280x720). `\\.\columba` reads physical memory: amPlatform scans 0xF0000 for the
   `_DMI_` entry point, reads 64 KB of SMBIOS structures (the table must start at or below
   0xF0000), and takes the system manufacturer (`NEC`) and the third OEM string as the
-  platform id (`AAL` RingEdge). `\\.\mxsuperio` (hardware monitor) stays absent: amHm logs
-  "not found" and the game goes on. Blank SRAM and EEPROM are formatted by amLib itself.
+  platform id (`AAL` RingEdge). `\\.\mxsuperio` (hardware monitor, Winbond-like): chip id
+  registers 0x20/0x21 = `A0 20` (`0x9C402004`), the monitor register file read with
+  `0x9C40200C` (0x48 = 0x2D) and written with `0x9C40A010`; most games go on without it
+  (amHm "not found"), Transformers: Human Alliance stops on a missing status object. Blank SRAM and EEPROM are formatted by amLib itself.
 - **PCP services (`pcp.rs`).** mxmaster on TCP 40100, mxkeychip on 40106 (its binary channel
-  40107 unused so far). Text protocol: prompt `>`, request `key=?&cache=1\r\n`, answer
+  40107 unused so far); for test menus also mxinstaller 40102, mxgdeliver 40108, mxgcatcher
+  40110 and mxstorage 40115, answering `request=<name>` with `response=<name>&result=success`
+  (with no service, amLib waits for the connection forever). Text protocol: prompt `>`, request `key=?&cache=1\r\n`, answer
   `key=value\r\n`. Keychip values are text (game id `SBWX`, billing ids) or hex bytes
   (region, flags). `mxmaster.foreground.next=<n>`: the game hands over to another
   application and exits (test button: 3, the test menu = the same executable with `-t`): the
   payload asks the launcher to relaunch with that application's arguments
-  (`WAL_RINGEDGE_FOREGROUND`, default `3=-t`).
+  (`WAL_RINGEDGE_FOREGROUND`, default `3=-t`; `3=exe=<file> -t`: a separate test menu
+  program, which the launcher starts instead of the game).
 - **Keychip MAC (DS28CN01).** amDongle asks `keychip.ds.compute=<7-byte challenge>&page=<n>`
   every 100 ms and compares the 20-byte answer with MACs it already knows, else error 0949
   "Keychip Not Found": 100 records loaded at random from the game's `SBWX_Table.dat` (10000
   records of 87 bytes: the challenge, then 4 page MACs whose bytes are shuffled, order in
   `MAC_ORDER`; then 10000 32-byte SSD records), and a fixed challenge with its 4 MACs in the
-  executable. The payload looks the challenge up in both (`WAL_RINGEDGE_DS_FILE`,
-  `WAL_RINGEDGE_DS_TABLE`): no keychip secret needed.
+  executable (found by its bytes, else `WAL_RINGEDGE_DS_TABLE`). The payload looks the
+  challenge up in both (`WAL_RINGEDGE_DS_FILE`): no keychip secret needed. Newer amDongle
+  (1.14) also asks `keychip.ssd.proof=<16-byte challenge>`: answered from the SSD records
+  (answer bytes shuffled, `SSD_ORDER`). Dumped executables can hold amDongle's 100 records as
+  loaded at dump time and use them as they are (Transformers' test menu): the challenge is
+  then found in the executable's image, its MACs or SSD answer right after it.
 - **RingEdge 2** (`WAL_RINGEDGE_BOARD=ringedge2`, newer amLib 1.11). amPlatform's board type
   picks amBackup's SRAM layout: with platform `AAL` and maker `NEC` it reads a fifth OEM
   string, `AAL2` for a RingEdge 2 (4-byte aligned backup records; the RingEdge 1 layout's
@@ -1728,6 +1737,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `melty-blood-actress-again-current-code-re2` | Melty Blood Actress Again Current Code (RE2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `MBAA_RWMasterBuild.exe.orig` (the dump's `.exe` is patched), amLib 1.21, JVS on COM4 |
 | `phantom-breaker-another-code` | Phantom Breaker: Another Code | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `pbac_ringedge2.exe`, JVS on `\\.\mxjvs`; a windowed 800x600 device with its 16:9 picture in the middle 800x450: borderless screen-sized window, `WAL_D3D9_SOURCE` presents that band stretched |
 | `ge-sen-love-plus-pengo` | Ge-Sen Love Plus Pengo! | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `glpp.exe`, JVS on COM4, DIP switches `8F` (resolution bits valid: native 1280x720) |
+| `transformers-human-alliance` | Transformers: Human Alliance | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), 2 lightguns on the JVS analog channels (`p2:` inputs), 20 general purpose outputs (else Error 6402), super I/O hardware monitor, keychip SSD proof, Wine large address aware; dumped executables with `.rdata` made read-only (R6002); test menu `TestMode_dumped.exe` (JVS on COM4, item fields zeroed by a patch, keychip records from its own image) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

@@ -76,6 +76,11 @@ exe_fixed_base: false
 # Copies the executable and enables the PE Large Address Aware flag (32-bit games that need
 # a 4 GB patch): the original dump remains untouched.
 large_address_aware: false
+# <executable, from the dump root>: [PE sections]: the run directory gets a copy of that
+# executable with these sections read-only (their writable flag cleared). Unpacked ("dumped")
+# executables leave .rdata writable, and the C runtime then refuses its floating point setup
+# ("R6002 floating point support not loaded"). The original dump remains untouched.
+readonly_sections: {}
 # Runs the game in gamescope (its own X server, the picture scaled to the screen): for games
 # needing a screen mode the desktop does not have (Gundam Spirits of Zeon 2 players: 1280x480).
 # width/height: the game's screen (gamescope -w/-h), args: the rest (output, scaler, window).

@@ -385,6 +385,9 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         } else if profile.large_address_aware {
             rundir::copy_large_address_aware(&exe, &run_dir.join(exe_subdir).join(exe_name))?;
         }
+        for (file, sections) in &profile.readonly_sections {
+            rundir::readonly_sections(&game_root.join(file), &run_dir.join(file), sections)?;
+        }
     }
     let run_exe_dir = run_dir.join(exe_subdir);
 
@@ -409,7 +412,9 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     let game_exe = wine.windows_path(&run_exe_dir.join(exe_name));
     // the game command with these arguments; `relaunched`: started again at the payload's
     // request (WAL_RELAUNCH=1)
-    let game_command = |args: &[String], relaunched: bool| {
+    // `exe`: another executable of the game directory (a relaunch to the test menu program)
+    let game_command = |args: &[String], relaunched: bool, exe: Option<&str>| {
+        let game_exe = exe.map_or_else(|| game_exe.clone(), |e| wine.windows_path(&run_exe_dir.join(e)));
         let mut cmd = match loader {
             // wal-loader <payload> <game> [args]: payload loaded before the game entry point
             Some(payload) => {
@@ -431,7 +436,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
         cmd
     };
-    let mut cmd = game_command(&profile.args, false);
+    let mut cmd = game_command(&profile.args, false, None);
 
     eprintln!("game: {} ({})", profile.name.as_deref().unwrap_or(&profile.id), profile.id);
     eprintln!("profile layers: {:?}", profile.sources);
@@ -502,8 +507,14 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
             if let Some(args) = server.take_relaunch().filter(|_| !killing) {
                 eprintln!("launcher: game exited ({status}), started again: {args}");
                 let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stderr(std::process::Stdio::null()).status();
-                let args: Vec<String> = profile.args.iter().cloned().chain(args.split(' ').filter(|a| !a.is_empty()).map(str::to_string)).collect();
-                child = game_command(&args, true).spawn().context("starting wine")?;
+                // `exe=<file> args`: that executable of the game directory, with only these
+                // arguments (the test menu program); otherwise the game with its own plus these
+                let words: Vec<&str> = args.split(' ').filter(|a| !a.is_empty()).collect();
+                let (exe, args): (Option<&str>, Vec<String>) = match words.first().and_then(|w| w.strip_prefix("exe=")) {
+                    Some(exe) => (Some(exe), words[1..].iter().map(|a| a.to_string()).collect()),
+                    None => (None, profile.args.iter().cloned().chain(words.iter().map(|a| a.to_string())).collect()),
+                };
+                child = game_command(&args, true, exe).spawn().context("starting wine")?;
                 focus = focus::Focus::new(child.id());
                 continue;
             }
