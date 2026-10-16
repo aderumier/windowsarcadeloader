@@ -30,6 +30,9 @@
 //!   that aspect ratio in the window, black bars around. For games stretching a 4:3 picture over
 //!   a wide back buffer (Elevator Action: 1280x768), with `WAL_D3D9_WINDOWED_SIZE` and a
 //!   screen-sized window.
+//! * `WAL_D3D9_SOURCE=<x>,<y>,<w>,<h>`: windowed devices present only that rectangle of the back
+//!   buffer (when the game gives none), scaled to the window. For games drawing a picture
+//!   letterboxed in their back buffer (Phantom Breaker: Another Code, 16:9 in 800x600).
 //!
 //! * `WAL_D3D9_QUERY_FIX=1`: `IDirect3DQuery9::GetData` writes at most the requested size.
 //!   KOF '98 UMFE / 2002 UM poll an event query into a 1-byte variable at the top of their
@@ -133,6 +136,7 @@ static WINDOWED_FALLBACK: AtomicBool = AtomicBool::new(false);
 static WINDOWED_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static ASPECT: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+static SOURCE: Mutex<Option<[i32; 4]>> = Mutex::new(None);
 /// `WAL_D3D9_MAX_FPS`: minimum time between two presents.
 static FRAME_PERIOD: Mutex<Option<Duration>> = Mutex::new(None);
 /// The device's window (hDeviceWindow, else the focus window): `Present` with a null window
@@ -242,6 +246,11 @@ pub fn init() {
         Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
     });
     *ASPECT.lock().unwrap() = aspect;
+    let source = std::env::var("WAL_D3D9_SOURCE").ok().and_then(|v| {
+        let n: Vec<i32> = v.split(',').filter_map(|c| c.trim().parse().ok()).collect();
+        (n.len() == 4 && n[2] > 0 && n[3] > 0).then(|| [n[0], n[1], n[0] + n[2], n[1] + n[3]])
+    });
+    *SOURCE.lock().unwrap() = source;
     let max_fps = std::env::var("WAL_D3D9_MAX_FPS").ok().and_then(|v| v.trim().parse::<f64>().ok()).filter(|f| *f > 0.0);
     *FRAME_PERIOD.lock().unwrap() = max_fps.map(|f| Duration::from_secs_f64(1.0 / f));
     let force = std::env::var("WAL_D3D9_FULLSCREEN").is_ok_and(|v| v == "1");
@@ -259,7 +268,7 @@ pub fn init() {
     POW2.store(pow2, Ordering::Relaxed);
     let multithreaded = std::env::var("WAL_D3D9_MULTITHREADED").is_ok_and(|v| v == "1");
     MULTITHREADED.store(multithreaded, Ordering::Relaxed);
-    if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && max_fps.is_none() && !force && !query_fix && !trace && !pow2 && !multithreaded {
+    if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && source.is_none() && max_fps.is_none() && !force && !query_fix && !trace && !pow2 && !multithreaded {
         return;
     }
     // the game and the DLLs of its directory (engines creating the device themselves)
@@ -460,6 +469,8 @@ unsafe extern "system" fn present_ex(dev: P, src: P, dst: P, window: P, dirty: P
     let (src, dst) = whole_window(src, dst);
     let mut rect = [0i32; 4];
     let dst = unsafe { aspect_rect(dst, window, &mut rect) };
+    let mut source = [0i32; 4];
+    let src = source_rect(src, &mut source);
     unsafe { orig(dev, src, dst, window, dirty, flags) }
 }
 
@@ -806,6 +817,8 @@ unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -
     let (src, dst) = whole_window(src, dst);
     let mut rect = [0i32; 4];
     let dst = unsafe { aspect_rect(dst, window, &mut rect) };
+    let mut source = [0i32; 4];
+    let src = source_rect(src, &mut source);
     unsafe { orig(dev, src, dst, window, dirty) }
 }
 
@@ -870,6 +883,16 @@ unsafe fn aspect_rect(dst: P, window: P, rect: &mut [i32; 4]) -> P {
     if !LOGGED.swap(true, Ordering::Relaxed) {
         log!("d3d9: Present to {w}x{h} at {x},{y} of the {cw}x{ch} window ({aw}:{ah})");
     }
+    rect.as_mut_ptr().cast()
+}
+
+/// `WAL_D3D9_SOURCE`: the back buffer rectangle presented, when the game gives none.
+fn source_rect(src: P, rect: &mut [i32; 4]) -> P {
+    let Some(r) = *SOURCE.lock().unwrap() else { return src };
+    if !src.is_null() {
+        return src;
+    }
+    *rect = r;
     rect.as_mut_ptr().cast()
 }
 

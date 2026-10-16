@@ -1,0 +1,19 @@
+# Phantom Breaker: Another Code (Sega RingEdge 2).
+# Override values in userprofiles/ringedge/phantom-breaker-another-code.yaml.
+system: ringedge
+name: "Phantom Breaker: Another Code"
+
+env:
+  # the game creates a windowed 800x600 device (a small window) and draws its 16:9 picture in
+  # the middle 800x450: a borderless screen-sized window, that picture stretched to it
+  WAL_D3D9_WINDOWED_SIZE: 800x600
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_D3D9_SOURCE: "0,75,800,450"
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip DS28CN01 MACs amDongle checks: its fixed challenge
+  WAL_RINGEDGE_DS_TABLE: "0x56627c,0x566288"
+  # debugging: amLib's log function and its modules' log levels
+  # WAL_RINGEDGE_AMLOG: "0x512910"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0xfd1300,0xfd170c,0xfd1710,0xfd1718,0xfdda68,0xfdda70,0xfddf78,0xfde898,0xfde940,0xfded28,0xfdefe4,0xfe3210,0xfe71f0"
