@@ -1,0 +1,15 @@
+# Dengeki Bunko: Fighting Climax Ignition (Sega RingEdge 2). Runs RingGame.exe.orig:
+# RingGame.exe is a patched copy.
+# Override values in userprofiles/ringedge/dengeki-bunko-fighting-climax-ignition.yaml.
+system: ringedge
+name: "Dengeki Bunko: Fighting Climax Ignition"
+
+env:
+  # no Aime banner (after 2 s offline "Aime play unavailable", otherwise the access code hint):
+  # the banner choice jumps past both
+  WAL_PATCHES: "0x3f362c:EB3B"
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # paced by the launcher's 60 fps limit, without vsync: its own vsync wait plus its sleeps
+  # missed every other refresh (~26 frames per second, the game slowed down)
+  DXVK_CONFIG: "d3d9.presentInterval = 0"
