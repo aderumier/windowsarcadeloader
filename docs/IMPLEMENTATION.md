@@ -1494,9 +1494,9 @@ payload `wal_segashell.dll` loaded by `wal-loader`.
   passes, else 14, 1280x720). `WAL_SEGASHELL_DEFAULT_RESOLUTION=<rva>` makes it return 14
   unless `WAL_SEGASHELL_FULLHD=1` (game option): integrated GPUs drop below 60 frames per
   second in stages at 1080p. The game paces itself (`CFrameRateMgr`: a 300 Hz timer, frames a
-  whole number of ticks); its vsync wait on top missed refreshes (~22 frames per second), so
-  vsync is off (`DXVK_CONFIG` `d3d9.presentInterval = 0`), the launcher's 60 fps limit kept
-  (the game's own pacing alone ran too fast on a Batocera machine).
+  whole number of ticks). Vsync stays on, with the launcher's 60 fps limit: without vsync it
+  ran too fast on a Batocera machine at 60 frames per second all the same; at 1080p an
+  integrated GPU missed refreshes with vsync (~22 frames per second), 720p holds 60.
   At start it builds its 594 standard shaders a batch per frame ("SYSTEM INITIALIZING...
   LOADING", about a minute).
 - **Test menu.** The game has none (its test mode entry is never called): the cabinet's test
@@ -1790,7 +1790,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dengeki-bunko-fighting-climax` | Dengeki Bunko: Fighting Climax | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `RingGame.exe`, JVS on COM4; Aime banner choice skipped by a patch (as Under Night); vsync off (`DXVK_CONFIG` `d3d9.presentInterval = 0`), paced by the 60 fps limit: its vsync wait plus its own sleeps ran it at ~26 frames per second |
 | `dengeki-bunko-fighting-climax-ignition` | Dengeki Bunko: Fighting Climax Ignition | ringedge | works (user: 100%) | as Fighting Climax, but `RingGame.exe.orig` (the .exe is a patched copy) and JVS on `\\.\mxjvs`; banner patch at its own address |
 | `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%) | RingEdge 1 (§6.3d), `LGI.exe`, JVS on `\\.\mxjvs` with 20 outputs and the 2 guns on analog channels 1-4 (Y/X per player, inverted; else Error 6402); test menu `-TestMode`; runs in its 2D mode |
-| `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync off, 60 fps limit |
+| `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync and 60 fps limit |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

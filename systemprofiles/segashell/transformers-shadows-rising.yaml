@@ -29,10 +29,9 @@ env:
   # "hdtv"; its command line resolution names are ignored), 1920x1080 with the option
   WAL_SEGASHELL_DEFAULT_RESOLUTION: "0x2607f0"
   WAL_SEGASHELL_FULLHD: "0"
-  # no vsync, paced by the launcher's 60 fps limit: its vsync wait on top of its own pacing
-  # (a 300 Hz timer) missed refreshes (~22 frames per second; its shader build at start, one
-  # batch per frame, then took 100 s); its own pacing alone ran too fast on some machines
-  DXVK_CONFIG: "d3d9.presentInterval = 0"
+  # vsync and the launcher's 60 fps limit kept: without vsync it ran too fast on a Batocera
+  # machine (60 frames per second all the same). At 1920x1080 an integrated GPU missed
+  # refreshes with vsync (~22 frames per second): the default 1280x720 holds 60.
 
 options:
   - title: Display
