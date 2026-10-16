@@ -1,7 +1,8 @@
 //! The RingEdge system services amLib talks to over PCP on 127.0.0.1, served by the payload:
 //! `mxmaster` (amMaster: application control, TCP 40100), `mxkeychip` (amDongle: the
 //! keychip, TCP 40106, its binary data channel 40107) and the auth service (amAuth, RingEdge 2:
-//! TCP 40190). The test menus also open the installer (amInstall, 40102), the game delivery
+//! TCP 40190). The network service (amNetwork, 40104); the test menus also open the
+//! installer (amInstall, 40102), the game delivery
 //! services (amGdeliver 40108, amGcatcher 40110) and the storage service (40115).
 //!
 //! PCP is a text protocol: the service sends the prompt `>`, the client a request line
@@ -41,6 +42,7 @@ const MXMASTER: u16 = 40100;
 const MXKEYCHIP: u16 = 40106;
 const MXKEYCHIP_DATA: u16 = 40107;
 const MXINSTALLER: u16 = 40102;
+const MXNETWORK: u16 = 40104;
 const MXGDELIVER: u16 = 40108;
 const MXGCATCHER: u16 = 40110;
 const MXSTORAGE: u16 = 40115;
@@ -93,6 +95,7 @@ pub(crate) fn start() {
     let services = [
         (MXMASTER, "mxmaster"),
         (MXINSTALLER, "mxinstaller"),
+        (MXNETWORK, "mxnetwork"),
         (MXKEYCHIP, "mxkeychip"),
         (MXKEYCHIP_DATA, "mxkeychip data"),
         (MXGDELIVER, "mxgdeliver"),

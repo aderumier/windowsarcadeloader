@@ -1041,7 +1041,7 @@ fn memdump(path: &str) {
 }
 
 /// 32-bit top-down BMP (BGRX rows, as in X8R8G8B8 surfaces).
-fn write_bmp(path: &str, w: u32, h: u32, bgrx: &[u8]) -> std::io::Result<()> {
+pub fn write_bmp(path: &str, w: u32, h: u32, bgrx: &[u8]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
     let size = 54 + bgrx.len() as u32;
     f.write_all(b"BM")?;

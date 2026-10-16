@@ -15,7 +15,9 @@
 #![allow(non_snake_case)]
 
 mod amlog;
+mod cg;
 mod devices;
+mod nvasm;
 mod pcp;
 mod touch;
 
@@ -46,6 +48,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             serial::install_sink(&ports);
         }
         devices::init();
+        cg::init();
         touch::init();
         pcp::start();
         log!("ringedge: initialized");

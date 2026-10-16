@@ -1,0 +1,26 @@
+# Initial D Arcade Stage 6 AA (Sega RingEdge 2), racing game with a wheel and pedals.
+# Runs id6_dump_.exe (InitialD6_GLW_RE_SBUU.exe is the encrypted original).
+# Override values in userprofiles/ringedge/initial-d-arcade-stage-6.yaml.
+system: ringedge
+name: Initial D Arcade Stage 6 AA
+
+# dumped executable: .rdata left writable, the C runtime then stops ("R6002 floating point
+# support not loaded")
+readonly_sections:
+  id6_dump_.exe: [.rdata]
+
+input:
+  stick_as_dpad: false
+
+env:
+  # its NVIDIA OpenGL shaders and behaviors on other GPUs (Mesa: AMD, Intel), see the
+  # payload's cg.rs; NVIDIA GPUs keep the originals
+  WAL_RINGEDGE_CG_FIX: auto
+  # the wheel and pedals on the JVS board's analog channels: steering, gas, brake
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,accel,brake"
+  # its amJvs uses the serial port
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  WAL_RINGEDGE_DS_FILE: SBUU_Table.dat
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBUU
