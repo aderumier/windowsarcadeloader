@@ -1396,6 +1396,9 @@ game's amLib (its own error strings name every function):
   replaces the function with a stub writing to the payload log and
   `WAL_RINGEDGE_AMLOG_LEVELS` sets the levels: every remaining failure shows by name
   ("amSramInit(177): CreateFileA Error!!"). Virtua Tennis 4's addresses are in its profile.
+  Only the variables compared with 1 (`cmp level, 1; jl`) are levels: amLib's init flags are
+  compared with 0 before some log calls, and setting them skips the init (Let's Go Island:
+  no SRAM, a division by zero in amSramRead).
 - **Devices (`devices.rs`).** `\\.\mxsram` is the save folder's `SRAM.bin` (2 MB; version
   IOCTL `0x9C406000`, size by `IOCTL_DISK_GET_DRIVE_GEOMETRY`, then plain reads and writes).
   The SMBus driver (device interface class `5c49e1fe-...`, SetupDi faked) carries the EEPROM
@@ -1786,6 +1789,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `guilty-gear-xrd-sign` | Guilty Gear Xrd -SIGN- | ringedge | works (user: 100%) | as Xrd Rev 2 (same engine and Aime banner code, patch at its own address), `game.bat`'s arguments |
 | `dengeki-bunko-fighting-climax` | Dengeki Bunko: Fighting Climax | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `RingGame.exe`, JVS on COM4; Aime banner choice skipped by a patch (as Under Night); vsync off (`DXVK_CONFIG` `d3d9.presentInterval = 0`), paced by the 60 fps limit: its vsync wait plus its own sleeps ran it at ~26 frames per second |
 | `dengeki-bunko-fighting-climax-ignition` | Dengeki Bunko: Fighting Climax Ignition | ringedge | works (user: 100%) | as Fighting Climax, but `RingGame.exe.orig` (the .exe is a patched copy) and JVS on `\\.\mxjvs`; banner patch at its own address |
+| `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%) | RingEdge 1 (§6.3d), `LGI.exe`, JVS on `\\.\mxjvs` with 20 outputs and the 2 guns on analog channels 1-4 (Y/X per player, inverted; else Error 6402); test menu `-TestMode`; runs in its 2D mode |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync off, 60 fps limit |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 

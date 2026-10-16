@@ -1,0 +1,36 @@
+# Let's Go Island 3D: Lost on the Island of Tropics (Sega RingEdge, 2011), 2 player lightgun
+# game for an autostereoscopic 3D screen (VisuMotion); it runs in its 2D mode. Runs LGI.exe.
+# Override values in userprofiles/ringedge/lets-go-island-3d.yaml.
+system: ringedge
+name: "Let's Go Island 3D: Lost on the Island of Tropics"
+
+# another loader's output plugin shipped in the dump
+hide: [OutputBlaster.dll]
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the trigger also presses its player's start (joining the game by shooting), the middle
+  # button inserts a coin
+  gun:
+    BTN_LEFT: b1,start
+    BTN_MIDDLE: coin
+
+controls:
+  b1: Trigger
+
+env:
+  # the I/O board's 20 general purpose outputs and its analog channels (the guns: 1/2 player 1
+  # Y/X, 3/4 player 2 Y/X, high values up / left): without them, Error 6402 "JVS I/O board
+  # does not fulfill the game spec"
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "-ly,-lx,p2:-ly,p2:-lx"
+  # the keychip DS28CN01 MACs amDongle checks: its challenge file
+  WAL_RINGEDGE_DS_FILE: MACtbl/SBWB_Table.dat
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBWB
+  # the test button (application 3): the game with -TestMode (its gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=-TestMode"
+  # debugging: amLib's log function and its modules' log levels (only the `cmp level, 1`
+  # variables: amLib's init flags, compared with 0 before a log call, must not be set)
+  # WAL_RINGEDGE_AMLOG: "0x2ffbd0"
+  # WAL_RINGEDGE_AMLOG_LEVELS: "0x82ee8c,0x82ee94,0x842a6c,0x842cac,0x84f8f8,0x84fd04,0x84fd08,0x84fd0c,0x84fd10,0x850024,0x850030,0x850034,0x853474,0x8541ec"
