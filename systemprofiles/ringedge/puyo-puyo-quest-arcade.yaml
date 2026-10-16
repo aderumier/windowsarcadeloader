@@ -1,0 +1,19 @@
+# Puyo Puyo!! Quest Arcade (Sega RingEdge 2), touchscreen game. Runs bin/Pj24App.exe.
+# WORK IN PROGRESS: the game quits about 1 s after start (exit code 3, its "reboot"), cause
+# not found yet (not a C++ exception, not its maintenance reboot check).
+# Override values in userprofiles/ringedge/puyo-puyo-quest-arcade.yaml.
+system: ringedge
+name: Puyo Puyo!! Quest Arcade
+
+# the cabinet's Y: drive (its dipsw.ini, its debug log): a folder of the dump
+drives:
+  y: Y
+
+env:
+  # its working directory is the dump root (hod5.ini, Data/), not bin/
+  WAL_RINGEDGE_CWD: ".."
+  # its touch panel (a CTR-251500 on COM1)
+  WAL_RINGEDGE_TOUCH: COM1
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  WAL_RINGEDGE_DS_FILE: bin/SBYZ_Table.dat

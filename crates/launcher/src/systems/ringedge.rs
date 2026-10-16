@@ -16,6 +16,9 @@
 //! - `WAL_RINGEDGE_AMLOG`, `WAL_RINGEDGE_AMLOG_LEVELS`: amLib's log in the payload log
 //! - `WAL_TYPEX_JVS_PORT`: port(s) of the JVS board, comma separated (default `mxjvs`, the JVS
 //!   driver; `COM4`: games using the serial port)
+//! - `WAL_RINGEDGE_TOUCH=<port>`: a CTR-251500 serial touch panel on that port
+//! - `WAL_RINGEDGE_SILENT_PORTS`: other serial ports, present but silent (`!COMn`: absent)
+//! - `WAL_RINGEDGE_CWD`: the game's working directory, relative to its own
 //! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
 
 use super::{Payload, System};
