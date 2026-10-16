@@ -29,11 +29,10 @@ env:
   # "hdtv"; its command line resolution names are ignored), 1920x1080 with the option
   WAL_SEGASHELL_DEFAULT_RESOLUTION: "0x2607f0"
   WAL_SEGASHELL_FULLHD: "0"
-  # no vsync and no frame limit: the game paces itself to 60 frames per second (a 300 Hz
-  # timer); its vsync wait on top missed refreshes (~22 frames per second; its shader build
-  # at start, one batch per frame, then took 100 s)
+  # no vsync, paced by the launcher's 60 fps limit: its vsync wait on top of its own pacing
+  # (a 300 Hz timer) missed refreshes (~22 frames per second; its shader build at start, one
+  # batch per frame, then took 100 s); its own pacing alone ran too fast on some machines
   DXVK_CONFIG: "d3d9.presentInterval = 0"
-  WAL_D3D9_MAX_FPS: "0"
 
 options:
   - title: Display
