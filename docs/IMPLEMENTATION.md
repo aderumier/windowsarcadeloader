@@ -1696,6 +1696,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | hide dinput8 (loader hack) |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | - |
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | D: data in WindowsLoader |
+| `suggoi-arcana-heart-2` | Suggoi! Arcana Heart 2 | nesica | works (user: 100%) | as `arcana-heart-2` (its newer version: DirectDraw 7, XACT 3.5), wine's XAudio2 2.5 / XACT 3.5 (`dll_overrides`) |
 | `battle-fantasia-nesica` | Battle Fantasia (NESiCAxLive) | nesica | works (user: 100%) | Type X JVS payload through wal-loader, 1280x800, A/B/C/D/G layout; no executable patches needed |
 | `spica-adventure-nesica` | Spica Adventure (NESiCAxLive) | nesica | works (user: 100%) | Type X JVS payload through wal-loader, standard attack / jump buttons; no executable patches needed |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | key bbcf, shop hours patch |

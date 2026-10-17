@@ -1,0 +1,29 @@
+# Suggoi! Arcana Heart 2 (NESiCAxLive), the newer version of Arcana Heart 2 - template, override values in
+# userprofiles/nesica/suggoi-arcana-heart-2.yaml (same keys, only what changes).
+system: nesica
+name: Suggoi! Arcana Heart 2
+
+graphics: wine
+# d3d11.dll is a ReShade build (bezel) and Dinput8.dll a Microsoft one: use wine's.
+hide: [d3d11.dll, Dinput8.dll]
+# Sound effects missing with the dump's XAudio2 2.5 / XACT 3.5 (registered): wine's.
+dll_overrides:
+  xaudio2_5: b
+  xactengine3_5: b
+
+# Buttons A B C D E: E is FastIO Button6.
+# Virtual stick top row b1-b4 = A B C D, bottom row b5 = E.
+native_map:
+  b5: btn6
+
+env:
+  # Resolution=0: built-in 480p (SD) mode
+  WAL_NESICA_REG: "Resolution=1"
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D
+  b5: E

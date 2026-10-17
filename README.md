@@ -37,6 +37,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-10-08 |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | pass | 2026-10-07 |
 | `arcana-heart-3-lmss` | Arcana Heart 3 Love Max Six Stars!!!!!! | nesica | in game (user, GAME_START) | pass | 2026-10-07 |
+| `suggoi-arcana-heart-2` | Suggoi! Arcana Heart 2 | nesica | works (user: 100%) | pass | 2026-10-17 |
 | `battle-fantasia-nesica` | Battle Fantasia (NESiCAxLive) | nesica | works (user: 100%) | not in the test |  |
 | `spica-adventure-nesica` | Spica Adventure (NESiCAxLive) | nesica | works (user: 100%) | not in the test |  |
 | `blazblue-central-fiction` | BlazBlue Central Fiction 2.01 | nesica | in game, NESiCA online | pass | 2026-10-07 |
