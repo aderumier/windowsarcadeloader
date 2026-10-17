@@ -554,6 +554,12 @@ profile), `show` (merged profile).
   `GetData(&byte, 1, FLUSH)` on the first byte of their stack frame; DXVK writes the whole
   4-byte BOOL (Windows drivers honour the size), overwriting the saved EBP: the next call used
   EBP 0 (`QueryPerformanceCounter(0xffffffc8)`) and the game crashed after its first frame.
+* `WAL_D3D9_UPDATE_TEXTURE_FIX=1`: an `UpdateTexture` the device refuses between two 2D
+  textures is redone level by level with `UpdateSurface`, from the destination level of the
+  source's top level size. Koihime Enbu uploads its 1024x1024 L8 character sprites from 1-level
+  system memory textures into 11-level default pool ones: DXVK returns D3DERR_INVALIDCALL
+  (source with fewer levels) and the characters stayed invisible. The first refusal is logged
+  with both textures' descriptions.
 * `codepage`: `WAL_ANSI_CODEPAGE=<cp>` makes the game's own `MultiByteToWideChar` /
   `WideCharToMultiByte` calls on CP_ACP use `<cp>` (932): Raiden IV converts its Shift-JIS
   movie name ("raiden4_ｃ50.m1v") itself.
@@ -1777,7 +1783,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `guilty-gear-xx-accent-core-plus-r` | Guilty Gear XX Accent Core Plus R | ringedge | works (user: 100%) | RingEdge 2 (§6.3d): platform `AAL2`, amAuth PCP service (TCP 40190), 4-byte SRAM access unit, keychip MACs from `SBYG_Table.dat` |
 | `under-night-in-birth-exe-late` | Under Night In-Birth Exe:Late | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `RingGame.exe.orig` (the dump's `RingGame.exe` is patched), amAuth 1.40 commands, JVS on COM4 |
 | `under-night-in-birth-exe-late-st` | Under Night In-Birth Exe:Late[st] | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), newer version of the same game: `RingGame.exe.orig`, amAuth 1.40 commands, JVS on `\\.\mxjvs` |
-| `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
+| `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
 | `caladrius-ac` | Caladrius AC | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `SILVER_AMP_R_ROM.exe`, JVS on `\\.\mxjvs`; its own init (no amLibInit) gives up on an invalid credit settings record (backup record 7, made by the system menu) and amCredit stays uninitialized (main loop spins): profile patch `0x13fc1:9090` goes on, amCreditInit takes its defaults |

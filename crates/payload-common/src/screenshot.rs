@@ -39,6 +39,10 @@
 //!   stack frame; DXVK writes the whole 4-byte BOOL, overwriting the saved EBP (crash after the
 //!   first frame).
 //!
+//! * `WAL_D3D9_UPDATE_TEXTURE_FIX=1`: an `UpdateTexture` DXVK refuses is done level by level
+//!   with `UpdateSurface` (Koihime Enbu: 1-level system memory sprites into full mip chain
+//!   textures, the characters stayed invisible).
+//!
 //! * `WAL_D3D9_TRACE=1`: logs the device caps' TextureCaps, texture creations, viewports and
 //!   presents per second
 //!   (finding how a game sizes its pictures).
@@ -91,6 +95,15 @@ const D3D_GET_DEVICE_CAPS: usize = 14;
 const DEV_GET_DEVICE_CAPS: usize = 7;
 const DEV_CREATE_TEXTURE: usize = 23;
 const DEV_SET_VIEWPORT: usize = 47;
+const DEV_UPDATE_SURFACE: usize = 30;
+const DEV_UPDATE_TEXTURE: usize = 31;
+/// IDirect3DResource9::GetType, IDirect3DBaseTexture9::GetLevelCount, IDirect3DTexture9
+/// GetLevelDesc / GetSurfaceLevel.
+const RES_GET_TYPE: usize = 10;
+const TEX_GET_LEVEL_COUNT: usize = 13;
+const TEX_GET_LEVEL_DESC: usize = 17;
+const TEX_GET_SURFACE_LEVEL: usize = 18;
+const D3DRTYPE_TEXTURE: u32 = 3;
 /// D3DCAPS9.TextureCaps (dword 15)
 const CAPS_TEXTURE_CAPS: usize = 15;
 const D3DPTEXTURECAPS_POW2: u32 = 0x2;
@@ -125,10 +138,12 @@ static ORIG_ENUM_MODES: AtomicUsize = AtomicUsize::new(0);
 static ORIG_DEV_CAPS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_TEXTURE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SET_VIEWPORT: AtomicUsize = AtomicUsize::new(0);
+static ORIG_UPDATE_TEXTURE: AtomicUsize = AtomicUsize::new(0);
 static TRACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static POW2: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static MULTITHREADED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static QUERY_FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static UPDATE_TEXTURE_FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 /// A fullscreen device could not be created (a display mode the screen does not have: Xorg
 /// only offers the output's real modes, a TV has no 1280x800): devices are windowed from then on.
@@ -262,13 +277,15 @@ pub fn init() {
     }
     let query_fix = std::env::var("WAL_D3D9_QUERY_FIX").is_ok_and(|v| v == "1");
     QUERY_FIX.store(query_fix, Ordering::Relaxed);
+    let update_texture_fix = std::env::var("WAL_D3D9_UPDATE_TEXTURE_FIX").is_ok_and(|v| v == "1");
+    UPDATE_TEXTURE_FIX.store(update_texture_fix, Ordering::Relaxed);
     let trace = std::env::var("WAL_D3D9_TRACE").is_ok_and(|v| v == "1");
     TRACE.store(trace, Ordering::Relaxed);
     let pow2 = std::env::var("WAL_D3D9_POW2").is_ok_and(|v| v == "1");
     POW2.store(pow2, Ordering::Relaxed);
     let multithreaded = std::env::var("WAL_D3D9_MULTITHREADED").is_ok_and(|v| v == "1");
     MULTITHREADED.store(multithreaded, Ordering::Relaxed);
-    if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && source.is_none() && max_fps.is_none() && !force && !query_fix && !trace && !pow2 && !multithreaded {
+    if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && source.is_none() && max_fps.is_none() && !force && !query_fix && !update_texture_fix && !trace && !pow2 && !multithreaded {
         return;
     }
     // the game and the DLLs of its directory (engines creating the device themselves)
@@ -340,6 +357,9 @@ unsafe fn wrap_device(dev: P) {
         if TRACE.load(Ordering::Relaxed) {
             patch(dev, DEV_CREATE_TEXTURE, create_texture as *const () as usize, &ORIG_CREATE_TEXTURE);
             patch(dev, DEV_SET_VIEWPORT, set_viewport as *const () as usize, &ORIG_SET_VIEWPORT);
+        }
+        if UPDATE_TEXTURE_FIX.load(Ordering::Relaxed) {
+            patch(dev, DEV_UPDATE_TEXTURE, update_texture as *const () as usize, &ORIG_UPDATE_TEXTURE);
         }
         if QUERY_FIX.load(Ordering::Relaxed) {
             patch(dev, DEV_CREATE_QUERY, create_query as *const () as usize, &ORIG_CREATE_QUERY);
@@ -416,6 +436,54 @@ unsafe extern "system" fn create_query(dev: P, kind: u32, out: *mut P) -> HRESUL
         unsafe { patch(*out, QUERY_GET_DATA, query_get_data as *const () as usize, &ORIG_QUERY_GET_DATA) };
     }
     hr
+}
+
+/// A refused `UpdateTexture` between 2D textures: the levels of the same size copied one by
+/// one with `UpdateSurface`.
+unsafe extern "system" fn update_texture(dev: P, src: P, dst: P) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_UPDATE_TEXTURE.load(Ordering::Relaxed)) };
+    let hr = unsafe { orig(dev, src, dst) };
+    if hr >= 0 || src.is_null() || dst.is_null() {
+        return hr;
+    }
+    unsafe {
+        let get_type: unsafe extern "system" fn(P) -> u32 = std::mem::transmute(method(src, RES_GET_TYPE));
+        let dst_type: unsafe extern "system" fn(P) -> u32 = std::mem::transmute(method(dst, RES_GET_TYPE));
+        if get_type(src) != D3DRTYPE_TEXTURE || dst_type(dst) != D3DRTYPE_TEXTURE {
+            return hr;
+        }
+        // D3DSURFACE_DESC: Format, Type, Usage, Pool, MultiSampleType, MultiSampleQuality, Width, Height
+        let levels = |t: P| -> Vec<[u32; 8]> {
+            let count: unsafe extern "system" fn(P) -> u32 = std::mem::transmute(method(t, TEX_GET_LEVEL_COUNT));
+            let desc: unsafe extern "system" fn(P, u32, *mut [u32; 8]) -> HRESULT = std::mem::transmute(method(t, TEX_GET_LEVEL_DESC));
+            (0..count(t)).map(|l| { let mut d = [0; 8]; desc(t, l, &mut d); d }).collect()
+        };
+        let (s, d) = (levels(src), levels(dst));
+        // the destination's level of the source's top level size
+        let Some(first) = s.first().and_then(|top| d.iter().position(|l| l[6..8] == top[6..8])) else {
+            return hr;
+        };
+        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !LOGGED.swap(true, Ordering::Relaxed) {
+            log!("d3d9: UpdateTexture refused ({hr:#x}): source {} levels {:?}, destination {} levels {:?}; copied level by level", s.len(), s[0], d.len(), d[0]);
+        }
+        let surface: unsafe extern "system" fn(P, u32, *mut P) -> HRESULT = std::mem::transmute(method(src, TEX_GET_SURFACE_LEVEL));
+        let dst_surface: unsafe extern "system" fn(P, u32, *mut P) -> HRESULT = std::mem::transmute(method(dst, TEX_GET_SURFACE_LEVEL));
+        let update: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = std::mem::transmute(method(dev, DEV_UPDATE_SURFACE));
+        let mut result = 0;
+        for (i, j) in (0..s.len()).zip(first..d.len()) {
+            let (mut a, mut b): (P, P) = (std::ptr::null_mut(), std::ptr::null_mut());
+            if surface(src, i as u32, &mut a) >= 0 && dst_surface(dst, j as u32, &mut b) >= 0 {
+                let r = update(dev, a, std::ptr::null_mut(), b, std::ptr::null_mut());
+                if r < 0 {
+                    result = r;
+                }
+            }
+            release(a);
+            release(b);
+        }
+        result
+    }
 }
 
 /// Query results (BOOL, UINT64, structures) into a scratch buffer, `size` bytes copied back.
