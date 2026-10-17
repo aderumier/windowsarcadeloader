@@ -14,10 +14,18 @@ input:
     BTN_RIGHT: up
     BTN_MIDDLE: down
 
+# the test menu (F2) is the Shell's program, Sega/shell/Shell.exe: its folder made a real
+# directory of the run tree (its own Game.ini copied in place) so that its logs (~50 files)
+# stay out of the dump
+files:
+  Sega/shell/Game.ini: "{dump}/Sega/shell/Game.ini"
+
 controls:
   b1: Trigger
   up: Lever up
   down: Lever down
+  test: Test menu (gun calibration, settings, bookkeeping)
+  service: Service (test menu, next item)
 
 env:
   # the I/O board: CSAEBoard::Update replaced by the payload's
@@ -25,6 +33,8 @@ env:
   # CSAEBoard::IsActive returns true (the lever buttons are only read on an active board);
   # no Shell security challenges (CShellMgr's flag cleared: unanswered, the game quits)
   WAL_PATCHES: "0x17a380:B801000000C3,0x1e70e4:00"
+  # (the payload is also loaded by the test menu program)
+  WAL_PATCHES_EXE: Transformers2.exe
   # native 1280x720 by default, lighter on small GPUs (its DefaultResolution() made to return
   # "hdtv"; its command line resolution names are ignored), 1920x1080 with the option
   WAL_SEGASHELL_DEFAULT_RESOLUTION: "0x2607f0"
@@ -32,6 +42,16 @@ env:
   # vsync and the launcher's 60 fps limit kept: without vsync it ran too fast on a Batocera
   # machine (60 frames per second all the same). At 1920x1080 an integrated GPU missed
   # refreshes with vsync (~22 frames per second): the default 1280x720 holds 60.
+  # test menu: TEST (F2) ends the game and starts the Shell (from the game's directory)
+  WAL_SEGASHELL_TEST_MENU: ../shell/Shell.exe
+  # the Shell: straight into its test menu after its start (state 1 returns 0x21 instead of 2:
+  # no updates, dongle and launch cycle), its data folders next to its own (c:\Sega\ShellData,
+  # c:\Sega\GameData: ..\ShellData, ..\GameData, the game reads ShellData.ini there)
+  WAL_SEGASHELL_SHELL_PATCHES: "0xcc08:21,0x8eac8:2E2E5C5368656C6C4461746100,0x8eadc:2E2E5C47616D654461746100,0x8eaf0:2E2E5C47616D654461746100,0x8eb80:2E2E5C47616D65446174615C52616E6B446174612E6A736F6E00"
+  # its I/O board's HID report (guns, buttons) and its buttons, from the virtual sticks
+  WAL_SEGASHELL_SHELL_INPUT: "0xffd030,0x1004980"
+  # the test menu's exit: the calls of states 28 (game launch) and 2 (restart), back to the game
+  WAL_SEGASHELL_SHELL_EXIT: "0xd0fd,0xcfad"
 
 options:
   - title: Display

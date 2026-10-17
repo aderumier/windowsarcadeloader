@@ -1505,8 +1505,37 @@ payload `wal_segashell.dll` loaded by `wal-loader`.
   integrated GPU missed refreshes with vsync (~22 frames per second), 720p holds 60.
   At start it builds its 594 standard shaders a batch per frame ("SYSTEM INITIALIZING...
   LOADING", about a minute).
-- **Test menu.** The game has none (its test mode entry is never called): the cabinet's test
-  menu is the Shell's.
+- **Test menu (`testmenu.rs`).** The game has none (its test mode entry is never called): the
+  cabinet's test menu is the Shell's (`Sega/shell/Shell.exe`, 32-bit, Direct3D 9, runs under
+  Wine). TEST (F2) in the game asks the launcher to start `WAL_SEGASHELL_TEST_MENU`
+  (`../shell/Shell.exe`, relaunch `exe=`) and ends the game; the payload, loaded by
+  `wal-loader` in the Shell too, recognizes it by its file name and then only:
+  sets the working directory to the Shell's folder, applies `WAL_SEGASHELL_SHELL_PATCHES`
+  (`WAL_PATCHES_EXE=Transformers2.exe` keeps the game's patches out), writes the inputs and
+  sends the test menu's exit back to the game. The dump's Shell is already patched past its
+  security check (state 2) and I/O board wait (state 3). The Shell's main state machine
+  (state at 0x5f034c, 34-entry jump table at 0x40d190): state 1 (init) returns 2; the
+  profile makes it return 0x21, the test menu (0x428ff0), so the Shell skips its updates,
+  Dinkey dongle (DK2WIN32, absent: "NO SECURITY KEY" in its error log, harmless) and game
+  launch. Leaving the test menu goes to state 28 (launch the game, call at 0x40d0fd) or 2
+  (restart, call at 0x40cfad): `WAL_SEGASHELL_SHELL_EXIT` retargets both calls to the
+  payload's return to the game (relaunch with the profile's arguments).
+  Inputs: the Shell reads its HID I/O board only once it is found (never here), into a
+  15-byte report at 0x13fd030 (byte 1/2 P1 gun Y/X, 3/4 P2 gun Y/X, 0 = left / top; 6/7
+  buttons 1-16, bit `n - 1`), turned into its button bitmap at 0x1404980 (button `n` = bit
+  `n`; also set by its keyboard: 1-8, Q-I). `WAL_SEGASHELL_SHELL_INPUT=<report rva>,<bitmap
+  rva>`: a payload thread writes both every 4 ms. Buttons: 1/2 starts, 3/4 triggers, 5/6
+  lever down/up, 13 TEST, 14 SERVICE (`Config.ini` `TEST=13`, `SERVICE=14`). SERVICE moves
+  the cursor, TEST selects; a TEST still held from the game's press is ignored until
+  released. Its data folders are `game.ini` `[ShellData]` settings whose defaults
+  (`c:\Sega\ShellData`, `c:\Sega\GameData`) are patched to `..\ShellData` / `..\GameData`:
+  the settings and the gun calibration go to the dump's `ShellData/*.ini`, read by the game
+  at start (`CConfigMgr::LoadShellDataAdjust`; `GetAdjstGunPos` clamps each 0-255 axis into
+  [min, max] and stretches it to the screen: the dump's 100-200 used only the middle of the
+  gun's travel). DEVICE CALIBRATION > CALIBRATION START: min/max widen as the guns move,
+  TEST saves. The Shell writes ~50 log files a day in its folder: the profile's `files:`
+  copies the dump's own `Sega/shell/Game.ini` into the run tree, which makes that folder a
+  real directory there (logs in the prefix, not the dump).
 
 ### 6.4 Batocera integration
 
@@ -1798,7 +1827,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dead-or-alive-5-ultimate-arcade` | Dead or Alive 5 Ultimate Arcade | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `DOA5A.exe`, JVS on `\\.\mxjvs`, nothing game specific |
 | `under-defeat-hd-plus` | Under Defeat HD+ | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `UDX_RINGEDGE.exe`, JVS on `\\.\mxjvs`, nothing game specific |
 | `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%) | RingEdge 1 (§6.3d), `LGI.exe`, JVS on `\\.\mxjvs` with 20 outputs and the 2 guns on analog channels 1-4 (Y/X per player, inverted; else Error 6402); test menu `-TestMode`; runs in its 2D mode |
-| `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync and 60 fps limit |
+| `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync and 60 fps limit; test menu: the Shell's `Shell.exe` on TEST (straight into its test menu, inputs written in its memory, exit back to the game), gun calibration saved in `ShellData.ini` (read by the game) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

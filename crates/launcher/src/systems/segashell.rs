@@ -10,6 +10,9 @@
 //! - `WAL_SEGASHELL_DEFAULT_RESOLUTION=<rva>`: the game's `DefaultResolution()`, made to
 //!   return 1280x720 unless `WAL_SEGASHELL_FULLHD=1`
 //! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
+//! - `WAL_SEGASHELL_TEST_MENU=<path>`: the Shell's program (test menu), started on TEST; in
+//!   it `WAL_SEGASHELL_SHELL_PATCHES`, `WAL_SEGASHELL_SHELL_INPUT=<report rva>,<buttons rva>`
+//!   and `WAL_SEGASHELL_SHELL_EXIT=<call rva>,...` (back to the game)
 
 use super::{Payload, System};
 

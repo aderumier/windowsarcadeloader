@@ -23,6 +23,13 @@ pub fn apply() {
             return;
         }
     }
+    apply_list(&spec);
+}
+
+/// Applies a patch list in the `WAL_PATCHES` format to the process executable (and the
+/// `<module>!` ones to their DLLs), whatever `WAL_PATCHES_EXE` says: for payloads with their
+/// own patch lists per executable (the Sega Shell's test menu program).
+pub fn apply_list(spec: &str) {
     let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
     let mut later: Vec<(String, String)> = Vec::new();
     for item in spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
@@ -94,7 +101,7 @@ fn patch_modules(mut pending: Vec<(String, String)>) {
 }
 
 /// File name of the process executable.
-fn exe_name() -> String {
+pub fn exe_name() -> String {
     let mut buf = [0u16; 520];
     let n = unsafe { GetModuleFileNameW(std::ptr::null_mut(), buf.as_mut_ptr(), buf.len() as u32) } as usize;
     let path = String::from_utf16_lossy(&buf[..n]);

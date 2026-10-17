@@ -6,9 +6,12 @@
 //! * The game's resolution (`WAL_SEGASHELL_DEFAULT_RESOLUTION=<rva>`): its
 //!   `DefaultResolution()` made to return 1280x720 (index 14) unless `WAL_SEGASHELL_FULLHD=1`
 //!   (its own choice: 1920x1080).
+//! * The test menu (`testmenu.rs`): TEST starts the Shell's program
+//!   (`WAL_SEGASHELL_TEST_MENU`), which gets its own patches and inputs.
 
 mod board;
 mod shell;
+mod testmenu;
 
 use std::ffi::c_void;
 
@@ -20,10 +23,16 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("segashell");
+        if testmenu::is_test_menu() {
+            testmenu::init_shell();
+            log!("segashell: test menu initialized");
+            return TRUE;
+        }
         patches::apply();
         resolution();
         board::init();
         shell::start();
+        testmenu::watch_game();
         log!("segashell: initialized");
     }
     TRUE
