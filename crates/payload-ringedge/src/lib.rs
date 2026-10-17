@@ -8,6 +8,7 @@
 //!   `COM4` for games using the serial port), the board shared with Type X (payload-common
 //!   `jvs_board.rs`).
 //! * amLib's own log (`WAL_RINGEDGE_AMLOG`, `amlog.rs`).
+//! * The card daemon and its magnetic card reader (`WAL_RINGEDGE_CARD_DAEMON`, `card.rs`).
 //! * A CTR-251500 serial touch panel (`WAL_RINGEDGE_TOUCH`, `touch.rs`).
 //! * Profile code patches (`WAL_PATCHES`); `WAL_RINGEDGE_CWD`: the game's working directory,
 //!   relative to its own.
@@ -15,6 +16,7 @@
 #![allow(non_snake_case)]
 
 mod amlog;
+mod card;
 mod cg;
 mod devices;
 mod ffb;
@@ -32,6 +34,10 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
+        // the game's card daemon (picodaemon.exe): its card reader only
+        if card::daemon() {
+            return TRUE;
+        }
         wal_payload_common::start("ringedge");
         // the game's working directory, relative to its own (its files are found from there)
         if let Ok(dir) = std::env::var("WAL_RINGEDGE_CWD") {
@@ -51,6 +57,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         devices::init();
         cg::init();
         ffb::init();
+        card::start_daemon();
         touch::init();
         pcp::start();
         log!("ringedge: initialized");

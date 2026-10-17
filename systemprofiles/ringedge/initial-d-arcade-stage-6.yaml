@@ -53,6 +53,10 @@ env:
   WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
   # the wheel's drive board (force feedback: road forces, vibrations, centering spring)
   WAL_RINGEDGE_FFB: COM1
+  # the card reader (work in progress, off: the card's RFID chip is not emulated yet, the game
+  # rejects the cards): the cabinet's card daemon started beside the game, its reader emulated
+  # (the card: sv/card.bin, inserted when the game asks for one; a new card when missing)
+  # WAL_RINGEDGE_CARD_DAEMON: picodaemon.exe
   # platform id AAL2: amBackup's RingEdge 2 SRAM layout
   WAL_RINGEDGE_BOARD: ringedge2
   WAL_RINGEDGE_DS_FILE: SBUU_Table.dat

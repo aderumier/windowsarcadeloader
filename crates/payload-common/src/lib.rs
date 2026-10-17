@@ -77,6 +77,18 @@ static WRITER: Mutex<Option<TcpStream>> = Mutex::new(None);
 static START: Once = Once::new();
 
 /// Starts the background connection to the launcher. `name` identifies the system.
+/// The payload in a game's helper process (a daemon the game starts or needs beside it): the
+/// log (tagged with the process name) and crash reports only, no connection to the launcher
+/// (the game has it).
+pub fn start_helper(name: &'static str) {
+    START.call_once(|| {
+        log::init();
+        log!("{name}: payload loaded in a helper process");
+        #[cfg(windows)]
+        crash::init();
+    });
+}
+
 pub fn start(name: &'static str) {
     START.call_once(|| {
         log::init();
