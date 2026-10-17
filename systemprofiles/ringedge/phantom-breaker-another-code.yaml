@@ -10,6 +10,10 @@ env:
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
   WAL_D3D9_SOURCE: "0,75,800,450"
+  # in game (not in the test menu) it also reads per player PC keyboard keys next to the I/O
+  # board (P1 W/S/A/D/G/H/J/B/1/2, P2 the arrows/L/+/;///9/0, so our P1 arrows moved P2): its
+  # keyboard reader returns at once (ret 8). Its winmm joysticks 0 and 1 are hidden (default).
+  WAL_PATCHES: "0x5035c0:c20800"
   # platform id AAL2: amBackup's RingEdge 2 SRAM layout
   WAL_RINGEDGE_BOARD: ringedge2
   # the keychip DS28CN01 MACs amDongle checks: its fixed challenge

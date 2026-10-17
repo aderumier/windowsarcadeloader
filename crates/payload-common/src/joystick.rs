@@ -1,8 +1,9 @@
-//! `WAL_JOYSTICK_DISABLE=1`: the game's winmm joystick API sees no joystick (`joyGetNumDevs`
-//! 0, the other calls `JOYERR_UNPLUGGED`). Some arcade builds also read a PC game controller
-//! with `joyGetPosEx` next to their I/O board: Ge-Sen Love Plus Pengo!'s ship drifted right
-//! from a pad's axis at rest (a trigger at its minimum), while its test menu, reading the
-//! board, showed every input right.
+//! The game's winmm joystick API sees no joystick (`joyGetNumDevs` 0, the other calls
+//! `JOYERR_UNPLUGGED`), unless `WAL_JOYSTICK_DISABLE=0`. A cabinet has no PC game controller,
+//! its controls are the I/O board's, but some arcade builds also read one with `joyGetPos(Ex)`
+//! next to the board: Ge-Sen Love Plus Pengo!'s ship drifted right from a pad's axis at rest
+//! (a trigger at its minimum), Phantom Breaker: Another Code read joysticks 0 and 1 as its
+//! players in game, while their test menus, reading the board, showed every input right.
 
 use crate::{iat, log};
 
@@ -21,7 +22,7 @@ extern "system" fn joy_unplugged_3(_id: u32, _caps: *mut u8, _size: u32) -> u32 
 }
 
 pub fn init() {
-    if !std::env::var("WAL_JOYSTICK_DISABLE").is_ok_and(|v| v.trim() == "1") {
+    if std::env::var("WAL_JOYSTICK_DISABLE").is_ok_and(|v| v.trim() == "0") {
         return;
     }
     let hooks: [(&str, usize); 6] = [

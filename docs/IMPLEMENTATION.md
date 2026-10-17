@@ -1788,8 +1788,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
 | `caladrius-ac` | Caladrius AC | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `SILVER_AMP_R_ROM.exe`, JVS on `\\.\mxjvs`; its own init (no amLibInit) gives up on an invalid credit settings record (backup record 7, made by the system menu) and amCredit stays uninitialized (main loop spins): profile patch `0x13fc1:9090` goes on, amCreditInit takes its defaults |
 | `melty-blood-actress-again-current-code-re2` | Melty Blood Actress Again Current Code (RE2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `MBAA_RWMasterBuild.exe.orig` (the dump's `.exe` is patched), amLib 1.21, JVS on COM4 |
-| `phantom-breaker-another-code` | Phantom Breaker: Another Code | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `pbac_ringedge2.exe`, JVS on `\\.\mxjvs`; a windowed 800x600 device with its 16:9 picture in the middle 800x450: borderless screen-sized window, `WAL_D3D9_SOURCE` presents that band stretched |
-| `ge-sen-love-plus-pengo` | Ge-Sen Love Plus Pengo! | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `glpp.exe`, JVS on COM4, DIP switches `8F` (resolution bits valid: native 1280x720); PC joysticks hidden (`WAL_JOYSTICK_DISABLE`: it also reads winmm joysticks, a pad's axis at rest moved the ship) |
+| `phantom-breaker-another-code` | Phantom Breaker: Another Code | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `pbac_ringedge2.exe`, JVS on `\\.\mxjvs`; a windowed 800x600 device with its 16:9 picture in the middle 800x450: borderless screen-sized window, `WAL_D3D9_SOURCE` presents that band stretched; in game it also reads per player PC keys (P2 on the arrows, our P1 keys) and winmm joysticks: its keyboard reader patched out, joysticks hidden by default |
+| `ge-sen-love-plus-pengo` | Ge-Sen Love Plus Pengo! | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `glpp.exe`, JVS on COM4, DIP switches `8F` (resolution bits valid: native 1280x720); it also reads winmm joysticks, hidden by default (a pad's axis at rest moved the ship) |
 | `transformers-human-alliance` | Transformers: Human Alliance | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), 2 lightguns on the JVS analog channels (`p2:` inputs), 20 general purpose outputs (else Error 6402), super I/O hardware monitor, keychip SSD proof, Wine large address aware; dumped executables with `.rdata` made read-only (R6002); test menu `TestMode_dumped.exe` (JVS on COM4, item fields zeroed by a patch, keychip records from its own image) |
 | `guilty-gear-xrd-rev2` | Guilty Gear Xrd Rev 2 | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), Unreal Engine 3, `Binaries/Win32/GuiltyGearXrd.exe` with `game.bat.orig`'s arguments (`-AUTH`), cabinet drive M: = the dump's SAVE folder, JVS on `\\.\mxjvs`; Aime banner (`AIME_OFFLINE`) skipped by a patch |
 | `guilty-gear-xrd-sign` | Guilty Gear Xrd -SIGN- | ringedge | works (user: 100%) | as Xrd Rev 2 (same engine and Aime banner code, patch at its own address), `game.bat`'s arguments |
@@ -1812,6 +1812,10 @@ NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance s
 `NxLMMF_*`, `\\.\pipe\NxLPipe*`) and starts the real game (`game2.exe launcher`,
 `game_liong.exe -s`): the profiles run that stub, the child loads our iDmacDrv32.dll from the
 run directory.
+
+winmm joysticks are hidden from every game (`WAL_JOYSTICK_DISABLE=0` shows them): a cabinet has
+none, and games that read them next to their board (Ge-Sen Love Plus Pengo, Phantom Breaker)
+got the pads twice.
 
 Gamepads: Back inserts a coin, L3/R3 are the service and test switches (keyboard `F1` / `F2`).
 

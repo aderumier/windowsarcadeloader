@@ -7,9 +7,6 @@ env:
   # DIP switches: its resolution bits (0x70) must be 0x00, 0x10 or 0x40, "ERROR 0910 Wrong
   # Resolution Setting" with all on (the default); 0x00: 1280x720
   WAL_RINGEDGE_DIPSW: "8F"
-  # the ship is steered by the I/O board only: the game also reads PC joysticks (winmm), and a
-  # pad's axis at rest moved it right
-  WAL_JOYSTICK_DISABLE: "1"
   # its amJvs uses the serial port
   WAL_TYPEX_JVS_PORT: COM4
   # platform id AAL2: amBackup's RingEdge 2 SRAM layout
