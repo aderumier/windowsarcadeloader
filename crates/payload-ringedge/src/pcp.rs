@@ -75,6 +75,11 @@ fn values() -> &'static HashMap<String, String> {
     static VALUES: OnceLock<HashMap<String, String>> = OnceLock::new();
     VALUES.get_or_init(|| {
         let mut map: HashMap<String, String> = DEFAULTS.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        // the keychip's network: the machine's (games compare their address with it)
+        if let Some(network) = local_address().map(|ip| u32::from(ip) & 0xFFFF_FF00) {
+            map.insert("keychip.appboot.networkaddr".into(), format!("{network:08X}"));
+            log!("pcp: keychip network {}.{}.{}.0", network >> 24, (network >> 16) & 0xFF, (network >> 8) & 0xFF);
+        }
         if let Ok(spec) = std::env::var("WAL_RINGEDGE_PCP") {
             for item in spec.split(';').map(str::trim).filter(|s| !s.is_empty()) {
                 if let Some((k, v)) = item.split_once('=') {
@@ -84,6 +89,17 @@ fn values() -> &'static HashMap<String, String> {
         }
         map
     })
+}
+
+/// The machine's IPv4 address (the default route's: a UDP socket "connected" outside, no
+/// packet sent).
+fn local_address() -> Option<std::net::Ipv4Addr> {
+    let socket = std::net::UdpSocket::bind(("0.0.0.0", 0)).ok()?;
+    socket.connect(("192.0.2.1", 9)).ok()?;
+    match socket.local_addr().ok()?.ip() {
+        std::net::IpAddr::V4(ip) if !ip.is_loopback() && !ip.is_unspecified() => Some(ip),
+        _ => None,
+    }
 }
 
 pub(crate) fn start() {
@@ -153,6 +169,7 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
             let reply = match name {
                 "auth" => auth_answer(&request),
                 "mxmaster" | "mxkeychip" => answer(&request),
+                "mxnetwork" => network_answer(&request),
                 _ => service_answer(&request),
             };
             log!("pcp: {name}: {request} -> {reply}");
@@ -223,6 +240,34 @@ fn answer(request: &str) -> String {
             log!("pcp: unknown key {key}");
             format!("{key}=0")
         }
+    }
+}
+
+/// The network service (amNetwork): the machine's network card, up, its address from DHCP.
+/// Each query's answer carries its keyword (`query_dhcp_status` -> `dhcp_status=`; without
+/// it amNetwork reports "Response Error!!! No Keyword").
+fn network_answer(request: &str) -> String {
+    let name = request.split('&').find_map(|p| p.strip_prefix("request=")).unwrap_or("");
+    let ip = local_address().unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2));
+    let o = ip.octets();
+    let value = match name {
+        // 0: link up (another value: the game stops asking)
+        "query_nic_status" => Some(("status", "0".to_string())),
+        // 0..4; 3: the address obtained (the game then asks for the card's state)
+        "query_dhcp_status" => Some(("dhcp_status", "3".to_string())),
+        "query_ip_address" => Some(("ip_address", ip.to_string())),
+        "query_subnetmask" => Some(("subnetmask", "255.255.255.0".to_string())),
+        "query_gateway" | "query_primary_dns" => {
+            let key = if name == "query_gateway" { "gateway" } else { "primary_dns" };
+            Some((key, format!("{}.{}.{}.1", o[0], o[1], o[2])))
+        }
+        "query_secondary_dns" => Some(("secondary_dns", "0.0.0.0".to_string())),
+        "query_mac_address" => Some(("mac_address", "00:D0:F1:00:00:01".to_string())),
+        _ => None,
+    };
+    match value {
+        Some((key, value)) => format!("response={name}&result=success&{key}={value}"),
+        None => format!("response={name}&result=success"),
     }
 }
 

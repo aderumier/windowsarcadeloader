@@ -62,10 +62,26 @@ env:
   # card's RFID chip emulated (the card: sv/card.ic, inserted when the game asks for one;
   # without it, START at the card screen buys a new card from the dispenser)
   WAL_RINGEDGE_CARD_DAEMON: picodaemon.exe
+  # offline cabinet (the Network option): the game's "network enabled" function (mov al,1;
+  # ret) returns 0: no network check, ALL.Net or in-shop network at start (else "network
+  # error 830x, cable disconnected", or a wait for the store's server box)
+  WAL_RINGEDGE_OFFLINE: "1"
+  WAL_RINGEDGE_OFFLINE_PATCHES: "0x570a11:00"
   # platform id AAL2: amBackup's RingEdge 2 SRAM layout
   WAL_RINGEDGE_BOARD: ringedge2
   WAL_RINGEDGE_DS_FILE: SBYD_Table.dat
   WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBYD
+
+options:
+  - title: Network
+    options:
+      - key: WAL_RINGEDGE_OFFLINE
+        label: Offline cabinet
+        kind: bool
+        description: >-
+          Start without the arcade network: no network check, ALL.Net authentication or
+          in-shop network (cabinet link) at boot. Off: the game looks for them (network
+          error at boot without them).
 
 # Control names (the GUI's mapping rows).
 controls:

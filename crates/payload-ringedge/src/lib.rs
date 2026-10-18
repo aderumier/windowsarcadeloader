@@ -47,6 +47,14 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             log!("ringedge: working directory {} ({:?})", dir.trim(), if ok { std::env::current_dir().ok() } else { None });
         }
         patches::apply();
+        // WAL_RINGEDGE_OFFLINE=1: the game's network check, ALL.Net and the in-shop network
+        // skipped, with its own patches (WAL_RINGEDGE_OFFLINE_PATCHES, the WAL_PATCHES format)
+        if std::env::var("WAL_RINGEDGE_OFFLINE").is_ok_and(|v| v.trim() == "1")
+            && let Ok(list) = std::env::var("WAL_RINGEDGE_OFFLINE_PATCHES")
+        {
+            log!("ringedge: offline cabinet");
+            patches::apply_list(&list);
+        }
         amlog::init();
         // JVS sense line: amJvs reads DSR (0x20) as "board addressed"
         serial::MODEM_STATUS[0].store(0x10, Ordering::Relaxed);
