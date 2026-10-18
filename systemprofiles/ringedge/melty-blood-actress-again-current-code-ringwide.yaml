@@ -1,0 +1,18 @@
+# Melty Blood Actress Again Current Code (Sega RingWide), fighting game. Runs MBAA.exe.
+# Override values in userprofiles/ringedge/melty-blood-actress-again-current-code-ringwide.yaml.
+system: ringedge
+name: Melty Blood Actress Again Current Code (RingWide)
+
+# the dump's empty _KeyConfig.ini (the PC version's pad configuration) unassigns every
+# in-game input (START did nothing in game, the test menu was fine): absent, the game takes
+# its cabinet defaults, as the RingEdge 2 dump (which has none)
+hide:
+  - _KeyConfig.ini
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_DS_FILE: SBUB_Table.dat
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBUB;keychip.appboot.platformid=AAM
+  # the test menu: MBAA.exe /T (the cabinet's application 3)
+  WAL_RINGEDGE_FOREGROUND: "3=/T"

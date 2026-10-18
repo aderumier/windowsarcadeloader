@@ -20,6 +20,11 @@
 //! `DIDC_FORCEFEEDBACK` and accepts effect creation, so a forced-FFB boot does not wait on a
 //! motor that is not there.
 //!
+//! `WAL_DINPUT_BOARD=<product name or 1>`: the same fake DirectInput, with one cabinet button
+//! box (26 buttons, the Injustice cabinet's layout): the players' fight buttons, coins, start,
+//! the card dispensers' buy buttons and the card readers' scan buttons, from the virtual
+//! sticks.
+//!
 //! `WAL_KEYBOARD_STATE_DISABLE=1`: the game's `user32!GetKeyboardState` reports no key pressed
 //! (Wacky Races reads START on the PC keyboard's Enter and VIEW on Right Shift that way, next
 //! to its JVS switches).
@@ -182,10 +187,16 @@ fn fake(out: *mut P, wide: bool) -> i32 {
     if out.is_null() {
         return DIERR_DEVICENOTREG;
     }
-    let dinput = match (std::env::var_os("WAL_DINPUT_WHEEL").is_some(), wide) {
-        (true, false) => &wheel::DINPUT_A,
-        (true, true) => &wheel::DINPUT_W,
-        (false, _) => &DINPUT,
+    let dinput = match (
+        std::env::var("WAL_DINPUT_BOARD").is_ok(),
+        std::env::var_os("WAL_DINPUT_WHEEL").is_some(),
+        wide,
+    ) {
+        (true, _, false) => &board::DINPUT_A,
+        (true, _, true) => &board::DINPUT_W,
+        (false, true, false) => &wheel::DINPUT_A,
+        (false, true, true) => &wheel::DINPUT_W,
+        (false, false, _) => &DINPUT,
     };
     unsafe { *out = dinput as *const Object as P };
     log!("dinput: game got the fake DirectInput{}", if wide { " (W)" } else { "" });
@@ -222,8 +233,9 @@ pub fn init() {
         unsafe { iat::hook("user32.dll", "GetKeyboardState", get_keyboard_state as *const () as usize) };
         log!("dinput: GetKeyboardState reports no key");
     }
+    let board = std::env::var("WAL_DINPUT_BOARD").ok().map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
     let wheel = std::env::var("WAL_DINPUT_WHEEL").ok().map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
-    if wheel.is_none() && !std::env::var("WAL_DINPUT_DISABLE").is_ok_and(|v| v.trim() == "1") {
+    if board.is_none() && wheel.is_none() && !std::env::var("WAL_DINPUT_DISABLE").is_ok_and(|v| v.trim() == "1") {
         return;
     }
     unsafe {
@@ -232,12 +244,16 @@ pub fn init() {
         iat::hook("dinput.dll", "DirectInputCreateEx", create_iid as *const () as usize);
         iat::hook("dinput8.dll", "DirectInput8Create", create_iid as *const () as usize);
     }
-    match wheel {
-        Some(name) => {
+    match (board, wheel) {
+        (Some(name), _) => {
+            board::init(name);
+            log!("dinput: fake DirectInput with a board");
+        }
+        (None, Some(name)) => {
             wheel::init(name);
             log!("dinput: fake DirectInput with a wheel");
         }
-        None => log!("dinput: disabled (fake DirectInput without devices)"),
+        (None, None) => log!("dinput: disabled (fake DirectInput without devices)"),
     }
 }
 
@@ -759,6 +775,332 @@ mod wheel {
         v[20] = get_effect_info as *const ();
         v[21] = ffb_state as *const ();
         v[23] = enum_created as *const ();
+        VTable(v)
+    }
+}
+
+/// The fake cabinet button box of `WAL_DINPUT_BOARD` (Injustice: 26 buttons).
+mod board {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::{Mutex, OnceLock};
+
+    use wal_protocol::button;
+
+    use super::{DI_OK, DIERR_DEVICENOTREG, DEVICE_VTABLE, Object, P, VTable};
+    use crate::log;
+
+    /// The Injustice cabinet's DirectInput button box: 0 test,
+    /// 1 service, 2/3 P1/P2 coin, 4 P1 start, 5-8 P1 b1-b4, 9 P1 b5 (buy card), 10 P1 card
+    /// (reader), 11-13 P1 b6-b8 (cards interface), 14 P2 start, 15-18 P2 b1-b4, 19 P2 b5,
+    /// 20 P2 card, 21-23 P2 b6-b8, 24/25 volume (unused).
+    /// (player, protocol button) of each DirectInput button; a null button stays released.
+    const SOURCES: [(usize, u32); 26] = [
+        (0, button::TEST),
+        (0, button::SERVICE),
+        (0, button::COIN),
+        (1, button::COIN),
+        (0, button::START),
+        (0, button::B1),
+        (0, button::B2),
+        (0, button::B3),
+        (0, button::B4),
+        (0, button::B5),
+        (0, button::CARD),
+        (0, button::B6),
+        (0, button::B7),
+        (0, button::B8),
+        (1, button::START),
+        (1, button::B1),
+        (1, button::B2),
+        (1, button::B3),
+        (1, button::B4),
+        (1, button::B5),
+        (1, button::CARD),
+        (1, button::B6),
+        (1, button::B7),
+        (1, button::B8),
+        (0, 0),
+        (0, 0),
+    ];
+    static NAME: OnceLock<String> = OnceLock::new();
+
+    const fn guid(d1: u32, d2: u16, d3: u16, d4: [u8; 8]) -> [u8; 16] {
+        let a = d1.to_le_bytes();
+        let b = d2.to_le_bytes();
+        let c = d3.to_le_bytes();
+        [a[0], a[1], a[2], a[3], b[0], b[1], c[0], c[1], d4[0], d4[1], d4[2], d4[3], d4[4], d4[5], d4[6], d4[7]]
+    }
+    pub(super) const INSTANCE: [u8; 16] = guid(0x5741_4C57, 0x424F, 0x4152, *b"WALBOARD");
+    /// DIDEVTYPE_HID_JOYSTICK (HID usage page 1, usage 4).
+    const DEV_TYPE: u32 = 0x105;
+    /// GUID_Button, the buttons' objects' GUID.
+    const BUTTON_GUID: [u8; 16] = guid(0xA36D_02F0, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]);
+    /// DIDFT_BUTTON.
+    const DIDFT_BUTTON: u32 = 4;
+    /// DIDC_ATTACHED | DIDC_POLLEDDEVICE.
+    const CAPS_FLAGS: u32 = 1 | 0x200;
+
+    pub(super) fn init(name: String) {
+        let product = if name == "1" { "WAL Board".to_string() } else { name };
+        log!("dinput: board {product:?}");
+        let _ = NAME.set(product);
+    }
+
+    fn name() -> &'static str {
+        NAME.get().map_or("WAL Board", |n| n.as_str())
+    }
+
+    /// Copies `s` into a fixed string field of `len` characters, ANSI or UTF-16.
+    unsafe fn put_str(dst: *mut u8, len: usize, s: &str, wide: bool) {
+        unsafe {
+            if wide {
+                let dst = dst as *mut u16;
+                for (i, c) in s.encode_utf16().take(len - 1).chain(std::iter::once(0)).enumerate() {
+                    dst.add(i).write_unaligned(c);
+                }
+            } else {
+                for (i, c) in s.bytes().take(len - 1).chain(std::iter::once(0)).enumerate() {
+                    *dst.add(i) = c;
+                }
+            }
+        }
+    }
+
+    /// Fills a DIDEVICEINSTANCEA / W (`wide`), its dwSize included.
+    unsafe fn device_instance(out: *mut u8, wide: bool) {
+        let chars = if wide { 2 } else { 1 };
+        let size = 4 + 36 + 260 * chars + 20;
+        unsafe {
+            std::ptr::write_bytes(out, 0, size);
+            (out as *mut u32).write_unaligned(size as u32);
+            std::ptr::copy_nonoverlapping(INSTANCE.as_ptr(), out.add(4), 16);
+            std::ptr::copy_nonoverlapping(INSTANCE.as_ptr(), out.add(20), 16);
+            (out.add(36) as *mut u32).write_unaligned(DEV_TYPE);
+            put_str(out.add(40), 260, name(), wide);
+            // guidSysID and dwDevNode stay zero
+        }
+    }
+
+    type EnumCallback = unsafe extern "system" fn(*const u8, P) -> i32;
+
+    /// Whether an `EnumDevices` type filter takes the board: all devices (and the HID
+    /// super-type), the game controller class (DI8DEVCLASS_GAMECTRL), HID gamepad and
+    /// joystick types, all input devices.
+    fn listed(filter: u32) -> bool {
+        matches!(filter & 0xFF, 0 | 0x1 | 0x4 | 0x5 | 0x80)
+    }
+
+    unsafe fn enum_devices(filter: u32, cb: EnumCallback, context: P, wide: bool) -> i32 {
+        if listed(filter) {
+            let mut instance = [0u8; 0x24C];
+            unsafe {
+                device_instance(instance.as_mut_ptr(), wide);
+                cb(instance.as_ptr(), context);
+            }
+        }
+        DI_OK
+    }
+
+    unsafe extern "system" fn enum_devices_a(_this: P, filter: u32, cb: EnumCallback, context: P, _flags: u32) -> i32 {
+        unsafe { enum_devices(filter, cb, context, false) }
+    }
+    unsafe extern "system" fn enum_devices_w(_this: P, filter: u32, cb: EnumCallback, context: P, _flags: u32) -> i32 {
+        unsafe { enum_devices(filter, cb, context, true) }
+    }
+
+    /// `CreateDevice(rguid, lplpDirectInputDevice, pUnkOuter)`: the board for its instance
+    /// GUID, the empty device otherwise.
+    unsafe fn create_device(guid: *const u8, out: *mut P, wide: bool) -> i32 {
+        if out.is_null() {
+            return DIERR_DEVICENOTREG;
+        }
+        static CREATED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+        if CREATED.fetch_add(1, Ordering::Relaxed) < 3 {
+            let g = if guid.is_null() { "null".to_string() } else {
+                let bytes = unsafe { std::slice::from_raw_parts(guid, 16) };
+                bytes.iter().map(|b| format!("{b:02x}")).collect()
+            };
+            log!("dinput: board CreateDevice {g}");
+        }
+        let is_board = !guid.is_null() && unsafe { std::slice::from_raw_parts(guid, 16) } == INSTANCE;
+        let device: &Object = match (is_board, wide) {
+            (true, false) => &BOARD_A,
+            (true, true) => &BOARD_W,
+            (false, _) => &super::DEVICE,
+        };
+        unsafe { *out = device as *const Object as P };
+        DI_OK
+    }
+    unsafe extern "system" fn create_device_a(_this: P, guid: *const u8, out: *mut P, _outer: P) -> i32 {
+        unsafe { create_device(guid, out, false) }
+    }
+    unsafe extern "system" fn create_device_w(_this: P, guid: *const u8, out: *mut P, _outer: P) -> i32 {
+        unsafe { create_device(guid, out, true) }
+    }
+
+    /// The fake IDirectInput8A / W with the board.
+    pub(super) static DINPUT_A: Object = Object { vtable: DINPUT_A_VTABLE.0.as_ptr() };
+    pub(super) static DINPUT_W: Object = Object { vtable: DINPUT_W_VTABLE.0.as_ptr() };
+    static DINPUT_A_VTABLE: VTable<11> = dinput_vtable(create_device_a as *const (), enum_devices_a as *const ());
+    static DINPUT_W_VTABLE: VTable<11> = dinput_vtable(create_device_w as *const (), enum_devices_w as *const ());
+
+    const fn dinput_vtable(create: *const (), enumerate: *const ()) -> VTable<11> {
+        let mut v = super::DINPUT_VTABLE.0;
+        v[3] = create;
+        v[4] = enumerate;
+        VTable(v)
+    }
+
+    /// `GetCapabilities(lpDIDevCaps)`: DIDEVCAPS, attached, polled, 26 buttons, no axes.
+    unsafe extern "system" fn get_capabilities(_this: P, caps: *mut u32) -> i32 {
+        if !caps.is_null() {
+            unsafe {
+                let size = (*caps).clamp(4, 44) as usize;
+                std::ptr::write_bytes(caps.add(1) as *mut u8, 0, size - 4);
+                // dwFlags, dwDevType, dwAxes, dwButtons, dwPOVs
+                for (i, v) in [CAPS_FLAGS, DEV_TYPE, 0, SOURCES.len() as u32, 0].into_iter().enumerate() {
+                    if 4 * (i + 2) <= size {
+                        *caps.add(i + 1) = v;
+                    }
+                }
+            }
+        }
+        DI_OK
+    }
+
+    /// The buttons' offsets a `SetDataFormat` installed (button index -> buffer offset): the
+    /// game may read the 26 buttons with its own data format (the default DIJOYSTATE layout
+    /// is 0x30 + index).
+    static FORMAT: Mutex<Vec<(u16, u32)>> = Mutex::new(Vec::new());
+
+    /// `SetDataFormat(lpdformat)`: capture the buttons' offsets.
+    unsafe extern "system" fn set_data_format(_this: P, format: *const u8) -> i32 {
+        if !format.is_null() {
+            let count = unsafe { (format.add(16) as *const u32).read_unaligned() } as usize;
+            let entries = unsafe { format.add(48) };
+            let mut buttons = Vec::new();
+            for i in 0..count.min(64) {
+                let e = unsafe { entries.add(i * 24) };
+                let object = unsafe { std::slice::from_raw_parts(e, 16) };
+                let (ofs, r#type) =
+                    unsafe { ((e.add(16) as *const u32).read_unaligned(), (e.add(20) as *const u32).read_unaligned()) };
+                if r#type & DIDFT_BUTTON != 0 && object == BUTTON_GUID {
+                    buttons.push(((r#type >> 8 & 0xFFFF) as u16, ofs));
+                }
+            }
+            buttons.sort_by_key(|b| b.0);
+            *FORMAT.lock().unwrap() = buttons.clone();
+            if buttons.is_empty() {
+                log!("dinput: board data format without buttons");
+            } else {
+                let first = format!("{:#x}", buttons[0].1);
+                log!("dinput: board data format, {} buttons (first at {first})", buttons.len());
+            }
+        }
+        DI_OK
+    }
+
+    /// `EnumObjects(lpCallback, pvRef, dwFlags)`: the 26 buttons (when asked).
+    unsafe fn enum_objects(cb: EnumCallback, context: P, flags: u32, wide: bool) -> i32 {
+        if flags != 0 && flags & DIDFT_BUTTON == 0 {
+            return DI_OK;
+        }
+        let chars = if wide { 2 } else { 1 };
+        let size = 32 + 260 * chars + 24;
+        let mut object = [0u8; 0x240];
+        for i in 0..SOURCES.len() {
+            object.fill(0);
+            let o = object.as_mut_ptr();
+            unsafe {
+                (o as *mut u32).write_unaligned(size as u32);
+                std::ptr::copy_nonoverlapping(BUTTON_GUID.as_ptr(), o.add(4), 16);
+                (o.add(20) as *mut u32).write_unaligned(0x30 + i as u32);
+                (o.add(24) as *mut u32).write_unaligned(DIDFT_BUTTON | (i as u32) << 8);
+                let label = format!("Button {}", i + 1);
+                put_str(o.add(32), 260, &label, wide);
+                if cb(o, context) == 0 {
+                    break; // DIENUM_STOP
+                }
+            }
+        }
+        DI_OK
+    }
+    unsafe extern "system" fn enum_objects_a(_this: P, cb: EnumCallback, context: P, flags: u32) -> i32 {
+        unsafe { enum_objects(cb, context, flags, false) }
+    }
+    unsafe extern "system" fn enum_objects_w(_this: P, cb: EnumCallback, context: P, flags: u32) -> i32 {
+        unsafe { enum_objects(cb, context, flags, true) }
+    }
+
+    /// At most one log line per `min_ms`.
+    fn log_throttle(min_ms: u64) -> bool {
+        static LAST: AtomicU64 = AtomicU64::new(0);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as u64);
+        let last = LAST.load(Ordering::Relaxed);
+        if now.saturating_sub(last) >= min_ms {
+            LAST.store(now, Ordering::Relaxed);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// `GetDeviceState(cbData, lpvData)`: the cabinet's buttons from the virtual sticks.
+    unsafe extern "system" fn get_device_state(_this: P, size: u32, data: *mut u8) -> i32 {
+        if data.is_null() {
+            return DI_OK;
+        }
+        let n = size as usize;
+        unsafe { std::ptr::write_bytes(data, 0, n) };
+        let (stick1, stick2) = (crate::input(0), crate::input(1));
+        let format = FORMAT.lock().unwrap();
+        let mut pressed = [false; SOURCES.len()];
+        for (i, &(player, bit)) in SOURCES.iter().enumerate() {
+            if bit == 0 {
+                continue;
+            }
+            let down = if player == 0 { stick1.pressed(bit) } else { stick2.pressed(bit) };
+            if !down {
+                continue;
+            }
+            pressed[i] = true;
+            let ofs = format.iter().find(|(idx, _)| *idx == i as u16).map_or(0x30 + i as u32, |(_, o)| *o);
+            if (ofs as usize) < n {
+                unsafe { data.add(ofs as usize).write(0x80) };
+            }
+        }
+        if pressed.iter().any(|&p| p) && log_throttle(1000) {
+            let bits: Vec<String> = pressed.iter().enumerate().filter_map(|(i, p)| p.then_some(i.to_string())).collect();
+            log!("dinput: board buttons {}", bits.join(","));
+        }
+        DI_OK
+    }
+
+    /// `GetDeviceInfo(pdidi)`: DIDEVICEINSTANCEA or W, by its dwSize.
+    unsafe extern "system" fn get_device_info(_this: P, info: *mut u8) -> i32 {
+        if info.is_null() {
+            return super::DIERR_UNSUPPORTED;
+        }
+        let dw = unsafe { (info as *const u32).read_unaligned() };
+        let wide = dw == 0x24C || dw == 0x44C;
+        unsafe { device_instance(info, wide) };
+        DI_OK
+    }
+
+    static BOARD_A: Object = Object { vtable: BOARD_A_VTABLE.0.as_ptr() };
+    static BOARD_W: Object = Object { vtable: BOARD_W_VTABLE.0.as_ptr() };
+    static BOARD_A_VTABLE: VTable<32> = board_vtable(enum_objects_a as *const ());
+    static BOARD_W_VTABLE: VTable<32> = board_vtable(enum_objects_w as *const ());
+
+    const fn board_vtable(enum_objects: *const ()) -> VTable<32> {
+        let mut v = DEVICE_VTABLE.0;
+        v[3] = get_capabilities as *const ();
+        v[4] = enum_objects;
+        v[9] = get_device_state as *const ();
+        v[11] = set_data_format as *const ();
+        v[15] = get_device_info as *const ();
         VTable(v)
     }
 }
