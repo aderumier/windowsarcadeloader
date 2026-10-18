@@ -14,7 +14,8 @@
 //! * `\\.\columba` (amPlatform): physical memory reads (`0x9C406104`: `{u64 address, u32 1,
 //!   u32 size}`, the bytes back) of the BIOS area, where amPlatform finds the SMBIOS tables
 //!   (legacy `_DMI_` entry point) and reads the BIOS version and date, the system manufacturer
-//!   (`NEC`: RingEdge) and the platform id (third OEM string: `AAL` RingEdge, `AAM` RingWide;
+//!   (`NEC`: RingEdge, `Supermicro`: RingWide) and the platform id (third OEM string: `AAL`
+//!   RingEdge, `AAM` RingWide (`WAL_RINGEDGE_PLATFORM`);
 //!   with `WAL_RINGEDGE_BOARD=ringedge2` a fifth one, `AAL2`: RingEdge 2).
 //!   A small SMBIOS image is served at 0xF0000.
 //! * `\\.\mxsuperio` (amHm: hardware monitor): a Winbond-like Super I/O chip ([`superio`]),
@@ -454,8 +455,10 @@ fn bios_image() -> &'static [u8] {
         let mut table = Vec::new();
         // BIOS: vendor, version, release date (string numbers 1-3)
         smbios_struct(&mut table, 0, 0, &[1, 2, 0, 0xE8, 3, 0x0F, 0, 0, 0, 0, 0, 0, 0, 0], &["American Megatrends Inc.", "080015", "07/30/2010"]);
-        // system: manufacturer, product
-        smbios_struct(&mut table, 1, 1, &[1, 2, 0, 0], &["NEC", "RINGEDGE"]);
+        // system: manufacturer, product; amPlatform's board type is the manufacturer with the
+        // platform id: NEC + AAL RingEdge, Supermicro + AAM RingWide (NEC + AAM: no board)
+        let (maker, product) = if platform == "AAM" { ("Supermicro", "RINGWIDE") } else { ("NEC", "RINGEDGE") };
+        smbios_struct(&mut table, 1, 1, &[1, 2, 0, 0], &[maker, product]);
         // OEM strings: the third is the platform id, the fifth `AAL2` on a RingEdge 2 (amBackup's
         // SRAM layout: 4-byte aligned records)
         if ringedge2() {

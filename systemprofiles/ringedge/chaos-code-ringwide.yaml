@@ -1,0 +1,36 @@
+# Chaos Code (Sega RingWide), fighting game. Runs game.exe.
+# Override values in userprofiles/ringedge/chaos-code-ringwide.yaml.
+system: ringedge
+name: Chaos Code (RingWide)
+
+# Buttons A B C D: usual layout A=Button1 B=Button4 C=Button2 D=Button5 (2 rows of 3).
+# Virtual top row b1-b4 = A B C D.
+native_map:
+  # the game counts no JVS coins, only service credits: the coin input (5, gamepad select)
+  # as the service switch, like F1
+  coin: service
+  b1: btn1
+  b2: btn4
+  b3: btn2
+  b4: btn5
+  b5: none
+  b6: none
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  # main board DIP switches: bit 3 a vertical monitor (else "error 0911, wrong horizontal /
+  # vertical setting"), bits 4-6 the resolution setting, 0 or 1 accepted (else "error 0910,
+  # wrong resolution setting"); default FF
+  WAL_RINGEDGE_DIPSW: "07"
+  # its amJvs uses the serial port
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  WAL_RINGEDGE_DS_FILE: SBWF_Table.dat
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBWF;keychip.appboot.platformid=AAM
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A
+  b2: B
+  b3: C
+  b4: D

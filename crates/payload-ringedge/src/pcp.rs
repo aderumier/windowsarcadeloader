@@ -224,6 +224,11 @@ fn answer(request: &str) -> String {
         log!("pcp: next application {value}: relaunch with '{args}'");
         wal_payload_common::request_relaunch(&args);
     }
+    // the starts of application <n> since the cabinet's boot: this one, the first (amMaster
+    // 1.03, RingWide: the answer needs `count`, else "Failed to get FirstBootFlag")
+    if key == "mxmaster.foreground.getcount" {
+        return format!("{key}={value}&count=1");
+    }
     if key == "keychip.ssd.proof" {
         return format!("{key}={}", ssd_proof(value));
     }
