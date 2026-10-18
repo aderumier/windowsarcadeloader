@@ -56,13 +56,19 @@ fn nvidia() -> bool {
 /// `<seconds>`, as `glshot-NNNN.bmp` in the run directory (no screen capture of OpenGL games
 /// under Wayland).
 fn gl_shots() {
-    let Some(secs) = std::env::var("WAL_RINGEDGE_GL_SHOT").ok().and_then(|v| v.trim().parse::<f64>().ok()) else { return };
-    SHOT_MS.store((secs * 1000.0) as usize, Ordering::Relaxed);
+    let shots = std::env::var("WAL_RINGEDGE_GL_SHOT").ok().and_then(|v| v.trim().parse::<f64>().ok());
+    // the swaps also scale the picture (WAL_RINGEDGE_GL_SCALE)
+    let scale = crate::glscale::init();
+    if shots.is_none() && !scale {
+        return;
+    }
     let _ = unsafe { windows_sys::Win32::System::LibraryLoader::LoadLibraryA(c"opengl32.dll".as_ptr().cast()) };
     match unsafe { hotpatch(c"opengl32.dll", c"wglSwapBuffers", swap_buffers as *const () as usize) } {
         Some(o) => ORIG_SWAP.store(o, Ordering::Relaxed),
         None => log!("cg: opengl32.dll!wglSwapBuffers not hot patchable"),
     }
+    let Some(secs) = shots else { return };
+    SHOT_MS.store((secs * 1000.0).max(1.0) as usize, Ordering::Relaxed);
     DUMP_PROGRAMS.store(true, Ordering::Relaxed);
     gl_procs();
 }
@@ -248,7 +254,11 @@ unsafe extern "system" fn bind_program(target: u32, id: u32) {
 unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, text: *const u8) {
     if !DUMP_PROGRAMS.load(Ordering::Relaxed) {
         let orig: unsafe extern "system" fn(u32, u32, i32, *const u8) = unsafe { std::mem::transmute(ORIG_STRING.load(Ordering::Relaxed)) };
-        return unsafe { orig(target, format, len, text) };
+        unsafe { orig(target, format, len, text) };
+        if *LOG.get().unwrap_or(&false) {
+            program_error(text, len);
+        }
+        return;
     }
     let id = BOUND[(target == 0x8804) as usize].load(Ordering::Relaxed);
     let _ = std::fs::create_dir_all("glprog");
@@ -258,6 +268,21 @@ unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, tex
     unsafe { orig(target, format, len, text) }
 }
 
+/// WAL_RINGEDGE_CG_LOG: a program GL refused, with its error and the program.
+fn program_error(text: *const u8, len: i32) {
+    let get_error: unsafe extern "system" fn() -> u32 = unsafe { std::mem::transmute(gl11(c"glGetError")) };
+    let error = unsafe { get_error() };
+    if error == 0 {
+        return;
+    }
+    let get_string: unsafe extern "system" fn(u32) -> *const c_char = unsafe { std::mem::transmute(gl11(c"glGetString")) };
+    // GL_PROGRAM_ERROR_STRING_ARB
+    let message = unsafe { get_string(0x8874) };
+    let message = if message.is_null() { String::new() } else { unsafe { CStr::from_ptr(message) }.to_string_lossy().into_owned() };
+    let program = String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(text, len.max(0) as usize) });
+    log!("cg: GL error {error:#x} loading a program: {message}\n{program}");
+}
+
 /// Each program given to GL written as `glprog\<id>_<target>.txt` (with the shots).
 static DUMP_PROGRAMS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -265,6 +290,11 @@ static SHOT_MS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SWAP: AtomicUsize = AtomicUsize::new(0);
 
 unsafe extern "system" fn swap_buffers(hdc: *mut c_void) -> i32 {
+    unsafe { crate::glscale::present(hdc) };
+    if SHOT_MS.load(Ordering::Relaxed) == 0 {
+        let orig: unsafe extern "system" fn(*mut c_void) -> i32 = unsafe { std::mem::transmute(ORIG_SWAP.load(Ordering::Relaxed)) };
+        return unsafe { orig(hdc) };
+    }
     static LAST: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
     static COUNT: AtomicUsize = AtomicUsize::new(0);
     let due = {

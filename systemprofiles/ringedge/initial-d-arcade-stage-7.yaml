@@ -42,6 +42,11 @@ input:
       KEY_DOWN: brake
 
 env:
+  # full screen: the game draws its 1360x768 cabinet screen, scaled to the screen (aspect
+  # kept) in a borderless window enlarged once the game has started; no mouse cursor
+  WAL_RINGEDGE_GL_SCALE: 1360x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_HIDE_CURSOR: "1"
   # its NVIDIA OpenGL shaders and behaviors on other GPUs (Mesa: AMD, Intel), see the
   # payload's cg.rs; NVIDIA GPUs keep the originals
   WAL_RINGEDGE_CG_FIX: auto

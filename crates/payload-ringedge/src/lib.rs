@@ -20,6 +20,7 @@ mod card;
 mod cg;
 mod devices;
 mod ffb;
+mod glscale;
 mod nvasm;
 mod pcp;
 mod rfid;
