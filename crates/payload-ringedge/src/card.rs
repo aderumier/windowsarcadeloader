@@ -505,10 +505,15 @@ impl Reader {
                     self.done();
                 }
             }
-            // head cleaning (a cleaning card)
+            // head cleaning: a cleaning card goes in (no stripe, no chip: nothing saved)
             0xA0 => {
                 match step {
-                    1 if !self.has_card() => self.wait_for_card(),
+                    1 if !self.has_card() => {
+                        self.tracks = [Vec::new(), Vec::new(), Vec::new()];
+                        self.chip = None;
+                        self.position = Position::Head;
+                        log!("card: cleaning card inserted");
+                    }
                     2 => self.position = Position::Thermal,
                     3 => self.eject(),
                     _ => {}
