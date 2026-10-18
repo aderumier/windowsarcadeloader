@@ -19,9 +19,11 @@
 //! A card is 3 magnetic tracks of 69 bytes.
 //!
 //! The card: `WAL_RINGEDGE_CARD_FILE` (default `card.bin` in the save folder
-//! `WAL_RINGEDGE_SAVE`, default `sv`), the 3 tracks one after another, written back when the
-//! card is ejected. It is inserted when the game waits for a card (a blank card when the file
-//! does not exist yet: the game issues a new card on it).
+//! `WAL_RINGEDGE_SAVE`, default `sv`), the 3 tracks one after another, and its RFID chip
+//! ([`crate::rfid`], the BR's `D1` command) in the same name with `.ic` (`card.ic`), written
+//! back when the card is ejected. It is inserted when the game waits for a card (a blank card
+//! when the files do not exist yet: the game issues a new card on it; the BR: no card, the
+//! game sells one from its dispenser).
 
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -83,6 +85,10 @@ fn card_path() -> PathBuf {
     PathBuf::from(save.trim()).join(file.trim())
 }
 
+fn chip_path() -> PathBuf {
+    card_path().with_extension("ic")
+}
+
 const STX: u8 = 0x02;
 const ETX: u8 = 0x03;
 const ENQ: u8 = 0x05;
@@ -131,6 +137,8 @@ struct Reader {
     /// CRP-1231BR (else LR).
     br: bool,
     shutter_closed: bool,
+    /// The card's RFID chip (a card in the reader).
+    chip: Option<crate::rfid::Chip>,
 }
 
 static READER: Mutex<Reader> = Mutex::new(Reader {
@@ -147,6 +155,7 @@ static READER: Mutex<Reader> = Mutex::new(Reader {
     inserting: false,
     br: true,
     shutter_closed: true,
+    chip: None,
 });
 
 fn reply(bytes: &[u8]) -> Vec<u8> {
@@ -258,6 +267,7 @@ impl Reader {
             Ok(bytes) => log!("card: {} has a wrong size ({}): blank card inserted", path.display(), bytes.len()),
             Err(_) => log!("card: no {}: blank card inserted", path.display()),
         }
+        self.chip = Some(crate::rfid::Chip::load(&chip_path()));
         self.position = if self.br { Position::Ejected } else { Position::Head };
     }
 
@@ -267,6 +277,15 @@ impl Reader {
             return;
         }
         self.position = Position::Ejected;
+        self.save();
+        log!("card: ejected");
+        self.tracks = [Vec::new(), Vec::new(), Vec::new()];
+        self.chip = None;
+    }
+
+    /// The card in the reader written to its files (at each write: the game may quit with the
+    /// card inside, as a cabinet keeps it during a game).
+    fn save(&mut self) {
         let bytes: Vec<u8> = self.tracks.iter().flatten().copied().collect();
         if !bytes.is_empty() {
             let path = card_path();
@@ -274,17 +293,28 @@ impl Reader {
                 let _ = std::fs::create_dir_all(dir);
             }
             match std::fs::write(&path, &bytes) {
-                Ok(()) => log!("card: {} written ({} bytes), ejected", path.display(), bytes.len()),
+                Ok(()) => log!("card: {} written ({} bytes)", path.display(), bytes.len()),
                 Err(e) => log!("card: {}: {e}", path.display()),
             }
         }
-        self.tracks = [Vec::new(), Vec::new(), Vec::new()];
+        if let Some(chip) = self.chip.as_mut() {
+            chip.save(&chip_path());
+        }
     }
 
-    /// Waits for a card: one goes in at once.
+    /// Waits for a card: one goes in at once. The BR without a card file (stripe or chip) yet:
+    /// none (a blank card inserted is an unknown card for Initial D: the player buys one from
+    /// the dispenser).
     fn wait_for_card(&mut self) {
+        let first = self.state != WAITING_FOR_CARD;
         self.state = WAITING_FOR_CARD;
-        self.inserting = true;
+        if self.br && !card_path().exists() && !chip_path().exists() {
+            if first {
+                log!("card: no {}: no card inserted (a new card: the game's dispenser)", card_path().display());
+            }
+        } else {
+            self.inserting = true;
+        }
         self.step = self.step.wrapping_sub(1);
     }
 
@@ -330,10 +360,27 @@ impl Reader {
                 self.shutter_closed = self.params.first() != Some(&0x31);
                 self.done();
             }
-            // D1 (BR, parameter 48 or F7: the reader's RFID part, picodaemon's "rfid"): its reply
-            // data starts with a status byte, 0B success (no data: picodaemon's error 87)
+            // D1 (BR): the reader's RFID part, the card's chip; its reply data starts with a
+            // status byte, 0B success (no data: picodaemon's error 87)
             0xD1 => {
-                self.data.extend_from_slice(&[0x0B, 0x00, 0x00]);
+                let params = self.params.clone();
+                let card = self.has_card();
+                let data = match self.chip.as_mut() {
+                    Some(chip) if card => chip.command(&params),
+                    // no card: the reader's own sub-commands accepted, the chip's fail (1A)
+                    _ if matches!(params.first(), Some(0x48 | 0xF7 | 0x28 | 0x38)) => vec![0x0B, 0x00, 0x00],
+                    _ => vec![0x1A, 0x00],
+                };
+                if params.first() != Some(&0x48) {
+                    log!("card: D1 {params:02X?} -> {:02X?}", &data[..data.len().min(12)]);
+                }
+                if self.chip.as_ref().is_some_and(|c| c.changed) {
+                    let path = chip_path();
+                    if let Some(chip) = self.chip.as_mut() {
+                        chip.save(&path);
+                    }
+                }
+                self.data.extend_from_slice(&data);
                 self.done();
             }
             // status, LED, print settings, fonts, retries, battery
@@ -414,6 +461,7 @@ impl Reader {
                         let end = if i + 1 == tracks.len() { data.len() } else { (i + 1) * TRACK };
                         self.tracks[t] = data[(i * TRACK).min(data.len())..end.min(data.len())].to_vec();
                     }
+                    self.save();
                 }
                 if step > 1 {
                     self.done();
@@ -479,6 +527,7 @@ impl Reader {
                     }
                     1 => {
                         self.tracks = [Vec::new(), Vec::new(), Vec::new()];
+                        self.chip = Some(crate::rfid::Chip::blank());
                         self.position = Position::Dispenser;
                         log!("card: new card dispensed");
                     }

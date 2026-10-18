@@ -22,6 +22,7 @@ mod devices;
 mod ffb;
 mod nvasm;
 mod pcp;
+mod rfid;
 mod touch;
 
 use std::ffi::c_void;
