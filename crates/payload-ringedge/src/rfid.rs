@@ -46,7 +46,8 @@ impl Chip {
         }
         memory[0x40..0x48].copy_from_slice(b"InitialD");
         memory[0x48..0x4A].copy_from_slice(&[0xAA, 0x55]);
-        Chip { memory, pointer: 0, offset: 0, changed: true }
+        // unchanged: saved once the game writes it (a card it never formats leaves no file)
+        Chip { memory, pointer: 0, offset: 0, changed: false }
     }
 
     /// The card's chip from its file (a blank one when missing or invalid).
