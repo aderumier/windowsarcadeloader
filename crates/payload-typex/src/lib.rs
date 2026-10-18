@@ -15,6 +15,7 @@
 //! * Mahjong panel read as a keyboard (`WAL_TYPEX_MAHJONG`, `mahjong.rs`).
 //! * Elevator Action Death Parade's attraction doors drawn over the picture (`WAL_TYPEX_DOORS`,
 //!   `doors.rs`).
+//! * Sonic Blast Heroes' punching pad from a gamepad trigger (`WAL_TYPEX_PUNCH`, `punch.rs`).
 //! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`).
 
 #![allow(non_snake_case)]
@@ -25,6 +26,7 @@ mod guns;
 mod immersion;
 mod mahjong;
 mod medal;
+mod punch;
 mod sram;
 mod touch;
 mod wheel;
@@ -49,6 +51,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         doors::init();
         ffb::init();
         touch::init();
+        punch::init();
         sram::init();
         wal_payload_common::vfw::init();
         // Taito crypto service (KOF XIII Climax): only for a profile naming its key

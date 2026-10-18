@@ -93,6 +93,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-10 |
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) | not in the test |  |
+| `sonic-blast-heroes` | Sonic Blast Heroes | typex | works (user: 100%) | not in the test |  |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | pass | 2026-10-07 |
 | `blazblue-continuum-shift` | BlazBlue Continuum Shift | typex | works (user: 100%) | pass | 2026-10-10 |
@@ -168,7 +169,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `dengeki-bunko-fighting-climax-ignition` | Dengeki Bunko: Fighting Climax Ignition | ringedge | works (user: 100%) | not in the test |  |
 | `dead-or-alive-5-ultimate-arcade` | Dead or Alive 5 Ultimate Arcade | ringedge | works (user: 100%) | not in the test |  |
 | `under-defeat-hd-plus` | Under Defeat HD+ | ringedge | works (user: 100%) | not in the test |  |
-| `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%), 2D mode | not in the test |  |
+| `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%) | not in the test |  |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->

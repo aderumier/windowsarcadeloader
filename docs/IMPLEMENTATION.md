@@ -1093,6 +1093,22 @@ a door moves toward its target at its travel speed, the vibration alternates it 
 every 33 ms. Known patches make the door checks of the test menu (+0xC4E20) and of the game
 (+0x3EBA0) return true, so the game drives its doors.
 
+Sonic Blast Heroes (`punch.rs`, `WAL_TYPEX_PUNCH=sonic-blast-heroes`), a punching machine:
+the dump's `game.exe` is encrypted (the cabinet decrypts it), `game_release.exe` is the
+decrypted v1.04. The cabinet's pad is a custom XIO node (`GWXioNode_Hero`: pad sensor switches,
+the time the pad takes to pass its speed sensors, force ~ C / time² then a calibration table),
+and a light curtain (3 HUMAN-SENSOR switches) guards it: none of them on for 0.2 s is "safety
+sensor error, call an attendant", then the test menu. The game also has keyboard versions
+(`CPunchingPadEmu`: a punch is F4 held, `CHumanSensorEmu`: broken while F9 is held), used when
+XIO is absent: the two adapters' `je` are made `jmp` (both forced), the pad's F4 queries (held,
+pressed, released call sites) answered from the virtual sticks (held: `accel` past ~18% or
+`b1`), F9 never, and the pad's punch end (its vtable slot, which turned F4's hold time into the
+raw value) replaced: the force is the trigger's peak during the punch (b1: full force) times
+`WAL_TYPEX_PUNCH_MAX_KGF` (default 200), turned into the raw value by a binary search over the
+game's own `GetKgf` (+0x31890, thiscall on a scratch pad; its float conversion overflows to
+0x80000000 for the shortest times: counted as beyond any force). Its two buttons are XIO
+system bits 0x100000 (Confirm, JVS down) and 0x200000 (Selection, JVS up).
+
 Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the game's
 `SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), for Type X2 games (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
 `WAL_VFW_CODECS=vidc.wmv3=WMV9VCM.dll` (`vfw.rs`): registers Video for Windows codecs in
@@ -1752,6 +1768,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) | Source client hl2.exe, -io 1, serial hooks in bin/xioman.dll, complete JVS 0x25 reply, cabinet start and active-low switches, fallback axis calibration; offline; some Japanese labels garbled; testmode.exe absent |
+| `sonic-blast-heroes` | Sonic Blast Heroes | typex | works (user: 100%) | wal-loader, JVS (Confirm = down, Selection = up), game_release.exe (game.exe encrypted), code page 932, the game's keyboard pad and safety sensor forced, punch from a trigger's pressure or a full force button (`WAL_TYPEX_PUNCH`, punch.rs) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
 | `blazblue-continuum-shift` | BlazBlue Continuum Shift | typex | works (user: 100%) | wal-loader, JVS, no patch (generic Type X2 build) |

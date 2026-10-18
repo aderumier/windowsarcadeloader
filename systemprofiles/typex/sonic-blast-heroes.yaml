@@ -1,0 +1,62 @@
+# Sonic Blast Heroes (Taito, Taito Type X2, punching game) - template, override values in
+# userprofiles/typex/sonic-blast-heroes.yaml.
+# The dump's game.exe is encrypted (the cabinet decrypts it): game_release.exe is run.
+system: typex
+name: Sonic Blast Heroes
+
+# The punching pad (payload punch.rs): the game's keyboard pad and safety sensor forced (the
+# cabinet's pad is a custom XIO node; without the light curtain around the pad, "safety
+# sensor error, call an attendant", then the test menu). A punch = the trigger's travel
+# (accel) or b1 (full force); its force = the trigger's peak, up to the max below.
+# Cabinet buttons (its I/O test): Confirm (red) = JVS down, Selection (yellow) = JVS up (the
+# XIO system bits 0x100000 / 0x200000 its menus read). The standard start switch is not read.
+# Virtual stick: start or b3 Confirm, left / right or b2 Selection.
+native_map:
+  start: down
+  up: none
+  down: none
+  left: up
+  right: up
+  b1: none
+  b2: up
+  b3: down
+  b4: none
+  b5: none
+  b6: none
+
+input:
+  stick_as_dpad: true
+  # R2 punch with its pressure, A full force punch, B Confirm, X Selection.
+  gamepad:
+    r2: accel
+    a: b1
+    b: b3
+    x: b2
+    y: none
+    l2: none
+    r1: none
+    l1: none
+  # Keyboard (player 1): Space full force punch.
+  keyboard:
+    p1:
+      KEY_SPACE: b1
+
+env:
+  # Japanese text (Shift-JIS: garbled in the western code page)
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+  WAL_TYPEX_PUNCH: sonic-blast-heroes
+  # the force of a full punch (b1, the trigger fully pulled)
+  WAL_TYPEX_PUNCH_MAX_KGF: "200"
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: Selection
+  right: Selection
+  start: Confirm
+  accel: Punch (pressure)
+  b1: Punch (full force)
+  b2: Selection
+  b3: Confirm
