@@ -1,0 +1,79 @@
+# Initial D Arcade Stage 7 AAX (Sega RingEdge 2), racing game with a wheel and pedals.
+# Runs InitialD7_GLW_RE_SBYD.exe (dumped; "InitialD7_GLW_RE_SBYD old.exe" is the encrypted original).
+# Override values in userprofiles/ringedge/initial-d-arcade-stage-7.yaml.
+system: ringedge
+name: Initial D Arcade Stage 7 AAX
+
+# dumped executable: .rdata left writable, the C runtime then stops ("R6002 floating point
+# support not loaded")
+readonly_sections:
+  InitialD7_GLW_RE_SBYD.exe: [.rdata]
+
+# Cabinet: wheel, gas and brake pedals (JVS analog channels 0-2), shifter (player 2's JVS
+# switches: up / down shift up / down), VIEW CHANGE (button 1), menu selection (directions).
+# Virtual stick: wheel lx, pedals accel/brake, b1 SHIFT UP, b2 SHIFT DOWN, b3 VIEW CHANGE,
+# directions the menus.
+native_map:
+  b1: p2up
+  b2: p2down
+  b3: btn1
+  b4: none
+  b5: none
+  b6: none
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1/L1 shift up/down, Y VIEW CHANGE, d-pad menus.
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl / Alt shift up / down,
+  # Space VIEW CHANGE. Wheel and pedals reach full deflection progressively, as a wheel turned
+  # or a pedal pushed.
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # its NVIDIA OpenGL shaders and behaviors on other GPUs (Mesa: AMD, Intel), see the
+  # payload's cg.rs; NVIDIA GPUs keep the originals
+  WAL_RINGEDGE_CG_FIX: auto
+  # the wheel and pedals on the JVS board's analog channels: steering, gas, brake; the
+  # cabinet's steering sensor covers about a third of its channel: a full turn of the wheel
+  # (or the stick) is its full lock
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx*0.35,accel,brake"
+  # its amJvs uses the serial port
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # the wheel's drive board (force feedback: road forces, vibrations, centering spring)
+  WAL_RINGEDGE_FFB: COM1
+  # the card reader: the cabinet's card daemon started beside the game, its reader and the
+  # card's RFID chip emulated (the card: sv/card.ic, inserted when the game asks for one;
+  # without it, START at the card screen buys a new card from the dispenser)
+  WAL_RINGEDGE_CARD_DAEMON: picodaemon.exe
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  WAL_RINGEDGE_DS_FILE: SBYD_Table.dat
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBYD
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Menu Up
+  down: Menu Down
+  left: Menu Left
+  right: Menu Right
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Shift Up
+  b2: Shift Down
+  b3: View Change
+  b4: none
+  b5: none
+  b6: none

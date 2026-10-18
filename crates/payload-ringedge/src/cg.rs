@@ -1,4 +1,4 @@
-//! NVIDIA Cg shaders on other GPUs (Initial D Arcade Stage 6 AA, an OpenGL game whose shaders
+//! NVIDIA Cg shaders on other GPUs (Initial D Arcade Stage 6 AA and 7 AAX, OpenGL games whose shaders
 //! are compiled at run time with Cg 1.5, `cg.dll`, or read from caches, loaded as ARB assembly
 //! with NVIDIA options).
 //!
@@ -14,7 +14,8 @@
 //! * Precompiled programs and shader caches (`*.asm_gl`, `kernelbase!CreateFileW` hot patched:
 //!   every reader): fixed copies in `cgfix\` of the run directory (the dump keeps the
 //!   originals), NVIDIA assembly translated ([`crate::nvasm`]); the caches it cannot translate
-//!   made stale (`GetFileAttributesExW`), the game compiles their sources.
+//!   made stale (`GetFileAttributesExW`), the game compiles their sources (the caches it then
+//!   writes go to `cgfix\compiled\`, not into the dump).
 //! * Parameters: the game writes environment ones, its programs read local ones
 //!   ([`env_parameters`]).
 //! * Vertex inputs: the game feeds generic attributes, its programs read the fixed function
@@ -503,9 +504,13 @@ unsafe extern "C" fn create_program_fixed(ctx: *mut c_void, kind: i32, program: 
 /// Constants the game writes at register 0 (NVIDIA's vp40 layout): bound there.
 const AT_C0: [&str; 4] = ["mtxWorldViewProj", "g_mtxWorldViewProj", "g_m4WorldViewProj", "f2UV_Offset"];
 
+/// Loops bounded by a uniform (vp40 branches, arbvp1 has none: "for could not be unrolled"),
+/// with the constant maximum they get: the loop runs to the maximum, its body conditional.
+const LOOP_BOUNDS: [(&str, &str); 1] = [("sLightNumber", "S_MODEL_LIGHT_MAX")];
+
 /// A vertex program's source for arbvp1: `BLENDWEIGHT` (the fixed function vertex weight,
 /// `ARB_vertex_blend`, absent) as generic attribute 1 (where NVIDIA's vp40 reads it and the game
-/// feeds it), the [`AT_C0`] declarations bound to `C0`.
+/// feeds it), the [`AT_C0`] declarations bound to `C0`, the [`LOOP_BOUNDS`] loops unrollable.
 fn vertex_source(src: &[u8]) -> Vec<u8> {
     // the sources are Shift-JIS: bytes, ASCII patterns
     let mut out = Vec::with_capacity(src.len() + 64);
@@ -513,6 +518,9 @@ fn vertex_source(src: &[u8]) -> Vec<u8> {
         let text = String::from_utf8_lossy(line);
         let t = text.trim_start();
         let mut line = replace(line, b"BLENDWEIGHT;", b"ATTR1;");
+        if t.starts_with("for") {
+            line = bounded_loop(&line);
+        }
         if (t.starts_with("const") || t.starts_with("uniform") || t.starts_with("float")) && t.contains("float") {
             for name in AT_C0 {
                 if let Some(at) = declared(&line, name.as_bytes()) {
@@ -524,6 +532,27 @@ fn vertex_source(src: &[u8]) -> Vec<u8> {
         out.extend_from_slice(&line);
     }
     out
+}
+
+/// `for( i=0; i<bound; i++ )` as `for( i=0; i<MAX; i++ ) if( i<bound )` for a [`LOOP_BOUNDS`]
+/// bound (the loop's body follows, braced or not).
+fn bounded_loop(line: &[u8]) -> Vec<u8> {
+    // (Shift-JIS comments: such a line left as is)
+    let Ok(text) = std::str::from_utf8(line) else { return line.to_vec() };
+    for (bound, max) in LOOP_BOUNDS {
+        // the condition: `<var>\s*<\s*<bound>`, then the loop header's closing parenthesis
+        let Some(at) = text.find(bound) else { continue };
+        let Some(lt) = text[..at].rfind('<') else { continue };
+        let var_end = text[..lt].trim_end().len();
+        let var_start = text[..var_end].rfind(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).map_or(0, |i| i + 1);
+        let Some(close) = text[at..].rfind(')').map(|i| at + i) else { continue };
+        let var = &text[var_start..var_end];
+        if var.is_empty() || !text[lt + 1..at].trim().is_empty() {
+            continue;
+        }
+        return format!("{}{max}{} if( {var}<{bound} ){}", &text[..lt + 1], &text[at + bound.len()..=close], &text[close + 1..]).into_bytes();
+    }
+    line.to_vec()
 }
 
 /// End of the declared name `name` in a declaration line (followed by `;`, `=` or `:` not
@@ -667,6 +696,14 @@ fn fixed_copy(path: &str) -> Option<Vec<u16>> {
     Some(out.to_string_lossy().encode_utf16().chain([0]).collect())
 }
 
+/// Where a cache the game writes goes: `cgfix\compiled\` of the run directory.
+fn compiled_copy(path: &str) -> Option<Vec<u16>> {
+    let name = path.rsplit(['\\', '/']).next()?;
+    let dir = std::env::current_exe().ok()?.parent()?.join("cgfix").join("compiled");
+    let _ = std::fs::create_dir_all(&dir);
+    Some(dir.join(name).to_string_lossy().encode_utf16().chain([0]).collect())
+}
+
 unsafe extern "system" fn get_file_attributes_ex_w(name: *const u16, level: i32, info: *mut c_void) -> i32 {
     let orig: unsafe extern "system" fn(*const u16, i32, *mut c_void) -> i32 = unsafe { std::mem::transmute(ORIG_ATTRIBUTES.load(Ordering::Relaxed)) };
     let ok = unsafe { orig(name, level, info) };
@@ -704,6 +741,18 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: *m
     let orig: CreateFileW = unsafe { std::mem::transmute(ORIG_CREATE_W.load(Ordering::Relaxed)) };
     if !name.is_null() {
         let path = wide_str(name);
+        // CREATE_NEW / CREATE_ALWAYS / TRUNCATE_EXISTING: the game writing the program it
+        // compiled as the new cache, kept out of the dump (its NVIDIA cache stays stale,
+        // compiled again at each start)
+        if *LOG.get().unwrap_or(&false) && path.to_ascii_lowercase().ends_with(".asm_gl") {
+            reentry(|| log!("cg: open {path} access {a:#x} disposition {d}"));
+        }
+        if path.to_ascii_lowercase().ends_with(".asm_gl")
+            && matches!(d, 1 | 2 | 5)
+            && let Some(out) = compiled_copy(&path)
+        {
+            return unsafe { orig(out.as_ptr(), a, s, sa, d, f, t) };
+        }
         if path.to_ascii_lowercase().ends_with(".asm_gl")
             && let Some(Some(fixed)) = reentry(|| fixed_copy(&path))
         {
