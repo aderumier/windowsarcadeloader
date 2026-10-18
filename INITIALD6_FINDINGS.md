@@ -98,6 +98,17 @@ Next steps:
   cRealCardIF ctor 0x662e40 called from 0x6644d0). Lindbergh ID4/5 switch to it with a ctor-call
   patch + `cFileCardIF::emulation()+0x21` + `checkTrgOn(port,0x1000)` detour; no equivalent found here.
 
+## Known issue: card stocker cleaning prompt (Stage 6 and 7, 2026-10-18)
+
+With the card reader on, every boot shows "card stocker cleaning needed" (remove the IC cards
+from the stocker, set the cleaning card and weight, START + TEST). VIEW CHANGE dismisses it;
+cards, races and saves work. Neither the START + TEST cleaning (`A0`, emulated: a cleaning card
+goes in and out) nor the test menu's CLEAN STOCKER (slow but completes: `A1 30`, `A0`, a test
+card dispensed `B0` and ejected) clears it. No reader command precedes it at boot, so the game
+decides from saved state. Suspects: the stocker check `A1 30` (picodaemon 0x402040, game
+command 0x1D), answered with no data, or a backup-memory counter only reset when that check
+reports an empty stocker. To do: find the game code showing the prompt and what it reads.
+
 ## Other notes
 
 - Card screen shows "closing time soon, card play unavailable" (shop close setting = 24h); also
