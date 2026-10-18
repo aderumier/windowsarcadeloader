@@ -1,5 +1,5 @@
-//! The game's winmm joystick API sees no joystick (`joyGetNumDevs` 0, the other calls
-//! `JOYERR_UNPLUGGED`), unless `WAL_JOYSTICK_DISABLE=0`. A cabinet has no PC game controller,
+//! The game's winmm joystick API sees no joystick (every call `JOYERR_UNPLUGGED`), unless
+//! `WAL_JOYSTICK_DISABLE=0`. A cabinet has no PC game controller,
 //! its controls are the I/O board's, but some arcade builds also read one with `joyGetPos(Ex)`
 //! next to the board: Ge-Sen Love Plus Pengo!'s ship drifted right from a pad's axis at rest
 //! (a trigger at its minimum), Phantom Breaker: Another Code read joysticks 0 and 1 as its
@@ -9,8 +9,10 @@ use crate::{iat, log};
 
 const JOYERR_UNPLUGGED: u32 = 167;
 
+/// `joyGetNumDevs`: the joysticks the driver supports, 16 as on Windows, whatever is plugged
+/// (0 means no joystick driver: Music GunGun! 2 stopped on "DirectInput initialization failed").
 extern "system" fn joy_get_num_devs() -> u32 {
-    0
+    16
 }
 
 extern "system" fn joy_unplugged_2(_id: u32, _info: *mut u8) -> u32 {
