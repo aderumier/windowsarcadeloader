@@ -47,6 +47,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             log!("ringedge: working directory {} ({:?})", dir.trim(), if ok { std::env::current_dir().ok() } else { None });
         }
         patches::apply();
+        zero_heap();
         // WAL_RINGEDGE_OFFLINE=1: the game's network check, ALL.Net and the in-shop network
         // skipped, with its own patches (WAL_RINGEDGE_OFFLINE_PATCHES, the WAL_PATCHES format)
         if std::env::var("WAL_RINGEDGE_OFFLINE").is_ok_and(|v| v.trim() == "1")
@@ -73,4 +74,27 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         log!("ringedge: initialized");
     }
     TRUE
+}
+
+static ORIG_ALLOCATE_HEAP: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// `WAL_RINGEDGE_ZERO_HEAP=1` (debugging): every heap block zeroed (`HEAP_ZERO_MEMORY` added to
+/// `RtlAllocateHeap`), for games reading fields they never set.
+fn zero_heap() {
+    if !std::env::var("WAL_RINGEDGE_ZERO_HEAP").is_ok_and(|v| v.trim() == "1") {
+        return;
+    }
+    match unsafe { cg::hotpatch(c"ntdll.dll", c"RtlAllocateHeap", allocate_heap as *const () as usize) } {
+        Some(o) => {
+            ORIG_ALLOCATE_HEAP.store(o, Ordering::Relaxed);
+            log!("ringedge: heap blocks zeroed");
+        }
+        None => log!("ringedge: ntdll.dll!RtlAllocateHeap not hot patchable"),
+    }
+}
+
+unsafe extern "system" fn allocate_heap(heap: *mut c_void, flags: u32, size: usize) -> *mut c_void {
+    let orig: unsafe extern "system" fn(*mut c_void, u32, usize) -> *mut c_void = unsafe { std::mem::transmute(ORIG_ALLOCATE_HEAP.load(Ordering::Relaxed)) };
+    // HEAP_ZERO_MEMORY
+    unsafe { orig(heap, flags | 0x8, size) }
 }

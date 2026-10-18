@@ -424,7 +424,7 @@ unsafe fn nv40_profiles() {
 /// Hot patch of `module!name` (`mov edi,edi` or a 2 byte nop after 5 padding bytes, as Wine
 /// builds its exports): a jump to `hook` in the padding, a short jump to it at the entry.
 /// Returns the function past its 2 byte prologue (the original).
-unsafe fn hotpatch(module: &CStr, name: &CStr, hook: usize) -> Option<usize> {
+pub(crate) unsafe fn hotpatch(module: &CStr, name: &CStr, hook: usize) -> Option<usize> {
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
     use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
     let f = unsafe { GetProcAddress(GetModuleHandleA(module.as_ptr().cast()), name.as_ptr().cast()) }? as usize;
