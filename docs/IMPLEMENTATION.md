@@ -1438,7 +1438,14 @@ game's amLib (its own error strings name every function):
   JVS board's); port 0 the DIP switches, also active low, where games read their monitor
   resolution (`WAL_RINGEDGE_DIPSW`, default `FF` all on: 1920x1080 for Virtua Tennis 4, Koihime
   Enbu, Under Night; Ge-Sen Love Plus Pengo! refuses it, "ERROR 0910 Wrong Resolution
-  Setting": `8F`, 1280x720). `\\.\columba` reads physical memory: amPlatform scans 0xF0000 for the
+  Setting": `8F`, 1280x720). Records the system menu makes, absent from new `E2PROM.bin` /
+  `SRAM.bin` files (written by the payload when the profile asks; CRC-32 of bytes 4 on, then
+  the data, a copy at +0x200 / +0x1000): the EEPROM's static record (record 0, 32 bytes, the
+  main board's region at +12: `WAL_RINGEDGE_REGION=<hex>`; Dream Raiders wants 02, 04 or 08
+  matching the keychip's region, else error 0903 "wrong region") and the SRAM's credit
+  settings (record 7, 512 bytes: `WAL_RINGEDGE_CREDIT_RECORD=1`, all zero; Dream Raiders
+  without it: error 0025 "main board malfunctioning", whose screen then spins on the
+  uninitialized amCredit, a black "not responding" window). `\\.\columba` reads physical memory: amPlatform scans 0xF0000 for the
   `_DMI_` entry point, reads 64 KB of SMBIOS structures (the table must start at or below
   0xF0000), and takes the system manufacturer (`NEC`) and the third OEM string as the
   platform id (`AAL` RingEdge). `\\.\mxsuperio` (hardware monitor, Winbond-like): chip id
@@ -1859,6 +1866,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%) | RingEdge 1 (§6.3d), `LGI.exe`, JVS on `\\.\mxjvs` with 20 outputs and the 2 guns on analog channels 1-4 (Y/X per player, inverted; else Error 6402); test menu `-TestMode`; runs in its 2D mode |
 | `lets-go-island-ringwide` | Let's Go Island: Lost on the Island of Tropics (RingWide) | ringedge | works (user: OK) | RingWide (platform AAM), `LGI_RingW_F_safe.exe`, the RingEdge 3D version's setup: `\\.\mxjvs`, 20 outputs, guns on analog channels 1-4 (Y/X per player, inverted); challenge file `MACtbl/SBUH_Table.dat`; test menu `-TestMode` |
 | `sega-golden-gun` | SEGA Golden Gun | ringedge | works (user: 100%) | RingWide (platform AAM), `fs\RingGunR_RingWide.exe` (game.bat runs `exe\` from `fs`; same file), JVS on `\\.\mxjvs` (test menu `TestMode.exe -t`: COM4), 20 outputs, guns on analog channels 1-4 (X/Y per player, not inverted); challenge file `SBVE_Table.dat` missing from the dump: generated; shader `#include` (d3dx hook); 1360x768 window forced fullscreen (borderless fallback) |
+| `dream-raiders` | Dream Raiders | ringedge | works (user: 100%) | RingWide (platform AAM), `prg\Game.exe` (game.bat's path: the game reads `Game.ini` and `Data` from its folder's parent; a dump with it at the root needs it moved), JVS on `\\.\mxjvs`, 20 outputs, guns on analog channels 1-4 (Y/X per player, inverted); region 04 on the keychip and the EEPROM's static record (else error 0903), a credit settings record in SRAM (else error 0025 and a hang); challenge file `SBXM_Table.dat` generated; test menu `T`; title and attract drawn in a band (the game's layout) |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync and 60 fps limit; test menu: the Shell's `Shell.exe` on TEST (straight into its test menu, inputs written in its memory, exit back to the game), gun calibration saved in `ShellData.ini` (read by the game) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 

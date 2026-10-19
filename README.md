@@ -172,6 +172,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%) | not in the test |  |
 | `lets-go-island-ringwide` | Let's Go Island: Lost on the Island of Tropics (RingWide) | ringedge | works (user: OK) | not in the test |  |
 | `sega-golden-gun` | SEGA Golden Gun | ringedge | works (user: 100%) | not in the test |  |
+| `dream-raiders` | Dream Raiders | ringedge | works (user: 100%) | not in the test |  |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->

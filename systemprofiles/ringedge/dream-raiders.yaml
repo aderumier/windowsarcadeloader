@@ -1,0 +1,38 @@
+# Dream Raiders (Sega RingWide, 2012), 2 player lightgun game. Runs prg\Game.exe (game.bat's
+# path: the game finds Game.ini and data in its folder's parent; a dump with Game.exe at its
+# root needs it moved into prg).
+# Override values in userprofiles/ringedge/dream-raiders.yaml.
+system: ringedge
+name: Dream Raiders
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the trigger also presses its player's start (joining the game by shooting), the middle
+  # button inserts a coin
+  gun:
+    BTN_LEFT: b1,start
+    BTN_MIDDLE: coin
+
+controls:
+  b1: Trigger
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  # the guns on the JVS board's analog channels: 1/2 player 1 Y/X, 3/4 player 2 Y/X, high values
+  # up / left (its default calibration: top-left C0h,C0h), as Let's Go Island
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "-ly,-lx,p2:-ly,p2:-lx"
+  # region 04, export (the dump's Game.ini REGION E): the main board's (the EEPROM's static
+  # record) must be 02 USA, 04 export or 08 China and match the keychip's, else error 0903
+  # "wrong region" (a new EEPROM has none, the keychip's default is 01 Japan)
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBXM;keychip.appboot.platformid=AAM;keychip.appboot.region=04
+  WAL_RINGEDGE_REGION: "04"
+  # the cabinet's credit settings record (SRAM, made by the system menu): without it error 0025
+  # "main board malfunctioning" (a hang: its error screen spins)
+  WAL_RINGEDGE_CREDIT_RECORD: "1"
+  # the keychip's challenge file: missing from the dump, generated
+  WAL_RINGEDGE_DS_FILE: SBXM_Table.dat
+  # the test button (application 3): the game with T (its gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=T"

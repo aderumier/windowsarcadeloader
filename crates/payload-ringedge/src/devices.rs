@@ -23,6 +23,11 @@
 //! * `\\.\mxjvs` (amJvs' driver mode): a serial port of the JVS board (configured with the comm
 //!   calls), each packet exchanged with `DeviceIoControl` `0x9C402000` (packet in, reply out).
 //!
+//! The EEPROM's static record (amLib's system data record 0, written by the system at install,
+//! zero in a new `E2PROM.bin`) is written with `WAL_RINGEDGE_REGION` ([`write_static_record`]),
+//! the SRAM's credit settings record (record 7, made by the system menu) with
+//! `WAL_RINGEDGE_CREDIT_RECORD=1` ([`write_credit_record`]).
+//!
 //! Save folder: `WAL_RINGEDGE_SAVE` (default `sv`, relative to the game directory).
 
 use std::ffi::c_void;
@@ -100,10 +105,11 @@ pub(crate) fn init() {
     let _ = std::fs::create_dir_all(&dir);
     // the SRAM file: created at its full size, the game formats it
     let sram = format!("{dir}/SRAM.bin");
-    if let Ok(f) = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(&sram) {
+    if let Ok(f) = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(&sram) {
         if f.metadata().map(|m| m.len()).unwrap_or(0) < SRAM_SIZE {
             let _ = f.set_len(SRAM_SIZE);
         }
+        write_credit_record(&f);
     }
     let eeprom = format!("{dir}/E2PROM.bin");
     match std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(&eeprom) {
@@ -111,6 +117,7 @@ pub(crate) fn init() {
             if f.metadata().map(|m| m.len()).unwrap_or(0) < EEPROM_SIZE as u64 {
                 let _ = f.set_len(EEPROM_SIZE as u64);
             }
+            write_static_record(&f);
             *EEPROM.lock().unwrap() = Some(f);
         }
         Err(e) => log!("devices: cannot open {eeprom}: {e}"),
@@ -359,6 +366,65 @@ const PUSHSW_SERVICE: u8 = 0x08;
 /// monitor resolution there: all on, Virtua Tennis 4, Koihime Enbu and Under Night render
 /// 1920x1080 (all off: 640x480, 640x480, 1280x720). Ge-Sen Love Plus Pengo! only accepts bits
 /// 0x70 at 0x00, 0x10 or 0x40 ("ERROR 0910 Wrong Resolution Setting" otherwise).
+/// The EEPROM's static record (amLibReadStaticInfo: record 0 at 0, its copy at 0x200, 32
+/// bytes: CRC-32 of bytes 4-31, the region at 12, the serial number at 15). Without it amLib
+/// takes a region of 0: Dream Raiders ANDs it with the keychip's region, error 0903 "wrong
+/// region". `WAL_RINGEDGE_REGION=<hex>` writes it with that region, when it differs.
+fn write_static_record(mut f: &std::fs::File) {
+    let Some(region) = std::env::var("WAL_RINGEDGE_REGION").ok().and_then(|v| u8::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()) else {
+        return;
+    };
+    let mut record = [0u8; 32];
+    if f.seek(SeekFrom::Start(0)).is_ok() && f.read_exact(&mut record).is_ok() && u32::from_le_bytes(record[..4].try_into().unwrap()) == crc32(&record[4..]) && record[12] == region {
+        return;
+    }
+    let mut record = [0u8; 32];
+    record[12] = region;
+    record[15..31].copy_from_slice(b"INVALID_SERIALNO");
+    let crc = crc32(&record[4..]);
+    record[..4].copy_from_slice(&crc.to_le_bytes());
+    for at in [0, 0x200] {
+        if f.seek(SeekFrom::Start(at)).and_then(|_| f.write_all(&record)).is_err() {
+            log!("devices: cannot write the EEPROM's static record");
+            return;
+        }
+    }
+    log!("devices: EEPROM static record written, region {region:02X}");
+}
+
+/// The SRAM's credit settings record (amSysData record 7 at 0, its copy at 0x1000, 512 bytes:
+/// CRC-32 of bytes 4-511, then the settings), made by the system menu: a new `SRAM.bin` has
+/// none. Dream Raiders reads it at boot and stops on error 0025 "main board malfunctioning"
+/// without it (the error screen then spins: amCredit is not initialized yet).
+/// `WAL_RINGEDGE_CREDIT_RECORD=1` writes an all-zero one (the game's defaults) when neither
+/// copy is valid.
+fn write_credit_record(mut f: &std::fs::File) {
+    if std::env::var("WAL_RINGEDGE_CREDIT_RECORD").is_err() {
+        return;
+    }
+    let mut record = [0u8; 512];
+    for at in [0, 0x1000] {
+        if f.seek(SeekFrom::Start(at)).is_ok() && f.read_exact(&mut record).is_ok() && u32::from_le_bytes(record[..4].try_into().unwrap()) == crc32(&record[4..]) {
+            return;
+        }
+    }
+    let mut record = [0u8; 512];
+    let crc = crc32(&record[4..]);
+    record[..4].copy_from_slice(&crc.to_le_bytes());
+    for at in [0, 0x1000] {
+        if f.seek(SeekFrom::Start(at)).and_then(|_| f.write_all(&record)).is_err() {
+            log!("devices: cannot write the SRAM's credit record");
+            return;
+        }
+    }
+    log!("devices: SRAM credit record written");
+}
+
+/// CRC-32 (IEEE), amBackup's record checksum.
+fn crc32(data: &[u8]) -> u32 {
+    !data.iter().fold(!0u32, |crc, &b| (0..8).fold(crc ^ b as u32, |c, _| if c & 1 != 0 { (c >> 1) ^ 0xEDB8_8320 } else { c >> 1 }))
+}
+
 fn dip_switches() -> u8 {
     static VALUE: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
     *VALUE.get_or_init(|| {
