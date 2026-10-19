@@ -1,0 +1,53 @@
+# K.O. Drive (Sega RingWide, 2012), racing game with a wheel and pedals. Runs
+# "exe/M-DriveR_RingWide old.exe", the original (fs: its data folder; the test menu:
+# exe/TestMode.exe -t): the dump's M-DriveR_RingWide.exe is a 1920x1080 hack of its screen
+# mode tables, its 2D (texts, HUD) left at 1024x600 in a corner.
+# Override values in userprofiles/ringedge/ko-drive.yaml.
+system: ringedge
+name: K.O. Drive
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # the main board's monitor resolution (DIP switches 5-7): the cabinet's 1024x600, switch 6
+  # on (the default 1920x1080: the test menu draws for 1920x1080, too big in the 1024x600 back
+  # buffer below; the game itself keeps 1024x600)
+  WAL_RINGEDGE_DIPSW: AF
+  # the cabinet's 1024x600 fullscreen device (a mode no monitor has): a 1024x600 back buffer
+  # in a borderless screen-sized window, the picture stretched to it
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_D3D9_WINDOWED_SIZE: 1024x600
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBXA;keychip.appboot.platformid=AAM
+  WAL_RINGEDGE_REGION: "01"
+  # the keychip's challenge file: missing from the dump (empty fs/table), generated
+  WAL_RINGEDGE_DS_FILE: ../fs/table/SBXA_Table.dat
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,accel,brake"
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # the test button (application 3): its test menu program (gametest.bat)
+  # the wheel's drive board (force feedback, same protocol as Initial D's) on COM1
+  WAL_RINGEDGE_FFB: COM1
+  # the drive board's boot test pushes the wheel left then right and wants the steering on
+  # opposite sides (else Error 1001 "Force Feedback Error"): a pad or keyboard never moves,
+  # the test is skipped (straight to centering the wheel)
+  WAL_PATCHES: "0xA5269:9090909090"
+  WAL_RINGEDGE_FOREGROUND: "3=exe=TestMode.exe -t"
+
+controls:
+  lx: Wheel
+  accel: Gas
+  brake: Brake

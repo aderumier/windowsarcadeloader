@@ -87,6 +87,8 @@ const DEV_RESET_EX: usize = 132;
 const DEV_GET_BACK_BUFFER: usize = 18;
 const DEV_GET_RENDER_TARGET_DATA: usize = 32;
 const DEV_CREATE_OFFSCREEN_PLAIN_SURFACE: usize = 36;
+const DEV_CREATE_RENDER_TARGET: usize = 28;
+const DEV_STRETCH_RECT: usize = 34;
 const SURF_GET_DESC: usize = 12;
 const SURF_LOCK_RECT: usize = 13;
 const SURF_UNLOCK_RECT: usize = 14;
@@ -1032,6 +1034,25 @@ unsafe fn capture_surface(dev: P, back: P, path: &str) -> Result<(), String> {
         if !supported(desc.format) {
             release(back);
             return Err(format!("unsupported back buffer format {}", desc.format));
+        }
+        // a multisampled back buffer: GetRenderTargetData refuses it, resolved first
+        let mut back = back;
+        if desc.multisample != 0 {
+            let create_rt: unsafe extern "system" fn(P, u32, u32, u32, u32, u32, i32, *mut P, P) -> HRESULT =
+                std::mem::transmute(method(dev, DEV_CREATE_RENDER_TARGET));
+            let mut resolved: P = std::ptr::null_mut();
+            if create_rt(dev, desc.width, desc.height, desc.format, 0, 0, 0, &mut resolved, std::ptr::null_mut()) < 0 {
+                release(back);
+                return Err("CreateRenderTarget failed".into());
+            }
+            let stretch: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = std::mem::transmute(method(dev, DEV_STRETCH_RECT));
+            let hr = stretch(dev, back, std::ptr::null_mut(), resolved, std::ptr::null_mut(), 0);
+            release(back);
+            back = resolved;
+            if hr < 0 {
+                release(back);
+                return Err(format!("StretchRect failed {hr:#x}"));
+            }
         }
         let create: unsafe extern "system" fn(P, u32, u32, u32, u32, *mut P, P) -> HRESULT =
             std::mem::transmute(method(dev, DEV_CREATE_OFFSCREEN_PLAIN_SURFACE));
