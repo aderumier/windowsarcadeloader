@@ -35,6 +35,22 @@ const ISOLATED_TRICKS: [&str; 2] = ["dsound", "directplay"];
 /// whose defaults would affect the other games of the shared prefix.
 const TRICK_SETTINGS: &[(&str, &[&[&str]])] = &[];
 
+const WINEBUS: &str = r"HKLM\System\CurrentControlSet\Services\winebus";
+
+/// Registry settings of every prefix (`reg add` arguments), applied once (`.wal-settings`
+/// keeps the ones applied).
+///
+/// No game controller in Wine: winebus' SDL, evdev and hidraw backends off, so winmm,
+/// DirectInput, XInput and HID see no pad. A cabinet has no PC game controller, its controls
+/// are the I/O board's, which the payloads feed from the launcher's virtual sticks; a game
+/// also reading a pad itself mixed the players (Dariusburst: P1's left stick moved P1 and P2,
+/// the d-pads, through the board, were right).
+const PREFIX_SETTINGS: &[&[&str]] = &[
+    &[WINEBUS, "/v", "Enable SDL", "/t", "REG_DWORD", "/d", "0", "/f"],
+    &[WINEBUS, "/v", "DisableInput", "/t", "REG_DWORD", "/d", "1", "/f"],
+    &[WINEBUS, "/v", "DisableHidraw", "/t", "REG_DWORD", "/d", "1", "/f"],
+];
+
 /// DLLs a winetricks verb sets to native (its `w_override_dlls`).
 fn trick_dlls(verb: &str) -> Vec<String> {
     match verb {
@@ -303,6 +319,7 @@ impl Wine {
             self.wineboot()?;
         }
         fs::write(&stamp_file, &inf_stamp)?;
+        self.apply_settings()?;
 
         // GE-Proton does not link vkd3d and icu in its builtin dlls
         for component in ["vkd3d", "icu"] {
@@ -312,6 +329,31 @@ impl Wine {
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Applies the `PREFIX_SETTINGS` not yet applied to the prefix.
+    fn apply_settings(&self) -> Result<()> {
+        let stamp = self.prefix.join(".wal-settings");
+        let mut done = fs::read_to_string(&stamp).unwrap_or_default();
+        let pending: Vec<_> = PREFIX_SETTINGS.iter().map(|a| a.join(" ")).filter(|l| !done.lines().any(|d| d == l)).collect();
+        if pending.is_empty() {
+            return Ok(());
+        }
+        for args in PREFIX_SETTINGS.iter().filter(|a| pending.contains(&a.join(" "))) {
+            let status = self.command("reg").arg("add").args(*args).status().context("running wine reg")?;
+            if !status.success() {
+                bail!("reg add {} failed: {status}", args.join(" "));
+            }
+        }
+        // winebus reads its options when it starts: the next wine session
+        self.wineserver("-k")?;
+        self.wineserver("-w")?;
+        for line in pending {
+            done.push_str(&line);
+            done.push('\n');
+        }
+        fs::write(&stamp, done)?;
         Ok(())
     }
 

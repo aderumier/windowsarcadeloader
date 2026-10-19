@@ -282,6 +282,10 @@ those profiles add `tricks: [d3dcompiler_47]`.
   loads the prefix's copies of the builtin DLLs: a replaced runner DLL (hotfix, rebuild) only
   reaches the games through that update, which copies it in.
   GE-Proton's vkd3d and icu DLLs are always symlinked into system32 (x86_64) / syswow64 (i386).
+  `PREFIX_SETTINGS` (`reg add`, applied once, recorded in `<prefix>/.wal-settings`): winebus'
+  SDL, evdev and hidraw backends off, so no game of any system sees a game controller
+  (winmm, DirectInput, XInput, HID): games read the I/O board the payloads emulate, a pad
+  read next to it mixed the players (Dariusburst: P1's stick moved P1 and P2).
 * Graphics: `setup_d3d` links DXVK (or wine builtin) d3d8/9/10core/11/dxgi into the prefix and
   sets the override to `n` (or `b`). `setup_ddraw`: `wine` = builtin ddraw; `d7vk` = runner d7vk
   as ddraw.dll plus builtin as `ddraw_.dll`; `dgvoodoo` = the game's DDraw.dll/D3DImm.dll
