@@ -1,0 +1,59 @@
+# Super Monkey Ball Ticket Blitz (Sega RingWide, 2010), ticket redemption game played with a
+# trackball. Runs prjMonkey_tv_final.exe (the test menu: prjMonkey_tv_final.exe -t).
+# Override values in userprofiles/ringedge/super-monkey-ball-ticket-blitz.yaml.
+system: ringedge
+name: Super Monkey Ball Ticket Blitz
+
+# game.bat's arguments (the test menu: -t instead of -noerror)
+args: [-noerror, -fullscreen]
+
+# the trackball: the PC mouse, and player 1's left stick or the keyboard's arrows next to it
+# (WAL_DINPUT_MOUSE_STICK)
+input:
+  stick_as_dpad: false
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly
+      KEY_DOWN: ly
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_DS_FILE: SBVJ_Table.dat.product
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVJ;keychip.appboot.platformid=AAM
+  WAL_RINGEDGE_REGION: "01"
+  WAL_RINGEDGE_CREDIT_RECORD: "1"
+  # the cabinet's 1280x720 monitor (DIP switch 7)
+  WAL_RINGEDGE_DIPSW: CF
+  # its 1280x720 device in a borderless screen-sized window, the picture stretched to it, 16:9
+  # kept (black bars on other screens)
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_D3D9_WINDOWED_SIZE: 1280x720
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # the lamps and LEDs (start, trackball, banana, control panel) and the ticket dispenser: the
+  # game wants 16 outputs at least ("JVSNode[0] does not satisfies function")
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+
+  # the trackball: DirectInput's system mouse, the left stick added to it (counts per frame at
+  # full tilt); the game also wants 2 mice in the raw input device list (the cabinet's
+  # trackball and the system's), else error 1001: one is enough
+  WAL_DINPUT_MOUSE_STICK: "25"
+
+  # the cabinet runs the game from X: (game.bat): the executable's drive letter selects the
+  # product mode (X: amLib, JVS, SBVJ_Table.dat.product; Z: development; else a PC build
+  # without I/O): always X:; the trackball check (see above): 0x5A8E1
+  # the dump's executable is a 1920x1080 hack of its screen size (device and viewport) that
+  # leaves the attract mode's 2D layer at 1280x720 positions: the original 1280x720 restored
+  WAL_PATCHES: "0x678BB:EB04,0x5A8E1:EB,0x3153:D0020000,0x3158:00050000,0x6BF4B:00050000,0x6BF8A:D0020000"
+  # the test button (application 3): the test menu (gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=-fullscreen -t"
+
+controls:
+  start: Start
+  lx: Trackball X
+  ly: Trackball Y

@@ -19,6 +19,8 @@ mod crypto_keys;
 #[cfg(windows)]
 pub mod dinput;
 #[cfg(windows)]
+pub mod mouse_stick;
+#[cfg(windows)]
 pub mod drive;
 #[cfg(windows)]
 pub mod joystick;
@@ -111,6 +113,7 @@ pub fn start(name: &'static str) {
             codepage::init();
             d3dx::init();
             dinput::init();
+            mouse_stick::init();
             joystick::init();
             wcase::init();
         }
