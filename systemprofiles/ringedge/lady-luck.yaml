@@ -1,0 +1,42 @@
+# Lady Luck (Sega RingWide, 2012), a medal slot machine satellite with a touch screen: 10 Hand
+# Poker, Lucky! Daifugo, Samba de Amigo, The House of the Dead, Hot Shot Progressive.
+# Runs App_Release.exe (game.bat's mbcom.exe, the network medal bank, and AimeReader.exe are not
+# needed).
+# Override values in userprofiles/ringedge/lady-luck.yaml.
+system: ringedge
+name: Lady Luck
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the touch screen: the mouse (its position, the left button)
+  gun:
+    BTN_LEFT: b8
+
+controls:
+  b1: Select 1
+  b2: Select 2
+  b3: Select 3
+  b4: Select 4
+  b5: Select 5
+  b6: Payout
+  b7: Transfer
+  b8: Touch
+  start: Start
+  coin: Medals
+  service: Reset key
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBXF;keychip.appboot.platformid=AAM
+  WAL_RINGEDGE_REGION: "01"
+  WAL_RINGEDGE_CREDIT_RECORD: "1"
+  WAL_RINGEDGE_DS_FILE: Data/amFile/SBXF_Table.dat
+  # the cabinet's 1280x1024 monitor (mxGetHwInfo.ini): switches 5 and 7
+  WAL_RINGEDGE_DIPSW: DF
+  # the cabinet's boards (Data/script/game_conf.lua): the I/O board on COM3 (medals, hopper,
+  # doors, reset key), the touch panel on COM1, the control panel's buttons on COM5
+  WAL_RINGEDGE_MEDAL_IO: COM3
+  WAL_RINGEDGE_MICROTOUCH: COM1
+  WAL_RINGEDGE_CP_BOARD: COM5

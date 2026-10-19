@@ -2,7 +2,8 @@
 //!
 //! One step per line: `<seconds since launch> p<player> <inputs...>`; the inputs (virtual
 //! stick button names, pedal axes `accel`/`brake` fully pressed, stick axes fully deflected
-//! `lx+`, `lx-`, `ry+`...) are held until the
+//! `lx+`, `lx-`, `ry+`... or at a position `lx=0.25` (-1 to 1: a pointer on the screen)) are
+//! held until the
 //! player's next step, `-` releases everything. `#` starts a comment. Script inputs are
 //! OR-ed with the real devices (a scripted pedal overrides the real one while held).
 //!
@@ -55,9 +56,12 @@ impl Script {
                     let stick = |sign: char, v: i16| {
                         w.strip_suffix(sign).and_then(Axis::from_name).filter(|a| !a.is_pedal()).map(|a| (a, v))
                     };
-                    let axis = Axis::from_name(w)
-                        .filter(|a| a.is_pedal())
-                        .map(|a| (a, i16::MAX))
+                    let position = w.split_once('=').and_then(|(name, v)| {
+                        let v: f32 = v.parse().ok()?;
+                        Some((Axis::from_name(name)?, (v.clamp(-1.0, 1.0) * i16::MAX as f32) as i16))
+                    });
+                    let axis = position
+                        .or_else(|| Axis::from_name(w).filter(|a| a.is_pedal()).map(|a| (a, i16::MAX)))
                         .or_else(|| stick('+', i16::MAX))
                         .or_else(|| stick('-', i16::MIN));
                     match axis {

@@ -20,6 +20,9 @@
 //!   stops after 180 polls on "hopper" error 26).
 //!
 //! `74` (sent first, with the key) only needs the status. `2F` asks for the last reply again.
+//!
+//! Other Sega medal cabinets have the same board with their own switches ([`install`], Lady
+//! Luck: `satellite.rs`).
 
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -49,10 +52,19 @@ static LAST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 /// The key of the last `74`/`73` (`72` returns it).
 static KEY: Mutex<[u8; 5]> = Mutex::new([0x4B, 0x2D, 0x8E, 0x95, 0x00]);
 
+/// The board's 3 switch bytes (`65`), per cabinet.
+static SWITCHES: OnceLock<fn() -> [u8; 3]> = OnceLock::new();
+
 pub(crate) fn init() {
     let Ok(port) = std::env::var("WAL_RINGEDGE_GUNMAN_BOARD") else { return };
-    serial::install(port.trim(), reply);
+    install(port.trim(), switches);
     log!("gunman: satellite I/O board on {}", port.trim());
+}
+
+/// The board on `port`, its switch bytes read by `switches`.
+pub(crate) fn install(port: &str, switches: fn() -> [u8; 3]) {
+    let _ = SWITCHES.set(switches);
+    serial::install(port, reply);
 }
 
 /// The screen in the game's default gun calibration (its test menu's controller adjustment):
@@ -124,7 +136,7 @@ fn answer(cmd: u8, req: &[u8]) -> Vec<u8> {
     match cmd {
         0x60 => vec![1, 0, 0, 0, 0, 0],
         0x64 => [&[1u8][..], &guns()].concat(),
-        0x65 => [&[1u8][..], &switches()].concat(),
+        0x65 => [&[1u8][..], &SWITCHES.get().map_or([0; 3], |f| f())].concat(),
         0x66 => {
             let n = MEDALS.swap(0, Ordering::Relaxed);
             if n != 0 {

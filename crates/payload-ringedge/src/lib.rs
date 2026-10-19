@@ -9,7 +9,9 @@
 //!   `jvs_board.rs`).
 //! * amLib's own log (`WAL_RINGEDGE_AMLOG`, `amlog.rs`).
 //! * The card daemon and its magnetic card reader (`WAL_RINGEDGE_CARD_DAEMON`, `card.rs`).
-//! * A CTR-251500 serial touch panel (`WAL_RINGEDGE_TOUCH`, `touch.rs`).
+//! * A CTR-251500 serial touch panel (`WAL_RINGEDGE_TOUCH`, `touch.rs`), a 3M MicroTouch one
+//!   (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`).
+//! * Medal cabinet boards: Medal no Gunman's (`gunman.rs`), Lady Luck's (`satellite.rs`).
 //! * Profile code patches (`WAL_PATCHES`); `WAL_RINGEDGE_CWD`: the game's working directory,
 //!   relative to its own.
 
@@ -22,9 +24,11 @@ mod devices;
 mod ffb;
 mod glscale;
 mod gunman;
+mod microtouch;
 mod nvasm;
 mod pcp;
 mod rfid;
+mod satellite;
 mod touch;
 
 use std::ffi::c_void;
@@ -72,6 +76,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         card::start_daemon();
         touch::init();
         gunman::init();
+        satellite::init();
+        microtouch::init();
         pcp::start();
         log!("ringedge: initialized");
     }

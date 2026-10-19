@@ -30,11 +30,29 @@ fn is_fake(h: P) -> bool {
 /// The emulated device: answers the packets the game writes.
 pub type Handler = fn(&[u8]) -> Vec<u8>;
 
+/// Data a device sends on its own (a touch panel's coordinate stream), asked when the game
+/// polls the port and nothing is queued.
+pub type Idle = fn() -> Vec<u8>;
+
 /// An emulated device: its port, the packet handler and the replies not read yet.
 struct Device {
     port: String,
     handler: Handler,
+    idle: Option<Idle>,
     replies: Mutex<VecDeque<u8>>,
+}
+
+impl Device {
+    /// The queued replies, topped up with the device's own data when empty.
+    fn queue(&self) -> std::sync::MutexGuard<'_, VecDeque<u8>> {
+        let mut q = self.replies.lock().unwrap();
+        if q.is_empty()
+            && let Some(idle) = self.idle
+        {
+            q.extend(idle());
+        }
+        q
+    }
 }
 
 static DEVICES: Mutex<Vec<&'static Device>> = Mutex::new(Vec::new());
@@ -66,7 +84,17 @@ pub fn install(port: &str, handler: Handler) {
 /// Same as [`install`], for the serial calls of the modules loaded at `modules` (e.g. the
 /// game's I/O library instead of the executable). The hooks are installed by the first call.
 pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
-    let device = Box::leak(Box::new(Device { port: port.to_string(), handler, replies: Mutex::new(VecDeque::new()) }));
+    install_device(Device { port: port.to_string(), handler, idle: None, replies: Mutex::new(VecDeque::new()) }, modules);
+}
+
+/// Same as [`install`], for a device that also sends data on its own (`idle`).
+pub fn install_streaming(port: &str, handler: Handler, idle: Idle) {
+    let device = Device { port: port.to_string(), handler, idle: Some(idle), replies: Mutex::new(VecDeque::new()) };
+    install_device(device, &[unsafe { GetModuleHandleW(std::ptr::null()) } as usize]);
+}
+
+fn install_device(device: Device, modules: &[usize]) {
+    let device = Box::leak(Box::new(device));
     DEVICES.lock().unwrap().push(device);
     if HOOKED.swap(true, Ordering::Relaxed) {
         return;
@@ -117,7 +145,7 @@ pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
 pub fn transact(h: P, packet: &[u8]) -> Option<Vec<u8>> {
     let device = device(h)?;
     let reply = (device.handler)(packet);
-    trace(packet, &reply);
+    trace(&device.port, packet, &reply);
     Some(reply)
 }
 
@@ -156,10 +184,10 @@ fn trace_limit() -> usize {
 }
 
 /// Logs the first packets exchanged with the game.
-fn trace(request: &[u8], reply: &[u8]) {
+fn trace(port: &str, request: &[u8], reply: &[u8]) {
     if TRACE_COUNT.fetch_add(1, Ordering::Relaxed) < trace_limit() {
         let hex = |d: &[u8]| d.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
-        log!("serial: <- {}  -> {}", hex(request), hex(reply));
+        log!("serial: {port} <- {}  -> {}", hex(request), hex(reply));
     }
 }
 
@@ -313,7 +341,7 @@ unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut
     };
     let packet = unsafe { std::slice::from_raw_parts(buf, n as usize) };
     let reply = (device.handler)(packet);
-    trace(packet, &reply);
+    trace(&device.port, packet, &reply);
     device.replies.lock().unwrap().extend(reply);
     if !written.is_null() {
         unsafe { *written = n };
@@ -354,7 +382,7 @@ unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, 
         }
         return r;
     };
-    let mut q = device.replies.lock().unwrap();
+    let mut q = device.queue();
     let count = (n as usize).min(q.len());
     for i in 0..count {
         unsafe { *buf.add(i) = q.pop_front().unwrap() };
@@ -376,7 +404,7 @@ unsafe extern "system" fn write_file_ex(h: P, buf: *const u8, n: u32, ov: *mut w
     };
     let packet = unsafe { std::slice::from_raw_parts(buf, n as usize) };
     let reply = (device.handler)(packet);
-    trace(packet, &reply);
+    trace(&device.port, packet, &reply);
     device.replies.lock().unwrap().extend(reply);
     unsafe { complete(ov.cast(), n) };
     if let Some(cb) = cb { unsafe { cb(0, n, ov) }; }
@@ -387,7 +415,7 @@ unsafe extern "system" fn read_file_ex(h: P, buf: *mut u8, n: u32, ov: *mut wind
     let Some(device) = device(h) else {
         return unsafe { orig::<unsafe extern "system" fn(P, *mut u8, u32, *mut windows_sys::Win32::System::IO::OVERLAPPED, IoCompletion) -> i32>(16)(h, buf, n, ov, cb) };
     };
-    let mut q = device.replies.lock().unwrap();
+    let mut q = device.queue();
     let count = (n as usize).min(q.len());
     for i in 0..count { unsafe { *buf.add(i) = q.pop_front().unwrap() }; }
     drop(q);
@@ -427,7 +455,7 @@ unsafe extern "system" fn clear_comm_error(h: P, errors: *mut u32, stat: *mut u3
     if !is_fake(h) {
         return unsafe { orig::<unsafe extern "system" fn(P, *mut u32, *mut u32) -> i32>(6)(h, errors, stat) };
     }
-    let queued = device(h).map_or(0, |d| d.replies.lock().unwrap().len() as u32);
+    let queued = device(h).map_or(0, |d| d.queue().len() as u32);
     if !errors.is_null() {
         unsafe { *errors = 0 };
     }
