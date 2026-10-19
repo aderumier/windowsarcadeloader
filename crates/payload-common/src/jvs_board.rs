@@ -17,6 +17,15 @@
 //! another player's, e.g. the guns of Transformers: Human Alliance; `lx*0.35`: scaled around the
 //! center; `lx*0.73@89C0`: around another center, hex).
 //!
+//! `WAL_TYPEX_JVS_IDENTIFIER`: another board's identification string (`10`), e.g. Let's Go
+//! Safari's `837-14895` in its "FE MODE"; `WAL_TYPEX_JVS_SWITCHES=<players>x<switches>`:
+//! another switch layout in the features (default `2x16`; 1 player with 22 switches: 3 bytes,
+//! buttons 9-16 in the third).
+//!
+//! `WAL_TYPEX_JVS_PULSE=<button>,...@<ms>`: those buttons (1-16) pulse while held, on for
+//! `ms` then off as long: Let's Go Safari's wheel, a rotary encoder on 2 switches (each pulse
+//! turns it a step; toggled on each switch read, it does not turn).
+//!
 //! `WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`: Battle Gear 4's key reader (Taito
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
 //! presence makes the game use the wide monitor & clutch mode) and the H shifter (see
@@ -155,6 +164,12 @@ struct Board {
     analog_inputs: Vec<Option<(usize, AnalogInput, f32, u16)>>,
     /// `WAL_TYPEX_JVS_OUTPUTS=<n>`: general purpose outputs declared in the features (0: none).
     outputs: u8,
+    /// `WAL_TYPEX_JVS_IDENTIFIER`: the identification string (default [`IDENTIFIER`]).
+    identifier: Vec<u8>,
+    /// `WAL_TYPEX_JVS_SWITCHES=<players>x<switches>`: the features' switch layout.
+    switches: (u8, u8),
+    /// `WAL_TYPEX_JVS_PULSE`: (switch byte 1, 2, 3 masks of the pulsed buttons, half period).
+    pulse: Option<([u8; 3], std::time::Duration)>,
     battle_gear: Option<BattleGear>,
     /// Addresses assigned since the last bus reset (2 boards with `battle-gear-pro`).
     addresses: u8,
@@ -280,6 +295,17 @@ pub fn init(default_port: &str) {
         analog_fixed,
         analog_inputs,
         outputs: std::env::var("WAL_TYPEX_JVS_OUTPUTS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+        identifier: std::env::var("WAL_TYPEX_JVS_IDENTIFIER")
+            .map(|v| [v.trim().as_bytes(), b"\0"].concat())
+            .unwrap_or_else(|_| IDENTIFIER.to_vec()),
+        switches: std::env::var("WAL_TYPEX_JVS_SWITCHES")
+            .ok()
+            .and_then(|v| {
+                let (p, s) = v.trim().split_once('x')?;
+                Some((p.parse().ok()?, s.parse().ok()?))
+            })
+            .unwrap_or((2, 16)),
+        pulse: std::env::var("WAL_TYPEX_JVS_PULSE").ok().and_then(|v| pulse(&v)),
         battle_gear,
         addresses: 0,
     });
@@ -397,6 +423,24 @@ fn analog_input(entry: &str) -> Option<(usize, AnalogInput, f32, u16)> {
     axis.map(|a| (player, kind(a), scale, center))
 }
 
+/// `WAL_TYPEX_JVS_PULSE=<button>,...@<ms>`: the switch masks of the buttons and the half period.
+fn pulse(spec: &str) -> Option<([u8; 3], std::time::Duration)> {
+    let (buttons, ms) = spec.split_once('@')?;
+    let mut masks = [0u8; 3];
+    for n in buttons.split(',').filter_map(|b| b.trim().parse::<u8>().ok()) {
+        match n {
+            1 => masks[0] |= 0x02,
+            2 => masks[0] |= 0x01,
+            3..=8 => masks[1] |= 0x80 >> (n - 3),
+            9..=16 => masks[2] |= 0x80 >> (n - 9),
+            _ => {}
+        }
+    }
+    let half = std::time::Duration::from_millis(ms.trim().parse().ok()?);
+    log!("jvs: pulsed switches {masks:02X?}, {half:?} on / off");
+    Some((masks, half))
+}
+
 /// Analog channel value, left-justified 16 bits (10 significant bits, as the features say).
 fn analog(board: &Board, sticks: &[StickState; 4], channel: usize) -> u16 {
     let Some((player, input, scale, center)) = board.analog_inputs.get(channel).copied().flatten() else {
@@ -481,6 +525,17 @@ fn process(packet: &[u8]) -> Vec<u8> {
         board.coin_held[n] = p.3;
     }
     let test = players.iter().any(|p| p.2);
+    if let Some((masks, half)) = board.pulse {
+        static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        let phase = START.get_or_init(std::time::Instant::now).elapsed().as_millis() / half.as_millis().max(1);
+        if phase % 2 == 1 {
+            for p in &mut players {
+                p.0 &= !masks[0];
+                p.1 &= !masks[1];
+                p.4 &= !masks[2];
+            }
+        }
+    }
 
     let mut out = Encoder::new();
     out.push(0x01); // report of the first command
@@ -502,14 +557,14 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 }
                 (2, vec![])
             }
-            0x10 => (1, IDENTIFIER.to_vec()),
+            0x10 => (1, board.identifier.clone()),
             0x11 => (1, vec![COMMAND_REVISION]),
             0x12 => (1, vec![JVS_VERSION]),
             0x13 => (1, vec![COMM_VERSION]),
-            // features, Taito stick: 2 players x 16 switches, 2 coin slots (+ 8 analog
-            // channels of 10 bits for the games reading axes)
+            // features, Taito stick: 2 players x 16 switches (`WAL_TYPEX_JVS_SWITCHES`), 2 coin
+            // slots (+ 8 analog channels of 10 bits for the games reading axes)
             0x14 => {
-                let mut f = vec![0x01, 0x02, 0x10, 0x00, 0x02, 0x02, 0x00, 0x00];
+                let mut f = vec![0x01, board.switches.0, board.switches.1, 0x00, 0x02, 0x02, 0x00, 0x00];
                 if !board.analog_inputs.is_empty() {
                     f.extend_from_slice(&[0x03, 0x08, 0x0A, 0x00]);
                 }

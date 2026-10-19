@@ -1,0 +1,64 @@
+# Let's Go Safari (Sega RingWide, 2012), kids' driving game: a wheel (left/right switches) and
+# 4 course buttons. Runs GameSampR_RingWide.exe (the test menu: GameTestR_RingWide.exe).
+# Override values in userprofiles/ringedge/lets-go-safari.yaml.
+system: ringedge
+name: Let's Go Safari
+
+# The cabinet's switches on the JVS board (its input test): COURSE 1-4 = buttons 3-6, FIREWORK /
+# HORN = 7 / 8, HANDLE R / L (the wheel) = 9 / 10, LEVER DOWN / UP = 12 / 14. The game reads no
+# analog channel: the wheel turns left or right.
+native_map:
+  b1: btn3
+  b2: btn4
+  b3: btn5
+  b4: btn6
+  left: btn10
+  right: btn9
+  up: none
+  down: none
+  b5: none
+  b6: none
+
+# the course buttons on A B X Y; the wheel on the arrows, the d-pad and the left stick
+input:
+  gamepad:
+    a: b1
+    b: b2
+    x: b3
+    y: b4
+    r1: none
+    l1: none
+
+controls:
+  b1: Course 1
+  b2: Course 2
+  b3: Course 3
+  b4: Course 4
+  left: Wheel left
+  right: Wheel right
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  # the cabinet's I/O board, 837-14895 in its "FE MODE": 1 player with 22 switches, 16 outputs
+  # at least, else error 6402 "JVS I/O board does not fulfill the game spec"
+  WAL_TYPEX_JVS_IDENTIFIER: SEGA CORPORATION;I/O BD JVS;837-14895;Ver1.00;2011/10;FE MODE
+  WAL_TYPEX_JVS_SWITCHES: 1x22
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  # the wheel: a rotary encoder on HANDLE R / L, a step per pulse (held: a single step, then
+  # back to the center): pulsed while left / right are held (toggled on each switch read, it
+  # does not turn)
+  WAL_TYPEX_JVS_PULSE: "9,10@25"
+  # the game's I/O board on COM4 (error 6401 without it)
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # an Asian export: region 04 (English; 08: Chinese) on the keychip and the main board, else
+  # error 0903 "Wrong Region"
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SDAX;keychip.appboot.platformid=AAM;keychip.appboot.region=04
+  WAL_RINGEDGE_REGION: "04"
+  WAL_RINGEDGE_CREDIT_RECORD: "1"
+  # the keychip's challenge file: missing from the dump, generated
+  WAL_RINGEDGE_DS_FILE: SDAX_Table.dat
+  # the cabinet's 1280x720 monitor (mxGetHwInfo.ini)
+  WAL_RINGEDGE_DIPSW: CF
+  # the test button (application 3): its test menu program (gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=exe=GameTestR_RingWide.exe"

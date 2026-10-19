@@ -3,7 +3,8 @@
 //! keychip, TCP 40106, its binary data channel 40107) and the auth service (amAuth, RingEdge 2:
 //! TCP 40190). The network service (amNetwork, 40104); the test menus also open the
 //! installer (amInstall, 40102), the game delivery
-//! services (amGdeliver 40108, amGcatcher 40110) and the storage service (40115).
+//! services (amGdeliver 40108, amGcatcher 40110) and the storage service (amStorage, 40114, its
+//! binary channel 40115).
 //!
 //! PCP is a text protocol: the service sends the prompt `>`, the client a request line
 //! `key=value&key=value\r\n` (`?` for a query, e.g. `keychip.appboot.gameid=?&cache=1`), the
@@ -46,7 +47,8 @@ const MXINSTALLER: u16 = 40102;
 const MXNETWORK: u16 = 40104;
 const MXGDELIVER: u16 = 40108;
 const MXGCATCHER: u16 = 40110;
-const MXSTORAGE: u16 = 40115;
+const MXSTORAGE: u16 = 40114;
+const MXSTORAGE_DATA: u16 = 40115;
 const AUTH: u16 = 40190;
 const AUTH_DATA: u16 = 40191;
 /// `place.info`'s binary record (shop information), sent on the auth data channel: empty.
@@ -118,6 +120,7 @@ pub(crate) fn start() {
         (MXGDELIVER, "mxgdeliver"),
         (MXGCATCHER, "mxgcatcher"),
         (MXSTORAGE, "mxstorage"),
+        (MXSTORAGE_DATA, "mxstorage data"),
         (AUTH, "auth"),
         (AUTH_DATA, "auth data"),
     ];
