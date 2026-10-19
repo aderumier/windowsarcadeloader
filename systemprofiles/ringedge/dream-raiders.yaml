@@ -17,7 +17,22 @@ input:
 controls:
   b1: Trigger
 
+# the dump's Game.ini (a 1920x1080 screen and render size): its 2D screens (logos, menus) stay
+# at their 1280x720 pixel size, small in the middle, and a fixed 1920x1080 fullscreen is cut
+# on other screens; the cabinet's 1280x720 instead (the game reads ..\Game.ini: the dump root)
+files:
+  /Game.ini: systemprofiles/ringedge/files/dream-raiders/Game.ini
+
 env:
+  # the main board's monitor resolution (DIP switches 5-7, the manual's setting for the game):
+  # 1280x720, switch 7 on, 5 and 6 off
+  WAL_RINGEDGE_DIPSW: CF
+  # its 1280x720 device in a borderless screen-sized window, the picture stretched to it, 16:9
+  # kept (black bars on other screens)
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_D3D9_WINDOWED_SIZE: 1280x720
+  WAL_D3D9_ASPECT: "16:9"
   # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
   WAL_RINGEDGE_PLATFORM: AAM
   WAL_TYPEX_JVS_OUTPUTS: "20"
