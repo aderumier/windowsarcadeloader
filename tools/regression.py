@@ -6,7 +6,10 @@ turn, then checks that it started (payload connected), is still running, shows a
 
 Usage: tools/regression.py [--wait S] [--only TEXT]... [--compare RUN_DIR] [--no-prepare]
                            [--root DIR] [--label NAME] [--profile FILE]...
-                           [--roms DIR [--all]]
+                           [--roms DIR [--all]] [--background]
+--background: the games run in a headless gamescope (no window on the desktop) and only the
+input script drives them (keyboard, pads and guns free for other uses); the window check is
+skipped.
 --roms: the games from the SquashFS images of a Batocera roms folder (e.g. mounted over SMB)
 instead of games/: each games.yaml entry runs the image holding its game id
 (<gameid>.windowsloader at the image's root) in the system folders ROM_SYSTEMS; --all also runs
@@ -317,7 +320,7 @@ def stop(proc: subprocess.Popen):
     wait_port_free(30)
 
 
-def run_game(rel: str, opts: dict, wait: float, out: Path, layers: list[Path]) -> dict:
+def run_game(rel: str, opts: dict, wait: float, out: Path, layers: list[Path], background: bool = False) -> dict:
     dump = Path(opts["image"]) if "image" in opts else GAMES / rel
     out.mkdir(parents=True, exist_ok=True)
     shots = out / "shots"
@@ -327,6 +330,8 @@ def run_game(rel: str, opts: dict, wait: float, out: Path, layers: list[Path]) -
     cmd = [str(TREE / "dist/arcade-launcher"), "run", str(dump), "--profile", str(layer)]
     for extra in layers:
         cmd += ["--profile", str(extra.resolve())]
+    if background:
+        cmd += ["--no-input", "--headless"]
     script = opts.get("script", DEFAULT_SCRIPT)
     if script and script != "none":
         cmd += ["--input-script", str(ROOT / script)]
@@ -356,7 +361,10 @@ def run_game(rel: str, opts: dict, wait: float, out: Path, layers: list[Path]) -
     res["running"] = proc.poll() is None
     # at the end (startup windows, launchers and loading screens are gone by then)
     windows = game_windows(wine_pids()) if res["running"] else []
-    if res["running"] and in_gamescope(proc.pid):
+    if background:
+        res["window"] = None
+        res["window_detail"] = "headless"
+    elif res["running"] and in_gamescope(proc.pid):
         # its own nested X server, shown as a Wayland window: not visible here
         res["window"] = None
         res["window_detail"] = "gamescope"
@@ -417,6 +425,7 @@ def main():
     ap.add_argument("--label", default="", help="suffix of the results directory name")
     ap.add_argument("--roms", type=Path, help="Batocera roms folder: run the games from its SquashFS images")
     ap.add_argument("--all", action="store_true", help="with --roms: also the images games.yaml does not list")
+    ap.add_argument("--background", action="store_true", help="headless gamescope, input from the script only")
     args = ap.parse_args()
 
     global TREE
@@ -477,7 +486,7 @@ def run_games(games: dict, args, run_dir: Path, results: dict):
             continue
         name = Path(rel).stem
         print(f"[{i}/{len(games)}] {rel} ...", end=" ", flush=True)
-        res = run_game(rel, opts, opts.get("wait", args.wait), run_dir / name, args.profile)
+        res = run_game(rel, opts, opts.get("wait", args.wait), run_dir / name, args.profile, args.background)
         results[rel] = res
         print(" ".join(f"{c}={mark(res.get(c))}" for c in CHECKS), flush=True)
         (run_dir / "results.json").write_text(json.dumps(results, indent=1))

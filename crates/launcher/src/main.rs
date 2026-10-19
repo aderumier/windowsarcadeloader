@@ -39,6 +39,7 @@ usage:
       Without a game: the frontend window (every game, its controls mapped per device into
       its user profile, its dump folder, launch).
   arcade-launcher [run] <dump> [--root DIR] [--profile FILE]... [--dry-run] [--input-script FILE]
+                  [--no-input] [--headless]
       Launch a game. <dump> is a game dump directory holding a <gameid>.windowsloader
       file (the executable path relative to the dump root), that file, or the dump packed
       as a SquashFS image (<name>.squashfs, mounted with an overlay for its writes in
@@ -47,7 +48,10 @@ usage:
       --root: where systemprofiles/ is (default: the current directory, else next to
       the launcher). --profile merges a YAML layer last (frontend options, e.g. reshade:
       false), repeatable. --input-script replays timed virtual stick inputs
-      (`<seconds> p<N> <inputs...>` per line, `-` releases), for tests.
+      (`<seconds> p<N> <inputs...>` per line, `-` releases), for tests. --no-input: no
+      physical device drives the game (keyboards, pads, guns, exit keys), only the script.
+      --headless: the game in gamescope's headless backend, no window on the desktop (its
+      gamescope screen size, else 1920x1080). Both for background test runs.
   arcade-launcher input-test [<dump> | <gameid>] [--root DIR]
       Print the virtual arcade sticks while you press buttons.
   arcade-launcher show <dump> | <gameid> [--root DIR]
@@ -63,10 +67,12 @@ struct Args {
     layers: Vec<PathBuf>,
     dry_run: bool,
     script: Option<PathBuf>,
+    no_input: bool,
+    headless: bool,
 }
 
 fn parse_args() -> Result<Args> {
-    let mut args = Args { command: "run".into(), profile: None, root: None, layers: Vec::new(), dry_run: false, script: None };
+    let mut args = Args { command: "run".into(), profile: None, root: None, layers: Vec::new(), dry_run: false, script: None, no_input: false, headless: false };
     let mut positional = Vec::new();
     let mut it = std::env::args().skip(1);
     while let Some(a) = it.next() {
@@ -74,6 +80,8 @@ fn parse_args() -> Result<Args> {
             "--root" => args.root = Some(it.next().context("--root needs a directory")?.into()),
             "--profile" => args.layers.push(it.next().context("--profile needs a file")?.into()),
             "--dry-run" => args.dry_run = true,
+            "--no-input" => args.no_input = true,
+            "--headless" => args.headless = true,
             "--input-script" => args.script = Some(it.next().context("--input-script needs a file")?.into()),
             "-h" | "--help" => {
                 println!("{USAGE}");
@@ -139,15 +147,16 @@ fn real_main() -> Result<()> {
         }
         _ => {
             let script = args.script.as_deref().map(script::Script::load).transpose()?;
+            let opts = RunOptions { dry_run: args.dry_run, no_input: args.no_input, headless: args.headless };
             let image = Path::new(dump()?);
             if !squashfs::is_image(image) {
-                return run(&load()?, args.dry_run, script);
+                return run(&load()?, &opts, script);
             }
             // mounted with its overlay for the time of the game
             let saves = load()?.path(&load()?.squashfs_saves);
             let mount = squashfs::Mount::new(image, &saves)?;
             let profile = Profile::load(&mount.dir().to_string_lossy(), args.root.as_deref(), &args.layers)?;
-            run(&profile, args.dry_run, script)
+            run(&profile, &opts, script)
         }
     }
 }
@@ -205,6 +214,15 @@ fn input_test(profile: &Profile) -> Result<()> {
     Ok(())
 }
 
+/// The gamescope of a headless run: the profile's screen size (else 1920x1080, the Batocera
+/// box's), its scaler, no window or display output.
+fn headless_gamescope(conf: &config::GamescopeConfig) -> config::GamescopeConfig {
+    let (width, height) = if conf.enabled && conf.width > 0 && conf.height > 0 { (conf.width, conf.height) } else { (1920, 1080) };
+    let mut args: Vec<String> = if conf.enabled { conf.args.iter().filter(|a| *a != "-f").cloned().collect() } else { Vec::new() };
+    args.extend(["--backend".to_string(), "headless".to_string()]);
+    config::GamescopeConfig { enabled: true, bin: conf.bin.clone(), width, height, args }
+}
+
 /// `cmd` run inside gamescope, with its environment and directory.
 fn gamescope(conf: &config::GamescopeConfig, cmd: Command) -> Command {
     let mut gs = Command::new(&conf.bin);
@@ -251,7 +269,17 @@ fn raise_open_files_limit() {
     }
 }
 
-fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Result<()> {
+/// Launch options of `run` (command line).
+struct RunOptions {
+    dry_run: bool,
+    /// Only the input script drives the game.
+    no_input: bool,
+    /// The game in a headless gamescope.
+    headless: bool,
+}
+
+fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> Result<()> {
+    let dry_run = opts.dry_run;
     raise_open_files_limit();
     if profile.exe.is_empty() {
         bail!("{}: launch a game from its dump (directory or <gameid>.windowsloader file)\n{USAGE}", profile.id);
@@ -428,7 +456,9 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         if relaunched {
             cmd.env(env::RELAUNCH, "1");
         }
-        if profile.gamescope.enabled {
+        if opts.headless {
+            cmd = gamescope(&headless_gamescope(&profile.gamescope), cmd);
+        } else if profile.gamescope.enabled {
             cmd = gamescope(&profile.gamescope, cmd);
         }
         // own process group: whatever the game leaves (gamescope's reaper and its children) is
@@ -469,7 +499,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
     }
     let mut child = cmd.spawn().context("starting wine")?;
     // its window to the front (a frontend keeping the focus hid it)
-    let mut focus = focus::Focus::new(child.id());
+    let mut focus = if opts.headless { None } else { focus::Focus::new(child.id()) };
 
     let mut last = InputFrame::default();
     let mut last_sent = Instant::now();
@@ -480,7 +510,10 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
         if let Some(f) = &mut focus {
             f.poll();
         }
-        let mut frame = hub.frame();
+        let mut frame = if opts.no_input { InputFrame::default() } else { hub.frame() };
+        if opts.no_input {
+            hub.exit_requested = false;
+        }
         if let Some(script) = &script {
             for (p, stick) in frame.players.iter_mut().enumerate() {
                 script.apply(p, stick);
@@ -515,7 +548,7 @@ fn run(profile: &Profile, dry_run: bool, script: Option<script::Script>) -> Resu
                     None => (None, profile.args.iter().cloned().chain(words.iter().map(|a| a.to_string())).collect()),
                 };
                 child = game_command(&args, true, exe).spawn().context("starting wine")?;
-                focus = focus::Focus::new(child.id());
+                focus = if opts.headless { None } else { focus::Focus::new(child.id()) };
                 continue;
             }
             break status;
