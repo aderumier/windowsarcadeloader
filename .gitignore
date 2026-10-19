@@ -7,4 +7,5 @@
 __pycache__/
 /launcher.yaml
 /tools/regression/results
+/tools/regression/roms-index.json
 /saves

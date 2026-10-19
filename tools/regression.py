@@ -6,6 +6,11 @@ turn, then checks that it started (payload connected), is still running, shows a
 
 Usage: tools/regression.py [--wait S] [--only TEXT]... [--compare RUN_DIR] [--no-prepare]
                            [--root DIR] [--label NAME] [--profile FILE]...
+                           [--roms DIR [--all]]
+--roms: the games from the SquashFS images of a Batocera roms folder (e.g. mounted over SMB)
+instead of games/: each games.yaml entry runs the image holding its game id
+(<gameid>.windowsloader at the image's root) in the system folders ROM_SYSTEMS; --all also runs
+the images games.yaml does not list. The ids are cached in tools/regression/roms-index.json.
 Results: tools/regression/results/<date>/ (report.md, results.json, logs and screenshots per
 game), compared with the previous run: a check that passed before and fails now is a
 regression. Run ./build.sh first. One game at a time (input port 33700): close running games.
@@ -38,6 +43,71 @@ PORT = 33700
 # coin + start after 30 s (per game: script: <file> | none)
 DEFAULT_SCRIPT = "tools/regression/coin-start.txt"
 CHECKS = ["started", "running", "window", "picture", "audio"]
+# Batocera system folders of the loader's games (--roms)
+ROM_SYSTEMS = ["typex", "typex2", "nesicax2", "nesicax", "rawthrills", "segare", "segarw", "segaalls", "unis",
+               "konamipc", "adrenaline", "arcadepc", "seganu", "globalvr", "segaer"]
+ROMS_INDEX = ROOT / "tools/regression/roms-index.json"
+
+
+def image_game_id(image: Path) -> str | None:
+    """The <gameid>.windowsloader file at the root of a SquashFS image (its listing only)."""
+    try:
+        out = subprocess.run(["unsquashfs", "-l", "-no-progress", "-d", "", str(image)],
+                             capture_output=True, text=True, errors="replace", timeout=300).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    ids = [m.group(1) for m in re.finditer(r"^/?([^/\n]+)\.windowsloader$", out, re.M)]
+    return ids[0] if len(ids) == 1 else None
+
+
+def roms_index(roms: Path) -> dict[str, str]:
+    """Image path (relative to roms) -> game id, of every image of the ROM_SYSTEMS folders.
+    Cached by path, size and mtime: reading the images over the network is slow."""
+    try:
+        cache = json.loads(ROMS_INDEX.read_text())
+    except (OSError, json.JSONDecodeError):
+        cache = {}
+    index, fresh = {}, {}
+    for system in ROM_SYSTEMS:
+        for image in sorted((roms / system).glob("*.squashfs")):
+            rel = str(image.relative_to(roms))
+            st = image.stat()
+            key = f"{image}|{st.st_size}|{int(st.st_mtime)}"
+            gid = cache[key] if key in cache else image_game_id(image)
+            fresh[key] = gid
+            if gid:
+                index[rel] = gid
+    ROMS_INDEX.write_text(json.dumps(fresh, indent=1, sort_keys=True))
+    return index
+
+
+def roms_games(games: dict, roms: Path, all_images: bool) -> dict:
+    """games.yaml's games, each with the roms image of its game id (`image`), in its own
+    system folder first (typex+ -> typex). Unmatched ones skipped; with all_images, the
+    images not listed too (keyed by their image path)."""
+    index = roms_index(roms)
+    by_id: dict[str, list[str]] = {}
+    for rel, gid in index.items():
+        by_id.setdefault(gid, []).append(rel)
+    out, used = {}, {}
+    for rel, opts in games.items():
+        gid = Path(rel).stem
+        system = Path(rel).parts[0].rstrip("+")
+        images = sorted(by_id.get(gid, []), key=lambda r: Path(r).parts[0] != system)
+        opts = dict(opts)
+        if not images:
+            opts.setdefault("skip", f"no image of {gid} in {roms}")
+        elif images[0] in used:
+            opts.setdefault("skip", f"same image as {used[images[0]]}")
+        else:
+            used[images[0]] = rel
+            opts["image"] = str(roms / images[0])
+        out[rel] = opts
+    if all_images:
+        for rel in sorted(index):
+            if rel not in used:
+                out[rel] = {"image": str(roms / rel)}
+    return out
 
 
 def port_busy() -> bool:
@@ -248,7 +318,7 @@ def stop(proc: subprocess.Popen):
 
 
 def run_game(rel: str, opts: dict, wait: float, out: Path, layers: list[Path]) -> dict:
-    dump = GAMES / rel
+    dump = Path(opts["image"]) if "image" in opts else GAMES / rel
     out.mkdir(parents=True, exist_ok=True)
     shots = out / "shots"
     shots.mkdir(exist_ok=True)
@@ -345,6 +415,8 @@ def main():
     ap.add_argument("--root", type=Path, help="launcher tree to test (default: this checkout)")
     ap.add_argument("--profile", type=Path, action="append", default=[], help="extra launcher profile layer (experiments)")
     ap.add_argument("--label", default="", help="suffix of the results directory name")
+    ap.add_argument("--roms", type=Path, help="Batocera roms folder: run the games from its SquashFS images")
+    ap.add_argument("--all", action="store_true", help="with --roms: also the images games.yaml does not list")
     args = ap.parse_args()
 
     global TREE
@@ -354,16 +426,23 @@ def main():
     if port_busy():
         sys.exit(f"port {PORT} busy: a game is running")
     games = yaml.safe_load(CONF.read_text()) or {}
-    games = {k: v or {} for k, v in games.items() if not args.only or any(o.lower() in k.lower() for o in args.only)}
+    games = {k: v or {} for k, v in games.items()}
+    if args.all and not args.roms:
+        sys.exit("--all needs --roms")
+    if args.roms:
+        print(f"indexing the images of {args.roms}...", flush=True)
+        games = roms_games(games, args.roms.resolve(), args.all)
+    games = {k: v for k, v in games.items() if not args.only or any(o.lower() in k.lower() for o in args.only)}
     run_dir = RESULTS / (time.strftime("%Y%m%d-%H%M%S") + (f"-{args.label}" if args.label else ""))
     run_dir.mkdir(parents=True)
     if args.profile:
         # not a reference result (tools/gamelist.py skips it)
         (run_dir / "experiment").write_text("".join(f"--profile {p}\n" for p in args.profile))
 
-    if not args.no_prepare and games:
+    if not args.no_prepare and any(not v.get("skip") for v in games.values()):
         # prefix creation and winetricks downloads, once, before the timed runs
-        first = GAMES / next(iter(games))
+        rel, opts = next((k, v) for k, v in games.items() if not v.get("skip"))
+        first = Path(opts["image"]) if "image" in opts else GAMES / rel
         print(f"preparing the prefix ({first.name})...", flush=True)
         with open(run_dir / "prepare.log", "w") as log:
             if subprocess.run([str(TREE / "dist/arcade-launcher"), "prepare", str(first)], cwd=TREE, stdout=log, stderr=subprocess.STDOUT).returncode:
