@@ -20,7 +20,12 @@ dxvk: false
 
 env:
   # KOF Maximum Impact Regulation A patch (CRC 0x1782f027).
-  WAL_PATCHES: "0x447C:B80008009090"
+  # 0x1D6D7E, 0x1DB9E2, 0x1DC963, 0x1DCCEE, 0x1DD369: crash at the fight start. These
+  # drawing functions save the RenderWare render states 10, 11 and 9 (texture filter) and
+  # restore them, but the restore of 9 passes the saved value's address (lea) instead of
+  # the value: RwRenderStateSet indexes its filter table with that stack address, read out
+  # of bounds under Wine (thread stack higher than Windows'). lea -> mov.
+  WAL_PATCHES: "0x447C:B80008009090,0x1D6D7E:8B,0x1DB9E2:8B,0x1DC963:8B,0x1DCCEE:8B,0x1DD369:8B"
 
 # No back buffer override: the game renders natively at 640x480 (it requests a
 # 640x480 back buffer and lays out its scene for it). Forcing 1280x800 put the
