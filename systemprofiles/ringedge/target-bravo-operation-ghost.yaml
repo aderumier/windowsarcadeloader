@@ -1,0 +1,47 @@
+# Target Bravo: Operation G.H.O.S.T. (Sega RingWide, 2013), the newer version of Operation
+# G.H.O.S.T., 2 player lightgun game. Runs gs2.exe.original (game.bat's gs2.exe).
+# Override values in userprofiles/ringedge/target-bravo-operation-ghost.yaml.
+system: ringedge
+name: "Target Bravo: Operation G.H.O.S.T."
+
+# its sound: XACT 3 (xactengine3_3, XAudio2_3)
+tricks: [xact]
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the gun's inputs (its script's lwGun: trigger, action, select, frame out; DemulShooter's
+  # JVS layout): the trigger also presses its player's start (joining the game by shooting),
+  # the middle button is the gun's action button; the gun's screen out (button 2, the test
+  # menu's "screen" in/out) reloads: pointing off the screen, or the right button, which is
+  # also the change (weapon) button
+  gun:
+    BTN_LEFT: b1,start
+    BTN_RIGHT: b2,b4
+    BTN_MIDDLE: b3
+    offscreen: b2
+
+controls:
+  b1: Trigger
+  b2: Screen out (reload)
+  b3: Action
+  b4: Change
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,ly,p2:lx,p2:ly"
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SDDV;keychip.appboot.platformid=AAM;keychip.appboot.region=04
+  # the main board's region (the EEPROM's static record), as the keychip's: 04 export (the
+  # dump's gs2.ini Region=4); a new EEPROM has none ("AM_SYSDATA_STATIC broken", board region 0)
+  WAL_RINGEDGE_REGION: "04"
+  # the cabinet's credit settings record (SRAM, made by the system menu): without it amCredit
+  # is not initialized ("SetCreditConfig() Faild"), coins give no credit
+  WAL_RINGEDGE_CREDIT_RECORD: "1"
+  # a 1024x600 fullscreen device (its present parameters), a mode no monitor has: made
+  # 1024x768, the game draws its 1024x600 picture in part of it (stale frames around): a
+  # 1024x600 back buffer in a screen-sized window instead
+  WAL_D3D9_WINDOWED_SIZE: 1024x600
+  # the test button (application 3): the game with -testmode (its gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=-testmode"

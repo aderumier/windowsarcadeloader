@@ -38,8 +38,7 @@ env:
   WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,ly,p2:lx,p2:ly"
   WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBWA;keychip.appboot.platformid=AAM
   # the main board's region (the EEPROM's static record), as the keychip's (01, the dump's
-  # gs2.ini Region=1): without it "AM_SYSDATA_STATIC broken", and after the first boot error
-  # 3005 "AMLIB INITIALIZE FAILED"
+  # gs2.ini Region=1): a new EEPROM has none ("AM_SYSDATA_STATIC broken", board region 0)
   WAL_RINGEDGE_REGION: "01"
   # the cabinet's credit settings record (SRAM, made by the system menu): without it amCredit
   # is not initialized ("SetCreditConfig() Faild"), coins give no credit
