@@ -40,3 +40,7 @@ env:
   WAL_RINGEDGE_MEDAL_IO: COM3
   WAL_RINGEDGE_MICROTOUCH: COM1
   WAL_RINGEDGE_CP_BOARD: COM5
+  # the I/O board's last command list is saved in backup RAM and restored at boot, where the
+  # game then reads the handshake's (74) reply as that list's: a report byte off, error 3105
+  # at every boot once a payout saved it. The list restored empty (mov edx,[eax+0x15] -> 0).
+  WAL_PATCHES: "0x2deac:31D290"
