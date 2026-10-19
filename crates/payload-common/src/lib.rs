@@ -13,6 +13,8 @@ pub mod memdiff;
 #[cfg(windows)]
 pub mod crypto;
 #[cfg(windows)]
+pub mod d3dx;
+#[cfg(windows)]
 mod crypto_keys;
 #[cfg(windows)]
 pub mod dinput;
@@ -107,6 +109,7 @@ pub fn start(name: &'static str) {
             font::init();
             sdl::init();
             codepage::init();
+            d3dx::init();
             dinput::init();
             joystick::init();
             wcase::init();

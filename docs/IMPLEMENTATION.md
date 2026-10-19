@@ -523,7 +523,8 @@ profile), `show` (merged profile).
   (`d3d8!Direct3DCreate8`) get the same shims with the d3d8 vtable slots and layouts
   (CreateImageSurface + CopyRects for the capture). `WAL_D3D9_FULLSCREEN=1` creates windowed
   devices fullscreen (Chaos Code's white window border); it broke SFZ3, which then stops
-  presenting after its Reset. `WAL_D3D9_WINDOWED_SIZE=WxH` creates/resets every device windowed
+  presenting after its Reset. A 0x0 back buffer (the window's size, SEGA Golden Gun) takes the
+  window's client size first. `WAL_D3D9_WINDOWED_SIZE=WxH` creates/resets every device windowed
   with that back buffer size and drops the `Present` source/destination rectangles, so window
   mode stretches the whole back buffer to the window: games drawing a smaller picture in the
   corner of their back buffer, of a size no fullscreen mode has (Yatagarasu: 854x480 of
@@ -564,6 +565,9 @@ profile), `show` (merged profile).
   system memory textures into 11-level default pool ones: DXVK returns D3DERR_INVALIDCALL
   (source with fewer levels) and the characters stayed invisible. The first refusal is logged
   with both textures' descriptions.
+* `d3dx`: the game's `D3DXCompileShader` calls without an include handler get one reading
+  `#include` files from the current directory, as native d3dx9 does (Wine's compiler fails
+  them: SEGA Golden Gun's blur shaders, a NULL effect, crash at boot). Always on.
 * `codepage`: `WAL_ANSI_CODEPAGE=<cp>` makes the game's own `MultiByteToWideChar` /
   `WideCharToMultiByte` calls on CP_ACP use `<cp>` (932): Raiden IV converts its Shift-JIS
   movie name ("raiden4_ｃ50.m1v") itself.
@@ -1461,7 +1465,11 @@ game's amLib (its own error strings name every function):
   (1.14) also asks `keychip.ssd.proof=<16-byte challenge>`: answered from the SSD records
   (answer bytes shuffled, `SSD_ORDER`). Dumped executables can hold amDongle's 100 records as
   loaded at dump time and use them as they are (Transformers' test menu): the challenge is
-  then found in the executable's image, its MACs or SSD answer right after it.
+  then found in the executable's image, its MACs or SSD answer right after it. A dump without
+  its challenge file (SEGA Golden Gun: empty `fs\table`; amDongleSetAuthConfig fails, error
+  0949) gets a generated one (random records, same size) in the save folder, opened in place
+  of the missing path (`CreateFileA/W` hooks): amDongle only compares the keychip's answers
+  with the file's records, and the keychip answers from the same file.
 - **RingEdge 2** (`WAL_RINGEDGE_BOARD=ringedge2`, newer amLib 1.11). amPlatform's board type
   picks amBackup's SRAM layout: with platform `AAL` and maker `NEC` it reads a fifth OEM
   string, `AAL2` for a RingEdge 2 (4-byte aligned backup records; the RingEdge 1 layout's
@@ -1850,6 +1858,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `under-defeat-hd-plus` | Under Defeat HD+ | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `UDX_RINGEDGE.exe`, JVS on `\\.\mxjvs`, nothing game specific |
 | `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%) | RingEdge 1 (§6.3d), `LGI.exe`, JVS on `\\.\mxjvs` with 20 outputs and the 2 guns on analog channels 1-4 (Y/X per player, inverted; else Error 6402); test menu `-TestMode`; runs in its 2D mode |
 | `lets-go-island-ringwide` | Let's Go Island: Lost on the Island of Tropics (RingWide) | ringedge | works (user: OK) | RingWide (platform AAM), `LGI_RingW_F_safe.exe`, the RingEdge 3D version's setup: `\\.\mxjvs`, 20 outputs, guns on analog channels 1-4 (Y/X per player, inverted); challenge file `MACtbl/SBUH_Table.dat`; test menu `-TestMode` |
+| `sega-golden-gun` | SEGA Golden Gun | ringedge | works (user: 100%) | RingWide (platform AAM), `fs\RingGunR_RingWide.exe` (game.bat runs `exe\` from `fs`; same file), JVS on `\\.\mxjvs` (test menu `TestMode.exe -t`: COM4), 20 outputs, guns on analog channels 1-4 (X/Y per player, not inverted); challenge file `SBVE_Table.dat` missing from the dump: generated; shader `#include` (d3dx hook); 1360x768 window forced fullscreen (borderless fallback) |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync and 60 fps limit; test menu: the Shell's `Shell.exe` on TEST (straight into its test menu, inputs written in its memory, exit back to the game), gun calibration saved in `ShellData.ini` (read by the game) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 

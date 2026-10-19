@@ -1,0 +1,37 @@
+# SEGA Golden Gun (Sega RingWide, 2010), 2 player lightgun game. Runs fs/RingGunR_RingWide.exe
+# (game.bat starts exe\RingGunR_RingWide.exe from fs, its data folder; fs has the same files).
+# Override values in userprofiles/ringedge/sega-golden-gun.yaml.
+system: ringedge
+name: SEGA Golden Gun
+
+# another loader's output plugin shipped in the dump
+hide: [exe/OutputBlaster.dll, exe/OutputBlaster.ini]
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the trigger also presses its player's start (joining the game by shooting), the middle
+  # button inserts a coin
+  gun:
+    BTN_LEFT: b1,start
+    BTN_MIDDLE: coin
+
+controls:
+  b1: Trigger
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  # the guns on the JVS board's analog channels: 1/2 player 1 X/Y, 3/4 player 2 X/Y, high
+  # values right / down (Let's Go Island's: Y/X, inverted)
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,ly,p2:lx,p2:ly"
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVE;keychip.appboot.platformid=AAM
+  # the test button (application 3): its test menu program (gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=exe=TestMode.exe -t"
+  # the game's I/O board on mxjvs, the test menu's on COM4
+  WAL_TYPEX_JVS_PORT: mxjvs,COM4
+  # a 1360x768 window: a fullscreen device instead
+  WAL_D3D9_FULLSCREEN: "1"
+  # the keychip's challenge file: missing from the dump (empty fs/table), generated
+  WAL_RINGEDGE_DS_FILE: ../fs/table/SBVE_Table.dat

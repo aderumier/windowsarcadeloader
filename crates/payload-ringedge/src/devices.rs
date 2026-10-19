@@ -132,6 +132,7 @@ pub(crate) fn init() {
         }
     }
     log!("devices: SRAM and EEPROM in {dir}");
+    crate::pcp::init_ds_file(&dir);
 }
 
 /// Device name of a path opened by the game (`\\.\mxsram` -> `mxsram`), lower case.
@@ -169,6 +170,10 @@ unsafe extern "system" fn create_file_a(name: *const u8, a: u32, s: u32, sa: P, 
         if let Some(h) = open_device(&path, a, s) {
             return h;
         }
+        if let Some(file) = crate::pcp::ds_file_replacement(&path) {
+            let file: Vec<u16> = file.to_string_lossy().encode_utf16().chain([0]).collect();
+            return unsafe { orig::<unsafe extern "system" fn(*const u16, u32, u32, P, u32, u32, P) -> P>(CREATE_W)(file.as_ptr(), a, s, sa, d, f, t) };
+        }
     }
     unsafe { orig::<unsafe extern "system" fn(*const u8, u32, u32, P, u32, u32, P) -> P>(CREATE_A)(name, a, s, sa, d, f, t) }
 }
@@ -182,6 +187,10 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
         let path = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) });
         if let Some(h) = open_device(&path, a, s) {
             return h;
+        }
+        if let Some(file) = crate::pcp::ds_file_replacement(&path) {
+            let file: Vec<u16> = file.to_string_lossy().encode_utf16().chain([0]).collect();
+            return unsafe { orig::<unsafe extern "system" fn(*const u16, u32, u32, P, u32, u32, P) -> P>(CREATE_W)(file.as_ptr(), a, s, sa, d, f, t) };
         }
     }
     unsafe { orig::<unsafe extern "system" fn(*const u16, u32, u32, P, u32, u32, P) -> P>(CREATE_W)(name, a, s, sa, d, f, t) }

@@ -157,6 +157,8 @@ static FRAME_PERIOD: Mutex<Option<Duration>> = Mutex::new(None);
 /// The device's window (hDeviceWindow, else the focus window): `Present` with a null window
 /// draws to it.
 static DEVICE_WINDOW: AtomicUsize = AtomicUsize::new(0);
+/// The focus window of the device being created (the back buffer size of a 0x0 one).
+static FOCUS_WINDOW: AtomicUsize = AtomicUsize::new(0);
 /// `set_overlay`: called with the device before each d3d9 `Present`, and before its resets.
 static OVERLAY: AtomicUsize = AtomicUsize::new(0);
 static OVERLAY_RESET: AtomicUsize = AtomicUsize::new(0);
@@ -505,6 +507,7 @@ unsafe extern "system" fn query_get_data(query: P, data: *mut u8, size: u32, fla
 unsafe extern "system" fn create_device_ex(d3d: P, adapter: u32, kind: u32, window: P, flags: u32, params: P, mode: P, out: *mut P) -> HRESULT {
     let orig: unsafe extern "system" fn(P, u32, u32, P, u32, P, P, *mut P) -> HRESULT =
         unsafe { std::mem::transmute(ORIG_CREATE_DEVICE_EX.load(Ordering::Relaxed)) };
+    FOCUS_WINDOW.store(window as usize, Ordering::Relaxed);
     unsafe { override_size(params) };
     let mut fallback = DisplayModeEx::default();
     let mode = unsafe { fullscreen_mode(params, mode, &mut fallback) };
@@ -607,7 +610,23 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
     }
     let p = params as *mut u32;
     if FORCE_FULLSCREEN.load(Ordering::Relaxed) && unsafe { *p.add(windowed_index) } != 0 {
-        let (w, h) = unsafe { (*p, *p.add(1)) };
+        let (mut w, mut h) = unsafe { (*p, *p.add(1)) };
+        if w == 0 || h == 0 {
+            // a back buffer of the window's size (SEGA Golden Gun: 0x0 in a 1360x768 window):
+            // fullscreen needs it explicit
+            let window = match unsafe { *p.add(windowed_index - 1) } as usize {
+                0 => FOCUS_WINDOW.load(Ordering::Relaxed),
+                hwnd => hwnd,
+            };
+            let mut r = windows_sys::Win32::Foundation::RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            if window != 0 && unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect(window as P, &mut r) } != 0 {
+                (w, h) = ((r.right - r.left) as u32, (r.bottom - r.top) as u32);
+                unsafe {
+                    *p = w;
+                    *p.add(1) = h;
+                }
+            }
+        }
         if w != 0 && h != 0 {
             unsafe {
                 *p.add(windowed_index) = 0;
@@ -787,6 +806,7 @@ unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window:
         unsafe { std::mem::transmute(ORIG_CREATE_DEVICE.load(Ordering::Relaxed)) };
     // D3DCREATE_MULTITHREADED
     let flags = if MULTITHREADED.load(Ordering::Relaxed) { flags | 0x4 } else { flags };
+    FOCUS_WINDOW.store(window as usize, Ordering::Relaxed);
     unsafe { override_size(params) };
     let mut hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
     if hr < 0 {
@@ -1161,6 +1181,7 @@ mod d3d8 {
     unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window: P, flags: u32, params: P, out: *mut P) -> HRESULT {
         let orig: unsafe extern "system" fn(P, u32, u32, P, u32, P, *mut P) -> HRESULT =
             unsafe { std::mem::transmute(ORIG_CREATE_DEVICE.load(Ordering::Relaxed)) };
+        super::FOCUS_WINDOW.store(window as usize, Ordering::Relaxed);
         unsafe { override_size_at(params, WINDOWED) };
         let mut hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
         if hr < 0 && unsafe { super::fullscreen_fallback(hr, params, WINDOWED, 6, window) } {

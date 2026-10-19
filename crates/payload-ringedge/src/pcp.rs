@@ -29,7 +29,8 @@
 //! [`MAC_ORDER`]; then the SSD records) and a fixed one in the executable, followed by its 4
 //! MACs. Both are looked up: `WAL_RINGEDGE_DS_FILE=<file>` (from the game directory) and
 //! the fixed one found in the running executable ([`ds_table`], or `WAL_RINGEDGE_DS_TABLE=
-//! <challenge rva>,<macs rva>`).
+//! <challenge rva>,<macs rva>`). A challenge file missing from the dump is generated in the
+//! save folder and opened in its place ([`init_ds_file`]).
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -319,7 +320,7 @@ fn ssd_proof(challenge: &str) -> String {
     let bytes: Vec<u8> = (0..challenge.len() / 2).filter_map(|i| u8::from_str_radix(challenge.get(i * 2..i * 2 + 2)?, 16).ok()).collect();
     let mut answer = [0u8; 16];
     let records = ds_file().get(DS_RECORD * DS_RECORDS..).unwrap_or(&[]);
-    match records.chunks_exact(32).find(|r| bytes.len() == 16 && r[..16] == bytes[..]) {
+    match records.chunks_exact(SSD_RECORD).find(|r| bytes.len() == 16 && r[..16] == bytes[..]) {
         Some(record) => {
             for (a, &i) in answer.iter_mut().zip(SSD_ORDER.iter()) {
                 *a = record[16 + i];
@@ -343,14 +344,63 @@ const DS_RECORDS: usize = 10000;
 /// MAC byte `j` is byte `MAC_ORDER[j]` of its 20 bytes in the challenge file (amDongle's loader).
 const MAC_ORDER: [usize; 20] = [15, 5, 13, 14, 10, 1, 2, 11, 16, 7, 4, 18, 12, 6, 3, 0, 17, 8, 19, 9];
 
-/// The game's challenge file (`WAL_RINGEDGE_DS_FILE`), empty without it.
+/// SSD records after the DS ones: the challenge then the answer.
+const SSD_RECORD: usize = 32;
+const SSD_RECORDS: usize = 10000;
+
+/// The challenge file's path (`WAL_RINGEDGE_DS_FILE`, from the game directory: the current
+/// directory at startup, the game changes it) and, when the dump lacks it, the generated
+/// one the game gets instead (`save_dir`). Resolved by [`init_ds_file`].
+static DS_PATH: OnceLock<Option<(std::path::PathBuf, Option<std::path::PathBuf>)>> = OnceLock::new();
+
+/// Resolves the challenge file. A dump without it (SEGA Golden Gun: empty `fs\table`, amDongle
+/// fails to set up, error 0949 "keychip not found") gets a generated one in `save_dir`: the
+/// records are random, amDongle only checks the keychip's answers against them and the
+/// keychip answers from the same file.
+pub fn init_ds_file(save_dir: &str) {
+    DS_PATH.get_or_init(|| {
+        let name = std::env::var("WAL_RINGEDGE_DS_FILE").ok()?;
+        let path = std::env::current_dir().map(|d| d.join(&name)).unwrap_or_else(|_| name.clone().into());
+        if path.exists() {
+            return Some((path, None));
+        }
+        let generated = std::path::Path::new(save_dir).join(path.file_name()?);
+        if !generated.exists() {
+            let size = DS_RECORD * DS_RECORDS + SSD_RECORD * SSD_RECORDS;
+            // xorshift, seeded by the file name: the same file on every machine
+            let mut x = name.bytes().fold(0x9E37_79B9_7F4A_7C15u64, |h, b| (h ^ b as u64).wrapping_mul(0x100_0000_01B3));
+            let data: Vec<u8> = (0..size).map(|_| {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+                (x >> 24) as u8
+            }).collect();
+            if let Err(e) = std::fs::write(&generated, data) {
+                log!("pcp: cannot write {}: {e}", generated.display());
+                return Some((path, None));
+            }
+        }
+        log!("pcp: {} missing: generated {}", path.display(), generated.display());
+        Some((path, Some(generated)))
+    });
+}
+
+/// The generated challenge file for a path the game opens, when it is the missing one.
+pub fn ds_file_replacement(path: &str) -> Option<&'static std::path::Path> {
+    let (missing, generated) = DS_PATH.get()?.as_ref()?;
+    let generated = generated.as_deref()?;
+    let name = path.rsplit(['\\', '/']).next()?;
+    let same = missing.file_name().is_some_and(|m| m.to_string_lossy().eq_ignore_ascii_case(name));
+    (same && !std::path::Path::new(path).exists()).then_some(generated)
+}
+
+/// The game's challenge file (`WAL_RINGEDGE_DS_FILE`, or the generated one), empty without it.
 fn ds_file() -> &'static [u8] {
     static FILE: OnceLock<Vec<u8>> = OnceLock::new();
     FILE.get_or_init(|| {
-        let Ok(name) = std::env::var("WAL_RINGEDGE_DS_FILE") else { return Vec::new() };
-        // from the game directory: the current directory at startup (the game changes it)
-        let path = std::env::current_dir().map(|d| d.join(&name)).unwrap_or_else(|_| name.clone().into());
-        match std::fs::read(&path) {
+        let Some(Some((path, generated))) = DS_PATH.get() else { return Vec::new() };
+        let path = generated.as_ref().unwrap_or(path);
+        match std::fs::read(path) {
             Ok(data) => {
                 log!("pcp: challenge file {} ({} bytes)", path.display(), data.len());
                 data
