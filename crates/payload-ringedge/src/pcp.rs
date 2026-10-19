@@ -278,10 +278,20 @@ fn network_answer(request: &str) -> String {
 }
 
 /// The other services (installer, game delivery, storage): `request=<name>&...` answered
-/// `response=<name>&result=success`.
+/// `response=<name>&result=success`. The installer's application data area query carries its
+/// state (unknown, checking, formatting, needed, available, restored, error) and, available,
+/// the id of the game it holds: `available`, the keychip's game. Without them amInstall fails
+/// (-6): Operation G.H.O.S.T. reads them on each boot but its first ("AMU::MainStorage::Init()
+/// Faild", error 3005 "AMLIB INITIALIZE FAILED").
 fn service_answer(request: &str) -> String {
     let name = request.split('&').find_map(|p| p.strip_prefix("request=")).unwrap_or("");
-    format!("response={name}&result=success")
+    match name {
+        "query_appdata_status" => {
+            let id = values().get("keychip.appboot.gameid").map_or("", String::as_str);
+            format!("response={name}&result=success&status=available&id={id}")
+        }
+        _ => format!("response={name}&result=success"),
+    }
 }
 
 /// The MAC for `keychip.ds.compute=<challenge hex>&page=<n>`, hex: the game's table entry for

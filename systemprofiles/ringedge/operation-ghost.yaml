@@ -1,0 +1,54 @@
+# Operation G.H.O.S.T. (Sega RingWide, 2012), 2 player lightgun game. Runs gs2.exe.ori, the
+# dump's original executable (game.bat's gs2.exe.bak; gs2.exe and gs2.exe_1080 are copies with
+# another debug window size).
+# Override values in userprofiles/ringedge/operation-ghost.yaml.
+system: ringedge
+name: Operation G.H.O.S.T.
+
+# its sound: XACT 3 (xactengine3_3, XAudio2_3)
+tricks: [xact]
+
+# another loader's output plugin and resolution patcher shipped in the dump
+hide: [OutputBlaster.dll, OutputBlaster.ini, OpGhost_ResChanger.exe, OpGhost_ResChanger.txt]
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the gun's inputs (its script's lwGun: trigger, action, select, frame out; DemulShooter's
+  # JVS layout): the trigger also presses its player's start (joining the game by shooting),
+  # the middle button is the gun's action button; the gun's screen out (button 2, the test
+  # menu's "screen" in/out) reloads: pointing off the screen, or the right button, which is
+  # also the change (weapon) button
+  gun:
+    BTN_LEFT: b1,start
+    BTN_RIGHT: b2,b4
+    BTN_MIDDLE: b3
+    offscreen: b2
+
+controls:
+  b1: Trigger
+  b2: Screen out (reload)
+  b3: Action
+  b4: Change
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,ly,p2:lx,p2:ly"
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBWA;keychip.appboot.platformid=AAM
+  # the main board's region (the EEPROM's static record), as the keychip's (01, the dump's
+  # gs2.ini Region=1): without it "AM_SYSDATA_STATIC broken", and after the first boot error
+  # 3005 "AMLIB INITIALIZE FAILED"
+  WAL_RINGEDGE_REGION: "01"
+  # the cabinet's credit settings record (SRAM, made by the system menu): without it amCredit
+  # is not initialized ("SetCreditConfig() Faild"), coins give no credit
+  WAL_RINGEDGE_CREDIT_RECORD: "1"
+  # the keychip's challenge file: missing from the dump, generated
+  WAL_RINGEDGE_DS_FILE: SBWA_Table.dat
+  # a 1024x600 fullscreen device (its present parameters), a mode no monitor has: made
+  # 1024x768, the game draws its 1024x600 picture in part of it (stale frames around): a
+  # 1024x600 back buffer in a screen-sized window instead
+  WAL_D3D9_WINDOWED_SIZE: 1024x600
+  # the test button (application 3): the game with -testmode (its gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=-testmode"
