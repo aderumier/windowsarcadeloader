@@ -1,0 +1,51 @@
+# Storm Racer G (Wahlap Technology / Sega, 2013), racing game with a wheel, pedals and a boost
+# button on a Windows PC: bin/racing.exe, its USB I/O board driver (usb_io.dll) replaced by
+# the payload.
+# Override values in userprofiles/wahlap/storm-racer-g.yaml.
+system: wahlap
+name: Storm Racer G
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_W: up
+      KEY_S: down
+
+env:
+  # its 1360x768 window (racing.cfg: fullscreen = 0, a windowed device) made a borderless
+  # window over the whole screen, its picture stretched to it, 16:9 kept
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_D3D9_WINDOWED_SIZE: 1360x768
+  WAL_D3D9_ASPECT: "16:9"
+  # The movies (logo, attract) are WMV9 (WMV3) AVIs read through AVIFile: Microsoft's WMV9 VCM
+  # codec, WMV9VCM.dll, extracted into bin/ from wmv9VCMsetup.exe (cabextract), registered at
+  # startup. Without it the first movie frame fails ("lpbi != 0") and the game crashes.
+  WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll
+  # their audio read sizes asked the Windows way (Wine answers 0 bytes: an assert per frame)
+  WAL_VFW_READ_FIX: "1"
+  # A debug build: its asserts wait for a key on the console (c: continue, i: ignore...),
+  # forever under Wine: answered "continue". One fires at each start (CLocMgr.cpp: textTable
+  # string count, 34 compiled in, 155 in the assets' table), harmless.
+  # The race's checkpoint billboards (HUD objects checkPoint, finishPoint, checkPole,
+  # checkPole2, looked up at 0x416ac6) are in no resource of the dump: their per-frame update
+  # (0x41bb20) dereferenced the missing objects (crash at the first race frame): it returns.
+  WAL_PATCHES: "0xc008b:B063909090,0x1bb20:C21800"
+
+controls:
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Boost
+  up: Menu up
+  down: Menu down
+  test: Operator menu

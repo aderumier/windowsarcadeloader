@@ -1146,7 +1146,12 @@ Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the 
 `SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), for Type X2 games (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
 `WAL_VFW_CODECS=vidc.wmv3=WMV9VCM.dll` (`vfw.rs`): registers Video for Windows codecs in
 `HKLM\...\Drivers32` at startup, the DLL being in the game directory (Gaia Attack 4's WMV9 AVIs,
-codec extracted from the dump's `wmv9VCMsetup.exe`).
+codec extracted from the dump's `wmv9VCMsetup.exe`). `WAL_VFW_READ_FIX=1` hooks the game's
+`AVIStreamRead` around two Wine avifil32 bugs (`IAVIStream_fnRead`, upstream Wine, not
+GE-Proton's) on fixed sample size streams (PCM audio): a size query
+(`AVISTREAMREAD_CONVENIENT`, no buffer) answers 0 bytes (asked again with the stream's suggested
+buffer size worth of samples), and a convenient read with no `bytes`/`samples` output is refused
+(`AVIERR_BADPARAM`; given an output). Storm Racer G's movie audio.
 
 ### 6.3b Raw Thrills (`crates/payload-rawthrills`)
 
@@ -1602,6 +1607,43 @@ payload `wal_segashell.dll` loaded by `wal-loader`.
   copies the dump's own `Sega/shell/Game.ini` into the run tree, which makes that folder a
   real directory there (logs in the prefix, not the dump).
 
+### 6.3f Wahlap (`crates/payload-wahlap`)
+
+Wahlap Technology's Windows PC cabinets (Storm Racer G, 2013, with Sega): the game
+(`bin/racing.exe`, a debug build) imports `usb_io.dll`, the driver of Wahlap's USB I/O board,
+statically. System `wahlap`, payload `wal_wahlap.dll` installed as `usb_io.dll`.
+
+- **Board (`usbio.rs`).** `UsbIO_InitSystem(0)` = 1 (board found; -3 would leave the game on
+  the keyboard and XInput). `UsbIO_GetInputdata` fills `{u32 a, u32 b, u8 analog[4]}`; the game
+  (`0x49f790`) makes its button word `a | (b & 0x18) << 2 | (b & 4) << 6 | (b & 1) << 9` and the
+  analogs `value / 256` (wheel, gas, brake, the boost lever: bit 0x100 when under
+  `UsbIO_SetBoostThreshold`). Bits from its `CInput::AddButtonPad` tables: 0x04 the coin switch,
+  0x02 start (never set by the real board: start is the game's own Enter key, below), menus
+  up 0x20 / down 0x40 / back 0x100, operator menu 0x100 + 0x20 held then released. The board's
+  coin counter (`UsbIO_ReadSysCoins` / `DecCoin` / `CleanCoin`) is emulated but not credited by
+  this build. Its memory calls are stubs in the real driver too (the game keeps files).
+- **Inputs from the launcher only (`keys.rs`).** The game reads the PC keyboard from its
+  window messages and pads through XInput: its `PeekMessageW` drops the real key messages and
+  returns the key messages of the `key_*` natives (start = Enter), `XInputGetState` reports no
+  pad.
+- **Force feedback (`ffb.rs`).** `UsbIO_SetSteeringStatu(&{mode, 255, strength, a, b, 3})`: in a
+  race the steering motor's centering strength, 0 at a standstill to ~750 at full speed (the
+  test menu drives the motor with `x * 500 + 500`): the centering spring. `UsbIO_SetRoadType`
+  (0 road, 1 grass, 2 rough ground, 3 rumble strip) with the speed of
+  `UsbIO_OutputCarStatuData` (`{speed 0..1, gear, ..}` floats): a vibration off the road. No
+  left/right force is sent by the game. `WAL_WAHLAP_FFB_SPRING` / `_ROAD`: strengths in percent.
+- **Movies.** WMV9 AVIs read through AVIFile: `WMV9VCM.dll` (from `wmv9VCMsetup.exe`) in `bin/`,
+  `WAL_VFW_CODECS`; `WAL_VFW_READ_FIX` works around two Wine avifil32 bugs on the audio stream
+  (6.3 `vfw.rs`). Without the codec the first frame fails and the game crashes.
+- **Debug build.** Its asserts wait for a console key forever under Wine (answered "continue",
+  `0xc008b`); one fires at each start (34 strings compiled in, 155 in the assets' table). The
+  dump's assets are newer than the exe (its `_crc_list` names a missing `racingGold.exe`): the
+  race's checkpoint billboards (HUD objects `checkPoint`, `finishPoint`, `checkPole`,
+  `checkPole2`) exist in no resource and their per-frame update (`0x41bb20`) crashed on the
+  first race frame: it returns at once.
+- **Display.** Its 1360x768 window (`racing.cfg` `fullscreen = 0`) made a borderless
+  screen-sized window, the picture stretched, 16:9 kept.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -1906,6 +1948,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) | RingWide (platform AAM) medal slot machine satellite (game id SBXF), `App_Release.exe` alone (game.bat's `mbcom.exe`, the network medal bank, and `AimeReader.exe` not needed); 1280x1024 (DIP DF), region 01, credit record, challenge file `Data/amFile/SBXF_Table.dat`; its boards from `Data/script/game_conf.lua` (`IOBoardComPort` 3, `TouchPanelComPort` 1, `CPBoardComPort` 5; 0 = unused, debug): the I/O board on COM3 is Medal no Gunman's protocol with its own switches (`WAL_RINGEDGE_MEDAL_IO`, `satellite.rs`: selector panel / main door closed, reset key = service, transfer; medals counted by `66 0C`, coin = 10 medals), the control panel board on COM5 (`WAL_RINGEDGE_CP_BOARD`: buttons select 1-5, start, payout through command `81`), a 3M MicroTouch EX II on COM1 (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`: the mouse, its left button = b8; format tablet reports streamed through the serial layer's idle callback, Y up; the game's default calibration fits). A fresh backup shows error 3001 until the reset key (service) is turned. The game saves the I/O board's last command list in backup RAM and restores it at boot, then reads the `74` handshake reply against it (its checksum as a report: error 3105 at every boot once a payout saved the list): patched to restore it empty (`WAL_PATCHES` 0x2deac). Payout (b6) pays the medals out |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync and 60 fps limit; test menu: the Shell's `Shell.exe` on TEST (straight into its test menu, inputs written in its memory, exit back to the game), gun calibration saved in `ShellData.ini` (read by the game) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
+| `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | `bin/racing.exe` (debug build), `usb_io.dll` replaced (wheel, gas, brake, coin switch, boost; start = its own Enter key, real keyboard and XInput hidden), force feedback (centering spring by speed, off-road vibration), WMV9 movies (`WMV9VCM.dll` in `bin/`, Wine AVIStreamRead fix), asserts answered, missing checkpoint billboards skipped, full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
