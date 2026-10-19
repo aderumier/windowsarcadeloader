@@ -87,7 +87,7 @@ merged. `exe` is a Windows path (`Z:\...`, `C:\...`). Run: `arcade-launcher <pro
 
 ## Wine launch (from batocera-wine)
 
-* Runner `wine-runners/GE-Proton11-7-x86_64`: `bin/wine`, `bin/wineserver`, dlls in `lib/wine/{i386,x86_64}-{windows,unix}`.
+* Runner `wine-runners/GE-Proton11-10-x86_64`: `bin/wine`, `bin/wineserver`, dlls in `lib/wine/{i386,x86_64}-{windows,unix}`.
 * Library order (important): `LD_LIBRARY_PATH=<lib32>:<runner>/lib/wine/i386-unix:<lib>:/usr/lib:<runner>/lib/wine/x86_64-unix`,
   then append `<runner>/lib/x86_64-linux-gnu:<runner>/lib/i386-linux-gnu` (FFmpeg for winedmo) last.
   `WINEDLLPATH=<runner>/lib/wine/i386-windows:<runner>/lib/wine/x86_64-windows`.

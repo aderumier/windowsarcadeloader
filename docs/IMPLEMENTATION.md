@@ -71,7 +71,7 @@ games/, wine-runners/, wine-prefix/   local data (git-ignored)
   for future 64-bit games.
 * `./build.sh` (env `PROFILE=dev` for debug builds) produces `dist/arcade-launcher` and
   `dist/payloads/wal_nesica.dll`. A new payload must be added to `build.sh`.
-* Wine runner: the default runner is `GE-Proton11-7-x86_64` (`wine-runners/`); **all game
+* Wine runner: the default runner is `GE-Proton11-10-x86_64` (`wine-runners/`); **all game
   tests must run on it**. When rebuilding a wine DLL (e.g. `quartz.dll` hotfixes), build from
   the GE-Proton source tree (local clone `~/code/protonge`, GE patch set applied) — never from
   plain upstream wine: the GE video stack (`quartz` + `winedmo`/`msdmo`, GStreamer-backed) only
@@ -336,7 +336,22 @@ registry, and winetricks writes `*dsound` keys, which a plain `dsound=b` would n
 game that cannot share the prefix sets its own `prefix` (and `prefix_tricks`).
 
 Runner hotfixes: `tools/runner-hotfixes.py [runner...]` patches known bugs of runner builds in
-place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships in a release:
+place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships in a release.
+GE-Proton11-10 (default runner since 2026-10-19) ships every fix of the GE-Proton11-7 list below
+(GE patches 0072-0075, 0080, 0091, the upstream demuxer-destroy fix, no mountmgr serial probe);
+it only carries `winedmo-sws-padded-output`:
+* `winedmo-sws-padded-output` (GE-Proton11-10 `winedmo.so`, x86_64 and i386, rebuilt from the
+  GE-Proton11-10 tree: the wine section of `patches/protonprep-valve-staging.sh` with the fix as
+  `patches/ge-video-rework/0095`, `configure` per architecture, `make dlls/winedmo/winedmo.so`,
+  `strip --strip-debug`; originals in `hotfix-backups/<arch>-unix/winedmo.so.orig`): the video
+  conversion ran `sws_scale` straight into the caller's exactly-sized output buffer; swscale's
+  SIMD output stores past the last row (24 bytes on a 216x120 RGB24 frame), over the next heap
+  block's header: Target Bravo: Operation G.H.O.S.T. crashed in `RtlFreeHeap` (WM reader demux
+  thread) entering its stage select. Now scaled into a padded `AVFrame`, then `av_image_copy`.
+  Sent to GE-Proton (branch `winedmo-swscale-padded-output`). WoW64 runners load the
+  `x86_64-unix` side for 32-bit games: patching only `i386-unix` changes nothing.
+
+GE-Proton11-7 list (previous default runner):
 * `winedmo-wow64-demuxer-destroy` (GE-Proton11-7 `winedmo.so`): the WoW64 thunk of
   `demuxer_destroy` used the create params layout, so 32-bit games destroyed a garbage demuxer
   handle; Battle Fantasia aborted with `free(): invalid size` when a coin stops the attract
@@ -1581,11 +1596,11 @@ repository) runs `arcade-launcher run <rom> --root <emulator dir> --profile <es 
 
 * Emulator directory `/userdata/system/rgs/emulators/windows-arcade-loader`:
   `arcade-launcher`, `payloads/`, `systemprofiles/`, `launcher.yaml` (machine layer:
-  `runners_dir: /userdata/system/wine/custom`, `runner: GE-Proton11-7-x86_64`,
+  `runners_dir: /userdata/system/wine/custom`, `runner: GE-Proton11-10-x86_64`,
   `payloads_dir: payloads`; template in `tools/batocera/launcher.yaml`). The Wine prefixes are
   created there. `tools/batocera/install.sh [DEST]` copies a build (and the profiles) into it.
 * The GE-Proton runner (with the runner hotfixes) is copied to
-  `/userdata/system/wine/custom/GE-Proton11-7-x86_64`: Batocera's own Wine builds lack them.
+  `/userdata/system/wine/custom/GE-Proton11-10-x86_64`: Batocera's own Wine builds lack them.
 * Roms: the dump directory's `<gameid>.windowsloader` file (ES extension `.windowsloader`), or
   the dump as a `.squashfs` image: configgen mounts it with a writable overlay
   (`writesToRom`, kept in `/userdata/saves/<system>/<image>`) and hands the mounted directory.

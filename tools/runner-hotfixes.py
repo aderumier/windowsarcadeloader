@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Binary hotfixes for Wine runners, until the fixes ship in a runner release.
 
+GE-Proton11-10 (the default runner) already has both fixes below: they apply to GE-Proton11-7.
+
 Usage: tools/runner-hotfixes.py [runner dir...]   (default: every runner in wine-runners/)
 
 Each fix matches an exact byte sequence (unique in the file) and is skipped when the runner
