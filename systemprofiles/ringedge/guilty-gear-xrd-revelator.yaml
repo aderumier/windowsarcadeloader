@@ -1,0 +1,18 @@
+# Guilty Gear Xrd -REVELATOR- (Sega RingEdge 2, Unreal Engine 3), the version before Rev 2.
+# Runs Binaries/Win32/GuiltyGearXrd.exe with the arguments of the dump's game.bat.
+# Override values in userprofiles/ringedge/guilty-gear-xrd-revelator.yaml.
+system: ringedge
+name: Guilty Gear Xrd -REVELATOR-
+
+args: ["-SEEKFREELOADINGPCCONSOLE", "-FULLSCREEN", "-LANGUAGE=JPN", "-NOHOMEDIR", "-NOSPLASH", "-NOWRITE", "-VSYNC", "-APM", "-PCTOC", "-AUTH", "-TMSDir=M:\\"]
+
+# the cabinet's M: drive (its TMSDir): the dump's SAVE folder
+drives:
+  m: SAVE
+
+env:
+  # no Aime banner ("Aime play unavailable" over a grey bar, top of the screen): its check
+  # always takes the "online" branch
+  WAL_PATCHES: "0xa89a91:E9F000000090"
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
