@@ -18,6 +18,12 @@ Crates: `crates/protocol` (shared), `crates/launcher` (`arcade-launcher`), `crat
 `crates/payload-<system>`. Linux side per system: `crates/launcher/src/systems/<system>.rs`.
 Build: `./build.sh` -> `dist/arcade-launcher`, `dist/payloads/*.dll`.
 
+**Input rule (every system):** a game gets its input only through the TCP protocol (the
+launcher's virtual sticks). Everything else is filtered by the payload: DirectInput, XInput,
+winmm joysticks, keyboard (window messages, key state functions), mouse, raw input, HID. A game
+reading one of these itself (its own PC keys, pad support) gets it from the virtual sticks, the
+real device hidden.
+
 ### Virtual arcade stick (per player)
 
 d-pad, `b1 b2 b3 b4` (top row) / `b5 b6 b7 b8` (bottom row), start, coin, service, test,
