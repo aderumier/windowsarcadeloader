@@ -21,6 +21,7 @@ mod cg;
 mod devices;
 mod ffb;
 mod glscale;
+mod gunman;
 mod nvasm;
 mod pcp;
 mod rfid;
@@ -70,6 +71,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         ffb::init();
         card::start_daemon();
         touch::init();
+        gunman::init();
         pcp::start();
         log!("ringedge: initialized");
     }

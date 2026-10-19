@@ -541,6 +541,12 @@ fn bios_image() -> &'static [u8] {
         } else {
             smbios_struct(&mut table, 11, 2, &[3], &["SEGA", "RINGEDGE", &platform]);
         }
+        // inactive structures, a table of a real BIOS's size: the 2009 amPlatform (Medal no
+        // Gunman) stops at its length with a count that also adds a byte of each structure's
+        // strings, before the OEM strings of a 121-byte table (no platform id: no backup)
+        for handle in 4..8 {
+            smbios_struct(&mut table, 126, handle, &[0; 251], &[]);
+        }
         smbios_struct(&mut table, 127, 3, &[], &[]);
         let mut image = vec![0u8; 0x10000];
         let mut entry = [0u8; 15];

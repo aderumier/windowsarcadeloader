@@ -1,0 +1,38 @@
+# Medal no Gunman (Sega RingWide, 2010), 2 player lightgun medal game: one satellite of the
+# cabinet, standalone. Runs exe/gunman_dxF.exe (the final build; game.bat's packed game.exe
+# starts it, the dump's bat\ files run the development build gunman_dxR.exe).
+# Override values in userprofiles/ringedge/medal-no-gunman.yaml.
+system: ringedge
+name: Medal no Gunman
+
+# a satellite without the cabinet's main unit (network off)
+args: [e_NetMgr_Enable=0]
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the gun's trigger and reload buttons (the satellite board's, not JVS); a coin inserts
+  # medals; reloading: the reload button, or shooting off screen
+  gun:
+    BTN_LEFT: b1
+    BTN_RIGHT: b2
+    BTN_MIDDLE: coin
+
+controls:
+  b1: Trigger
+  b2: Reload
+  start: Payout
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBTF;keychip.appboot.platformid=AAM
+  # the satellite's 1024x768 monitor (DIP switches SW5-7 = 3)
+  WAL_RINGEDGE_DIPSW: BF
+  # the main board's region (the EEPROM's static record), as the keychip's: a new EEPROM has
+  # none, "ERROR 0903 Wrong Region"
+  WAL_RINGEDGE_REGION: "01"
+  WAL_RINGEDGE_CREDIT_RECORD: "1"
+  # the satellite's I/O board on COM1: guns, their buttons, the medal mechanism (without it:
+  # "3111 SERIAL COM1 ERROR1", saved in the SRAM's error log)
+  WAL_RINGEDGE_GUNMAN_BOARD: COM1
