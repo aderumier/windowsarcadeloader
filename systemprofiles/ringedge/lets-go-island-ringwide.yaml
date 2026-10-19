@@ -16,6 +16,12 @@ input:
 controls:
   b1: Trigger
 
+# the dump's application settings (data\Fraw\fwDataDB) with a 1920x1080 window: its 2D layer
+# (test menu, crosshairs) stays in the cabinet's 1024x600 frontend, shown far right and low;
+# the cabinet's 1024x600 window instead (its copy in fwDataDB_Ranking.txt)
+files:
+  data/Fraw/fwDataDB/fwDataDB_Application.txt: systemprofiles/ringedge/files/lets-go-island-ringwide/fwDataDB_Application.txt
+
 env:
   # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
   WAL_RINGEDGE_PLATFORM: AAM
@@ -25,5 +31,10 @@ env:
   WAL_TYPEX_JVS_ANALOG_INPUTS: "-ly,-lx,p2:-ly,p2:-lx"
   WAL_RINGEDGE_DS_FILE: MACtbl/SBUH_Table.dat
   WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBUH;keychip.appboot.platformid=AAM
+  # its 1024x600 window (a windowed device, the settings' FullScreen 0) made a borderless
+  # window over the whole screen, its 1024x600 picture stretched to it
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_D3D9_WINDOWED_SIZE: 1024x600
   # the test button (application 3): the game with -TestMode (its gametest.bat)
   WAL_RINGEDGE_FOREGROUND: "3=-TestMode"
