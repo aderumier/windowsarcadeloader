@@ -1,7 +1,8 @@
-//! Wahlap Technology PC cabinets (Storm Racer G).
+//! Wahlap Technology PC cabinets (Storm Racer G, Storm Rider).
 //!
-//! The game imports `usb_io.dll` (Wahlap's USB I/O board driver: wheel, pedals, buttons,
-//! coin counter, steering motor) statically: our payload replaces it.
+//! The games import their I/O board driver statically: `usb_io.dll` (Storm Racer G: wheel,
+//! pedals, buttons, coin counter, steering motor) or `motobikeio.dll` (Storm Rider: handlebar,
+//! throttle, brake, buttons, coin counters, board memory): our payload replaces both.
 //!
 //! Payload options (profile `env`):
 //! - `WAL_WAHLAP_FFB_SPRING` / `WAL_WAHLAP_FFB_ROAD`: force feedback strengths in percent
@@ -24,6 +25,11 @@ impl System for Wahlap {
     }
 
     fn payloads(&self) -> &'static [Payload] {
-        &[Payload { file: "wal_wahlap.dll", install_as: "usb_io.dll" }]
+        // one DLL for both boards (Storm Racer G's usb_io.dll, Storm Rider's motobikeio.dll):
+        // each game loads the one it imports
+        &[
+            Payload { file: "wal_wahlap.dll", install_as: "usb_io.dll" },
+            Payload { file: "wal_wahlap.dll", install_as: "motobikeio.dll" },
+        ]
     }
 }

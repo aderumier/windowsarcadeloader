@@ -1,8 +1,8 @@
 //! The game's own PC inputs, fed from the virtual sticks only.
 //!
-//! Besides the board, the game reads the keyboard from its window messages (`PeekMessageW`:
-//! Enter starts, Space inserts a coin, arrows / Q W E B / Backspace in menus and races) and
-//! pads through XInput. Every input must come from the launcher: the game's `PeekMessageW` drops
+//! Besides the board, the games read the keyboard from their window messages (`PeekMessageW`,
+//! Storm Rider `PeekMessageA`; Storm Racer G: Enter starts, Space inserts a coin, arrows /
+//! Q W E B / Backspace in menus and races) and pads through XInput. Every input must come from the launcher: the game's `PeekMessage` drops
 //! the real keyboard messages and returns key messages of its own instead (natives `key_*`,
 //! pressed and released with their virtual stick inputs); `XInputGetState` reports no pad.
 
@@ -16,19 +16,20 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{MSG, PM_REMOVE, WM_KEYDOWN, WM
 
 type PeekMessage = unsafe extern "system" fn(*mut MSG, usize, u32, u32, u32) -> i32;
 
-static PEEK: AtomicUsize = AtomicUsize::new(0);
+static PEEK_W: AtomicUsize = AtomicUsize::new(0);
+static PEEK_A: AtomicUsize = AtomicUsize::new(0);
 /// The game window (seen in its messages): where our key messages go.
 static WINDOW: AtomicUsize = AtomicUsize::new(0);
 /// Key messages to hand to the game: (message, virtual key).
 static PENDING: Mutex<VecDeque<(u32, u32)>> = Mutex::new(VecDeque::new());
 
 pub(crate) fn init() {
-    match unsafe { iat::hook("user32.dll", "PeekMessageW", peek_message as *const () as usize) } {
-        Some(orig) => {
-            PEEK.store(orig, Ordering::Relaxed);
-            log!("keys: game keyboard from the virtual sticks only");
+    let hooks = [("PeekMessageW", &PEEK_W, peek_message_w as *const () as usize), ("PeekMessageA", &PEEK_A, peek_message_a as *const () as usize)];
+    for (name, orig, hook) in hooks {
+        if let Some(o) = unsafe { iat::hook("user32.dll", name, hook) } {
+            orig.store(o, Ordering::Relaxed);
+            log!("keys: {name}: game keyboard from the virtual sticks only");
         }
-        None => log!("keys: PeekMessageW not imported"),
     }
     let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
     if unsafe { iat::hook_ordinal(base, "xinput1_3.dll", 2, xinput_get_state as *const () as usize) }.is_some() {
@@ -46,11 +47,24 @@ fn is_key_message(msg: u32) -> bool {
     (WM_KEYFIRST..=WM_KEYLAST).contains(&msg)
 }
 
-unsafe extern "system" fn peek_message(msg: *mut MSG, hwnd: usize, min: u32, max: u32, remove: u32) -> i32 {
-    let peek: PeekMessage = unsafe { std::mem::transmute(PEEK.load(Ordering::Relaxed)) };
+unsafe extern "system" fn peek_message_w(msg: *mut MSG, hwnd: usize, min: u32, max: u32, remove: u32) -> i32 {
+    unsafe { peek_message(&PEEK_W, msg, hwnd, min, max, remove) }
+}
+
+unsafe extern "system" fn peek_message_a(msg: *mut MSG, hwnd: usize, min: u32, max: u32, remove: u32) -> i32 {
+    unsafe { peek_message(&PEEK_A, msg, hwnd, min, max, remove) }
+}
+
+/// The game's `PeekMessageW` / `PeekMessageA` (`orig`): key messages from the virtual sticks only.
+unsafe fn peek_message(orig: &AtomicUsize, msg: *mut MSG, hwnd: usize, min: u32, max: u32, remove: u32) -> i32 {
+    let peek: PeekMessage = unsafe { std::mem::transmute(orig.load(Ordering::Relaxed)) };
+    // the window the game polls (Storm Rider: its own), else the one seen in its messages
+    if hwnd != 0 {
+        WINDOW.store(hwnd, Ordering::Relaxed);
+    }
     let window = WINDOW.load(Ordering::Relaxed);
     let wants_keys = (min == 0 && max == 0) || (min <= WM_KEYDOWN && WM_KEYUP <= max);
-    if window != 0 && wants_keys && (hwnd == 0 || hwnd == window) {
+    if window != 0 && wants_keys {
         let mut pending = PENDING.lock().unwrap();
         if let Some(&(message, vk)) = pending.front() {
             if remove & PM_REMOVE != 0 {

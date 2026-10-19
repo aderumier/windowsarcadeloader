@@ -1,5 +1,22 @@
-; Exports of usb_io.dll (Wahlap's USB I/O board driver), MSVC mangled cdecl C++ functions.
+; Exports of usb_io.dll (Storm Racer G's USB I/O board driver, MSVC mangled cdecl C++
+; functions) and of motobikeio.dll (Storm Rider's I/O board driver, plain cdecl names): the
+; payload is installed under both names, each game imports one.
 EXPORTS
+    ClearCoin = mio_clear_coin
+    ControlLightState = usbio_one
+    DecCoin = mio_dec_coin
+    ExitIoSys = mio_exit
+    GetADData = mio_ad_data
+    GetCoin = mio_get_coin
+    GetControlButton = mio_control_button
+    GetIoKeyData = mio_key_data
+    GetIoKeyState = mio_key_state
+    GetPasswordButton = mio_password_button
+    InitIoSys = mio_init
+    IsConnection = mio_true
+    MemoryRead = mio_memory_read
+    MemoryWrite = mio_memory_write
+    ResetDevice = usbio_one
     "?UsbIO_CheckConnection@@YA_NXZ" = usbio_check_connection
     "?UsbIO_CleanCoin@@YAHG@Z" = usbio_clean_coin
     "?UsbIO_DecCoin@@YAHGG@Z" = usbio_dec_coin

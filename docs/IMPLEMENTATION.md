@@ -1609,7 +1609,7 @@ payload `wal_segashell.dll` loaded by `wal-loader`.
 
 ### 6.3f Wahlap (`crates/payload-wahlap`)
 
-Wahlap Technology's Windows PC cabinets (Storm Racer G, 2013, with Sega): the game
+Wahlap Technology's Windows PC cabinets (Storm Racer G, 2013, with Sega; Storm Rider below): the game
 (`bin/racing.exe`, a debug build) imports `usb_io.dll`, the driver of Wahlap's USB I/O board,
 statically. System `wahlap`, payload `wal_wahlap.dll` installed as `usb_io.dll`.
 
@@ -1641,6 +1641,22 @@ statically. System `wahlap`, payload `wal_wahlap.dll` installed as `usb_io.dll`.
   race's checkpoint billboards (HUD objects `checkPoint`, `finishPoint`, `checkPole`,
   `checkPole2`) exist in no resource and their per-frame update (`0x41bb20`) crashed on the
   first race frame: it returns at once.
+- **Storm Rider (`motobikeio.rs`).** `all_test/game/Gold/motobike.exe`, the unprotected build
+  (`motobikeGold.exe`, the 1.2.6 build its PDB belongs to, is encrypted by its dongle envelope);
+  working directory `assets`. Its board driver `motobikeio.dll` (used by the game, by
+  `moto_coins.dll`: coins, bookkeeping, settings, and by `FirstMotoLightDLL.dll`: lamps) is the
+  same payload under that name (the launcher installs `wal_wahlap.dll` as both). Getters over the
+  board's HID state: `GetControlButton` (panel bits 0-6), `GetIoKeyData` / `GetIoKeyState` (the
+  switch byte, as Storm Racer G's `b`), `GetADData(0..2)` (10-bit handlebar, throttle, brake),
+  `GetCoin` / `DecCoin` / `ClearCoin`; the input wrapper (`0x433720`) builds the same button
+  word. Bindings: menus up 0x01, down 0x02, left 0x08, right 0x20, enter 0x10 (`0x45e1f0`), race
+  0x04 boost (`0x47efe0`). `MemoryRead` / `MemoryWrite(addr, len, buf, 0)`: the board memory
+  (`moto_coins.dll`'s settings record at 0x20, logs), `motobikeio.mem` in `assets`; the
+  settings hold each channel's calibration (u16 min, max at +8): a fresh board's 0, 0 made the
+  handlebar dead, channels never calibrated read 0..1023. Dongle class `Lock::Initialize` /
+  `Lock::test` answered true in the game's imports. Keyboard from `PeekMessageA` polling its own
+  window (key messages injected for that window). Same WMV9 movies; its full-screen 1360x768
+  device fails under Wine: windowed over the whole screen. No force feedback (lamps only).
 - **Display.** Its 1360x768 window (`racing.cfg` `fullscreen = 0`) made a borderless
   screen-sized window, the picture stretched, 16:9 kept.
 
@@ -1949,6 +1965,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | Sega Amusements Shell PC (§6.3e), 2 lightguns, lever on right/middle click, free play; native 1280x720 (option: 1920x1080), vsync and 60 fps limit; test menu: the Shell's `Shell.exe` on TEST (straight into its test menu, inputs written in its memory, exit back to the game), gun calibration saved in `ShellData.ini` (read by the game) |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | `bin/racing.exe` (debug build), `usb_io.dll` replaced (wheel, gas, brake, coin switch, boost; start = its own Enter key, real keyboard and XInput hidden), force feedback (centering spring by speed, off-road vibration), WMV9 movies (`WMV9VCM.dll` in `bin/`, Wine AVIStreamRead fix), asserts answered, missing checkpoint billboards skipped, full screen |
+| `storm-rider` | Storm Rider | wahlap | works (user: 100%) | `all_test/game/Gold/motobike.exe` (unprotected build), `motobikeio.dll` replaced (handlebar, throttle, brake, boost, menu buttons, coin counter, board memory in `assets/motobikeio.mem`, uncalibrated channels full range), dongle class answered, start = its own Enter key (real keyboard and XInput hidden), WMV9 movies, full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

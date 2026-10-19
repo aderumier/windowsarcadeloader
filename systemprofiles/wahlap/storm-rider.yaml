@@ -1,0 +1,57 @@
+# Storm Rider (Wahlap Technology / Sega, 2013), motorbike racing game with a handlebar,
+# throttle and brake on a Windows PC: all_test/game/Gold/motobike.exe (the unprotected build:
+# the dump's motobikeGold.exe is encrypted by its dongle), its I/O board driver
+# (motobikeio.dll) replaced by the payload.
+# Override values in userprofiles/wahlap/storm-rider.yaml.
+system: wahlap
+name: Storm Rider
+
+# The board's button bits (the game's bindings, 0x45e1f0 menus, 0x47efe0 race): menus up 0x01,
+# down 0x02, left 0x08, right 0x20, enter 0x10; in a race 0x04 (boost)
+native_map:
+  # coins through the board's coin counter (moto_coins.dll's GetCoins)
+  coin: coin_counter
+  start: bit10+key_enter
+  up: bit01
+  down: bit02
+  left: bit08
+  right: bit20
+  b1: bit04
+  b2: none
+  b4: none
+  b5: none
+  b6: none
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      # menus (and the test menu): W S A D
+      KEY_W: up
+      KEY_S: down
+      KEY_A: left
+      KEY_D: right
+
+env:
+  # the movies are WMV9 AVIs read through AVIFile: WMV9VCM.dll (from wmv9VCMsetup.exe) in
+  # all_test/game/Gold, registered at startup; their audio read sizes asked the Windows way
+  WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll
+  WAL_VFW_READ_FIX: "1"
+
+controls:
+  b1: Boost
+  up: Menu up
+  down: Menu down
+  left: Menu left
+  right: Menu right
+  lx: Handlebar
+  accel: Throttle
+  brake: Brake

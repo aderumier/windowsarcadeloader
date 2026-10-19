@@ -52,6 +52,16 @@ const NATIVES: &[(&str, Native)] = &[
     ("boost", Native::Bit(0x100)),
     ("btn10", Native::Bit(0x200)),
     ("coin_counter", Native::Coin),
+    // the same bits by value (Storm Rider's bindings differ)
+    ("bit01", Native::Bit(0x001)),
+    ("bit02", Native::Bit(0x002)),
+    ("bit04", Native::Bit(0x004)),
+    ("bit08", Native::Bit(0x008)),
+    ("bit10", Native::Bit(0x010)),
+    ("bit20", Native::Bit(0x020)),
+    ("bit40", Native::Bit(0x040)),
+    ("bit100", Native::Bit(0x100)),
+    ("bit200", Native::Bit(0x200)),
     ("key_enter", Native::Key(0x0D)),
     ("key_space", Native::Key(0x20)),
     ("key_backspace", Native::Key(0x08)),
@@ -129,8 +139,8 @@ fn encode(bits: u32) -> (u32, u32) {
     (a, b)
 }
 
-/// The input record from player 1.
-fn record() -> [u8; 12] {
+/// Game button bits pressed by player 1 (`Native::Bit`), logged on change.
+pub(crate) fn pressed_bits() -> u32 {
     let stick: StickState = wal_payload_common::input(0);
     let mut bits = 0;
     map().for_each_pressed(&stick, |n| {
@@ -138,6 +148,35 @@ fn record() -> [u8; 12] {
             bits |= b
         }
     });
+    if LAST_BUTTONS.swap(bits, Ordering::Relaxed) != bits {
+        log!("wahlap: buttons {bits:#05x}");
+    }
+    bits
+}
+
+/// The board's coin counter (8 bits, emulated: coins added by `coin_counter`).
+pub(crate) fn coins() -> u32 {
+    COINS.load(Ordering::Relaxed)
+}
+
+pub(crate) fn take_coins(n: u32) -> u32 {
+    let left = COINS.try_update(Ordering::Relaxed, Ordering::Relaxed, |c| Some(c.saturating_sub(n))).unwrap();
+    left.saturating_sub(n)
+}
+
+pub(crate) fn clear_coins() {
+    COINS.store(0, Ordering::Relaxed);
+}
+
+/// Game button bits -> the board's `a` and `b` words.
+pub(crate) fn split(bits: u32) -> (u32, u32) {
+    encode(bits)
+}
+
+/// The input record from player 1.
+fn record() -> [u8; 12] {
+    let stick: StickState = wal_payload_common::input(0);
+    let bits = pressed_bits();
     let (a, b) = encode(bits);
     let mut rec = [0u8; 12];
     rec[0..4].copy_from_slice(&a.to_le_bytes());
@@ -147,9 +186,6 @@ fn record() -> [u8; 12] {
     rec[10] = stick.axis_u8(Axis::Brake);
     // the boost lever: released high, pressed under the game's threshold
     rec[11] = if bits & 0x100 != 0 { 0 } else { 255 };
-    if LAST_BUTTONS.swap(bits, Ordering::Relaxed) != bits {
-        log!("usbio: buttons {bits:#05x} (a={a:#04x} b={b:#04x})");
-    }
     rec
 }
 
@@ -182,21 +218,20 @@ pub unsafe extern "C" fn usbio_get_input_data(rec: *mut [u8; 12]) -> i32 {
 /// `int UsbIO_ReadSysCoins(unsigned slot)`: the board's coin counter.
 #[unsafe(no_mangle)]
 pub extern "C" fn usbio_read_sys_coins(_slot: u32) -> i32 {
-    COINS.load(Ordering::Relaxed) as i32
+    coins() as i32
 }
 
 /// `int UsbIO_DecCoin(unsigned short slot, unsigned short n)`
 #[unsafe(no_mangle)]
 pub extern "C" fn usbio_dec_coin(slot: u16, n: u16) -> i32 {
-    let left = COINS.try_update(Ordering::Relaxed, Ordering::Relaxed, |c| Some(c.saturating_sub(n as u32))).unwrap();
-    log!("usbio: DecCoin({slot}, {n}): {} left", left.saturating_sub(n as u32));
+    log!("usbio: DecCoin({slot}, {n}): {} left", take_coins(n as u32));
     0
 }
 
 /// `int UsbIO_CleanCoin(unsigned short slot)`
 #[unsafe(no_mangle)]
 pub extern "C" fn usbio_clean_coin(_slot: u16) -> i32 {
-    COINS.store(0, Ordering::Relaxed);
+    clear_coins();
     0
 }
 
