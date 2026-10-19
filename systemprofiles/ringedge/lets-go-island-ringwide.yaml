@@ -1,0 +1,29 @@
+# Let's Go Island: Lost on the Island of Tropics (Sega RingWide, 2010), 2 player lightgun
+# game. Runs LGI_RingW_F_safe.exe.
+# Override values in userprofiles/ringedge/lets-go-island-ringwide.yaml.
+system: ringedge
+name: "Let's Go Island: Lost on the Island of Tropics (RingWide)"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # the trigger also presses its player's start (joining the game by shooting), the middle
+  # button inserts a coin
+  gun:
+    BTN_LEFT: b1,start
+    BTN_MIDDLE: coin
+
+controls:
+  b1: Trigger
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  # the I/O board's 20 general purpose outputs and its analog channels (the guns: 1/2 player 1
+  # Y/X, 3/4 player 2 Y/X, high values up / left), as the RingEdge version
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "-ly,-lx,p2:-ly,p2:-lx"
+  WAL_RINGEDGE_DS_FILE: MACtbl/SBUH_Table.dat
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBUH;keychip.appboot.platformid=AAM
+  # the test button (application 3): the game with -TestMode (its gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=-TestMode"
