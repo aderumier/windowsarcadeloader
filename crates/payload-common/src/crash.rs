@@ -201,7 +201,8 @@ fn log_context(info: *mut EXCEPTION_POINTERS, raw_stack: bool) {
 /// Hang reporter: `heartbeat()` is called by the game's main loop (a per-frame API call);
 /// when it stops for 5 s, the thread that called it last is suspended and its instruction
 /// pointer and the module addresses on its stack are logged (`hang:` lines), once per stall,
-/// at most 3 times. The game window "not responding" without a crash: what it waits on.
+/// at most 3 times, then 20 samples of its instruction pointer (a loop that is not a wait).
+/// The game window "not responding" without a crash: what it waits on.
 pub fn heartbeat() {
     use std::sync::atomic::AtomicU64;
     use std::sync::Once;
@@ -232,6 +233,15 @@ pub fn heartbeat() {
                     for id in other_threads(main) {
                         dump_thread(id, 16);
                     }
+                    // where a busy main thread loops: its instruction pointer sampled
+                    let samples: Vec<String> = (0..20)
+                        .filter_map(|_| {
+                            std::thread::sleep(std::time::Duration::from_millis(50));
+                            thread_ip(main)
+                        })
+                        .map(|ip| format!("{ip:#x}"))
+                        .collect();
+                    log!("hang: main thread samples {}", samples.join(" "));
                 }
             }
         });
@@ -263,6 +273,40 @@ fn other_threads(main: u32) -> Vec<u32> {
     }
     unsafe { CloseHandle(snapshot) };
     ids
+}
+
+/// A thread's instruction pointer, read while it is suspended.
+fn thread_ip(id: u32) -> Option<usize> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Diagnostics::Debug::{CONTEXT, GetThreadContext};
+    use windows_sys::Win32::System::Threading::{
+        OpenThread, ResumeThread, SuspendThread, THREAD_GET_CONTEXT, THREAD_SUSPEND_RESUME,
+    };
+
+    let thread = unsafe { OpenThread(THREAD_GET_CONTEXT | THREAD_SUSPEND_RESUME, 0, id) };
+    if thread.is_null() {
+        return None;
+    }
+    let mut context: CONTEXT = unsafe { std::mem::zeroed() };
+    #[cfg(target_arch = "x86_64")]
+    {
+        context.ContextFlags = windows_sys::Win32::System::Diagnostics::Debug::CONTEXT_FULL_AMD64;
+    }
+    #[cfg(target_arch = "x86")]
+    {
+        context.ContextFlags = windows_sys::Win32::System::Diagnostics::Debug::CONTEXT_FULL_X86;
+    }
+    unsafe { SuspendThread(thread) };
+    let ok = unsafe { GetThreadContext(thread, &mut context) } != 0;
+    unsafe {
+        ResumeThread(thread);
+        CloseHandle(thread);
+    }
+    #[cfg(target_arch = "x86_64")]
+    let ip = context.Rip as usize;
+    #[cfg(target_arch = "x86")]
+    let ip = context.Eip as usize;
+    ok.then_some(ip)
 }
 
 fn dump_thread(id: u32, max: usize) {

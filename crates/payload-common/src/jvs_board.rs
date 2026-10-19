@@ -15,7 +15,7 @@
 //! Analog channels: `WAL_TYPEX_JVS_ANALOG` (fixed values, e.g. a volume knob) and
 //! `WAL_TYPEX_JVS_ANALOG_INPUTS` (player 1's axes, e.g. the pedals of driving games; `p2:lx`:
 //! another player's, e.g. the guns of Transformers: Human Alliance; `lx*0.35`: scaled around the
-//! center).
+//! center; `lx*0.73@89C0`: around another center, hex).
 //!
 //! `WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`: Battle Gear 4's key reader (Taito
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
@@ -150,7 +150,9 @@ struct Board {
     /// Limit R: gas on channel 1, brake on channel 2).
     /// `axis*0.35`: scaled around the center (Initial D: the cabinet's steering sensor covers
     /// about a third of the channel, a full PC wheel turn would be far too much).
-    analog_inputs: Vec<Option<(usize, AnalogInput, f32)>>,
+    /// `axis*0.73@89C0`: around that center (hex), the game's default sensor calibration
+    /// (Sonic & Sega All-Stars Racing: steering 0x2C80-0xE700).
+    analog_inputs: Vec<Option<(usize, AnalogInput, f32, u16)>>,
     /// `WAL_TYPEX_JVS_OUTPUTS=<n>`: general purpose outputs declared in the features (0: none).
     outputs: u8,
     battle_gear: Option<BattleGear>,
@@ -348,9 +350,10 @@ unsafe extern "thiscall" fn xio_calibration(object: *mut usize, parameters: *con
 }
 
 /// One `WAL_TYPEX_JVS_ANALOG_INPUTS` entry: `accel`, `-lx` (inverted), `+ry` (positive half),
-/// empty for none; player 1's axis, `p<n>:` before it another player's (`p2:-ly`). Returns the
-/// player (0 based) and the input.
-fn analog_input(entry: &str) -> Option<(usize, AnalogInput, f32)> {
+/// empty for none; player 1's axis, `p<n>:` before it another player's (`p2:-ly`), `*scale`
+/// after it scaled around the center, `@center` (hex) around another center. Returns the
+/// player (0 based), the input, its scale and center.
+fn analog_input(entry: &str) -> Option<(usize, AnalogInput, f32, u16)> {
     let entry = entry.trim();
     let (player, entry) = match entry.split_once(':') {
         Some((p, rest)) if p.len() == 2 && p.starts_with('p') => match p[1..].parse::<usize>() {
@@ -361,6 +364,16 @@ fn analog_input(entry: &str) -> Option<(usize, AnalogInput, f32)> {
             }
         },
         _ => (0, entry),
+    };
+    let (entry, center) = match entry.split_once('@') {
+        Some((e, c)) => match u16::from_str_radix(c.trim(), 16) {
+            Ok(c) => (e.trim(), c),
+            Err(_) => {
+                log!("jvs: bad analog center {c:?}");
+                (e.trim(), 0x8000)
+            }
+        },
+        None => (entry, 0x8000),
     };
     let (entry, scale) = match entry.split_once('*') {
         Some((e, f)) => match f.trim().parse::<f32>() {
@@ -381,12 +394,12 @@ fn analog_input(entry: &str) -> Option<(usize, AnalogInput, f32)> {
     if axis.is_none() && !name.is_empty() {
         log!("jvs: unknown analog input {entry:?}");
     }
-    axis.map(|a| (player, kind(a), scale))
+    axis.map(|a| (player, kind(a), scale, center))
 }
 
 /// Analog channel value, left-justified 16 bits (10 significant bits, as the features say).
 fn analog(board: &Board, sticks: &[StickState; 4], channel: usize) -> u16 {
-    let Some((player, input, scale)) = board.analog_inputs.get(channel).copied().flatten() else {
+    let Some((player, input, scale, center)) = board.analog_inputs.get(channel).copied().flatten() else {
         return board.analog_fixed.get(channel).copied().unwrap_or(0);
     };
     let stick = &sticks[player];
@@ -395,7 +408,11 @@ fn analog(board: &Board, sticks: &[StickState; 4], channel: usize) -> u16 {
         AnalogInput::Inverted(axis) => !stick.axis_u16(axis),
         AnalogInput::Positive(axis) => (stick.axis(axis).max(0) as u32 * 2) as u16,
     };
-    let value = if scale == 1.0 { value } else { (32768.0 + (value as f32 - 32768.0) * scale).clamp(0.0, 65535.0) as u16 };
+    let value = if scale == 1.0 && center == 0x8000 {
+        value
+    } else {
+        (center as f32 + (value as f32 - 32768.0) * scale).clamp(0.0, 65535.0) as u16
+    };
     value & 0xFFC0
 }
 

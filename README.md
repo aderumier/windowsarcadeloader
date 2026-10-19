@@ -177,6 +177,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `operation-ghost` | Operation G.H.O.S.T. | ringedge | works (user: 100%) | not in the test |  |
 | `target-bravo-operation-ghost` | Target Bravo: Operation G.H.O.S.T. | ringedge | works (user: 100%) | not in the test |  |
 | `medal-no-gunman` | Medal no Gunman | ringedge | works (user: mouse) | not in the test |  |
+| `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%) | not in the test |  |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 <!-- GAMELIST END -->

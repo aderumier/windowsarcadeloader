@@ -12,10 +12,17 @@
 //! * `86 <..> <force>`: centering spring, force 1 .. `0x7F`; `80 00 01`: spring at full
 //!   strength (`80 00 00`: none).
 //!
+//! `WAL_RINGEDGE_FFB_MAX=<n>`: the constant force a game sends at full strength (default 127;
+//! Sonic & Sega All-Stars Racing: 20, its forces stay within `0x6C`-`0x94`).
+//!
+//! `WAL_RINGEDGE_FFB_SPRING=p1`: `86 <force> <..>`, the spring's force in the first parameter,
+//! and `80 00 01` / `80 00 00` turn that spring on / off (Sonic & Sega All-Stars Racing: each
+//! frame `86 2F 14`, `80 00 01`; the first parameter lower in races).
+//!
 //! `WAL_RINGEDGE_FFB_LOG=1` logs the packets.
 
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use wal_payload_common::{log, send_output, serial};
 use wal_protocol::output;
@@ -31,14 +38,23 @@ struct Board {
     bounds_tested: bool,
     /// Last values sent (constant, spring, vibration).
     sent: [Option<i32>; 3],
+    /// `WAL_RINGEDGE_FFB_SPRING=p1`: the last `86` force, and whether `80` turned it on.
+    spring: (u8, bool),
 }
 
-static BOARD: Mutex<Board> = Mutex::new(Board { pending: Vec::new(), bounds_tested: false, sent: [None; 3] });
+static BOARD: Mutex<Board> =
+    Mutex::new(Board { pending: Vec::new(), bounds_tested: false, sent: [None; 3], spring: (0, false) });
 static LOG: AtomicBool = AtomicBool::new(false);
+static SPRING_P1: AtomicBool = AtomicBool::new(false);
+static CONSTANT_MAX: AtomicU8 = AtomicU8::new(0x7F);
 
 pub(crate) fn init() {
     let Ok(port) = std::env::var("WAL_RINGEDGE_FFB") else { return };
     LOG.store(std::env::var("WAL_RINGEDGE_FFB_LOG").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
+    if let Some(max) = std::env::var("WAL_RINGEDGE_FFB_MAX").ok().and_then(|v| v.trim().parse::<u8>().ok()) {
+        CONSTANT_MAX.store(max.clamp(1, 0x7F), Ordering::Relaxed);
+    }
+    SPRING_P1.store(std::env::var("WAL_RINGEDGE_FFB_SPRING").is_ok_and(|v| v.trim() == "p1"), Ordering::Relaxed);
     serial::install(port.trim(), reply);
     log!("ffb: drive board on {}", port.trim());
 }
@@ -61,6 +77,8 @@ fn reply(data: &[u8]) -> Vec<u8> {
 /// A packet's effect, its status byte.
 fn packet(board: &mut Board, [command, p1, p2, _]: [u8; 4]) -> u8 {
     let scale = |v: u8| (v.min(0x7F) as i32 * output::FFB_MAX) / 0x7F;
+    let max = CONSTANT_MAX.load(Ordering::Relaxed);
+    let constant = |v: u8| (v.min(max) as i32 * output::FFB_MAX) / max as i32;
     match command {
         0x81 => return NOT_INIT,
         0xFC if !board.bounds_tested => {
@@ -69,13 +87,22 @@ fn packet(board: &mut Board, [command, p1, p2, _]: [u8; 4]) -> u8 {
         }
         0x84 => {
             let force = match p1 {
-                0 if p2 > 0 => scale(0x80 - p2.min(0x80)),
-                1 => -scale(p2),
+                0 if p2 > 0 => constant(0x80 - p2.min(0x80)),
+                1 => -constant(p2),
                 _ => 0,
             };
             send(board, 0, output::FFB_CONSTANT, force);
         }
         0x85 => send(board, 2, output::FFB_VIBRATION, if p1 > 0 { scale(p2) } else { 0 }),
+        0x86 | 0x80 if SPRING_P1.load(Ordering::Relaxed) => {
+            if command == 0x86 {
+                board.spring.0 = p1;
+            } else {
+                board.spring.1 = p2 == 1;
+            }
+            let (force, on) = board.spring;
+            send(board, 1, output::FFB_SPRING, if on { scale(force) } else { 0 });
+        }
         0x86 if (1..0x80).contains(&p2) => send(board, 1, output::FFB_SPRING, scale(p2)),
         0x80 => send(board, 1, output::FFB_SPRING, if p2 == 1 { output::FFB_MAX } else { 0 }),
         _ => {}

@@ -1,0 +1,63 @@
+# Sonic & Sega All-Stars Racing (Sega RingWide, 2011), racing game with a wheel and pedals.
+# Runs game.exe (the test menu: gametest.exe).
+# Override values in userprofiles/ringedge/sonic-sega-all-stars-racing.yaml.
+system: ringedge
+name: Sonic & Sega All-Stars Racing
+
+# HLSL compiled at load: Wine's d3dx9_40 fails its `register(vs, c0)` shaders (NULL shader,
+# crash at boot)
+tricks: [d3dx9_40]
+
+# the cabinet's Y: drive (its save, ssr_save.bin: without it the character select has no
+# character and the game hangs): a folder of the dump
+drives:
+  y: Y
+
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, X item; A gas and brake together (a drift, as
+  # both pedals on the cabinet)
+  gamepad:
+    r2: accel
+    l2: brake
+    a: accel,brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_DS_FILE: SBVH_Table.dat
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVH;keychip.appboot.platformid=AAM
+  # the main board's region (the EEPROM's static record), as the keychip's: a new EEPROM has
+  # none (amBackup crc error), amCredit then gives no credit for coins
+  WAL_RINGEDGE_REGION: "01"
+  # the wheel and pedals on the JVS board's analog channels, onto the game's default sensor
+  # calibration (steering 0x2C80-0xE700, gas 0x2200-0xD6C0, brake 0x2740-0xC100): the wheel
+  # at rest drives straight, full lock and full pedals reach the ends
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx*0.7285@89C0,accel*0.705@7C60,brake*0.6@7420"
+  # the cabinet's lamps: the game takes the I/O board only with outputs (else no drive board)
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # the wheel's drive board (force feedback), the game tries COM1 first: forces of +-20, the
+  # centering spring's force in 86's first parameter
+  WAL_RINGEDGE_FFB: COM1
+  WAL_RINGEDGE_FFB_MAX: "20"
+  WAL_RINGEDGE_FFB_SPRING: p1
+  # the drive board's boot test turns the wheel left and right and keeps the reached range as
+  # the steering calibration: a PC wheel barely moves (oversensitive steering), the default
+  # calibration is kept (jl -> jmp)
+  WAL_PATCHES: "0x1AEAB:EB"
+  # the test button (application 3): its test menu program
+  WAL_RINGEDGE_FOREGROUND: "3=exe=gametest.exe"
+
+controls:
+  b1: Item
+  lx: Wheel
+  accel: Gas
+  brake: Brake
