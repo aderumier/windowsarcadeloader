@@ -1,0 +1,63 @@
+# SEGA Racing Classic (Sega RingWide, 2009), Daytona USA's remake: racing game with a wheel,
+# pedals, a 4-speed shifter and view buttons. Runs d1a.exe (the test menu: d1a.exe -t).
+# Override values in userprofiles/ringedge/sega-racing-classic.yaml.
+system: ringedge
+name: SEGA Racing Classic
+
+# The cabinet's switches on the JVS board (its input test): start, VR SW1-4 (the view buttons:
+# red, blue, yellow, green) on player 1's up, down, left, right, the 4-speed H shifter on
+# player 2's: gear 1 = left + up, 2 = left + down, 3 = up, 4 = down, none = neutral.
+native_map:
+  b1: p2left+p2up
+  b2: p2left+p2down
+  b3: p2up
+  b4: p2down
+  b5: none
+  b6: none
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      # the arrows drive: the view buttons (up, down, left, right) on Z X C V
+      KEY_Z: up
+      KEY_X: down
+      KEY_C: left
+      KEY_V: right
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_DS_FILE: rom/SBTN_Table.dat
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBTN;keychip.appboot.platformid=AAM
+  # the main board's region (the EEPROM's static record), as the keychip's
+  WAL_RINGEDGE_REGION: "01"
+  # the wheel and pedals on the JVS board's analog channels (without them: error 6402, "JVS
+  # I/O board does not fulfill the game spec"); the input test reads 00-80-FF, no calibration
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,accel,brake"
+  # the cabinet's lamps (start, VR buttons): `32 03` writes
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # force feedback: the Model 2 drive board's command byte the game keeps in its I/O layer
+  WAL_RINGEDGE_FFB: model2:434C19
+
+controls:
+  up: View 1
+  down: View 2
+  left: View 3
+  right: View 4
+  b1: Gear 1
+  b2: Gear 2
+  b3: Gear 3
+  b4: Gear 4
+  lx: Wheel
+  accel: Gas
+  brake: Brake

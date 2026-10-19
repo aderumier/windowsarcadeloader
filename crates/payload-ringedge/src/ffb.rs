@@ -19,7 +19,17 @@
 //! and `80 00 01` / `80 00 00` turn that spring on / off (Sonic & Sega All-Stars Racing: each
 //! frame `86 2F 14`, `80 00 01`; the first parameter lower in races).
 //!
-//! `WAL_RINGEDGE_FFB_LOG=1` logs the packets.
+//! `WAL_RINGEDGE_FFB=model2:<rva>` (SEGA Racing Classic, Daytona USA's Model 2 game): no board,
+//! the game keeps the Model 2 drive board's command byte at `<rva>` of its image (its I/O
+//! layer's output word, never sent), read every 16 ms. Commands, `n` = the force level (`0x?8`
+//! strongest .. `0x?F` weakest, 8 steps):
+//! * `98+n`: pushes the wheel to the right, `A8+n` to the left;
+//! * `B8+n`: vibration (the road's bumps, crashes);
+//! * `C0+n`: centering spring (`C0` strongest .. `C7`);
+//! * `D8+n`: friction (the clutch), played as a spring;
+//! anything else (`00`, the other commands) stops the effects.
+//!
+//! `WAL_RINGEDGE_FFB_LOG=1` logs the packets (Model 2: the command bytes, on change).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -51,6 +61,16 @@ static CONSTANT_MAX: AtomicU8 = AtomicU8::new(0x7F);
 pub(crate) fn init() {
     let Ok(port) = std::env::var("WAL_RINGEDGE_FFB") else { return };
     LOG.store(std::env::var("WAL_RINGEDGE_FFB_LOG").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
+    if let Some(rva) = port.trim().strip_prefix("model2:") {
+        let Ok(rva) = usize::from_str_radix(rva.trim_start_matches("0x"), 16) else {
+            log!("ffb: bad Model 2 command byte address {rva:?}");
+            return;
+        };
+        let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+        log!("ffb: Model 2 drive board command byte at +{rva:#x}");
+        std::thread::spawn(move || model2(base + rva));
+        return;
+    }
     if let Some(max) = std::env::var("WAL_RINGEDGE_FFB_MAX").ok().and_then(|v| v.trim().parse::<u8>().ok()) {
         CONSTANT_MAX.store(max.clamp(1, 0x7F), Ordering::Relaxed);
     }
@@ -118,5 +138,39 @@ fn send(board: &mut Board, slot: usize, id: u16, value: i32) {
         }
         board.sent[slot] = Some(value);
         send_output(0, id, value);
+    }
+}
+
+/// `WAL_RINGEDGE_FFB=model2:<rva>`: polls the Model 2 command byte at `address`, sends its
+/// effects on change (and every second, for a launcher connecting late).
+fn model2(address: usize) {
+    let mut board = Board { pending: Vec::new(), bounds_tested: false, sent: [None; 3], spring: (0, false) };
+    let mut last = None;
+    let mut refreshed = std::time::Instant::now();
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(16));
+        // the game's .data, mapped for the process lifetime
+        let command = unsafe { std::ptr::read_volatile(address as *const u8) };
+        if LOG.load(Ordering::Relaxed) && last != Some(command) {
+            log!("ffb: {command:02X}");
+        }
+        last = Some(command);
+        // 8 levels, the lowest command the strongest
+        let level = |low: u8| ((low + 8 - command) as i32 * output::FFB_MAX) / 8;
+        let effects = match command {
+            0x98..=0x9F => [level(0x98), 0, 0],
+            0xA8..=0xAF => [-level(0xA8), 0, 0],
+            0xB8..=0xBF => [0, 0, level(0xB8)],
+            0xC0..=0xC7 | 0xD8..=0xDF => [0, level(command & 0xF8), 0],
+            _ => [0, 0, 0],
+        };
+        if refreshed.elapsed().as_secs() >= 1 {
+            // sent again
+            board.sent = [Some(i32::MIN); 3];
+            refreshed = std::time::Instant::now();
+        }
+        for (slot, (id, value)) in [output::FFB_CONSTANT, output::FFB_SPRING, output::FFB_VIBRATION].into_iter().zip(effects).enumerate() {
+            send(&mut board, slot, id, value);
+        }
     }
 }
