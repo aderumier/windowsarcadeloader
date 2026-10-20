@@ -18,7 +18,10 @@
 //! force feedback option on that exact product name, and drives the FFB through DirectInput
 //! effects (`CreateEffect` / `SetParameters`). The fake wheel therefore also reports
 //! `DIDC_FORCEFEEDBACK` and accepts effect creation, so a forced-FFB boot does not wait on a
-//! motor that is not there.
+//! motor that is not there. `WAL_DINPUT_WHEEL_Y_AXIS` / `_Z_` / `_RX_` / `_RY_` / `_RZ_AXIS`
+//! map more axes (Rx, Ry, Rz are listed only when mapped: GRID's "SEGA IO Controller" has its
+//! gas on Rx); `WAL_DINPUT_WHEEL_BUTTONS=<virtual button>,...` gives the buttons in order
+//! (`none` for an unused one; default: b1-b8, start, coin, service, test).
 //!
 //! `WAL_DINPUT_BOARD=<product name or 1>`: the same fake DirectInput, with one cabinet button
 //! box (26 buttons, the Injustice cabinet's layout): the players' fight buttons, coins, start,
@@ -294,18 +297,23 @@ mod wheel {
     static NAME: OnceLock<String> = OnceLock::new();
     /// The steering axis (`Axis` index), bit 7 set when inverted.
     static STEER: AtomicU8 = AtomicU8::new(Axis::LeftX as u8);
-    /// Virtual input axes for X, Y and Z. 0xff means a parked, unused axis.
-    static INPUT_AXES: [AtomicU8; 3] = [
+    /// The axes: X, Y, Z always listed, Rx, Ry, Rz when mapped.
+    const AXIS_COUNT: usize = 6;
+    /// Virtual input axes for X, Y, Z, Rx, Ry, Rz. 0xff means a parked, unused axis.
+    static INPUT_AXES: [AtomicU8; AXIS_COUNT] = [
         AtomicU8::new(Axis::LeftX as u8),
         AtomicU8::new(0xff),
         AtomicU8::new(0xff),
+        AtomicU8::new(0xff),
+        AtomicU8::new(0xff),
+        AtomicU8::new(0xff),
     ];
-    /// (min, max) of the X, Y and Z axes, set by the game.
-    static RANGES: [(AtomicI32, AtomicI32); 3] = [
-        (AtomicI32::new(0), AtomicI32::new(65535)),
-        (AtomicI32::new(0), AtomicI32::new(65535)),
-        (AtomicI32::new(0), AtomicI32::new(65535)),
-    ];
+    /// (min, max) of the axes, set by the game.
+    static RANGES: [(AtomicI32, AtomicI32); AXIS_COUNT] = [const { (AtomicI32::new(0), AtomicI32::new(65535)) }; AXIS_COUNT];
+    /// The axes listed: X, Y, Z, plus the mapped rotation axes (Rx, Ry, Rz).
+    static LISTED_AXES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(3);
+    /// `WAL_DINPUT_WHEEL_BUTTONS`: the virtual stick button of each DirectInput button (0: none).
+    static BUTTONS: OnceLock<Vec<u32>> = OnceLock::new();
 
     const fn guid(d1: u32, d2: u16, d3: u16, d4: [u8; 8]) -> [u8; 16] {
         let a = d1.to_le_bytes();
@@ -315,13 +323,16 @@ mod wheel {
     }
     pub(super) const INSTANCE: [u8; 16] = guid(0x5741_4C57, 0x4845, 0x454C, *b"WALWHEEL");
     const PRODUCT: [u8; 16] = guid(0x5741_4C57, 0, 0, *b"\0\0PIDVID");
-    /// GUID_XAxis, GUID_YAxis, GUID_ZAxis
-    const AXES: [[u8; 16]; 3] = [
+    /// GUID_XAxis, GUID_YAxis, GUID_ZAxis, GUID_RxAxis, GUID_RyAxis, GUID_RzAxis
+    const AXES: [[u8; 16]; AXIS_COUNT] = [
         guid(0xA36D_02E0, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]),
         guid(0xA36D_02E1, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]),
         guid(0xA36D_02E2, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]),
+        guid(0xA36D_02F4, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]),
+        guid(0xA36D_02F5, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]),
+        guid(0xA36D_02E3, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]),
     ];
-    const AXIS_NAMES: [&str; 3] = ["X Axis", "Y Axis", "Z Axis"];
+    const AXIS_NAMES: [&str; AXIS_COUNT] = ["X Axis", "Y Axis", "Z Axis", "X Rotation", "Y Rotation", "Z Rotation"];
     /// DI8DEVTYPE_DRIVING, DI8DEVTYPEDRIVING_DUALPEDALS, DIDEVTYPE_HID
     const DEV_TYPE: u32 = 0x16 | 3 << 8 | 0x1_0000;
     /// DIDFT_ABSAXIS
@@ -341,15 +352,34 @@ mod wheel {
             }
         }
         INPUT_AXES[0].store(STEER.load(Ordering::Relaxed), Ordering::Relaxed);
-        for (i, key) in ["WAL_DINPUT_WHEEL_Y_AXIS", "WAL_DINPUT_WHEEL_Z_AXIS"].into_iter().enumerate() {
+        let keys = ["WAL_DINPUT_WHEEL_Y_AXIS", "WAL_DINPUT_WHEEL_Z_AXIS", "WAL_DINPUT_WHEEL_RX_AXIS", "WAL_DINPUT_WHEEL_RY_AXIS", "WAL_DINPUT_WHEEL_RZ_AXIS"];
+        for (i, key) in keys.into_iter().enumerate() {
             if let Ok(value) = std::env::var(key) {
                 let value = value.trim();
                 let (value, invert) = value.strip_prefix('-').map_or((value, false), |axis| (axis, true));
                 match Axis::from_name(value) {
-                    Some(axis) => INPUT_AXES[i + 1].store(axis as u8 | if invert { 0x80 } else { 0 }, Ordering::Relaxed),
+                    Some(axis) => {
+                        INPUT_AXES[i + 1].store(axis as u8 | if invert { 0x80 } else { 0 }, Ordering::Relaxed);
+                        LISTED_AXES.fetch_max(i + 2, Ordering::Relaxed);
+                    }
                     None => log!("dinput: unknown wheel axis {key}={value:?}"),
                 }
             }
+        }
+        if let Ok(spec) = std::env::var("WAL_DINPUT_WHEEL_BUTTONS") {
+            let buttons = spec
+                .split(',')
+                .map(|b| {
+                    let b = b.trim();
+                    if b.eq_ignore_ascii_case("none") { 0 } else {
+                        wal_protocol::button::from_name(b).unwrap_or_else(|| {
+                            log!("dinput: unknown wheel button {b:?}");
+                            0
+                        })
+                    }
+                })
+                .collect();
+            let _ = BUTTONS.set(buttons);
         }
         log!("dinput: wheel {name:?}");
         let _ = NAME.set(name);
@@ -465,7 +495,8 @@ mod wheel {
                 let size = (*caps).clamp(4, 44) as usize;
                 std::ptr::write_bytes(caps.add(1) as *mut u8, 0, size - 4);
                 // dwFlags, dwDevType, dwAxes, dwButtons, dwPOVs, then the FFB timing fields.
-                for (i, v) in [CAPS_FLAGS, DEV_TYPE, 3, 32, 0, 10_000, 1, 1, 1, 0x0001_0000].into_iter().enumerate() {
+                let axes = LISTED_AXES.load(Ordering::Relaxed) as u32;
+                for (i, v) in [CAPS_FLAGS, DEV_TYPE, axes, 32, 0, 10_000, 1, 1, 1, 0x0001_0000].into_iter().enumerate() {
                     if 4 * (i + 2) <= size {
                         *caps.add(i + 1) = v;
                     }
@@ -475,7 +506,7 @@ mod wheel {
         DI_OK
     }
 
-    /// `EnumObjects(lpCallback, pvRef, dwFlags)`: the 3 absolute axes (when asked).
+    /// `EnumObjects(lpCallback, pvRef, dwFlags)`: the absolute axes (when asked), the buttons.
     unsafe fn enum_objects(cb: EnumCallback, context: P, flags: u32, wide: bool) -> i32 {
         // DIDFT_ALL, or a type mask with DIDFT_AXIS / DIDFT_ABSAXIS
         if flags != 0 && flags & 7 == 0 {
@@ -484,7 +515,7 @@ mod wheel {
         let chars = if wide { 2 } else { 1 };
         let size = 32 + 260 * chars + 24;
         let mut object = [0u8; 0x240];
-        for i in 0..3 {
+        for i in 0..LISTED_AXES.load(Ordering::Relaxed) {
             if flags != 0 && flags & 3 == 0 { break; }
             object.fill(0);
             let o = object.as_mut_ptr();
@@ -533,12 +564,21 @@ mod wheel {
             DIPH_BYID if obj & ABS_AXIS != 0 => obj >> 8 & 0xFFFF,
             _ => return None,
         } as usize;
-        (axis < 3).then_some(axis)
+        (axis < LISTED_AXES.load(Ordering::Relaxed)).then_some(axis)
     }
 
     /// `GetProperty(rguidProp, pdiph)`: the axis ranges.
     unsafe extern "system" fn get_property(_this: P, prop: usize, header: *mut u32) -> i32 {
-        if prop != DIPROP_RANGE || header.is_null() {
+        {
+            static LOGGED: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
+            let mut logged = LOGGED.lock().unwrap();
+            if !logged.contains(&prop) {
+                logged.push(prop);
+                log!("dinput: wheel GetProperty({prop})");
+            }
+        }
+        // DIPROP_PHYSICALRANGE / DIPROP_LOGICALRANGE: the range too
+        if !matches!(prop, DIPROP_RANGE | 18 | 19) || header.is_null() {
             return DI_OK;
         }
         let Some(axis) = (unsafe { header_axis(header) }) else { return DIERR_NOTFOUND };
@@ -551,12 +591,15 @@ mod wheel {
 
     /// `SetProperty(rguidProp, pdiph)`: the axis ranges (DIPH_DEVICE sets all of them).
     unsafe extern "system" fn set_property(_this: P, prop: usize, header: *const u32) -> i32 {
+        if prop != DIPROP_RANGE && !header.is_null() {
+            log!("dinput: wheel SetProperty({prop}, value {:#x})", unsafe { *header.add(4) });
+        }
         if prop != DIPROP_RANGE || header.is_null() {
             return DI_OK;
         }
         let (min, max) = unsafe { (*header.add(4) as i32, *header.add(5) as i32) };
         let axes = match unsafe { *header.add(3) } {
-            0 => 0..3,
+            0 => 0..AXIS_COUNT,
             _ => match unsafe { header_axis(header) } {
                 Some(a) => a..a + 1,
                 None => return DIERR_NOTFOUND,
@@ -575,6 +618,75 @@ mod wheel {
         (min + (max - min) * v as i64 / 65535) as i32
     }
 
+    /// An object of the game's data format: what goes at which offset.
+    #[derive(Clone, Copy, Debug)]
+    enum Field {
+        Axis(usize),
+        Button(usize),
+        Pov,
+    }
+    /// The game's `SetDataFormat` (none: DIJOYSTATE's layout).
+    static FORMAT: std::sync::Mutex<Option<Vec<(Field, usize)>>> = std::sync::Mutex::new(None);
+
+    /// `SetDataFormat(lpdf)`: the game's own layout (GRID lists the objects it enumerated, in
+    /// its own order): each object gets the axis (by GUID, else by instance or the next one),
+    /// button or POV it names, at its offset.
+    unsafe extern "system" fn set_data_format(_this: P, format: *const u32) -> i32 {
+        if format.is_null() {
+            return DI_OK;
+        }
+        let (obj_size, count, objects) = unsafe { (*format.add(1) as usize, *format.add(4) as usize, *format.add(5) as *const u8) };
+        let mut fields = Vec::new();
+        let (mut next_axis, mut next_button) = (0usize, 0usize);
+        let listed = LISTED_AXES.load(Ordering::Relaxed);
+        let mut used_axes = [false; AXIS_COUNT];
+        for i in 0..count {
+            let o = unsafe { objects.add(i * obj_size.max(16)) };
+            let (guid, offset, ty) = unsafe {
+                ((o as *const usize).read_unaligned() as *const u8, (o.add(4) as *const u32).read_unaligned() as usize, (o.add(8) as *const u32).read_unaligned())
+            };
+            let instance = (ty >> 8) & 0xFFFF;
+            let field = if ty & 3 != 0 {
+                // an axis: by GUID, else its instance, else the next one
+                let by_guid = (!guid.is_null()).then(|| {
+                    let g = unsafe { std::slice::from_raw_parts(guid, 16) };
+                    AXES.iter().position(|a| a.as_slice() == g)
+                });
+                let axis = match by_guid {
+                    Some(found) => found,
+                    None if instance != 0xFFFF => Some(instance as usize),
+                    None => {
+                        while next_axis < listed && used_axes[next_axis] {
+                            next_axis += 1;
+                        }
+                        Some(next_axis)
+                    }
+                };
+                match axis {
+                    Some(a) if a < listed && !used_axes[a] => {
+                        used_axes[a] = true;
+                        Some(Field::Axis(a))
+                    }
+                    _ => None, // a slider, or an axis the wheel does not have (optional)
+                }
+            } else if ty & 0x0C != 0 {
+                let b = if instance != 0xFFFF { instance as usize } else { next_button };
+                next_button = b + 1;
+                (b < 32).then_some(Field::Button(b))
+            } else if ty & 0x10 != 0 {
+                Some(Field::Pov)
+            } else {
+                None
+            };
+            if let Some(f) = field {
+                fields.push((f, offset));
+            }
+        }
+        log!("dinput: wheel data format: {fields:?}");
+        *FORMAT.lock().unwrap() = Some(fields);
+        DI_OK
+    }
+
     /// `GetDeviceState(cbData, lpvData)`: DIJOYSTATE(2), X the wheel, Y and Z released
     /// (their minimum).
     unsafe extern "system" fn get_device_state(_this: P, size: u32, data: *mut u8) -> i32 {
@@ -582,7 +694,7 @@ mod wheel {
             return DI_OK;
         }
         let stick = crate::input(0);
-        let axes = std::array::from_fn::<_, 3, _>(|i| {
+        let axes = std::array::from_fn::<_, AXIS_COUNT, _>(|i| {
             let mapped = INPUT_AXES[i].load(Ordering::Relaxed);
             let value = if mapped & 0x7f == 0x7f { 0 } else {
                 let value = stick.axis_u16(Axis::ALL[(mapped & 0x7f) as usize]);
@@ -599,10 +711,34 @@ mod wheel {
             let last = LAST.load(Ordering::Relaxed);
             if now - last >= 500 {
                 LAST.store(now, Ordering::Relaxed);
-                log!("dinput: wheel state X={} Y={} Z={} (steer/brake/accel from stick lx={} accel={} brake={})",
-                    axes[0], axes[1], axes[2],
+                log!("dinput: wheel state X={} Y={} Z={} Rx={} (steer/brake/accel from stick lx={} accel={} brake={})",
+                    axes[0], axes[1], axes[2], axes[3],
                     stick.axis(Axis::LeftX), stick.axis(Axis::Accel), stick.axis(Axis::Brake));
             }
+        }
+        let pressed = |b: usize| -> bool {
+            match BUTTONS.get() {
+                Some(buttons) => buttons.get(b).is_some_and(|&m| m != 0 && stick.pressed(m)),
+                None => match b {
+                    0..=7 => stick.buttons >> (b + 4) & 1 != 0,
+                    8..=11 => stick.buttons >> (b + 4) & 1 != 0,
+                    _ => false,
+                },
+            }
+        };
+        if let Some(fields) = FORMAT.lock().unwrap().as_ref() {
+            unsafe {
+                std::ptr::write_bytes(data, 0, size as usize);
+                for &(field, offset) in fields {
+                    match field {
+                        Field::Axis(a) if offset + 4 <= size as usize => (data.add(offset) as *mut i32).write_unaligned(axes[a]),
+                        Field::Button(b) if offset < size as usize => *data.add(offset) = if pressed(b) { 0x80 } else { 0 },
+                        Field::Pov if offset + 4 <= size as usize => (data.add(offset) as *mut u32).write_unaligned(u32::MAX),
+                        _ => {}
+                    }
+                }
+            }
+            return DI_OK;
         }
         unsafe {
             std::ptr::write_bytes(data, 0, size as usize);
@@ -617,13 +753,20 @@ mod wheel {
                     (data.add(0x20 + 4 * i) as *mut u32).write_unaligned(u32::MAX);
                 }
             }
-            for i in 0..8 {
-                let value = ((stick.buttons >> (i + 4)) & 1) as u8 * 0x80;
-                if 0x30 + i < size as usize { *data.add(0x30 + i) = value; }
-            }
-            for i in 0..4 {
-                let value = ((stick.buttons >> (i + 12)) & 1) as u8 * 0x80;
-                if 0x38 + i < size as usize { *data.add(0x38 + i) = value; }
+            if let Some(buttons) = BUTTONS.get() {
+                for (i, &mask) in buttons.iter().enumerate() {
+                    let value = if mask != 0 && stick.pressed(mask) { 0x80 } else { 0 };
+                    if 0x30 + i < size as usize && i < 32 { *data.add(0x30 + i) = value; }
+                }
+            } else {
+                for i in 0..8 {
+                    let value = ((stick.buttons >> (i + 4)) & 1) as u8 * 0x80;
+                    if 0x30 + i < size as usize { *data.add(0x30 + i) = value; }
+                }
+                for i in 0..4 {
+                    let value = ((stick.buttons >> (i + 12)) & 1) as u8 * 0x80;
+                    if 0x38 + i < size as usize { *data.add(0x38 + i) = value; }
+                }
             }
         }
         DI_OK
@@ -792,6 +935,7 @@ mod wheel {
         v[5] = get_property as *const ();
         v[6] = set_property as *const ();
         v[9] = get_device_state as *const ();
+        v[11] = set_data_format as *const ();
         v[15] = get_device_info as *const ();
         // DirectInput 7/8 force feedback
         v[18] = create_effect as *const ();

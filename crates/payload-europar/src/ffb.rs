@@ -14,6 +14,10 @@
 //! `WAL_EUROPAR_FFB_FORMAT=rally3`: SEGA Rally 3 (`0x5c8600`) writes to port 0x1020 the low
 //! nibble `16 - |force| * 15` (1 strongest, 0 none) with bit 0x10 set for a positive force;
 //! its positive force pushes the wheel to the right too.
+//!
+//! `WAL_EUROPAR_FFB_FORMAT=grid`: GRID (`0xb9c900`) writes to port 0x1020 the low nibble
+//! `15 - |force| * 15` (at least 1: 15 none, 1 strongest) with bit 0x10 set for a negative
+//! force.
 
 use std::sync::Once;
 use std::sync::atomic::{AtomicI32, AtomicU8, Ordering};
@@ -33,6 +37,14 @@ fn percent() -> i32 {
 
 /// SEGA Rally 3's encoding (`WAL_EUROPAR_FFB_FORMAT=rally3`, port 0x1020).
 static RALLY3: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// GRID's encoding (`WAL_EUROPAR_FFB_FORMAT=grid`, port 0x1020).
+static GRID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// GRID's byte -> its force, -15..=15.
+fn force_grid(byte: u8) -> i32 {
+    let m = 15 - (byte & 0x0f) as i32;
+    if byte & 0x10 != 0 { -m } else { m }
+}
 static DATA_PORT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0x378);
 
 /// SEGA Rally 3's byte -> its force, -15..=15.
@@ -56,8 +68,13 @@ fn force(byte: u8) -> i32 {
 pub(crate) fn out(port: u16, data: u16) {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        if std::env::var("WAL_EUROPAR_FFB_FORMAT").is_ok_and(|v| v.trim().eq_ignore_ascii_case("rally3")) {
-            RALLY3.store(true, Ordering::Relaxed);
+        let format = std::env::var("WAL_EUROPAR_FFB_FORMAT").unwrap_or_default().trim().to_ascii_lowercase();
+        match format.as_str() {
+            "rally3" => RALLY3.store(true, Ordering::Relaxed),
+            "grid" => GRID.store(true, Ordering::Relaxed),
+            _ => {}
+        }
+        if matches!(format.as_str(), "rally3" | "grid") {
             DATA_PORT.store(0x1020, Ordering::Relaxed);
         }
     });
@@ -79,7 +96,13 @@ pub(crate) fn out(port: u16, data: u16) {
 
 fn sample() {
     let byte = PORT.load(Ordering::Relaxed);
-    let f = if RALLY3.load(Ordering::Relaxed) { force_rally3(byte) } else { force(byte) };
+    let f = if RALLY3.load(Ordering::Relaxed) {
+        force_rally3(byte)
+    } else if GRID.load(Ordering::Relaxed) {
+        force_grid(byte)
+    } else {
+        force(byte)
+    };
     let v = (f * output::FFB_MAX / 15 * percent() / 100).clamp(-output::FFB_MAX, output::FFB_MAX);
     if LAST.swap(v, Ordering::Relaxed) != v {
         if LOGGED.fetch_add(1, Ordering::Relaxed) < 20 {
@@ -91,7 +114,7 @@ fn sample() {
 
 #[cfg(test)]
 mod tests {
-    use super::{force, force_rally3};
+    use super::{force, force_grid, force_rally3};
 
     #[test]
     fn decodes_the_game_bytes() {
@@ -100,6 +123,14 @@ mod tests {
         assert_eq!(force(15), 1);
         assert_eq!(force(16), -15);
         assert_eq!(force(30), -1);
+    }
+
+    #[test]
+    fn decodes_grid_bytes() {
+        assert_eq!(force_grid(0x0f), 0);
+        assert_eq!(force_grid(0x01), 14);
+        assert_eq!(force_grid(0x11), -14);
+        assert_eq!(force_grid(0x1f), 0);
     }
 
     #[test]

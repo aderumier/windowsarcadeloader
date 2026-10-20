@@ -16,6 +16,12 @@
 //!
 //! The payload plays the shell: its window (hidden, created when the game looks for it), the
 //! coins of player 1's virtual stick.
+//!
+//! GRID (the same shell, its later version): the window only from the command line
+//! (`/h=<hex>`, parsed at `0x5f4281`; `WAL_EUROPAR_SHELL_ARG=1` adds it to the game's
+//! `GetCommandLineW/A`), and other message numbers (`WAL_EUROPAR_SHELL_MSGS=window=<n>,credit=<n>`:
+//! the game's window, a credit used; defaults 8 and 4). The game accepts a shell message only
+//! from the shell's window (`wParam`, `0x5e3f30`): 3 the credit count, 13, 0x27.
 
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, AtomicUsize, Ordering};
 use std::sync::mpsc::{Sender, channel};
@@ -40,6 +46,11 @@ static CREDITS: AtomicU32 = AtomicU32::new(0);
 static FREE_PLAY: AtomicBool = AtomicBool::new(false);
 static EVENTS: OnceLock<Mutex<Sender<Event>>> = OnceLock::new();
 static ORIG_FIND_WINDOW: AtomicUsize = AtomicUsize::new(0);
+static ORIG_COMMAND_LINE_W: AtomicUsize = AtomicUsize::new(0);
+static ORIG_COMMAND_LINE_A: AtomicUsize = AtomicUsize::new(0);
+/// Message numbers: the game's window, a credit used.
+static MSG_WINDOW: AtomicUsize = AtomicUsize::new(8);
+static MSG_CREDIT: AtomicUsize = AtomicUsize::new(4);
 
 enum Event {
     /// A message from the game: (dwData, its u32 value).
@@ -88,13 +99,13 @@ fn set_credits(credits: u32) {
 fn worker(rx: std::sync::mpsc::Receiver<Event>) {
     for e in rx {
         match e {
-            Event::Message(8, hwnd) => {
+            Event::Message(id, hwnd) if id == MSG_WINDOW.load(Ordering::Relaxed) => {
                 log!("shell: the game's window {hwnd:#x}");
                 GAME.store(hwnd as isize, Ordering::Relaxed);
                 let credits = if FREE_PLAY.load(Ordering::Relaxed) { FREE_PLAY_CREDITS } else { CREDITS.load(Ordering::Relaxed) };
                 set_credits(credits);
             }
-            Event::Message(4, _) => {
+            Event::Message(id, _) if id == MSG_CREDIT.load(Ordering::Relaxed) => {
                 if FREE_PLAY.load(Ordering::Relaxed) {
                     log!("shell: game started (free play)");
                 } else {
@@ -159,12 +170,61 @@ unsafe extern "system" fn find_window(class: *const u8, title: *const u8) -> isi
     unsafe { f(class, title) }
 }
 
+/// `GetCommandLineW` / `A` with ` /h=<the shell's window>` (`WAL_EUROPAR_SHELL_ARG=1`).
+unsafe extern "system" fn command_line_w() -> *const u16 {
+    static LINE: OnceLock<Vec<u16>> = OnceLock::new();
+    LINE.get_or_init(|| {
+        let f: unsafe extern "system" fn() -> *const u16 = unsafe { std::mem::transmute(ORIG_COMMAND_LINE_W.load(Ordering::Relaxed)) };
+        let orig = unsafe { f() };
+        let mut v: Vec<u16> = (0..).map(|i| unsafe { *orig.add(i) }).take_while(|&c| c != 0).collect();
+        let arg = format!(" /h={:x}", window());
+        v.extend(arg.encode_utf16());
+        log!("shell: command line + {arg:?}");
+        v.push(0);
+        v
+    })
+    .as_ptr()
+}
+
+unsafe extern "system" fn command_line_a() -> *const u8 {
+    static LINE: OnceLock<Vec<u8>> = OnceLock::new();
+    LINE.get_or_init(|| {
+        let f: unsafe extern "system" fn() -> *const u8 = unsafe { std::mem::transmute(ORIG_COMMAND_LINE_A.load(Ordering::Relaxed)) };
+        let mut v = unsafe { std::ffi::CStr::from_ptr(f().cast()) }.to_bytes().to_vec();
+        v.extend(format!(" /h={:x}", window()).bytes());
+        v.push(0);
+        v
+    })
+    .as_ptr()
+}
+
 /// The game's free play setting (`settings.rs`).
 pub(crate) fn set_free_play(on: bool) {
     FREE_PLAY.store(on, Ordering::Relaxed);
 }
 
 pub(crate) fn init() {
+    if let Ok(spec) = std::env::var("WAL_EUROPAR_SHELL_MSGS") {
+        for item in spec.split(',') {
+            let Some((k, v)) = item.split_once('=') else { continue };
+            let Ok(n) = v.trim().parse::<usize>() else { continue };
+            match k.trim() {
+                "window" => MSG_WINDOW.store(n, Ordering::Relaxed),
+                "credit" => MSG_CREDIT.store(n, Ordering::Relaxed),
+                _ => {}
+            }
+        }
+    }
+    if std::env::var("WAL_EUROPAR_SHELL_ARG").is_ok_and(|v| v.trim() == "1") {
+        unsafe {
+            if let Some(o) = iat::hook("kernel32.dll", "GetCommandLineW", command_line_w as *const () as usize) {
+                ORIG_COMMAND_LINE_W.store(o, Ordering::Relaxed);
+            }
+            if let Some(o) = iat::hook("kernel32.dll", "GetCommandLineA", command_line_a as *const () as usize) {
+                ORIG_COMMAND_LINE_A.store(o, Ordering::Relaxed);
+            }
+        }
+    }
     let (tx, rx) = channel();
     let _ = EVENTS.set(Mutex::new(tx));
     std::thread::spawn(move || worker(rx));

@@ -54,10 +54,19 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if let Some(o) = unsafe { iat::hook("kernel32.dll", "LoadLibraryA", load_library as *const () as usize) } {
             ORIG_LOAD_LIBRARY.store(o, Ordering::Relaxed);
         }
-        // SEGA Rally 3 imports xinput1_3.dll's ordinals 2-5: ordinal 2 (XInputGetState) is
-        // Out32 in this DLL's export table
+        // XInput pads hidden from the game (its input comes from the launcher only): its
+        // xinput1_3.dll imports by ordinal (2 GetState, 3 SetState, 4 GetCapabilities, 5 Enable;
+        // GRID imports Wine's, SEGA Rally 3 this DLL's, whose ordinal 2 is Out32)
         let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
-        unsafe { iat::hook_ordinal(exe, "xinput1_3.dll", 2, xinput_get_state as *const () as usize) };
+        let xinput: [(u16, usize); 4] = [
+            (2, xinput_get_state as *const () as usize),
+            (3, xinput_set_state as *const () as usize),
+            (4, xinput_get_capabilities as *const () as usize),
+            (5, xinput_enable as *const () as usize),
+        ];
+        for (ordinal, f) in xinput {
+            unsafe { iat::hook_ordinal(exe, "xinput1_3.dll", ordinal, f) };
+        }
         if testmenu::is_test_menu() {
             // the GameShell's test menu (loaded by wal-loader)
             happ::init(true);

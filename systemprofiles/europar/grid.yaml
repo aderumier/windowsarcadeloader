@@ -1,0 +1,76 @@
+# GRID (Codemasters / Sega Amusements Europe, 2010), Sega Europa-R racing game with a wheel,
+# pedals, a sequential shifter (gear up / down), view and reset buttons: Sega/Grid/GRID.exe
+# beside the cabinet's Sega Shell (coins, credits), its I/O board a DirectInput game
+# controller, its force feedback on the parallel port; all played by the payload.
+# Override values in userprofiles/europar/grid.yaml.
+system: europar
+name: GRID
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    x: b4
+    b: b5
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # the cabinet's board, a DirectInput game controller "SEGA IO Controller"
+  # (ActionMap/actionMapSEGAController.xml): X the wheel, Z the brake, Rx the gas, buttons
+  # 0 start, 1 view, 2 reset car, 3 gear up (menus up), 4 gear down (menus down), 9 look back
+  WAL_DINPUT_WHEEL: SEGA IO Controller
+  WAL_DINPUT_WHEEL_Z_AXIS: brake
+  WAL_DINPUT_WHEEL_RX_AXIS: accel
+  WAL_DINPUT_WHEEL_BUTTONS: "start,b3,b4,b1,b2,none,none,none,none,b5"
+  # the Sega Shell: its window on the command line (/h=), coins and credits; GRID's message
+  # numbers: 12 its window (a credit used: 4, as Ford Racing)
+  WAL_EUROPAR_SHELL_ARG: "1"
+  WAL_EUROPAR_SHELL_MSGS: "window=12"
+  # free play (over the shell's settings): off, a coin per game
+  WAL_EUROPAR_FREEPLAY: "0"
+  # force feedback: GRID's encoding on port 0x1020
+  WAL_EUROPAR_FFB_FORMAT: grid
+  WAL_EUROPAR_FFB: "100"
+  # a deliberate crash at boot (0x5ab9e5, a cabinet flag never set here): skipped
+  WAL_PATCHES: "0x1ab9e5:9090"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_EUROPAR_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: a coin per game.
+  - title: Force feedback
+    options:
+      - key: WAL_EUROPAR_FFB
+        label: Strength (%)
+        kind: number
+        min: 0
+        max: 200
+        description: The wheel motor's force, in percent of the game's.
+
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Gear Up
+  b2: Gear Down
+  b3: View Change
+  b4: Reset Car
+  b5: Look Back

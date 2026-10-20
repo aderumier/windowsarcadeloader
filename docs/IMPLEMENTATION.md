@@ -605,6 +605,12 @@ profile), `show` (merged profile).
   `-` inverts), Y / Z released, no buttons. D1GP Arcade's cabinet wheel is a USB "Immersion
   TouchSense Steering Wheel": it steers with its X axis, loads `<product name>.txt` (spaces
   as `_`, shipped in the dump) and merges the JVS switches only in its per-device loop.
+  `WAL_DINPUT_WHEEL_Y_AXIS` / `_Z_` / `_RX_` / `_RY_` / `_RZ_AXIS` map more axes (Rx-Rz listed
+  only when mapped), `WAL_DINPUT_WHEEL_BUTTONS=<virtual button>,...` the buttons in order
+  (`none`: unused; default b1-b8, start, coin, service, test). The wheel follows the game's
+  `SetDataFormat` (each object at the offset the game gives it) and answers
+  `DIPROP_LOGICALRANGE` / `DIPROP_PHYSICALRANGE` like `DIPROP_RANGE` (GRID scales its axes by
+  the logical range).
 * `mouse_stick`: `WAL_DINPUT_MOUSE_STICK=<speed>` keeps the real DirectInput 8 and wraps the
   system mouse device's `GetDeviceState` (vtable slots patched from `DirectInput8Create` /
   `CreateDevice`): player 1's left stick is added to its relative X / Y, `<speed>` counts per
@@ -1662,7 +1668,7 @@ statically. System `wahlap`, payload `wal_wahlap.dll` installed as `usb_io.dll`.
 
 ### 6.3g Sega Europa-R (`crates/payload-europar`)
 
-Sega Amusements Europe's Windows PC cabinets (Ford Racing Full Blown, 2006; SEGA Rally 3, 2008): the game
+Sega Amusements Europe's Windows PC cabinets (Ford Racing Full Blown, 2006; SEGA Rally 3, 2008; GRID, 2010): the game
 (`FordRacing/fordracing.exe`, Direct3D 9, DirectInput and DirectSound loaded at run time) runs
 beside the cabinet's GameShell (`GameShell/GameShell.exe`: coins, credits, operator menu,
 updates). It imports `inpout32.dll` (the parallel port: the force feedback board) statically.
@@ -1725,6 +1731,19 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
   1280x720 or 1920x1080); at 1920 the in-race timer, "time extended", "final lap" and
   countdown x positions (screen width / 2 at `0x5a6f28`, `0x59ea49`, `0x59e806`, `0x5a48e5`)
   replaced by tuned constants (`WAL_EUROPAR_PATCHES_1920`).
+- **GRID (2010).** `Sega/Grid/GRID.exe` imports `inpout32.dll` (payload default) beside the
+  Sega Shell. Its board is a DirectInput game controller, "SEGA IO Controller"
+  (`ActionMap/actionMapSEGAController.xml`): the common fake wheel (6.1 `dinput.rs`) with X the
+  wheel, Z the brake, Rx the gas, buttons 0 start, 1 view, 2 reset car, 3/4 gear up/down,
+  9 look back. It scales each axis by `DIPROP_LOGICALRANGE` (unanswered: full throttle read as
+  ~3%). Shell: the Ford Racing protocol's later version (`WM_COPYDATA`): its window from the
+  command line only (`/h=<hex>`, `0x5f4281`; `WAL_EUROPAR_SHELL_ARG=1` appends it to
+  `GetCommandLineW/A`), message 12 its window (`WAL_EUROPAR_SHELL_MSGS=window=12`), 4 a credit
+  used, 19/21 lamps; shell -> game 3 credits, 13, 0x27, accepted only from the shell's window
+  (`wParam`, `0x5e3f30`). Force feedback (`WAL_EUROPAR_FFB_FORMAT=grid`, `0xb9c900`): port
+  0x1020, low nibble `15 - |force| * 15` (at least 1; 15 none), bit 0x10 a negative force. A
+  deliberate crash at boot (`0x5ab9e5`, `*(0) = 0` when a cabinet flag is clear) is skipped.
+  XInput pads are hidden (its xinput1_3 ordinals 2-4 point at the payload's "no pad").
 
 ### 6.4 Batocera integration
 
@@ -2034,6 +2053,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | `all_test/game/Gold/motobike.exe` (unprotected build), `motobikeio.dll` replaced (handlebar, throttle, brake, boost, menu buttons, coin counter, board memory in `assets/motobikeio.mem`, uncalibrated channels full range), dongle class answered, start = its own Enter key (real keyboard and XInput hidden), WMV9 movies, full screen |
 | `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | `FordRacing/fordracing.exe`, `inpout32.dll` replaced: Happ UGCI HID board (wheel, pedals, shift up/down, start, view), the GameShell's credits (coins, free play option), parallel port force feedback, 1024x768 (option); test menu (the GameShell's) not yet |
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
+| `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
