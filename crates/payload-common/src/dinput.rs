@@ -267,7 +267,10 @@ pub fn init() {
         iat::hook("dinput.dll", "DirectInputCreateEx", create_iid as *const () as usize);
         iat::hook("dinput8.dll", "DirectInput8Create", create_iid as *const () as usize);
         // games loading DirectInput at run time (Ford Racing: LoadLibrary("dinput8.dll"))
-        if let Some(o) = iat::hook("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) {
+        // init runs once per hooked module set (Mario Kart: twice): a second hook returns our
+        // own function, which must not become the original (endless recursion).
+        let ours = get_proc_address as *const () as usize;
+        if let Some(o) = iat::hook("kernel32.dll", "GetProcAddress", ours).filter(|&o| o != ours) {
             ORIG_GET_PROC_ADDRESS.store(o, std::sync::atomic::Ordering::Relaxed);
         }
     }
