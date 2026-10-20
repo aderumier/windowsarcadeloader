@@ -22,6 +22,7 @@ mod card;
 mod cg;
 mod devices;
 mod ffb;
+mod happy_playground;
 mod glscale;
 mod gunman;
 mod microtouch;
@@ -66,6 +67,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         serial::MODEM_STATUS[0].store(0x10, Ordering::Relaxed);
         serial::MODEM_STATUS[1].store(0x30, Ordering::Relaxed);
         wal_payload_common::jvs_board::init("mxjvs");
+        happy_playground::init();
         // ports the game opens beside its I/O board, present but silent
         if let Ok(ports) = std::env::var("WAL_RINGEDGE_SILENT_PORTS") {
             serial::install_sink(&ports);

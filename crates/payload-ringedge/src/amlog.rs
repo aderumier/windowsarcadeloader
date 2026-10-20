@@ -57,6 +57,35 @@ unsafe extern "C" {
     fn gamelog_stub();
 }
 
+core::arch::global_asm!(
+    ".globl {name}",
+    "{name}:",
+    "pushfd",
+    "pushad",
+    "mov eax, [esp + 0x34]",
+    "push esi",
+    "push eax",
+    "call {trace}",
+    "add esp, 8",
+    "popad",
+    "popfd",
+    "mov eax, [esp + 0x10]",
+    "jmp dword ptr [{continuation}]",
+    name = sym jvs_state_trace_stub,
+    trace = sym jvs_state_trace,
+    continuation = sym JVS_INIT_CONTINUATION,
+);
+static mut JVS_INIT_CONTINUATION: usize = 0;
+unsafe extern "C" { fn jvs_state_trace_stub(); }
+extern "C" fn jvs_state_trace(status: u32, node: usize) {
+    let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    unsafe {
+        log!("game: JVS init return status={status:#x} node={node:#x} state={:#x} flags={:08x?}",
+            std::ptr::read_unaligned((base + 0x2bdd8c) as *const u32),
+            std::slice::from_raw_parts((base + 0x2b0218) as *const u32, 8));
+    }
+}
+
 extern "C" fn gamelog_va(fmt: *const c_char, args: *const c_void) {
     if fmt.is_null() {
         return;
@@ -65,6 +94,20 @@ extern "C" fn gamelog_va(fmt: *const c_char, args: *const c_void) {
     unsafe { _vsnprintf(buf.as_mut_ptr(), buf.len() - 1, fmt, args) };
     let msg = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr()) }.to_string_lossy();
     log!("game: {}", msg.trim_end());
+    if msg.contains("JVS node(s) found") {
+        let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            let node = base + 0x2b023c;
+            unsafe {
+                let count = std::ptr::read_unaligned((base + 0x2b0238) as *const u32);
+                let bytes = std::slice::from_raw_parts(node as *const u8, 0x300);
+                let globals = std::slice::from_raw_parts((base + 0x2b0200) as *const u32, 16);
+                let state = std::ptr::read_unaligned((base + 0x2bdd8c) as *const u32);
+                log!("game: JVS base={base:#x} count={count} state={state} globals={globals:08x?} node={:02x?}", &bytes[..]);
+            }
+        });
+    }
 }
 
 /// Replaces the function at `base + rva` by a jump to `stub`.
@@ -103,6 +146,11 @@ pub(crate) fn init() {
     if let Some(rva) = std::env::var("WAL_RINGEDGE_GAMELOG").ok().and_then(|v| parse_hex(&v)) {
         unsafe { jump_to(base, rva, gamelog_stub as *const () as usize) };
         log!("amlog: game log function at +{rva:#x}");
+    }
+    if std::env::var_os("WAL_RINGEDGE_JVS_DUMP").is_some() {
+        unsafe { JVS_INIT_CONTINUATION = base + 0x8dff4; }
+        unsafe { jump_to(base, 0x8dff0, jvs_state_trace_stub as *const () as usize); }
+        log!("amlog: JVS init return trace enabled");
     }
     let Some(rva) = std::env::var("WAL_RINGEDGE_AMLOG").ok().and_then(|v| parse_hex(&v)) else { return };
     unsafe { jump_to(base, rva, amlog_stub as *const () as usize) };

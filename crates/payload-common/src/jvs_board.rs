@@ -151,6 +151,8 @@ struct Board {
     elevator_action: bool,
     /// Cyber Diver's two handle switches are active low (JVS buttons 7/8).
     cyber_diver: bool,
+    /// Pleasant Goat: the dispenser-ready signal is switch byte 3 bit 0x40.
+    happy_playground: bool,
     /// `WAL_TYPEX_JVS_ANALOG=v0,v1,...` (hex): fixed analog channel values (default 0).
     analog_fixed: Vec<u16>,
     /// `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...`: player 1's virtual axis read on each
@@ -292,6 +294,7 @@ pub fn init(default_port: &str) {
         block_king,
         elevator_action,
         cyber_diver: std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v == "cyber-diver"),
+        happy_playground: layout == "happy-playground",
         analog_fixed,
         analog_inputs,
         outputs: std::env::var("WAL_TYPEX_JVS_OUTPUTS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0),
@@ -523,6 +526,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
             board.coins[slot] = board.coins[slot].saturating_add(1);
         }
         board.coin_held[n] = p.3;
+    }
+    if board.happy_playground {
+        players[0].4 |= 0x40;
     }
     let test = players.iter().any(|p| p.2);
     if let Some((masks, half)) = board.pulse {

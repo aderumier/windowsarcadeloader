@@ -24,7 +24,7 @@ const FAKE: usize = 0x1337;
 const FAKE_SINK: usize = 0x1339;
 
 fn is_fake(h: P) -> bool {
-    h as usize == FAKE_SINK || device(h).is_some()
+    is_sink_handle(h) || device(h).is_some()
 }
 
 /// The emulated device: answers the packets the game writes.
@@ -166,6 +166,27 @@ fn is_sink(name: &str) -> bool {
     SINK.get().is_some_and(|s| s.iter().any(|p| strip_device(name).eq_ignore_ascii_case(p)))
 }
 
+fn sink_handle(name: &str) -> Option<P> {
+    let name = strip_device(name);
+    let sinks = SINK.get()?;
+    sinks.iter().filter(|p| !p.starts_with('!'))
+        .position(|p| name.eq_ignore_ascii_case(p))
+        .map(|i| (FAKE_SINK + i * 4) as P)
+}
+
+fn sink_index(h: P) -> Option<usize> {
+    let raw = h as usize;
+    let i = raw.checked_sub(FAKE_SINK)? / 4;
+    (raw == FAKE_SINK + i * 4 && SINK.get()?.iter().filter(|p| !p.starts_with('!')).count() > i).then_some(i)
+}
+
+fn is_sink_handle(h: P) -> bool { sink_index(h).is_some() }
+
+fn sink_name(h: P) -> &'static str {
+    let i = sink_index(h).unwrap_or(0);
+    SINK.get().and_then(|s| s.iter().filter(|p| !p.starts_with('!')).nth(i)).map(String::as_str).unwrap_or("silent")
+}
+
 /// `!COMn` entries of the silent port list: opening them fails, as on a PC without the port.
 fn is_absent(name: &str) -> bool {
     SINK.get().is_some_and(|s| s.iter().any(|p| p.strip_prefix('!').is_some_and(|p| strip_device(name).eq_ignore_ascii_case(p))))
@@ -278,8 +299,9 @@ unsafe extern "system" fn create_file_a(name: *const u8, a: u32, s: u32, sa: P, 
         return absent();
     }
     if !name.is_null() && is_sink(&unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy()) {
-        log!("serial: silent port opened");
-        return FAKE_SINK as P;
+        let port = unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy();
+        log!("serial: silent port {port} opened");
+        return sink_handle(&port).unwrap_or(FAKE_SINK as P);
     }
     if let Some(h) = port_a(name) {
         return h;
@@ -302,8 +324,8 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
             return absent();
         }
         if is_sink(&wide) {
-            log!("serial: silent port opened");
-            return FAKE_SINK as P;
+            log!("serial: silent port {wide} opened");
+            return sink_handle(&wide).unwrap_or(FAKE_SINK as P);
         }
     }
     if let Some(h) = port_w(name) {
@@ -321,10 +343,10 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
 }
 
 unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut u32, ov: P) -> i32 {
-    if h as usize == FAKE_SINK {
+    if is_sink_handle(h) {
         if SINK_TRACE_COUNT.fetch_add(1, Ordering::Relaxed) < 40 {
             let hex = unsafe { std::slice::from_raw_parts(buf, n as usize) }.iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(" ");
-            log!("serial: silent port <- {hex}");
+            log!("serial: {} <- {hex}", sink_name(h));
         }
         if !written.is_null() {
             unsafe { *written = n };
@@ -367,7 +389,10 @@ unsafe fn complete(ov: P, n: u32) {
 }
 
 unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, ov: P) -> i32 {
-    if h as usize == FAKE_SINK {
+    if is_sink_handle(h) {
+        if SINK_TRACE_COUNT.fetch_add(1, Ordering::Relaxed) < 40 {
+            log!("serial: {} read requested {n} bytes (silent)", sink_name(h));
+        }
         if !read.is_null() {
             unsafe { *read = 0 };
         }
@@ -436,7 +461,7 @@ unsafe extern "system" fn close_handle(h: P) -> i32 {
 }
 
 unsafe extern "system" fn get_comm_modem_status(h: P, stat: *mut u32) -> i32 {
-    if h as usize == FAKE_SINK {
+    if is_sink_handle(h) {
         if !stat.is_null() {
             unsafe { *stat = 0 };
         }

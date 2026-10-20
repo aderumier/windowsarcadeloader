@@ -1,0 +1,30 @@
+# Pleasant Goat and Big Big Wolf Happy Happy Playground (Sega RingWide), a 2 player
+# mini-game cabinet (game id SBVG, its dump's gameid.txt). Runs exe/XYY_RingWide.exe.
+# Override values in userprofiles/ringedge/pleasant-goat-and-big-big-wolf-happy-happy-playground.yaml.
+system: ringedge
+name: Pleasant Goat and Big Big Wolf Happy Happy Playground
+
+env:
+  # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVG;keychip.appboot.platformid=AAM;keychip.appboot.region=04;keychip.appboot.modeltype=02
+  WAL_RINGEDGE_REGION: "04"
+  # the keychip's challenge file (the dump's SBVG_Table.dat, beside the game root: the game
+  # runs from exe/ and loads ..\fs\..., ..\SBVG_Table.dat)
+  WAL_RINGEDGE_DS_FILE: ../SBVG_Table.dat
+  # the cabinet's 1024x768 monitor (mxGetHwInfo.ini): DIP switches SW5-7 = 3
+  WAL_RINGEDGE_DIPSW: "BF"
+  # The RingWide launcher mode requires 16 GP outputs and a 1P 22-button JVS profile.
+  WAL_TYPEX_JVS_LAYOUT: happy-playground
+  WAL_TYPEX_JVS_OUTPUTS: "16"
+  WAL_TYPEX_JVS_SWITCHES: "1x22"
+  WAL_RINGEDGE_JVS_DUMP: "1"
+  WAL_RINGEDGE_GAMELOG: "8d0d0"
+  WAL_SCREENSHOT: "2"
+  WAL_RINGWIDE_HAPPY_PLAYGROUND_CARD: "1"
+  WAL_RINGEDGE_MICROTOUCH: COM3
+  # This executable uses an XP-only absolute path for the counter backup.
+  # Redirect it into the game's existing save directory.
+  WAL_PATCHES: "25bd88:73765c436f756e746572496e666f2e44617400"
+  # the test button (application 3): the test menu program (gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=exe=TestMode.exe -t"
