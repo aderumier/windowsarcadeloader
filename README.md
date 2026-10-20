@@ -188,4 +188,5 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | not in the test |  |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | not in the test |  |
 | `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | not in the test |  |
+| `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | not in the test |  |
 <!-- GAMELIST END -->

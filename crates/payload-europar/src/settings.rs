@@ -1,9 +1,14 @@
 //! The operator settings the game reads from `data/gamesettings.ini` (`[gamesettings]`),
 //! overridden by profile options:
 //!
-//! * `WAL_EUROPAR_RESOLUTION`: `Resolution`, the full screen mode: 640x480 (the cabinet's),
-//!   800x600, 1024x768, 1280x1024 or 1600x1200 (`0x466ac5`; another value: 1600x1200)
-//! * `WAL_EUROPAR_FREEPLAY=0|1`: `FreePlay` (the shell needs it too, `shell.rs`)
+//! * `WAL_EUROPAR_RESOLUTION`: Ford Racing's `Resolution`, the full screen mode: 640x480 (the
+//!   cabinet's), 800x600, 1024x768, 1280x1024 or 1600x1200 (`0x466ac5`; another value:
+//!   1600x1200); SEGA Rally 3's `HorizontalResolution` / `VerticalResolution` (`config.ini`)
+//! * `WAL_EUROPAR_FREEPLAY=0|1`: `FreePlay` (the shell needs it too, `shell.rs`; SEGA Rally 3:
+//!   `[Credit] Freeplay`)
+//! * `WAL_EUROPAR_PATCHES_<width>`: code patches (the `WAL_PATCHES` format) applied when
+//!   `WAL_EUROPAR_RESOLUTION` has that width (SEGA Rally 3's in-race 2D positions, computed
+//!   from the screen width: tuned per width)
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -33,6 +38,17 @@ unsafe extern "system" fn get_private_profile_int(section: *const u8, key: *cons
         crate::shell::set_free_play(v != 0);
         log!("settings: free play {}", if v != 0 { "on" } else { "off" });
     }
+    let size = option("WAL_EUROPAR_RESOLUTION").and_then(|m| {
+        let (w, h) = m.split_once('x')?;
+        Some((w.trim().parse::<u32>().ok()?, h.trim().parse::<u32>().ok()?))
+    });
+    if let Some((w, h)) = size {
+        if key_is(key, "HorizontalResolution") {
+            v = w;
+        } else if key_is(key, "VerticalResolution") {
+            v = h;
+        }
+    }
     v
 }
 
@@ -60,6 +76,12 @@ unsafe extern "system" fn get_private_profile_string(
 }
 
 pub(crate) fn init() {
+    if let Some(width) = option("WAL_EUROPAR_RESOLUTION").and_then(|m| m.split_once('x').map(|(w, _)| w.trim().to_string())) {
+        if let Some(spec) = option(&format!("WAL_EUROPAR_PATCHES_{width}")) {
+            log!("settings: patches for width {width}");
+            wal_payload_common::patches::apply_list(&spec);
+        }
+    }
     unsafe {
         if let Some(o) = iat::hook("kernel32.dll", "GetPrivateProfileIntA", get_private_profile_int as *const () as usize) {
             ORIG_GET_INT.store(o, Ordering::Relaxed);

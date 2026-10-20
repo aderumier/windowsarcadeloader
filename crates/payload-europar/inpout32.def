@@ -1,5 +1,12 @@
-; Exports of inpout32.dll (parallel port access): Ford Racing imports Out32 by ordinal.
+; Exports of inpout32.dll (parallel port access): Ford Racing imports Out32 by ordinal 2.
+; The same DLL is SEGA Rally 3's xinput1_3.dll: it imports ordinals 2-5 (XInputGetState,
+; SetState, GetCapabilities, Enable; its ordinal 2 is redirected in its import table, lib.rs) and
+; loads inpout32.dll at run time (the payload itself).
 LIBRARY inpout32
 EXPORTS
     Inp32=inp32@4 @1
     Out32=out32@8 @2
+    XInputSetState=xinput_set_state@8 @3
+    XInputGetCapabilities=xinput_get_capabilities@12 @4
+    XInputEnable=xinput_enable@4 @5
+    XInputGetState=xinput_get_state@8 @6

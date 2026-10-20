@@ -1,4 +1,4 @@
-//! Sega Europa-R / Sega Amusements Europe PC cabinets (Ford Racing Full Blown).
+//! Sega Europa-R / Sega Amusements Europe PC cabinets (Ford Racing Full Blown, SEGA Rally 3).
 //!
 //! Ford Racing imports `inpout32.dll` statically (the force feedback board on the parallel
 //! port): our payload replaces it and, loaded before the game code, also plays its USB I/O
@@ -9,6 +9,11 @@
 //! Payload options (profile `env`):
 //! - `WAL_EUROPAR_FFB`: force feedback strength in percent (default 100)
 //! - `WAL_EUROPAR_FREEPLAY=0|1`: free play over the game's setting (`data/gamesettings.ini`)
+//! - `WAL_EUROPAR_RESOLUTION=<w>x<h>`: the game's screen mode; `WAL_EUROPAR_PATCHES_<w>`: code
+//!   patches for that width
+//! - `WAL_EUROPAR_BOARD=rally3`, `WAL_EUROPAR_FFB_FORMAT=rally3`, `WAL_EUROPAR_CREDITS=<rva>`:
+//!   SEGA Rally 3's board, force feedback and credit count (the payload installed as its
+//!   `xinput1_3.dll`, profile `payload_install`)
 //! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
 //!
 //! Native inputs for `native_map`: the board's buttons `shift_up shift_down start view`.

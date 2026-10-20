@@ -10,6 +10,10 @@
 //! next frame (`0x4a20c0` then `0x4a2020`): the motor follows the byte that stays. The port is
 //! sampled every 4 ms, its byte becomes a constant force (`WAL_EUROPAR_FFB`, percent,
 //! default 100): a positive force pushes the wheel to the right.
+//!
+//! `WAL_EUROPAR_FFB_FORMAT=rally3`: SEGA Rally 3 (`0x5c8600`) writes to port 0x1020 the low
+//! nibble `16 - |force| * 15` (1 strongest, 0 none) with bit 0x10 set for a positive force;
+//! its positive force pushes the wheel to the right too.
 
 use std::sync::Once;
 use std::sync::atomic::{AtomicI32, AtomicU8, Ordering};
@@ -27,6 +31,19 @@ fn percent() -> i32 {
     std::env::var("WAL_EUROPAR_FFB").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(100)
 }
 
+/// SEGA Rally 3's encoding (`WAL_EUROPAR_FFB_FORMAT=rally3`, port 0x1020).
+static RALLY3: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static DATA_PORT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(0x378);
+
+/// SEGA Rally 3's byte -> its force, -15..=15.
+fn force_rally3(byte: u8) -> i32 {
+    let m = match byte & 0x0f {
+        0 => 0,
+        n => 16 - n as i32,
+    };
+    if byte & 0x10 != 0 { m } else { -m }
+}
+
 /// The data port byte -> the game's force, -15..=15.
 fn force(byte: u8) -> i32 {
     match byte {
@@ -37,7 +54,14 @@ fn force(byte: u8) -> i32 {
 }
 
 pub(crate) fn out(port: u16, data: u16) {
-    if port != 0x378 {
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        if std::env::var("WAL_EUROPAR_FFB_FORMAT").is_ok_and(|v| v.trim().eq_ignore_ascii_case("rally3")) {
+            RALLY3.store(true, Ordering::Relaxed);
+            DATA_PORT.store(0x1020, Ordering::Relaxed);
+        }
+    });
+    if port != DATA_PORT.load(Ordering::Relaxed) {
         log!("ffb: Out32({port:#x}, {data:#x})");
         return;
     }
@@ -55,7 +79,8 @@ pub(crate) fn out(port: u16, data: u16) {
 
 fn sample() {
     let byte = PORT.load(Ordering::Relaxed);
-    let v = (force(byte) * output::FFB_MAX / 15 * percent() / 100).clamp(-output::FFB_MAX, output::FFB_MAX);
+    let f = if RALLY3.load(Ordering::Relaxed) { force_rally3(byte) } else { force(byte) };
+    let v = (f * output::FFB_MAX / 15 * percent() / 100).clamp(-output::FFB_MAX, output::FFB_MAX);
     if LAST.swap(v, Ordering::Relaxed) != v {
         if LOGGED.fetch_add(1, Ordering::Relaxed) < 20 {
             log!("ffb: byte {byte:#04x}: constant force {v}");
@@ -66,7 +91,7 @@ fn sample() {
 
 #[cfg(test)]
 mod tests {
-    use super::force;
+    use super::{force, force_rally3};
 
     #[test]
     fn decodes_the_game_bytes() {
@@ -75,5 +100,14 @@ mod tests {
         assert_eq!(force(15), 1);
         assert_eq!(force(16), -15);
         assert_eq!(force(30), -1);
+    }
+
+    #[test]
+    fn decodes_rally3_bytes() {
+        assert_eq!(force_rally3(0), 0);
+        assert_eq!(force_rally3(0x10), 0);
+        assert_eq!(force_rally3(0x11), 15);
+        assert_eq!(force_rally3(0x1f), 1);
+        assert_eq!(force_rally3(0x01), -15);
     }
 }

@@ -1662,7 +1662,7 @@ statically. System `wahlap`, payload `wal_wahlap.dll` installed as `usb_io.dll`.
 
 ### 6.3g Sega Europa-R (`crates/payload-europar`)
 
-Sega Amusements Europe's Windows PC cabinets (Ford Racing Full Blown, 2006): the game
+Sega Amusements Europe's Windows PC cabinets (Ford Racing Full Blown, 2006; SEGA Rally 3, 2008): the game
 (`FordRacing/fordracing.exe`, Direct3D 9, DirectInput and DirectSound loaded at run time) runs
 beside the cabinet's GameShell (`GameShell/GameShell.exe`: coins, credits, operator menu,
 updates). It imports `inpout32.dll` (the parallel port: the force feedback board) statically.
@@ -1708,6 +1708,23 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
   boot (state machine `0x4066cf`, states 2-0x10: update scan, backup copy to `d:\backup`...)
   does not reach its game launch yet; jumping straight to the test menu state (0x14) shows a
   blank page.
+- **SEGA Rally 3 (2008).** `Rally/Rally.exe` loads `./inpout32.dll` at run time
+  (`LoadLibraryA`, `Out32` by name) and imports `xinput1_3.dll` (ordinals 2-5): the payload is
+  installed as `Rally/xinput1_3.dll` (profile `payload_install`, `dll_overrides: xinput1_3: n`
+  over Wine's builtin), its XInput exports report no pad, ordinal 2 (`Out32` in the export
+  table) is redirected to `XInputGetState` in the game's import table, and `LoadLibraryA` of
+  `inpout32.dll` returns the payload. Its board (`WAL_EUROPAR_BOARD=rally3`, `0x57b2f0`): the
+  HID device whose attributes read vendor 0x1043 product 0, 15-byte reports (`0x57b640`):
+  byte 1 wheel, 3 brake, 4 gas, 6 buttons 0x01 start, 0x02 handbrake, 0x04 view, 0x08 shift
+  up, 0x10 shift down. Force feedback (`WAL_EUROPAR_FFB_FORMAT=rally3`, `0x5c8600`): port
+  0x1020, low nibble `16 - |force| * 15` (0 none), bit 0x10 a positive force (to the right).
+  Credits: no GameShell window; `WAL_EUROPAR_CREDITS=0x741748` (the credit count of the
+  object at `0x741738`, a game starts when it is above 0 unless free play) gets one per coin;
+  free play from `config.ini` `[Credit] Freeplay` (`WAL_EUROPAR_FREEPLAY`). Resolution
+  `[Graphics] HorizontalResolution` / `VerticalResolution` (`WAL_EUROPAR_RESOLUTION`,
+  1280x720 or 1920x1080); at 1920 the in-race timer, "time extended", "final lap" and
+  countdown x positions (screen width / 2 at `0x5a6f28`, `0x59ea49`, `0x59e806`, `0x5a48e5`)
+  replaced by tuned constants (`WAL_EUROPAR_PATCHES_1920`).
 
 ### 6.4 Batocera integration
 
@@ -2016,6 +2033,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | `bin/racing.exe` (debug build), `usb_io.dll` replaced (wheel, gas, brake, coin switch, boost; start = its own Enter key, real keyboard and XInput hidden), force feedback (centering spring by speed, off-road vibration), WMV9 movies (`WMV9VCM.dll` in `bin/`, Wine AVIStreamRead fix), asserts answered, missing checkpoint billboards skipped, full screen |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | `all_test/game/Gold/motobike.exe` (unprotected build), `motobikeio.dll` replaced (handlebar, throttle, brake, boost, menu buttons, coin counter, board memory in `assets/motobikeio.mem`, uncalibrated channels full range), dongle class answered, start = its own Enter key (real keyboard and XInput hidden), WMV9 movies, full screen |
 | `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | `FordRacing/fordracing.exe`, `inpout32.dll` replaced: Happ UGCI HID board (wheel, pedals, shift up/down, start, view), the GameShell's credits (coins, free play option), parallel port force feedback, 1024x768 (option); test menu (the GameShell's) not yet |
+| `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

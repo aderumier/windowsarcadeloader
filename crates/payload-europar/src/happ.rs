@@ -26,6 +26,11 @@
 //!
 //! Every call is answered by IAT hooks: the game sees the JOYSTICK collection, the shell both,
 //! their reports built from player 1's virtual stick every 8 ms (the board's polling rate).
+//!
+//! `WAL_EUROPAR_BOARD=rally3`: SEGA Rally 3's board instead (`0x57b2f0`: the device whose
+//! attributes read vendor 0x1043 product 0, any collection), 15-byte reports read by
+//! `0x57b640`: byte 1 wheel (and 2), 3 brake, 4 gas, 6 buttons 0x01 start, 0x02 handbrake,
+//! 0x04 view change, 0x08 shift up, 0x10 shift down.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
@@ -72,6 +77,19 @@ fn opened(handle: usize) -> Option<usize> {
 const HIDP_STATUS_SUCCESS: u32 = 0x0011_0000;
 const ERROR_NO_MORE_ITEMS: u32 = 0x103;
 
+/// SEGA Rally 3's board (`WAL_EUROPAR_BOARD=rally3`).
+static RALLY3: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn rally3() -> bool {
+    RALLY3.load(Ordering::Relaxed)
+}
+
+/// SEGA Rally 3's natives (report byte 6) and default map.
+const RALLY3_NATIVES: &[(&str, u8)] =
+    &[("start", 0x01), ("handbrake", 0x02), ("view", 0x04), ("shift_up", 0x08), ("shift_down", 0x10)];
+const RALLY3_MAP: &[(&str, &str)] =
+    &[("start", "start"), ("b1", "shift_up"), ("b2", "shift_down"), ("b3", "view"), ("b4", "handbrake")];
+
 /// Native inputs: the button bits of report byte 6.
 const NATIVES: &[(&str, u8)] =
     &[("shift_up", 0x01), ("shift_down", 0x02), ("start", 0x04), ("view", 0x08), ("test", 0x10), ("service", 0x20)];
@@ -106,19 +124,19 @@ static ORIG_READ_FILE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CLOSE_HANDLE: AtomicUsize = AtomicUsize::new(0);
 
 fn map() -> &'static ButtonMap<u8> {
-    MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP))
+    MAP.get_or_init(|| if rally3() { ButtonMap::new(RALLY3_NATIVES, RALLY3_MAP) } else { ButtonMap::new(NATIVES, DEFAULT_MAP) })
 }
 
 /// The COIN DROP report: the coin counter.
-fn coin_report() -> [u8; 8] {
+fn coin_report() -> [u8; 16] {
     let coins = COINS.load(Ordering::Relaxed) as u16;
-    let mut r = [0u8; 8];
+    let mut r = [0u8; 16];
     r[1..3].copy_from_slice(&coins.to_le_bytes());
     r
 }
 
-/// The JOYSTICK report from player 1.
-fn report() -> [u8; 8] {
+/// The JOYSTICK report from player 1 (8 bytes; SEGA Rally 3's board: 15).
+fn report() -> [u8; 16] {
     let stick = wal_payload_common::input(0);
     let mut buttons = 0u8;
     map().for_each_pressed(&stick, |b| buttons |= b);
@@ -128,11 +146,17 @@ fn report() -> [u8; 8] {
     if LAST_BUTTONS.swap(buttons as u32, Ordering::Relaxed) != buttons as u32 {
         log!("happ: buttons {buttons:#04x}");
     }
-    let mut r = [0u8; 8];
+    let mut r = [0u8; 16];
     r[1] = stick.axis_u8(Axis::LeftX);
-    r[2] = 0x80;
-    r[3] = stick.axis_u8(Axis::Accel);
-    r[5] = stick.axis_u8(Axis::Brake);
+    if rally3() {
+        r[2] = r[1];
+        r[3] = stick.axis_u8(Axis::Brake);
+        r[4] = stick.axis_u8(Axis::Accel);
+    } else {
+        r[2] = 0x80;
+        r[3] = stick.axis_u8(Axis::Accel);
+        r[5] = stick.axis_u8(Axis::Brake);
+    }
     r[6] = buttons;
     r
 }
@@ -188,8 +212,9 @@ unsafe extern "system" fn get_attributes(handle: usize, attr: *mut u8) -> u8 {
         return 0;
     }
     unsafe {
-        (attr.add(4) as *mut u16).write_unaligned(0x078b);
-        (attr.add(6) as *mut u16).write_unaligned(0x0010);
+        let (vendor, product) = if rally3() { (0x1043, 0) } else { (0x078b, 0x0010) };
+        (attr.add(4) as *mut u16).write_unaligned(vendor);
+        (attr.add(6) as *mut u16).write_unaligned(product);
         (attr.add(8) as *mut u16).write_unaligned(0x0100);
     }
     1
@@ -215,7 +240,7 @@ unsafe extern "system" fn get_caps(preparsed: usize, caps: *mut u16) -> u32 {
         std::ptr::write_bytes(caps as *mut u8, 0, 64);
         *caps = c.usage;
         *caps.add(1) = c.page;
-        *caps.add(2) = c.len;
+        *caps.add(2) = if rally3() { 15 } else { c.len };
     }
     log!("happ: HidP_GetCaps: collection {:#x}/{:#x}", c.page, c.usage);
     HIDP_STATUS_SUCCESS
@@ -268,6 +293,10 @@ unsafe extern "system" fn close_handle(handle: usize) -> i32 {
 
 /// `shell`: the GameShell (the COIN DROP collection too, its coins from player 1's coin).
 pub(crate) fn init(shell: bool) {
+    if std::env::var("WAL_EUROPAR_BOARD").is_ok_and(|v| v.trim().eq_ignore_ascii_case("rally3")) {
+        RALLY3.store(true, Ordering::Relaxed);
+        log!("happ: SEGA Rally 3's board");
+    }
     map();
     if shell {
         COUNT.store(2, Ordering::Relaxed);

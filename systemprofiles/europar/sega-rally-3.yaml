@@ -1,0 +1,84 @@
+# SEGA Rally 3 (Sega Racing Studio / Sega Amusements Europe, 2008), Sega Europa-R racing game
+# with a wheel, pedals, a sequential shifter, a handbrake and a view button: Rally/Rally.exe,
+# its USB I/O board (HID), force feedback (parallel port) played by the payload.
+# Override values in userprofiles/europar/sega-rally-3.yaml.
+system: europar
+name: SEGA Rally 3
+
+# the payload as the game's xinput1_3.dll (imported; it loads inpout32.dll at run time)
+payload_install: [Rally/xinput1_3.dll]
+dll_overrides:
+  xinput1_3: n
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    a: b4
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  WAL_EUROPAR_BOARD: rally3
+  WAL_EUROPAR_FFB_FORMAT: rally3
+  WAL_EUROPAR_FFB: "100"
+  # its credit count: a coin adds one
+  WAL_EUROPAR_CREDITS: "0x741748"
+  # free play (over config.ini's [Credit] Freeplay): off, a coin per game
+  WAL_EUROPAR_FREEPLAY: "0"
+  # 1280x720 (the cabinet's) or 1920x1080, full screen
+  WAL_EUROPAR_RESOLUTION: 1280x720
+  # 1920x1080: the in-race timer, "time extended", "final lap" and countdown centered (their
+  # x from the screen width, replaced by tuned constants)
+  WAL_EUROPAR_PATCHES_1920: "0x1a6f28:66BA2805909090,0x19ea49:66B97805909090,0x19e806:66B94B05909090,0x1a48e5:BA280500009090"
+  # it reads the PC keyboard and joysticks through DirectInput
+  WAL_DINPUT_DISABLE: "1"
+  WAL_KEYBOARD_STATE_DISABLE: "1"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_EUROPAR_RESOLUTION
+        label: Resolution
+        kind: choice
+        choices: [1280x720, 1920x1080]
+        description: >-
+          The game's full screen mode. 1280x720 was the cabinet's; 1920x1080 is sharper (the
+          in-race texts' positions adjusted).
+  - title: Game
+    options:
+      - key: WAL_EUROPAR_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: a coin per game.
+  - title: Force feedback
+    options:
+      - key: WAL_EUROPAR_FFB
+        label: Strength (%)
+        kind: number
+        min: 0
+        max: 200
+        description: The wheel motor's force, in percent of the game's.
+
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Shift Up
+  b2: Shift Down
+  b3: View Change
+  b4: Handbrake

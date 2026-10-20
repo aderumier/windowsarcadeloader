@@ -1,8 +1,10 @@
-//! Sega Europa-R payload (Ford Racing Full Blown).
+//! Sega Europa-R payload (Ford Racing Full Blown, SEGA Rally 3).
 //!
-//! The game imports `inpout32.dll` (parallel port access, the force feedback board) statically:
-//! this DLL takes its place in the run directory, so it loads before the game code without any
-//! injector.
+//! Ford Racing imports `inpout32.dll` (parallel port access, the force feedback board)
+//! statically: this DLL takes its place in the run directory, so it loads before the game code
+//! without any injector. SEGA Rally 3 loads `inpout32.dll` at run time (`LoadLibraryA`, then
+//! `Out32` by name) and imports `xinput1_3.dll`: the payload is installed as that one (its
+//! `XInput*` exports: no pad), and its `LoadLibraryA` of `inpout32.dll` gets this DLL.
 //!
 //! * `happ.rs`: the Happ UGCI USB board (HID: wheel, pedals, buttons), found through SetupAPI
 //!   and read with `ReadFile`, emulated from the virtual sticks.
@@ -22,15 +24,40 @@ mod shell;
 mod testmenu;
 
 use std::ffi::c_void;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use wal_payload_common::{log, patches};
+use wal_payload_common::{iat, log, patches};
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 
+/// This DLL.
+static MODULE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_LOAD_LIBRARY: AtomicUsize = AtomicUsize::new(0);
+/// `LoadLibraryA("./inpout32.dll")` (SEGA Rally 3): this DLL, whatever its file name.
+unsafe extern "system" fn load_library(name: *const u8) -> usize {
+    if !name.is_null() {
+        let n = unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy().to_ascii_lowercase();
+        if n.rsplit(['/', '\\']).next() == Some("inpout32.dll") {
+            log!("europar: LoadLibraryA({n:?}): the payload");
+            return MODULE.load(Ordering::Relaxed);
+        }
+    }
+    let f: unsafe extern "system" fn(*const u8) -> usize = unsafe { std::mem::transmute(ORIG_LOAD_LIBRARY.load(Ordering::Relaxed)) };
+    unsafe { f(name) }
+}
+
 #[unsafe(no_mangle)]
-pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
+pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
+        MODULE.store(module as usize, Ordering::Relaxed);
         wal_payload_common::start("europar");
+        if let Some(o) = unsafe { iat::hook("kernel32.dll", "LoadLibraryA", load_library as *const () as usize) } {
+            ORIG_LOAD_LIBRARY.store(o, Ordering::Relaxed);
+        }
+        // SEGA Rally 3 imports xinput1_3.dll's ordinals 2-5: ordinal 2 (XInputGetState) is
+        // Out32 in this DLL's export table
+        let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+        unsafe { iat::hook_ordinal(exe, "xinput1_3.dll", 2, xinput_get_state as *const () as usize) };
         if testmenu::is_test_menu() {
             // the GameShell's test menu (loaded by wal-loader)
             happ::init(true);
@@ -40,7 +67,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             patches::apply();
             settings::init();
             happ::init(false);
-            shell::init();
+            // SEGA Rally 3 counts its credits itself (no GameShell window)
+            match credits_rva() {
+                Some(rva) => count_coins(rva),
+                None => shell::init(),
+            }
             testmenu::watch_game();
             log!("europar: initialized");
         }
@@ -60,3 +91,48 @@ pub extern "system" fn inp32(port: i16) -> i16 {
 pub extern "system" fn out32(port: i16, data: i16) {
     ffb::out(port as u16, data as u16);
 }
+
+/// `WAL_EUROPAR_CREDITS=<rva>`: the game's credit count (u32, SEGA Rally 3: `0x741748`, the
+/// object at `0x741738`; a game starts when it is above 0 unless in free play): each coin of
+/// player 1 adds one.
+fn credits_rva() -> Option<usize> {
+    let v = std::env::var("WAL_EUROPAR_CREDITS").ok()?;
+    usize::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()
+}
+
+fn count_coins(rva: usize) {
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    std::thread::spawn(move || {
+        let mut held = false;
+        loop {
+            let coin = wal_payload_common::input(0).pressed(wal_protocol::button::COIN);
+            if coin && !held {
+                let credits = unsafe { &*((base + rva) as *const std::sync::atomic::AtomicU32) };
+                log!("europar: coin, {} credits", credits.fetch_add(1, Ordering::Relaxed) + 1);
+            }
+            held = coin;
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    });
+}
+
+const ERROR_DEVICE_NOT_CONNECTED: u32 = 1167;
+
+/// `XInputGetState(user, state)`: no pad (the cabinet's controls are its board's).
+#[unsafe(no_mangle)]
+pub extern "system" fn xinput_get_state(_user: u32, _state: *mut c_void) -> u32 {
+    ERROR_DEVICE_NOT_CONNECTED
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn xinput_set_state(_user: u32, _vibration: *mut c_void) -> u32 {
+    ERROR_DEVICE_NOT_CONNECTED
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn xinput_get_capabilities(_user: u32, _flags: u32, _caps: *mut c_void) -> u32 {
+    ERROR_DEVICE_NOT_CONNECTED
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn xinput_enable(_enable: i32) {}
