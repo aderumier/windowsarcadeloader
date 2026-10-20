@@ -22,6 +22,7 @@
 //! map more axes (Rx, Ry, Rz are listed only when mapped: GRID's "SEGA IO Controller" has its
 //! gas on Rx); `WAL_DINPUT_WHEEL_BUTTONS=<virtual button>,...` gives the buttons in order
 //! (`none` for an unused one; default: b1-b8, start, coin, service, test).
+//! `WAL_DINPUT_WHEEL_FFB=0`: no force feedback (`CreateEffect` unsupported).
 //!
 //! `WAL_DINPUT_BOARD=<product name or 1>`: the same fake DirectInput, with one cabinet button
 //! box (26 buttons, the Injustice cabinet's layout): the players' fight buttons, coins, start,
@@ -168,6 +169,11 @@ unsafe extern "system" fn create_device(_this: P, _guid: P, out: *mut P, _outer:
     DI_OK
 }
 
+unsafe extern "system" fn enum_by_semantics(_this: P, _user: P, _format: P, _cb: P, _ctx: P, _flags: u32) -> i32 {
+    log!("dinput: EnumDevicesBySemantics: none");
+    DI_OK
+}
+
 /// IDirectInput8 (IDirectInputA/2/7 share the first 8 slots; IDirectInput7's CreateDeviceEx
 /// sits where FindDevice is, with one more argument: not used by these games).
 static DINPUT_VTABLE: VTable<11> = VTable([
@@ -180,7 +186,7 @@ static DINPUT_VTABLE: VTable<11> = VTable([
     ok2 as *const (), // RunControlPanel
     ok2 as *const (), // Initialize
     unsupported3 as *const (), // FindDevice
-    ok5 as *const (), // EnumDevicesBySemantics
+    enum_by_semantics as *const (), // EnumDevicesBySemantics: none
     unsupported4 as *const (), // ConfigureDevices
 ]);
 static DINPUT: Object = Object { vtable: DINPUT_VTABLE.0.as_ptr() };
@@ -429,6 +435,7 @@ mod wheel {
 
     type EnumCallback = unsafe extern "system" fn(*const u8, P) -> i32;
 
+
     /// Whether an `EnumDevices` type filter takes the wheel: all devices, game controllers
     /// (DI8DEVCLASS_GAMECTRL), driving devices.
     fn listed(filter: u32) -> bool {
@@ -438,9 +445,14 @@ mod wheel {
     unsafe fn enum_devices(filter: u32, cb: EnumCallback, context: P, wide: bool) -> i32 {
         if listed(filter) {
             let mut instance = [0u8; 0x44C];
-            unsafe {
+            let r = unsafe {
                 device_instance(instance.as_mut_ptr(), wide);
-                cb(instance.as_ptr(), context);
+                cb(instance.as_ptr(), context)
+            };
+            static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            if !LOGGED.swap(true, Ordering::Relaxed) {
+                let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+                log!("dinput: EnumDevices(type {filter:#x}): the wheel, to the game's callback +{:#x} -> {r}", (cb as usize).wrapping_sub(exe));
             }
         }
         DI_OK
@@ -460,6 +472,7 @@ mod wheel {
             return super::DIERR_DEVICENOTREG;
         }
         let is_wheel = !guid.is_null() && unsafe { std::slice::from_raw_parts(guid, 16) } == INSTANCE;
+        log!("dinput: CreateDevice({})", if is_wheel { "the wheel" } else { "another device" });
         let device: &Object = match (is_wheel, wide) {
             (true, false) => &WHEEL_A,
             (true, true) => &WHEEL_W,
@@ -491,6 +504,13 @@ mod wheel {
     /// DIDC_ATTACHED | DIDC_FORCEFEEDBACK.
     const CAPS_FLAGS: u32 = 1 | 0x100;
 
+    /// The wheel's force feedback (`WAL_DINPUT_WHEEL_FFB=0`: none, for games whose cabinet
+    /// motor is driven elsewhere, Showdown's parallel port board).
+    fn ffb() -> bool {
+        static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *ON.get_or_init(|| !std::env::var("WAL_DINPUT_WHEEL_FFB").is_ok_and(|v| v.trim() == "0"))
+    }
+
     /// `GetCapabilities(lpDIDevCaps)`: DIDEVCAPS, attached, FFB capable, 3 axes.
     unsafe extern "system" fn get_capabilities(_this: P, caps: *mut u32) -> i32 {
         if !caps.is_null() {
@@ -499,7 +519,8 @@ mod wheel {
                 std::ptr::write_bytes(caps.add(1) as *mut u8, 0, size - 4);
                 // dwFlags, dwDevType, dwAxes, dwButtons, dwPOVs, then the FFB timing fields.
                 let axes = LISTED_AXES.load(Ordering::Relaxed) as u32;
-                for (i, v) in [CAPS_FLAGS, DEV_TYPE, axes, 32, 0, 10_000, 1, 1, 1, 0x0001_0000].into_iter().enumerate() {
+                let flags = if ffb() { CAPS_FLAGS } else { CAPS_FLAGS & !0x100 };
+                for (i, v) in [flags, DEV_TYPE, axes, 32, 0, 10_000, 1, 1, 1, 0x0001_0000].into_iter().enumerate() {
                     if 4 * (i + 2) <= size {
                         *caps.add(i + 1) = v;
                     }
@@ -855,6 +876,9 @@ mod wheel {
         if out.is_null() {
             return super::DIERR_DEVICENOTREG;
         }
+        if !ffb() {
+            return super::DIERR_UNSUPPORTED;
+        }
         if !guid.is_null() {
             unsafe { EFFECT_GUID.lock().unwrap().copy_from_slice(std::slice::from_raw_parts(guid, 16)); }
         }
@@ -1054,6 +1078,15 @@ mod board {
 
     type EnumCallback = unsafe extern "system" fn(*const u8, P) -> i32;
 
+    /// `WAL_DINPUT_WHEEL_DELAY_MS=<n>`: the wheel listed only `n` milliseconds after the game's
+    /// first enumeration (a device plugged in later, for games polling for devices).
+    fn plugged() -> bool {
+        static FIRST: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        let first = *FIRST.get_or_init(std::time::Instant::now);
+        let delay = std::env::var("WAL_DINPUT_WHEEL_DELAY_MS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+        first.elapsed() >= std::time::Duration::from_millis(delay)
+    }
+
     /// Whether an `EnumDevices` type filter takes the board: all devices (and the HID
     /// super-type), the game controller class (DI8DEVCLASS_GAMECTRL), HID gamepad and
     /// joystick types, all input devices.
@@ -1062,6 +1095,7 @@ mod board {
     }
 
     unsafe fn enum_devices(filter: u32, cb: EnumCallback, context: P, wide: bool) -> i32 {
+        log!("dinput: EnumDevices(type {filter:#x}){}", if listed(filter) { ": the wheel" } else { "" });
         if listed(filter) {
             let mut instance = [0u8; 0x24C];
             unsafe {

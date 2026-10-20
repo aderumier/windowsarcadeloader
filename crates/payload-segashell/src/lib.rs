@@ -3,6 +3,13 @@
 //! * The Shell's TCP service (`shell.rs`): the game's events, the credits.
 //! * The I/O board (`board.rs`): the game's board update replaced (`WAL_SEGASHELL_BOARD`).
 //! * Profile code patches (`WAL_PATCHES`).
+//! * The Shell's settings the game reads itself (`settings.rs`), overridden by the profile.
+//! * Rapture3D's sound settings (`rapture3d.rs`).
+//! * `WAL_SEGASHELL_PC_INPUT_HIDDEN=1`: the PC's keyboard, mouse and pads hidden from the game
+//!   (`input.rs`).
+//! * Force feedback on the parallel port (Showdown imports `inpout32.dll`'s `Out32`, ordinal
+//!   2): its import made the payload's, the bytes decoded by payload-common's `port_ffb`
+//!   (`WAL_SEGASHELL_FFB`, `WAL_SEGASHELL_FFB_FORMAT`).
 //! * The game's resolution (`WAL_SEGASHELL_DEFAULT_RESOLUTION=<rva>`): its
 //!   `DefaultResolution()` made to return 1280x720 (index 14) unless `WAL_SEGASHELL_FULLHD=1`
 //!   (its own choice: 1920x1080).
@@ -10,6 +17,9 @@
 //!   (`WAL_SEGASHELL_TEST_MENU`), which gets its own patches and inputs.
 
 mod board;
+mod input;
+mod rapture3d;
+mod settings;
 mod shell;
 mod testmenu;
 
@@ -30,12 +40,36 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         }
         patches::apply();
         resolution();
+        settings::init();
+        rapture3d::init();
         board::init();
+        parallel_port();
+        if std::env::var("WAL_SEGASHELL_PC_INPUT_HIDDEN").is_ok_and(|v| v.trim() == "1") {
+            input::init();
+        }
         shell::start();
         testmenu::watch_game();
         log!("segashell: initialized");
     }
     TRUE
+}
+
+/// The game's `inpout32.dll` imports (by ordinal: 1 `Inp32`, 2 `Out32`; its driver is not
+/// there): the payload's.
+fn parallel_port() {
+    let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    unsafe {
+        wal_payload_common::iat::hook_ordinal(exe, "inpout32.dll", 1, inp32 as *const () as usize);
+        wal_payload_common::iat::hook_ordinal(exe, "inpout32.dll", 2, out32 as *const () as usize);
+    }
+}
+
+extern "system" fn inp32(_port: i16) -> i16 {
+    0
+}
+
+extern "system" fn out32(port: i16, data: i16) {
+    wal_payload_common::port_ffb::out("WAL_SEGASHELL", port as u16, data as u16);
 }
 
 /// `WAL_SEGASHELL_DEFAULT_RESOLUTION`: 1280x720 unless `WAL_SEGASHELL_FULLHD=1`.

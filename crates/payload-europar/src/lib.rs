@@ -10,14 +10,14 @@
 //!   and read with `ReadFile`, emulated from the virtual sticks.
 //! * `shell.rs`: the cabinet's GameShell (coins, credits): its window, the game's
 //!   `WM_COPYDATA` messages answered.
-//! * `ffb.rs`: force feedback, the bytes the game writes to the parallel port (`Out32`).
+//! * Force feedback: the bytes the game writes to the parallel port (`Out32`, payload-common's
+//!   `port_ffb`).
 //! * `settings.rs`: operator settings (resolution, free play) from profile options.
 //! * `testmenu.rs`: TEST runs the GameShell's test menu (the payload is loaded there too).
 //! * Profile code patches (`WAL_PATCHES`).
 
 #![allow(non_snake_case)]
 
-mod ffb;
 mod happ;
 mod settings;
 mod shell;
@@ -98,7 +98,7 @@ pub extern "system" fn inp32(port: i16) -> i16 {
 /// `void Out32(short port, short data)`: the force feedback board on the parallel port.
 #[unsafe(no_mangle)]
 pub extern "system" fn out32(port: i16, data: i16) {
-    ffb::out(port as u16, data as u16);
+    wal_payload_common::port_ffb::out("WAL_EUROPAR", port as u16, data as u16);
 }
 
 /// `WAL_EUROPAR_CREDITS=<rva>`: the game's credit count (u32, SEGA Rally 3: `0x741748`, the

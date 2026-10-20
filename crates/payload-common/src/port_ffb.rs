@@ -1,4 +1,8 @@
-//! Force feedback: the board on the parallel port (`Out32`).
+//! Force feedback boards on the parallel port (`inpout32.dll`'s `Out32`): Sega Europa-R
+//! games (`WAL_EUROPAR_FFB*`) and Showdown (`WAL_SEGASHELL_FFB*`), the payload's [`out`] given
+//! its variables' prefix.
+//!
+//! Ford Racing (the default format):
 //!
 //! The game (`0x467990`) scales its steering force (-1..=1) by the operator's strength
 //! (`[ForceFeedback] Strength` of `calibration.ini`, 0..=31, / 15) to -15..=15 and writes one
@@ -8,36 +12,40 @@
 //!
 //! In a race it writes twice per frame, an opposite force then the one that stays until the
 //! next frame (`0x4a20c0` then `0x4a2020`): the motor follows the byte that stays. The port is
-//! sampled every 4 ms, its byte becomes a constant force (`WAL_EUROPAR_FFB`, percent,
-//! default 100): a positive force pushes the wheel to the right.
+//! sampled every 4 ms, its byte becomes a constant force (`<prefix>_FFB`, percent, default
+//! 100): a positive force pushes the wheel to the right.
 //!
-//! `WAL_EUROPAR_FFB_FORMAT=rally3`: SEGA Rally 3 (`0x5c8600`) writes to port 0x1020 the low
+//! `<prefix>_FFB_FORMAT=rally3`: SEGA Rally 3 (`0x5c8600`) writes to port 0x1020 the low
 //! nibble `16 - |force| * 15` (1 strongest, 0 none) with bit 0x10 set for a positive force;
 //! its positive force pushes the wheel to the right too.
 //!
-//! `WAL_EUROPAR_FFB_FORMAT=grid`: GRID (`0xb9c900`) writes to port 0x1020 the low nibble
+//! `<prefix>_FFB_FORMAT=grid`: GRID (`0xb9c900`) writes to port 0x1020 the low nibble
 //! `15 - |force| * 15` (at least 1: 15 none, 1 strongest) with bit 0x10 set for a negative
-//! force.
+//! force. Showdown (`0xd2dd80`) the same, `15 - |force| * 14` for a positive force.
 
 use std::sync::Once;
 use std::sync::atomic::{AtomicI32, AtomicU8, Ordering};
 use std::time::Duration;
 
-use wal_payload_common::{log, send_output};
+use std::sync::OnceLock;
+
+use crate::{log, send_output};
 use wal_protocol::output;
 
 static LAST: AtomicI32 = AtomicI32::new(i32::MIN);
 /// The data port's byte.
 static PORT: AtomicU8 = AtomicU8::new(0);
 static LOGGED: AtomicI32 = AtomicI32::new(0);
+/// The strength, percent (`<prefix>_FFB`).
+static PERCENT: OnceLock<i32> = OnceLock::new();
 
 fn percent() -> i32 {
-    std::env::var("WAL_EUROPAR_FFB").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(100)
+    PERCENT.get().copied().unwrap_or(100)
 }
 
-/// SEGA Rally 3's encoding (`WAL_EUROPAR_FFB_FORMAT=rally3`, port 0x1020).
+/// SEGA Rally 3's encoding (`<prefix>_FFB_FORMAT=rally3`, port 0x1020).
 static RALLY3: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-/// GRID's encoding (`WAL_EUROPAR_FFB_FORMAT=grid`, port 0x1020).
+/// GRID's encoding (`<prefix>_FFB_FORMAT=grid`, port 0x1020).
 static GRID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// GRID's byte -> its force, -15..=15.
@@ -65,10 +73,13 @@ fn force(byte: u8) -> i32 {
     }
 }
 
-pub(crate) fn out(port: u16, data: u16) {
+/// `Out32(port, data)` of the game; `prefix` names its variables (`WAL_EUROPAR`: `WAL_EUROPAR_FFB`,
+/// `WAL_EUROPAR_FFB_FORMAT`).
+pub fn out(prefix: &str, port: u16, data: u16) {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        let format = std::env::var("WAL_EUROPAR_FFB_FORMAT").unwrap_or_default().trim().to_ascii_lowercase();
+        let _ = PERCENT.set(std::env::var(format!("{prefix}_FFB")).ok().and_then(|v| v.trim().parse().ok()).unwrap_or(100));
+        let format = std::env::var(format!("{prefix}_FFB_FORMAT")).unwrap_or_default().trim().to_ascii_lowercase();
         match format.as_str() {
             "rally3" => RALLY3.store(true, Ordering::Relaxed),
             "grid" => GRID.store(true, Ordering::Relaxed),

@@ -1,0 +1,94 @@
+# Showdown (Codemasters / Sega Amusements, 2014), demolition / racing game with a wheel,
+# pedals, boost and view buttons on a Windows PC run by Sega's Shell:
+# Showdown/Showdown.exe; the payload plays the Shell and the I/O board.
+# Its sound driver is Rapture3D 2.7.4 (Blue Ripple Sound's OpenAL): the dump needs the
+# rapture3d_oal.dll and OpenAL32.dll of its installer (Showdown/Rapture3D audio installer,
+# Inno Setup: innoextract, sys/) in Showdown/, in place of the older 2.6.5 ones it ships.
+# Override values in userprofiles/segashell/showdown.yaml.
+system: segashell
+name: Showdown
+# Rapture3D's runtime; the game's shader compiler
+tricks: [vcrun2010, d3dcompiler_43, d3dx11_43]
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r1: b1
+    y: b2
+    x: b3
+    l1: b4
+    b: b5
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # the Shell's protocol of this game (DSW packets, the cabinet's configuration on launch)
+  WAL_SEGASHELL_PROTOCOL: dsw
+  # the cabinet's c:\sega\Shell and c:\sega\ShellData (shell settings, operator settings):
+  # the dump's own folders, from the game's directory; its DirectInput devices are taken only
+  # when a USB device of the same vendor / product is found (and is not an XInput pad,
+  # 0x961df0): the board (the payload's) taken; the force feedback processor's handler of a
+  # new device (0xc0c8e0) uses the processor's lock while the processor is not there (a
+  # crash): the device taken as without force feedback (the motor is the parallel port's)
+  WAL_PATCHES: "0x961df0:33C0C20400,0x80c8fb:E9B900000090,0xb88c00:2E2E5C7368656C6C00,0xb88c10:2E2E5C5368656C6C446174615C5368656C6C446174612E696E6900,0xb88c3c:2E2E5C5368656C6C446174615C47616D6553657474696E67732E696E6900,0xb5e404:2E2E5C5368656C6C446174615C00"
+  # ShellData.ini (the Shell's operator settings, read by the game): the dump's AttractMusic=20
+  # (a later Shell's music volume) is refused by the game (0-3: no Shell connection, crash)
+  WAL_SEGASHELL_INI: "Audio/AttractMusic=2"
+  # free play (over ShellData.ini): off, a coin per game
+  WAL_SEGASHELL_FREEPLAY: "0"
+  # its sound driver, Rapture3D: the settings of the cabinet's SetupAudioRegistry.bat
+  WAL_SEGASHELL_RAPTURE3D: "showdown.pfl,Stereo.reg"
+  # the cabinet's board, a DirectInput game controller "SEGA IO Controller"
+  # (win/actionmap/sega_controller.xml): X the wheel, Z the brake, Rx the gas, buttons
+  # 0 start, 1 view, 2 boost, 3 music up, 4 music down, 5 reset car
+  WAL_DINPUT_WHEEL: SEGA IO Controller
+  WAL_DINPUT_WHEEL_Z_AXIS: brake
+  WAL_DINPUT_WHEEL_RX_AXIS: accel
+  WAL_DINPUT_WHEEL_BUTTONS: "start,b2,b1,b4,b5,b3"
+  # its force feedback is the parallel port board's (below): the DirectInput one is not
+  # offered (the game's DirectInput effect code crashes on the fake effect)
+  WAL_DINPUT_WHEEL_FFB: "0"
+  # its PC keyboard, mouse and pads hidden (input from the launcher only)
+  WAL_SEGASHELL_PC_INPUT_HIDDEN: "1"
+  # force feedback: the parallel port board (Out32, port 0x378, Ford Racing's encoding)
+  WAL_SEGASHELL_FFB: "100"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_SEGASHELL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: a coin per game.
+  - title: Force feedback
+    options:
+      - key: WAL_SEGASHELL_FFB
+        label: Strength (%)
+        kind: number
+        min: 0
+        max: 200
+        description: The wheel motor's force, in percent of the game's.
+
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  service: none
+  test: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Boost
+  b2: View Change
+  b3: Reset Car
+  b4: Music Up
+  b5: Music Down

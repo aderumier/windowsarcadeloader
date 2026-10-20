@@ -610,7 +610,8 @@ profile), `show` (merged profile).
   (`none`: unused; default b1-b8, start, coin, service, test). The wheel follows the game's
   `SetDataFormat` (each object at the offset the game gives it) and answers
   `DIPROP_LOGICALRANGE` / `DIPROP_PHYSICALRANGE` like `DIPROP_RANGE` (GRID scales its axes by
-  the logical range).
+  the logical range). `WAL_DINPUT_WHEEL_FFB=0`: no force feedback capability,
+  `CreateEffect` unsupported (Showdown).
 * `mouse_stick`: `WAL_DINPUT_MOUSE_STICK=<speed>` keeps the real DirectInput 8 and wraps the
   system mouse device's `GetDeviceState` (vtable slots patched from `DirectInput8Create` /
   `CreateDevice`): player 1's left stick is added to its relative X / Y, `<speed>` counts per
@@ -1613,6 +1614,52 @@ payload `wal_segashell.dll` loaded by `wal-loader`.
   copies the dump's own `Sega/shell/Game.ini` into the run tree, which makes that folder a
   real directory there (logs in the prefix, not the dump).
 
+**Showdown** (Codemasters / Sega Amusements, 2014; `Showdown/Showdown.exe`, Direct3D 11, the
+Ego engine of DiRT Showdown; no symbols). An earlier Shell protocol and a PC game made arcade:
+
+- **Shell paths.** It reads `c:\sega\Shell` (`Game.ini`) and `c:\sega\ShellData\*.ini`: the
+  profile patches the four strings to `..\shell`, `..\ShellData\...` (the dump's folders).
+  Its config manager validates `ShellData.ini` (`0x5aeff0`, each value against a maximum):
+  the dump's `[Audio] AttractMusic=20` (a later Shell's volume; the game takes 0-3) fails it,
+  no Shell manager, a crash at once. `settings.rs`: `WAL_SEGASHELL_INI=<section>/<key>=<value>,...`
+  answers the game's `GetPrivateProfileIntA` / `StringA` (`Audio/AttractMusic=2`),
+  `WAL_SEGASHELL_FREEPLAY` its `Credit/Freeplay`.
+- **Shell protocol (`WAL_SEGASHELL_PROTOCOL=dsw`).** The same packets with the magic `DSW` and
+  one numbering both ways (names at `0x594920`): game 0x01 ack, 0x03 `LAUNCHED_OK`, 0x04
+  `ASSETS_LOADED`, 0x05 `CREDITUSED`, 0x06/0x07/0x08 game start / end / continue, 0x09
+  security challenge, 0x0a event, 0x0b state (attract states every 5 seconds), 0x0c shutdown;
+  Shell 0x0d `SETCREDIT` (data byte 0: the count), 0x0e `SECURITY_AUTHENTICATE`, 0x0f `EXIT`,
+  0x10 `SET_SKU`, 0x11 keypad, bonus codes, 0x18 motion base, 0x19 QR code, 0x1a spoofed
+  button. After `LAUNCHED_OK` the game waits 5 seconds for `SET_SKU` (handler `0x594640`, it
+  sets the event the boot waits on), else it sends `GAMESHUTDOWN` and quits. `SET_SKU` data
+  (16 bytes, `WAL_SEGASHELL_SKU` hex): 0 ?, 1 surround audio, 2 motion base, 3 seat belt, 4 age
+  rating shown, 5 external screen, 6 Blue Ripple logo shown, 8-11 screen preset (u32: 0 legacy,
+  1 standard, 2 super deluxe), 12-15 default view (u32: 0 bonnet, 1 chase). The payload sends
+  it, then the credits, on `LAUNCHED_OK`.
+- **Sound (`rapture3d.rs`).** OpenAL through Blue Ripple's Rapture3D (`OpenAL32.dll` router,
+  `rapture3d_oal.dll`; MSVC 2010 runtime: `vcrun2010`). The dump's 2.6.5 crashes; the cabinet
+  installs 2.7.4 (`Rapture3D audio installer/rapture3dgame_2.7.4_win.exe`, Inno Setup: its
+  `sys/` DLLs, extracted with innoextract, go in the dump's `Showdown/`). Its settings
+  (`HKCU\Software\BlueRippleSound`), set on the cabinet by `SetupAudioRegistry.bat`, are
+  needed too (without them `BadDataException`s, then a crash): `WAL_SEGASHELL_RAPTURE3D=<format
+  library>,<speakers .reg>` writes `Formats\UFL` (the game directory's `showdown.pfl`) and
+  `Speakers\Configuration` (the layout of its `Stereo.reg`) at start.
+- **I/O board.** A DirectInput game controller "SEGA IO Controller"
+  (`win/actionmap/sega_controller.xml`: X wheel, Z brake, Rx gas, buttons 0 start, 1 view, 2
+  boost, 3/4 music up/down, 5 reset car): the common fake wheel. The game polls `EnumDevices`
+  every 2 seconds and keeps a device only when a raw input HID device of its vendor / product
+  exists and is not an XInput pad (`0x961df0`): patched to "not an XInput pad". On a new
+  device the force feedback processor's handler (`0xc0c8e0`) takes the processor's lock
+  while the processor is gone (a freed lock, a crash): patched to its "no force feedback"
+  exit; `WAL_DINPUT_WHEEL_FFB=0` also offers no DirectInput force feedback.
+- **Force feedback.** `inpout32.dll`'s `Out32` (imported by ordinal 2; the dump's DLL needs its
+  driver): the payload takes the import. Port 0x378, Ford Racing's encoding (`0xd2dd80`), the
+  common `port_ffb` decoder (`WAL_SEGASHELL_FFB` percent).
+- **PC inputs (`input.rs`, `WAL_SEGASHELL_PC_INPUT_HIDDEN=1`).** Keyboard, mouse and raw input
+  messages dropped from its `PeekMessage`, raw input not registered, low level keyboard /
+  mouse hooks not installed, XInput without pads.
+- The game's own log: `OutputDebugString` (Wine `+debugstr`).
+
 ### 6.3f Wahlap (`crates/payload-wahlap`)
 
 Wahlap Technology's Windows PC cabinets (Storm Racer G, 2013, with Sega; Storm Rider below): the game
@@ -1695,7 +1742,7 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
   for it) owns the credits: a coin adds one, a game started takes one. The game reads free
   play itself (`[gamesettings] FreePlay`) but starts only with credits: in free play the shell
   gives 99 and never takes them. `WAL_EUROPAR_FREEPLAY` overrides the setting.
-- **Force feedback (`ffb.rs`).** `0x467990` scales the steering force (-1..1) by the operator's
+- **Force feedback (payload-common `port_ffb.rs`, shared with Showdown).** `0x467990` scales the steering force (-1..1) by the operator's
   strength (`[ForceFeedback] Strength`, 0..31 / 15) to -15..15 and writes one byte to the data
   port 0x378: 0 none, 1..15 positive (1 strongest), 16..30 negative (16 strongest). In a race it
   writes twice per frame, an opposite force then the one that stays (`0x4a20c0`, `0x4a2020`):
@@ -2053,6 +2100,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | `all_test/game/Gold/motobike.exe` (unprotected build), `motobikeio.dll` replaced (handlebar, throttle, brake, boost, menu buttons, coin counter, board memory in `assets/motobikeio.mem`, uncalibrated channels full range), dongle class answered, start = its own Enter key (real keyboard and XInput hidden), WMV9 movies, full screen |
 | `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | `FordRacing/fordracing.exe`, `inpout32.dll` replaced: Happ UGCI HID board (wheel, pedals, shift up/down, start, view), the GameShell's credits (coins, free play option), parallel port force feedback, 1024x768 (option); test menu (the GameShell's) not yet |
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
+| `showdown` | Showdown | segashell | works (user: 100%) | `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
 | `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

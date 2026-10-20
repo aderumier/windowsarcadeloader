@@ -38,6 +38,8 @@ pub mod mapping;
 pub mod paths;
 #[cfg(windows)]
 pub mod patches;
+// parallel port force feedback boards (inpout32 Out32)
+pub mod port_ffb;
 #[cfg(windows)]
 pub mod serial;
 #[cfg(windows)]
