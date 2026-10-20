@@ -1660,6 +1660,55 @@ statically. System `wahlap`, payload `wal_wahlap.dll` installed as `usb_io.dll`.
 - **Display.** Its 1360x768 window (`racing.cfg` `fullscreen = 0`) made a borderless
   screen-sized window, the picture stretched, 16:9 kept.
 
+### 6.3g Sega Europa-R (`crates/payload-europar`)
+
+Sega Amusements Europe's Windows PC cabinets (Ford Racing Full Blown, 2006): the game
+(`FordRacing/fordracing.exe`, Direct3D 9, DirectInput and DirectSound loaded at run time) runs
+beside the cabinet's GameShell (`GameShell/GameShell.exe`: coins, credits, operator menu,
+updates). It imports `inpout32.dll` (the parallel port: the force feedback board) statically.
+System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `inpout32.dll`
+(`Inp32` / `Out32` at ordinals 1 / 2).
+
+- **I/O board (`happ.rs`).** A Happ UGCI (`USB\VID_078B&PID_0010`), a HID device with several
+  top-level collections. The game (`0x4de1f0`, the "HappAPI" code the shell shares) enumerates
+  the HID class with SetupAPI, opens each interface with `CreateFileA`, keeps vendor 0x078b
+  product 0x0010 (`HidD_GetAttributes`) and names each collection from `HidP_GetCaps` (table
+  `0x53c6b8`: usage page 1 / usage 4 "JOYSTICK", 0x91 / 2 "COIN DROP", 0x91 / 3 "WATCHDOG",
+  1 / 0x80 "SYSTEM", ...). Its thread `0x4de030` reads JOYSTICK with `ReadFile`, 8-byte reports:
+  byte 1 wheel, 3 gas, 5 brake (0..255, `data/calibration.ini`), 6 buttons (0x01 shift up,
+  0x02 shift down, 0x04 start, 0x08 view change; the shell's table at `0x431628` adds 0x10 TEST
+  and 0x20 SERVICE; a report whose byte 6 is 7 is dropped). All of it answered by IAT hooks,
+  one report per 8 ms read. COIN DROP (4 bytes, bytes 1-2 a coin counter) is read by the
+  shell only.
+- **GameShell (`shell.rs`).** The shell starts the game with `/h=<window>`; without it the
+  game looks for the window "Game Shell - Windowed" (`0x467ba0`), and without one gives itself
+  99 credits and free play. They talk with `WM_COPYDATA` (`dwData` the message): game -> shell
+  (`0x467720`, its sender thread) 8 its window, 4 a credit spent, 1 acknowledge, 5/6/7/10/11/12
+  game states; shell -> game (`0x467a20`) 3 the credit count (a higher one plays the coin
+  sound), 9 quit, 13 a coin sound. The payload's hidden window (created when the game looks
+  for it) owns the credits: a coin adds one, a game started takes one. The game reads free
+  play itself (`[gamesettings] FreePlay`) but starts only with credits: in free play the shell
+  gives 99 and never takes them. `WAL_EUROPAR_FREEPLAY` overrides the setting.
+- **Force feedback (`ffb.rs`).** `0x467990` scales the steering force (-1..1) by the operator's
+  strength (`[ForceFeedback] Strength`, 0..31 / 15) to -15..15 and writes one byte to the data
+  port 0x378: 0 none, 1..15 positive (1 strongest), 16..30 negative (16 strongest). In a race it
+  writes twice per frame, an opposite force then the one that stays (`0x4a20c0`, `0x4a2020`):
+  the port is sampled every 4 ms into a constant force (positive: to the right),
+  `WAL_EUROPAR_FFB` percent.
+- **Settings (`settings.rs`).** `WAL_EUROPAR_RESOLUTION` answers its `Resolution` read
+  (`0x466ac5`: 640x480, 800x600, 1024x768, 1280x1024, else 1600x1200), full screen, scaled
+  by Wine.
+- **Input.** DirectInput (keyboard, joysticks) is the common fake without devices
+  (`WAL_DINPUT_DISABLE`, which also covers `DirectInput8Create` resolved by `GetProcAddress`).
+- **Test menu (`testmenu.rs`, not enabled yet).** The operator menu is the GameShell's: TEST
+  (`WAL_EUROPAR_TEST_MENU`) relaunches into `GameShell.exe`, the payload injected by
+  `wal-loader` (the system's `program_loader`). Its security is patched
+  (`WAL_EUROPAR_SHELL_PATCHES`: the launcher program's CRC on its command line, `0x406975`;
+  the DS1991 iButton through `IBFS32.DLL`, `0x406ac1` and `GotValidIButton` `0x403b60`). Its
+  boot (state machine `0x4066cf`, states 2-0x10: update scan, backup copy to `d:\backup`...)
+  does not reach its game launch yet; jumping straight to the test menu state (0x14) shows a
+  blank page.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -1966,6 +2015,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched, d7vk; TODO: cabinet env (`C:\Tsunami\`, `launch.reg`) reproducible from the profile — see docs/REVOLT-DEBUG.md |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | `bin/racing.exe` (debug build), `usb_io.dll` replaced (wheel, gas, brake, coin switch, boost; start = its own Enter key, real keyboard and XInput hidden), force feedback (centering spring by speed, off-road vibration), WMV9 movies (`WMV9VCM.dll` in `bin/`, Wine AVIStreamRead fix), asserts answered, missing checkpoint billboards skipped, full screen |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | `all_test/game/Gold/motobike.exe` (unprotected build), `motobikeio.dll` replaced (handlebar, throttle, brake, boost, menu buttons, coin counter, board memory in `assets/motobikeio.mem`, uncalibrated channels full range), dongle class answered, start = its own Enter key (real keyboard and XInput hidden), WMV9 movies, full screen |
+| `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | `FordRacing/fordracing.exe`, `inpout32.dll` replaced: Happ UGCI HID board (wheel, pedals, shift up/down, start, view), the GameShell's credits (coins, free play option), parallel port force feedback, 1024x768 (option); test menu (the GameShell's) not yet |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

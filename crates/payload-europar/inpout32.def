@@ -1,0 +1,5 @@
+; Exports of inpout32.dll (parallel port access): Ford Racing imports Out32 by ordinal.
+LIBRARY inpout32
+EXPORTS
+    Inp32=inp32@4 @1
+    Out32=out32@8 @2

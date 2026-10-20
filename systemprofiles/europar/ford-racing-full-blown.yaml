@@ -1,0 +1,75 @@
+# Ford Racing Full Blown (Empire Interactive / Sega Amusements Europe, 2006), racing game with a
+# wheel, pedals, a sequential shifter (shift up / down) and a view button on a Windows PC run by
+# the cabinet's GameShell: FordRacing/fordracing.exe, its I/O (Happ UGCI USB board), shell
+# (coins, credits) and force feedback (parallel port) played by the payload.
+# Override values in userprofiles/europar/ford-racing-full-blown.yaml.
+system: europar
+name: Ford Racing Full Blown
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  # it reads the PC keyboard and joysticks through DirectInput (loaded at run time)
+  WAL_DINPUT_DISABLE: "1"
+  # full screen at 1024x768 (the cabinet's 640x480 is the dump's setting), 4:3 scaled by Wine
+  WAL_EUROPAR_RESOLUTION: 1024x768
+  # free play (over data/gamesettings.ini's): off, a coin per game
+  WAL_EUROPAR_FREEPLAY: "0"
+  WAL_EUROPAR_FFB: "100"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_EUROPAR_RESOLUTION
+        label: Resolution
+        kind: choice
+        choices: [640x480, 800x600, 1024x768, 1280x1024, 1600x1200]
+        description: >-
+          The game's full screen mode (4:3 or 5:4), scaled to the screen. 640x480 was the
+          cabinet's. A mode taller than the screen cannot be set.
+  - title: Game
+    options:
+      - key: WAL_EUROPAR_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: a coin per game.
+  - title: Force feedback
+    options:
+      - key: WAL_EUROPAR_FFB
+        label: Strength (%)
+        kind: number
+        min: 0
+        max: 200
+        description: >-
+          The wheel motor's force, in percent of the game's (which follows the operator's
+          strength, data/calibration.ini).
+
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Shift Up
+  b2: Shift Down
+  b3: View Change
+  # the operator menu is the cabinet's GameShell.exe: not available yet
+  test: none
+  service: none

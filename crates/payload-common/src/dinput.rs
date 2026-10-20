@@ -221,6 +221,26 @@ unsafe extern "system" fn create_iid(_instance: P, _version: u32, iid: *const u3
     fake(out, wide)
 }
 
+static ORIG_GET_PROC_ADDRESS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The DirectInput creation functions resolved at run time are the fake ones.
+unsafe extern "system" fn get_proc_address(module: P, name: *const u8) -> usize {
+    let orig: unsafe extern "system" fn(P, *const u8) -> usize =
+        unsafe { std::mem::transmute(ORIG_GET_PROC_ADDRESS.load(std::sync::atomic::Ordering::Relaxed)) };
+    let f = unsafe { orig(module, name) };
+    if f == 0 || (name as usize) >> 16 == 0 {
+        return f; // not found, or by ordinal
+    }
+    let fake = match unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_bytes() {
+        b"DirectInputCreateA" => create as *const () as usize,
+        b"DirectInputCreateW" => create_w as *const () as usize,
+        b"DirectInputCreateEx" | b"DirectInput8Create" => create_iid as *const () as usize,
+        _ => return f,
+    };
+    log!("dinput: {} resolved at run time: the fake one", unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy());
+    fake
+}
+
 unsafe extern "system" fn get_keyboard_state(keys: *mut u8) -> i32 {
     if !keys.is_null() {
         unsafe { std::ptr::write_bytes(keys, 0, 256) };
@@ -243,6 +263,10 @@ pub fn init() {
         iat::hook("dinput.dll", "DirectInputCreateW", create_w as *const () as usize);
         iat::hook("dinput.dll", "DirectInputCreateEx", create_iid as *const () as usize);
         iat::hook("dinput8.dll", "DirectInput8Create", create_iid as *const () as usize);
+        // games loading DirectInput at run time (Ford Racing: LoadLibrary("dinput8.dll"))
+        if let Some(o) = iat::hook("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) {
+            ORIG_GET_PROC_ADDRESS.store(o, std::sync::atomic::Ordering::Relaxed);
+        }
     }
     match (board, wheel) {
         (Some(name), _) => {

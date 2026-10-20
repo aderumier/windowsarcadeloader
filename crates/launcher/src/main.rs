@@ -317,8 +317,13 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     // wal-loader is built for 32-bit games. A system may also have 64-bit payloads
     // (Namco ES3 Battle Pod), which are loaded through the game's own imports.
     let loader = if system_payloads.is_empty() || rundir::is_pe64(&exe) { None } else { system.loader() };
-    if loader.is_some() {
+    // the payload of the programs a relaunch starts (`exe=`), when the game's own is imported
+    let program_loader = if loader.is_none() && !rundir::is_pe64(&exe) { system.program_loader() } else { None };
+    if loader.is_some() || program_loader.is_some() {
         payloads.push((payload_dir.join("wal-loader.exe"), "wal-loader.exe"));
+    }
+    if let Some(p) = program_loader {
+        payloads.push((payload_dir.join(p), p));
     }
     for (src, _) in &payloads {
         if !src.exists() {
@@ -443,7 +448,7 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     // `exe`: another executable of the game directory (a relaunch to the test menu program)
     let game_command = |args: &[String], relaunched: bool, exe: Option<&str>| {
         let game_exe = exe.map_or_else(|| game_exe.clone(), |e| wine.windows_path(&run_exe_dir.join(e)));
-        let mut cmd = match loader {
+        let mut cmd = match loader.or(exe.and(program_loader)) {
             // wal-loader <payload> <game> [args]: payload loaded before the game entry point
             Some(payload) => {
                 let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));

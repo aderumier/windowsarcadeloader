@@ -1,0 +1,22 @@
+[package]
+name = "wal-payload-europar"
+description = "Sega Europa-R payload: replacement inpout32.dll (Ford Racing: the Happ UGCI USB board, the cabinet shell's credits, the parallel port force feedback)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_europar"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_DataExchange",
+    "Win32_UI_WindowsAndMessaging",
+] }

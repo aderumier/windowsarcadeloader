@@ -1,6 +1,7 @@
 //! Emulated arcade systems: what each one needs on the Linux side. The in-game part is the
 //! matching `payload-<system>` crate; both only share the common protocol.
 
+mod europar;
 mod globalvr;
 mod namcoes3;
 mod nesica;
@@ -43,6 +44,12 @@ pub trait System {
     fn loader(&self) -> Option<&'static str> {
         None
     }
+    /// Payload `wal-loader` starts another program of the game with, when the game relaunches
+    /// into it (`exe=`: the cabinet's test menu program), for systems whose game loads the
+    /// payload through its own imports. Installed under its file name beside the game.
+    fn program_loader(&self) -> Option<&'static str> {
+        None
+    }
 }
 
 pub fn by_name(name: &str) -> Result<Box<dyn System>> {
@@ -57,6 +64,7 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
         "ringedge" => Box::new(ringedge::RingEdge),
         "segashell" => Box::new(segashell::SegaShell),
         "wahlap" => Box::new(wahlap::Wahlap),
-        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap)"),
+        "europar" | "europa-r" | "segaeuropar" | "segaeuropa-r" => Box::new(europar::EuropaR),
+        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, europar)"),
     })
 }

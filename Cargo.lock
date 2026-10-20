@@ -3579,6 +3579,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-payload-europar"
+version = "0.1.0"
+dependencies = [
+ "wal-payload-common",
+ "wal-protocol",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "wal-payload-globalvr"
 version = "0.1.0"
 dependencies = [

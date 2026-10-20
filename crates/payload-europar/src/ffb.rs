@@ -1,0 +1,79 @@
+//! Force feedback: the board on the parallel port (`Out32`).
+//!
+//! The game (`0x467990`) scales its steering force (-1..=1) by the operator's strength
+//! (`[ForceFeedback] Strength` of `calibration.ini`, 0..=31, / 15) to -15..=15 and writes one
+//! byte to the data port `0x378`: 0 no force, 1..=15 for a positive force (1 strongest:
+//! `16 - force`), 16..=30 for a negative one (16 strongest: `31 + force`). At start and stop
+//! it writes `0x10` to the control port `0x37a`, then 0 to the data port.
+//!
+//! In a race it writes twice per frame, an opposite force then the one that stays until the
+//! next frame (`0x4a20c0` then `0x4a2020`): the motor follows the byte that stays. The port is
+//! sampled every 4 ms, its byte becomes a constant force (`WAL_EUROPAR_FFB`, percent,
+//! default 100): a positive force pushes the wheel to the right.
+
+use std::sync::Once;
+use std::sync::atomic::{AtomicI32, AtomicU8, Ordering};
+use std::time::Duration;
+
+use wal_payload_common::{log, send_output};
+use wal_protocol::output;
+
+static LAST: AtomicI32 = AtomicI32::new(i32::MIN);
+/// The data port's byte.
+static PORT: AtomicU8 = AtomicU8::new(0);
+static LOGGED: AtomicI32 = AtomicI32::new(0);
+
+fn percent() -> i32 {
+    std::env::var("WAL_EUROPAR_FFB").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(100)
+}
+
+/// The data port byte -> the game's force, -15..=15.
+fn force(byte: u8) -> i32 {
+    match byte {
+        1..=15 => 16 - byte as i32,
+        16..=30 => byte as i32 - 31,
+        _ => 0,
+    }
+}
+
+pub(crate) fn out(port: u16, data: u16) {
+    if port != 0x378 {
+        log!("ffb: Out32({port:#x}, {data:#x})");
+        return;
+    }
+    PORT.store(data as u8, Ordering::Relaxed);
+    static SAMPLER: Once = Once::new();
+    SAMPLER.call_once(|| {
+        std::thread::spawn(|| {
+            loop {
+                sample();
+                std::thread::sleep(Duration::from_millis(4));
+            }
+        });
+    });
+}
+
+fn sample() {
+    let byte = PORT.load(Ordering::Relaxed);
+    let v = (force(byte) * output::FFB_MAX / 15 * percent() / 100).clamp(-output::FFB_MAX, output::FFB_MAX);
+    if LAST.swap(v, Ordering::Relaxed) != v {
+        if LOGGED.fetch_add(1, Ordering::Relaxed) < 20 {
+            log!("ffb: byte {byte:#04x}: constant force {v}");
+        }
+        send_output(0, output::FFB_CONSTANT, v);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::force;
+
+    #[test]
+    fn decodes_the_game_bytes() {
+        assert_eq!(force(0), 0);
+        assert_eq!(force(1), 15);
+        assert_eq!(force(15), 1);
+        assert_eq!(force(16), -15);
+        assert_eq!(force(30), -1);
+    }
+}
