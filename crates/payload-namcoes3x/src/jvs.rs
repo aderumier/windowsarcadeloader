@@ -388,8 +388,10 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                         .map_or(cmds.len() - i, |n| n + 1)
                 }
                 0x05 => {
+                    // 70 05 <n> <n data bytes> (in game: 70 05 06 02 30 00 00 30 03, sent
+                    // with the STR poll 70 15 right after it)
                     rep.push(1);
-                    arg(2).max(1)
+                    3 + arg(2)
                 }
                 0x03 => {
                     rep.push(0);
