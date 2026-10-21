@@ -248,6 +248,48 @@ pub fn heartbeat() {
     });
 }
 
+/// `WAL_DUMP_THREADS_AT=<seconds>[,<seconds>...]` (profile `env`): at these times after the
+/// payload start, every thread's instruction pointer and the module addresses on its stack are
+/// logged (`hang:` lines). Where a game sits on a screen it never leaves while its loop runs.
+pub fn dump_threads_at() {
+    let Ok(spec) = std::env::var("WAL_DUMP_THREADS_AT") else { return };
+    let times: Vec<u64> = spec.split(',').filter_map(|t| t.trim().parse().ok()).collect();
+    if times.is_empty() {
+        return;
+    }
+    std::thread::spawn(move || {
+        let start = std::time::Instant::now();
+        for at in times {
+            if let Some(wait) = std::time::Duration::from_secs(at).checked_sub(start.elapsed()) {
+                std::thread::sleep(wait);
+            }
+            log!("hang: thread dump at {at} s");
+            let threads = other_threads(0);
+            for &id in &threads {
+                dump_thread(id, 24);
+            }
+            // where the threads run between their waits: 2 s of instruction pointer samples
+            let mut seen: Vec<(u32, String, u32)> = Vec::new();
+            for _ in 0..200 {
+                for &id in &threads {
+                    if let Some(sym) = thread_ip(id).and_then(symbolize)
+                        && !["ntdll", "win32u", "kernelbase"].iter().any(|p| sym.starts_with(p))
+                    {
+                        match seen.iter_mut().find(|(t, s, _)| *t == id && *s == sym) {
+                            Some(e) => e.2 += 1,
+                            None => seen.push((id, sym, 1)),
+                        }
+                    }
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            for (id, sym, n) in seen {
+                log!("hang: thread {id} sampled at {sym} x{n}");
+            }
+        }
+    });
+}
+
 /// The process's threads except `main` and the calling one.
 fn other_threads(main: u32) -> Vec<u32> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
