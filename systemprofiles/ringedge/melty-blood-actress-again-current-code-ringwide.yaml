@@ -14,5 +14,8 @@ env:
   WAL_RINGEDGE_PLATFORM: AAM
   WAL_RINGEDGE_DS_FILE: SBUB_Table.dat
   WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBUB;keychip.appboot.platformid=AAM
+  # the EEPROM's static record (region): without it amCredit never initializes, the title
+  # shows FREE PLAY but START is refused (no credit to pay with)
+  WAL_RINGEDGE_REGION: "01"
   # the test menu: MBAA.exe /T (the cabinet's application 3)
   WAL_RINGEDGE_FOREGROUND: "3=/T"
