@@ -30,6 +30,23 @@ pub(crate) fn init() {
         // every process appends: their lines never overwrite each other
         *FILE.lock().unwrap() = OpenOptions::new().append(true).create(true).open(path).ok();
     }
+    // A payload panic aborts the game (`panic = "abort"`, a fast fail the crash reporter never
+    // sees) and its message goes to a stderr nobody reads: log where it happened.
+    std::panic::set_hook(Box::new(|info| {
+        let message = info.payload().downcast_ref::<&str>().copied()
+            .or_else(|| info.payload().downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("?");
+        let location = info.location().map(|l| format!("{}:{}", l.file(), l.line())).unwrap_or_default();
+        let thread = std::thread::current();
+        let line = format!("panic: thread '{}' at {location}: {message}", thread.name().unwrap_or("?"));
+        // the panic may come from inside `write` (its lock held): never wait for it
+        if let Ok(mut file) = FILE.try_lock() {
+            if let Some(f) = file.as_mut() {
+                let _ = f.write_all(format!("{line}\n").as_bytes());
+                let _ = f.flush();
+            }
+        }
+    }));
 }
 
 pub fn write(args: std::fmt::Arguments) {
