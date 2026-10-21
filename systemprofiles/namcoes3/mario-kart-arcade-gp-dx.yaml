@@ -33,6 +33,8 @@ env:
   WAL_NAMCOES3_CARD_SERVER: "127.0.0.1:49200"
   WAL_NAMCOES3_PROFILE_SERVER: "1"
   WAL_NAMCOES3_PROFILE_NAME: "Unlocked"
+  # The card goes in by itself on the game's card screen.
+  WAL_NAMCOES3_AUTO_CARD: "1"
 
 # The game's own options, for the GUI's Options tab (its env variables above).
 options:
@@ -46,6 +48,12 @@ options:
           released ("auto accel is on!"). Off: the kart only moves with the pedal.
   - title: Banapass card
     options:
+      - key: WAL_NAMCOES3_AUTO_CARD
+        label: Insert the card automatically
+        kind: bool
+        description: >-
+          The card is inserted by itself when the game asks for it ("Card Validation"
+          screen). Off: insert it with the Banapass card control.
       - key: WAL_NAMCOES3_PROFILE_SERVER
         label: Unlocked profile server
         kind: bool

@@ -664,24 +664,76 @@ fn card_data() -> [u8; 168] {
     data
 }
 
+/// The game's pending card-tap request (callback, context): a new request replaces it, a
+/// cancel clears it.
+static TOUCH_REQUEST: std::sync::Mutex<Option<(TouchCallback, usize)>> = std::sync::Mutex::new(None);
+
+/// v1.18.16's game state byte (`[0xAAEE58]+0x44`, nominal) on the "Card Validation" screen
+/// (2 attract, 59 character select, 15 race).
+const STATE_CARD_SCREEN: u8 = 9;
+
+/// The game state, v1.18.16 only.
+fn card_screen() -> bool {
+    game_version() == Some(MkdxVersion::V11816)
+        && safe_read::<u32>(game_base() + 0xAAEE58)
+            .and_then(|p| safe_read::<u8>(p as usize + 0x44))
+            == Some(STATE_CARD_SCREEN)
+}
+
+/// Completes the pending card-tap request with the card, if there is one.
+fn touch_card() -> bool {
+    // the lock is released before the callback: the game re-arms the wait from it
+    let request = TOUCH_REQUEST.lock().unwrap().take();
+    let Some((callback, context)) = request else { return false };
+    let mut data = card_data();
+    unsafe { callback(0, 0, data.as_mut_ptr().cast(), context as *mut c_void) };
+    true
+}
+
 /// Game asks asynchronously for a card tap. The launcher's `card` control inserts a card;
-/// the callback is completed once for each insertion.
+/// the pending request is completed once for each insertion. The game re-arms the wait many
+/// times a second (30/s in attract, 60/s after a card is read): one watcher thread serves
+/// every request (a thread per request piled up hundreds of 2 MB stacks until the 32-bit
+/// address space ran out).
+///
+/// `WAL_NAMCOES3_AUTO_CARD=1`: the card is inserted by itself once the game has shown its
+/// card screen for a second, once per visit of the screen.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn BngRwReqWaitTouch(
     _reader: u32, _timeout: i32, _flags: u32, callback: Option<TouchCallback>, context: *mut c_void,
 ) -> i32 {
     let Some(callback) = callback else { return -1 };
-    let context = context as usize;
-    std::thread::spawn(move || loop {
-        let inserted = wal_payload_common::input(0).pressed(button::CARD);
-        if !inserted {
-            CARD_CONSUMED.store(false, Ordering::Release);
-        } else if !CARD_CONSUMED.swap(true, Ordering::AcqRel) {
-            let mut data = card_data();
-            unsafe { callback(0, 0, data.as_mut_ptr().cast(), context as *mut c_void) };
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(50));
+    *TOUCH_REQUEST.lock().unwrap() = Some((callback, context as usize));
+    static WATCHER: std::sync::Once = std::sync::Once::new();
+    WATCHER.call_once(|| {
+        let auto = std::env::var("WAL_NAMCOES3_AUTO_CARD").is_ok_and(|v| v.trim() == "1");
+        std::thread::spawn(move || {
+            // when the card screen showed up, and whether its card was inserted
+            let mut screen: Option<(std::time::Instant, bool)> = None;
+            loop {
+                if auto && card_screen() {
+                    screen.get_or_insert((std::time::Instant::now(), false));
+                } else {
+                    screen = None;
+                }
+                let inserted = wal_payload_common::input(0).pressed(button::CARD);
+                if !inserted {
+                    CARD_CONSUMED.store(false, Ordering::Release);
+                } else if !CARD_CONSUMED.load(Ordering::Acquire) && touch_card() {
+                    // a card inserted between two requests completes the next one
+                    CARD_CONSUMED.store(true, Ordering::Release);
+                    // the player's own card: no automatic one on this screen
+                    if let Some((_, done)) = screen.as_mut() { *done = true; }
+                }
+                if let Some((since, done)) = screen.as_mut() {
+                    if !*done && since.elapsed() >= Duration::from_secs(1) && touch_card() {
+                        *done = true;
+                        wal_payload_common::log!("namcoes3: card inserted automatically");
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        });
     });
     -1
 }
@@ -692,6 +744,7 @@ macro_rules! export {
         pub extern "system" fn $rust($($arg: $ty),*) -> $ret { $body }
     };
 }
+
 
 export!(bng_init, "BngRwInit", () -> i32, 0);
 export!(bng_fin, "BngRwFin", () -> i32, 0);
@@ -712,7 +765,10 @@ export!(bng_mifare, "BngRwExReadMifareAllBlock", (_a: u32, _b: *mut c_void) -> i
 export!(bng_action, "BngRwReqAction", (_a: u32, _b: u32, _c: u32, _d: u32) -> i32, 1);
 export!(bng_auth, "BngRwReqAiccAuth", (_a: u32, _b: u32, _c: u32, _d: u32, _e: u32, _f: u32, _g: u32) -> i32, 1);
 export!(bng_beep, "BngRwReqBeep", (_a: u32, _b: u32, _c: u32, _d: u32) -> i32, 1);
-export!(bng_cancel, "BngRwReqCancel", (_a: u32) -> i32, 1);
+export!(bng_cancel, "BngRwReqCancel", (_a: u32) -> i32, {
+    *TOUCH_REQUEST.lock().unwrap() = None;
+    1
+});
 export!(bng_cleanup, "BngRwReqFwCleanup", (_a: u32, _b: u32, _c: u32) -> i32, 1);
 export!(bng_fw_update, "BngRwReqFwVersionup", (_a: u32, _b: u32, _c: u32, _d: u32) -> i32, 1);
 export!(bng_latch, "BngRwReqLatchID", (_a: u32, _b: u32, _c: u32) -> i32, 1);
