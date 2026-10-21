@@ -17,5 +17,7 @@ env:
   # the EEPROM's static record (region): without it amCredit never initializes, the title
   # shows FREE PLAY but START is refused (no credit to pay with)
   WAL_RINGEDGE_REGION: "01"
+  # main board DIP switches SW5+SW6 = 1024x768: the 4:3 picture (default FF = 1920x1080 stretched)
+  WAL_RINGEDGE_DIPSW: BF
   # the test menu: MBAA.exe /T (the cabinet's application 3)
   WAL_RINGEDGE_FOREGROUND: "3=/T"
