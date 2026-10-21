@@ -17,6 +17,8 @@
 use std::ffi::c_void;
 use std::os::windows::ffi::OsStrExt;
 
+mod teratoma;
+
 use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE};
 use windows_sys::Win32::System::Diagnostics::Debug::{FlushInstructionCache, ReadProcessMemory, WriteProcessMemory};
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
@@ -183,12 +185,20 @@ fn main() {
             eprintln!("wal-loader: cannot start {}: error {}", args[1], GetLastError());
             std::process::exit(1);
         }
-        if let Err(e) = inject(pi.hProcess, &payload) {
+        let teratoma = std::env::var("WAL_LOADER_TERATOMA").is_ok_and(|s| s == "1");
+        let result = if teratoma {
+            teratoma::boot(&pi, &args[1], &payload)
+        } else {
+            inject(pi.hProcess, &payload)
+        };
+        if let Err(e) = result {
             eprintln!("wal-loader: {e}");
             TerminateProcess(pi.hProcess, 1);
             std::process::exit(1);
         }
-        ResumeThread(pi.hThread);
+        if !teratoma {
+            ResumeThread(pi.hThread);
+        }
         WaitForSingleObject(pi.hProcess, INFINITE);
         let mut code = 0u32;
         GetExitCodeProcess(pi.hProcess, &mut code);

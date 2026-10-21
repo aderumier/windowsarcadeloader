@@ -413,3 +413,126 @@ fn unwind(mut context: windows_sys::Win32::System::Diagnostics::Debug::CONTEXT) 
     }
     frames
 }
+
+/// `WAL_IGNORE_TERMINATE_FROM=<rva>`: the process ends asked from the executable's code at
+/// this return address are ignored (Teratoma's protector watchdog ends the game about a minute
+/// into a level).
+#[cfg(target_arch = "x86")]
+fn ignored_terminate() -> Option<usize> {
+    static RVA: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    *RVA.get_or_init(|| std::env::var("WAL_IGNORE_TERMINATE_FROM").ok().and_then(|v| usize::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()))
+}
+
+/// The original `NtTerminateProcess` (its first instruction, then a jump past it).
+#[cfg(target_arch = "x86")]
+static TERMINATE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// `WAL_TRACE_EXIT=1`: logs who ends the process (a game quitting without an error: its
+/// `NtTerminateProcess` call, with the return addresses on its stack). ntdll's system call
+/// stub starts with `mov eax, <number>`: replaced by a jump, replayed by the trampoline.
+#[cfg(target_arch = "x86")]
+pub fn trace_exit() {
+    use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAlloc, VirtualProtect};
+    let ignore = ignored_terminate();
+    if !std::env::var("WAL_TRACE_EXIT").is_ok_and(|v| v.trim() == "1") && ignore.is_none() {
+        return;
+    }
+    unsafe {
+        let ntdll = windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(c"ntdll.dll".as_ptr().cast());
+        let Some(f) = windows_sys::Win32::System::LibraryLoader::GetProcAddress(ntdll, c"NtTerminateProcess".as_ptr().cast()) else { return };
+        let f = f as usize;
+        if (f as *const u8).read() != 0xB8 {
+            log!("exit: NtTerminateProcess is not a system call stub, not traced");
+            return;
+        }
+        let tramp = VirtualAlloc(std::ptr::null(), 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) as *mut u8;
+        if tramp.is_null() {
+            return;
+        }
+        std::ptr::copy_nonoverlapping(f as *const u8, tramp, 5);
+        tramp.add(5).write(0xE9);
+        (tramp.add(6) as *mut i32).write_unaligned((f + 5).wrapping_sub(tramp as usize + 10) as i32);
+        TERMINATE.store(tramp as usize, Ordering::Relaxed);
+        let mut old = 0;
+        VirtualProtect(f as *const _, 5, PAGE_EXECUTE_READWRITE, &mut old);
+        (f as *mut u8).write(0xE9);
+        ((f + 1) as *mut i32).write_unaligned((terminate as *const () as usize).wrapping_sub(f + 5) as i32);
+        VirtualProtect(f as *const _, 5, old, &mut old);
+        match ignore {
+            Some(rva) => log!("exit: process ends from the executable's +{rva:#x} ignored"),
+            None => log!("exit: process ends traced"),
+        }
+    }
+}
+
+#[cfg(target_arch = "x86")]
+unsafe extern "system" fn terminate(process: *mut core::ffi::c_void, status: i32) -> i32 {
+    let thread = unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() };
+    // a protector's watchdog ending the game (its return address on the caller's stack): ignored
+    if let Some(rva) = ignored_terminate() {
+        let at = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize + rva;
+        let sp = &process as *const _ as usize;
+        if (0..0x40).any(|i| unsafe { ((sp + i * 4) as *const usize).read() } == at) {
+            static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            if !LOGGED.swap(true, Ordering::Relaxed) {
+                log!("exit: NtTerminateProcess({process:?}, {status:#x}) from +{rva:#x} on thread {thread:#x}: ignored");
+            }
+            return 0;
+        }
+    }
+    if !std::env::var("WAL_TRACE_EXIT").is_ok_and(|v| v.trim() == "1") {
+        let f: unsafe extern "system" fn(*mut core::ffi::c_void, i32) -> i32 = unsafe { std::mem::transmute(TERMINATE.load(Ordering::Relaxed)) };
+        return unsafe { f(process, status) };
+    }
+    log!("exit: NtTerminateProcess({process:?}, {status:#x}) on thread {thread:#x}");
+    // `WAL_TRACE_EXIT_THREADS=<address>,...`: the threads whose handles are stored there (a
+    // protector's watchdog threads): their state when the process ends
+    for a in std::env::var("WAL_TRACE_EXIT_THREADS").unwrap_or_default().split(',').filter_map(|a| usize::from_str_radix(a.trim().trim_start_matches("0x"), 16).ok()) {
+        let h = unsafe { (a as *const usize).read() } as *mut core::ffi::c_void;
+        let mut code = 0u32;
+        let ok = unsafe { windows_sys::Win32::System::Threading::GetExitCodeThread(h, &mut code) };
+        let id = unsafe { windows_sys::Win32::System::Threading::GetThreadId(h) };
+        log!("exit:   thread handle at {a:#x}: {h:?} id {id:#x} exit code {code:#x} (query {ok})");
+    }
+    // `WAL_TRACE_EXIT_HANDLES=<address>,...`: the object types of the handles stored there
+    for a in std::env::var("WAL_TRACE_EXIT_HANDLES").unwrap_or_default().split(',').filter_map(|a| usize::from_str_radix(a.trim().trim_start_matches("0x"), 16).ok()) {
+        let h = unsafe { (a as *const usize).read() };
+        log!("exit:   handle at {a:#x}: {h:#x} {}", object_type(h));
+    }
+    // the return addresses on the caller's stack
+    let sp = &process as *const _ as usize - 4;
+    let mut shown = 0;
+    for i in 0..0x200 {
+        let v = unsafe { ((sp + i * 4) as *const usize).read() };
+        if let Some(sym) = symbolize(v) {
+            log!("exit:   [esp+{:#05x}] {v:#010x} {sym}", i * 4);
+            shown += 1;
+            if shown == 40 {
+                break;
+            }
+        }
+    }
+    let f: unsafe extern "system" fn(*mut core::ffi::c_void, i32) -> i32 = unsafe { std::mem::transmute(TERMINATE.load(Ordering::Relaxed)) };
+    unsafe { f(process, status) }
+}
+
+#[cfg(target_arch = "x86")]
+#[link(name = "ntdll")]
+unsafe extern "system" {
+    fn NtQueryObject(handle: usize, class: u32, info: *mut u8, len: u32, ret: *mut u32) -> i32;
+}
+
+/// The type name of a handle's object (`ObjectTypeInformation`).
+#[cfg(target_arch = "x86")]
+fn object_type(h: usize) -> String {
+    let mut buf = [0u8; 512];
+    let mut ret = 0;
+    let status = unsafe { NtQueryObject(h, 2, buf.as_mut_ptr(), buf.len() as u32, &mut ret) };
+    if status != 0 {
+        return format!("(query status {status:#x})");
+    }
+    // OBJECT_TYPE_INFORMATION starts with UNICODE_STRING { Length, MaximumLength, Buffer }
+    let len = u16::from_le_bytes([buf[0], buf[1]]) as usize / 2;
+    let ptr = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize as *const u16;
+    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(ptr, len) })
+}

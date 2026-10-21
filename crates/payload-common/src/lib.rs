@@ -106,6 +106,8 @@ pub fn start(name: &'static str) {
         #[cfg(windows)]
         {
             crash::init();
+            #[cfg(target_arch = "x86")]
+            crash::trace_exit();
             dshow::init();
             screenshot::init();
             window::init();

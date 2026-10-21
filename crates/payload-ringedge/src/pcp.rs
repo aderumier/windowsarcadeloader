@@ -227,6 +227,13 @@ fn answer(request: &str) -> String {
         let args = foreground_args(value.trim());
         log!("pcp: next application {value}: relaunch with '{args}'");
         wal_payload_common::request_relaunch(&args);
+        // the cabinet's master ends the game for the next application: a game that stays
+        // (Teratoma starts again in place, its amMaster then fails: error 3005) is ended
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            log!("pcp: the game did not end for the next application: ended");
+            std::process::exit(0);
+        });
     }
     // the starts of application <n> since the cabinet's boot: this one, the first (amMaster
     // 1.03, RingWide: the answer needs `count`, else "Failed to get FirstBootFlag")
@@ -404,7 +411,11 @@ pub fn ds_file_replacement(path: &str) -> Option<&'static std::path::Path> {
     let generated = generated.as_deref()?;
     let name = path.rsplit(['\\', '/']).next()?;
     let same = missing.file_name().is_some_and(|m| m.to_string_lossy().eq_ignore_ascii_case(name));
-    (same && !std::path::Path::new(path).exists()).then_some(generated)
+    // GetFileAttributesW, not Path::exists (it opens the file: CreateFileW, this hook's caller
+    // when the system's CreateFileW is hot patched, packed executables)
+    let wide: Vec<u16> = path.encode_utf16().chain([0]).collect();
+    let exists = unsafe { windows_sys::Win32::Storage::FileSystem::GetFileAttributesW(wide.as_ptr()) } != u32::MAX;
+    (same && !exists).then_some(generated)
 }
 
 /// The game's challenge file (`WAL_RINGEDGE_DS_FILE`, or the generated one), empty without it.

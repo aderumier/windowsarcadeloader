@@ -40,6 +40,11 @@ struct Device {
     handler: Handler,
     idle: Option<Idle>,
     replies: Mutex<VecDeque<u8>>,
+    /// A pending overlapped `WaitCommEvent` (OVERLAPPED, event mask), completed by a reply.
+    wait: Mutex<Option<(usize, usize)>>,
+    /// A pending overlapped read (buffer, size, OVERLAPPED), completed by a reply
+    /// (`WAL_SERIAL_PENDING_READS`).
+    read: Mutex<Option<(usize, u32, usize)>>,
 }
 
 impl Device {
@@ -52,6 +57,30 @@ impl Device {
             q.extend(idle());
         }
         q
+    }
+
+    /// Queues a reply; completes a pending read, a pending `WaitCommEvent` (a character
+    /// received).
+    fn reply(&self, reply: Vec<u8>) {
+        let mut q = self.replies.lock().unwrap();
+        q.extend(reply);
+        if !q.is_empty()
+            && let Some((buf, n, ov)) = self.read.lock().unwrap().take()
+        {
+            let count = (n as usize).min(q.len());
+            for i in 0..count {
+                unsafe { *(buf as *mut u8).add(i) = q.pop_front().unwrap() };
+            }
+            unsafe { complete(ov as P, count as u32) };
+        }
+        if !q.is_empty()
+            && let Some((ov, mask)) = self.wait.lock().unwrap().take()
+        {
+            if mask != 0 {
+                unsafe { *(mask as *mut u32) = 1 }; // EV_RXCHAR
+            }
+            unsafe { complete(ov as P, 0) };
+        }
     }
 }
 
@@ -84,12 +113,12 @@ pub fn install(port: &str, handler: Handler) {
 /// Same as [`install`], for the serial calls of the modules loaded at `modules` (e.g. the
 /// game's I/O library instead of the executable). The hooks are installed by the first call.
 pub fn install_in(port: &str, handler: Handler, modules: &[usize]) {
-    install_device(Device { port: port.to_string(), handler, idle: None, replies: Mutex::new(VecDeque::new()) }, modules);
+    install_device(Device { port: port.to_string(), handler, idle: None, replies: Mutex::new(VecDeque::new()), wait: Mutex::new(None), read: Mutex::new(None) }, modules);
 }
 
 /// Same as [`install`], for a device that also sends data on its own (`idle`).
 pub fn install_streaming(port: &str, handler: Handler, idle: Idle) {
-    let device = Device { port: port.to_string(), handler, idle: Some(idle), replies: Mutex::new(VecDeque::new()) };
+    let device = Device { port: port.to_string(), handler, idle: Some(idle), replies: Mutex::new(VecDeque::new()), wait: Mutex::new(None), read: Mutex::new(None) };
     install_device(device, &[unsafe { GetModuleHandleW(std::ptr::null()) } as usize]);
 }
 
@@ -101,6 +130,7 @@ fn install_device(device: Device, modules: &[usize]) {
     }
     // read now: an environment lookup inside a hook sets the thread's last error
     trace_files();
+    pending_reads();
     let hooks: [(&str, usize); COUNT] = [
         ("CreateFileA", create_file_a as *const () as usize),
         ("CreateFileW", create_file_w as *const () as usize),
@@ -119,6 +149,7 @@ fn install_device(device: Device, modules: &[usize]) {
         ("PurgeComm", purge_comm as *const () as usize),
         ("WriteFileEx", write_file_ex as *const () as usize),
         ("ReadFileEx", read_file_ex as *const () as usize),
+        ("WaitCommEvent", wait_comm_event as *const () as usize),
     ];
     let kernel32 = unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) };
     for (idx, (name, f)) in hooks.into_iter().enumerate() {
@@ -214,16 +245,19 @@ fn trace(port: &str, request: &[u8], reply: &[u8]) {
 
 /// Fake handle of the device on port `name`.
 fn port_handle(name: &str) -> Option<P> {
-    let devices = DEVICES.lock().unwrap();
+    // the log written with the lock released: its WriteFile may be our hook (packed
+    // executables: the system's WriteFile hot patched), which takes the lock
+    let ports: Vec<String> = DEVICES.lock().unwrap().iter().map(|d| d.port.clone()).collect();
     let name = name.strip_prefix("\\\\.\\").unwrap_or(name);
-    if let Some(i) = devices.iter().position(|d| name.eq_ignore_ascii_case(&d.port)) {
-        log!("serial: {} opened", devices[i].port);
+    // `COM*`: any COM port the game opens (a game trying the ports Windows lists, in their order)
+    let any_com = |p: &str| p.eq_ignore_ascii_case("COM*") && name.len() > 3 && name[..3].eq_ignore_ascii_case("COM") && name[3..].bytes().all(|b| b.is_ascii_digit());
+    if let Some(i) = ports.iter().position(|p| name.eq_ignore_ascii_case(p) || any_com(p)) {
+        log!("serial: {} opened", ports[i]);
         return Some((FAKE + 4 * i) as P);
     }
     if name.len() <= 6 && name.to_ascii_uppercase().starts_with("COM") && !is_sink(name) {
         // Absent, as on a PC without serial ports: Wine maps the machine's own ports (Batocera:
         // COM1 = /dev/ttyS0), where nothing answers (D1GP: card reader error at boot).
-        let ports: Vec<&str> = devices.iter().map(|d| d.port.as_str()).collect();
         log!("serial: game opens {name}, not emulated (devices on {}): absent", ports.join(", "));
         return Some(absent());
     }
@@ -249,12 +283,19 @@ fn port_w(name: *const u16) -> Option<P> {
 }
 
 // Original functions (previous IAT entries), by hook index.
-const COUNT: usize = 17;
+const COUNT: usize = 18;
 static ORIG: [AtomicUsize; COUNT] = [const { AtomicUsize::new(0) }; COUNT];
 
 fn orig<F: Copy>(idx: usize) -> F {
     let p = ORIG[idx].load(Ordering::Relaxed);
     unsafe { std::mem::transmute_copy(&p) }
+}
+
+/// `WAL_SERIAL_PENDING_READS=1`: overlapped reads of an emulated port with nothing to read stay
+/// pending until a reply (else they complete at once with 0 bytes).
+fn pending_reads() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_SERIAL_PENDING_READS").is_ok_and(|v| v.trim() == "1"))
 }
 
 /// `WAL_TRACE_FILES=1`: log every file the game opens and the result.
@@ -364,11 +405,21 @@ unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut
     let packet = unsafe { std::slice::from_raw_parts(buf, n as usize) };
     let reply = (device.handler)(packet);
     trace(&device.port, packet, &reply);
-    device.replies.lock().unwrap().extend(reply);
     if !written.is_null() {
         unsafe { *written = n };
     }
     unsafe { complete(ov, n) };
+    if pending_reads() && !ov.is_null() {
+        // the reply after the write's completion, as on the line (31 bytes at 115200 baud:
+        // 3 ms): a reader that sends its next request on a reply drops it while its write
+        // is not done (Teratoma's gun board, polled 5 times a second instead of every frame)
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            device.reply(reply);
+        });
+    } else {
+        device.reply(reply);
+    }
     1
 }
 
@@ -408,6 +459,13 @@ unsafe extern "system" fn read_file(h: P, buf: *mut u8, n: u32, read: *mut u32, 
         return r;
     };
     let mut q = device.queue();
+    // a real port's overlapped read waits for its bytes (a reader that issues its next read
+    // only after receiving: Teratoma's gun board)
+    if q.is_empty() && !ov.is_null() && pending_reads() {
+        *device.read.lock().unwrap() = Some((buf as usize, n, ov as usize));
+        unsafe { windows_sys::Win32::Foundation::SetLastError(windows_sys::Win32::Foundation::ERROR_IO_PENDING) };
+        return 0;
+    }
     let count = (n as usize).min(q.len());
     for i in 0..count {
         unsafe { *buf.add(i) = q.pop_front().unwrap() };
@@ -430,7 +488,7 @@ unsafe extern "system" fn write_file_ex(h: P, buf: *const u8, n: u32, ov: *mut w
     let packet = unsafe { std::slice::from_raw_parts(buf, n as usize) };
     let reply = (device.handler)(packet);
     trace(&device.port, packet, &reply);
-    device.replies.lock().unwrap().extend(reply);
+    device.reply(reply);
     unsafe { complete(ov.cast(), n) };
     if let Some(cb) = cb { unsafe { cb(0, n, ov) }; }
     1
@@ -441,6 +499,13 @@ unsafe extern "system" fn read_file_ex(h: P, buf: *mut u8, n: u32, ov: *mut wind
         return unsafe { orig::<unsafe extern "system" fn(P, *mut u8, u32, *mut windows_sys::Win32::System::IO::OVERLAPPED, IoCompletion) -> i32>(16)(h, buf, n, ov, cb) };
     };
     let mut q = device.queue();
+    // a real port's overlapped read waits for its bytes (a reader that issues its next read
+    // only after receiving: Teratoma's gun board)
+    if q.is_empty() && !ov.is_null() && pending_reads() {
+        *device.read.lock().unwrap() = Some((buf as usize, n, ov as usize));
+        unsafe { windows_sys::Win32::Foundation::SetLastError(windows_sys::Win32::Foundation::ERROR_IO_PENDING) };
+        return 0;
+    }
     let count = (n as usize).min(q.len());
     for i in 0..count { unsafe { *buf.add(i) = q.pop_front().unwrap() }; }
     drop(q);
@@ -513,4 +578,33 @@ accept_on_port! {
     12 get_comm_timeouts(t: P);
     13 set_comm_timeouts(t: P);
     14 purge_comm(f: u32);
+}
+
+/// `WaitCommEvent` on an emulated port: overlapped, it completes when a reply is queued
+/// (Teratoma's gun board reader reads on that event), a silent port's stays pending; else a
+/// received character after 10 ms.
+unsafe extern "system" fn wait_comm_event(h: P, mask: *mut u32, ov: P) -> i32 {
+    if device(h).is_none() && !is_sink_handle(h) {
+        return unsafe { orig::<unsafe extern "system" fn(P, *mut u32, P) -> i32>(17)(h, mask, ov) };
+    }
+    if !ov.is_null() {
+        if let Some(device) = device(h) {
+            if device.queue().is_empty() {
+                *device.wait.lock().unwrap() = Some((ov as usize, mask as usize));
+            } else {
+                if !mask.is_null() {
+                    unsafe { *mask = 1 }; // EV_RXCHAR
+                }
+                unsafe { complete(ov, 0) };
+                return 1;
+            }
+        }
+        unsafe { windows_sys::Win32::Foundation::SetLastError(windows_sys::Win32::Foundation::ERROR_IO_PENDING) };
+        return 0;
+    }
+    std::thread::sleep(std::time::Duration::from_millis(10));
+    if !mask.is_null() {
+        unsafe { *mask = 1 }; // EV_RXCHAR
+    }
+    1
 }

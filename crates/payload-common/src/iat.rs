@@ -8,12 +8,18 @@
 //! Imports without a lookup table (no OriginalFirstThunk, e.g. a rebuilt executable such as
 //! Haunted Museum II's) have no names once loaded, only the resolved addresses: the slot is
 //! found by its address, the function's (`GetProcAddress`) or a previous hook's replacement.
+//!
+//! `WAL_PACKED_IMPORTS=<dll>,...` (profile `env`): the executable's import table is a
+//! packer's, its code calls these DLLs through the packer's stubs (Teratoma). Their hooks patch the
+//! functions themselves: Wine's hot patch prologue (kernelbase's function for kernel32's,
+//! where kernel32's ends up), every caller redirected; a function without one keeps its
+//! callers, the image's pointers to it are replaced (an unpacked import table slot).
 
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 use crate::log;
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryA};
-use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
+use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE, PAGE_GUARD, PAGE_NOACCESS, PAGE_READWRITE, VirtualProtect, VirtualQuery};
 
 const IMAGE_DIRECTORY_ENTRY_IMPORT: usize = 1;
 const ORDINAL_FLAG: usize = 1 << (usize::BITS - 1);
@@ -90,6 +96,9 @@ unsafe fn resolve(dll: &str, function: Import) -> usize {
 
 unsafe fn hook_import(base: usize, dll: &str, function: Import, replacement: usize) -> Option<usize> {
     unsafe {
+        if packed(dll) && base == GetModuleHandleW(std::ptr::null()) as usize {
+            return hook_packed(base, dll, function, replacement);
+        }
         let (slot, recorded) = find_slot(base, dll, function)?;
         let ptr_size = size_of::<usize>();
         let mut old = 0;
@@ -175,5 +184,92 @@ unsafe fn find_slot(base: usize, dll: &str, function: Import) -> Option<(*mut us
             }
             desc += 20; // IMAGE_IMPORT_DESCRIPTOR
         }
+    }
+}
+
+/// `WAL_PACKED_IMPORTS` lists `dll`: see the module documentation.
+fn packed(dll: &str) -> bool {
+    static PACKED: OnceLock<Vec<String>> = OnceLock::new();
+    let list = PACKED.get_or_init(|| std::env::var("WAL_PACKED_IMPORTS").map(|v| v.split(',').map(|d| d.trim().to_ascii_lowercase()).collect()).unwrap_or_default());
+    list.iter().any(|d| dll.eq_ignore_ascii_case(d))
+}
+
+/// A hook of a packed executable: `dll!function` patched where every caller reaches it.
+unsafe fn hook_packed(base: usize, dll: &str, function: Import, replacement: usize) -> Option<usize> {
+    unsafe {
+        let real = resolve(dll, function);
+        if real == 0 {
+            return None;
+        }
+        // kernel32's functions end in kernelbase's (Wine): the one all callers go through
+        let target = match function {
+            Import::Name(_) if dll.eq_ignore_ascii_case("kernel32.dll") => Some(resolve("kernelbase.dll", function)).filter(|&f| f != 0 && hot_patchable(f)).unwrap_or(real),
+            _ => real,
+        };
+        if let Some(original) = hot_patch(target, replacement) {
+            log!("iat: {dll}!{function} hot patched (packed executable)");
+            return Some(original);
+        }
+        // the pointers the image holds to it (or to a previous hook's replacement of it)
+        let previous = HOOKED.lock().unwrap().iter().rev().find(|(r, _)| *r == real).map(|(_, h)| *h).unwrap_or(real);
+        let nt = base + read::<u32>(base, 0x3C) as usize;
+        let size = read::<u32>(nt + 24, 56) as usize; // SizeOfImage
+        let mut slots = 0;
+        let mut at = base;
+        while at < base + size {
+            let mut info: MEMORY_BASIC_INFORMATION = std::mem::zeroed();
+            if VirtualQuery(at as *const _, &mut info, size_of::<MEMORY_BASIC_INFORMATION>()) == 0 {
+                break;
+            }
+            let end = (info.BaseAddress as usize + info.RegionSize).min(base + size);
+            if info.State == MEM_COMMIT && info.Protect & (PAGE_NOACCESS | PAGE_GUARD) == 0 {
+                let mut p = at.next_multiple_of(size_of::<usize>());
+                while p + size_of::<usize>() <= end {
+                    if (p as *const usize).read() == previous {
+                        let mut old = 0;
+                        VirtualProtect(p as *const _, size_of::<usize>(), PAGE_READWRITE, &mut old);
+                        (p as *mut usize).write(replacement);
+                        VirtualProtect(p as *const _, size_of::<usize>(), old, &mut old);
+                        slots += 1;
+                    }
+                    p += size_of::<usize>();
+                }
+            }
+            at = end;
+        }
+        if slots == 0 {
+            return None;
+        }
+        HOOKED.lock().unwrap().push((real, replacement));
+        log!("iat: {dll}!{function}: {slots} pointer(s) in the image replaced (packed executable)");
+        Some(previous)
+    }
+}
+
+/// Wine's hot patch prologue at `f`: 5 padding bytes, then `mov edi,edi` (or a 2 byte nop),
+/// or one of our hot patches.
+unsafe fn hot_patchable(f: usize) -> bool {
+    let code = unsafe { std::slice::from_raw_parts((f - 5) as *const u8, 7) };
+    code[..5].iter().all(|&b| b == 0xCC || b == 0x90) && (code[5..] == [0x8B, 0xFF] || code[5..] == [0x66, 0x90]) || code[0] == 0xE9 && code[5..] == [0xEB, 0xF9]
+}
+
+/// Hot patch of the function at `f`: a jump to `hook` in its padding, a short jump to it at
+/// its entry. Returns the previous function: past its 2 byte prologue, or the hook already
+/// installed there (chained, as import hooks are).
+unsafe fn hot_patch(f: usize, hook: usize) -> Option<usize> {
+    unsafe {
+        if !hot_patchable(f) {
+            return None;
+        }
+        let code = (f - 5) as *mut u8;
+        let previous = if code.read() == 0xE9 { f.wrapping_add(((f - 4) as *const i32).read_unaligned() as isize as usize) } else { f + 2 };
+        let mut old = 0;
+        VirtualProtect(code.cast(), 7, PAGE_EXECUTE_READWRITE, &mut old);
+        code.write(0xE9);
+        ((f - 4) as *mut i32).write_unaligned(hook.wrapping_sub(f) as i32);
+        // jmp $-5, written last: one 2 byte store
+        (f as *mut u16).write_unaligned(0xF9EB);
+        VirtualProtect(code.cast(), 7, old, &mut old);
+        Some(previous)
     }
 }

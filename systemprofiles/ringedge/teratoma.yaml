@@ -1,0 +1,48 @@
+# Teratoma: The Last Rebellion (Skonec, 2014), 2 player lightgun game on Sega amLib (the
+# Operation G.H.O.S.T. engine: gs2.ini, its scripts' lwGun and GameIO). TT.exe is packed:
+# wal-loader runs its unpacker, then loads the payload from the game's startup
+# (WAL_LOADER_TERATOMA).
+# Override values in userprofiles/ringedge/teratoma.yaml.
+system: ringedge
+name: "Teratoma: The Last Rebellion"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: b1,start
+    BTN_RIGHT: b2
+    BTN_MIDDLE: b3
+    offscreen: b2
+
+controls:
+  b1: Trigger
+  b2: Screen out (reload)
+  b3: Action
+
+# the dump's gs2.ini with the cabinet's amLib and JVS I/O boards (EnableAMLib, EnableJvs, the
+# guns' GunController) instead of the PC's mouse and keyboard (EnableInputDevices)
+files:
+  /gs2.ini: systemprofiles/ringedge/files/teratoma/gs2.ini
+
+env:
+  WAL_LOADER_TERATOMA: "1"
+  # the protector's watchdog ends the game about a minute into a level (its TerminateProcess,
+  # returning to +0x28162a6): ignored
+  WAL_IGNORE_TERMINATE_FROM: "0x28162a6"
+  # its import table is the packer's: the payload's hooks patch the functions themselves
+  WAL_PACKED_IMPORTS: kernel32.dll,setupapi.dll
+  # Operation G.H.O.S.T.'s amLib setup: RingWide platform AAM, its game id SBWA (TT.exe's
+  # keychip challenge file name, SBWA_Table.dat: missing from the dump, generated)
+  WAL_RINGEDGE_PLATFORM: AAM
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBWA;keychip.appboot.platformid=AAM
+  WAL_RINGEDGE_DS_FILE: SBWA_Table.dat
+  WAL_RINGEDGE_REGION: "01"
+  # amLib on the JVS driver; the game's own JVS reader (gs2.ini GunController: its guns and
+  # buttons) on the first COM port Windows lists, whichever: the board on every COM port. Its
+  # reader thread reads only after receiving: its overlapped reads wait for the board's reply
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM*"
+  WAL_SERIAL_PENDING_READS: "1"
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "-lx,ly,p2:-lx,p2:ly"
+  WAL_RINGEDGE_CREDIT_RECORD: "1"

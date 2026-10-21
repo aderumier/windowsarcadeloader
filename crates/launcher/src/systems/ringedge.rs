@@ -20,6 +20,15 @@
 //! - `WAL_RINGEDGE_SILENT_PORTS`: other serial ports, present but silent (`!COMn`: absent)
 //! - `WAL_RINGEDGE_CWD`: the game's working directory, relative to its own
 //! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
+//! - `WAL_PACKED_IMPORTS=<dll>,...`: a packed executable (Teratoma): the payload's hooks on these
+//!   DLLs patch the functions themselves, its import table is the packer's
+//! - `WAL_SERIAL_PENDING_READS=1`: overlapped reads of an emulated serial port wait for the
+//!   board's reply (a reader that reads only after receiving); `WAL_TYPEX_JVS_PORT` `COM*`: the
+//!   board on any COM port the game opens
+//! - `WAL_IGNORE_TERMINATE_FROM=<rva>`: the process ends asked from the executable's code at that
+//!   return address are ignored (Teratoma's protector watchdog); `WAL_TRACE_EXIT=1`: who ends the
+//!   process (`exit:` lines)
+//! - `WAL_LOADER_TERATOMA=1` (wal-loader): Teratoma's packed TT.exe started through its unpacker
 
 use super::{Payload, System};
 
