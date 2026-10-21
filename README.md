@@ -1,6 +1,6 @@
 # Windows Arcade Loader
 
-Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge, Sega Amusements Shell PCs, Wahlap, Sega Europa-R)
+Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge, Sega Amusements Shell PCs, Wahlap, Sega Europa-R, Konami e-Amusement PC)
 on Linux with Wine: a Linux launcher (inputs, Wine prefix and runner) and per-system payload DLLs
 emulating each cabinet's I/O, dongle and network services in the game process.
 
@@ -192,4 +192,5 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | not in the test |  |
 | `grid` | GRID | europar | works (user: 100%) | not in the test |  |
 | `showdown` | Showdown | segashell | works (user: 100%) | not in the test |  |
+| `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%), guns (mouse), test menu | not in the test |  |
 <!-- GAMELIST END -->

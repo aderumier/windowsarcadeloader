@@ -1,0 +1,27 @@
+# Nobiteke! Byon Byon Daisakusen (Konami), an e-Amusement PC game: bin/byy.exe (OpenGL), its
+# ACIO I/O board driver (libacio.dll) replaced by the payload.
+# Override values in userprofiles/konami/nobiteke-byon-byon.yaml.
+system: konami
+name: Nobiteke! Byon Byon Daisakusen
+
+# The cabinet starts `E:\byonbyon\bin\byy.exe D:\byonbyon\ F:\byonbyon\`: the game data root
+# (data/, tm-menu/) and the writable one (dev/: nvram, raw). Both are the dump root, seen
+# from bin/ (the game's working directory).
+args: ['..\', '..\']
+
+input:
+  # two lightguns (or mice): the pointer aims, the left button is the trigger
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_RIGHT: b2
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Gun button 2
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

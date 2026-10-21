@@ -3,6 +3,7 @@
 
 mod europar;
 mod globalvr;
+mod konami;
 mod namcoes3;
 mod nesica;
 mod rawthrills;
@@ -64,7 +65,8 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
         "ringedge" => Box::new(ringedge::RingEdge),
         "segashell" => Box::new(segashell::SegaShell),
         "wahlap" => Box::new(wahlap::Wahlap),
+        "konami" => Box::new(konami::Konami),
         "europar" | "europa-r" | "segaeuropar" | "segaeuropa-r" => Box::new(europar::EuropaR),
-        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, europar)"),
+        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, konami, europar)"),
     })
 }

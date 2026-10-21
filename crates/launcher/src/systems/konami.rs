@@ -1,0 +1,30 @@
+//! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen).
+//!
+//! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
+//! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
+//! it, so the game loads it through its own imports.
+//!
+//! The payload also answers the cabinet's network setup (`SetAdapterIpAddress`), runs the game
+//! with e-Amusement offline (the boot's connection check takes its offline branch) and gives the
+//! picture the screen's resolution in a borderless window.
+//!
+//! Payload options (profile `env`):
+//! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits
+//! - `WAL_KONAMI_AVS_LOG=1`: the AVS log (the game system's boot, errors) in the payload log
+//!
+//! Native inputs for `native_map`: the board's switches `test service start trigger button2`
+//! and `coin` (players 1 and 2 have their own start, trigger and button2).
+
+use super::{Payload, System};
+
+pub struct Konami;
+
+impl System for Konami {
+    fn name(&self) -> &'static str {
+        "konami"
+    }
+
+    fn payloads(&self) -> &'static [Payload] {
+        &[Payload { file: "wal_konami.dll", install_as: "libacio.dll" }]
+    }
+}

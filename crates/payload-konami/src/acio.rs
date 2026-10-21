@@ -1,0 +1,71 @@
+//! The ACIO bus: started at once, every device present (the game probes device 1, the card
+//! reader, and device 5, the HBHI board).
+
+use std::ffi::c_char;
+
+use wal_payload_common::log;
+
+/// `ac_io_is_active2` status of a bus whose node enumeration completed.
+const BUS_READY: u32 = 6;
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_begin(_a: u32, version: *const c_char, out: *mut u32, _b: u32) -> bool {
+    let version = if version.is_null() {
+        String::new()
+    } else {
+        unsafe { std::ffi::CStr::from_ptr(version) }.to_string_lossy().into_owned()
+    };
+    log!("acio: begin (game {version})");
+    if !out.is_null() {
+        unsafe { *out = 0 };
+    }
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_begin_get_status(_mask: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_end(_a: u32) -> bool {
+    log!("acio: end");
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_end_get_status(_a: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_update() {}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_is_active2(_a: u32, status: *mut u32) -> bool {
+    if !status.is_null() {
+        unsafe { *status = BUS_READY };
+    }
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_is_active_device(_device: u32) -> bool {
+    true
+}
+
+/// A device's version record (0x2c bytes): zeros.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_get_version(out: *mut u8, device: u32) -> bool {
+    if !out.is_null() {
+        unsafe { std::ptr::write_bytes(out, 0, 0x2c) };
+    }
+    log!("acio: device {device} present");
+    true
+}
+
+/// No device waits for a firmware update.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_get_firmware_update_device_index() -> u8 {
+    0xff
+}

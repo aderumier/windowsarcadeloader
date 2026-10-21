@@ -1792,6 +1792,57 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
   deliberate crash at boot (`0x5ab9e5`, `*(0) = 0` when a cabinet flag is clear) is skipped.
   XInput pads are hidden (its xinput1_3 ordinals 2-4 point at the payload's "no pad").
 
+### 6.3h Konami e-Amusement PC (`crates/payload-konami`)
+
+Konami's Windows XP e-Amusement cabinets on the AVS platform (`libavs-win32.dll`: file systems,
+threads, properties). Nobiteke! Byon Byon Daisakusen (2008, game code H24, OpenGL, two
+positional guns) starts as `E:\byonbyon\bin\byy.exe D:\byonbyon\ F:\byonbyon\` (game data, then
+the writable `dev/`: `nvram`, `raw`); the profile passes the dump root seen from `bin/` (`..\`)
+for both. System `konami`, payload `wal_konami.dll` installed as `libacio.dll`, Konami's ACIO
+serial bus driver, which gs-system / gamemode / testmode import (cdecl, the open-source spice2x
+emulates the same devices).
+
+- **Bus (`acio.rs`).** `ac_io_begin` succeeds, `ac_io_is_active2` reports the node enumeration
+  done (status 6), every device present (the game probes 1, the ICCA card reader, and 5, the
+  HBHI board), versions zeros.
+- **HBHI board (`hbhi.rs`).** `ac_io_hbhi_get_control_status_buffer` fills the 0x40-byte status:
+  the 15-byte packet at +4 and what libacio derives from it: +0x14 eight 10-bit analog channels
+  (left-aligned; channels 0-3 from packet bytes 0-7, high byte then the next byte's top 2 bits;
+  4-7 from bytes 10-13, low bits in byte 9), +0x24/+0x25 the 6-bit coin counters of slots 1/2
+  (packet bytes 5/7), +0x28 the packet count, +0x38 the packet time (unchanged for 20 s: an I/O
+  error). Switches (test menu INPUT CHECK): byte 1 0x20 test, 0x10 service, 0x04 / 0x02 coin mech
+  1 / 2; byte 8 0x01 / 0x02 start 1 / 2; byte 3 0x02 / 0x01 the guns' triggers, 0x20 a further
+  switch. Guns (CONTROLLER CHECK): controller 1 x/y/z on channels 0-2, controller 2 on 3-5; x/y
+  the aim (y's minimum is the screen's bottom), z the trigger pull (0..100). The pointer is scaled
+  onto the default calibration ranges (`gs_setting::ANALOGVOL`, 0x10001190: gun 1 x
+  0x4800-0xe800, y 0x0a00-0x6e00, z 0x1800-0x4800; gun 2 x 0x2000-0xc000, y 0x2600-0x8a00, z
+  0x5800-0x8800): aimed without `calib.xml`, and a test menu calibration with the pointer keeps
+  it. Security plugs: the software plug check (`GLH24JAA`) and the system plug answer found
+  (0x12), the ids `0140` + 16 hex digits.
+- **Card reader (`icca.rs`).** A slot reader: the `card` control inserts / ejects a card
+  (`WAL_KONAMI_CARD_ID`, 8 bytes); `req_uid_isfinished` 9 with a card, 0xb without.
+- **Network (`net.rs`).** gs-system sets the cabinet's address (192.168.1.17) with iphlpapi's
+  undocumented `SetAdapterIpAddress` (5 arguments, stdcall), looked up with `GetProcAddress`: Wine's
+  stub aborts the process. Answered done from gs-system's `GetProcAddress`. The boot waits 10 s
+  for a DHCP lease before that (the host's adapter has DHCP on).
+- **e-Amusement offline (`eamuse.rs`).** bootmode.dll's boot runs 20 steps (I/O board, software
+  security, factory settings, card unit, network, system security, e-Amusement connection, ...).
+  The e-AMUSEMENT CONNECTION CHECK (step 13) waits for gs_network's board state to leave
+  "connecting" (-3) while the test menu's e-Amusement option (`[settings+0xac]`, factory 1) is
+  on: forever without Konami's servers. Its offline branch is taken (`jne` at bootmode +0x231b
+  NOPed once the DLL is loaded): the game runs in local mode, its attract says so. On a fresh
+  `dev/nvram` (no `testmode.xml`) step 17 shows the backup-initialized notice, which waits for
+  TEST: the test menu opens, GAME MODE leaves it, and the settings are saved.
+- **Screen (`screen.rs`).** gs-system's screen settings (`/config.xml` `/config/screen/`: frame
+  the window, mon the monitor, draw the picture, draw_f) default to 1280x720 (0x1000205f): the
+  game drew a 1280x720 picture in the window's corner. Their default becomes the screen size: the
+  game renders its layout scaled to it (sharp, any resolution; the guns' coordinates scale alike).
+  ek-lib's window (`CreateWindowExA`, `SetWindowLongA` styles) is made a borderless popup.
+- **Debugging.** `WAL_KONAMI_AVS_LOG=1` puts the AVS log in the payload log: byy.exe boots AVS
+  with `/config/log/level` 0 and a writer dropping every line; the level is made 4 and its
+  `avs_boot` import passes ours. `WAL_DUMP_THREADS_AT=<s>,...` (payload-common) dumps every
+  thread's stack and samples where they run: it found the boot waiting in bootmode.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -2103,6 +2154,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
 | `showdown` | Showdown | segashell | works (user: 100%) | `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
 | `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
+| `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | `bin/byy.exe ..\ ..\` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coins, two positional guns scaled onto the default calibration, security plugs), ICCA card reader, cabinet IP setup answered, e-Amusement offline (local mode), picture at the screen resolution in a borderless window |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

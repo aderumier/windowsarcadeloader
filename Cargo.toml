@@ -15,6 +15,7 @@ members = [
     "crates/payload-segashell",
     "crates/payload-wahlap",
     "crates/payload-europar",
+    "crates/payload-konami",
     "crates/loader",
 ]
 # Payloads are Windows DLLs: build them with --target i686-pc-windows-gnu, the 64-bit ones
