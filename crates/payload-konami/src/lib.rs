@@ -13,6 +13,9 @@
 //! * `screen.rs`: the picture at the screen's resolution, a borderless window.
 //! * `avs.rs`: the AVS log, on request.
 //!
+//! Otomedius loads it as `libacio.dll` too (`pjei.rs`, the PJEI board), its libbms and
+//! libtouchpanel imports pointed at the payload (`otomedius.rs`, `touchpanel.rs`).
+//!
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
 
@@ -27,7 +30,10 @@ mod hbhi;
 mod icca;
 mod ig2;
 mod net;
+mod otomedius;
+mod pjei;
 mod screen;
+mod touchpanel;
 
 use std::ffi::c_void;
 
@@ -40,6 +46,8 @@ pub use acio::*;
 pub use bms::*;
 pub use hbhi::*;
 pub use icca::*;
+pub use pjei::*;
+pub use touchpanel::*;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
@@ -48,6 +56,11 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if file_name(module).eq_ignore_ascii_case("libbms.dll") {
             ig2::init();
             crosshair::init();
+            return TRUE;
+        }
+        if file_name(std::ptr::null_mut()).eq_ignore_ascii_case("otomedius.exe") {
+            otomedius::init(module);
+            log!("konami: PJEI board, touch screen and BM-System emulated (Otomedius)");
             return TRUE;
         }
         net::init();
@@ -59,7 +72,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
     TRUE
 }
 
-/// This DLL's file name: what it was installed as.
+/// This DLL's file name (what it was installed as), or the executable's for a null module.
 fn file_name(module: HINSTANCE) -> String {
     let mut buf = [0u16; 260];
     let n = unsafe { GetModuleFileNameW(module, buf.as_mut_ptr(), buf.len() as u32) } as usize;

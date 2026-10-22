@@ -3,6 +3,10 @@
 //! Japanese games convert Shift-JIS file names themselves: Raiden IV's movie
 //! "raiden4_ｃ50.m1v" was not found under a western code page (white intro). The d3dx9 DLL
 //! shipped with the game is hooked too: K-On! draws Shift-JIS text with its `DrawTextA`.
+//! The game's ANSI glyph calls (`gdi32!GetGlyphOutlineA`, `GetCharABCWidthsA`) take their
+//! double-byte characters (lead byte high) in that code page too, converted for the wide ones
+//! (Otomedius draws its texts glyph by glyph; its news ticker stays garbled, its text is not
+//! Shift-JIS).
 //! `WAL_ANSI_CODEPAGE_DLLS=<name>,...` also hooks named, late-loaded game DLLs,
 //! including their GetACP calls (Source engine keeps its text conversion in DLLs).
 
@@ -68,6 +72,8 @@ fn install(base: usize, report_acp: bool) {
         if report_acp {
             iat::hook_module(base, "kernel32.dll", "GetACP", get_acp as *const () as usize);
         }
+        iat::hook_module(base, "gdi32.dll", "GetGlyphOutlineA", glyph_outline_a as *const () as usize);
+        iat::hook_module(base, "gdi32.dll", "GetCharABCWidthsA", char_abc_widths_a as *const () as usize);
     }
 }
 
@@ -97,4 +103,50 @@ unsafe extern "system" fn wc2mb(
     let orig: unsafe extern "system" fn(u32, u32, *const u16, i32, *mut u8, i32, *const u8, *mut i32) -> i32 =
         unsafe { std::mem::transmute(ORIG_WC2MB.load(Ordering::Relaxed)) };
     unsafe { orig(codepage(cp), flags, src, src_len, dst, dst_len, default_char, used_default) }
+}
+
+/// A character code of the ANSI glyph functions (lead byte high for a double-byte one) as UTF-16.
+fn wide_char(code: u32) -> u32 {
+    let bytes = if code > 0xff { vec![(code >> 8) as u8, code as u8] } else { vec![code as u8] };
+    let mut wide = [0u16; 2];
+    let n = unsafe {
+        windows_sys::Win32::Globalization::MultiByteToWideChar(
+            CODEPAGE.load(Ordering::Relaxed), 0, bytes.as_ptr(), bytes.len() as i32, wide.as_mut_ptr(), 2,
+        )
+    };
+    if n >= 1 { wide[0] as u32 } else { code }
+}
+
+const GGO_GLYPH_INDEX: u32 = 0x80;
+
+#[allow(clippy::too_many_arguments)]
+unsafe extern "system" fn glyph_outline_a(
+    dc: windows_sys::Win32::Graphics::Gdi::HDC,
+    code: u32,
+    format: u32,
+    metrics: *mut windows_sys::Win32::Graphics::Gdi::GLYPHMETRICS,
+    size: u32,
+    buffer: *mut core::ffi::c_void,
+    matrix: *const windows_sys::Win32::Graphics::Gdi::MAT2,
+) -> u32 {
+    let code = if format & GGO_GLYPH_INDEX != 0 { code } else { wide_char(code) };
+    unsafe { windows_sys::Win32::Graphics::Gdi::GetGlyphOutlineW(dc, code, format, metrics, size, buffer, matrix) }
+}
+
+unsafe extern "system" fn char_abc_widths_a(
+    dc: windows_sys::Win32::Graphics::Gdi::HDC,
+    first: u32,
+    last: u32,
+    out: *mut windows_sys::Win32::Graphics::Gdi::ABC,
+) -> i32 {
+    if out.is_null() || last < first {
+        return 0;
+    }
+    for (i, code) in (first..=last).enumerate() {
+        let c = wide_char(code);
+        if unsafe { windows_sys::Win32::Graphics::Gdi::GetCharABCWidthsW(dc, c, c, out.add(i)) } == 0 {
+            return 0;
+        }
+    }
+    1
 }

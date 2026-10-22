@@ -69,3 +69,19 @@ pub extern "C" fn ac_io_get_version(out: *mut u8, device: u32) -> bool {
 pub extern "C" fn ac_io_get_firmware_update_device_index() -> u8 {
     0xff
 }
+
+/// AVS booted by libacio for its own use (Otomedius): libacio is this payload, which needs none.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_avs_boot(_mode: u32) -> i32 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_avs_shutdown() -> i32 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_go_firmware_update() -> bool {
+    true
+}

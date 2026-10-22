@@ -325,3 +325,100 @@ credit_wait!(
     bms_credit_consume_wait,
     bms_credit_update_option_wait
 );
+
+// Otomedius's libbms: blocking credit calls (0 done, 3 not enough credits).
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_credit_coin_throw_blocking(slot: u32, count: u32) -> i32 {
+    bms_credit_coin_throw(slot, count)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_credit_get_status_blocking(_slot: u32, out: *mut [u32; 2]) -> i32 {
+    bms_credit_get_status_wait(out)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_credit_consume_blocking(player: u32, kind: u32) -> i32 {
+    bms_credit_consume(player, kind)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_credit_service_blocking() -> i32 {
+    bms_credit_service()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_time_get_clock_blocking(_flag: u32, out: *mut u64) -> i32 {
+    bms_time_get_clock_wait(out)
+}
+
+// e-Amusement pass, card management, matching (network battles), player data, the cabinets'
+// TCP links: services of the e-Amusement network, unavailable (requests accepted, their
+// results failed).
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_ea3_get_url_eapass() -> *const u8 {
+    std::ptr::null()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_ea3_get_url_konaminetdx() -> *const u8 {
+    std::ptr::null()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_ea3_get_eapass_valid() -> u16 {
+    0
+}
+
+macro_rules! unavailable {
+    ($($request:ident / $wait:ident),*) => {$(
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $request() -> i32 {
+            DONE
+        }
+
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $wait() -> i32 {
+            FAILED
+        }
+    )*};
+}
+
+unavailable!(
+    bms_cardmng_inquire / bms_cardmng_inquire_wait,
+    bms_cardmng_cardactivate / bms_cardmng_cardactivate_wait,
+    bms_cardmng_bindmodel / bms_cardmng_bindmodel_wait,
+    bms_cardmng_playerlogin / bms_cardmng_playerlogin_wait,
+    bms_cardmng_bindcard / bms_cardmng_bindcard_wait,
+    bms_cardmng_playerlogout / bms_cardmng_playerlogout_wait,
+    bms_matching_request / bms_matching_request_wait,
+    bms_matching_query / bms_matching_query_wait,
+    bms_playerdata_load / bms_playerdata_load_wait,
+    bms_net_tcp_client_connect_request / bms_net_tcp_client_connect_wait
+);
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_matching_reset_wait() -> i32 {
+    DONE
+}
+
+macro_rules! tcp_failed {
+    ($($name:ident),*) => {$(
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $name() -> i32 {
+            -1
+        }
+    )*};
+}
+
+tcp_failed!(
+    bms_net_tcp_initialize,
+    bms_net_tcp_server_listen,
+    bms_net_tcp_server_accept,
+    bms_net_tcp_server_close_dstsocket_all,
+    bms_net_tcp_client_disconnect,
+    bms_net_tcp_sendto,
+    bms_net_tcp_recvfrom
+);

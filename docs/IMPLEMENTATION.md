@@ -1890,6 +1890,38 @@ profile installs the payload as `libbms.dll` (`payload_install`).
   (`WAL_KONAMI_CROSSHAIR_P1`..`_P4`), in the player's color, `WAL_KONAMI_CROSSHAIR_SIZE` % of
   the screen height.
 
+#### Otomedius
+
+Otomedius (2007, game code GGG, Direct3D 9, 1280x1024 fullscreen) imports three Konami
+libraries: `libacio.dll` (the ACIO bus with the card reader and a PJEI board), `libbms.dll` (the
+BM-System client) and `libtouchpanel.dll` (a serial touch screen). The payload is installed as
+`libacio.dll`; its DllMain sees otomedius.exe and points the exe's libbms and libtouchpanel
+imports at its own functions of the same names (`otomedius.rs`, walking its export table), so
+one payload instance serves the game. The dump's `otomedius_edit.exe` is a community edit (save
+paths moved off E:/F:, flags forced): the original exe is run, E: and F: mapped to the dump's
+`E/` and `F/` (`nvmem\testmode.bin`, `bookkeep.bin`).
+
+- **PJEI (`pjei.rs`).** The 40-byte status buffer: byte 4 start 0x80, up 0x40, down 0x20, left
+  0x10, right 0x08, buttons A 0x04, B 0x02, C 0x01; byte 16 test 0x20, service 0x10, coin 0x04
+  (the game's mask tables at 0x5c30a0 / 0x5c30e8; spice2x's Winning Eleven PJEI layout). Coins are
+  a stock the game reads and consumes. Security plug `GEGGGJAA`: check status 0x14, missing check
+  8. `ac_io_avs_boot` succeeds without AVS (only libacio used it).
+- **Touch screen (`touchpanel.rs`).** `ac_touchpanel_new(1280, 1024)`; reads give x, y in that
+  space and a touched dword. The touch is player 1's right stick (the profile's mouse or gun
+  drives `rx`/`ry`, its button `b4`), mapped into the picture: the 5:4 picture is fitted in the
+  screen with its aspect. `ac_touchpanel_check_wait_receive` is true while still waiting (the
+  boot's diagnostic; spice2x's Winning Eleven answer is the opposite), the init screen waits for
+  the panel's state 3.
+- **Data check.** Boot step 0 reads `ChkSum.bin` (the data files and their hashes), missing from
+  dumps (FILE BROKEN 5-1504-0000): without the file the step handler is replaced by "step 1" (rva
+  0x2d492); a present file is still checked.
+- **BM-System.** The older libbms: blocking credit calls (`coin_throw`, `get_status`,
+  `confirm(player, kind)`, `consume(player, kind)`, `service`), `time_get_clock_blocking`; card
+  management, matching, player data and the cabinets' TCP links fail (no network). A first boot
+  initializes the backup files (BACKUP FILE ERROR 5-2502-0003, TEST: test menu, GAME MODE saves).
+- **Text.** `WAL_ANSI_CODEPAGE=932`, `WAL_FONT_CODEPAGE=932` (Shift-JIS font names). The menus'
+  news ticker stays garbled.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -2203,6 +2235,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | `bin/byy.exe ..\ ..\` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coins, two positional guns scaled onto the default calibration, security plugs), ICCA card reader, cabinet IP setup answered, e-Amusement offline (local mode), picture at the screen resolution in a borderless window |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |
+| `otomedius` | Otomedius | konami | works (user: 100%) | `otomedius.exe` (§6.3h), `libacio.dll` replaced: PJEI board (stick, buttons, coins, security plug), card reader, the libbms imports (BM-System, e-Amusement offline) and libtouchpanel imports (touch screen from the mouse, fitted to the 5:4 picture) answered, missing `ChkSum.bin` data check passed, E:/F: save drives |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

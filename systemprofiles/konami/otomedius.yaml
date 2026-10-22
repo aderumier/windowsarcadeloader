@@ -1,0 +1,40 @@
+# Otomedius (Konami, 2007): a shoot'em up on a touch screen, otomedius.exe (Direct3D 9). The
+# payload replaces libacio.dll (PJEI board, card reader) and answers the game's libbms.dll
+# (BM-System) and libtouchpanel.dll (touch screen) imports.
+# Override values in userprofiles/konami/otomedius.yaml.
+system: konami
+name: Otomedius
+
+# The cabinet's data drives: E:\nvmem (settings, bookkeeping), F:.
+drives:
+  e: E
+  f: F
+
+env:
+  # Japanese text (the news ticker, drawn glyph by glyph) and font names in Shift-JIS
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+
+input:
+  # the stick and buttons on a pad or keyboard; the mouse (or a gun) is the touch screen
+  guns_enabled: true
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b4
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Button A (shot)
+  b2: Button B
+  b3: Button C
+  b4: Touch the screen
+  rx: Touch position (x)
+  ry: Touch position (y)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

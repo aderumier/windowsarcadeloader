@@ -1,4 +1,4 @@
-//! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan Refill!).
+//! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan Refill!, Otomedius).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -10,6 +10,8 @@
 //!
 //! Gashaaaan Refill! has no ACIO: its profile installs the payload as `libbms.dll` (the
 //! BM-System client), which answers the game's own I/O library, ig2ACLib (docs §6.3h).
+//! Otomedius's libacio.dll is the payload too (PJEI board), which also answers the game's libbms
+//! and libtouchpanel imports.
 //!
 //! Payload options (profile `env`):
 //! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits
@@ -19,7 +21,8 @@
 //!
 //! Native inputs for `native_map`: the board's switches `test service start trigger button2`
 //! and `coin` (players 1 and 2 have their own start, trigger and button2); Gashaaaan Refill!:
-//! `test service coin start throw` (players 1-4).
+//! `test service coin start throw` (players 1-4); Otomedius: `test service coin start up down
+//! left right a b c`.
 
 use super::{Payload, System};
 
