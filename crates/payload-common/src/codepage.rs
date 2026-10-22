@@ -28,7 +28,7 @@ pub fn init() {
     };
     CODEPAGE.store(cp, Ordering::Relaxed);
     // the game, and the D3DX library it ships (its ANSI DrawTextA/CreateFontA convert there)
-    let mut modules = vec![unsafe { GetModuleHandleW(std::ptr::null()) } as usize];
+    let mut modules = vec![crate::iat::game_module()];
     for v in 24..=43 {
         let name: Vec<u16> = format!("d3dx9_{v}.dll\0").encode_utf16().collect();
         let base = unsafe { GetModuleHandleW(name.as_ptr()) } as usize;

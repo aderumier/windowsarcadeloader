@@ -322,6 +322,14 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     if loader.is_some() || program_loader.is_some() {
         payloads.push((payload_dir.join("wal-loader.exe"), "wal-loader.exe"));
     }
+    // a game DLL (Konami AVS): run by the system's host program
+    let dll_host = if exe.extension().is_some_and(|e| e.eq_ignore_ascii_case("dll")) {
+        let host = system.dll_host().with_context(|| format!("{}: a DLL, and system {} runs no game DLL", profile.exe, system.name()))?;
+        payloads.push((payload_dir.join(host), host));
+        Some(host)
+    } else {
+        None
+    };
     if let Some(p) = program_loader {
         payloads.push((payload_dir.join(p), p));
     }
@@ -455,7 +463,14 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
                 cmd.arg(wine.windows_path(&run_exe_dir.join(payload))).arg(&game_exe);
                 cmd
             }
-            None => wine.command(&game_exe),
+            None => match dll_host.filter(|_| exe.is_none()) {
+                Some(host) => {
+                    let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join(host)));
+                    cmd.arg(exe_name);
+                    cmd
+                }
+                None => wine.command(&game_exe),
+            },
         };
         cmd.args(args).current_dir(&run_exe_dir);
         if relaunched {

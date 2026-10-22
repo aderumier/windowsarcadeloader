@@ -92,6 +92,9 @@ fn packet() -> [u8; 15] {
     if crate::gti_club::active() {
         return crate::gti_club::packet();
     }
+    if crate::rf3d::active() {
+        return crate::rf3d::packet();
+    }
     let mut guard = BOARD.lock().unwrap();
     let board = guard.get_or_insert_with(|| Board {
         maps: [ButtonMap::new(NATIVES, DEFAULT_MAP), ButtonMap::with_defaults(NATIVES, DEFAULT_MAP)],
@@ -326,4 +329,145 @@ pub extern "C" fn ac_io_hbhi_get_watchdog_status() -> bool {
 /// Whether the virtual card button of player 1 is pressed (the card reader's control).
 pub(crate) fn card_pressed() -> bool {
     wal_payload_common::input(0).pressed(button::CARD)
+}
+
+// The rest of the board's functions Road Fighters 3D looks up in its HGTH bus library
+// (libacioEx.dll, the payload): never used without the hardware, answered.
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_add_coin(_slot: u32, _coins: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_control_parallel_on(_bits: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_control_parallel_off(_bits: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_control_reset() -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_set_framing_err_packet_send_interval(_interval: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_volume_control(_a: u32, _b: u32, _c: u32, _d: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_volume_control_isfinished(status: *mut u32) -> bool {
+    if !status.is_null() {
+        unsafe { *status = 0 };
+    }
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_set_watchdog_time(_time: u16) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_watchdog_off() -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_get_watchdog_time_min() -> u16 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_get_watchdog_time_now() -> u16 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_get_control_status() -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_coin_input_wave() -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_get_coin_input_wave_buffer(_out: *mut u8) -> bool {
+    false
+}
+
+/// The card dispenser: none (every request fails).
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_carddispenser_init() -> bool {
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_carddispenser_init_isfinished(_status: *mut u32) -> bool {
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_carddispenser_get_status() -> bool {
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_carddispenser_get_status_isfinished(_status: *mut u32) -> bool {
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_carddispenser_disburse() -> bool {
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_carddispenser_disburse_isfinished(_status: *mut u32) -> bool {
+    false
+}
+
+// The HDXS board (cabinet LEDs): not in this cabinet; its status is empty.
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hdxs_update_control_status_buffer() -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hdxs_get_control_status_buffer(out: *mut u8) {
+    if !out.is_null() {
+        unsafe { std::ptr::write_bytes(out, 0, 0x40) };
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hdxs_led_set_pattern(_a: u32, _b: u32, _c: u32, _d: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hdxs_led_set_rgb_mask(_a: u32, _b: u32, _c: u32, _d: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hdxs_led_scroll(_a: u32, _b: u32, _c: u32, _d: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hdxs_set_framing_err_packet_send_interval(_interval: u32) -> bool {
+    true
 }

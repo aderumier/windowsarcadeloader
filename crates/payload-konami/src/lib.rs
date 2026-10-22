@@ -22,6 +22,9 @@
 //! GTI Club: Supermini Festa! has the HBHI board and, on a second bus (`dllibacio.dll`, also the
 //! payload), the HGTH wheel board (`gti_club.rs`, `hgth.rs`): wheel, pedals, the wheel's motor.
 //!
+//! Road Fighters 3D (`rf3d.rs`) is `jgt.dll`, run by `wal-avs-boot.exe`: the same two boards
+//! (`libacioEx.dll`, its HGTH bus, also the payload).
+//!
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
 
@@ -41,6 +44,7 @@ mod net;
 mod otomedius;
 mod pjec;
 mod pjei;
+mod rf3d;
 mod screen;
 mod touchpanel;
 mod winning_eleven;
@@ -64,7 +68,17 @@ pub use touchpanel::*;
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
+        // Road Fighters 3D: the game is jgt.dll (the common hooks go there), run by wal-avs-boot
+        let jgt = rf3d::game_module();
+        if jgt != 0 {
+            wal_payload_common::iat::set_game_module(jgt);
+        }
         wal_payload_common::start("konami");
+        if jgt != 0 {
+            rf3d::init(module);
+            log!("konami: HBHI board, HGTH wheel board and card reader emulated (Road Fighters 3D)");
+            return TRUE;
+        }
         if file_name(module).eq_ignore_ascii_case("libbms.dll") {
             ig2::init();
             crosshair::init();

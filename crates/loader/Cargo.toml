@@ -9,6 +9,10 @@ version.workspace = true
 name = "wal-loader"
 path = "src/main.rs"
 
+[[bin]]
+name = "wal-avs-boot"
+path = "src/avs_boot.rs"
+
 [dependencies]
 sha2 = "0.10"
 windows-sys = { version = "0.61", features = [
@@ -19,4 +23,5 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Kernel",
     "Win32_System_Memory",
     "Win32_System_LibraryLoader",
+    "Win32_System_Time",
 ] }

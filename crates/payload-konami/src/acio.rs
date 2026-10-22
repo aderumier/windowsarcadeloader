@@ -130,3 +130,8 @@ pub extern "C" fn ac_io_soft_watch_dog_on(_time: u32) -> bool {
 pub extern "C" fn ac_io_soft_watch_dog_off() -> bool {
     true
 }
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_set_soft_watch_dog(_time: u32) -> bool {
+    true
+}

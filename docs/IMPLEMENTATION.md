@@ -2002,6 +2002,48 @@ payload again (`gti_club.rs`): one instance for both buses. The dump's `dinput8.
 - **Input filtering.** DirectInput (the PC keyboard) disabled; `GetKeyState` (Shift, a debug
   display) answers no key.
 
+#### Road Fighters 3D
+
+Road Fighters 3D (2010, game code JGT, Direct3D 9, 1920x1080, GTI Club's engine: its file cache
+is still `FileCache_Gti3`) has no executable: the game is `jgt.dll` (exports `dll_entry_init`,
+`dll_entry_main`), which the cabinet's launcher runs. The dump's `.windowsloader` names the DLL;
+the konami system's `dll_host`, `wal-avs-boot.exe` (`crates/loader/src/avs_boot.rs`), is
+installed beside it and started as `wal-avs-boot.exe jgt.dll`. It follows the launcher's steps
+(spice2x's `avs/core.cpp` and `avs/ea3.cpp` are the reference):
+
+1. `kbt.dll` and `kld.dll` loaded when present: jgt.dll finds kbt's `bt_get_ikey_status` with
+   `GetModuleHandleA` (a null call otherwise). The dump's are spice2x's stubs.
+2. `avs_boot` (`libavs-win32.dll`, the 7-argument AVS 2 legacy form, two 16 MB heaps) with
+   `prop/avs-config.xml`, its `/sntp/ea_on` off and `/time/gmt_offset` the PC's.
+3. `libavs-win32-ea3.dll`, then `jgt.dll` loaded (its `libacio.dll` import: the payload).
+4. `prop/eamuse-config.xml` (`ea3-config.xml` when there is one): its `/ea3/soft` model, dest,
+   spec, rev, ext give the AVS environment's `/env/profile/security_code` (`G*JGTJAA`),
+   `soft_id_code` (`JGT:J:A:A:2010072003`), and the system, hardware, software, account ids.
+5. `dll_entry_init("JGTJAA2010072003", prop/app-config.xml's /param)`, `ea3_boot(/ea3)`
+   (offline: `5-2002-0000 EA3_BOOT_CODE_SERVICES_ERROR`, the game runs in local mode), then
+   `dll_entry_main()`.
+
+`WAL_KONAMI_AVS_LOG=1` writes the AVS log to `avs.log` in the run directory. The payload's
+hooks go to the game DLL: `wal_payload_common::iat::set_game_module(jgt.dll)` before the common
+payload starts (its import hooks, `WAL_PATCHES`, the code page fix use the game module).
+
+- **HBHI switches** (`rf3d.rs`). Packet byte 1: test 0x20, service 0x10, coin mech 0x04; byte 8:
+  VIEW 0x04, 2D/3D 0x08, the shift lever's switches up 0x10, down 0x20, left 0x40, right 0x80
+  (an H pattern: 1 up-left, 2 down-left, 3 up, 4 down, 5 up-right, 6 down-right). `gear_up` /
+  `gear_down` step a sequential gear through it. No START: the accelerator starts and confirms,
+  the wheel selects. Test menu: SHIFT UP / DOWN (the lever) move, VIEW executes.
+- **HGTH** (`hgth.rs`). jgt.dll loads `libacioEx.dll` (`LoadLibraryA` + a `GetProcAddress`
+  table of the generic, HBHI, HGTH and HDXS functions, every one needed): the payload again.
+  Wheel and pedals at full range (0..0xffff). Motor: bytes 0-1 a 12-bit torque centered on
+  0x800, 0 the motor off (full right 0x8f8, full left 0x708 at low speed): the constant force
+  against it, full scale 0x7ff (`WAL_KONAMI_FFB` percent). Bytes 2-3 (10 bits, not following
+  the wheel) unused.
+- **Card reader.** The workflow API (`ac_io_icca_workflow`, `ac_io_icca_get_status`, 24 bytes:
+  state, sensors, id; `ac_io_icca_get_uid_felica`): the `card` control presents the card.
+- **Rendering.** DXVK draws the race countdown's digits as black blocks: wined3d.
+- **Input filtering.** DirectInput disabled, `GetKeyState` no key, `GetLogicalDriveStringsA`
+  C: alone (as GTI Club).
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -2318,6 +2360,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `otomedius` | Otomedius | konami | works (user: 100%) | `otomedius.exe` (§6.3h), `libacio.dll` replaced: PJEI board (stick, buttons, coins, security plug), card reader, the libbms imports (BM-System, e-Amusement offline) and libtouchpanel imports (touch screen from the mouse, fitted to the 5:4 picture) answered, missing `ChkSum.bin` data check passed, E:/F: save drives |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
+| `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

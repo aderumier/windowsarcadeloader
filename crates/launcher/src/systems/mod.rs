@@ -45,6 +45,11 @@ pub trait System {
     fn loader(&self) -> Option<&'static str> {
         None
     }
+    /// Program that runs a game whose code is a DLL (the dump's `.windowsloader` names the DLL):
+    /// started as `<host> <game.dll> [args]`, installed beside it from `payloads_dir`.
+    fn dll_host(&self) -> Option<&'static str> {
+        None
+    }
     /// Payload `wal-loader` starts another program of the game with, when the game relaunches
     /// into it (`exe=`: the cabinet's test menu program), for systems whose game loads the
     /// payload through its own imports. Installed under its file name beside the game.

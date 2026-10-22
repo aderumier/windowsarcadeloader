@@ -14,7 +14,11 @@
 //! functions themselves: Wine's hot patch prologue (kernelbase's function for kernel32's,
 //! where kernel32's ends up), every caller redirected; a function without one keeps its
 //! callers, the image's pointers to it are replaced (an unpacked import table slot).
+//!
+//! A game whose code is a DLL a host program loads (Konami's AVS games: the boot program runs
+//! `jgt.dll`) names that DLL the game module ([`set_game_module`]) before the hooks are made.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use crate::log;
@@ -33,6 +37,21 @@ unsafe fn c_str_eq(ptr: usize, name: &str) -> bool {
     bytes.eq_ignore_ascii_case(name.as_bytes())
 }
 
+static GAME_MODULE: AtomicUsize = AtomicUsize::new(0);
+
+/// The game's code is the module at `base` (a DLL run by a host program), not the executable.
+pub fn set_game_module(base: usize) {
+    GAME_MODULE.store(base, Ordering::Relaxed);
+}
+
+/// The game module: the executable, or the DLL of [`set_game_module`].
+pub fn game_module() -> usize {
+    match GAME_MODULE.load(Ordering::Relaxed) {
+        0 => unsafe { GetModuleHandleW(std::ptr::null()) as usize },
+        base => base,
+    }
+}
+
 /// Replaces the import `dll!function` of the game executable by `replacement`.
 /// Returns the original function, or `None` when the game does not import it.
 ///
@@ -40,7 +59,7 @@ unsafe fn c_str_eq(ptr: usize, name: &str) -> bool {
 /// `replacement` must be a function with the exact signature and calling convention of
 /// the replaced import.
 pub unsafe fn hook(dll: &str, function: &str, replacement: usize) -> Option<usize> {
-    unsafe { hook_module(GetModuleHandleW(std::ptr::null()) as usize, dll, function, replacement) }
+    unsafe { hook_module(game_module(), dll, function, replacement) }
 }
 
 /// Same as [`hook`], on the module loaded at `base`.

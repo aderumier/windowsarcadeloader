@@ -1,0 +1,67 @@
+# Road Fighters 3D (Konami, 2010): a racing game on GTI Club's engine (Direct3D 9). Its code is
+# jgt.dll, which the cabinet's launcher runs: wal-avs-boot.exe here (the dump's
+# road-fighters-3d.windowsloader names jgt.dll). The payload replaces libacio.dll (HBHI board:
+# switches, coins, security plug; card reader) and answers the game's second ACIO bus,
+# libacioEx.dll (HGTH board: wheel, pedals).
+# Override values in userprofiles/konami/road-fighters-3d.yaml.
+system: konami
+name: Road Fighters 3D
+
+# the real ACIO libraries, never loaded (the payload answers both buses); run.exe starts another
+# loader
+hide: [libacioex.dll, libacio_old.dll, run.exe]
+
+# DXVK draws the race countdown's digits as black blocks: wined3d.
+dxvk: false
+
+env:
+  # It reads the PC keyboard through DirectInput: only the I/O boards drive it.
+  WAL_DINPUT_DISABLE: "1"
+
+# The accelerator starts a game and confirms, the wheel selects (no START button). The dump's
+# coin settings are free play.
+# Cabinet: steering wheel, accelerator and brake (HGTH board), a shift lever (H pattern,
+# 6 gears), VIEW and 2D/3D buttons (HBHI board).
+# Virtual stick: lx wheel, accel / brake, b1 / b2 gear up / down (sequential through the H
+# pattern), b3 VIEW, b4 2D/3D, the directions the lever's raw positions.
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1 / L1 gear up / down, Y VIEW, X 2D/3D, d-pad lever.
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    x: b4
+    a: none
+    b: none
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl / Alt gear up / down,
+  # Space VIEW, Shift 2D/3D, W A S D lever, 5 coin, F4 card.
+  keyboard_ramp_ms: 150
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_W: up
+      KEY_S: down
+      KEY_A: left
+      KEY_D: right
+
+controls:
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Gear Up
+  b2: Gear Down
+  b3: View
+  b4: 2D/3D
+  up: Lever Up
+  down: Lever Down
+  left: Lever Left
+  right: Lever Right
+  coin: Coin
+  service: Service
+  test: Test

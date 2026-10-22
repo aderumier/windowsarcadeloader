@@ -14,6 +14,12 @@
 //! vibration level (0..63: crashes, hits, decaying), byte 2 its kind, byte 3 a constant level
 //! (0x54 in a race). The torque becomes the constant force, the vibration level the vibration
 //! (`WAL_KONAMI_FFB`, percent, default 100).
+//!
+//! Road Fighters 3D (`rf3d.rs`) uses the same receive buffer at full range (no calibration
+//! read: 0..0xffff, wheel center 0x7fff). Its motor packet differs: bytes 0-1 a 12-bit torque
+//! centered on 0x800 (0 the motor off), 0x8f8 with the wheel at full right and 0x708 at full
+//! left at low speed: the constant force, against it. Bytes 2-3 (a 10-bit value, not
+//! following the wheel) are not used.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
@@ -86,6 +92,17 @@ pub extern "C" fn ac_io_hgth_set_senddata(data: *const u8) -> bool {
     let percent = *PERCENT.get_or_init(|| {
         std::env::var("WAL_KONAMI_FFB").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(100)
     });
+    if crate::rf3d::active() {
+        // Road Fighters 3D: a 12-bit torque centered on 0x800 (0 = motor off), positive with
+        // the wheel turned right: pushed back toward the center
+        let raw = u16::from_le_bytes([bytes[0], bytes[1]]) as i32;
+        let torque = if raw == 0 { 0 } else { raw - 0x800 };
+        let force = (-torque * output::FFB_MAX / 0x7ff * percent / 100).clamp(-output::FFB_MAX, output::FFB_MAX);
+        if LAST_FORCE.swap(force, Ordering::Relaxed) != force {
+            send_output(0, output::FFB_CONSTANT, force);
+        }
+        return true;
+    }
     let force = (bytes[0] as i8 as i32 * output::FFB_MAX / 127 * percent / 100).clamp(-output::FFB_MAX, output::FFB_MAX);
     if LAST_FORCE.swap(force, Ordering::Relaxed) != force {
         send_output(0, output::FFB_CONSTANT, force);

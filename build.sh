@@ -15,7 +15,7 @@ install_file() {
 }
 mkdir -p dist/payloads
 install_file "target/$PROFILE/arcade-launcher" dist/arcade-launcher
-for f in wal_nesica.dll wal_typex.dll wal_globalvr.dll wal_tsunami.dll wal_rawthrills.dll wal_ringedge.dll wal_segashell.dll wal_wahlap.dll wal_europar.dll wal_konami.dll wal_bngrw.dll wal-loader.exe; do
+for f in wal_nesica.dll wal_typex.dll wal_globalvr.dll wal_tsunami.dll wal_rawthrills.dll wal_ringedge.dll wal_segashell.dll wal_wahlap.dll wal_europar.dll wal_konami.dll wal_bngrw.dll wal-loader.exe wal-avs-boot.exe; do
     install_file "target/i686-pc-windows-gnu/$PROFILE/$f" "dist/payloads/$f"
 done
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_namcoes3.dll" dist/payloads/wal_namcoes3.dll

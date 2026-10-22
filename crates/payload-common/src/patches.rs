@@ -30,7 +30,7 @@ pub fn apply() {
 /// `<module>!` ones to their DLLs), whatever `WAL_PATCHES_EXE` says: for payloads with their
 /// own patch lists per executable (the Sega Shell's test menu program).
 pub fn apply_list(spec: &str) {
-    let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    let base = crate::iat::game_module();
     let mut later: Vec<(String, String)> = Vec::new();
     for item in spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
         if let Some((module, patch)) = item.split_once('!') {

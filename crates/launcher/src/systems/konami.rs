@@ -16,6 +16,10 @@
 //! GTI Club: Supermini Festa! also loads it as `dllibacio.dll`, its second ACIO bus (HGTH board:
 //! wheel, pedals, the wheel's motor, its torque and vibration the force feedback).
 //!
+//! Road Fighters 3D's code is a DLL (`jgt.dll`, the dump's `.windowsloader`): `wal-avs-boot.exe`
+//! runs it as the cabinet's launcher does (AVS, e-Amusement boot, the DLL's entry points); its
+//! `libacio.dll` and `libacioEx.dll` (the HGTH wheel board's bus) are the payload.
+//!
 //! Payload options (profile `env`):
 //! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits
 //! - `WAL_KONAMI_AVS_LOG=1`: the AVS log (the game system's boot, errors) in the payload log
@@ -44,5 +48,9 @@ impl System for Konami {
 
     fn payloads(&self) -> &'static [Payload] {
         &[Payload { file: "wal_konami.dll", install_as: "libacio.dll" }]
+    }
+
+    fn dll_host(&self) -> Option<&'static str> {
+        Some("wal-avs-boot.exe")
     }
 }
