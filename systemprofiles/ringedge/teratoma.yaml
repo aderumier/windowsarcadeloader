@@ -24,6 +24,9 @@ controls:
 # guns' GunController) instead of the PC's mouse and keyboard (EnableInputDevices)
 files:
   /gs2.ini: systemprofiles/ringedge/files/teratoma/gs2.ini
+  # the game's own sound script: the dump's wraps it twice (another loader's mix: music and the
+  # gun shot at a quarter of their volume, dialogue doubled), the music barely heard
+  /root/lua/Sound/Sound.lua: systemprofiles/ringedge/files/teratoma/Sound.lua
 
 env:
   WAL_LOADER_TERATOMA: "1"
@@ -31,7 +34,14 @@ env:
   # returning to +0x28162a6): ignored
   WAL_IGNORE_TERMINATE_FROM: "0x28162a6"
   # its import table is the packer's: the payload's hooks patch the functions themselves
-  WAL_PACKED_IMPORTS: kernel32.dll,setupapi.dll
+  # (d3d9: the windowed device below)
+  WAL_PACKED_IMPORTS: kernel32.dll,setupapi.dll,d3d9.dll
+  # its 1280x720 fullscreen device: Wine under Xorg only offers the screen's real modes (a
+  # 1600x1200 monitor has no 1280x720). A 1280x720 back buffer in a borderless screen-sized window instead,
+  # stretched to the whole screen (no black bars: the guns aim at the whole screen)
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_D3D9_WINDOWED_SIZE: 1280x720
   # Operation G.H.O.S.T.'s amLib setup: RingWide platform AAM, its game id SBWA (TT.exe's
   # keychip challenge file name, SBWA_Table.dat: missing from the dump, generated)
   WAL_RINGEDGE_PLATFORM: AAM

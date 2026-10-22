@@ -19,9 +19,10 @@ check, installs two pending VM operands, then, once unpacked, opens the game's n
 gate and loads the payload from its startup call. The dump is not modified.
 
 The unpacked code calls Windows through the packer's stubs, not its import table:
-`WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll` makes the payload's hooks hot patch kernelbase's
-functions (setupapi's have no hot patch prologue: the unpacked import table holds their
-addresses, replaced). Hot patching user32, winmm or d3d9 the same way hung the game.
+`WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` makes the payload's hooks hot patch
+kernelbase's functions (setupapi's and d3d9's have no hot patch prologue: the unpacked import
+table holds their addresses, replaced). Hot patching user32 or winmm the same way hung the game;
+d3d9 (the dump's ReShade `D3D9.dll`) runs fine with its import slot replaced.
 
 Two consequences in the payload: a hook must not log while holding a lock its own `WriteFile`
 hook takes, and must not call `Path::exists` (it opens the file: `CreateFileW`, the hook again).
@@ -63,6 +64,28 @@ sees it gone and calls `TerminateProcess` (return address `TT.exe+0x28162a6`). L
 awareness does not change it. `WAL_IGNORE_TERMINATE_FROM=0x28162a6` ignores that termination
 (`crash.rs`, the `NtTerminateProcess` system call stub); `WAL_TRACE_EXIT=1` logs who ends the
 process.
+
+## Display
+
+The game creates a 1280x720 fullscreen device. Wine under Xorg only offers the monitor's real
+modes: a 1600x1200 screen has none of 1280x720. With d3d9 in `WAL_PACKED_IMPORTS` the payload's
+Direct3D shims reach the device: a windowed 1280x720 back buffer (`WAL_D3D9_WINDOWED_SIZE`) in
+a borderless screen-sized window (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`), stretched to
+the whole screen. No `WAL_D3D9_ASPECT`: black bars would put the picture off the guns' aim,
+which covers the whole screen. Checked headless at 1600x1200 (gamescope): stage 1 played.
+
+## Sound
+
+XACT 3 (the prefix's native XACT), `root/sound/XACT`: the music banks `BGM_*.xwb` are in-memory
+16-bit stereo 44.1 kHz PCM, one wave each. The dump's `root/lua/Sound/Sound.lua` is not the
+game's: it is a wrapper (`MRG_TT_NAMED_MIX_V1`) loading an embedded chunk, itself a wrapper
+(dialogue cues doubled, one caption added) loading the game's own `@Sound.lua` (9900 bytes).
+The outer one multiplies the volume of the music cues (`bgm_*.sound` banks, `CATEGORY_BGM`)
+and of the gun shot (`SE_general` `gun_01`) by 0.25 and the dialogue's by 2: the music was
+barely heard. The profile puts the game's own script back (`files`, extracted from the
+nested `loadstring` strings). Measured by recording the sound output of a headless run and
+correlating it with `BGM_m1.xwb`'s PCM: normalized correlation 0.36 with the dump's script,
+0.75-0.86 with the game's.
 
 ## Movies
 
