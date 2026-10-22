@@ -196,4 +196,5 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%), 4 players (guns or mice throw balls), crosshairs, test menu | not in the test |  |
 | `otomedius` | Otomedius | konami | works (user: 100%), touch screen (mouse), test menu | not in the test |  |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), arcade stick, test menu | not in the test |  |
+| `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%), wheel with force feedback, test menu | not in the test |  |
 <!-- GAMELIST END -->

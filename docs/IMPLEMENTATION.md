@@ -1966,6 +1966,42 @@ used. spice2x supports the later Winning Eleven 2012/2014 (KCK, NCK) with the sa
   the payload, which logs a call whose first argument is a readable text format (a small printf,
   `%s` pointers checked with `VirtualQuery`). AVS's log comes through it too.
 
+#### GTI Club: Supermini Festa!
+
+GTI Club: Supermini Festa! (2009, game code HGT, Direct3D 9, 1360x768) runs `gti3.exe` from the
+dump root (`gti3japkey.exe` is the Japanese build: plug `GQHGTJAA` instead of `GKHGTEAA`, the
+only difference). It imports `libacio.dll` (the HBHI board: switches, coins, security plug; the
+card reader) and loads a second libacio, `dllibacio.dll` (`LoadLibraryA` + `GetProcAddress`,
+rva 0x403d0), for a second ACIO bus with the HGTH board: the motorized wheel, the pedals. The
+payload is installed as `libacio.dll`; the exe's `LoadLibraryA("dllibacio.dll")` loads the
+payload again (`gti_club.rs`): one instance for both buses. The dump's `dinput8.dll` (with
+`SDL2.dll`, `MetroFramework.dll`) is a third-party force feedback plugin: hidden.
+
+- **HBHI switches.** Packet byte 1: test 0x20, service 0x10, coin mech 0x04 (the coins are a
+  stock: `ac_io_hbhi_current_coinstock` / `consume_coinstock`); byte 8 (the test menu's INPUT
+  CHECK): 0x01-0x08 SELECT UP / DOWN / LEFT / RIGHT, 0x10 START, 0x20 ACTION, 0x40 / 0x80 the
+  lever's SHIFT UP / SHIFT DOWN. The game's switch flags (0xa7e784, built at rva 0x41037) also
+  hold the wheel and pedals past half way. Test menu: SELECT UP / DOWN move, START executes;
+  INPUT CHECK exits with SHIFT UP + START.
+- **HGTH (`hgth.rs`).** `ac_io_hgth_get_recvdata`: 32 bytes, +2 wheel, +4 accelerator, +6 brake
+  (16 bits). The game maps them with its calibration (min 0x918c74, max 0x918c68, wheel center
+  0x918c14; ANALOG CHECK shows them): the sticks are scaled onto the calibration it has, so no
+  calibration is needed. `ac_io_hgth_set_senddata` gets the motor's 4 bytes (0x918cbc, built at
+  rva 0x1475d0): byte 0 the torque -127..127 against the wheel's turn (self-centering; wheel
+  right, torque negative), byte 1 a decaying vibration level 0..63 (crashes, hits): constant
+  force and vibration outputs (`WAL_KONAMI_FFB` percent).
+- **Calibration check.** Boot step 0x44ba90 wants the three calibrated flags of the test menu's
+  CALIBRATION (ERROR 5-1550-0000 "PERFORM THE I/O CALIBRATION" otherwise): passed in memory
+  (rva 0x4bad8). A fresh `CONF/NVRAM` shows 5-1514-0000 (backup initialized) once: TEST opens
+  the test menu, GAME MODE saves.
+- **Boot time.** The boot reads every drive's volume and free space (`GetLogicalDriveStringsA`):
+  Wine's Z: (the host's `/`) took over 30 s. The game gets C: alone.
+- **Rendering.** DXVK draws the test menu's black background and the HUD's dark panels white:
+  wined3d (`dxvk: false`). The fullscreen 1360x768 device fails under Wine: payload-common makes it
+  a windowed device over the whole screen.
+- **Input filtering.** DirectInput (the PC keyboard) disabled; `GetKeyState` (Shift, a debug
+  display) answers no key.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -2281,6 +2317,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |
 | `otomedius` | Otomedius | konami | works (user: 100%) | `otomedius.exe` (§6.3h), `libacio.dll` replaced: PJEI board (stick, buttons, coins, security plug), card reader, the libbms imports (BM-System, e-Amusement offline) and libtouchpanel imports (touch screen from the mouse, fitted to the 5:4 picture) answered, missing `ChkSum.bin` data check passed, E:/F: save drives |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |
+| `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

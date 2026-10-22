@@ -1,5 +1,5 @@
 //! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan Refill!, Otomedius,
-//! Winning Eleven 2008).
+//! Winning Eleven 2008, GTI Club: Supermini Festa!).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -13,6 +13,8 @@
 //! BM-System client), which answers the game's own I/O library, ig2ACLib (docs §6.3h).
 //! Otomedius's libacio.dll is the payload too (PJEI board), which also answers the game's libbms
 //! and libtouchpanel imports; Winning Eleven 2008's too (PJEI board, PS2 pad port, touch panel).
+//! GTI Club: Supermini Festa! also loads it as `dllibacio.dll`, its second ACIO bus (HGTH board:
+//! wheel, pedals, the wheel's motor, its torque and vibration the force feedback).
 //!
 //! Payload options (profile `env`):
 //! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits
@@ -22,12 +24,14 @@
 //! - Winning Eleven 2008: `WAL_KONAMI_GAME_LOG=1` the game's own log in the payload log;
 //!   `WAL_KONAMI_EAMUSEMENT=1`, `WAL_KONAMI_LIVE_MONITOR=1` keep those test menu network options
 //!   (forced off); `WAL_KONAMI_DDRIVE` the cabinet's D: folder (default the dump root)
+//! - GTI Club: `WAL_KONAMI_FFB` the force feedback strength, percent (default 100)
 //!
 //! Native inputs for `native_map`: the board's switches `test service start trigger button2`
 //! and `coin` (players 1 and 2 have their own start, trigger and button2); Gashaaaan Refill!:
 //! `test service coin start throw` (players 1-4); Otomedius: `test service coin start up down
 //! left right a b c`; Winning Eleven 2008: also `d e f`, and the PS2 pad `pad_start select up down
-//! left right triangle cross square circle l1 l2 l3 r1 r2 r3`.
+//! left right triangle cross square circle l1 l2 l3 r1 r2 r3`; GTI Club: `test service coin start
+//! action shift_up shift_down select_up select_down select_left select_right`.
 
 use super::{Payload, System};
 

@@ -19,6 +19,9 @@
 //! Winning Eleven 2008 also has the PJEI board, a PS2 pad port (`pjec.rs`) and the touch screen
 //! (`winning_eleven.rs`).
 //!
+//! GTI Club: Supermini Festa! has the HBHI board and, on a second bus (`dllibacio.dll`, also the
+//! payload), the HGTH wheel board (`gti_club.rs`, `hgth.rs`): wheel, pedals, the wheel's motor.
+//!
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
 
@@ -29,7 +32,9 @@ mod avs;
 mod bms;
 mod crosshair;
 mod eamuse;
+mod gti_club;
 mod hbhi;
+mod hgth;
 mod icca;
 mod ig2;
 mod net;
@@ -50,6 +55,7 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub use acio::*;
 pub use bms::*;
 pub use hbhi::*;
+pub use hgth::*;
 pub use icca::*;
 pub use pjec::*;
 pub use pjei::*;
@@ -67,6 +73,11 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if file_name(std::ptr::null_mut()).eq_ignore_ascii_case("otomedius.exe") {
             otomedius::init(module);
             log!("konami: PJEI board, touch screen and BM-System emulated (Otomedius)");
+            return TRUE;
+        }
+        if gti_club::detected() {
+            gti_club::init(module);
+            log!("konami: HBHI board, HGTH wheel board and card reader emulated (GTI Club)");
             return TRUE;
         }
         if winning_eleven::detected() {

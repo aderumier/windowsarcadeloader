@@ -91,3 +91,42 @@ pub extern "C" fn ac_io_avs_shutdown() -> i32 {
 pub extern "C" fn ac_io_go_firmware_update() -> bool {
     true
 }
+
+/// The serial line's statistics (0x58 bytes of counters): zeros, nothing lost.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_get_rs232c_status(out: *mut u8) {
+    if !out.is_null() {
+        unsafe { std::ptr::write_bytes(out, 0, 0x58) };
+    }
+}
+
+/// The bus's send / receive logs: empty.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_get_send_log(_out: *mut u8, _size: u32) -> u32 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_get_recv_log(_out: *mut u8, _size: u32) -> u32 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_reset() -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_set_get_status_device(_device: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_soft_watch_dog_on(_time: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_soft_watch_dog_off() -> bool {
+    true
+}

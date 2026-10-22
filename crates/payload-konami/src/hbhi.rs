@@ -82,11 +82,16 @@ struct Board {
 }
 
 static BOARD: Mutex<Option<Board>> = Mutex::new(None);
+/// Coins inserted and not yet taken by the game (`ac_io_hbhi_current_coinstock`).
+static COIN_STOCK: AtomicU32 = AtomicU32::new(0);
 static PACKETS: AtomicU32 = AtomicU32::new(0);
 static CLOCK: AtomicU64 = AtomicU64::new(0);
 
 /// The board's current status packet.
 fn packet() -> [u8; 15] {
+    if crate::gti_club::active() {
+        return crate::gti_club::packet();
+    }
     let mut guard = BOARD.lock().unwrap();
     let board = guard.get_or_insert_with(|| Board {
         maps: [ButtonMap::new(NATIVES, DEFAULT_MAP), ButtonMap::with_defaults(NATIVES, DEFAULT_MAP)],
@@ -120,6 +125,7 @@ fn packet() -> [u8; 15] {
             }
         });
         if coin && !board.coin_held[player] {
+            coin_inserted();
             board.coins[player] = board.coins[player].wrapping_add(1) & 0x3f;
         }
         board.coin_held[player] = coin;
@@ -173,6 +179,26 @@ pub extern "C" fn ac_io_hbhi_get_control_status_buffer(out: *mut u8) {
     unsafe { std::ptr::copy_nonoverlapping(buf.as_ptr(), out, buf.len()) };
 }
 
+/// A coin went in (a press of a slot's coin control).
+pub(crate) fn coin_inserted() {
+    COIN_STOCK.fetch_add(1, Ordering::Relaxed);
+}
+
+/// The coins the board counted since the game last took them (GTI Club).
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_current_coinstock(_slot: u32, stock: *mut u32) -> bool {
+    if !stock.is_null() {
+        unsafe { *stock = COIN_STOCK.load(Ordering::Relaxed) };
+    }
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_consume_coinstock(_slot: u32, coins: u32) -> bool {
+    let _ = COIN_STOCK.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_sub(coins)));
+    true
+}
+
 // The security plugs (software plug: the game's id, GLH24JAA; system plug: the cabinet's).
 // Checks complete at once: `0x12` a plug found, `8` the missing-plug check passed.
 
@@ -187,6 +213,12 @@ pub extern "C" fn ac_io_hbhi_req_secplug_check_softwareplug(id: *const c_char) -
     }
     PLUG_STATUS.store(PLUG_FOUND, Ordering::Relaxed);
     true
+}
+
+/// The software plug check of GTI Club (the plug's id, e.g. `GKHGTEAA`).
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_secplug_check(id: *const c_char) -> bool {
+    ac_io_hbhi_req_secplug_check_softwareplug(id)
 }
 
 #[unsafe(no_mangle)]
@@ -272,6 +304,22 @@ pub extern "C" fn ac_io_hbhi_control_lamp_on(_lamp: u32) -> bool {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_hbhi_control_lamp_off(_lamp: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_control_lamp_bright(_lamps: u32, _value: u8) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_control_lamp_mode(_mode: u32) -> bool {
+    true
+}
+
+/// The board's watchdog never fired.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_get_watchdog_status() -> bool {
     true
 }
 

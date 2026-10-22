@@ -1,0 +1,67 @@
+# GTI Club: Supermini Festa! (Konami, 2009): a driving game with a motorized steering wheel,
+# gti3.exe (Direct3D 9). The payload replaces libacio.dll (HBHI board: switches, coins, security
+# plug; card reader) and answers the game's second ACIO bus, dllibacio.dll (HGTH board: wheel,
+# pedals, the wheel's motor).
+# Override values in userprofiles/konami/gti-club-supermini-festa.yaml.
+system: konami
+name: "GTI Club: Supermini Festa!"
+
+# The dump's dinput8.dll is a third-party force feedback plugin (with SDL2.dll and
+# MetroFramework.dll): the payload drives the force feedback.
+hide: [dinput8.dll]
+
+# DXVK draws the test menu's and the HUD's dark panels white: wined3d.
+dxvk: false
+
+# XACT 2 (the dump's xactengine2_10.dll, which the cabinet registers at boot)
+tricks: [xact]
+
+env:
+  # It reads the PC keyboard through DirectInput: only the I/O boards drive it.
+  WAL_DINPUT_DISABLE: "1"
+
+# Cabinet: motorized wheel, gas and brake pedals (HGTH board), a shift lever (SHIFT UP / SHIFT
+# DOWN), START, ACTION and the four SELECT buttons (HBHI board).
+# Virtual stick: lx wheel, accel / brake pedals, b1 SHIFT UP, b2 SHIFT DOWN, b3 ACTION, the
+# directions the SELECT buttons.
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1 / L1 shift up / down, Y ACTION, d-pad SELECT.
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    x: none
+    a: none
+    b: none
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl / Alt shift up / down,
+  # Space ACTION, W A S D SELECT, 1 START, 5 coin.
+  keyboard_ramp_ms: 150
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_W: up
+      KEY_S: down
+      KEY_A: left
+      KEY_D: right
+
+controls:
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Shift Up
+  b2: Shift Down
+  b3: Action
+  up: Select Up
+  down: Select Down
+  left: Select Left
+  right: Select Right
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
