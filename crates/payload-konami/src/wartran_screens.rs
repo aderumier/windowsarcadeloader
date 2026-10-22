@@ -7,7 +7,8 @@
 //! adapter is the first one again, both devices are windowed (copy swap, one back buffer) on
 //! the first screen's window (the second one hidden) and each presents into its half of the
 //! 1280x480 picture, fitted in the window with its aspect. The guns aim over the whole picture
-//! (`picture_area`).
+//! (`picture_area`). The 3D scenes' bezel offset (each screen slid 8 pixels outwards) is
+//! removed: the two pictures join.
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
@@ -45,7 +46,30 @@ static MAIN_WINDOW: AtomicUsize = AtomicUsize::new(0);
 /// The picture's area in the window, in 1/65536 of its size: left, top, width, height.
 static AREA: [AtomicU32; 4] = [AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(65536), AtomicU32::new(65536)];
 
+/// The bezel offsets: during 3D scenes the game slides the left screen's picture 8 pixels
+/// left and the right one's 8 right (`push -8` / `push 8` at rva 0x71f5 / 0x71fe, the
+/// cabinet's gap between its monitors): a black band in the middle of one window. Made 0.
+const SLIDE_PATCHES: [(usize, [u8; 2]); 2] = [(0x4071f5, [0x6a, 0xf8]), (0x4071fe, [0x6a, 0x08])];
+
+fn no_bezel_slide() {
+    use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+    for (at, bytes) in SLIDE_PATCHES {
+        let p = at as *mut u8;
+        if unsafe { std::slice::from_raw_parts(p, 2) } != bytes {
+            log!("wartran: unexpected screen slide code at {at:#x}, left as is");
+            continue;
+        }
+        let mut old = 0;
+        unsafe {
+            VirtualProtect(p.cast(), 2, PAGE_EXECUTE_READWRITE, &mut old);
+            *p.add(1) = 0;
+            VirtualProtect(p.cast(), 2, old, &mut old);
+        }
+    }
+}
+
 pub fn init() {
+    no_bezel_slide();
     match unsafe { iat::hook("d3d8.dll", "Direct3DCreate8", create8 as *const () as usize) } {
         Some(o) => ORIG_CREATE8.store(o, Ordering::Relaxed),
         None => log!("wartran: Direct3DCreate8 import not found, one screen"),

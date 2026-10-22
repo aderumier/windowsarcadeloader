@@ -2121,7 +2121,9 @@ message goes to the payload log). `wartran.rs`, `wartran_screens.rs`.
   plays on the left screen alone. IDirect3D8 reports two adapters (adapter 1 answered by
   adapter 0), both devices are windowed (copy swap, one back buffer) on the first screen's
   window, the second one hidden, and each `Present`s into its half of the 1280x480 picture,
-  fitted in the borderless screen-sized window with its aspect.
+  fitted in the borderless screen-sized window with its aspect. During 3D scenes the game
+  slides each screen's picture 8 pixels outwards (rva 0x71f5 / 0x71fe, the cabinet's gap
+  between its monitors): a black band in the middle of one window, the offsets made 0.
 - **Settings drive.** The settings and bookkeeping are `<second fixed drive>\D00\GxD000.CFG`
   and `GxD001.CFG` (CONFIGRATION FILE IS NOT FOUND otherwise): `GetLogicalDriveStringsA`
   reports C: and E:, the profile maps E: to the dump's `E/`, seeded once with the dump's
