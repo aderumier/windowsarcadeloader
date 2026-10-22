@@ -36,3 +36,5 @@ EXPORTS
     "?ac_io_soft_watch_dog_off@@YAXXZ" = ac_io_soft_watch_dog_off
     "?ac_io_soft_watch_dog_on@@YAXXZ" = ac_io_soft_watch_dog_on
     "?ac_io_update@@YAXXZ" = ac_io_update
+    ; panicdialog.dll's (Wartran Troopers)
+    "?PanicDialog@@YAXPAD@Z" = PanicDialog

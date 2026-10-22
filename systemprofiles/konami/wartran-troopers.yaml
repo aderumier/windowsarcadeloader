@@ -1,0 +1,45 @@
+# Wartran Troopers (Konami, 2005): four players with guns on two monitors, D00/game/game.exe
+# (Direct3D 8). The payload replaces panicdialog.dll and answers the cabinet's serial I/O
+# chain (COM2) and gun boards (COM1); both monitors are shown side by side in one window.
+# Override values in userprofiles/konami/wartran-troopers.yaml.
+system: konami
+name: Wartran Troopers
+
+payload_install: [D00/game/panicdialog.dll]
+
+# sound.dll plays through DirectMusic (failed init DirectMusicPerformance8 with Wine's own)
+tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
+
+# The cabinet's data drive: the settings and bookkeeping (E:\D00\GxD000.CFG, GxD001.CFG).
+drives:
+  e: E
+
+env:
+  # the two monitors side by side in one borderless screen-sized window (the payload fits the
+  # 1280x480 picture in it)
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # the game security plug's region: GKD00UA (US), GKD00EA (Europe), GED00AA (Asia), GND00JA
+  # (Japan)...
+  WAL_KONAMI_PLUG: GKD00UA
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # shooting off the screen reloads
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Trigger
+  b2: Option
+  b3: Shoulder
+  b6: Off screen (reload)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

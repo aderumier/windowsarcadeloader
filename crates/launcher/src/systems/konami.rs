@@ -1,5 +1,6 @@
 //! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan Refill!, Otomedius,
-//! Winning Eleven 2008, GTI Club: Supermini Festa!, Road Fighters 3D, Contra: Evolution).
+//! Winning Eleven 2008, GTI Club: Supermini Festa!, Road Fighters 3D, Contra: Evolution,
+//! Wartran Troopers).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -24,6 +25,10 @@
 //! runs it as the cabinet's launcher does (AVS, e-Amusement boot, the DLL's entry points); its
 //! `libacio.dll` and `libacioEx.dll` (the HGTH wheel board's bus) are the payload.
 //!
+//! Wartran Troopers has no ACIO: the payload is its `panicdialog.dll` and answers its serial
+//! I/O chain (COM2: hub, boards, security plugs) and gun boards (COM1), its two monitors shown
+//! side by side in one window.
+//!
 //! Payload options (profile `env`):
 //! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits
 //! - `WAL_KONAMI_AVS_LOG=1`: the AVS log (the game system's boot, errors) in the payload log
@@ -33,6 +38,7 @@
 //!   `WAL_KONAMI_EAMUSEMENT=1`, `WAL_KONAMI_LIVE_MONITOR=1` keep those test menu network options
 //!   (forced off); `WAL_KONAMI_DDRIVE` the cabinet's D: folder (default the dump root)
 //! - GTI Club: `WAL_KONAMI_FFB` the force feedback strength, percent (default 100)
+//! - Wartran Troopers: `WAL_KONAMI_PLUG` the game plug's region id (default `GKD00UA`)
 //!
 //! Native inputs for `native_map`: the board's switches `test service start trigger button2`
 //! and `coin` (players 1 and 2 have their own start, trigger and button2); Gashaaaan Refill!:
@@ -40,7 +46,8 @@
 //! left right a b c`; Winning Eleven 2008: also `d e f`, and the PS2 pad `pad_start select up down
 //! left right triangle cross square circle l1 l2 l3 r1 r2 r3`; GTI Club: `test service coin start
 //! action shift_up shift_down select_up select_down select_left select_right`; Contra: Evolution:
-//! `start up down left right shot jump select test service coin` (players 1 and 2).
+//! `start up down left right shot jump select test service coin` (players 1 and 2); Wartran
+//! Troopers: `start trigger option shoulder sense offscreen` (players 1-4), `test service coin`.
 
 use super::{Payload, System};
 

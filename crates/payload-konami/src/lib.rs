@@ -28,6 +28,9 @@
 //! Contra: Evolution imports it under its functions' MSVC names (`libacio.def`) and never calls
 //! them: `contra.rs` answers its control panel (COM1), DirectInput keyboard and clock.
 //!
+//! Wartran Troopers loads it as `panicdialog.dll` (`wartran.rs`: its serial I/O chain and gun
+//! boards; `wartran_screens.rs`: its two monitors in one window).
+//!
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
 
@@ -51,6 +54,8 @@ mod pjei;
 mod rf3d;
 mod screen;
 mod touchpanel;
+mod wartran;
+mod wartran_screens;
 mod winning_eleven;
 
 use std::ffi::c_void;
@@ -81,6 +86,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if jgt != 0 {
             rf3d::init(module);
             log!("konami: HBHI board, HGTH wheel board and card reader emulated (Road Fighters 3D)");
+            return TRUE;
+        }
+        if wartran::detected(module) {
+            wartran::init();
             return TRUE;
         }
         if file_name(module).eq_ignore_ascii_case("libbms.dll") {

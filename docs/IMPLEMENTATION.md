@@ -2076,6 +2076,60 @@ payload starts (its import hooks, `WAL_PATCHES`, the code page fix use the game 
 - **Input filtering.** DirectInput disabled, `GetKeyState` no key, `GetLogicalDriveStringsA`
   C: alone (as GTI Club).
 
+#### Wartran Troopers
+
+Wartran Troopers (2005, game code D00, Direct3D 8, two 640x480 monitors, four guns) is
+`D00/game/game.exe`; it imports no Konami I/O library: its cabinet is two serial links and
+`panicdialog.dll` (the fatal error box), which the payload replaces (`payload_install`; the
+message goes to the payload log). `wartran.rs`, `wartran_screens.rs`.
+
+- **I/O chain on COM2** (115200 8N1): the "pcio" hub and the boards behind it. Packets start
+  with `AA`, their checksum is the sum of the bytes after the first. The boot syncs (`AA AA AA
+  55`, `AA AA 00 00` echoed), counts the boards (`AA AA 00 01 01 ..` -> `AA AA 00 01 01 n sum`,
+  4), reads each one's id and firmware version (`AA AA n 02 00`, 28 bytes: id big endian at
+  +11, version at +16: equal to the dump's firmware file, else the game uploads it) and status
+  (`AA AA n 03 00`, 13 bytes). Boards: 1-2 id 0x201 (`D00.bin`, players 1-2 and 3-4: setup
+  commands only), 3 id 0x601 (`C22D_1-0-0.bin`), 4 the hub (0x10000,
+  `pcio-20030929-v108.bin`). Then `AA 00 node cmd data sum` requests: the line echoes them,
+  the board answers `AA 01 node cmd reply sum`. The reply's length is taken from the game's
+  request queue (I/O context `[0x5843b8]`, 0x80c-byte entries at +0x60c, the one sent at
+  `[+0x608] & 15`, reply length at +0x808). Command 0 (reset) answers `1 0` (done, no error:
+  zeros kept the 0x601 board's boot waiting, IOB initialized check and wait).
+- **Switches.** Hub command 0x28 (66 bytes: 2, then the switch bytes): byte 0 START (P1 0x80,
+  P2 0x20, P3 0x10, P4 0x08) and SERVICE 0x40, byte 2 TRIGGER (same bits), byte 1 TEST 0x02
+  and the coin mech 0x01, bytes 4-5 the coin counter (big endian, the game counts its steps).
+  Board 3's command 0x49 (17 bytes: 1, then data): bytes 12-14 OPTION, SHOULDER, SENSE of the
+  four guns (bit 3 - player, active low); bytes 0-11 counters shown in a debug screen, 0. The
+  test menu opens on TEST's press (an edge) during the attract, P1/P2 trigger move, P1 start
+  executes; INPUT CHECK shows the four players.
+- **Security plugs.** Hub commands 0x40 / 0x41 select the system / game plug, 0x48 reads its
+  64 bytes: the game plug holds the region at bytes 3.. (11 known: `GND00JA`, `GKD00UA`,
+  `GKD00EA`...; else SECURITY FAILED 2-1004-0000). `WAL_KONAMI_PLUG` (default `GKD00UA`, US
+  English).
+- **Gun boards on COM1** (19200 8N1, two units of two guns; silent: GUN BOARD INITIALIZE
+  ERROR 2-1003-0006). A request's first byte is the unit | command << 2, written byte by byte
+  (buffered to the request length the game set, `0x1a2f20c`); a reply (`0x1a2f210` bytes)
+  ends with the complement of its other bytes' sum. Version (command 1): 1. Poll (command 2,
+  7 bytes): both guns' raw x, y, their off-screen bits, 0x75 at byte 5. The game's gun read
+  (rva 0xb2c00, `gun, &x, &y, &offscreen, &raw_x, &raw_y`) puts the raw bytes through the
+  cabinet calibration and smoothing to 0..1 over both screens: replaced by the pointer, mapped
+  to the picture's area in the window (off screen outside it, or with the `offscreen` control:
+  the guns reload shooting off screen).
+- **Two screens** (`wartran_screens.rs`). `WARTRAN.INI` (absent) `NR_SCREEN` defaults to 2:
+  with `GetAdapterCount` >= 2 the game creates one full-screen device per adapter in its own
+  window (x 0 and 640), players 1-2 on the left screen, 3-4 on the right; with one adapter it
+  plays on the left screen alone. IDirect3D8 reports two adapters (adapter 1 answered by
+  adapter 0), both devices are windowed (copy swap, one back buffer) on the first screen's
+  window, the second one hidden, and each `Present`s into its half of the 1280x480 picture,
+  fitted in the borderless screen-sized window with its aspect.
+- **Settings drive.** The settings and bookkeeping are `<second fixed drive>\D00\GxD000.CFG`
+  and `GxD001.CFG` (CONFIGRATION FILE IS NOT FOUND otherwise): `GetLogicalDriveStringsA`
+  reports C: and E:, the profile maps E: to the dump's `E/`, seeded once with the dump's
+  `D00/game/GxD00n.CFG` (free play).
+- **Sound.** `sound.dll` plays through DirectMusic: the DirectMusic winetricks.
+- **Input filtering.** `GetAsyncKeyState` (debug keys), `GetKeyboardState` (test menu
+  shortcuts) answer no key, `GetCursorPos` a still mouse.
+
 ### 6.3i Arcade PC (`crates/payload-arcadepc`)
 
 PC-based arcade games without a cabinet I/O API to replace. System `arcadepc`, 64-bit payload
@@ -2437,6 +2491,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | `AMContra.exe` (§6.3h), `libacio.dll` replaced (its MSVC-named imports, never called): controls on a fake DirectInput keyboard from the virtual sticks (the game's key table), coins from the COM1 control panel, clock reported set, GB2312 text (code page 936) |
+| `wartran-troopers` | Wartran Troopers | konami | works (headless tests: attract, 4 players start, aim, test menu, input check) | `D00/game/game.exe` (§6.3h), `panicdialog.dll` replaced; COM2 pcio hub chain emulated (4 boards, firmware versions from the dump, switches, coin counter, security plug region `WAL_KONAMI_PLUG`), COM1 gun boards; the gun read replaced by the pointer; two monitors in one window (2 D3D8 devices presenting side by side); E: settings drive seeded from the dump's CFGs; DirectMusic tricks |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
