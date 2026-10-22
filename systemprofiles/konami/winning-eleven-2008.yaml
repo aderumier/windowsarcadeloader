@@ -1,0 +1,46 @@
+# WORLD SOCCER Winning Eleven ARCADE CHAMPIONSHIP 2008 (Konami, game code HCK): an arcade stick
+# with six buttons (the PJEI board), HCK/bin/game.exe (Direct3D 8). The payload replaces
+# libacio.dll (PJEI board, PS2 pad port, card reader) and answers the game's libtouchpanel.dll
+# imports (never touched: the controller choice is taken when its timer runs out, the arcade
+# stick).
+# Override values in userprofiles/konami/winning-eleven-2008.yaml.
+system: konami
+name: Winning Eleven 2008
+
+# The dump's D3D8.dll is dgVoodoo (Direct3D 12 output): Wine's own is used.
+hide: [D3D8.dll]
+
+env:
+  # Japanese text (messages, test menu) in Shift-JIS
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+
+input:
+  # the arcade stick's buttons where a soccer game has them on a pad: cross short pass, circle
+  # long pass, square shoot, R1 dash dribble, L1 switch player
+  gamepad:
+    a: b2
+    b: b3
+    x: b4
+    y: none
+    r1: b1
+    l1: b5
+    r2: b6
+    l2: none
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: A (dash dribble)
+  b2: B (short pass)
+  b3: C (long pass)
+  b4: D (shoot)
+  b5: E (switch player)
+  b6: F (dribble)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: Insert / eject the card

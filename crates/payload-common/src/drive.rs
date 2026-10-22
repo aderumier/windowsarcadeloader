@@ -412,19 +412,26 @@ macro_rules! hooks {
                 }
             )*
             for crt in CRT_MODULES {
-                let name = format!("{crt}\0");
-                let base = unsafe { GetModuleHandleA(name.as_ptr()) } as usize;
-                if base == 0 {
-                    continue;
-                }
-                log!("drive: redirecting {crt} file functions");
-                $(
-                    if let Some(o) = unsafe { iat::hook_module(base, "kernel32.dll", stringify!($name), $name as *const () as usize) } {
-                        // the CRT and the game import the same kernel32 function
-                        let _ = ORIG[$idx].compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
-                    }
-                )*
+                redirect_module(crt);
             }
+        }
+
+        /// Redirects the file functions of another loaded module (a game DLL opening data
+        /// files itself, a C runtime); call after `init`. False when it is not loaded.
+        pub fn redirect_module(module: &str) -> bool {
+            let name = format!("{module}\0");
+            let base = unsafe { GetModuleHandleA(name.as_ptr()) } as usize;
+            if base == 0 {
+                return false;
+            }
+            log!("drive: redirecting {module} file functions");
+            $(
+                if let Some(o) = unsafe { iat::hook_module(base, "kernel32.dll", stringify!($name), $name as *const () as usize) } {
+                    // the module and the game import the same kernel32 function
+                    let _ = ORIG[$idx].compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
+                }
+            )*
+            true
         }
     };
 }

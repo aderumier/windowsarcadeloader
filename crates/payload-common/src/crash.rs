@@ -18,7 +18,7 @@ use crate::log;
 /// `IsBadReadPtr` raises a first-chance access violation on unmapped addresses (a VEH-visible
 /// AV under wine 11.18, one per call, exhausting the report quota): a `VirtualQuery` page
 /// walk instead.
-fn readable(addr: usize, len: usize) -> bool {
+pub fn readable(addr: usize, len: usize) -> bool {
     use windows_sys::Win32::System::Memory::{
         MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_GUARD, PAGE_NOACCESS, VirtualQuery,
     };

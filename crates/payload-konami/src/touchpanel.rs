@@ -7,10 +7,19 @@
 //! pointer spans the screen, the game's 1280x1024 picture is fitted in it with its aspect
 //! (pillarboxed on a wide screen): the touch is the pointer's place in the picture.
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use wal_payload_common::log;
 use wal_protocol::{Axis, button};
+
+/// The virtual button touching the screen (none: never touched).
+static TOUCH_BUTTON: AtomicU32 = AtomicU32::new(button::B4);
+
+/// Sets the button touching the screen (0: none, the screen is not played).
+pub fn set_touch_button(mask: u32) {
+    TOUCH_BUTTON.store(mask, Ordering::Relaxed);
+}
 
 /// A panel: the size of the coordinates it reports, when a diagnostic answer is due.
 pub struct Panel {
@@ -23,6 +32,12 @@ pub struct Panel {
 pub extern "C" fn ac_touchpanel_new(width: i32, height: i32) -> *mut Panel {
     log!("touchpanel: {width}x{height}");
     Box::into_raw(Box::new(Panel { width, height, answer_at: Instant::now() }))
+}
+
+/// Winning Eleven 2008's constructor: the serial port's number too.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_touchpanel_new2(width: i32, height: i32, _port: u8) -> *mut Panel {
+    ac_touchpanel_new(width, height)
 }
 
 #[unsafe(no_mangle)]
@@ -68,6 +83,11 @@ pub extern "C" fn ac_touchpanel_set_keepalive_mode_off(_panel: *mut Panel) -> bo
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn ac_touchpanel_set_keepalive_mode(_panel: *mut Panel, _on: u8, _a: i32, _b: i32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn ac_touchpanel_get_keepalive_error(_panel: *mut Panel) -> bool {
     false
 }
@@ -105,7 +125,8 @@ pub extern "C" fn ac_touchpanel_read_on(panel: *mut Panel, x: *mut i32, y: *mut 
     let (x0, y0, w, h) = picture(panel);
     let px = (sx - x0) / w * panel.width as f32;
     let py = (sy - y0) / h * panel.height as f32;
-    let touched = stick.pressed(button::B4);
+    let mask = TOUCH_BUTTON.load(Ordering::Relaxed);
+    let touched = mask != 0 && stick.pressed(mask);
     unsafe {
         if !x.is_null() {
             *x = (px as i32).clamp(0, panel.width - 1);

@@ -16,6 +16,9 @@
 //! Otomedius loads it as `libacio.dll` too (`pjei.rs`, the PJEI board), its libbms and
 //! libtouchpanel imports pointed at the payload (`otomedius.rs`, `touchpanel.rs`).
 //!
+//! Winning Eleven 2008 also has the PJEI board, a PS2 pad port (`pjec.rs`) and the touch screen
+//! (`winning_eleven.rs`).
+//!
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
 
@@ -31,9 +34,11 @@ mod icca;
 mod ig2;
 mod net;
 mod otomedius;
+mod pjec;
 mod pjei;
 mod screen;
 mod touchpanel;
+mod winning_eleven;
 
 use std::ffi::c_void;
 
@@ -46,6 +51,7 @@ pub use acio::*;
 pub use bms::*;
 pub use hbhi::*;
 pub use icca::*;
+pub use pjec::*;
 pub use pjei::*;
 pub use touchpanel::*;
 
@@ -61,6 +67,11 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if file_name(std::ptr::null_mut()).eq_ignore_ascii_case("otomedius.exe") {
             otomedius::init(module);
             log!("konami: PJEI board, touch screen and BM-System emulated (Otomedius)");
+            return TRUE;
+        }
+        if winning_eleven::detected() {
+            winning_eleven::init(module);
+            log!("konami: PJEI board, PS2 pad port and touch screen emulated (Winning Eleven 2008)");
             return TRUE;
         }
         net::init();

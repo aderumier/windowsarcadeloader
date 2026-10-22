@@ -1922,6 +1922,50 @@ paths moved off E:/F:, flags forced): the original exe is run, E: and F: mapped 
 - **Text.** `WAL_ANSI_CODEPAGE=932`, `WAL_FONT_CODEPAGE=932` (Shift-JIS font names). The menus'
   news ticker stays garbled.
 
+#### Winning Eleven 2008
+
+WORLD SOCCER Winning Eleven ARCADE CHAMPIONSHIP 2008 (game code HCK, Direct3D 8, 1024x768
+fullscreen): the dump is the cabinet's D: drive, `HCK/bin/game.exe` imports `libacio.dll` (PJEI
+board, PJEC PS2 pad port, card reader), `libtouchpanel.dll` (`ac_touchpanel_new2`), AVS and
+`libacweeq.dll` (speaker equalizer). The payload is installed as `libacio.dll`; DllMain sees
+libtouchpanel's `ac_touchpanel_new2` loaded and points the touch panel imports at its own
+(`winning_eleven.rs`). The dump's `D3D8.dll` is dgVoodoo (Direct3D 12 output): hidden, Wine's is
+used. spice2x supports the later Winning Eleven 2012/2014 (KCK, NCK) with the same boards.
+
+- **D: drive.** `D:/HCK/data`, `D:/HCK/save`, `D:\romcheck.bin`: payload-common's D: redirection
+  to the dump root (`..\..` from the executable, `WAL_KONAMI_DDRIVE`), also on sound.dll, which
+  opens its banks itself (`drive::redirect_module`; "failed not found AudioObjectContextData"
+  otherwise).
+- **Security plug and devices.** The game tries four software plugs, `G[U|C]HCK[J|H][A|B]A`. The
+  `U`/`A` ones are spec A, the Live Monitor PC (the shop's spectator screen, no controls), the
+  `C`/`B` ones spec B, a player cabinet; the device check then needs the card reader and the pad
+  port with spec B, neither with spec A (error 8 otherwise). Only `GCHCKJBA` is answered present
+  (`pjei::set_software_plug`, status 0x12 for the others).
+- **ROM check.** Boot checks every file of `romcheck.bin` (CRC32/MD5, function at rva 0x17b40):
+  `libacio.dll` is the payload, passed (FILE BROKEN 5-1515-0000 otherwise); the others are
+  still checked.
+- **Network.** `ags_network` init reads the adapters with `GetAdaptersInfo` into a fixed 2 KB
+  buffer (3 adapters): a PC with more got ERROR_BUFFER_OVERFLOW and the game quit at once (exit
+  -1). The game's import returns those that fit, the ones with an address first (`net.rs`).
+- **Sound.** `fck_set_eq` (libacweeq, the Realtek driver's equalizer through `RtEffect.dll`)
+  fails without that driver: SOUND INIT ERROR 5-1511-0101. Answered done.
+- **Network options.** e-AMUSEMENT and LIVE MONITOR CONNECT (test menu NETWORK OPTIONS, in the
+  test-mode data `D:/HCK/save/weags_config_data.bin`, checksummed) are on by default: the boot
+  stops on 5-2002-0000 (center server, SERVICE continues), then 5-2505-0000 (Live Monitor not
+  found). After the data is loaded (rva 0x13400, the struct at 0xc83088: e-AMUSEMENT, then LIVE
+  MONITOR CONNECT) both are set off unless `WAL_KONAMI_EAMUSEMENT=1` / `WAL_KONAMI_LIVE_MONITOR=1`:
+  attract in local mode, free play by default.
+- **Controls.** The player chooses the arcade stick or the home (PS2) controller by touching the
+  screen; untouched, the timer picks the arcade stick: the PJEI board, stick and buttons A-F
+  (byte 4 A 0x04, B 0x02, C 0x01, byte 6 D 0x80, E 0x40, F 0x20). The touch panel is never
+  touched (every virtual button is a pad button). The PJEC pad (72 bytes, analog controller 7,
+  present 0x5a, buttons bytes 4-5, sticks 8-11) is answered from the same stick.
+- **Text.** `WAL_ANSI_CODEPAGE=932`, `WAL_FONT_CODEPAGE=932`.
+- **Debugging.** `WAL_KONAMI_GAME_LOG=1`: the game's log function (rva 0x30510) is the build's
+  shared empty `return 0` (other empty functions land there with other arguments): it jumps to
+  the payload, which logs a call whose first argument is a readable text format (a small printf,
+  `%s` pointers checked with `VirtualQuery`). AVS's log comes through it too.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -2236,6 +2280,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | `bin/byy.exe ..\ ..\` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coins, two positional guns scaled onto the default calibration, security plugs), ICCA card reader, cabinet IP setup answered, e-Amusement offline (local mode), picture at the screen resolution in a borderless window |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |
 | `otomedius` | Otomedius | konami | works (user: 100%) | `otomedius.exe` (§6.3h), `libacio.dll` replaced: PJEI board (stick, buttons, coins, security plug), card reader, the libbms imports (BM-System, e-Amusement offline) and libtouchpanel imports (touch screen from the mouse, fitted to the 5:4 picture) answered, missing `ChkSum.bin` data check passed, E:/F: save drives |
+| `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

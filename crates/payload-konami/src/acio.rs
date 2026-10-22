@@ -49,6 +49,12 @@ pub extern "C" fn ac_io_is_active2(_a: u32, status: *mut u32) -> bool {
     true
 }
 
+/// The older call (Winning Eleven 2008): at least `nodes` devices answer.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_is_active(_nodes: u32) -> bool {
+    true
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_is_active_device(_device: u32) -> bool {
     true

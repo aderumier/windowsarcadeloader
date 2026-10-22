@@ -27,7 +27,7 @@ unsafe fn patch(what: &str, at: usize, expected: &[u8], new: &[u8]) {
 }
 
 /// This DLL's exported functions: (name, address).
-fn exports(module: *mut c_void) -> Vec<(String, usize)> {
+pub(crate) fn exports(module: *mut c_void) -> Vec<(String, usize)> {
     let base = module as usize;
     let read = |offset: usize| unsafe { ((base + offset) as *const u32).read_unaligned() } as usize;
     let pe = read(0x3c);
