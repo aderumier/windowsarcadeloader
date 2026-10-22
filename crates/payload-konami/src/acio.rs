@@ -135,3 +135,13 @@ pub extern "C" fn ac_io_soft_watch_dog_off() -> bool {
 pub extern "C" fn ac_io_set_soft_watch_dog(_time: u32) -> bool {
     true
 }
+
+/// The board's game I/Os (Contra: Evolution's start): on.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_enable_game_ios(_on: bool) -> bool {
+    true
+}
+
+/// The security plugs' password (Contra: Evolution): the emulated plugs need none.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_secplug_set_encodedpasswd(_password: *const u8, _size: i32) {}

@@ -25,6 +25,9 @@
 //! Road Fighters 3D (`rf3d.rs`) is `jgt.dll`, run by `wal-avs-boot.exe`: the same two boards
 //! (`libacioEx.dll`, its HGTH bus, also the payload).
 //!
+//! Contra: Evolution imports it under its functions' MSVC names (`libacio.def`) and never calls
+//! them: `contra.rs` answers its control panel (COM1), DirectInput keyboard and clock.
+//!
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
 
@@ -33,6 +36,7 @@
 mod acio;
 mod avs;
 mod bms;
+mod contra;
 mod crosshair;
 mod eamuse;
 mod gti_club;
@@ -87,6 +91,11 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if file_name(std::ptr::null_mut()).eq_ignore_ascii_case("otomedius.exe") {
             otomedius::init(module);
             log!("konami: PJEI board, touch screen and BM-System emulated (Otomedius)");
+            return TRUE;
+        }
+        if contra::detected() {
+            contra::init();
+            log!("konami: control panel, keyboard and clock answered (Contra: Evolution)");
             return TRUE;
         }
         if gti_club::detected() {

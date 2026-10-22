@@ -2005,6 +2005,35 @@ payload again (`gti_club.rs`): one instance for both buses. The dump's `dinput8.
 - **Input filtering.** DirectInput (the PC keyboard) disabled; `GetKeyState` (Shift, a debug
   display) answers no key.
 
+#### Contra: Evolution
+
+Contra: Evolution (2011, game code KC1, Direct3D 9, 1920x1080 windowed) is `AMContra.exe` at the
+dump root; this dump is the Chinese release (`KC1:C:A:A:2011011801`, GB2312 fonts: code page
+936). It imports `libacio.dll`'s functions under their MSVC names (`?ac_io_begin@@YA_NEPBDPAHH@Z`,
+cdecl): the payload exports those names too (`libacio.def`, linked by `build.rs`), but this build
+never calls them. The cabinet reaches it in other ways, answered in `contra.rs`:
+
+- **Controls: the DirectInput keyboard.** CButtonMan maps DIK codes to actions with a table of
+  {DIK, action} pairs (0x55cea8-0x55cfd4): 0/1 start P1/P2, 2/3 left, 4/5 right, 6/7 down, 8/9
+  up, 10/11 select (weapon), 12/13 shot, 14/15 jump, 16/17 a fourth button the INPUT CHECK does
+  not show, 20 test, 21 service, 38-54 test menu navigation sharing P1's keys (W/S/Enter). The
+  game sets up the system keyboard and mouse (`CreateDevice`, `SetDataFormat`, `EnumObjects`,
+  `GetDeviceInfo`: a failure throws, boot error 0x81). The fake DirectInput (`WAL_DINPUT_DISABLE`)
+  gets a system keyboard (`dinput::set_keyboard`): every key of each pressed action, read from
+  the table; the mouse is answered, never moving.
+- **Coins: the control panel on COM1** (115200 8N1). The game writes `0x90` (its start); the panel
+  sends 2-byte events, `0xB0 0x0a` a coin of slot 1, `0xB0 0x09` slot 2 (code table 0x583d10,
+  handled at 0x4c62c0). The INPUT CHECK's COIN MECH switch stays off; the credits count.
+- **Clock.** The settings getter (0x463a50, `return settings[index]`) reports setting 0x36, the
+  operator clock set, on: the game uses the PC clock (unset: boot error 5-2503 "The clock is
+  un-setting up").
+- **Fonts.** `GetCharABCWidthsA` with a double-byte character and `first == last`: Wine converts
+  both bytes and writes two ABC structures, overwriting the game's stack (crash at 0x43506d, then
+  0x43540a in the attract). `WAL_ANSI_CODEPAGE` answers the call per character with the wide
+  function (code page 936).
+- The USB HID I/O board fallback (VID 055c PID b3ab, SetupDi + HidD) finds no device: unused.
+- The dump's `d3d9.dll` (DXVK) is hidden; `d3dx9_42` is a winetrick.
+
 #### Road Fighters 3D
 
 Road Fighters 3D (2010, game code JGT, Direct3D 9, 1920x1080, GTI Club's engine: its file cache
@@ -2407,6 +2436,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
+| `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | `AMContra.exe` (§6.3h), `libacio.dll` replaced (its MSVC-named imports, never called): controls on a fake DirectInput keyboard from the virtual sticks (the game's key table), coins from the COM1 control panel, clock reported set, GB2312 text (code page 936) |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

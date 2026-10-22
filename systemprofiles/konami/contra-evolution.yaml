@@ -1,0 +1,32 @@
+# Contra: Evolution (Konami, 2011): the run-and-gun for two players, AMContra.exe (Direct3D 9),
+# Chinese release. The payload replaces libacio.dll (imported, never called) and answers the
+# cabinet's control panel on COM1 (coins), its DirectInput keyboard (the players' controls)
+# and its operator clock.
+# Override values in userprofiles/konami/contra-evolution.yaml.
+system: konami
+name: "Contra: Evolution"
+
+# The dump's d3d9.dll is DXVK: Wine's own is used.
+hide: [d3d9.dll]
+tricks: [d3dx9_42]
+
+env:
+  # Chinese text (GB2312 fonts: the attract, the test menu)
+  WAL_ANSI_CODEPAGE: "936"
+  WAL_FONT_CODEPAGE: "936"
+  # the fake DirectInput: its system keyboard is pressed from the virtual sticks, the real
+  # keyboard never reaches the game
+  WAL_DINPUT_DISABLE: "1"
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Shot
+  b2: Jump
+  b3: Weapon select
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

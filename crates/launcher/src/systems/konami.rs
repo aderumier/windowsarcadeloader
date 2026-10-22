@@ -1,5 +1,5 @@
 //! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan Refill!, Otomedius,
-//! Winning Eleven 2008, GTI Club: Supermini Festa!).
+//! Winning Eleven 2008, GTI Club: Supermini Festa!, Road Fighters 3D, Contra: Evolution).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -15,6 +15,10 @@
 //! and libtouchpanel imports; Winning Eleven 2008's too (PJEI board, PS2 pad port, touch panel).
 //! GTI Club: Supermini Festa! also loads it as `dllibacio.dll`, its second ACIO bus (HGTH board:
 //! wheel, pedals, the wheel's motor, its torque and vibration the force feedback).
+//!
+//! Contra: Evolution imports libacio's functions under their MSVC names and never calls them:
+//! the payload answers its COM1 control panel (coins) and its DirectInput keyboard (the players'
+//! controls, from the virtual sticks), and reports its operator clock set.
 //!
 //! Road Fighters 3D's code is a DLL (`jgt.dll`, the dump's `.windowsloader`): `wal-avs-boot.exe`
 //! runs it as the cabinet's launcher does (AVS, e-Amusement boot, the DLL's entry points); its
@@ -35,7 +39,8 @@
 //! `test service coin start throw` (players 1-4); Otomedius: `test service coin start up down
 //! left right a b c`; Winning Eleven 2008: also `d e f`, and the PS2 pad `pad_start select up down
 //! left right triangle cross square circle l1 l2 l3 r1 r2 r3`; GTI Club: `test service coin start
-//! action shift_up shift_down select_up select_down select_left select_right`.
+//! action shift_up shift_down select_up select_down select_left select_right`; Contra: Evolution:
+//! `start up down left right shot jump select test service coin` (players 1 and 2).
 
 use super::{Payload, System};
 

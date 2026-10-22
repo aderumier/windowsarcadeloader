@@ -29,6 +29,10 @@
 //! the card dispensers' buy buttons and the card readers' scan buttons, from the virtual
 //! sticks.
 //!
+//! [`set_keyboard`]: a payload gives the fake DirectInput a system keyboard whose key states it
+//! fills from the virtual sticks (Contra: Evolution plays on its DirectInput keyboard keys and
+//! needs the keyboard device to work: `GetDeviceInfo` answered).
+//!
 //! `WAL_KEYBOARD_STATE_DISABLE=1`: the game's `user32!GetKeyboardState` reports no key pressed
 //! (Wacky Races reads START on the PC keyboard's Enter and VIEW on Right Shift that way, next
 //! to its JVS switches).
@@ -161,10 +165,78 @@ static DEVICE_VTABLE: VTable<32> = VTable([
 ]);
 static DEVICE: Object = Object { vtable: DEVICE_VTABLE.0.as_ptr() };
 
+/// The payload's source of the system keyboard's key states ([`set_keyboard`]).
+static KEYBOARD: std::sync::OnceLock<fn(&mut [u8; 256])> = std::sync::OnceLock::new();
+
+/// The fake DirectInput's system keyboard: `keys` fills its 256 key states (0x80 a key down,
+/// by DIK code) at each `GetDeviceState`. Call before the game creates the device.
+pub fn set_keyboard(keys: fn(&mut [u8; 256])) {
+    let _ = KEYBOARD.set(keys);
+}
+
+/// The keyboard's `GetDeviceState(cbData, lpvData)`: the payload's key states (the other
+/// devices': nothing pressed).
+unsafe extern "system" fn keyboard_state(this: P, size: u32, data: *mut u8) -> i32 {
+    let mut keys = [0u8; 256];
+    if std::ptr::eq(this.cast_const().cast(), &KEYBOARD_DEVICE)
+        && let Some(fill) = KEYBOARD.get()
+    {
+        fill(&mut keys);
+    }
+    if !data.is_null() {
+        unsafe {
+            std::ptr::write_bytes(data, 0, size as usize);
+            std::ptr::copy_nonoverlapping(keys.as_ptr(), data, (size as usize).min(256));
+        }
+    }
+    DI_OK
+}
+
+/// `GetDeviceInfo(DIDEVICEINSTANCEA/W)`: a DirectInput 8 keyboard or mouse (dwDevType at +0x24,
+/// after dwSize and the two GUIDs).
+unsafe extern "system" fn keyboard_info(this: P, info: *mut u32) -> i32 {
+    const DI8DEVTYPE_MOUSE: u32 = 0x12;
+    const DI8DEVTYPE_KEYBOARD: u32 = 0x13;
+    let keyboard = std::ptr::eq(this.cast_const().cast(), &KEYBOARD_DEVICE);
+    if !info.is_null() {
+        unsafe {
+            let size = (*info).clamp(4, 0x244) as usize;
+            std::ptr::write_bytes(info.cast::<u8>().add(4), 0, size - 4);
+            if size >= 0x28 {
+                *info.cast::<u8>().add(0x24).cast::<u32>() = if keyboard { DI8DEVTYPE_KEYBOARD } else { DI8DEVTYPE_MOUSE };
+            }
+        }
+    }
+    DI_OK
+}
+
+/// The system keyboard of [`set_keyboard`] and the system mouse next to it (the game sets up
+/// both): their state and info answered.
+static KEYBOARD_VTABLE: VTable<32> = {
+    let mut v = DEVICE_VTABLE.0;
+    v[9] = keyboard_state as *const ();
+    v[15] = keyboard_info as *const ();
+    VTable(v)
+};
+static KEYBOARD_DEVICE: Object = Object { vtable: KEYBOARD_VTABLE.0.as_ptr() };
+static MOUSE_DEVICE: Object = Object { vtable: KEYBOARD_VTABLE.0.as_ptr() };
+
+/// `GUID_SysKeyboard` {6F1D2B61-D5A0-11CF-BFC7-444553540000}, `GUID_SysMouse` {6F1D2B60-...}.
+const GUID_SYS_KEYBOARD: [u8; 16] =
+    [0x61, 0x2b, 0x1d, 0x6f, 0xa0, 0xd5, 0xcf, 0x11, 0xbf, 0xc7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00];
+const GUID_SYS_MOUSE: [u8; 16] =
+    [0x60, 0x2b, 0x1d, 0x6f, 0xa0, 0xd5, 0xcf, 0x11, 0xbf, 0xc7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00];
+
 /// `CreateDevice(rguid, lplpDirectInputDevice, pUnkOuter)`
-unsafe extern "system" fn create_device(_this: P, _guid: P, out: *mut P, _outer: P) -> i32 {
+unsafe extern "system" fn create_device(_this: P, guid: *const [u8; 16], out: *mut P, _outer: P) -> i32 {
+    let system = if KEYBOARD.get().is_some() && !guid.is_null() { Some(unsafe { *guid }) } else { None };
     if !out.is_null() {
-        unsafe { *out = &DEVICE as *const Object as P };
+        let device = match system {
+            Some(GUID_SYS_KEYBOARD) => &KEYBOARD_DEVICE,
+            Some(GUID_SYS_MOUSE) => &MOUSE_DEVICE,
+            _ => &DEVICE,
+        };
+        unsafe { *out = device as *const Object as P };
     }
     DI_OK
 }
