@@ -19,6 +19,12 @@ tricks: [xact]
 env:
   # It reads the PC keyboard through DirectInput: only the I/O boards drive it.
   WAL_DINPUT_DISABLE: "1"
+  # Its fullscreen 1360x768 device fails under Wine, and the windowed retry's window, resized
+  # to the screen afterwards, showed the picture small in the corner, its right side cut:
+  # always windowed, that back buffer stretched to a screen-sized borderless window.
+  WAL_D3D9_WINDOWED_SIZE: 1360x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
 
 # Cabinet: motorized wheel, gas and brake pedals (HGTH board), a shift lever (SHIFT UP / SHIFT
 # DOWN), START, ACTION and the four SELECT buttons (HBHI board).

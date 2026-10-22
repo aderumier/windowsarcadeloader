@@ -1997,8 +1997,11 @@ payload again (`gti_club.rs`): one instance for both buses. The dump's `dinput8.
 - **Boot time.** The boot reads every drive's volume and free space (`GetLogicalDriveStringsA`):
   Wine's Z: (the host's `/`) took over 30 s. The game gets C: alone.
 - **Rendering.** DXVK draws the test menu's black background and the HUD's dark panels white:
-  wined3d (`dxvk: false`). The fullscreen 1360x768 device fails under Wine: payload-common makes it
-  a windowed device over the whole screen.
+  wined3d (`dxvk: false`). The fullscreen 1360x768 device fails under Wine, and payload-common's
+  windowed retry (the window resized to the screen after it was created) showed the back buffer
+  small in the corner, its right side cut. The profile makes the device windowed from the start
+  (`WAL_D3D9_WINDOWED_SIZE: 1360x768`) in a borderless screen-sized window
+  (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`): the picture stretched to the screen.
 - **Input filtering.** DirectInput (the PC keyboard) disabled; `GetKeyState` (Shift, a debug
   display) answers no key.
 
