@@ -1843,6 +1843,53 @@ emulates the same devices).
   `avs_boot` import passes ours. `WAL_DUMP_THREADS_AT=<s>,...` (payload-common) dumps every
   thread's stack and samples where they run: it found the boot waiting in bootmode.
 
+#### Gashaaaan Refill! (IG2)
+
+Gashaaaan Refill! (2009, game code IG2, Direct3D 9) is another kind of Konami PC: up to four
+players throw real balls at two 640x480 screens and a camera board sees where they hit. The dump
+is the cabinet's D: drive; `IG2/exec_root/gasya.exe` runs from its directory. No ACIO: the game
+loads its own `ig2ACLib.dll` (`LoadLibraryA` + `GetProcAddress` of 53 functions), which boots AVS
+and drives two serial boards, and reaches the BM-System (credits, e-Amusement) through
+`libbms.dll`, a client of the cabinet's `bms_IG2.exe` service (`\\.\pipe\bmssvc`). The
+profile installs the payload as `libbms.dll` (`payload_install`).
+
+- **Two screens.** `setting.tbl` asks `adapterNum = 2` (one swap chain per monitor) and crashed
+  on the missing second one; with `windowed = 1` (the profile's copy) the game draws its
+  1280x480 picture, both screens side by side, into one back buffer.
+- **In-memory patches only.** gasya.exe's CRC is checked at boot
+  (`data/system/ig2system1.crc`, SYSTEM DATA CHECK ERROR 5-1550-0000 otherwise); the patches
+  check the code they replace.
+- **ig2ACLib (`ig2.rs`).** Its internal objects (`CIg2ACLibIOIob`, the I/O board;
+  `CIg2ACLibIOBallio`, the camera board) have a no-hardware mode, their boot's argument 1 (boot
+  done, security plug checks passed, nothing read): forced (rva 0x3500 and 0x2570). The master
+  volume setup through the winmm mixer (SPEAKER SETTING 5-1570-0186 under Wine) returns done
+  (rva 0xfd60). `GetProcAddress` gives the payload's functions for the inputs:
+  `ig2ACLibIOGetButton` (24 bytes: 9 TEST, 10 SERVICE, 11 coin mech, 12-15 the start buttons of
+  players 1-4), `ig2ACLibIOCoinGetIncrease`, `ig2ACLibIOGetBallPosSensorPosNum` / `Pos` (hits as
+  int16 x, y in the 1280x480 picture, the size the game gives `ig2ACLibScreenSetWidth/Height`;
+  the test menu's CAMERA CHECK draws them). A player's pointer and throw button make a hit, one
+  per press, another every 150 ms while held.
+- **Boot warnings.** gasya warns CLOCK 5-2551-0005 and ADJUST SCREEN 5-2551-0006 until the
+  operator sets the clock and the picture position in the test menu (settings flags at
+  0x6add80 / 0x6add81): both checks skipped (rva 0x2d4fc, 0x2d52c).
+- **Save drives.** Settings, stage tables and rankings go to E:/ and F:/ (created from
+  `data/system/default_save_root`), ig2ACLib's bookkeeping to D:/E:/F: `BOOKKEEPINGS`: the
+  profile maps E: and F: to the dump's `E/` and `F/`. Without them a play crashed (division by
+  the size of an empty stage list).
+- **BM-System (`bms.rs`).** libbms's requests return 0 (accepted), their `_wait` 0 (done) or 1
+  (failed): `bms_init_wait` done, the clock the PC's (ms since 1970), e-Amusement status 2 with
+  no error ("operating in offline mode"), no rankings, server messages or keepalive. The credits
+  are kept in the payload with the coin options the game sends (`bms_credit_update_option`, 13
+  bytes: freeplay, start1-4 the credits each kind of start costs, player1-4 their slot, slot1-4
+  coins per credit, `bms_IG2.exe`'s coin.xml layout): a game is start kind 1, 2 credits by
+  default (`/coin/p<player>s<kind>a1`).
+- **Crosshairs (`crosshair.rs`).** Nothing shows where a throw lands (the real balls did):
+  `WAL_KONAMI_CROSSHAIRS=1` draws each player's aim before `Present` (payload-common's d3d9
+  overlay: alpha-blended quads, the game's states in a state block, its render target and depth
+  buffer restored), a built-in shape (`WAL_KONAMI_CROSSHAIR_STYLE`) or the player's PNG
+  (`WAL_KONAMI_CROSSHAIR_P1`..`_P4`), in the player's color, `WAL_KONAMI_CROSSHAIR_SIZE` % of
+  the screen height.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -2155,6 +2202,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `showdown` | Showdown | segashell | works (user: 100%) | `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
 | `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | `bin/byy.exe ..\ ..\` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coins, two positional guns scaled onto the default calibration, security plugs), ICCA card reader, cabinet IP setup answered, e-Amusement offline (local mode), picture at the screen resolution in a borderless window |
+| `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

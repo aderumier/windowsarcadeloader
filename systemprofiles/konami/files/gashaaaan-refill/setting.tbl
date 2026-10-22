@@ -1,0 +1,82 @@
+﻿
+[SYSTEM]
+
+;タイトル
+title = GASHAAAAN2
+;ウィンドウモードか？
+windowed = 1
+
+;垂直同期を待つか？
+waitVSync = 0
+
+;表示対象がプライマリモニターか？（デュアルディスプレイ対応）
+primaryMonitor = 1
+
+;スクリーン幅
+screenWidth = 640
+
+;スクリーン高さ
+screenHeight = 480
+
+; frame per second
+FPS = 60
+
+; フレームスキップ
+drawSkipsMax = 2
+
+;タイマーを使用して指定FPSに合うようにループタイミングを調節します
+;  ※ 垂直同期待ちしている場合は余計な待ち時間が増えることになります。
+syncTimerFPS = 1
+
+;VGA出力アダプタ数
+adapterNum = 2
+
+;Zバッファの作成
+autoDepthStencil = 0
+
+;検索パス(セミコロンで区切る)
+searchPath = data;testdata;
+
+;ヒープ0の初期サイズ
+heap0DefaultSize = 1048576
+
+;ヒープ1の初期サイズ
+heap1DefaultSize = 1048576
+
+;ヒープ2の初期サイズ
+heap2DefaultSize = 1048576
+
+;デフォルトのサウンドを使用するか
+useDefaultSound = 1
+
+;チャンネル数
+soundChannel = 2
+
+;サンプルビット数
+soundBitPerSample = 16
+
+;サンプリングレート
+soundSampleRate = 44100
+
+;非同期読み込み
+loadMgrAsync = 0
+
+;言語(japanese/english)
+language = japanese
+
+[APPLICATION]
+width = 1280
+height = 480
+fovy = 55
+cdtFont = ＤＦＰ華康ゴシック体W5
+cdtFSize = 16
+errFont = ＤＦ華康ゴシック体W5
+errFSize = 12
+overThrowTime = 120
+overThrowCount = 12
+
+; プレロード
+;    =1  する
+;    =0  しない
+preload = 1
+

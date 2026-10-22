@@ -193,4 +193,5 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `grid` | GRID | europar | works (user: 100%) | not in the test |  |
 | `showdown` | Showdown | segashell | works (user: 100%) | not in the test |  |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%), guns (mouse), test menu | not in the test |  |
+| `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%), 4 players (guns or mice throw balls), crosshairs, test menu | not in the test |  |
 <!-- GAMELIST END -->

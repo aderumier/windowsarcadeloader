@@ -1,0 +1,88 @@
+# Gashaaaan Refill! (Konami, 2009): up to 4 players throw balls at two screens, a camera sees
+# where they hit. IG2/exec_root/gasya.exe (Direct3D 9) drives the cabinet through its own
+# ig2ACLib.dll and the BM-System (credits, e-Amusement) through libbms.dll: the payload replaces
+# libbms.dll and answers ig2ACLib's I/O.
+# Override values in userprofiles/konami/gashaaaan-refill.yaml.
+system: konami
+name: Gashaaaan Refill!
+
+payload_install: [IG2/exec_root/libbms.dll]
+
+# The cabinet's data drives: the game keeps its settings, stage tables and rankings on both
+# (created from data/system/default_save_root), ig2ACLib its bookkeeping.
+drives:
+  e: E
+  f: F
+
+files:
+  # windowed = 1: the cabinet's two 640x480 monitors (adapterNum = 2, one swap chain each) become
+  # one 1280x480 window, both screens side by side (no second adapter here: the game crashed)
+  IG2/exec_root/setting.tbl: systemprofiles/konami/files/gashaaaan-refill/setting.tbl
+
+env:
+  # Japanese text (error and test menu messages) in Shift-JIS
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # each player's aim drawn over the picture (where a throw lands)
+  WAL_KONAMI_CROSSHAIRS: "1"
+  WAL_KONAMI_CROSSHAIR_STYLE: ring-cross
+  WAL_KONAMI_CROSSHAIR_SIZE: "6"
+  WAL_KONAMI_CROSSHAIR_TINT: "1"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Crosshairs
+    options:
+      - key: WAL_KONAMI_CROSSHAIRS
+        label: Crosshairs
+        kind: bool
+        description: >-
+          Each player's aim drawn over the picture, in the player's color (P1 blue, P2 red,
+          P3 green, P4 yellow), while the gun moves. Off: nothing shows where a ball goes.
+      - key: WAL_KONAMI_CROSSHAIR_STYLE
+        label: Style
+        kind: choice
+        choices: [ring-cross, cross, ring, dot]
+        description: The built-in crosshair, for players without an image of their own.
+      - key: WAL_KONAMI_CROSSHAIR_SIZE
+        label: Size (% of the screen height)
+        kind: number
+        min: 2
+        max: 20
+      - key: WAL_KONAMI_CROSSHAIR_P1
+        label: P1 image
+        kind: text
+        description: >-
+          A PNG file (full path) drawn instead of the built-in crosshair, e.g. an icon from
+          a crosshair icon collection. Empty: the built-in one.
+      - key: WAL_KONAMI_CROSSHAIR_P2
+        label: P2 image
+        kind: text
+      - key: WAL_KONAMI_CROSSHAIR_P3
+        label: P3 image
+        kind: text
+      - key: WAL_KONAMI_CROSSHAIR_P4
+        label: P4 image
+        kind: text
+      - key: WAL_KONAMI_CROSSHAIR_TINT
+        label: Images in the player's color
+        kind: bool
+        description: >-
+          A dark image (an icon silhouette) is drawn in the player's color, a colored one
+          tinted with it. Off: images as they are.
+
+input:
+  # each player's gun (or mouse) aims, its trigger throws a ball there
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Throw a ball
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
