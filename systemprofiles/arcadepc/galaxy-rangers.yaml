@@ -1,0 +1,44 @@
+# Galaxy Rangers (WXR.exe, Unity 2019.4 / Mono, 64-bit) - template, override values in
+# userprofiles/arcadepc/galaxy-rangers.yaml.
+# The dump's community Assembly-CSharp.dll (ArcadeControls, Controls.ini) replaced the cabinet's
+# camera guns with XInput pads: the payload is its xinput1_3.dll (four pads aiming with the
+# guns, docs §6.3i).
+system: arcadepc
+name: Galaxy Rangers
+
+# Unity's own log beside the game (START.bat's)
+args: [-logFile, Player.log]
+
+# The dump's Controls.ini plays in a 1280x720 window with the mouse as player 1's gun: ours
+# plays full screen (Unity's borderless full-screen window, 1920x1080 scaled to the screen),
+# the four players on the payload's pads.
+files:
+  Controls.ini: systemprofiles/arcadepc/files/galaxy-rangers/Controls.ini
+
+# Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start.
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+input:
+  # up to four lightguns (or mice): the pointer aims, left button shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # right button: change weapon (b2), middle: start; shooting off the screen reloads
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (reloads off screen)
+  b2: Change weapon
+  b3: Reload
+  b6: Gun off screen
+  start: Start
+  coin: Coin
+  test: Settings menu
+  up: Settings previous item
+  down: Settings next item
+  left: Settings decrease
+  right: Settings increase / select

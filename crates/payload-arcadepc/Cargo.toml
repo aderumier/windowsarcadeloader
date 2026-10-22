@@ -1,0 +1,20 @@
+[package]
+name = "wal-payload-arcadepc"
+description = "Arcade PC payload: replacement xinput1_3.dll (Galaxy Rangers' guns as absolute XInput pads)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_arcadepc"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemServices",
+    "Win32_UI_WindowsAndMessaging",
+] }

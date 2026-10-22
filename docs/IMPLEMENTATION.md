@@ -2044,6 +2044,49 @@ payload starts (its import hooks, `WAL_PATCHES`, the code page fix use the game 
 - **Input filtering.** DirectInput disabled, `GetKeyState` no key, `GetLogicalDriveStringsA`
   C: alone (as GTI Club).
 
+### 6.3i Arcade PC (`crates/payload-arcadepc`)
+
+PC-based arcade games without a cabinet I/O API to replace. System `arcadepc`, 64-bit payload
+`wal_arcadepc.dll` installed as `xinput1_3.dll`.
+
+#### Galaxy Rangers
+
+`WXR.exe` (Unity 2019.4.10, Mono, 4 players, ENGLISH_NT_4P_V5.24.40411). The cabinet aims with
+camera guns (`GUNSDK`: MindVision/JHCap cameras, `Calibrate.dll`) and a serial I/O board
+(`BaseCom`: coins, the operator buttons, tickets). The dump's `Assembly-CSharp.dll` is a
+community build (DemulShooter's "Modded Dump", MD5 860ed661…; the original and decrypted
+assemblies are kept beside it) whose `ArcadeControls` class replaces both, configured by
+`Controls.ini`: per player an XInput pad (`DllImport("xinput1_3.dll")`) whose left stick is the
+aim as an absolute position (-1..1 over the screen, no dead zone, Unity's y up), RT shoots
+(held: repeated at the weapon's rate), LB reloads, RB changes the weapon, START starts, BACK
+inserts a coin (on their press); or a raw input mouse. `F2` opens the settings (`IntoSetting`),
+the arrows browse them (down next, up previous, right/Enter increase or select, left decrease).
+
+- **Pads (`pads.rs`).** Four pads always connected, from the virtual sticks: `lx`, `-ly` the
+  left stick (the launcher's gun position), `trigger` RT, `reload` LB, `change` RB, `start`,
+  `coin` BACK. A shot with the gun off the screen (`offscreen`, the gun's off-screen source on
+  b6) is a reload, as the cabinet's guns. `XInputGetCapabilities`, battery, audio GUIDs answered;
+  no keystrokes, rumble ignored.
+- **Inputs from the launcher only (`filter.rs`).** The game reads the keyboard through Unity
+  (window messages, raw input) and `ArcadeControls`' own `GetAsyncKeyState` polling of every key
+  each frame and raw input thread (keyboard and mice). Wine's user32 functions are jumps through
+  its win32u imports (`GetAsyncKeyState` → `NtUserGetAsyncKeyState`): hooked in user32's import
+  table, every caller (UnityPlayer's imports, the Mono `DllImport`s) gets ours.
+  `GetAsyncKeyState` / `GetKeyState` / `GetKeyboardState`: only player 1's operator keys (natives
+  `menu menu_up menu_down menu_left menu_right` = F2 and the arrows, from test and the
+  directions) are down; `GetRawInputData`: keyboard reports release no key (virtual key 0xFF),
+  mouse reports move nowhere without buttons; UnityPlayer's `PeekMessage` / `GetMessage`:
+  keyboard and mouse button messages become `WM_NULL`.
+- **Early load.** Unity's input tries `xinput1_4.dll`, then `xinput1_3.dll`: the profile
+  disables xinput1_4 (`dll_overrides`), so UnityPlayer loads the payload at start (before
+  the Mono class's first call), its own XInput devices being our pads.
+- **Display.** The profile's `Controls.ini` (`files`): 1920x1080 full screen (Unity's
+  borderless full-screen window, scaled to the screen; the dump's is a 1280x720 window), every
+  player on its pad (`AimSource=XInput`, no mouse). Unity's log: `Player.log` in the run
+  directory (`-logFile`).
+- **Not done.** Outputs (recoil, start lamps, life, ammo: DemulShooter reads them through its
+  own Unity plugin), the operator's diagnostics overlay (F1), reloading `Controls.ini` (F5).
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -2361,6 +2404,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
+| `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

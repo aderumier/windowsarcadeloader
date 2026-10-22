@@ -1,6 +1,6 @@
 # Windows Arcade Loader
 
-Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge, Sega Amusements Shell PCs, Wahlap, Sega Europa-R, Konami e-Amusement PC)
+Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge, Sega Amusements Shell PCs, Wahlap, Sega Europa-R, Konami e-Amusement PC, arcade PCs)
 on Linux with Wine: a Linux launcher (inputs, Wine prefix and runner) and per-system payload DLLs
 emulating each cabinet's I/O, dongle and network services in the game process.
 
@@ -198,4 +198,5 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), arcade stick, test menu | not in the test |  |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%), wheel with force feedback, test menu | not in the test |  |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (attract, race, test menu in headless tests), wheel with force feedback | not in the test |  |
+| `galaxy-rangers` | Galaxy Rangers | arcadepc | works (coins, start, aim, shots, settings menu in headless tests), 4 guns | not in the test |  |
 <!-- GAMELIST END -->
