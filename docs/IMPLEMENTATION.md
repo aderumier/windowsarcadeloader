@@ -2162,7 +2162,7 @@ payload starts (its import hooks, `WAL_PATCHES`, the code page fix use the game 
 Wartran Troopers (2005, game code D00, Direct3D 8, two 640x480 monitors, four guns) is
 `D00/game/game.exe`; it imports no Konami I/O library: its cabinet is two serial links and
 `panicdialog.dll` (the fatal error box), which the payload replaces (`payload_install`; the
-message goes to the payload log). `wartran.rs`, `wartran_screens.rs`.
+message goes to the payload log). `wartran.rs`, `two_screens.rs`.
 
 - **I/O chain on COM2** (115200 8N1): the "pcio" hub and the boards behind it. Packets start
   with `AA`, their checksum is the sum of the bytes after the first. The boot syncs (`AA AA AA
@@ -2196,7 +2196,7 @@ message goes to the payload log). `wartran.rs`, `wartran_screens.rs`.
   cabinet calibration and smoothing to 0..1 over both screens: replaced by the pointer, mapped
   to the picture's area in the window (off screen outside it, or with the `offscreen` control:
   the guns reload shooting off screen).
-- **Two screens** (`wartran_screens.rs`). `WARTRAN.INI` (absent) `NR_SCREEN` defaults to 2:
+- **Two screens** (`two_screens.rs`, shared with Lethal Enforcers 3). `WARTRAN.INI` (absent) `NR_SCREEN` defaults to 2:
   with `GetAdapterCount` >= 2 the game creates one full-screen device per adapter in its own
   window (x 0 and 640), players 1-2 on the left screen, 3-4 on the right; with one adapter it
   plays on the left screen alone. IDirect3D8 reports two adapters (adapter 1 answered by
@@ -2212,6 +2212,60 @@ message goes to the payload log). `wartran.rs`, `wartran_screens.rs`.
 - **Sound.** `sound.dll` plays through DirectMusic: the DirectMusic winetricks.
 - **Input filtering.** `GetAsyncKeyState` (debug keys), `GetKeyboardState` (test menu
   shortcuts) answer no key, `GetCursorPos` a still mouse.
+
+#### Lethal Enforcers 3
+
+Lethal Enforcers 3 (2005, game code D22, Direct3D 8, two guns) is `game.exe` at the dump root;
+it imports `iob.dll` (the I/O board) and `gunio.dll` (the two gun boards), both MSVC C++
+(cdecl, mangled names in `libacio.def`). The payload replaces `iob.dll` (`le3.rs`); its
+`DllMain` points `gunio.dll`'s exports at the payload (a jump at each entry: the game imports
+both, gunio is mapped by then).
+
+- **I/O board.** Boot: `iob_init(model, 1, 2)`, `iob_boot_wait` 1 (booted), no firmware update
+  (`iob_check_need_firm_update` 0), the security checked (`iob_check_initial_security_checked`
+  0: the original returns `-1` until done), `iob_check_error` 0. `iob_get_digital_in` fills a
+  44-byte record each frame: +0 valid, +4 TEST, +5 the coin switch, +7 SERVICE, +8/+9 START,
+  +0xa/+0xb TRIGGER, +0xc/+0xd OPTION (held), +0xe..+0x13 the same six as press counters (the
+  game reacts to a change, not a level), +0x26 the coin counter (6 bits, the game adds the
+  steps). Lamps, bass shakers, gun reactions, coin counters answer success.
+- **Gun boards.** `gunio_boot_status` 1 (CHECKING GUN...OK; 0 waits, 2 BAD), no error, DIP
+  switches 0. The game's gun read (rva 0x11d540, thiscall, player, `{x, y, off, raw_x, raw_y}`)
+  turns `gunio_read_data`'s raw counts into the player's 640x480 screen through the cabinet
+  calibration and smoothing: replaced by the pointer, x/y in screen pixels, off screen
+  (-1, -1: the player takes cover, reloads) outside the player's screen or with the `cover`
+  control (`b6`, the guns' off-screen shot).
+- **Paths.** The data is read from `D:\D22\DATA\...`, the movies (MPEG-1, through DirectShow)
+  from `D:\D22\DATA\movies\%s`: the 50 `D:\D22\` strings of the executable are rewritten
+  in place to `.\` (the game runs from its folder). Settings, bookkeeping and rankings go to
+  `F:\SAVE` / `E:\SAVE`: profile drives `E/`, `F/`.
+- **Boot checks.** SYSTEM DATA CHECK1 (2-1005-0001) compares the CRC of `check.a`,
+  `game.exe` and the five DLLs with `check.a`'s table: the payload's `iob.dll` fails it, the
+  comparison (rva 0x136bb3) is skipped. CLOCK (PLEASE SET THE CLOCK BEFORE OPERATION) is the
+  bookkeeping's "clock set" flag, set by the test menu's CLOCK screen (which sets the PC's
+  time): the check (rva 0x136cb0) passes, the host's clock is right. GUN CALIBRATION (PLEASE
+  CALIBRATE GUN) wants each gun calibrated: unused with the pointer, the check (rva 0x136cc0)
+  passes.
+- **1 or 2 players.** The cabinet has two monitors, one per player: the game takes
+  `IDirect3D8::GetAdapterCount` (at most 2) as its player count and creates one full-screen
+  640x480 device per adapter (the window resized to 1280x480). It always gets two, as Wartran
+  Troopers (`two_screens.rs`): with one adapter a lone player's CPU rival (the "x m ahead"
+  display) reads player 2's missing object at the stage start, a crash (rva 0xf2f9). Both
+  screens side by side in one window (`lethal-enforcers-3-2p`, `WAL_KONAMI_PLAYERS=2`), each
+  player aiming at their own (player 1 the left half, the other half off screen); or player 1's
+  screen alone over the whole window (`lethal-enforcers-3`, `WAL_KONAMI_PLAYERS=1`: the second
+  device does not present, player 2's START / TRIGGER / OPTION ignored; with
+  `WAL_KONAMI_RIVAL_SCREEN=1`, GUI option "Show the rival's screen", both screens are shown, the
+  CPU rival's run on the right). Stretched by default
+  (`WAL_KEEP_ASPECT_RATIO=1`: aspect kept). Each game id has its own dump (the same files,
+  one `.windowsloader` each: one image per version).
+- **Direct3D 8 windowed.** `WAL_D3D9_WINDOWED_SIZE` on a Direct3D 8 full-screen device now
+  clears `FullScreen_PresentationInterval` (1 here: D3DERR_INVALIDCALL when windowed), as the
+  windowed fallback did.
+- **Input filtering.** `game.exe` creates a DirectInput 8 device: the fake one without devices
+  (`WAL_DINPUT_DISABLE`).
+
+Headless tests: attract, coins, both players' start, name and stage selection by shooting,
+play (scores, reload), test menu (TEST), both modes (1 player: the stage start with the CPU rival).
 
 #### Chase Chase Jokers
 
@@ -2624,6 +2678,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | `AMContra.exe` (§6.3h), `libacio.dll` replaced (its MSVC-named imports, never called): controls on a fake DirectInput keyboard from the virtual sticks (the game's key table), coins from the COM1 control panel, clock reported set, GB2312 text (code page 936) |
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | `D00/game/game.exe` (§6.3h), `panicdialog.dll` replaced; COM2 pcio hub chain emulated (4 boards, firmware versions from the dump, switches, coin counter, security plug region `WAL_KONAMI_PLUG`), COM1 gun boards; the gun read replaced by the pointer; two monitors in one window (2 D3D8 devices presenting side by side); E: settings drive seeded from the dump's CFGs; DirectMusic tricks |
+| `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | `game.exe` (§6.3h), `iob.dll` replaced (switches, coins), `gunio.dll` answered (gun boards booted); the gun read replaced by the pointer, off screen = cover/reload; `D:\D22\` paths made relative (data, DirectShow movies); boot CRC, clock and calibration checks skipped; E:/F: save drives; the game's two screens, player 1's alone shown (with one, its CPU rival crashed the stage start) |
+| `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | as `lethal-enforcers-3`, two adapters (`WAL_KONAMI_PLAYERS=2`): one 640x480 screen per player in one window (`two_screens.rs`), each gun aims at its own half |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

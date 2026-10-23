@@ -1,14 +1,14 @@
-//! Wartran Troopers' two monitors in one window.
+//! Two 640x480 monitors in one window (Wartran Troopers, Lethal Enforcers 3).
 //!
-//! The cabinet has two 640x480 monitors, players 1-2 on the left one and 3-4 on the right
-//! (`WARTRAN.INI` `NR_SCREEN`, default 2): the game creates one Direct3D 8 device per adapter,
-//! each full screen in its own window (at x 0 and 640), when `GetAdapterCount` reports two
-//! adapters; with one it plays on the left monitor alone (players 3-4 unseen). Here the second
-//! adapter is the first one again, both devices are windowed (copy swap, one back buffer) on
-//! the first screen's window (the second one hidden) and each presents into its half of the
-//! 1280x480 picture, fitted in the window with its aspect. The guns aim over the whole picture
-//! (`picture_area`). The 3D scenes' bezel offset (each screen slid 8 pixels outwards) is
-//! removed: the two pictures join.
+//! The cabinets have two 640x480 monitors side by side: the games create one Direct3D 8 device
+//! per adapter, each full screen in its own window (at x 0 and 640), when `GetAdapterCount`
+//! reports two adapters; with one they play on the left monitor alone. Here the second adapter
+//! is the first one again, both devices are windowed (copy swap, one back buffer) on the first
+//! screen's window (the second one hidden) and each presents into its half of the 1280x480
+//! picture, fitted in the window with its aspect (`WAL_KEEP_ASPECT_RATIO=0`: stretched to the
+//! whole window). The guns aim over the whole picture (`picture_area`). `init_first_only`: the
+//! game still gets both screens, only the first one is shown (Lethal Enforcers 3's 1 player
+//! mode: the game itself has no working one-monitor mode).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
@@ -46,33 +46,30 @@ static MAIN_WINDOW: AtomicUsize = AtomicUsize::new(0);
 /// The picture's area in the window, in 1/65536 of its size: left, top, width, height.
 static AREA: [AtomicU32; 4] = [AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(65536), AtomicU32::new(65536)];
 
-/// The bezel offsets: during 3D scenes the game slides the left screen's picture 8 pixels
-/// left and the right one's 8 right (`push -8` / `push 8` at rva 0x71f5 / 0x71fe, the
-/// cabinet's gap between its monitors): a black band in the middle of one window. Made 0.
-const SLIDE_PATCHES: [(usize, [u8; 2]); 2] = [(0x4071f5, [0x6a, 0xf8]), (0x4071fe, [0x6a, 0x08])];
+/// The game's name in the log.
+static GAME: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+/// The picture keeps its aspect (black bars), else it is stretched to the window.
+static KEEP_ASPECT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
-fn no_bezel_slide() {
-    use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
-    for (at, bytes) in SLIDE_PATCHES {
-        let p = at as *mut u8;
-        if unsafe { std::slice::from_raw_parts(p, 2) } != bytes {
-            log!("wartran: unexpected screen slide code at {at:#x}, left as is");
-            continue;
-        }
-        let mut old = 0;
-        unsafe {
-            VirtualProtect(p.cast(), 2, PAGE_EXECUTE_READWRITE, &mut old);
-            *p.add(1) = 0;
-            VirtualProtect(p.cast(), 2, old, &mut old);
-        }
-    }
+/// Only the first screen shown (over the whole picture).
+static FIRST_ONLY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// As `init`, only the first screen shown.
+pub fn init_first_only(game: &'static str) {
+    FIRST_ONLY.store(true, Ordering::Relaxed);
+    init(game);
 }
 
-pub fn init() {
-    no_bezel_slide();
+fn game() -> &'static str {
+    GAME.get().copied().unwrap_or("konami")
+}
+
+pub fn init(game: &'static str) {
+    let _ = GAME.set(game);
+    KEEP_ASPECT.store(std::env::var("WAL_KEEP_ASPECT_RATIO").map_or(true, |v| v.trim() != "0"), Ordering::Relaxed);
     match unsafe { iat::hook("d3d8.dll", "Direct3DCreate8", create8 as *const () as usize) } {
         Some(o) => ORIG_CREATE8.store(o, Ordering::Relaxed),
-        None => log!("wartran: Direct3DCreate8 import not found, one screen"),
+        None => log!("{game}: Direct3DCreate8 import not found, one screen"),
     }
 }
 
@@ -115,7 +112,7 @@ unsafe extern "system" fn create8(sdk: u32) -> P {
             patch(d3d, 14, adapter1::<14> as *const () as usize, &ORIG[14]);
             patch(d3d, CREATE_DEVICE, create_device as *const () as usize, &ORIG[CREATE_DEVICE]);
         }
-        log!("wartran: two screens (adapter 1 is adapter 0, both in one window)");
+        log!("{}: two screens (adapter 1 is adapter 0, both in one window)", game());
     }
     d3d
 }
@@ -184,9 +181,9 @@ unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window:
         let dev = unsafe { *out };
         DEVICES[index].store(dev as usize, Ordering::Relaxed);
         unsafe { patch(dev, DEV_PRESENT, present as *const () as usize, &ORIG_PRESENT) };
-        log!("wartran: screen {} device created (windowed, its half of the window)", index + 1);
+        log!("{}: screen {} device created (windowed, its half of the window)", game(), index + 1);
     } else {
-        log!("wartran: screen {} CreateDevice failed {hr:#x}", index + 1);
+        log!("{}: screen {} CreateDevice failed {hr:#x}", game(), index + 1);
     }
     hr
 }
@@ -196,19 +193,29 @@ unsafe extern "system" fn present(dev: P, src: P, _dst: P, _window: P, dirty: P)
     let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
     let main = MAIN_WINDOW.load(Ordering::Relaxed) as P;
     let index = (DEVICES[1].load(Ordering::Relaxed) == dev as usize) as i32;
+    let first_only = FIRST_ONLY.load(Ordering::Relaxed);
+    if first_only && index == 1 {
+        return 0;
+    }
+    // the screens shown side by side
+    let shown = if first_only { 1 } else { 2 };
     let mut client = RECT { left: 0, top: 0, right: 0, bottom: 0 };
     if main.is_null() || unsafe { GetClientRect(main, &mut client) } == 0 || client.right <= 0 || client.bottom <= 0 {
         return unsafe { orig(dev, src, std::ptr::null_mut(), std::ptr::null_mut(), dirty) };
     }
     let (cw, ch) = (client.right as f32, client.bottom as f32);
-    let scale = (cw / (2 * SCREEN_W) as f32).min(ch / SCREEN_H as f32);
-    let (pw, ph) = (2.0 * SCREEN_W as f32 * scale, SCREEN_H as f32 * scale);
+    let (pw, ph) = if KEEP_ASPECT.load(Ordering::Relaxed) {
+        let scale = (cw / (shown * SCREEN_W) as f32).min(ch / SCREEN_H as f32);
+        ((shown * SCREEN_W) as f32 * scale, SCREEN_H as f32 * scale)
+    } else {
+        (cw, ch)
+    };
     let (px, py) = ((cw - pw) / 2.0, (ch - ph) / 2.0);
     AREA[0].store((px / cw * 65536.0) as u32, Ordering::Relaxed);
     AREA[1].store((py / ch * 65536.0) as u32, Ordering::Relaxed);
     AREA[2].store((pw / cw * 65536.0) as u32, Ordering::Relaxed);
     AREA[3].store((ph / ch * 65536.0) as u32, Ordering::Relaxed);
-    let half = pw / 2.0;
+    let half = pw / shown as f32;
     let mut dst = RECT {
         left: (px + half * index as f32) as i32,
         top: py as i32,

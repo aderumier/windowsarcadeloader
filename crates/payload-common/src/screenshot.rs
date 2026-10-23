@@ -647,8 +647,7 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
         unsafe {
             *p = w;
             *p.add(1) = h;
-            *p.add(windowed_index) = 1;
-            *p.add(windowed_index + 4) = 0; // refresh rate: 0 when windowed
+            make_windowed(params, windowed_index);
         }
         log!("d3d: back buffer {old_w}x{old_h} (windowed {old_windowed}) -> windowed {w}x{h}");
     }

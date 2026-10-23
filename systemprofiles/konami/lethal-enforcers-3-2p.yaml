@@ -1,0 +1,55 @@
+# Lethal Enforcers 3 (Konami, 2005), the 2 player cabinet: two 640x480 monitors, one per
+# player (player 1 left), shown side by side in one window. As the 1 player cabinet
+# (lethal-enforcers-3.yaml): a copy of its dump, with lethal-enforcers-3-2p.windowsloader.
+# Override values in userprofiles/konami/lethal-enforcers-3-2p.yaml.
+system: konami
+name: Lethal Enforcers 3 (2 players)
+
+payload_install: [iob.dll]
+
+drives:
+  e: E
+  f: F
+
+env:
+  # two monitors: the game creates a device per adapter, the payload presents both into one
+  # borderless screen-sized window
+  WAL_KONAMI_PLAYERS: "2"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # the picture (two screens, 2.67:1) stretched to the whole screen ("1": aspect kept, black
+  # bars; Batocera ES: KEEP ASPECT RATIO)
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_HIDE_CURSOR: "1"
+  WAL_DINPUT_DISABLE: "1"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The two players' screens side by side (2.67:1) with their aspect kept, black bars
+          above and below. Off: stretched to the whole screen.
+
+input:
+  # each player's gun (or mouse) aims at their own screen (player 1 the left half, player 2
+  # the right one), its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # shooting off the player's screen takes cover and reloads
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Trigger
+  b2: Option
+  b6: Off screen (cover, reload)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

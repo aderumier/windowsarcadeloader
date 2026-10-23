@@ -1,0 +1,65 @@
+# Lethal Enforcers 3 (Konami, 2005): game.exe (Direct3D 8), 1 player: player 1's monitor of
+# the cabinet's two, full screen. The payload replaces iob.dll (the I/O board) and answers
+# gunio.dll (the gun boards); the game's gun read is the pointer. The 2 player version (both
+# monitors) is lethal-enforcers-3-2p.yaml: a copy of the dump with its own .windowsloader file.
+# Override values in userprofiles/konami/lethal-enforcers-3.yaml.
+system: konami
+name: Lethal Enforcers 3
+
+payload_install: [iob.dll]
+
+# The cabinet's data drives: settings, bookkeeping, rankings (E:\SAVE, F:\SAVE).
+drives:
+  e: E
+  f: F
+
+env:
+  # the game gets its two monitors (one per player; with one, a lone player's CPU rival crashes
+  # it): player 1's alone is shown, player 2 cannot join
+  WAL_KONAMI_PLAYERS: "1"
+  # "1": player 2's monitor shown too, beside player 1's (the CPU rival's run)
+  WAL_KONAMI_RIVAL_SCREEN: "0"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # the picture stretched to the whole screen ("1": aspect kept, black bars; Batocera ES:
+  # KEEP ASPECT RATIO)
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_HIDE_CURSOR: "1"
+  # the fake DirectInput: no PC keyboard or mouse reaches the game
+  WAL_DINPUT_DISABLE: "1"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KONAMI_RIVAL_SCREEN
+        label: Show the rival's screen
+        kind: bool
+        description: >-
+          Player 2's monitor shown beside player 1's, as on the cabinet: the CPU rival's run
+          (the stage's race to the end). Off: player 1's screen alone, full screen.
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The picture with its aspect kept (4:3, or 2.67:1 with the rival's screen), black
+          bars. Off: stretched to the whole screen.
+
+input:
+  # the player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # shooting off the screen takes cover and reloads
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Trigger
+  b2: Option
+  b6: Off screen (cover, reload)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

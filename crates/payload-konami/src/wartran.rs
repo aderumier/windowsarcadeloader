@@ -1,5 +1,5 @@
 //! Wartran Troopers (`game.exe`): the payload is its `panicdialog.dll` (the game's fatal error
-//! box, logged). Four players with guns, two per monitor (`wartran_screens.rs`).
+//! box, logged). Four players with guns, two per monitor (`two_screens.rs`).
 //!
 //! The cabinet's I/O is a chain of boards behind the "pcio" hub on COM2 (115200 8N1). Every
 //! packet starts with `AA`; the game's checksum is the sum of a packet's bytes after the first.
@@ -185,7 +185,7 @@ extern "C" fn gun_read(gun: i32, x: *mut f32, y: *mut f32, offscreen: *mut i32, 
     let player = gun.clamp(0, 3) as usize;
     let stick = wal_payload_common::input(player);
     // the pointer over the window, to the picture's area (both screens, its aspect kept)
-    let (left, top, width, height) = crate::wartran_screens::picture_area();
+    let (left, top, width, height) = crate::two_screens::picture_area();
     let fx = ((stick.axis(Axis::LeftX) as f32 + 32768.0) / 65535.0 - left) / width;
     let fy = ((stick.axis(Axis::LeftY) as f32 + 32768.0) / 65535.0 - top) / height;
     let mut off = !(0.0..=1.0).contains(&fx) || !(0.0..=1.0).contains(&fy);
@@ -219,6 +219,28 @@ fn hook_gun_read() {
     }
 }
 
+/// The bezel offsets: during 3D scenes the game slides the left screen's picture 8 pixels
+/// left and the right one's 8 right (`push -8` / `push 8` at rva 0x71f5 / 0x71fe, the
+/// cabinet's gap between its monitors): a black band in the middle of one window. Made 0.
+const SLIDE_PATCHES: [(usize, [u8; 2]); 2] = [(0x4071f5, [0x6a, 0xf8]), (0x4071fe, [0x6a, 0x08])];
+
+fn no_bezel_slide() {
+    use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+    for (at, bytes) in SLIDE_PATCHES {
+        let p = at as *mut u8;
+        if unsafe { std::slice::from_raw_parts(p, 2) } != bytes {
+            log!("wartran: unexpected screen slide code at {at:#x}, left as is");
+            continue;
+        }
+        let mut old = 0;
+        unsafe {
+            VirtualProtect(p.cast(), 2, PAGE_EXECUTE_READWRITE, &mut old);
+            *p.add(1) = 0;
+            VirtualProtect(p.cast(), 2, old, &mut old);
+        }
+    }
+}
+
 /// The security plug the hub reads next (`0x40`: the system plug, `0x41`: the game plug).
 static PLUG: Mutex<u8> = Mutex::new(0);
 
@@ -237,7 +259,8 @@ pub fn init() {
     unsafe { iat::hook("kernel32.dll", "GetLogicalDriveStringsA", get_logical_drive_strings as *const () as usize) };
     seed_settings();
     hook_gun_read();
-    crate::wartran_screens::init();
+    no_bezel_slide();
+    crate::two_screens::init("wartran");
     serial::install("COM1", gun_board);
     for (name, f) in [
         ("GetAsyncKeyState", get_async_key_state as *const () as usize),

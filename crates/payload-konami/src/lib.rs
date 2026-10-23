@@ -30,13 +30,16 @@
 //! them: `contra.rs` answers its control panel (COM1), DirectInput keyboard and clock.
 //!
 //! Wartran Troopers loads it as `panicdialog.dll` (`wartran.rs`: its serial I/O chain and gun
-//! boards; `wartran_screens.rs`: its two monitors in one window).
+//! boards; `two_screens.rs`: its two monitors in one window).
 //!
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
 //!
 //! Gashaaaan loads it as `iob.dll` (its I/O board library, `f24.rs`), which also answers the
 //! game's camera board library, ballio.
+//!
+//! Lethal Enforcers 3 loads it as `iob.dll` too (`le3.rs`), beside its gun boards' gunio.dll;
+//! its two players' monitors are `two_screens.rs`'s.
 //!
 //! The 64-bit build (`wal_konami64.dll`) is Chase Chase Jokers' AIO libraries (`ccj.rs`: the
 //! BI2X TBS I/O board; `ccj_trackball.rs`: its raw input trackball; `ccj_pointer.rs`: its touch
@@ -73,6 +76,8 @@ mod icca;
 #[cfg(target_arch = "x86")]
 mod ig2;
 #[cfg(target_arch = "x86")]
+mod le3;
+#[cfg(target_arch = "x86")]
 mod net;
 #[cfg(target_arch = "x86")]
 mod otomedius;
@@ -87,9 +92,9 @@ mod screen;
 #[cfg(target_arch = "x86")]
 mod touchpanel;
 #[cfg(target_arch = "x86")]
-mod wartran;
+mod two_screens;
 #[cfg(target_arch = "x86")]
-mod wartran_screens;
+mod wartran;
 #[cfg(target_arch = "x86")]
 mod we2012;
 #[cfg(target_arch = "x86")]
@@ -155,6 +160,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if wartran::detected(module) {
             wartran::init();
+            return TRUE;
+        }
+        if le3::detected(module) {
+            le3::init();
             return TRUE;
         }
         if f24::detected(module) {
