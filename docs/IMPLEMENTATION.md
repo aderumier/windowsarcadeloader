@@ -1918,11 +1918,15 @@ at the screen, an IR camera follows them. `HCV.exe` loads its own `hcvACLib.dll`
   5 a 2-update move exceeds 300 pixels and the stroke from 4 updates ago to 1 ago crosses the
   whole screen, from beyond one edge to beyond the opposite one (x < 0 and x > width, or the
   same in y): it hits along that line. A short slash does nothing. The payload's swing: the
-  target 0.55 screen heights beyond the top for 2 updates, then beyond the bottom for 3 (or
+  target 0.55 screen heights (widths) beyond the top for 2 updates, then beyond the bottom for 3 (or
   up), at the aim's x: a vertical stroke (0.5 is the least that cracks from any aim; each
   swing alternates direction); the aim itself is kept on the screen, so moving
   the gun fast never cracks the whip. Found with hardware read watchpoints on the samples.
-- **Controls.** `attack` (the gun's trigger) swings the whip, or presses the yellow button
+- **Controls.** `WAL_KONAMI_WHIP_SHOT=0` (GUI option, default 1): classic movement, with the
+  attack control held, a drag longer than 5% of the screen swings the whip in its direction
+  (a stroke at the drag's angle through the pointer), the drag goes on from there. The raw pointer can never crack it: its stroke's
+  ends must be beyond the screen's edges (the spring doesn't overshoot that far).
+  `attack` (the gun's trigger) swings the whip, or presses the yellow button
   after `switch` (toggles the trigger, per player); held, it repeats every 12 updates.
   `subweapon` (yellow) and `select` (red) are the cabinet's own buttons.
 - **Unlimited sub-weapons** (`WAL_KONAMI_UNLIMITED_SUBWEAPON=1`, default on): the throw's

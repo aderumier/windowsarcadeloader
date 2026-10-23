@@ -20,6 +20,8 @@ env:
   WAL_HIDE_CURSOR: "1"
   # throwing a sub-weapon costs no hearts
   WAL_KONAMI_UNLIMITED_SUBWEAPON: "1"
+  # the trigger swings the whip ("0": dragging with the trigger held does)
+  WAL_KONAMI_WHIP_SHOT: "1"
 
 # The game's own options, for the GUI's Options tab (its env variables above).
 options:
@@ -31,6 +33,13 @@ options:
         description: >-
           Throwing the shuriken or any other sub-weapon (knife, axe, holy water, cross...)
           costs no hearts. Off: each throw costs its hearts, as on the cabinet.
+      - key: WAL_KONAMI_WHIP_SHOT
+        label: Lightgun shot swings the whip
+        kind: bool
+        description: >-
+          The trigger swings the whip through the aim point (a vertical stroke). Off: classic
+          movement, hold the trigger (mouse button) and drag: a small move swings the whip in
+          its direction (any angle), and the drag goes on for more swings.
 
 input:
   # each player's gun (or mouse) points the whip

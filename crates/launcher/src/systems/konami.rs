@@ -60,7 +60,8 @@
 //!   Japan, `A` Asia, `C` China) and the cabinet's product code
 //! - GTI Club: `WAL_KONAMI_FFB` the force feedback strength, percent (default 100)
 //! - Wartran Troopers: `WAL_KONAMI_PLUG` the game plug's region id (default `GKD00UA`)
-//! - Castlevania: The Arcade: `WAL_KONAMI_UNLIMITED_SUBWEAPON=1` sub-weapons cost no hearts
+//! - Castlevania: The Arcade: `WAL_KONAMI_UNLIMITED_SUBWEAPON=1` sub-weapons cost no hearts,
+//!   `WAL_KONAMI_WHIP_SHOT=0` drags with the trigger held swing the whip
 //! - Cooper's 9: `WAL_KONAMI_REGION` the dongle's region (`J`, `U`, `A`, `K`, `E`; default
 //!   `E`), `WAL_KONAMI_SAVE_DRIVE` the drive of the settings files, `WAL_KONAMI_GUN_FLASH=1` the
 //!   light gun flash at each shot

@@ -21,12 +21,14 @@
 //! Lightgun controls: `attack` (the trigger) swings the whip, or throws the sub-weapon after
 //! `switch` (toggles the trigger between the two); `whip`, `subweapon` and `select` are the
 //! cabinet's own. `WAL_KONAMI_UNLIMITED_SUBWEAPON=1`: throwing a sub-weapon costs no hearts.
+//! `WAL_KONAMI_WHIP_SHOT=0`: classic movement: dragging with the attack control held swings the
+//! whip in the drag's direction.
 //!
 //! Native inputs for `native_map`: `test service coin start attack switch whip subweapon select`.
 
 use std::ffi::{CStr, c_void};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use wal_payload_common::mapping::ButtonMap;
 use wal_payload_common::{iat, log};
@@ -92,15 +94,20 @@ const SENSOR_CALL: usize = 0x483965;
 /// cursor (stiffness 350, damping 25) and cracks it when, in the cursor's last 5 positions, it
 /// moved more than 300 pixels in 2 updates and its stroke from 4 updates ago to 1 ago crosses
 /// the screen, from beyond one edge to beyond the opposite one: the whip hits along that line.
-/// The swing pulls the cursor `SWING_FAR` screen heights beyond the top (or bottom) for
-/// `SWING_START` updates, then beyond the bottom (or top) for `SWING_END`, at the aim's x: a
-/// vertical stroke. 0.5 is the least that cracks the whip from any aim (0.4 misses near the
-/// edges).
+/// The swing pulls the cursor `SWING_FAR` screen heights (widths) beyond the top (left) for
+/// `SWING_START` updates, then beyond the bottom (right) for `SWING_END`, or the other way,
+/// through the aim point. 0.5 is the least that cracks the whip from any aim (0.4 misses near
+/// the edges). A pointer kept on the screen never cracks it by itself: the game wants the
+/// stroke's ends beyond the edges, as the cabinet's camera sees them.
 const SWING_START: u32 = 2;
 const SWING_END: u32 = 3;
 const SWING_FAR: f32 = 0.55;
 /// Updates between two swings, or two throws, while the button is held.
 const REPEAT_FRAMES: u32 = 12;
+/// Mouse movement (`WAL_KONAMI_WHIP_SHOT=0`): with the trigger held, a drag longer than this part
+/// of the screen (width or height) swings the whip in its direction (any angle),
+/// then the drag goes on from there.
+const DRAG: f32 = 0.05;
 
 #[derive(Clone, Copy, Default)]
 struct Player {
@@ -109,8 +116,11 @@ struct Player {
     switch_held: bool,
     /// Frames since the current swing started (`None`: no swing).
     swing: Option<u32>,
-    /// The current swing goes up (each swing changes direction).
+    /// The current swing's direction (pixels), and its lightgun shot alternates up and down.
+    direction: (f32, f32),
     backhand: bool,
+    /// Mouse movement: where the held trigger's drag started (`None`: not held).
+    anchor: Option<(f32, f32)>,
     /// Frames until a held attack repeats.
     repeat: u32,
     attack_held: bool,
@@ -204,6 +214,9 @@ fn override_for(name: &[u8]) -> Option<usize> {
 }
 
 static ORIG_GET_PROC: AtomicUsize = AtomicUsize::new(0);
+/// `WAL_KONAMI_WHIP_SHOT`: the attack control swings the whip (default); off, dragging with it
+/// held does.
+static WHIP_SHOT: AtomicBool = AtomicBool::new(true);
 
 unsafe extern "system" fn get_proc_address(module: *mut c_void, name: *const u8) -> *const c_void {
     let orig: unsafe extern "system" fn(*mut c_void, *const u8) -> *const c_void =
@@ -223,6 +236,7 @@ unsafe extern "system" fn get_proc_address(module: *mut c_void, name: *const u8)
 /// the game, `Player::throw`).
 fn step(player: usize, width: f32, height: f32) -> (f32, f32) {
     let stick = wal_payload_common::input(player);
+    let shot = WHIP_SHOT.load(Ordering::Relaxed);
     // on the screen: aiming beyond its edges never cracks the whip
     let aim_x = ((stick.axis(Axis::LeftX) as f32 + 32768.0) / 65535.0).clamp(0.0, 1.0) * width;
     let aim_y = ((stick.axis(Axis::LeftY) as f32 + 32768.0) / 65535.0).clamp(0.0, 1.0) * height;
@@ -236,7 +250,9 @@ fn step(player: usize, width: f32, height: f32) -> (f32, f32) {
         }
         p.switch_held = switch;
         let attack = pressed.contains(&Native::Attack);
-        let whip = pressed.contains(&Native::Whip) || (attack && !p.subweapon_mode);
+        let whip = pressed.contains(&Native::Whip) || (shot && attack && !p.subweapon_mode);
+        // mouse movement: the held trigger records the drag
+        let drag = !shot && attack && !p.subweapon_mode;
         let throw = attack && p.subweapon_mode;
         // a held button repeats: released for one frame every REPEAT_FRAMES
         let held = whip || throw;
@@ -251,18 +267,41 @@ fn step(player: usize, width: f32, height: f32) -> (f32, f32) {
         }
         p.attack_held = held;
         p.throw = throw && p.repeat != REPEAT_FRAMES - 1;
-        if whip && again && p.swing.is_none() {
-            p.swing = Some(0);
+        if !drag {
+            p.anchor = None;
+        }
+        if p.swing.is_none() {
+            if whip && again {
+                // the shot: a vertical stroke, down then up
+                p.swing = Some(0);
+                p.backhand = !p.backhand;
+                p.direction = (0.0, if p.backhand { -1.0 } else { 1.0 });
+            } else if drag {
+                // the drag since the trigger's press (or the last swing) swings the whip in its
+                // direction once it is long enough
+                let (ax, ay) = *p.anchor.get_or_insert((aim_x, aim_y));
+                let (dx, dy) = (aim_x - ax, aim_y - ay);
+                if (dx / width).abs().max((dy / height).abs()) > DRAG {
+                    p.swing = Some(0);
+                    p.direction = (dx, dy);
+                    p.anchor = Some((aim_x, aim_y));
+                }
+            }
         }
         let Some(frame) = p.swing else { return (aim_x, aim_y) };
         p.swing = (frame + 1 < SWING_START + SWING_END).then_some(frame + 1);
-        if frame == 0 {
-            p.backhand = !p.backhand;
+        if p.swing.is_none() && p.anchor.is_some() {
+            // the drag goes on from where the swing ended
+            p.anchor = Some((aim_x, aim_y));
         }
-        // beyond the top of the screen, then beyond the bottom (or up), at the aim's x
-        let (start, end) = if p.backhand { (1.0 + SWING_FAR, -SWING_FAR) } else { (-SWING_FAR, 1.0 + SWING_FAR) };
-        let side = if frame < SWING_START { start } else { end };
-        (aim_x, side * height)
+        // along the swing's direction through the aim point, from beyond one edge of the screen
+        // to beyond the opposite one (on the axis it moves most along)
+        let (dx, dy) = p.direction;
+        let vertical = (dy / height).abs() > (dx / width).abs();
+        let (forward, aim, size, d) = if vertical { (dy > 0.0, aim_y, height, dy) } else { (dx > 0.0, aim_x, width, dx) };
+        let (start, end) = if forward { (-SWING_FAR, 1.0 + SWING_FAR) } else { (1.0 + SWING_FAR, -SWING_FAR) };
+        let t = ((if frame < SWING_START { start } else { end }) * size - aim) / d;
+        (aim_x + t * dx, aim_y + t * dy)
     })
 }
 
@@ -314,6 +353,8 @@ unsafe fn patch(what: &str, at: usize, expected: &[u8], new: &[u8]) {
 }
 
 pub fn init() {
+    WHIP_SHOT.store(std::env::var("WAL_KONAMI_WHIP_SHOT").map_or(true, |v| v != "0"), Ordering::Relaxed);
+    log!("hcv: whip {}", if WHIP_SHOT.load(Ordering::Relaxed) { "swung by the attack control" } else { "swung by drags with the attack control held" });
     let call = (sensor_update as *const () as usize).wrapping_sub(SENSOR_CALL + 5) as u32;
     let mut sensor_call = [0xe8, 0, 0, 0, 0];
     sensor_call[1..].copy_from_slice(&call.to_le_bytes());
