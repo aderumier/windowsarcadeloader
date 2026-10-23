@@ -2213,6 +2213,53 @@ message goes to the payload log). `wartran.rs`, `wartran_screens.rs`.
 - **Input filtering.** `GetAsyncKeyState` (debug keys), `GetKeyboardState` (test menu
   shortcuts) answer no key, `GetCursorPos` a still mouse.
 
+#### Chase Chase Jokers
+
+Chase Chase Jokers (2023, game code UJK) is `chaseproject.exe`, a 64-bit Unity (Mono, Direct3D
+11) game; its code is managed (`ChaseGameScripts.dll`, `Scenes.dll`, `AioModules.dll`). The dump
+also has a BepInEx setup (Unity Doorstop's `winhttp.dll`), hidden: the game runs as shipped. The
+payload is the 64-bit build `wal_konami64.dll`. `ccj.rs`, `ccj_trackball.rs`, `ccj_pointer.rs`,
+`ccj_mono.rs`; spice2x's `games/ccj` was the layout reference.
+
+- **Local mode.** The cabinet's launcher hands the game `kamunity.dll` (AVS, e-Amusement,
+  xrpc) with `-hp`; absent, `KamunityInstance.isActive` is false and every caller has its local
+  path: no network, no card login (guest play), "UJK:**kamunity disable**" in the corner of
+  the attract. `-no_sioman`: no serial devices (COM1: card reader, unused then).
+- **AIO libraries.** The I/O board (BI2X, the TBS variant: `-tbs_mode` is forced on) is driven
+  through `DllImport`s of `aio`, `aio-iob` and `aio-iob2_video`. Unity only finds them through
+  the DLL search path, the game's folder first (not `Plugins/x86_64`, where the dump has them):
+  the payload is installed there under the three names (`payload_install`). Three modules:
+  their answers are stateless (opaque objects, node manager and controller always ready, the
+  firmware update done at once); `libaio-iob2_video.dll`'s copy runs the payload.
+  `aioIob2Bi2xTBS_GetDeviceStatus` fills the TBS INPUT at offset 4 of DEVSTATUS: DevIoCounter
+  (a new value each read, else I/O error 1520-14 after 15 s), CoinCount (the game follows its
+  steps), bTest, bService, bCoinSw, bHPDetect, StickX/StickY (u16; the game's X is the field
+  `StickY`, high = left; its Y the field `StickX`, high = up; default calibration 0..65535,
+  center 32768), bTrigger1 (dash), bButton0 (special, lit), bButton1-3 (attack, jump, slide).
+- **Trackball** (`ccj_trackball.rs`). A raw input mouse named `VID_1241&PID_1111`: the game
+  lists the raw input devices, subclasses its window (`ChaseProject`) and reads the device's
+  `WM_INPUT` reports (relative motion). user32's win32u imports (`NtUserGetRawInputDeviceList`,
+  `NtUserGetRawInputDeviceInfo`, `NtUserGetRawInputData`) add the device; a thread posts
+  `WM_INPUT` with the device's report handle while the right stick turns
+  (`WAL_KONAMI_TRACKBALL_SPEED` counts per 10 ms at full tilt, default 12). The real mice and
+  keyboards' reports are emptied.
+- **Touch screen** (`ccj_pointer.rs`). The main monitor is a touch screen; the menus read it
+  as Unity's mouse (`SubTouchInputModule`). UnityPlayer's `GetCursorPos` answers the pointer
+  (`accel`, `brake`: a gun's or mouse's position), `PeekMessageA` / `GetMessageA` drop the real
+  keyboard and mouse messages and deliver the payload's (tagged `WM_MOUSEMOVE`,
+  `WM_LBUTTONDOWN/UP` for the native `touch`), `GetAsyncKeyState` / `GetKeyState` only the left
+  button. The title, the card screen's guest start and the credit button are touched; the
+  special button decides in the later menus (stick moves).
+- **Monitors** (`ccj_mono.rs`). The boot's I/O check wants a 1920x1080 main monitor and a
+  1280x1024 sub monitor (5-1525, operable: Service goes on). Its `BootItemIO.processed` static
+  is set through Mono's embedding API (`mono_image_loaded`, `mono_class_from_name`,
+  `mono_field_static_set_value`) at the board's creation: the check only looks at the board.
+  The sub monitor's picture (`-single_monitor` not needed: Unity sees one display) is not shown.
+- **Matches.** In local mode the matching scene shows a debug menu (Single / Local / Global
+  match, blank buttons); `-nomatchselect` picks the local match: the game hosts it, the lobby's
+  timer fills it with COM players.
+- **Test menu.** TEST opens it during the attract; TEST moves, SERVICE selects.
+
 ### 6.3i Arcade PC (`crates/payload-arcadepc`)
 
 PC-based arcade games without a cabinet I/O API to replace. System `arcadepc`, 64-bit payload

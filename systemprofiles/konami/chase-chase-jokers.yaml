@@ -1,0 +1,51 @@
+# Chase Chase Jokers (Konami, 2024): chaseproject.exe (Unity, Mono, 64-bit, Direct3D 11). The
+# game drives its I/O board through Konami's AIO libraries: the payload replaces them (BI2X TBS
+# board: stick, buttons, coin; the raw input trackball). Without the cabinet's kamunity.dll
+# (AVS, e-Amusement) the game runs in its local mode: no network, no card.
+# Override values in userprofiles/konami/chase-chase-jokers.yaml.
+system: konami
+name: Chase Chase Jokers
+
+# Unity's log beside the game; no serial devices (the card reader, unused in local mode); the
+# matches hosted here (the debug match mode menu skipped: local match, COM players)
+args: [-logFile, output_log.txt, -no_sioman, -nomatchselect]
+
+# the game's DllImports (aio, aio-iob, aio-iob2_video) find the AIO libraries in its folder first
+payload_install: [libaio.dll, libaio-iob.dll, libaio-iob2_video.dll]
+
+# the dump's BepInEx (Unity Doorstop's winhttp.dll) is not used
+hide: [winhttp.dll]
+
+input:
+  # the main screen is a touch screen (the menus): a gun or the mouse points (accel, brake: the
+  # pointer across the screen), its trigger touches
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: b7
+    BTN_RIGHT: none
+    BTN_MIDDLE: none
+
+controls:
+  lx: Stick (x)
+  ly: Stick (y)
+  rx: Trackball (x)
+  ry: Trackball (y)
+  up: Stick up
+  down: Stick down
+  left: Stick left
+  right: Stick right
+  b1: Attack
+  b2: Jump
+  b3: Slide
+  b4: Special
+  b5: Dash
+  b7: Touch the screen
+  accel: Touch position (x)
+  brake: Touch position (y)
+  start: Attack
+  coin: Coin
+  service: Service
+  test: Test

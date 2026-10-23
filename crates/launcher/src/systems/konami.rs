@@ -1,6 +1,6 @@
 //! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan, Gashaaaan Refill!, Otomedius,
 //! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
-//! Contra: Evolution, Wartran Troopers).
+//! Contra: Evolution, Wartran Troopers, Chase Chase Jokers).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -33,6 +33,11 @@
 //! I/O chain (COM2: hub, boards, security plugs) and gun boards (COM1), its two monitors shown
 //! side by side in one window.
 //!
+//! Chase Chase Jokers (Unity, 64-bit) drives its I/O board through Konami's AIO libraries: the
+//! 64-bit payload (`wal_konami64.dll`) is installed as `libaio.dll`, `libaio-iob.dll` and
+//! `libaio-iob2_video.dll` (its profile's `payload_install`), and answers its raw input
+//! trackball and touch screen.
+//!
 //! Payload options (profile `env`):
 //! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits
 //! - `WAL_KONAMI_AVS_LOG=1`: the AVS log (the game system's boot, errors) in the payload log
@@ -48,6 +53,8 @@
 //!   Japan, `A` Asia, `C` China) and the cabinet's product code
 //! - GTI Club: `WAL_KONAMI_FFB` the force feedback strength, percent (default 100)
 //! - Wartran Troopers: `WAL_KONAMI_PLUG` the game plug's region id (default `GKD00UA`)
+//! - Chase Chase Jokers: `WAL_KONAMI_TRACKBALL_SPEED` the trackball's counts per 10 ms at the
+//!   right stick's full tilt (default 12)
 //!
 //! Native inputs for `native_map`: the board's switches `test service start trigger button2`
 //! and `coin` (players 1 and 2 have their own start, trigger and button2); Gashaaaan and Gashaaaan
@@ -56,7 +63,9 @@
 //! left right triangle cross square circle l1 l2 l3 r1 r2 r3`; GTI Club: `test service coin start
 //! action shift_up shift_down select_up select_down select_left select_right`; Contra: Evolution:
 //! `start up down left right shot jump select test service coin` (players 1 and 2); Wartran
-//! Troopers: `start trigger option shoulder sense offscreen` (players 1-4), `test service coin`.
+//! Troopers: `start trigger option shoulder sense offscreen` (players 1-4), `test service coin`;
+//! Chase Chase Jokers: `test service coin dash skill attack jump slide headphone up down left
+//! right touch`.
 
 use super::{Payload, System};
 
@@ -69,6 +78,11 @@ impl System for Konami {
 
     fn payloads(&self) -> &'static [Payload] {
         &[Payload { file: "wal_konami.dll", install_as: "libacio.dll" }]
+    }
+
+    fn payloads64(&self) -> Option<&'static [Payload]> {
+        // Chase Chase Jokers: its profile installs it as the AIO libraries (payload_install)
+        Some(&[Payload { file: "wal_konami64.dll", install_as: "libaio-iob2_video.dll" }])
     }
 
     fn dll_host(&self) -> Option<&'static str> {

@@ -37,52 +37,102 @@
 //!
 //! Gashaaaan loads it as `iob.dll` (its I/O board library, `f24.rs`), which also answers the
 //! game's camera board library, ballio.
+//!
+//! The 64-bit build (`wal_konami64.dll`) is Chase Chase Jokers' AIO libraries (`ccj.rs`: the
+//! BI2X TBS I/O board; `ccj_trackball.rs`: its raw input trackball; `ccj_pointer.rs`: its touch
+//! screen; `ccj_mono.rs`: game settings through Mono); the modules above are the 32-bit games'.
 
 #![allow(non_snake_case)]
 
+#[cfg(target_arch = "x86")]
 mod acio;
+#[cfg(target_arch = "x86")]
 mod avs;
+#[cfg(target_arch = "x86")]
 mod bms;
+#[cfg(target_arch = "x86")]
 mod contra;
+#[cfg(target_arch = "x86")]
 mod crosshair;
+#[cfg(target_arch = "x86")]
 mod eamuse;
+#[cfg(target_arch = "x86")]
 mod f24;
+#[cfg(target_arch = "x86")]
 mod f24_screen;
+#[cfg(target_arch = "x86")]
 mod gti_club;
+#[cfg(target_arch = "x86")]
 mod hbhi;
+#[cfg(target_arch = "x86")]
 mod hgth;
+#[cfg(target_arch = "x86")]
 mod i36i;
+#[cfg(target_arch = "x86")]
 mod icca;
+#[cfg(target_arch = "x86")]
 mod ig2;
+#[cfg(target_arch = "x86")]
 mod net;
+#[cfg(target_arch = "x86")]
 mod otomedius;
+#[cfg(target_arch = "x86")]
 mod pjec;
+#[cfg(target_arch = "x86")]
 mod pjei;
+#[cfg(target_arch = "x86")]
 mod rf3d;
+#[cfg(target_arch = "x86")]
 mod screen;
+#[cfg(target_arch = "x86")]
 mod touchpanel;
+#[cfg(target_arch = "x86")]
 mod wartran;
+#[cfg(target_arch = "x86")]
 mod wartran_screens;
+#[cfg(target_arch = "x86")]
 mod we2012;
+#[cfg(target_arch = "x86")]
 mod winning_eleven;
+#[cfg(target_arch = "x86_64")]
+mod ccj;
+#[cfg(target_arch = "x86_64")]
+mod ccj_mono;
+#[cfg(target_arch = "x86_64")]
+mod ccj_pointer;
+#[cfg(target_arch = "x86_64")]
+mod ccj_trackball;
 
 use std::ffi::c_void;
 
+#[cfg(target_arch = "x86")]
 use wal_payload_common::log;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW;
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 
+#[cfg(target_arch = "x86")]
 pub use acio::*;
+#[cfg(target_arch = "x86")]
 pub use bms::*;
+#[cfg(target_arch = "x86")]
 pub use hbhi::*;
+#[cfg(target_arch = "x86")]
 pub use hgth::*;
+#[cfg(target_arch = "x86")]
 pub use i36i::*;
+#[cfg(target_arch = "x86")]
 pub use icca::*;
+#[cfg(target_arch = "x86")]
 pub use pjec::*;
+#[cfg(target_arch = "x86")]
 pub use pjei::*;
+#[cfg(target_arch = "x86")]
 pub use touchpanel::*;
+#[cfg(target_arch = "x86_64")]
+pub use ccj::*;
 
+#[cfg(target_arch = "x86")]
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
@@ -141,6 +191,17 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         avs::init();
         eamuse::init();
         log!("konami: ACIO board and card reader emulated (libacio.dll)");
+    }
+    TRUE
+}
+
+/// Chase Chase Jokers (64-bit): the payload is its three AIO libraries; the I/O board's copy
+/// runs it.
+#[cfg(target_arch = "x86_64")]
+#[unsafe(no_mangle)]
+pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
+    if reason == DLL_PROCESS_ATTACH && ccj::detected(module) {
+        ccj::init();
     }
     TRUE
 }
