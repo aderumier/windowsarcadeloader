@@ -1,0 +1,50 @@
+# Castlevania: The Arcade (Konami, 2009, game code HCV): two players swing motion-sensing whips
+# at the screen, a camera follows them. HCV.exe (Direct3D 9) drives the cabinet through its own
+# hcvACLib.dll and the BM-System (credits, e-Amusement) through libbms.dll: the payload replaces
+# libbms.dll and feeds the game's buttons, coins and whips from the players' guns.
+# Override values in userprofiles/konami/castlevania-the-arcade.yaml.
+system: konami
+name: "Castlevania: The Arcade"
+
+payload_install: [libbms.dll]
+
+# hcvACLib's bookkeeping (E:/F: BOOKKEEPINGS)
+drives:
+  e: E
+  f: F
+
+env:
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # throwing a sub-weapon costs no hearts
+  WAL_KONAMI_UNLIMITED_SUBWEAPON: "1"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_UNLIMITED_SUBWEAPON
+        label: Unlimited shuriken (sub-weapons)
+        kind: bool
+        description: >-
+          Throwing the shuriken or any other sub-weapon (knife, axe, holy water, cross...)
+          costs no hearts. Off: each throw costs its hearts, as on the cabinet.
+
+input:
+  # each player's gun (or mouse) points the whip
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Attack (whip, or sub-weapon after Switch)
+  b2: Switch whip / sub-weapon
+  b3: Yellow button (menus, sub-weapon)
+  b4: Red button (next sub-weapon)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

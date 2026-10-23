@@ -1890,6 +1890,48 @@ profile installs the payload as `libbms.dll` (`payload_install`).
   (`WAL_KONAMI_CROSSHAIR_P1`..`_P4`), in the player's color, `WAL_KONAMI_CROSSHAIR_SIZE` % of
   the screen height.
 
+#### Castlevania: The Arcade (HCV)
+
+Castlevania: The Arcade (2009, game code HCV, Direct3D 9): two players swing motion-sensing whips
+at the screen, an IR camera follows them. `HCV.exe` loads its own `hcvACLib.dll`
+(`LoadLibraryA` + `GetProcAddress`: I/O board, camera, bookkeeping, test menu items) and links
+`libbms.dll` (the BM-System client, as Gashaaaan Refill!): the profile installs the payload as
+`libbms.dll` (`hcv.rs`, its BM-System side is `bms.rs`).
+
+- **No-hardware mode.** The dump's `setting.csv` has the debug switches `emulateIO` and
+  `emulateSensor` TRUE: the game boots hcvACLib without hardware (`hcvACLibBoot(1)`), but reads
+  no buttons (the I/O update's emulateIO branch clears them), no coins (the coin thread waits
+  for a debug counter) and no whip (the emulated sensor only shifts the history). Three
+  patches: the button read (`je` -> `jmp` at 0x483978) and the coin read (0x482e66) taken again,
+  answered through `GetProcAddress` (`hcvACLibIOGetButton`, `hcvACLibIOCoinGetIncrease`,
+  `CoinConsume`); the emulated sensor's call (0x483965) points at the payload, which writes each
+  player's current sample after the history shift.
+- **Buttons** (`hcvACLibIOGetButton`, 30 bytes; the game's bits): 11 SERVICE 0x1, 12 TEST 0x2,
+  14/15 the players' START 0x8/0x10, 16/17 the whips' red buttons 0x80/0x100 (next
+  sub-weapon), 18/19 their yellow buttons 0x20/0x40 (menus: point and press; in game: throw the
+  sub-weapon at the whip's position). Bytes 10 (0x200) and 13 (0x4) are unknown.
+- **Whip samples** (I/O object 0x7280e8 + 0xb8, player 2 + 0x4e14, 0x18 bytes, 30 kept): x, y
+  (f32, the 1920x1080 picture), speed, camera x, y (i32), on screen, seen. The game reads only
+  the current x, y (0x7281a0): `GAMEPLAY` (30 updates per second) follows it with a
+  spring-damped cursor per player (stiffness 350, damping 25, at +0xc44 / +0xc68), whose
+  position the whip (`GAMEPLAYERWHIP`, 0x44d0d0) keeps 5 of. The whip cracks when in those
+  5 a 2-update move exceeds 300 pixels and the stroke from 4 updates ago to 1 ago crosses the
+  whole screen, from beyond one edge to beyond the opposite one (x < 0 and x > width, or the
+  same in y): it hits along that line. A short slash does nothing. The payload's swing: the
+  target 0.55 screen heights beyond the top for 2 updates, then beyond the bottom for 3 (or
+  up), at the aim's x: a vertical stroke (0.5 is the least that cracks from any aim; each
+  swing alternates direction); the aim itself is kept on the screen, so moving
+  the gun fast never cracks the whip. Found with hardware read watchpoints on the samples.
+- **Controls.** `attack` (the gun's trigger) swings the whip, or presses the yellow button
+  after `switch` (toggles the trigger, per player); held, it repeats every 12 updates.
+  `subweapon` (yellow) and `select` (red) are the cabinet's own buttons.
+- **Unlimited sub-weapons** (`WAL_KONAMI_UNLIMITED_SUBWEAPON=1`, default on): the throw's
+  hearts check (`jl` at 0x444a9c) and payment (`sub [status+0x98], cost` at 0x444eb4) removed;
+  the hearts stay full (the number under the sub-weapon icon is the throws they allow).
+- **Open:** the attract demo movie (`movie/playDemo.wmv`, WMV3, DirectShow into the game's own
+  renderer) stays black: winedmo decodes it, quartz logs `get_output_samples Failed to get
+  sample for source 0, hr 0x80040211`.
+
 #### Gashaaaan (F24)
 
 Gashaaaan (2006, game code F24, OpenGL) is the first game of the series (Gashaaaan Refill! is

@@ -35,6 +35,9 @@
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
 //!
+//! Castlevania: The Arcade loads it as `libbms.dll` too, from where `hcv.rs` answers its I/O
+//! library, hcvACLib, and feeds the players' whips.
+//!
 //! Gashaaaan loads it as `iob.dll` (its I/O board library, `f24.rs`), which also answers the
 //! game's camera board library, ballio.
 //!
@@ -72,6 +75,8 @@ mod f24_screen;
 mod gti_club;
 #[cfg(target_arch = "x86")]
 mod hbhi;
+#[cfg(target_arch = "x86")]
+mod hcv;
 #[cfg(target_arch = "x86")]
 mod hgth;
 #[cfg(target_arch = "x86")]
@@ -180,6 +185,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if f24::detected(module) {
             f24::init();
+            return TRUE;
+        }
+        if file_name(module).eq_ignore_ascii_case("libbms.dll") && file_name(std::ptr::null_mut()).eq_ignore_ascii_case("HCV.exe") {
+            hcv::init();
             return TRUE;
         }
         if file_name(module).eq_ignore_ascii_case("libbms.dll") {
