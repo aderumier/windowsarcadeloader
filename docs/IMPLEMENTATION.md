@@ -2000,7 +2000,9 @@ its heaps 30 MB (`WAL_KONAMI_AVS_HEAP_MB`). The payload is its `libacio.dll` (`w
 - **Boards.** PJEI as Winning Eleven 2008's (stick, A-F, test, service, coin; coin slot noise
   flag never set), PJEC (the PS2 pad, the touch button left out), I36I (the PS3 pad port: no
   pad, a DualShock 3's USB descriptor, as spice2x). The security plug is the AVS environment's.
-- **Offline.** e-Amusement local mode (a notice over the attract); free play from the dump's
+- **Offline.** e-Amusement local mode; its notice ("Operating in Local Mode", network notice
+  id 1, drawn by rva 0xfe5a00 while the id is not 0) is not drawn (the other notices are); free
+  play from the dump's
   `dev/nvram/coin.xml`. The online update fails each minute (`F:\KCK-000\update`), harmless.
 
 #### GTI Club: Supermini Festa!

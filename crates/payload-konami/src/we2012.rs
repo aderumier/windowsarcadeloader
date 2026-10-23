@@ -65,6 +65,11 @@ pub fn init(module: *mut c_void) {
         log!("we2012: touch screen device check differs, kept");
     }
     touch_init();
+    // the network notice (rva 0xfe5a00, drawn while its id is not 0): not for id 1, "Operating
+    // in Local Mode" (e-Amusement offline, always here): cmp [ebx+0x68], 1; jbe (was 0; je)
+    if !patch(0xfe5a16, &[0x83, 0x7b, 0x68, 0x00, 0x0f, 0x84], &[0x83, 0x7b, 0x68, 0x01, 0x0f, 0x86]) {
+        log!("we2012: network notice code differs, the local mode notice stays");
+    }
 }
 
 /// The game's left mouse button state (its key table's VK_LBUTTON byte).
