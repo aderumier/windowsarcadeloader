@@ -34,6 +34,9 @@
 //!
 //! Gashaaaan Refill! loads it as `libbms.dll` (its BM-System client, `bms.rs`), from where
 //! `ig2.rs` answers the game's own I/O library, ig2ACLib; `crosshair.rs` shows the players' aim.
+//!
+//! Gashaaaan loads it as `iob.dll` (its I/O board library, `f24.rs`), which also answers the
+//! game's camera board library, ballio.
 
 #![allow(non_snake_case)]
 
@@ -43,6 +46,8 @@ mod bms;
 mod contra;
 mod crosshair;
 mod eamuse;
+mod f24;
+mod f24_screen;
 mod gti_club;
 mod hbhi;
 mod hgth;
@@ -100,6 +105,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if wartran::detected(module) {
             wartran::init();
+            return TRUE;
+        }
+        if f24::detected(module) {
+            f24::init();
             return TRUE;
         }
         if file_name(module).eq_ignore_ascii_case("libbms.dll") {

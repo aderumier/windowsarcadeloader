@@ -1890,6 +1890,48 @@ profile installs the payload as `libbms.dll` (`payload_install`).
   (`WAL_KONAMI_CROSSHAIR_P1`..`_P4`), in the player's color, `WAL_KONAMI_CROSSHAIR_SIZE` % of
   the screen height.
 
+#### Gashaaaan (F24)
+
+Gashaaaan (2006, game code F24, OpenGL) is the first game of the series (Gashaaaan Refill! is
+its 2009 successor, another dump and profile). `bin/ballshooting.exe` runs `system.dll`, which
+boots AVS (BALLS.INI: `/dev/nvram` on `F:\`, `/dev/raw` on `E:\`: the profile maps both) and two
+serial boards through the game's own MSVC C++ libraries: `iob.dll` (I/O board) and
+`ballio.dll` (camera board, "bs2"). The payload is installed as `bin/iob.dll` (`f24.rs`; its
+exports under their MSVC names in `libacio.def`).
+
+- **iob.** `iob_get_status` 3 (ready: 4 asks a firmware update, 5 a hardware error),
+  `iob_check_plug` 1 (both plugs; 2 and the missing one otherwise), the ids `0140` + 16 hex
+  digits (software, network), `0100` + 6 bytes (hardware). `iob_step` (every frame, the IOSTEP
+  task) takes the buttons: `iob_f24_button(n)` 0-3 START of players 1-4, 4 TEST, 5 SERVICE, 6-7
+  the coin mechs (the test menu's INPUT CHECK), `_trg` its press this step;
+  `iob_f24_nr_coin(slot, &mask)` a 6-bit counter (mask 0x3f) the game counts the steps of. The
+  ball supply motors (`ballout_*`, status request then read) report done, no error.
+- **ballio.** A jump at each export's entry to the payload (the stage DLLs, loaded later,
+  import them too): `ball_io_boot`, `_step`, `_point_get` (int16 x, y per hit, `size` bytes, the
+  count returned; nothing while `ball_io_mode_set` is 0), `_enable` / `_disable`,
+  `bs2_get_status` 2 (booted: the boot waits for it, <= 0 is a HARDWARE ERROR),
+  `bs2_calibration_get_state` 1, `bs2_get_error_code` 0. The hits are in the scene's pixels
+  (1248x468, `sfgl_set_screen_size`): a player's pointer and throw button, one per press,
+  another every 150 ms while held; a throw outside the picture misses. ballio itself has a
+  developer mode without the board (`ball_io_boot`'s second argument 0: mouse clicks as hits,
+  `util.dll` `check_kbd_trg` / `mouse_util_get_point`), unused. The test menu's CAMERA CHECK
+  shows STATE OK; its ENVIRONMENT CHECK and CALIBRATION still call the original bs2 functions.
+- **Two screens as one (`f24_screen.rs`).** The cabinet has two 640x480 projectors side by
+  side. The game draws its scene once, 1248x468, in the upper left of its 1280x480 window,
+  copies the window to a texture and draws it back as two 640x480 halves (system.dll rva
+  0x3f39, `fgl_draw_frame`), the left one 8 pixels to the right, the right one starting 16
+  pixels before the left one's end (the projectors overlap) plus the test menu's screen
+  offsets: a band shown twice in the middle. `sfgl_get_double_screen_mode` (util.dll) answers
+  0 (the halves copied in place) and before fgl.dll's `SwapBuffers` the scene is blitted over
+  the borderless screen-sized window (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`),
+  stretched to it (the profile's default) or aspect kept (`WAL_KEEP_ASPECT_RATIO=1`, Batocera's
+  KEEP ASPECT RATIO); the pointers are mapped onto that area. The test menu draws in the left 640x480.
+- **Crosshairs.** `WAL_KONAMI_CROSSHAIRS` as Gashaaaan Refill!'s, drawn after the scaling with
+  the fixed-function pipeline (`crosshair::draw_gl`: the game's attributes, matrices, texture
+  units and program saved around them).
+- A fresh `F/` shows OPTION SETTINGS / BOOKKEEPING BACKUP DATA ERROR: TEST repairs them.
+  The attract says local mode (e-Amusement offline), nothing patched for it.
+
 #### Otomedius
 
 Otomedius (2007, game code GGG, Direct3D 9, 1280x1024 fullscreen) imports three Konami
@@ -2526,6 +2568,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `showdown` | Showdown | segashell | works (user: 100%) | `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
 | `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | `bin/byy.exe ..\ ..\` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coins, two positional guns scaled onto the default calibration, security plugs), ICCA card reader, cabinet IP setup answered, e-Amusement offline (local mode), picture at the screen resolution in a borderless window |
+| `gashaaaan` | Gashaaaan | konami | works (headless test) | `bin/ballshooting.exe` (§6.3h), `iob.dll` replaced: I/O board (buttons, coins, ball supply, plugs), ballio's camera board answered (ball hits from the guns), the two overlapping screens shown as one picture, E:/F: save drives, OpenGL crosshairs |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |
 | `otomedius` | Otomedius | konami | works (user: 100%) | `otomedius.exe` (§6.3h), `libacio.dll` replaced: PJEI board (stick, buttons, coins, security plug), card reader, the libbms imports (BM-System, e-Amusement offline) and libtouchpanel imports (touch screen from the mouse, fitted to the 5:4 picture) answered, missing `ChkSum.bin` data check passed, E:/F: save drives |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |

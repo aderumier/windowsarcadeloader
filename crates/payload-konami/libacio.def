@@ -38,3 +38,33 @@ EXPORTS
     "?ac_io_update@@YAXXZ" = ac_io_update
     ; panicdialog.dll's (Wartran Troopers)
     "?PanicDialog@@YAXPAD@Z" = PanicDialog
+    ; iob.dll's (Gashaaaan, f24.rs)
+    "?iob_boot@@YAXHPAD@Z" = f24_iob_boot
+    "?iob_check_plug@@YAHPAH@Z" = f24_iob_check_plug
+    "?iob_f24_add_coin_counter@@YAXHH@Z" = f24_iob_add_coin_counter
+    "?iob_f24_ballout_go@@YAXHH@Z" = f24_iob_ballout_go
+    "?iob_f24_ballout_status_get@@YAEHPAE00@Z" = f24_iob_ballout_status_get
+    "?iob_f24_ballout_status_req@@YAEH@Z" = f24_iob_ballout_status_req
+    "?iob_f24_ballout_stop@@YAXH@Z" = f24_iob_ballout_stop
+    "?iob_f24_ballout_stop_immediate@@YAXH@Z" = f24_iob_ballout_stop_immediate
+    "?iob_f24_button@@YAEH@Z" = f24_iob_button
+    "?iob_f24_button_trg@@YAEH@Z" = f24_iob_button_trg
+    "?iob_f24_nr_coin@@YAHHPAH@Z" = f24_iob_nr_coin
+    "?iob_f24_set_black_light_status@@YAXEE@Z" = f24_iob_set_black_light_status
+    "?iob_f24_set_coinblocker_status@@YAXHE@Z" = f24_iob_set_coinblocker_status
+    "?iob_f24_set_lamp_status@@YAXHE@Z" = f24_iob_set_lamp_status
+    "?iob_firmupdate_get_status@@YAHXZ" = f24_iob_firmupdate_get_status
+    "?iob_firmupdate_start@@YAXXZ" = f24_iob_firmupdate_start
+    "?iob_get_error_count@@YAXHPAH0@Z" = f24_iob_get_error_count
+    "?iob_get_firmware_version@@YAXHPADH@Z" = f24_iob_get_firmware_version
+    "?iob_get_hardware_id@@YAXPADHPAE@Z" = f24_iob_get_hardware_id
+    "?iob_get_last_error@@YAXPAW4E_IOB_ERROR@@PAI@Z" = f24_iob_get_last_error
+    "?iob_get_network_id@@YAEPADH@Z" = f24_iob_get_network_id
+    "?iob_get_software_id@@YAEPADH@Z" = f24_iob_get_software_id
+    "?iob_get_status@@YA?AW4E_IOB_STATUS@@XZ" = f24_iob_get_status
+    "?iob_reload_plug_init@@YAXXZ" = f24_iob_reload_plug_init
+    "?iob_reload_plug_wait@@YAEXZ" = f24_iob_reload_plug_wait
+    "?iob_shutdown@@YAXXZ" = f24_iob_shutdown
+    "?iob_step@@YAXXZ" = f24_iob_step
+    "?mujinkun_get_mode@@YAEXZ" = f24_mujinkun_get_mode
+    "?mujinkun_set_mode@@YAXE@Z" = f24_mujinkun_set_mode

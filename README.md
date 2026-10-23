@@ -193,6 +193,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `grid` | GRID | europar | works (user: 100%) | not in the test |  |
 | `showdown` | Showdown | segashell | works (user: 100%) | not in the test |  |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%), guns (mouse), test menu | not in the test |  |
+| `gashaaaan` | Gashaaaan | konami | works (headless test: attract, 2-player game, test menu), 4 players (guns or mice throw balls), crosshairs | not in the test |  |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%), 4 players (guns or mice throw balls), crosshairs, test menu | not in the test |  |
 | `otomedius` | Otomedius | konami | works (user: 100%), touch screen (mouse), test menu | not in the test |  |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), arcade stick, test menu | not in the test |  |
