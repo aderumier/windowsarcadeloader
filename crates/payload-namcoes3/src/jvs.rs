@@ -226,7 +226,11 @@ fn process(data: &[u8]) -> Vec<u8> {
                 packet.push(c);
             }
         }
-        if packet.len() >= 2 && packet.len() == packet[1] as usize + 2 {
+        if packet.len() == 2 && packet[1] == 0 {
+            // size counts the checksum, so 0 is a corrupt packet: drop it
+            log!("jvs: dropped zero-size packet {:02X?}", board.pending);
+            board.pending.clear();
+        } else if packet.len() >= 2 && packet.len() == packet[1] as usize + 2 {
             board.pending.clear();
             out.extend(packet_reply(board, &packet));
         }
