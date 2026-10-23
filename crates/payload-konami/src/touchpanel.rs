@@ -7,7 +7,7 @@
 //! pointer spans the screen, the game's 1280x1024 picture is fitted in it with its aspect
 //! (pillarboxed on a wide screen): the touch is the pointer's place in the picture.
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use wal_payload_common::log;
@@ -19,6 +19,14 @@ static TOUCH_BUTTON: AtomicU32 = AtomicU32::new(button::B4);
 /// Sets the button touching the screen (0: none, the screen is not played).
 pub fn set_touch_button(mask: u32) {
     TOUCH_BUTTON.store(mask, Ordering::Relaxed);
+}
+
+/// The panel spans the whole screen, whatever its coordinates' aspect (Winning Eleven 2012's
+/// 640x480 panel over its 16:9 picture).
+static FULL_SCREEN: AtomicBool = AtomicBool::new(false);
+
+pub fn set_full_screen(full: bool) {
+    FULL_SCREEN.store(full, Ordering::Relaxed);
 }
 
 /// A panel: the size of the coordinates it reports, when a diagnostic answer is due.
@@ -148,7 +156,7 @@ pub extern "C" fn ac_touchpanel_read_on(panel: *mut Panel, x: *mut i32, y: *mut 
 fn picture(panel: &Panel) -> (f32, f32, f32, f32) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
     let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN) as f32, GetSystemMetrics(SM_CYSCREEN) as f32) };
-    if sw <= 0.0 || sh <= 0.0 || panel.height <= 0 {
+    if FULL_SCREEN.load(Ordering::Relaxed) || sw <= 0.0 || sh <= 0.0 || panel.height <= 0 {
         return (0.0, 0.0, 1.0, 1.0);
     }
     let aspect = panel.width as f32 / panel.height as f32;

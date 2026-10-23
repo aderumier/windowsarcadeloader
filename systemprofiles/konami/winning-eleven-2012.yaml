@@ -1,0 +1,58 @@
+# WORLD SOCCER Winning Eleven ARCADE CHAMPIONSHIP 2012 (Konami, game code KCK): an arcade stick
+# with six buttons (the PJEI board), a PS2 and a PS3 pad port, a touch screen. The game is
+# contents/modules/weac12_bootstrap_release.dll (Direct3D 9), run by wal-avs-boot.exe from
+# contents/ (the dump's winning-eleven-2012.windowsloader names the DLL). The payload replaces
+# libacio.dll (PJEI, PJEC PS2 pad, I36I PS3 pad, card reader) and answers the touch screen.
+# Override values in userprofiles/konami/winning-eleven-2012.yaml.
+system: konami
+name: Winning Eleven 2012
+
+env:
+  # the game's AVS heaps (the 16 MB default is too small)
+  WAL_KONAMI_AVS_HEAP_MB: "30"
+  # the cabinet's region: A Asia (English text, data/convert/ac/english: this dump's), J Japan
+  # (data/convert/ac/j), C China (data/convert/ac/csimpl)
+  WAL_KONAMI_DEST: "A"
+  # Japanese text (messages, test menu) in Shift-JIS
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+
+input:
+  # the touch screen (the controller and mode choices; untouched, their timers choose the
+  # arcade stick and the COM match): the mouse or a gun
+  guns_enabled: true
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b7
+  # the arcade stick's buttons where a soccer game has them on a pad: cross short pass, circle
+  # long pass, square shoot, R1 dash dribble, L1 switch player
+  gamepad:
+    a: b2
+    b: b3
+    x: b4
+    y: none
+    r1: b1
+    l1: b5
+    r2: b6
+    l2: none
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: A (dash dribble)
+  b2: B (short pass)
+  b3: C (long pass)
+  b4: D (shoot)
+  b5: E (switch player)
+  b6: F (dribble)
+  b7: Touch the screen
+  rx: Touch position (x)
+  ry: Touch position (y)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: Insert / eject the card

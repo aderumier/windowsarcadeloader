@@ -235,6 +235,17 @@ pub extern "C" fn ac_io_pjei_get_watchdog_status() -> u32 {
     0
 }
 
+/// The coin slot's noise flag (Winning Eleven 2012): never set.
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_pjei_get_coin_slot_noise_flag(_slot: u32) -> bool {
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_pjei_reset_coin_slot_noise_flag(_slot: u32) -> bool {
+    true
+}
+
 // Coin counters, blockers and lamps: outputs without a device here.
 
 #[unsafe(no_mangle)]

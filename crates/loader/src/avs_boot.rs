@@ -15,7 +15,13 @@
 //! 5. `ea3_boot` (e-Amusement: offline without Konami's servers, the game boots on).
 //! 6. `dll_entry_main()`: the game, until it exits; then `ea3_shutdown`, `avs_shutdown`.
 //!
-//! Run from the game directory. `WAL_KONAMI_AVS_LOG=1`: the AVS log in `avs.log` there.
+//! Run from the game directory. A game whose DLLs are in `modules/` (Winning Eleven 2012:
+//! `contents/modules/`, the cabinet's layout) runs from the directory above, which holds
+//! `prop/`, `data/` and `dev/`: the boot is started in `modules/` (beside the DLLs, which load
+//! from the program's directory) and moves up. `WAL_KONAMI_AVS_LOG=1`: the AVS log in
+//! `avs.log` there. `WAL_KONAMI_AVS_HEAP_MB`: the size of each AVS heap (16 MB by default;
+//! Winning Eleven 2012 needs 30). `WAL_KONAMI_DEST`: the destination (region letter) in place of
+//! the dump's `/ea3/soft/dest` (Winning Eleven 2012: `J` Japan, `A` Asia, `C` China).
 
 #![cfg_attr(not(windows), allow(dead_code))]
 
@@ -29,7 +35,7 @@ use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
 const NODE_TYPE_S32: u32 = 6;
 const NODE_TYPE_STR: u32 = 11;
 const NODE_TYPE_BOOL: u32 = 52;
-const HEAP_SIZE: usize = 16 * 1024 * 1024;
+const HEAP_SIZE_MB: usize = 16;
 
 type Reader = unsafe extern "C" fn(u32, *mut u8, usize) -> i32;
 type LogWriter = unsafe extern "C" fn(*mut c_void, *const u8, u32) -> u32;
@@ -103,21 +109,75 @@ unsafe extern "C" fn log_writer(_ctx: *mut c_void, chars: *const u8, n: u32) -> 
     n
 }
 
+/// The AVS functions' export names: plain in the older AVS 2 builds; AVS 2.13 (Winning Eleven
+/// 2012) exports them as numbered `XC058ba5...` names (spice2x's table for that version).
+struct AvsNames {
+    boot: &'static str,
+    shutdown: &'static str,
+    read_query_memsize: &'static str,
+    create: &'static str,
+    insert_read: &'static str,
+    search: &'static str,
+    node_refer: &'static str,
+    node_remove: &'static str,
+    node_create: &'static str,
+    setenv: &'static str,
+    ea3_boot: &'static str,
+    ea3_shutdown: &'static str,
+}
+
+const AVS_LEGACY: AvsNames = AvsNames {
+    boot: "avs_boot",
+    shutdown: "avs_shutdown",
+    read_query_memsize: "property_read_query_memsize",
+    create: "property_create",
+    insert_read: "property_insert_read",
+    search: "property_search",
+    node_refer: "property_node_refer",
+    node_remove: "property_node_remove",
+    node_create: "property_node_create",
+    setenv: "std_setenv",
+    ea3_boot: "ea3_boot",
+    ea3_shutdown: "ea3_shutdown",
+};
+
+const AVS_2_13: AvsNames = AvsNames {
+    boot: "XC058ba50000f4",
+    shutdown: "XC058ba5000154",
+    read_query_memsize: "XC058ba5000066",
+    create: "XC058ba5000107",
+    insert_read: "XC058ba5000016",
+    search: "XC058ba50000fb",
+    node_refer: "XC058ba5000113",
+    node_remove: "XC058ba5000085",
+    node_create: "XC058ba5000143",
+    setenv: "XC058ba5000075",
+    ea3_boot: "XEb552d500005d",
+    ea3_shutdown: "XEb552d5000060",
+};
+
+impl AvsNames {
+    /// The names of this libavs-win32.dll's build.
+    fn of(m: HMODULE) -> &'static AvsNames {
+        if unsafe { GetProcAddress(m, c"avs_boot".as_ptr().cast()) }.is_some() { &AVS_LEGACY } else { &AVS_2_13 }
+    }
+}
+
 impl Avs {
-    fn new(m: HMODULE) -> Avs {
+    fn new(m: HMODULE, n: &AvsNames) -> Avs {
         let d = "libavs-win32.dll";
         unsafe {
             Avs {
-                boot: std::mem::transmute(proc(m, d, "avs_boot")),
-                shutdown: std::mem::transmute(proc(m, d, "avs_shutdown")),
-                read_query_memsize: std::mem::transmute(proc(m, d, "property_read_query_memsize")),
-                create: std::mem::transmute(proc(m, d, "property_create")),
-                insert_read: std::mem::transmute(proc(m, d, "property_insert_read")),
-                search: std::mem::transmute(proc(m, d, "property_search")),
-                node_refer: std::mem::transmute(proc(m, d, "property_node_refer")),
-                node_remove: std::mem::transmute(proc(m, d, "property_node_remove")),
-                node_create: std::mem::transmute(proc(m, d, "property_node_create")),
-                setenv: std::mem::transmute(proc(m, d, "std_setenv")),
+                boot: std::mem::transmute(proc(m, d, n.boot)),
+                shutdown: std::mem::transmute(proc(m, d, n.shutdown)),
+                read_query_memsize: std::mem::transmute(proc(m, d, n.read_query_memsize)),
+                create: std::mem::transmute(proc(m, d, n.create)),
+                insert_read: std::mem::transmute(proc(m, d, n.insert_read)),
+                search: std::mem::transmute(proc(m, d, n.search)),
+                node_refer: std::mem::transmute(proc(m, d, n.node_refer)),
+                node_remove: std::mem::transmute(proc(m, d, n.node_remove)),
+                node_create: std::mem::transmute(proc(m, d, n.node_create)),
+                setenv: std::mem::transmute(proc(m, d, n.setenv)),
             }
         }
     }
@@ -184,6 +244,11 @@ fn exists(path: &str) -> bool {
 
 fn main() {
     let game = std::env::args().nth(1).unwrap_or_else(|| fail("usage: wal-avs-boot <game.dll> [args...]"));
+    // the game's DLLs in modules/, its files in the directory above
+    if !exists("prop/avs-config.xml") && exists("../prop/avs-config.xml") {
+        std::env::set_current_dir("..").unwrap_or_else(|e| fail(&format!("..: {e}")));
+    }
+    let heap_size = std::env::var("WAL_KONAMI_AVS_HEAP_MB").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(HEAP_SIZE_MB) * 1024 * 1024;
     if std::env::var("WAL_KONAMI_AVS_LOG").is_ok_and(|v| v.trim() == "1") {
         *LOG.lock().unwrap() = std::fs::File::create("avs.log").ok();
     }
@@ -196,7 +261,9 @@ fn main() {
     }
 
     // 1. AVS
-    let avs = Avs::new(load("libavs-win32.dll"));
+    let avs_dll = load("libavs-win32.dll");
+    let names = AvsNames::of(avs_dll);
+    let avs = Avs::new(avs_dll, names);
     let config = avs.read("prop/avs-config.xml", 0x1000);
     let config_node = avs.node(config, "/config");
     if config_node.is_null() {
@@ -211,16 +278,16 @@ fn main() {
         -tz.Bias * 60
     };
     avs.set(config, "/config/time/gmt_offset", NODE_TYPE_S32, offset as usize);
-    let heap1 = Box::leak(vec![0u8; HEAP_SIZE].into_boxed_slice());
-    let heap2 = Box::leak(vec![0u8; HEAP_SIZE].into_boxed_slice());
+    let heap1 = Box::leak(vec![0u8; heap_size].into_boxed_slice());
+    let heap2 = Box::leak(vec![0u8; heap_size].into_boxed_slice());
     unsafe {
-        (avs.boot)(config_node, heap1.as_mut_ptr().cast(), HEAP_SIZE, heap2.as_mut_ptr().cast(), HEAP_SIZE, log_writer, std::ptr::null_mut())
+        (avs.boot)(config_node, heap1.as_mut_ptr().cast(), heap_size, heap2.as_mut_ptr().cast(), heap_size, log_writer, std::ptr::null_mut())
     };
 
     // 2. e-Amusement library, the game
     let ea3_dll = load("libavs-win32-ea3.dll");
-    let ea3_boot: unsafe extern "C" fn(*mut c_void) = unsafe { std::mem::transmute(proc(ea3_dll, "libavs-win32-ea3.dll", "ea3_boot")) };
-    let ea3_shutdown: unsafe extern "C" fn() = unsafe { std::mem::transmute(proc(ea3_dll, "libavs-win32-ea3.dll", "ea3_shutdown")) };
+    let ea3_boot: unsafe extern "C" fn(*mut c_void) = unsafe { std::mem::transmute(proc(ea3_dll, "libavs-win32-ea3.dll", names.ea3_boot)) };
+    let ea3_shutdown: unsafe extern "C" fn() = unsafe { std::mem::transmute(proc(ea3_dll, "libavs-win32-ea3.dll", names.ea3_shutdown)) };
     let game_dll = load(&game);
     let entry_init: unsafe extern "C" fn(*mut u8, *mut c_void) -> bool = unsafe { std::mem::transmute(proc(game_dll, &game, "dll_entry_init")) };
     let entry_main: unsafe extern "C" fn() -> bool = unsafe { std::mem::transmute(proc(game_dll, &game, "dll_entry_main")) };
@@ -231,7 +298,11 @@ fn main() {
         .find(|p| exists(p))
         .unwrap_or_else(|| fail("no prop/ea3-config.xml or prop/eamuse-config.xml"));
     let ea3 = avs.read(ea3_path, 0x40000);
-    let soft: Vec<String> = ["model", "dest", "spec", "rev", "ext"].iter().map(|k| avs.str(ea3, &format!("/ea3/soft/{k}"))).collect();
+    let mut soft: Vec<String> = ["model", "dest", "spec", "rev", "ext"].iter().map(|k| avs.str(ea3, &format!("/ea3/soft/{k}"))).collect();
+    if let Some(dest) = std::env::var("WAL_KONAMI_DEST").ok().map(|d| d.trim().to_string()).filter(|d| !d.is_empty()) {
+        avs.set_str(ea3, "/ea3/soft/dest", &dest);
+        soft[1] = dest;
+    }
     let [model, dest, spec, rev, ext] = [&soft[0], &soft[1], &soft[2], &soft[3], &soft[4]];
     if model.is_empty() {
         fail(&format!("{ea3_path}: no /ea3/soft/model"));

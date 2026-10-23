@@ -17,7 +17,8 @@
 //! libtouchpanel imports pointed at the payload (`otomedius.rs`, `touchpanel.rs`).
 //!
 //! Winning Eleven 2008 also has the PJEI board, a PS2 pad port (`pjec.rs`) and the touch screen
-//! (`winning_eleven.rs`).
+//! (`winning_eleven.rs`). Winning Eleven 2012 (`we2012.rs`) is `weac12_bootstrap_release.dll`,
+//! run by `wal-avs-boot.exe`: the same boards and a PS3 pad port (`i36i.rs`).
 //!
 //! GTI Club: Supermini Festa! has the HBHI board and, on a second bus (`dllibacio.dll`, also the
 //! payload), the HGTH wheel board (`gti_club.rs`, `hgth.rs`): wheel, pedals, the wheel's motor.
@@ -45,6 +46,7 @@ mod eamuse;
 mod gti_club;
 mod hbhi;
 mod hgth;
+mod i36i;
 mod icca;
 mod ig2;
 mod net;
@@ -56,6 +58,7 @@ mod screen;
 mod touchpanel;
 mod wartran;
 mod wartran_screens;
+mod we2012;
 mod winning_eleven;
 
 use std::ffi::c_void;
@@ -69,6 +72,7 @@ pub use acio::*;
 pub use bms::*;
 pub use hbhi::*;
 pub use hgth::*;
+pub use i36i::*;
 pub use icca::*;
 pub use pjec::*;
 pub use pjei::*;
@@ -79,10 +83,16 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
     if reason == DLL_PROCESS_ATTACH {
         // Road Fighters 3D: the game is jgt.dll (the common hooks go there), run by wal-avs-boot
         let jgt = rf3d::game_module();
-        if jgt != 0 {
-            wal_payload_common::iat::set_game_module(jgt);
+        let we12 = we2012::game_module();
+        if jgt != 0 || we12 != 0 {
+            wal_payload_common::iat::set_game_module(jgt.max(we12));
         }
         wal_payload_common::start("konami");
+        if we12 != 0 {
+            we2012::init(module);
+            log!("konami: PJEI board, PS2 and PS3 pad ports, card reader and touch screen emulated (Winning Eleven 2012)");
+            return TRUE;
+        }
         if jgt != 0 {
             rf3d::init(module);
             log!("konami: HBHI board, HGTH wheel board and card reader emulated (Road Fighters 3D)");

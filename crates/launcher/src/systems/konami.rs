@@ -1,6 +1,6 @@
 //! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan Refill!, Otomedius,
-//! Winning Eleven 2008, GTI Club: Supermini Festa!, Road Fighters 3D, Contra: Evolution,
-//! Wartran Troopers).
+//! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
+//! Contra: Evolution, Wartran Troopers).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -23,7 +23,9 @@
 //!
 //! Road Fighters 3D's code is a DLL (`jgt.dll`, the dump's `.windowsloader`): `wal-avs-boot.exe`
 //! runs it as the cabinet's launcher does (AVS, e-Amusement boot, the DLL's entry points); its
-//! `libacio.dll` and `libacioEx.dll` (the HGTH wheel board's bus) are the payload.
+//! `libacio.dll` and `libacioEx.dll` (the HGTH wheel board's bus) are the payload. Winning
+//! Eleven 2012's too (`contents/modules/weac12_bootstrap_release.dll`, AVS 2.13: PJEI board, PS2
+//! and PS3 pad ports, touch screen).
 //!
 //! Wartran Troopers has no ACIO: the payload is its `panicdialog.dll` and answers its serial
 //! I/O chain (COM2: hub, boards, security plugs) and gun boards (COM1), its two monitors shown
@@ -37,6 +39,9 @@
 //! - Winning Eleven 2008: `WAL_KONAMI_GAME_LOG=1` the game's own log in the payload log;
 //!   `WAL_KONAMI_EAMUSEMENT=1`, `WAL_KONAMI_LIVE_MONITOR=1` keep those test menu network options
 //!   (forced off); `WAL_KONAMI_DDRIVE` the cabinet's D: folder (default the dump root)
+//! - wal-avs-boot: `WAL_KONAMI_AVS_HEAP_MB` the AVS heaps' size (default 16), `WAL_KONAMI_DEST`
+//!   the destination (region) in place of the dump's; Winning Eleven 2012: its region (`J`
+//!   Japan, `A` Asia, `C` China) and the cabinet's product code
 //! - GTI Club: `WAL_KONAMI_FFB` the force feedback strength, percent (default 100)
 //! - Wartran Troopers: `WAL_KONAMI_PLUG` the game plug's region id (default `GKD00UA`)
 //!

@@ -10,6 +10,7 @@
 //! circle l1 l2 l3 r1 r2 r3`.
 
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use wal_payload_common::mapping::ButtonMap;
 use wal_protocol::Axis;
@@ -62,6 +63,13 @@ const ANALOG_CONTROLLER: u8 = 7;
 const PRESENT: u8 = 0x5a;
 
 static MAP: Mutex<Option<ButtonMap<Bit>>> = Mutex::new(None);
+/// Virtual buttons that are not the pad's (Winning Eleven 2012's touch).
+static RESERVED: AtomicU32 = AtomicU32::new(0);
+
+/// Leaves the virtual buttons `mask` out of the pad.
+pub fn reserve(mask: u32) {
+    RESERVED.store(mask, Ordering::Relaxed);
+}
 static STATUS: Mutex<[u8; 72]> = Mutex::new([0; 72]);
 
 /// A stick axis (-32768..32767) as the pad's byte (0..255, centered 0x7f).
@@ -72,7 +80,8 @@ fn axis(v: i16) -> u8 {
 /// A new status from player 1's stick.
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_pjec_update_control_status_buffer() -> bool {
-    let stick = wal_payload_common::input(0);
+    let mut stick = wal_payload_common::input(0);
+    stick.buttons &= !RESERVED.load(Ordering::Relaxed);
     let mut status = [0u8; 72];
     status[0] = ANALOG_CONTROLLER;
     status[2] = PRESENT;

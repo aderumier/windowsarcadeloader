@@ -1966,6 +1966,43 @@ used. spice2x supports the later Winning Eleven 2012/2014 (KCK, NCK) with the sa
   the payload, which logs a call whose first argument is a readable text format (a small printf,
   `%s` pointers checked with `VirtualQuery`). AVS's log comes through it too.
 
+#### Winning Eleven 2012
+
+WORLD SOCCER Winning Eleven ARCADE CHAMPIONSHIP 2012 (game code KCK, Direct3D 9, 1920x1080) is
+an AVS game like Road Fighters 3D: the dump's `contents/modules/weac12_bootstrap_release.dll`
+(the `.windowsloader`), run by `wal-avs-boot.exe` (installed beside it in `modules/`). The boot
+moves up to `contents/` (`prop/`, `data/`, `dev/`) when `prop/` is there and not in
+`modules/`; the DLLs load from the program's directory. Its AVS is 2.13 (numbered exports:
+`XC058ba5...`, ea3 `XEb552d5...`, spice2x's table for 2.13; chosen when `avs_boot` is missing),
+its heaps 30 MB (`WAL_KONAMI_AVS_HEAP_MB`). The payload is its `libacio.dll` (`we2012.rs`).
+
+- **Region.** The cabinet runs the game from `D:\KCK-00<n>-<version>\contents`; the game looks
+  for `KCK-001` (Japan), `KCK-002` (Asia), `KCK-003` (China) in its current directory (rva
+  0xedfef0) and picks with it the language data (`data/convert/ac/j`, `english` or `ctrad`,
+  `csimpl`), the attract movies, the touch screen, the LCD monitor. From another directory no
+  movie is picked: the first one after the attract's title is a null name (the crash after the
+  attract with spice2x, which runs it from `C:\game\contents`). The licence check compares it
+  with the soft id code's destination (`J` 2, `A` 1, `C` 0; SECURITY ERROR 5-1512-0006 when they
+  differ). `WAL_KONAMI_DEST` sets both: wal-avs-boot gives that destination (in place of the
+  dump's `/ea3/soft/dest`), the payload answers the check for its code. This dump is the
+  English one (`english` data, `j` renamed `j-old`): `A`.
+- **Touch screen.** Player 1's right stick (the profile's mouse or gun) and button 7. Asia and
+  China: the serial panel of `libtouchpanel.dll` (`ac_touchpanel_new2(640, 480)`), its imports
+  answered, over the whole picture. Japan: a USB touch monitor (an Elo, a mouse for Windows):
+  the boot looks for its device among the PC's (rva 0xedb1a0, TOUCH PANEL ERROR 5-1513-0000:
+  answered present), the game reads `GetCursorPos` (hooked) and its window's left button
+  messages (byte 1 of its key table, written by the payload); the PC's mouse messages are not
+  dispatched. The controller and mode choices are touch buttons; untouched, their timers pick
+  the arcade stick and the COM match.
+- **LCD monitor (Japan).** COM1: `0<command> <value>\r\n` (`MODEL?`, `BRI`, `CON`, `BL`, `CSM`,
+  colors) echoed `9<command> <value>\r\n`, then `9OK \r\n` (spice2x's answer); LCD MONITOR ERROR
+  5-1514-0000 without it.
+- **Boards.** PJEI as Winning Eleven 2008's (stick, A-F, test, service, coin; coin slot noise
+  flag never set), PJEC (the PS2 pad, the touch button left out), I36I (the PS3 pad port: no
+  pad, a DualShock 3's USB descriptor, as spice2x). The security plug is the AVS environment's.
+- **Offline.** e-Amusement local mode (a notice over the attract); free play from the dump's
+  `dev/nvram/coin.xml`. The online update fails each minute (`F:\KCK-000\update`), harmless.
+
 #### GTI Club: Supermini Festa!
 
 GTI Club: Supermini Festa! (2009, game code HGT, Direct3D 9, 1360x768) runs `gti3.exe` from the
@@ -2491,6 +2528,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `otomedius` | Otomedius | konami | works (user: 100%) | `otomedius.exe` (§6.3h), `libacio.dll` replaced: PJEI board (stick, buttons, coins, security plug), card reader, the libbms imports (BM-System, e-Amusement offline) and libtouchpanel imports (touch screen from the mouse, fitted to the 5:4 picture) answered, missing `ChkSum.bin` data check passed, E:/F: save drives |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
+| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (headless tests: attract, COM match played, touch, test menu) | `contents/modules/weac12_bootstrap_release.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.13 names, 30 MB heaps), region `WAL_KONAMI_DEST` (`A`: the product code `KCK-002` answered, English data); `libacio.dll` replaced: PJEI board, PS2 and PS3 pad ports, card reader; touch screen (serial panel, or the Japanese USB one and its COM1 LCD monitor) from the mouse |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | `AMContra.exe` (§6.3h), `libacio.dll` replaced (its MSVC-named imports, never called): controls on a fake DirectInput keyboard from the virtual sticks (the game's key table), coins from the COM1 control panel, clock reported set, GB2312 text (code page 936) |
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | `D00/game/game.exe` (§6.3h), `panicdialog.dll` replaced; COM2 pcio hub chain emulated (4 boards, firmware versions from the dump, switches, coin counter, security plug region `WAL_KONAMI_PLUG`), COM1 gun boards; the gun read replaced by the pointer; two monitors in one window (2 D3D8 devices presenting side by side); E: settings drive seeded from the dump's CFGs; DirectMusic tricks |
