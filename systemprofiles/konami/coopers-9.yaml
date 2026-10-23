@@ -1,0 +1,66 @@
+# Cooper's 9 (Konami, 2006): game.exe (Direct3D 9), two players with guns on one 1280x512
+# screen. The dump is a memory image of the protected game: wal-loader starts it with the
+# payload, installed as inpout32.dll (the game's parallel port I/O board), which rebuilds its
+# imports and answers its HASP dongle.
+# Override values in userprofiles/konami/coopers-9.yaml.
+system: konami
+name: Cooper's 9
+
+payload_install: [inpout32.dll]
+payload_loader: true
+
+# The settings and bookkeeping (expdat, extdat): the game's folder on the cabinet, here the
+# dump's SAVE folder as drive E: (WAL_KONAMI_SAVE_DRIVE).
+drives:
+  e: SAVE
+
+env:
+  WAL_KONAMI_SAVE_DRIVE: E
+  # the 1280x512 picture (fullscreen mode on the cabinet) in a screen-sized borderless window
+  WAL_D3D9_WINDOWED_SIZE: 1280x512
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # the game reads the PC keyboard through DirectInput (debug keys): no input there
+  WAL_DINPUT_DISABLE: "1"
+  # the dongle's region: J (Japan), U (USA), A (Asia), K (Korea), E (Europe)
+  WAL_KONAMI_REGION: E
+  # "1": the screen flashes at each shot (what a CRT light gun needs to aim)
+  WAL_KONAMI_GUN_FLASH: "0"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_REGION
+        label: Region
+        kind: choice
+        choices: [E, U, A, K, J]
+        description: >-
+          The dongle's region: Europe, USA, Asia, Korea, Japan (the game's language and
+          settings follow it).
+      - key: WAL_KONAMI_GUN_FLASH
+        label: Gun flash
+        kind: bool
+        description: >-
+          The screen flashes at each shot, as on the cabinet (its light guns needed it to aim).
+          Off: no flash.
+
+input:
+  # the player's gun (or mouse) aims, its trigger shoots; its second button (the mouse's
+  # right one) or pointing off the screen: the protect / reload shot
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Trigger
+  b2: Protect / reload (off screen shot)
+  b6: Off screen
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

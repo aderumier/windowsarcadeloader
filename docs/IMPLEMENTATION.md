@@ -2267,6 +2267,66 @@ both, gunio is mapped by then).
 Headless tests: attract, coins, both players' start, name and stage selection by shooting,
 play (scores, reload), test menu (TEST), both modes (1 player: the stage start with the CPU rival).
 
+#### Cooper's 9
+
+Cooper's 9 (2006, Direct3D 9, two guns, one 1280x512 screen) is `game.exe` at the dump root: a
+memory dump of the HASP envelope-protected game. Its sections are the running image (the file
+is the image size, the envelope's `.protect` section zeros once loaded), the import directory
+points into `.protect` (empty: Wine resolves nothing) and the import address table (rva
+0x112000-0x1123dc) holds the dumping machine's addresses (Windows XP DLLs at 0x7c80xxxx...,
+envelope stubs at 0x0313xxxx). The entry point is the game's ATL `WinMain` (the C runtime
+start-up had run when it was dumped). The game imports no DLL the payload could replace: the
+profile installs it as `inpout32.dll` and starts the game through wal-loader
+(`payload_loader: true`, a launcher option: wal-loader with the profile's first
+`payload_install` path); the game loads `inpout32` itself later (`LoadLibraryA`), the same
+module. `coopers9.rs`, before the game's code runs:
+
+- **Imports.** A real import directory is written where the header points (descriptors, lookup
+  tables, names in `.protect`) and the 214 named slots resolved, so the common hooks find the
+  game's imports as in any executable. The names come from the code calling each slot
+  (arguments, results, strings passed), helped by a run of another loader's build (its rebuilt
+  table read from memory, its addresses mapped back to Wine's exports). msvcr71's slots: from
+  the calls (fopen "rb" / fread / fclose, sprintf, the ctype masks of the char classes,
+  setlocale + _strdup, longjmp + _setjmp3, the CRT start-up's own...). Slots only the HASP
+  library's code calls (bypassed) stay unnamed: a stub that logs the call.
+- **WinMain.** Wine calls the entry with the PEB as argument: the instance. wal-loader restores
+  the entry's first 5 bytes; the next ones (`push 0; push esi; push <module>`) jump to a thunk
+  that sets esi to the image base first.
+- **Data.** The cabinet mounted `data\data.bin` as Z: (`system("load.exe ...")`) and read
+  `z:/data/bin/`: the dump has the files in `data\bin`, the path is made relative and `system`
+  does nothing. Settings and bookkeeping (`expdat`, `extdat`, 2636 bytes each, rewritten by a
+  save thread when they change) were in the game's folder: their name pushes point at
+  `E:\expdat` / `E:\extdat` (`WAL_KONAMI_SAVE_DRIVE`, profile drive `e: SAVE`).
+- **Dongle.** The HASP HL API is linked in: `hasp_login` (feature 0xffff0000), `hasp_logout`,
+  `hasp_read`, `hasp_write`, `hasp_encrypt`, `hasp_decrypt` (rva 0xa3730...) are answered.
+  The game checks the memory file 0xfff0: "GWP", A1 04 01, the region (index in "JUAKEGF",
+  `WAL_KONAMI_REGION`, default E), 04, 0x64 at 9 and 15, 00 01 at 0x2e; a decrypted constant
+  with 'C' at 0 and '9' at 7. It checks again at each coin.
+- **I/O board** (parallel port, `Inp32`/`Out32`, the game's own poll thread). Commands: data
+  port 0x378 gets the command (strobe on 0x37a), the reply is read there. 1/2: player 1's gun
+  x/y, 3/4: player 2's (raw 0-255); 5: the shot (per gun nibble: trigger bit 0, on the screen
+  bit 2; trigger without "on the screen": no position, the protect/reload shot); 6: triggers
+  (bits 0, 4); 7/8 (status bit 5 picks): switches, bit 0/1 START, 2 TEST, 3 SERVICE, 4 COIN.
+  Status port 0x379: first read 0x0f (board present, bits 1-2), then bit 7 low while a gun
+  fired (the game then reads the positions), 0xdf otherwise. `(v << 4) | 0xd` / `| 0xe`: lamps.
+- **Guns.** The game maps the raw positions through each gun's calibration (two points per
+  axis) to 0-255, then x5 / x2 to the screen: the calibration is skipped (rva 0x19b57 jumps to
+  the clamp), the pointer is reported over the whole picture. The boot's PLEASE CALIBRATE THE
+  GUN (the settings' calibrated bit, rva 0x1dc00) passes. The light gun flash (the frame cleared
+  to one color when a gun measurement starts, rva 0x190b0) is off (`WAL_KONAMI_GUN_FLASH=1`
+  keeps it).
+- **Movies.** AVI, MP42 (MS MPEG-4 v2) and WMV9, through DirectShow into the game's own
+  texture renderer (RGB24). GE-Proton's winedmo decodes MP42 with FFmpeg but its WMV decoder's
+  subtype list (and DMO registration) left MP42 out: quartz found no decoder, the movies stayed
+  white. Fixed in the runner: GE patch `0098-winedmo-expose-mp42-video-decoding` (branch
+  `winedmo-mp42-video-decoding` of ~/code/protonge); the WMV9 movies play on any runner.
+- **Input filtering.** The game reads the keyboard through DirectInput 8 (debug keys: T test, S
+  service, C coin...): the fake one without devices (`WAL_DINPUT_DISABLE`). `SetLocalTime`
+  (the test menu's clock) does nothing.
+
+Headless tests: attract (movies), coins, both players' start, mode selection by shooting,
+story intro movie, play (hits, score, the protect shot), game over, test menu (TEST), saves.
+
 #### Chase Chase Jokers
 
 Chase Chase Jokers (2023, game code UJK) is `chaseproject.exe`, a 64-bit Unity (Mono, Direct3D
@@ -2680,6 +2740,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | `D00/game/game.exe` (§6.3h), `panicdialog.dll` replaced; COM2 pcio hub chain emulated (4 boards, firmware versions from the dump, switches, coin counter, security plug region `WAL_KONAMI_PLUG`), COM1 gun boards; the gun read replaced by the pointer; two monitors in one window (2 D3D8 devices presenting side by side); E: settings drive seeded from the dump's CFGs; DirectMusic tricks |
 | `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | `game.exe` (§6.3h), `iob.dll` replaced (switches, coins), `gunio.dll` answered (gun boards booted); the gun read replaced by the pointer, off screen = cover/reload; `D:\D22\` paths made relative (data, DirectShow movies); boot CRC, clock and calibration checks skipped; E:/F: save drives; the game's two screens, player 1's alone shown (with one, its CPU rival crashed the stage start) |
 | `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | as `lethal-enforcers-3`, two adapters (`WAL_KONAMI_PLAYERS=2`): one 640x480 screen per player in one window (`two_screens.rs`), each gun aims at its own half |
+| `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | `game.exe`, a memory dump of the HASP-enveloped game: started by wal-loader with the payload as `inpout32.dll` (`payload_loader`); its imports rebuilt, `WinMain`'s instance fixed, HASP HL API answered, parallel port I/O board and guns (calibration skipped), `z:/data/bin` relative, saves on E: (`SAVE`), MP42 movies need the GE winedmo MP42 patch |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

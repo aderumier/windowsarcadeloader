@@ -41,6 +41,9 @@
 //! Lethal Enforcers 3 loads it as `iob.dll` too (`le3.rs`), beside its gun boards' gunio.dll;
 //! its two players' monitors are `two_screens.rs`'s.
 //!
+//! Cooper's 9 loads it as `inpout32.dll` (`coopers9.rs`: its parallel port I/O board and HASP
+//! dongle), started by wal-loader: the game is a memory dump whose imports the payload rebuilds.
+//!
 //! The 64-bit build (`wal_konami64.dll`) is Chase Chase Jokers' AIO libraries (`ccj.rs`: the
 //! BI2X TBS I/O board; `ccj_trackball.rs`: its raw input trackball; `ccj_pointer.rs`: its touch
 //! screen; `ccj_mono.rs`: game settings through Mono); the modules above are the 32-bit games'.
@@ -55,6 +58,8 @@ mod avs;
 mod bms;
 #[cfg(target_arch = "x86")]
 mod contra;
+#[cfg(target_arch = "x86")]
+mod coopers9;
 #[cfg(target_arch = "x86")]
 mod crosshair;
 #[cfg(target_arch = "x86")]
@@ -141,6 +146,13 @@ pub use ccj::*;
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
+        // Cooper's 9: the executable's imports are rebuilt before the common hooks look them up
+        if coopers9::detected(module) {
+            let (resolved, missing) = coopers9::imports();
+            wal_payload_common::start("konami");
+            coopers9::init(resolved, &missing);
+            return TRUE;
+        }
         // Road Fighters 3D: the game is jgt.dll (the common hooks go there), run by wal-avs-boot
         let jgt = rf3d::game_module();
         let we12 = we2012::game_module();

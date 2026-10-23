@@ -1,6 +1,6 @@
 //! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan, Gashaaaan Refill!, Otomedius,
 //! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
-//! Contra: Evolution, Wartran Troopers, Chase Chase Jokers).
+//! Contra: Evolution, Wartran Troopers, Chase Chase Jokers, Lethal Enforcers 3, Cooper's 9).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -38,6 +38,10 @@
 //! `libaio-iob2_video.dll` (its profile's `payload_install`), and answers its raw input
 //! trackball and touch screen.
 //!
+//! Cooper's 9's executable is a memory dump without imports: its profile starts it through
+//! wal-loader (`payload_loader`) with the payload as `inpout32.dll` (its parallel port I/O
+//! board), which rebuilds the imports and answers the game's HASP dongle.
+//!
 //! Payload options (profile `env`):
 //! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits
 //! - `WAL_KONAMI_AVS_LOG=1`: the AVS log (the game system's boot, errors) in the payload log
@@ -53,6 +57,9 @@
 //!   Japan, `A` Asia, `C` China) and the cabinet's product code
 //! - GTI Club: `WAL_KONAMI_FFB` the force feedback strength, percent (default 100)
 //! - Wartran Troopers: `WAL_KONAMI_PLUG` the game plug's region id (default `GKD00UA`)
+//! - Cooper's 9: `WAL_KONAMI_REGION` the dongle's region (`J`, `U`, `A`, `K`, `E`; default
+//!   `E`), `WAL_KONAMI_SAVE_DRIVE` the drive of the settings files, `WAL_KONAMI_GUN_FLASH=1` the
+//!   light gun flash at each shot
 //! - Chase Chase Jokers: `WAL_KONAMI_TRACKBALL_SPEED` the trackball's counts per 10 ms at the
 //!   right stick's full tilt (default 12)
 //!
@@ -64,7 +71,8 @@
 //! action shift_up shift_down select_up select_down select_left select_right`; Contra: Evolution:
 //! `start up down left right shot jump select test service coin` (players 1 and 2); Wartran
 //! Troopers: `start trigger option shoulder sense offscreen` (players 1-4), `test service coin`;
-//! Chase Chase Jokers: `test service coin dash skill attack jump slide headphone up down left
+//! Cooper's 9: `test service coin start trigger offscreen` (players 1 and 2); Chase Chase
+//! Jokers: `test service coin dash skill attack jump slide headphone up down left
 //! right touch`.
 
 use super::{Payload, System};

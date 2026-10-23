@@ -36,6 +36,7 @@ pub struct Profile {
     pub prefix: PathBuf,
     pub payloads_dir: PathBuf,
     pub payload_install: Vec<String>,
+    pub payload_loader: bool,
     pub wow64: bool,
     pub wine_debug: String,
     pub dxvk: bool,

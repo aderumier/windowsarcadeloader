@@ -113,3 +113,6 @@ EXPORTS
     "?iob_set_light_init@@YAXXZ" = le3_iob_nothing
     "?iob_set_now_gaming@@YAXXZ" = le3_iob_nothing
     "?iob_start@@YAHXZ" = le3_iob_one
+    ; Cooper's 9: inpout32.dll (stdcall)
+    Inp32 = coopers9_inp32@4
+    Out32 = coopers9_out32@8

@@ -316,7 +316,13 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     // directly instead of starting wal-loader with a payload from the other architecture.
     // wal-loader is built for 32-bit games. A system may also have 64-bit payloads
     // (Namco ES3 Battle Pod), which are loaded through the game's own imports.
-    let loader = if system_payloads.is_empty() || rundir::is_pe64(&exe) { None } else { system.loader() };
+    let loader = if system_payloads.is_empty() || rundir::is_pe64(&exe) {
+        None
+    } else if profile.payload_loader {
+        payloads.first().map(|(_, at)| *at)
+    } else {
+        system.loader()
+    };
     // the payload of the programs a relaunch starts (`exe=`), when the game's own is imported
     let program_loader = if loader.is_none() && !rundir::is_pe64(&exe) { system.program_loader() } else { None };
     if loader.is_some() || program_loader.is_some() {

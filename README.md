@@ -204,6 +204,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%), 4 guns, 2 screens side by side, test menu | not in the test |  |
 | `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | not in the test |  |
 | `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | not in the test |  |
+| `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | not in the test |  |
 | `chase-chase-jokers` | Chase Chase Jokers | konami | works (user: 100%), local matches with COM players, test menu, stick, trackball (right stick), touch screen (mouse) | not in the test |  |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (coins, start, aim, shots, settings menu in headless tests), 4 guns | not in the test |  |
 <!-- GAMELIST END -->
