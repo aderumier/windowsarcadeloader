@@ -29,6 +29,11 @@
 //! `WAL_RINGEDGE_CREDIT_RECORD=1` ([`write_credit_record`]).
 //!
 //! Save folder: `WAL_RINGEDGE_SAVE` (default `sv`, relative to the game directory).
+//!
+//! The cabinet's user profile folder `C:\Documents and Settings\AppUser\` (Medal no Gunman
+//! keeps its boot state there: `gunman_initialize.txt`, `gunman_lamp_sate.txt`...; without it
+//! every boot ends on "Error Information" and hands over to the test menu) is the save folder's
+//! `AppUser`, the files staying with the dump.
 
 use std::ffi::c_void;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -103,6 +108,7 @@ pub(crate) fn init() {
     let _ = dip_switches();
     let dir = save_dir();
     let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::create_dir_all(format!("{dir}/AppUser"));
     // the SRAM file: created at its full size, the game formats it
     let sram = format!("{dir}/SRAM.bin");
     if let Ok(f) = std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(&sram) {
@@ -148,6 +154,18 @@ fn device_name(path: &str) -> Option<String> {
     Some(name.to_ascii_lowercase())
 }
 
+/// The save folder's file for a path in the cabinet's `C:\Documents and Settings\AppUser\`.
+fn app_user_file(path: &str) -> Option<Vec<u16>> {
+    const PREFIX: &str = "c:\\documents and settings\\appuser\\";
+    let path = path.replace('/', "\\");
+    let head = path.get(..PREFIX.len())?;
+    if !head.eq_ignore_ascii_case(PREFIX) {
+        return None;
+    }
+    let file = format!("{}\\AppUser\\{}", save_dir(), &path[PREFIX.len()..]);
+    Some(file.encode_utf16().chain([0]).collect())
+}
+
 /// The handle for a device path, `None` for other files.
 fn open_device(path: &str, access: u32, share: u32) -> Option<P> {
     let name = device_name(path)?;
@@ -177,6 +195,9 @@ unsafe extern "system" fn create_file_a(name: *const u8, a: u32, s: u32, sa: P, 
         if let Some(h) = open_device(&path, a, s) {
             return h;
         }
+        if let Some(file) = app_user_file(&path) {
+            return unsafe { orig::<unsafe extern "system" fn(*const u16, u32, u32, P, u32, u32, P) -> P>(CREATE_W)(file.as_ptr(), a, s, sa, d, f, t) };
+        }
         if let Some(file) = crate::pcp::ds_file_replacement(&path) {
             let file: Vec<u16> = file.to_string_lossy().encode_utf16().chain([0]).collect();
             return unsafe { orig::<unsafe extern "system" fn(*const u16, u32, u32, P, u32, u32, P) -> P>(CREATE_W)(file.as_ptr(), a, s, sa, d, f, t) };
@@ -194,6 +215,9 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
         let path = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) });
         if let Some(h) = open_device(&path, a, s) {
             return h;
+        }
+        if let Some(file) = app_user_file(&path) {
+            return unsafe { orig::<unsafe extern "system" fn(*const u16, u32, u32, P, u32, u32, P) -> P>(CREATE_W)(file.as_ptr(), a, s, sa, d, f, t) };
         }
         if let Some(file) = crate::pcp::ds_file_replacement(&path) {
             let file: Vec<u16> = file.to_string_lossy().encode_utf16().chain([0]).collect();

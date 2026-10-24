@@ -56,3 +56,5 @@ env:
   WAL_TYPEX_JVS_OUTPUTS: "20"
   WAL_TYPEX_JVS_ANALOG_INPUTS: "-lx,ly,p2:-lx,p2:ly"
   WAL_RINGEDGE_CREDIT_RECORD: "1"
+  # F2 asks amMaster for the test menu and the game stays (error 3005): ended after 2 s
+  WAL_RINGEDGE_END_ON_NEXT: "1"

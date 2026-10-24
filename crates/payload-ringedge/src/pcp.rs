@@ -229,11 +229,14 @@ fn answer(request: &str) -> String {
         wal_payload_common::request_relaunch(&args);
         // the cabinet's master ends the game for the next application: a game that stays
         // (Teratoma starts again in place, its amMaster then fails: error 3005) is ended
-        std::thread::spawn(|| {
-            std::thread::sleep(std::time::Duration::from_secs(2));
-            log!("pcp: the game did not end for the next application: ended");
-            std::process::exit(0);
-        });
+        // (`WAL_RINGEDGE_END_ON_NEXT`; Medal no Gunman asks for application 0, itself, at boot)
+        if std::env::var("WAL_RINGEDGE_END_ON_NEXT").is_ok_and(|v| v == "1") {
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                log!("pcp: the game did not end for the next application: ended");
+                std::process::exit(0);
+            });
+        }
     }
     // the starts of application <n> since the cabinet's boot: this one, the first (amMaster
     // 1.03, RingWide: the answer needs `count`, else "Failed to get FirstBootFlag")

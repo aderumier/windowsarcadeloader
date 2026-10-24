@@ -23,6 +23,9 @@
 //!
 //! Other Sega medal cabinets have the same board with their own switches ([`install`], Lady
 //! Luck: `satellite.rs`).
+//!
+//! `WAL_RINGEDGE_GUNMAN_CREDITS=<n>`: the game's credit (its medals) kept at `n` or more
+//! ([`keep_credits`]); with the profile's patches making reloads free, a free play.
 
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -59,6 +62,43 @@ pub(crate) fn init() {
     let Ok(port) = std::env::var("WAL_RINGEDGE_GUNMAN_BOARD") else { return };
     install(port.trim(), switches);
     log!("gunman: satellite I/O board on {}", port.trim());
+    keep_credits();
+}
+
+/// gunman_dxF.exe's credit manager pointer (rva): the credit is the u16 its `+4` points to
+/// (the getter at 0x4e5760, the reload's subtraction 0x4e5740).
+const CREDIT_MANAGER: usize = 0x68d378;
+
+/// `WAL_RINGEDGE_GUNMAN_CREDITS`: raises the credit to `n` whenever it is below (at boot, after
+/// spending), checked twice a second.
+fn keep_credits() {
+    let Some(n) = std::env::var("WAL_RINGEDGE_GUNMAN_CREDITS").ok().and_then(|v| v.trim().parse::<u16>().ok()) else { return };
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    log!("gunman: credit kept at {n} or more");
+    std::thread::spawn(move || {
+        let read = |addr: usize, out: *mut u8, len: usize| unsafe {
+            windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory(
+                windows_sys::Win32::System::Threading::GetCurrentProcess(),
+                addr as *const _,
+                out.cast(),
+                len,
+                std::ptr::null_mut(),
+            ) != 0
+        };
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            let (mut manager, mut credit, mut value) = (0usize, 0usize, 0u16);
+            if !read(base + CREDIT_MANAGER, (&raw mut manager).cast(), 4) || manager == 0 {
+                continue;
+            }
+            if !read(manager + 4, (&raw mut credit).cast(), 4) || credit == 0 || !read(credit, (&raw mut value).cast(), 2) {
+                continue;
+            }
+            if value < n {
+                unsafe { (credit as *mut u16).write_volatile(n) };
+            }
+        }
+    });
 }
 
 /// The board on `port`, its switch bytes read by `switches`.

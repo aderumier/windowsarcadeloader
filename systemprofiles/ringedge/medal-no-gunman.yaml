@@ -36,3 +36,8 @@ env:
   # the satellite's I/O board on COM1: guns, their buttons, the medal mechanism (without it:
   # "3111 SERIAL COM1 ERROR1", saved in the SRAM's error log)
   WAL_RINGEDGE_GUNMAN_BOARD: COM1
+  # free play: the credit (the medals) kept at 100 or more, and reloads free: the credit bullet
+  # counter's reload and "can reload" (vtable 0x93adb8 slots 1 and 4, charging a medal per
+  # bullet, refused without credit) replaced by the base counter's (refill to 6, always)
+  WAL_RINGEDGE_GUNMAN_CREDITS: "100"
+  WAL_PATCHES: "0x53adbc:40705200,0x53adc8:e0705200"
