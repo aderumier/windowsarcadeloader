@@ -1,7 +1,7 @@
 //! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan, Gashaaaan Refill!, Otomedius,
 //! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
 //! Contra: Evolution, Wartran Troopers, Chase Chase Jokers, Lethal Enforcers 3, Cooper's 9,
-//! Castlevania: The Arcade).
+//! Castlevania: The Arcade, Silent Hill: The Arcade).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -15,6 +15,8 @@
 //! BM-System client), which answers the game's own I/O library, ig2ACLib (docs §6.3h).
 //! Castlevania: The Arcade's profile installs it as `libbms.dll` too: it answers the game's
 //! hcvACLib (buttons, coins) and turns each player's gun into a whip (docs §6.3h).
+//! Silent Hill: The Arcade's profile installs it as `libbms.dll` too: it points the game's
+//! shaiolib (buttons, guns, coins, security plug) at itself (docs §6.3h).
 //! Gashaaaan's profile installs it as `iob.dll` (its I/O board library), which also answers
 //! its camera board library (ballio) and shows its two screens as one picture.
 //! Otomedius's libacio.dll is the payload too (PJEI board), which also answers the game's libbms
@@ -60,6 +62,8 @@
 //!   Japan, `A` Asia, `C` China) and the cabinet's product code
 //! - GTI Club: `WAL_KONAMI_FFB` the force feedback strength, percent (default 100)
 //! - Wartran Troopers: `WAL_KONAMI_PLUG` the game plug's region id (default `GKD00UA`)
+//! - Silent Hill: The Arcade: `WAL_KONAMI_REGION` the security plug's region (`E`, `U`, `A`,
+//!   `K`, `J`; default `E`), `WAL_KONAMI_SPEAKERS` the speaker channel (`2`, `5.1`)
 //! - Castlevania: The Arcade: `WAL_KONAMI_UNLIMITED_SUBWEAPON=1` sub-weapons cost no hearts,
 //!   `WAL_KONAMI_WHIP_SHOT=0` drags with the trigger held swing the whip
 //! - Cooper's 9: `WAL_KONAMI_REGION` the dongle's region (`J`, `U`, `A`, `K`, `E`; default
@@ -76,7 +80,8 @@
 //! action shift_up shift_down select_up select_down select_left select_right`; Contra: Evolution:
 //! `start up down left right shot jump select test service coin` (players 1 and 2); Wartran
 //! Troopers: `start trigger option shoulder sense offscreen` (players 1-4), `test service coin`;
-//! Cooper's 9: `test service coin start trigger offscreen` (players 1 and 2); Castlevania: The
+//! Cooper's 9: `test service coin start trigger offscreen` (players 1 and 2); Silent Hill: The
+//! Arcade: `test service coin start trigger offscreen option_l option_r` (players 1 and 2); Castlevania: The
 //! Arcade: `test service coin start attack switch whip subweapon select` (players 1 and 2); Chase Chase
 //! Jokers: `test service coin dash skill attack jump slide headphone up down left
 //! right touch`.

@@ -38,6 +38,9 @@
 //! Castlevania: The Arcade loads it as `libbms.dll` too, from where `hcv.rs` answers its I/O
 //! library, hcvACLib, and feeds the players' whips.
 //!
+//! Silent Hill: The Arcade loads it as `libbms.dll` too, from where `shg.rs` points the
+//! game's I/O library, shaiolib, at the payload.
+//!
 //! Gashaaaan loads it as `iob.dll` (its I/O board library, `f24.rs`), which also answers the
 //! game's camera board library, ballio.
 //!
@@ -99,6 +102,8 @@ mod pjei;
 mod rf3d;
 #[cfg(target_arch = "x86")]
 mod screen;
+#[cfg(target_arch = "x86")]
+mod shg;
 #[cfg(target_arch = "x86")]
 mod touchpanel;
 #[cfg(target_arch = "x86")]
@@ -185,6 +190,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if f24::detected(module) {
             f24::init();
+            return TRUE;
+        }
+        if shg::detected(module) {
+            shg::init();
             return TRUE;
         }
         if file_name(module).eq_ignore_ascii_case("libbms.dll") && file_name(std::ptr::null_mut()).eq_ignore_ascii_case("HCV.exe") {

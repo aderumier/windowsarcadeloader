@@ -1,0 +1,60 @@
+# Silent Hill: The Arcade (Konami, 2007, game code GHL): two players with light guns.
+# KSHG.exe (Direct3D 9) drives the cabinet through shaiolib.dll (button board, gun boards,
+# security plug) and the BM-System (credits, e-Amusement) through libbms.dll: the payload
+# replaces libbms.dll and points shaiolib's functions at itself.
+# Override values in userprofiles/konami/silent-hill-the-arcade.yaml.
+system: konami
+name: "Silent Hill: The Arcade"
+
+payload_install: [libbms.dll]
+
+env:
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # the game reads the PC keyboard through DirectInput (debug keys): no input there
+  WAL_DINPUT_DISABLE: "1"
+  # the security plug's region: E (Europe), U (USA), A (Asia), K (Korea), J (Japan)
+  WAL_KONAMI_REGION: E
+  # the test menu's speaker channel: "2" (2ch) or "5.1" (5.1ch)
+  WAL_KONAMI_SPEAKERS: "2"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_REGION
+        label: Region
+        kind: choice
+        choices: [E, U, A, K, J]
+        description: >-
+          The security plug's region: Europe, USA, Asia, Korea, Japan (the game's language and
+          settings follow it).
+      - key: WAL_KONAMI_SPEAKERS
+        label: Speakers
+        kind: choice
+        choices: ["2", "5.1"]
+        description: >-
+          The game's speaker channel (test menu SOUND OPTIONS): 2ch stereo or 5.1ch surround.
+          Set at each start (a change in the test menu lasts until the game is closed).
+
+input:
+  # the player's gun (or mouse) aims, its trigger shoots; its second button (the mouse's
+  # right one) or pointing off the screen: reload
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Trigger
+  b2: Reload (off screen shot)
+  b3: Option L
+  b4: Option R
+  b6: Off screen
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

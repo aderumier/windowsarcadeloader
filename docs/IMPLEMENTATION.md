@@ -1936,6 +1936,45 @@ at the screen, an IR camera follows them. `HCV.exe` loads its own `hcvACLib.dll`
   renderer) stays black: winedmo decodes it, quartz logs `get_output_samples Failed to get
   sample for source 0, hr 0x80040211`.
 
+#### Silent Hill: The Arcade (GHL)
+
+Silent Hill: The Arcade (2007, game code GHL, Direct3D 9, 640x480): two players with light guns.
+`KSHG.exe` links `libbms.dll` (the BM-System client, as Gashaaaan Refill!) and `shaiolib.dll`,
+the cabinet's I/O library (button board, the two gun boards, the security plug and card readers
+on serial ports): the profile installs the payload as `libbms.dll` (`shg.rs`, its BM-System side
+is `bms.rs`), which puts a jump to itself at the entry of each shaiolib function. They are cdecl
+and return -1 done (true), 0 failed (false).
+
+- **Buttons** (`shaiolib_BUTTON_status`, 9 bytes, 0x80 held, 0x01 changed since the last read):
+  TEST, SERVICE, the coin mechanism, P1 START, P2 START, P1 OPTION L, P1 OPTION R, P2 OPTION L,
+  P2 OPTION R (the game's bits 0x1, 0x2, 0x4, 0x8, 0x10, 0x40, 0x80, 0x200, 0x400; the guns'
+  triggers are 0x20 / 0x100). The option buttons are read by the game (each player's input
+  record bits 1 and 2) besides the test menu's INPUT CHECK.
+- **Guns** (`shaiolib_GUN_status`, per gun 16 bytes): x, y (i32, the 640x480 screen), a shot since
+  the last read, off the screen. A shot is the trigger's press (and held) bit for that frame:
+  one per pull; off the screen, the shot reloads (`offscreen`, the pointer out of the window).
+  The game's 5-point calibration (test menu, `Data/TestDat/gun.1`) is skipped: the calibrated
+  branch of the gun read (`jne` at 0x4d1303) is removed, the position is the screen's.
+- **Coins**: `shaiolib_COIN_count` (coins inserted) then `COIN_consume`; the credits are the
+  BM-System's (`bms_credit_coin_throw`). The dump's settings are FREE PLAY.
+- **Security plug**: the boot asks `shaiolib_SECURE_check_no_error` for each region's plug id
+  (`GNGHLJAA` Japan, `GNGHLAAA` Asia, `GKGHLEAA` Europe, `GKGHLUAA` USA, `GKGHLKAA` Korea,
+  `GKGHLABA`): the one of `WAL_KONAMI_REGION` (default E) answers. The SYSINFO ids are hex
+  strings (the game groups them by 4).
+- **Speaker channel**: without `Data/TestDat/speaker.1` (the test menu's SOUND OPTIONS > SPEAKER
+  CHANNEL: one byte, 0 2ch, 1 5.1ch, then its CRC-16 high byte first: CCITT from 0xffff, the
+  game's table at 0x688330) the boot stops on 5-2551-0006 "A speaker channel is un-setting up".
+  The payload writes it at each boot from `WAL_KONAMI_SPEAKERS` (`2`, default, or `5.1`).
+- **Movies** (attract demo, story scenes): raw MPEG-2 video streams (`Data/Movie/*.vid`,
+  `Data/eng/Movie/*.vid`, one sequence header at the start of each file) played through
+  `RenderFile` into the game's own renderer filter, cued with `IMediaControl::StopWhenReady` then
+  run at once. They stayed black with GE-Proton11-10: its quartz stopped the graph after the
+  Run (StopWhenReady's deferred stop), winedmo's splitter restarted where it had read ahead
+  instead of the file's start (no sequence header: "Invalid frame dimensions 0x0"), and its MPEG
+  picture assembly resent a rejected picture for ever. Fixed in the runner (protonge branch
+  `winedmo-mpeg-movie-restart`, patches 0099-0101; quartz.dll, winedmo.dll, winedmo.so). The
+  dump's `clvsd.ax` (CyberLink decoder, its `FixSilentHillCodec.bat`) is not needed.
+
 #### Gashaaaan (F24)
 
 Gashaaaan (2006, game code F24, OpenGL) is the first game of the series (Gashaaaan Refill! is

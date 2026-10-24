@@ -195,6 +195,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%), guns (mouse), test menu | not in the test |  |
 | `gashaaaan` | Gashaaaan | konami | works (headless test: attract, 2-player game, test menu), 4 players (guns or mice throw balls), crosshairs | not in the test |  |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%), 4 players (guns or mice throw balls), crosshairs, test menu | not in the test |  |
+| `silent-hill-the-arcade` | Silent Hill: The Arcade | konami | works (headless test: boot, attract, coins, start, game, test menu), 2 players (guns or mice), movies (runner with the quartz / winedmo MPEG-2 fixes) | not in the test |  |
 | `castlevania-the-arcade` | Castlevania: The Arcade | konami | works (headless test: menus, whip, sub-weapons, test menu), 2 players (guns or mice: whip swing, whip/sub-weapon switch, unlimited sub-weapons option); attract demo movie black | not in the test |  |
 | `otomedius` | Otomedius | konami | works (user: 100%), touch screen (mouse), test menu | not in the test |  |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), arcade stick, test menu | not in the test |  |
