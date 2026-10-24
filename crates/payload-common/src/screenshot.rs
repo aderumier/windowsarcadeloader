@@ -30,7 +30,7 @@
 //!   that aspect ratio in the window, black bars around. For games stretching a 4:3 picture over
 //!   a wide back buffer (Elevator Action: 1280x768), with `WAL_D3D9_WINDOWED_SIZE` and a
 //!   screen-sized window. The d3d9 picture is composed in a swap chain of its own, black
-//!   around it, on a topmost window over the game's: Proton's DXVK leaves the window outside a
+//!   around it, on a child window covering the game's: Proton's DXVK leaves the window outside a
 //!   `Present` destination rectangle unpainted (Dariusburst: white bars) ([`letterbox`]).
 //!   `WAL_KEEP_ASPECT_RATIO=0` (Batocera ES's KEEP ASPECT RATIO off)
 //!   turns it off: the picture stretched to the whole window ([`d3d9_aspect`]).
@@ -1012,6 +1012,7 @@ const D3DTEXF_LINEAR: u32 = 2;
 /// The letterbox's swap chain (on its own window) for a device and window client size.
 struct Letterbox {
     device: usize,
+    window: usize,
     size: (i32, i32),
     chain: usize,
 }
@@ -1023,11 +1024,10 @@ static LETTERBOX_STRETCH_LOGGED: AtomicBool = AtomicBool::new(false);
 
 /// `WAL_D3D9_ASPECT`: the back buffer (its `WAL_D3D9_SOURCE` part) scaled into the centered
 /// rectangle of that aspect of a swap chain the size of the game window's client area, black
-/// around, on a borderless topmost window over it. The swap chain to present, `None`
+/// around, on a child window covering that area. The swap chain to present, `None`
 /// without an aspect (or when it cannot be created: a `Present` destination rectangle then).
 unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
-    use windows_sys::Win32::Foundation::{POINT, RECT};
-    use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
+    use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, SW_HIDE, ShowWindow};
     let (aw, ah) = (*ASPECT.lock().unwrap())?;
     if LETTERBOX_FAILED.load(Ordering::Relaxed) {
@@ -1042,17 +1042,15 @@ unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
     if cw <= 0 || ch <= 0 {
         return None;
     }
-    let mut origin = POINT { x: 0, y: 0 };
-    unsafe { ClientToScreen(hwnd, &mut origin) };
 
-    let mut state = LETTERBOX.lock().unwrap();
-    if state.as_ref().is_some_and(|l| l.device != dev as usize || l.size != (cw, ch)) {
-        unsafe { release(state.take().unwrap().chain as P) };
-    }
-    let overlay = letterbox_window();
+    let overlay = letterbox_window(hwnd);
     if overlay.is_null() {
         LETTERBOX_FAILED.store(true, Ordering::Relaxed);
         return None;
+    }
+    let mut state = LETTERBOX.lock().unwrap();
+    if state.as_ref().is_some_and(|l| l.device != dev as usize || l.window != overlay as usize || l.size != (cw, ch)) {
+        unsafe { release(state.take().unwrap().chain as P) };
     }
     if state.is_none() {
         // D3DPRESENT_PARAMETERS: the client size, discard, the letterbox window, windowed, no
@@ -1068,9 +1066,9 @@ unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
             unsafe { ShowWindow(overlay, SW_HIDE) };
             return None;
         }
-        // the game's window stays shown under it: The Swarm stops drawing once its window is
-        // hidden
-        *state = Some(Letterbox { device: dev as usize, size: (cw, ch), chain: chain as usize });
+        // the game's window stays shown (The Swarm stops drawing once its window is hidden),
+        // its child covering it
+        *state = Some(Letterbox { device: dev as usize, window: overlay as usize, size: (cw, ch), chain: chain as usize });
     }
     let chain = state.as_ref().unwrap().chain as P;
     drop(state);
@@ -1099,7 +1097,7 @@ unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
         release(back);
         release(target);
     }
-    letterbox_place(overlay, [origin.x, origin.y, cw, ch]);
+    letterbox_place(overlay, cw, ch);
     Some(chain)
 }
 
@@ -1110,13 +1108,20 @@ fn letterbox_reset() {
     }
 }
 
-/// The letterbox's borderless window (created once), its messages handled.
-fn letterbox_window() -> P {
+/// The letterbox's window: a child of the game's window (created once per parent), its messages
+/// handled. A child, not a topmost popup: Batocera's openbox kept the game's screen-sized window
+/// (its fullscreen layer) above a topmost one, the game's unpresented window showed white.
+fn letterbox_window(parent: P) -> P {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, RegisterClassW, WNDCLASSW, WS_EX_NOACTIVATE,
-        WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+        CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetParent, MSG, PM_REMOVE, PeekMessageW, RegisterClassW, WNDCLASSW,
+        WS_CHILD, WS_CLIPSIBLINGS, WS_DISABLED,
     };
     let mut hwnd = LETTERBOX_WINDOW.load(Ordering::Relaxed) as P;
+    if !hwnd.is_null() && unsafe { GetParent(hwnd) } != parent {
+        // a new game window (its swap chain, on the old letterbox window, is then recreated)
+        unsafe { DestroyWindow(hwnd) };
+        hwnd = std::ptr::null_mut();
+    }
     if hwnd.is_null() {
         let class: Vec<u16> = "WalLetterbox\0".encode_utf16().collect();
         let instance = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) };
@@ -1133,8 +1138,9 @@ fn letterbox_window() -> P {
             lpszClassName: class.as_ptr(),
         };
         unsafe { RegisterClassW(&wc) };
-        let flags = WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
-        hwnd = unsafe { CreateWindowExW(flags, class.as_ptr(), class.as_ptr(), WS_POPUP, 0, 0, 1, 1, std::ptr::null_mut(), std::ptr::null_mut(), instance, std::ptr::null()) };
+        // disabled: the mouse goes to the game's window
+        let style = WS_CHILD | WS_CLIPSIBLINGS | WS_DISABLED;
+        hwnd = unsafe { CreateWindowExW(0, class.as_ptr(), class.as_ptr(), style, 0, 0, 1, 1, parent, std::ptr::null_mut(), instance, std::ptr::null()) };
         log!("d3d9: letterbox window {hwnd:?}");
         LETTERBOX_WINDOW.store(hwnd as usize, Ordering::Relaxed);
     }
@@ -1146,16 +1152,16 @@ fn letterbox_window() -> P {
     hwnd
 }
 
-/// Keeps the letterbox window shown over the game window's client area.
-fn letterbox_place(hwnd: P, [x, y, w, h]: [i32; 4]) {
+/// Keeps the letterbox window shown over the whole client area of its parent (`w`x`h`).
+fn letterbox_place(hwnd: P, w: i32, h: i32) {
     use windows_sys::Win32::Foundation::RECT;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, HWND_TOPMOST, IsWindowVisible, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetWindowPos};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, HWND_TOP, IsWindowVisible, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetWindowPos};
     let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-    unsafe { GetWindowRect(hwnd, &mut r) };
-    if unsafe { IsWindowVisible(hwnd) } != 0 && [r.left, r.top, r.right - r.left, r.bottom - r.top] == [x, y, w, h] {
+    unsafe { GetClientRect(hwnd, &mut r) };
+    if unsafe { IsWindowVisible(hwnd) } != 0 && (r.right, r.bottom) == (w, h) {
         return;
     }
-    unsafe { SetWindowPos(hwnd, HWND_TOPMOST, x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW) };
+    unsafe { SetWindowPos(hwnd, HWND_TOP, 0, 0, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW) };
 }
 
 /// `WAL_D3D9_SOURCE`: the back buffer rectangle presented, when the game gives none.
