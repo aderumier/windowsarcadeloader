@@ -1,0 +1,37 @@
+# Hello! Pop'n Music (Konami, 2014, game code JMP): a rhythm game, PMU/popn.dll (Direct3D 9),
+# run by wal-avs-boot.exe (the dump's hello-popn-music.windowsloader names the DLL). Two
+# players, each an OK button (start) and four buttons: red, blue, yellow, green (blue / yellow
+# also move the menus' cursor, OK confirms). The payload replaces libacio.dll (HBHI board:
+# the players' buttons, test, service, coins, security plug; card reader).
+# Override values in userprofiles/konami/hello-popn-music.yaml.
+system: konami
+name: Hello! Pop'n Music
+
+env:
+  # the game's AVS heaps (spice2x's size for popn.dll)
+  WAL_KONAMI_AVS_HEAP_MB: "30"
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # the game's DirectInput keyboard: no device
+  WAL_DINPUT_DISABLE: "1"
+
+input:
+  # the four buttons left to right (red, blue, yellow, green) on the pad's face: X, Y, B, A
+  gamepad:
+    x: b1
+    y: b2
+    b: b3
+    a: b4
+
+controls:
+  b1: Red
+  b2: Blue (left)
+  b3: Yellow (right)
+  b4: Green
+  start: OK (start)
+  coin: Coin
+  service: Service
+  test: Test

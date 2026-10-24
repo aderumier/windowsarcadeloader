@@ -98,6 +98,9 @@ fn packet() -> [u8; 15] {
     if crate::ibb::active() {
         return crate::ibb::packet();
     }
+    if crate::hpm::active() {
+        return crate::hpm::packet();
+    }
     let mut guard = BOARD.lock().unwrap();
     let board = guard.get_or_insert_with(|| Board {
         maps: [ButtonMap::new(NATIVES, DEFAULT_MAP), ButtonMap::with_defaults(NATIVES, DEFAULT_MAP)],

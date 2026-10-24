@@ -44,6 +44,9 @@
 //! Action Deka loads it as `libacio.dll` (`gdki.rs`: its action controllers), from where
 //! `deka.rs` answers its libbms, its EZ-USB library and its debug input (the players' guns).
 //!
+//! Hello! Pop'n Music (`hpm.rs`) is `popn.dll`, run by `wal-avs-boot.exe`: its `libacio.dll`
+//! (the HBHI board: two players' start and four buttons).
+//!
 //! The Bishi Bashi loads it as `libacio.dll` (`ibb.rs`: its HBHI board, three players' four
 //! buttons), its libbms imports pointed at the payload.
 //!
@@ -100,12 +103,15 @@ mod hcv;
 #[cfg(target_arch = "x86")]
 mod hgth;
 #[cfg(target_arch = "x86")]
+mod hpm;
+#[cfg(target_arch = "x86")]
 mod hypersports;
 #[cfg(target_arch = "x86")]
 mod i36i;
 #[cfg(target_arch = "x86")]
 mod ibb;
 mod icca;
+mod kbt;
 #[cfg(target_arch = "x86")]
 mod ig2;
 #[cfg(target_arch = "x86")]
@@ -167,6 +173,7 @@ pub use hgth::*;
 #[cfg(target_arch = "x86")]
 pub use i36i::*;
 pub use icca::*;
+pub use kbt::*;
 #[cfg(target_arch = "x86")]
 pub use pjec::*;
 #[cfg(target_arch = "x86")]
@@ -201,10 +208,16 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         // Road Fighters 3D: the game is jgt.dll (the common hooks go there), run by wal-avs-boot
         let jgt = rf3d::game_module();
         let we12 = we2012::game_module();
-        if jgt != 0 || we12 != 0 {
-            wal_payload_common::iat::set_game_module(jgt.max(we12));
+        let popn = hpm::game_module();
+        if jgt != 0 || we12 != 0 || popn != 0 {
+            wal_payload_common::iat::set_game_module(jgt.max(we12).max(popn));
         }
         wal_payload_common::start("konami");
+        if popn != 0 {
+            hpm::init(module);
+            log!("konami: HBHI board and card reader emulated (Hello! Pop'n Music)");
+            return TRUE;
+        }
         if we12 != 0 {
             we2012::init(module);
             log!("konami: PJEI board, PS2 and PS3 pad ports, card reader and touch screen emulated (Winning Eleven 2012)");

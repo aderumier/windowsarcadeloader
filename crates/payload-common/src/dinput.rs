@@ -92,8 +92,23 @@ unsafe extern "system" fn ref_count(_this: P) -> u32 {
 }
 
 /// `QueryInterface`: any interface of the object is the object itself (IDirectInputDevice2/7/8
-/// share the first slots).
-unsafe extern "system" fn query_interface(this: P, _iid: P, out: *mut P) -> i32 {
+/// share the first slots), but the joystick configuration ones (IDirectInputJoyConfig and
+/// IDirectInputJoyConfig8: Hello! Pop'n Music asks for its joysticks' config, calling past
+/// the object's slots otherwise).
+unsafe extern "system" fn query_interface(this: P, iid: P, out: *mut P) -> i32 {
+    const E_NOINTERFACE: i32 = 0x8000_4002u32 as i32;
+    const JOY_CONFIG: [[u8; 16]; 2] = [
+        // eb0d7dfa-1990-4f27-b4d6-edf2eec4a44c
+        [0xfa, 0x7d, 0x0d, 0xeb, 0x90, 0x19, 0x27, 0x4f, 0xb4, 0xd6, 0xed, 0xf2, 0xee, 0xc4, 0xa4, 0x4c],
+        // 1de12ab1-c9f5-11cf-bfc7-444553540000
+        [0xb1, 0x2a, 0xe1, 0x1d, 0xf5, 0xc9, 0xcf, 0x11, 0xbf, 0xc7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00],
+    ];
+    if !iid.is_null() && JOY_CONFIG.contains(unsafe { &*(iid as *const [u8; 16]) }) {
+        if !out.is_null() {
+            unsafe { *out = std::ptr::null_mut() };
+        }
+        return E_NOINTERFACE;
+    }
     if !out.is_null() {
         unsafe { *out = this };
     }

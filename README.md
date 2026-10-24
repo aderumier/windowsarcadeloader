@@ -204,6 +204,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%), arcade stick, touch screen (mouse), test menu | not in the test |  |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless test: attract, a 1-player game), 4 players (red, green, blue, disk) | not in the test |  |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%), 3 players (red, green, blue, yellow), test menu | not in the test |  |
+| `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%), 2 players (OK, red, blue, yellow, green) | not in the test |  |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%), wheel with force feedback, test menu | not in the test |  |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (attract, race, test menu in headless tests), wheel with force feedback | not in the test |  |
 | `thrill-drive-4` | Thrill Drive 4: Crazy Streets | konami | works (headless test: boot, attract, coins, career race, test menu), wheel with force feedback, shift lever | not in the test |  |

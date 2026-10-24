@@ -2,7 +2,7 @@
 //! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
 //! Contra: Evolution, Wartran Troopers, Chase Chase Jokers, Lethal Enforcers 3, Cooper's 9,
 //! Castlevania: The Arcade, Silent Hill: The Arcade, Action Deka, Hyper Sports 2011 Remake,
-//! The Bishi Bashi, Thrill Drive 4: Crazy Streets).
+//! The Bishi Bashi, Thrill Drive 4: Crazy Streets, Hello! Pop'n Music).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -44,7 +44,8 @@
 //!
 //! Road Fighters 3D's code is a DLL (`jgt.dll`, the dump's `.windowsloader`): `wal-avs-boot.exe`
 //! runs it as the cabinet's launcher does (AVS, e-Amusement boot, the DLL's entry points); its
-//! `libacio.dll` and `libacioEx.dll` (the HGTH wheel board's bus) are the payload. Winning
+//! `libacio.dll` and `libacioEx.dll` (the HGTH wheel board's bus) are the payload. Hello! Pop'n
+//! Music's too (`PMU/popn.dll`: HBHI board, two players' OK and four buttons). Winning
 //! Eleven 2012's too (`contents/modules/weac12_bootstrap_release.dll`, AVS 2.13: PJEI board, PS2
 //! and PS3 pad ports, touch screen).
 //!
@@ -111,7 +112,9 @@
 //! Arcade: `test service coin start attack switch whip subweapon select` (players 1 and 2); Chase Chase
 //! Jokers: `test service coin dash skill attack jump slide headphone up down left
 //! right touch`; Bishi Bashi Channel: `test service coin red green blue disk_left disk_right`
-//! (players 1-4); The Bishi Bashi: `test service coin red green blue yellow` (players 1-3).
+//! (players 1-4); The Bishi Bashi: `test service coin red green blue yellow` (players 1-3);
+//! Hello! Pop'n Music: `test service coin start button1 button2 button3 button4` (players 1
+//! and 2).
 
 use super::{Payload, System};
 
