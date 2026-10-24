@@ -2557,6 +2557,27 @@ players, each a red, a green and a blue button and a disk (a dial). The payload 
   stick (or left / right). The entry screen's language choice is the card reader's keypad (not
   mapped).
 
+#### The Bishi Bashi (IBB)
+
+The Bishi Bashi (2009, game code IBB, Direct3D 9, 1360x768) is `launcher.exe` (the dump's name;
+its "All Avatars (Chinese)" copy differs by two data bytes). Up to three players, each a red, a
+green, a blue and a yellow button (yellow: start, join, and the mini games' "finish button").
+It is built on Action Deka's framework: `libacio.dll` (HBHI board, card reader) is the payload,
+the game's `libbms.dll` imports (BM-System) are pointed at the payload's functions of the same
+names (`ibb.rs`; the UDP link between cabinets fails to open, the cabinet runs alone).
+
+- **Switches.** The game reads 15 switches from the HBHI status (rva 0x6a0ff): switch `n` is
+  player `n / 4`'s color `n % 4` (red, green, blue, yellow; the game's button `color * 3 +
+  player`, table 0x49ae30). Switches 0-7 (players 1 and 2) are packet byte 8's bits; switches
+  8-11 (player 3) analog channels 0-3, pressed below half way (`<= 0x7fc0`, released at full
+  scale); then test (byte 1 0x20), service (0x10), coin mech (0x04, coins through the coin
+  stock).
+- **Clock check.** The boot stops on 5-2503-0000 "The clock is un-setting up" until the
+  operator sets the clock (setting 0x1d): its `jne` (rva 0x2f940) becomes `jmp`, as Action
+  Deka's.
+- **Input.** The game's DirectInput keyboard (`data/xml/IBBconf.xml`'s debug keys) gets no
+  device (`WAL_DINPUT_DISABLE=1`).
+
 #### Chase Chase Jokers
 
 Chase Chase Jokers (2023, game code UJK) is `chaseproject.exe`, a 64-bit Unity (Mono, Direct3D
@@ -2966,6 +2987,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | `contents/modules/weac12_bootstrap_release.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.13 names, 30 MB heaps), region `WAL_KONAMI_DEST` (`A`: the product code `KCK-002` answered, English data); `libacio.dll` replaced: PJEI board, PS2 and PS3 pad ports, card reader; touch screen (serial panel, or the Japanese USB one and its COM1 LCD monitor) from the mouse |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | `contents/modules/bsch.dll` run by `wal-avs-boot64.exe` (§6.3h, AVS2 2.17, 64-bit); `libacio.dll` + `libacio_pix.dll` replaced: BMPU and PIX boards (4 players: R/G/B buttons, disks), card reader, LCD, kbt.dll answered; e-amusement off, network check skipped; exclusive WASAPI played shared |
+| `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | `launcher.exe` (§6.3h), `libacio.dll` replaced: HBHI board (3 players: red, green, blue, yellow buttons; player 3 on the analog channels), card reader, the libbms imports (BM-System offline); clock check skipped |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | `AMContra.exe` (§6.3h), `libacio.dll` replaced (its MSVC-named imports, never called): controls on a fake DirectInput keyboard from the virtual sticks (the game's key table), coins from the COM1 control panel, clock reported set, GB2312 text (code page 936) |
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | `D00/game/game.exe` (§6.3h), `panicdialog.dll` replaced; COM2 pcio hub chain emulated (4 boards, firmware versions from the dump, switches, coin counter, security plug region `WAL_KONAMI_PLUG`), COM1 gun boards; the gun read replaced by the pointer; two monitors in one window (2 D3D8 devices presenting side by side); E: settings drive seeded from the dump's CFGs; DirectMusic tricks |

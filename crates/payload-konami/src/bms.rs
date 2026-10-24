@@ -407,6 +407,8 @@ unavailable!(
     bms_matching_request / bms_matching_request_wait,
     bms_matching_query / bms_matching_query_wait,
     bms_playerdata_load / bms_playerdata_load_wait,
+    bms_cardmng_getplaylist / bms_cardmng_getplaylist_wait,
+    bms_net_location_connection_list_get / bms_net_location_connection_list_get_wait,
     bms_net_tcp_client_connect_request / bms_net_tcp_client_connect_wait
 );
 
@@ -425,6 +427,9 @@ macro_rules! tcp_failed {
 }
 
 tcp_failed!(
+    bms_net_udp_open,
+    bms_net_udp_sendto,
+    bms_net_udp_recvfrom,
     bms_net_tcp_initialize,
     bms_net_tcp_server_listen,
     bms_net_tcp_server_accept,
@@ -433,3 +438,16 @@ tcp_failed!(
     bms_net_tcp_sendto,
     bms_net_tcp_recvfrom
 );
+
+// The Bishi Bashi: its UDP link between cabinets (none here: every socket fails to open).
+
+macro_rules! net_done {
+    ($($name:ident),*) => {$(
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $name() -> i32 {
+            DONE
+        }
+    )*};
+}
+
+net_done!(bms_net_udp_initialize, bms_net_udp_finalize, bms_net_udp_close, bms_net_tcp_finalize);

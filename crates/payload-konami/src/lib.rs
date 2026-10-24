@@ -41,6 +41,9 @@
 //! Action Deka loads it as `libacio.dll` (`gdki.rs`: its action controllers), from where
 //! `deka.rs` answers its libbms, its EZ-USB library and its debug input (the players' guns).
 //!
+//! The Bishi Bashi loads it as `libacio.dll` (`ibb.rs`: its HBHI board, three players' four
+//! buttons), its libbms imports pointed at the payload.
+//!
 //! Silent Hill: The Arcade loads it as `libbms.dll` too, from where `shg.rs` points the
 //! game's I/O library, shaiolib, at the payload.
 //!
@@ -97,6 +100,8 @@ mod hgth;
 mod hypersports;
 #[cfg(target_arch = "x86")]
 mod i36i;
+#[cfg(target_arch = "x86")]
+mod ibb;
 mod icca;
 #[cfg(target_arch = "x86")]
 mod ig2;
@@ -231,6 +236,11 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if deka::detected() {
             deka::init(module);
             log!("konami: GDKI action controllers, card reader and BM-System emulated (Action Deka)");
+            return TRUE;
+        }
+        if ibb::detected() {
+            ibb::init(module);
+            log!("konami: HBHI board, card reader and BM-System emulated (The Bishi Bashi)");
             return TRUE;
         }
         if file_name(std::ptr::null_mut()).eq_ignore_ascii_case("otomedius.exe") {
