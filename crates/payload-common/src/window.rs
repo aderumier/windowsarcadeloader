@@ -10,6 +10,9 @@
 //! (`WS_POPUP`, no caption, frame or system menu). Shikigami no Shiro III creates a plain
 //! overlapped window (style 0: Windows adds a caption and border) and makes its Direct3D 8
 //! device fullscreen on it: the window manager showed an empty frame, desktop behind.
+//! Their menu bars are removed too (the window class's or `CreateWindowEx`'s, and the game's
+//! later `SetMenu`): Thrill Drive 4's DirectX sample framework window showed its File menu
+//! (Go/stop, Single step, Change device, Exit) above the picture.
 //!
 //! `WAL_HIDE_CURSOR=1`: no mouse cursor over the game (a cabinet has none; Battle Gear 4 shows
 //! the arrow of its window class): `LoadCursorA/W` return no cursor and `SetCursor` sets none.
@@ -24,7 +27,9 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 
 use crate::{iat, log};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::Win32::UI::WindowsAndMessaging::{GetParent, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SWP_NOMOVE, SWP_NOSIZE};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetMenu, GetParent, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SWP_NOMOVE, SWP_NOSIZE, SetMenu,
+};
 
 type HWND = *mut c_void;
 
@@ -36,6 +41,7 @@ static ORIG_SHOW_WINDOW: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_WINDOW_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_WINDOW_W: AtomicUsize = AtomicUsize::new(0);
 static POPUP: AtomicBool = AtomicBool::new(false);
+static ORIG_SET_MENU: AtomicUsize = AtomicUsize::new(0);
 
 pub fn init() {
     keep_unminimized();
@@ -45,6 +51,11 @@ pub fn init() {
     if std::env::var("WAL_WINDOW_POPUP").is_ok_and(|v| v.trim() == "1") {
         POPUP.store(true, Ordering::Relaxed);
         hook_create();
+        unsafe {
+            if let Some(o) = iat::hook("user32.dll", "SetMenu", set_menu as *const () as usize) {
+                ORIG_SET_MENU.store(o, Ordering::Relaxed);
+            }
+        }
         log!("window: top-level windows created as popups");
     }
     let Some((w, h)) = std::env::var("WAL_WINDOW_SIZE").ok().and_then(|v| {
@@ -202,6 +213,24 @@ pub(crate) fn created(ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32, paren
     (ex2, style2, geometry.0, geometry.1, geometry.2, geometry.3)
 }
 
+/// `SetMenu` on a top-level popup: its menu bar stays removed.
+unsafe extern "system" fn set_menu(hwnd: HWND, menu: P) -> i32 {
+    let orig: unsafe extern "system" fn(HWND, P) -> i32 = unsafe { std::mem::transmute(ORIG_SET_MENU.load(Ordering::Relaxed)) };
+    if !menu.is_null() && unsafe { GetParent(hwnd) }.is_null() {
+        return 1;
+    }
+    unsafe { orig(hwnd, menu) }
+}
+
+/// A new top-level popup's menu bar (its class's or the one passed) removed.
+fn drop_menu(hwnd: HWND, parent: HWND) -> HWND {
+    if POPUP.load(Ordering::Relaxed) && !hwnd.is_null() && parent.is_null() && !unsafe { GetMenu(hwnd) }.is_null() {
+        unsafe { SetMenu(hwnd, std::ptr::null_mut()) };
+        log!("window: {hwnd:?} menu bar removed");
+    }
+    hwnd
+}
+
 type CreateWindow<T> = unsafe extern "system" fn(u32, *const T, *const T, u32, i32, i32, i32, i32, HWND, P, P, P) -> HWND;
 type P = *mut c_void;
 
@@ -210,7 +239,7 @@ unsafe extern "system" fn create_window_a(
 ) -> HWND {
     let orig: CreateWindow<u8> = unsafe { std::mem::transmute(ORIG_CREATE_WINDOW_A.load(Ordering::Relaxed)) };
     let (ex, style, x, y, w, h) = created(ex, style, x, y, w, h, parent);
-    unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) }
+    drop_menu(unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) }, parent)
 }
 
 unsafe extern "system" fn create_window_w(
@@ -218,5 +247,5 @@ unsafe extern "system" fn create_window_w(
 ) -> HWND {
     let orig: CreateWindow<u16> = unsafe { std::mem::transmute(ORIG_CREATE_WINDOW_W.load(Ordering::Relaxed)) };
     let (ex, style, x, y, w, h) = created(ex, style, x, y, w, h, parent);
-    unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) }
+    drop_menu(unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) }, parent)
 }

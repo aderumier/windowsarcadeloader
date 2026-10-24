@@ -631,7 +631,9 @@ profile), `show` (merged profile).
   `WAL_WINDOW_POPUP=1` creates the game's top-level windows as borderless popups
   (`CreateWindowExA/W` IAT hooks: `WS_POPUP`, caption/frame/system menu removed). Shikigami no
   Shiro III makes its fullscreen Direct3D 8 device on a plain overlapped window (style 0, so a
-  caption and border): the window manager showed an empty frame with the desktop behind.
+  caption and border): the window manager showed an empty frame with the desktop behind. Their
+  menu bars are removed too (`SetMenu` after creation, the game's `SetMenu` dropped): Thrill
+  Drive 4's window showed the DirectX sample framework's File menu above the picture.
   `WAL_HIDE_CURSOR=1`: `LoadCursorA/W` return no cursor and `SetCursor` sets none (Battle
   Gear 4's window class showed the arrow over the game).
   Always on: `ShowWindow` minimize requests of DXVK's d3d9 (also behind its d3d8) and wined3d
@@ -2351,6 +2353,55 @@ payload starts (its import hooks, `WAL_PATCHES`, the code page fix use the game 
 - **Rendering.** DXVK draws the race countdown's digits as black blocks: wined3d.
 - **Input filtering.** DirectInput disabled, `GetKeyState` no key, `GetLogicalDriveStringsA`
   C: alone (as GTI Club).
+
+#### Thrill Drive 4: Crazy Streets
+
+Thrill Drive 4: Crazy Streets (2007, game code F04, `F04:E:A:A:20070330` export build, Direct3D
+9, 640x480) is `td4/td4.exe` (`td4_go.exe` is a patched copy, unused). It imports `libacio.dll`
+(the PJEI board: switches, coins, the wheel's and pedals' potentiometers, security plug
+`GKF04EAA`; the card reader) and loads `libtd4io.dll` (`LoadLibraryA` + `GetProcAddress` of 27
+functions, rva 0x48cd0) for a second ACIO bus: the D44H board (the wheel's motor) and the D44S
+board (the seat, SEATBELT on the boot screen). The payload is installed as `libacio.dll`; the
+`libtd4io.dll` load gets it again (`td4.rs`). The dump's `libacio.dll` and `libtd4io.dll` are
+third-party stubs, and its `TD4.ini` (`[IO] HANDLE=KEYBOAD`, a development mode reading the PC
+keyboard) is hidden.
+
+- **PJEI switches.** Byte 4: START 0x04, the shift lever's UP 0x20 / DOWN 0x40, VIEW 0x80; byte
+  16: test 0x20, service 0x10, coin mech 0x04 (the game's switch flags, rva 0x4ac1b). Test menu:
+  LEVER UP / DOWN select, START executes; INPUT CHECK exits with LEVER UP + START.
+- **Wheel and pedals** at +8 / +10 / +12 of the PJEI status (u16): the game maps them with its
+  calibration (min 0x7e3974, max 0x7e39b4, wheel center 0x7e39a8): the sticks are scaled onto it.
+  The wheel's potentiometer reads high on the left (default min 0xff40 = left, center 0x7a40,
+  max 0 = right): left goes to the calibration's higher end, right to its lower one. The test
+  menu's CALIBRATION shows the wheel with a neutral calibration (min 0, center 0x8000, max
+  0xffff): following its min / max there showed the wheel inverted.
+- **Wheel kind.** td4.ini's `HANDLE` (KONAMI, HAPP, KEYBOAD), else the test menu's setting, else
+  the cabinet default, HAPP for this build (a Happ wheel without motor, BOARD2 "NO DEVICE"):
+  rva 0x48460 always answers KONAMI, the D44H motor board.
+- **D44H motor** (`ac_io_d44h_set_senddata`, 4 bytes, GTI Club's HGTH layout): byte 0 the torque
+  -127..127 (in a race +-80 against the wheel's turn: wheel right, torque negative), byte 1 bits
+  0-5 a vibration level (crashes), byte 3 0..254 from the speed: the constant force and the
+  vibration (`WAL_KONAMI_FFB` percent). `ac_io_d44h_directreq_sendandrecv` takes one argument
+  (called every frame).
+- **Boot CALIBRATION** (rva 0x49b30, line 7): the motor turns the wheel to each end stop (torque
+  ramps to -127 / +127) and reads the potentiometer there, at least 50000 apart (ERROR
+  otherwise); the result is the wheel's calibration. While it runs (step 0x7e3b0c 1-5) the
+  emulated wheel follows the motor (negative torque: 0xffc0, positive: 0x0040) and no force
+  feedback is sent. About 45 s, as on the cabinet.
+- **D44S seat** absent: its requests fail, the boot shows SEATBELT OK ( NO DEVICE ).
+- **DATA CHECK** sums every file of `data/td4check.bin` (32-bit word sums; libacio.dll and
+  libtd4io.dll among them, so BAD with the payload) at a pace of tens of minutes for the 1 GB
+  `td4pack.dat`: skipped as HOLD LEVER UP + START does (rva 0xd8a47).
+- **Operator settings.** A fresh `CONF/NVRAM` stops at PLEASE SET THE CLOCK (flag 0x98f64c,
+  getter rva 0x108640) and PLEASE CALIBRATION (steering, accelerator, brake flags 0x98f59c-e,
+  getter rva 0x108610): both reported set (the PC clock; the sticks follow the calibration the
+  game has).
+- **Rendering.** The game draws 640x480 whatever its window: `WAL_D3D9_WINDOWED_SIZE: 640x480`
+  in a borderless screen-sized window. Its window (the DirectX sample framework's) has a menu
+  bar (File: Go/stop, Single step, Change device, Exit): `WAL_WINDOW_POPUP` removes top-level
+  windows' menu bars (at creation and the game's `SetMenu`).
+- **Input filtering.** DirectInput disabled (td4.ini's keyboard mode), `GetLogicalDriveStringsA`
+  C: alone.
 
 #### Wartran Troopers
 

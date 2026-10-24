@@ -1,0 +1,57 @@
+# Thrill Drive 4: Crazy Streets (Konami, 2007, game code F04): a driving game with a motorized
+# steering wheel, td4/td4.exe (Direct3D 9). The payload replaces libacio.dll (PJEI board:
+# switches, coins, the wheel's and pedals' potentiometers, security plug; card reader) and
+# answers the game's second ACIO bus, libtd4io.dll (D44H board: the wheel's motor).
+# Override values in userprofiles/konami/thrill-drive-4.yaml.
+system: konami
+name: "Thrill Drive 4: Crazy Streets"
+
+# td4.ini's [IO] HANDLE=KEYBOAD is a development mode (the PC keyboard): without it the game
+# drives the cabinet's boards. td4_go.exe is a patched copy of td4.exe, unused.
+hide: [TD4.ini]
+
+env:
+  # It reads the PC keyboard through DirectInput: only the I/O boards drive it.
+  WAL_DINPUT_DISABLE: "1"
+  # It draws a 640x480 picture whatever the window: that back buffer, stretched to a
+  # screen-sized borderless window.
+  WAL_D3D9_WINDOWED_SIZE: 640x480
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+
+# Cabinet: motorized wheel, gas and brake pedals, START, VIEW and a shift lever (UP / DOWN).
+# Virtual stick: lx wheel, accel / brake pedals, b1 SHIFT UP, b2 SHIFT DOWN, b3 VIEW.
+input:
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, R1 / L1 shift up / down, Y VIEW, START and A START
+  # (also the nitro button in a race).
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    x: none
+    a: start
+    b: none
+    r2: accel
+    l2: brake
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl / Alt shift up / down,
+  # Space VIEW, 1 START, 5 coin.
+  keyboard_ramp_ms: 150
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+controls:
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Shift Up
+  b2: Shift Down
+  b3: View
+  start: Start / Nitro
+  coin: Coin
+  service: Service
+  test: Test

@@ -206,6 +206,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%), 3 players (red, green, blue, yellow), test menu | not in the test |  |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%), wheel with force feedback, test menu | not in the test |  |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (attract, race, test menu in headless tests), wheel with force feedback | not in the test |  |
+| `thrill-drive-4` | Thrill Drive 4: Crazy Streets | konami | works (headless test: boot, attract, coins, career race, test menu), wheel with force feedback, shift lever | not in the test |  |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%), 2 players, test menu | not in the test |  |
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%), 4 guns, 2 screens side by side, test menu | not in the test |  |
 | `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | not in the test |  |

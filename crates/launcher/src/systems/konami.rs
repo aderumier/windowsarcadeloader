@@ -2,7 +2,7 @@
 //! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
 //! Contra: Evolution, Wartran Troopers, Chase Chase Jokers, Lethal Enforcers 3, Cooper's 9,
 //! Castlevania: The Arcade, Silent Hill: The Arcade, Action Deka, Hyper Sports 2011 Remake,
-//! The Bishi Bashi).
+//! The Bishi Bashi, Thrill Drive 4: Crazy Streets).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -33,6 +33,10 @@
 //! and libtouchpanel imports; Winning Eleven 2008's too (PJEI board, PS2 pad port, touch panel).
 //! GTI Club: Supermini Festa! also loads it as `dllibacio.dll`, its second ACIO bus (HGTH board:
 //! wheel, pedals, the wheel's motor, its torque and vibration the force feedback).
+//! Thrill Drive 4's libacio.dll is the payload (PJEI board: switches, wheel and pedals), which
+//! the game also loads as `libtd4io.dll`, its second ACIO bus (D44H board: the wheel's motor,
+//! its torque and vibration the force feedback); the payload passes the boot's motorized wheel
+//! calibration and skips its data check.
 //!
 //! Contra: Evolution imports libacio's functions under their MSVC names and never calls them:
 //! the payload answers its COM1 control panel (coins) and its DirectInput keyboard (the players'
@@ -74,7 +78,8 @@
 //! - wal-avs-boot: `WAL_KONAMI_AVS_HEAP_MB` the AVS heaps' size (default 16), `WAL_KONAMI_DEST`
 //!   the destination (region) in place of the dump's; Winning Eleven 2012: its region (`J`
 //!   Japan, `A` Asia, `C` China) and the cabinet's product code
-//! - GTI Club: `WAL_KONAMI_FFB` the force feedback strength, percent (default 100)
+//! - GTI Club, Thrill Drive 4: `WAL_KONAMI_FFB` the force feedback strength, percent (default
+//!   100)
 //! - Wartran Troopers: `WAL_KONAMI_PLUG` the game plug's region id (default `GKD00UA`)
 //! - Action Deka: `WAL_KONAMI_UNLOCK_FINAL=1` the 4th mission offered at once (default)
 //! - Silent Hill: The Arcade: `WAL_KONAMI_REGION` the security plug's region (`E`, `U`, `A`,
@@ -94,7 +99,8 @@
 //! Refill!: `test service coin start throw` (players 1-4); Otomedius: `test service coin start up down
 //! left right a b c`; Winning Eleven 2008: also `d e f`, and the PS2 pad `pad_start select up down
 //! left right triangle cross square circle l1 l2 l3 r1 r2 r3`; GTI Club: `test service coin start
-//! action shift_up shift_down select_up select_down select_left select_right`; Contra: Evolution:
+//! action shift_up shift_down select_up select_down select_left select_right`; Thrill Drive 4:
+//! `test service coin start view shift_up shift_down`; Contra: Evolution:
 //! `start up down left right shot jump select test service coin` (players 1 and 2); Wartran
 //! Troopers: `start trigger option shoulder sense offscreen` (players 1-4), `test service coin`;
 //! Cooper's 9: `test service coin start trigger offscreen` (players 1 and 2); Action Deka:

@@ -104,6 +104,15 @@ fn with_board<R>(f: impl FnOnce(&mut Board) -> R) -> R {
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_pjei_update_control_status_buffer() -> bool {
     with_board(|b| {
+        if crate::td4::active() {
+            let (status, coin) = crate::td4::status();
+            if coin && !b.coin_held {
+                b.coins += 1;
+            }
+            b.coin_held = coin;
+            b.status = status;
+            return;
+        }
         let stick = wal_payload_common::input(0);
         let mut status = [0u8; 40];
         let mut coin = false;

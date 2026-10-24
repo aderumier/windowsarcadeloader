@@ -26,6 +26,9 @@
 //! Road Fighters 3D (`rf3d.rs`) is `jgt.dll`, run by `wal-avs-boot.exe`: the same two boards
 //! (`libacioEx.dll`, its HGTH bus, also the payload).
 //!
+//! Thrill Drive 4 has the PJEI board (switches, wheel and pedals) and, on a second bus
+//! (`libtd4io.dll`, also the payload), the D44H board: the wheel's motor (`td4.rs`).
+//!
 //! Contra: Evolution imports it under its functions' MSVC names (`libacio.def`) and never calls
 //! them: `contra.rs` answers its control panel (COM1), DirectInput keyboard and clock.
 //!
@@ -122,6 +125,8 @@ mod screen;
 #[cfg(target_arch = "x86")]
 mod shg;
 #[cfg(target_arch = "x86")]
+mod td4;
+#[cfg(target_arch = "x86")]
 mod touchpanel;
 #[cfg(target_arch = "x86")]
 mod two_screens;
@@ -166,6 +171,8 @@ pub use icca::*;
 pub use pjec::*;
 #[cfg(target_arch = "x86")]
 pub use pjei::*;
+#[cfg(target_arch = "x86")]
+pub use td4::*;
 #[cfg(target_arch = "x86")]
 pub use touchpanel::*;
 #[cfg(target_arch = "x86_64")]
@@ -256,6 +263,11 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if gti_club::detected() {
             gti_club::init(module);
             log!("konami: HBHI board, HGTH wheel board and card reader emulated (GTI Club)");
+            return TRUE;
+        }
+        if td4::detected() {
+            td4::init(module);
+            log!("konami: PJEI board, D44H wheel motor board and card reader emulated (Thrill Drive 4)");
             return TRUE;
         }
         if winning_eleven::detected() {
