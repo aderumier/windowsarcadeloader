@@ -53,6 +53,10 @@
 //! Cooper's 9 loads it as `inpout32.dll` (`coopers9.rs`: its parallel port I/O board and HASP
 //! dongle), started by wal-loader: the game is a memory dump whose imports the payload rebuilds.
 //!
+//! Hyper Sports 2011 Remake loads it through wal-loader (`hypersports.rs`): it answers the game's
+//! gf.dll imports of its Python 4 I/O board and LED controller, its buttons are the fake
+//! DirectInput keyboard.
+//!
 //! The 64-bit build (`wal_konami64.dll`) is Chase Chase Jokers' AIO libraries (`ccj.rs`: the
 //! BI2X TBS I/O board; `ccj_trackball.rs`: its raw input trackball; `ccj_pointer.rs`: its touch
 //! screen; `ccj_mono.rs`: game settings through Mono); the modules above are the 32-bit games'.
@@ -89,6 +93,8 @@ mod hbhi;
 mod hcv;
 #[cfg(target_arch = "x86")]
 mod hgth;
+#[cfg(target_arch = "x86")]
+mod hypersports;
 #[cfg(target_arch = "x86")]
 mod i36i;
 #[cfg(target_arch = "x86")]
@@ -170,6 +176,13 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             let (resolved, missing) = coopers9::imports();
             wal_payload_common::start("konami");
             coopers9::init(resolved, &missing);
+            return TRUE;
+        }
+        // Hyper Sports 2011 Remake: the window, Direct3D and DirectInput are gf.dll's
+        if hypersports::detected() {
+            wal_payload_common::iat::set_game_module(hypersports::game_module());
+            wal_payload_common::start("konami");
+            hypersports::init();
             return TRUE;
         }
         // Road Fighters 3D: the game is jgt.dll (the common hooks go there), run by wal-avs-boot

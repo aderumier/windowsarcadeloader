@@ -1977,6 +1977,47 @@ Otomedius), and drives the rest itself: a Cypress EZ-USB I/O board and a 3D sens
   default on) clears the select's lock flag (`sete cl` -> `mov cl, 0` at 0x4b76ff).
 - Text in Shift-JIS: `WAL_ANSI_CODEPAGE` / `WAL_FONT_CODEPAGE` 932.
 
+#### Hyper Sports 2011 Remake (KC2)
+
+Hyper Sports 2011 Remake (Konami China, 2011, game code KC2, Direct3D 9, 1024x768, Chinese):
+ten events (100 m, 110 m hurdles, long jump, javelin, boxing, shooting, vault, weightlifting,
+table tennis, fencing) for one or two players, each with three buttons (blue, green, red, left
+to right) and no stick. `KC2\AMSports.exe` runs on Konami's `gf.dll` framework (window,
+Direct3D, DirectInput, sound, HTTP, the cabinet's boards) and imports no I/O library the
+payload could replace: the profile starts it through wal-loader (`payload_loader`, the payload
+installed as `python4.dll`), the common hooks go to gf.dll (`iat::set_game_module`: the window,
+the Direct3D device and DirectInput are its), and the executable's gf.dll imports are answered
+(`hypersports.rs`).
+
+- **Python 4 I/O board** (USB, `GfPython4`, through gf.dll's `GfAcio`): `init` (the board
+  thread) is not started; `getState` 2 (ready; 3 busy, 4-5 errors), `getSecurityPlugStart` /
+  `setOutputStart` / `setCoinBlockersStart` accepted (a command id), `getSecurity` the two
+  plugs (0x28 bytes each, 8-byte id + 32 bytes; the game keeps 20 characters of each as a
+  string: plug 0 `KC2:C:A:A`), `getCoinStock` / `consumeCoinStock` the coins (slot 0: the game
+  combines the slots). The LED controller (`GfLedController`, the board's serial channel 2):
+  ready (state 2), 2 nodes, outputs accepted.
+- **Switches**: the game's two `GfuVirtualInput`s (one per player, 16 buttons, table at
+  0x5552f8) assign each virtual button to input device 2, the board's (gf.dll's extension
+  device, fed by the board thread through `GfInput::pushExtensionInputData(time, type, index,
+  value)`), and to the keyboard (device 0, the developers' keys). Board buttons: P1 5 / 6 / 7
+  and P2 15 / 16 / 17 (blue, green, red: virtual buttons 2, 1, 0), 20 test, 21 service (virtual
+  3, 4), 23 the coin switch (the I/O check's COIN MECH); keys Z / X / C, numpad 1 / 2 / 3, T, S.
+  The payload's switch thread (started by `GfPython4::init`) pushes each switch change from
+  the virtual sticks, as the board thread does: gf.dll's own pressed / released / repeat
+  logic follows. The fake DirectInput (`WAL_DINPUT_DISABLE=1`) has a keyboard without a key
+  pressed (gf.dll's input start throws without a keyboard device): the developers' keys, and
+  the debug ones the game reads directly (WASD free camera, V...), are never pressed.
+- **License check** (error 5-1505-0000 SECURITY ERROR): the game reads `hid.bin` from the
+  cabinet's D:, E: or F: drive, decrypts it (RSA, then Blowfish CBC) and compares it with the
+  PC's hardware id, at boot (a task, 0x45b0f0) and from a thread while running (0x45f190).
+  The dump has no `hid.bin`: both return 1 ("security OK!", `mov eax, 1; ret`).
+- **Clock check** (5-2503-0000 "the clock is un-setting up", setting 0x20 set by the test
+  menu's CLOCK): the boot's `jne` (set) becomes `jmp` (0x45d35e): the PC's clock is the host's.
+- The play log goes to `E:\SPORTS_OPTION\log` (else F:): the profile maps E: to the dump's
+  `E` folder. The internet ranking (`hypersports.k573.com`) is not emulated.
+- **Controls** (default map): b1 blue (left in the menus), b2 green (OK, start), b3 red
+  (right).
+
 #### Silent Hill: The Arcade (GHL)
 
 Silent Hill: The Arcade (2007, game code GHL, Direct3D 9, 640x480): two players with light guns.

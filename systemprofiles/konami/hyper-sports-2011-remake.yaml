@@ -1,0 +1,33 @@
+# Hyper Sports 2011 Remake (Konami China, 2011, game code KC2): ten events for one or two
+# players, each with three buttons (blue, green, red; in the menus left, OK, right), no stick. KC2\AMSports.exe (Direct3D 9)
+# on Konami's gf.dll framework: wal-loader starts it with the payload, which answers its
+# Python 4 I/O board (coins, security plugs) and LED controller; the buttons are the fake
+# DirectInput keyboard the game also reads.
+# Override values in userprofiles/konami/hyper-sports-2011-remake.yaml.
+system: konami
+name: Hyper Sports 2011 Remake
+
+payload_install: [python4.dll]
+payload_loader: true
+
+# The play log (SPORTS_OPTION\log, on the cabinet's E: or F: drive)
+drives:
+  e: E
+
+env:
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # the payload's keyboard (the players' buttons) is the only DirectInput device
+  WAL_DINPUT_DISABLE: "1"
+
+input:
+  stick_as_dpad: false
+
+controls:
+  b1: Blue (left)
+  b2: Green (OK)
+  b3: Red (right)
+  coin: Coin
+  service: Service
+  test: Test

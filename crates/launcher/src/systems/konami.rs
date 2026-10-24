@@ -1,7 +1,7 @@
 //! Konami e-Amusement PC games (Nobiteke! Byon Byon Daisakusen, Gashaaaan, Gashaaaan Refill!, Otomedius,
 //! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
 //! Contra: Evolution, Wartran Troopers, Chase Chase Jokers, Lethal Enforcers 3, Cooper's 9,
-//! Castlevania: The Arcade, Silent Hill: The Arcade, Action Deka).
+//! Castlevania: The Arcade, Silent Hill: The Arcade, Action Deka, Hyper Sports 2011 Remake).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -20,6 +20,10 @@
 //! Action Deka's payload is its libacio (GDKI controllers, card reader) and answers its libbms,
 //! its statically linked EZ-USB library (switches, coins) and, from the players' guns, its own
 //! debug input (aim, trigger, motions, steering; docs §6.3h).
+//! Hyper Sports 2011 Remake imports no I/O library: its profile starts it through wal-loader
+//! (`payload_loader`, installed as `python4.dll`); the payload answers the game's gf.dll
+//! imports of its Python 4 I/O board and LED controller and gives the switches to gf.dll's
+//! input (docs §6.3h).
 //! Gashaaaan's profile installs it as `iob.dll` (its I/O board library), which also answers
 //! its camera board library (ballio) and shows its two screens as one picture.
 //! Otomedius's libacio.dll is the payload too (PJEI board), which also answers the game's libbms
@@ -86,7 +90,8 @@
 //! Troopers: `start trigger option shoulder sense offscreen` (players 1-4), `test service coin`;
 //! Cooper's 9: `test service coin start trigger offscreen` (players 1 and 2); Action Deka:
 //! `test service coin start trigger punch guard throw special reload steer_left steer_right`
-//! (players 1 and 2); Silent Hill: The
+//! (players 1 and 2); Hyper Sports 2011 Remake: `test service coin red blue green` (players 1
+//! and 2); Silent Hill: The
 //! Arcade: `test service coin start trigger offscreen option_l option_r` (players 1 and 2); Castlevania: The
 //! Arcade: `test service coin start attack switch whip subweapon select` (players 1 and 2); Chase Chase
 //! Jokers: `test service coin dash skill attack jump slide headphone up down left
