@@ -69,7 +69,10 @@
 //! The 64-bit build (`wal_konami64.dll`) is Bishi Bashi Channel's `libacio.dll` and
 //! `libacio_pix.dll` (`bsch.rs`: BMPU and PIX boards; `acio.rs`, `icca.rs`), and Chase Chase Jokers' AIO libraries (`ccj.rs`: the
 //! BI2X TBS I/O board; `ccj_trackball.rs`: its raw input trackball; `ccj_pointer.rs`: its touch
-//! screen; `ccj_mono.rs`: game settings through Mono); the modules above are the 32-bit games'.
+//! screen; `ccj_mono.rs`: game settings through Mono), and Rainbow Bomber Girl's `winhttp.dll`
+//! (`bbg.rs`; `bbg_system.rs`: its BM-System library; `bbg_io.rs`: its I/O board and touch
+//! screen through Mono, `mono.rs`; `bbg_screen.rs`: its two monitors on one screen); the
+//! modules above are the 32-bit games'.
 
 #![allow(non_snake_case)]
 
@@ -143,6 +146,14 @@ mod we2012;
 #[cfg(target_arch = "x86")]
 mod winning_eleven;
 #[cfg(target_arch = "x86_64")]
+mod bbg;
+#[cfg(target_arch = "x86_64")]
+mod bbg_io;
+#[cfg(target_arch = "x86_64")]
+mod bbg_screen;
+#[cfg(target_arch = "x86_64")]
+mod bbg_system;
+#[cfg(target_arch = "x86_64")]
 mod bsch;
 #[cfg(target_arch = "x86_64")]
 mod ccj;
@@ -152,6 +163,8 @@ mod ccj_mono;
 mod ccj_pointer;
 #[cfg(target_arch = "x86_64")]
 mod ccj_trackball;
+#[cfg(target_arch = "x86_64")]
+mod mono;
 
 use std::ffi::c_void;
 
@@ -182,6 +195,8 @@ pub use pjei::*;
 pub use td4::*;
 #[cfg(target_arch = "x86")]
 pub use touchpanel::*;
+#[cfg(target_arch = "x86_64")]
+pub use bbg_system::*;
 #[cfg(target_arch = "x86_64")]
 pub use bsch::*;
 #[cfg(target_arch = "x86_64")]
@@ -299,10 +314,14 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
 
 /// Chase Chase Jokers (64-bit): the payload is its three AIO libraries; the I/O board's copy
 /// runs it. Bishi Bashi Channel: its `libacio.dll` and `libacio_pix.dll`; the first runs it.
+/// Rainbow Bomber Girl: its `winhttp.dll`.
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
-    if reason == DLL_PROCESS_ATTACH && ccj::detected(module) {
+    if reason == DLL_PROCESS_ATTACH && bbg::detected(module) {
+        bbg_system::set_module(module as usize);
+        bbg::init();
+    } else if reason == DLL_PROCESS_ATTACH && ccj::detected(module) {
         ccj::init();
     } else if reason == DLL_PROCESS_ATTACH && bsch::detected(module) {
         bsch::init(module);

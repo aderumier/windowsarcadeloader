@@ -2697,6 +2697,63 @@ payload is the 64-bit build `wal_konami64.dll`. `ccj.rs`, `ccj_trackball.rs`, `c
   timer fills it with COM players.
 - **Test menu.** TEST opens it during the attract; TEST moves, SERVICE selects.
 
+#### Rainbow Bomber Girl
+
+Rainbow Bomber Girl (2022, `game.exe`, Unity 2017.2, Mono, 64-bit, Direct3D 11): its code is
+managed (`Assembly-CSharp.dll`, the I/O board's `UsbIO.dll`). The cabinet's launcher
+(BM-System) runs it with its system library's module handle (`-hp`); without it the game runs
+as Unity started it, with its development stand-ins (`DefaultSystemImport_*`): free play, no
+test or service switch, a watchdog that quits after a minute. The dump also has a BepInEx setup
+(Unity Doorstop's `winhttp.dll`): the payload (`wal_konami64.dll`) takes that file's place
+(`payload_install`, `dll_overrides: winhttp=n,b`): UnityPlayer imports winhttp, so the payload
+loads before any of the game's code; its one import (`WinHttpGetIEProxyConfigForCurrentUser`) is
+forwarded to the system's. `bbg.rs`, `bbg_system.rs`, `bbg_io.rs`, `bbg_screen.rs`, `mono.rs`.
+
+- **System library** (`bbg_system.rs`). The game binds its system interface by export name
+  (`SystemImport_System`, ...: `GetProcAddress(module, name)` for each of a module's functions).
+  Once the game has created `SystemImport` (its stand-ins), a payload thread attached to Mono
+  replaces the System, Io and Consume modules by the game's own bindings, initialized with the
+  payload's handle (`IFSystemImportBase.Initialize`), the backing fields set with
+  `mono_field_set_value`. System: boot checks passed, the watchdog's lock function called at
+  once and its unlock never (the stand-in calls both: the game quit after ~40 s), `IsAsia`
+  (`WAL_KONAMI_REGION=asia`: the export version's English texts and pictures, where it has
+  them). Io: test, service, coin (`IoGetBtnPress`). Consume: credits (a coin is one credit; a
+  game `WAL_KONAMI_PRICE`, default 1, a gacha 1; `WAL_KONAMI_FREEPLAY=1`), PASELI not offered.
+  Card entry, e-Amusement coin, network, logs and test settings keep the stand-ins: guest play.
+- **I/O board** (`bbg_io.rs`). UsbIO's `IoManagerMain` talks to the board on COM6 (System.IO.Ports:
+  its ANSI `CreateFile` `DllImport`, resolved through Mono's `GetProcAddress`, opens no COM
+  port: the board's boot fails at once). Every 10 ms the payload builds the board's 16 status
+  bytes (UsbIO's `IoState`, bit fields from the most significant bit: stick channels 1 and 2,
+  12 bits each, test / service / coin, byte 9: the three rows of three buttons, push buttons,
+  headphone jack, the stick's button) and calls `IoState.SetDataArray` and
+  `IoManagerMain.SetBtnState` (the board's packet thread's job), then marks the boot done
+  (`m_BootStep` BOOT_SUCCESS_END). The game's default stick type (TYPE_2) reads the stick turned
+  a quarter (X = 4096 - channel 2, Y = channel 1): the channels follow `m_StickType`.
+- **Touch screen.** `TouchPanelManager`'s touches came from a cabinet library the game no
+  longer has: the payload writes touch 0 (`arrPointerInfo[0]`: DOWN on the press, UP on the
+  release, the position in the panel's coordinates: x 0..1280, y 0..-720 from the top), the
+  pointer being a gun's or the mouse's position over the touch screen's place on the screen.
+- **Screens** (`bbg_screen.rs`). The cabinet drives a portrait main monitor and a landscape touch
+  screen mounted on its side as one 2160x1920 desktop; the game lays its cameras out for it (at
+  the screen's own size its touch screen UI no longer fits its picture). UnityPlayer is shown a
+  2160x1920 desktop (screen metrics, monitor info, the current display mode, its window's client
+  and window rectangles, `WM_SIZE`, its maximized size), the game runs windowed
+  (`-screen-fullscreen 0`, `Screen.SetResolution`'s full screen flag dropped: its internal call
+  is wrapped at `mono_add_internal_call`), its window kept the screen's size, borderless
+  (`WAL_WINDOW_SIZE=screen`, `WAL_WINDOW_POPUP=1`; every resize clamped at
+  `WM_WINDOWPOSCHANGING`). The game draws into a 2160x1920 texture of the payload's own
+  (`IDXGISwapChain::GetBuffer` / `ResizeBuffers` / `GetDesc` in DXVK's swap chain vtable), the
+  swap chain's real buffers the window's size; before each `Present` the picture is drawn for
+  the screen (shaders compiled with `d3dcompiler_47`, in a device context state of its own):
+  the main monitor upright at the screen's height on the right, the touch screen turned back
+  upright at the bottom left, above it the marquee of the dump's `bezel.png` stretched to the
+  space left (`WAL_KONAMI_LAYOUT=main_left`: mirrored, no bezel; `raw`: the game's picture),
+  a ring where the pointer is on the touch screen.
+- **Input.** The real keyboard and mouse never reach the game's development keys: UnityPlayer's
+  window messages dropped, raw input reports emptied, `GetAsyncKeyState` / `GetKeyState` 0.
+- **Locale.** The game reads its data tables (CSV) with the user's number format: under a
+  locale with a decimal comma (French) the game stopped at its start: `LC_ALL=en_US.UTF-8`.
+
 ### 6.3i Arcade PC (`crates/payload-arcadepc`)
 
 PC-based arcade games without a cabinet I/O API to replace. System `arcadepc`, 64-bit payload
@@ -3067,6 +3124,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | `game.exe` (§6.3h), `iob.dll` replaced (switches, coins), `gunio.dll` answered (gun boards booted); the gun read replaced by the pointer, off screen = cover/reload; `D:\D22\` paths made relative (data, DirectShow movies); boot CRC, clock and calibration checks skipped; E:/F: save drives; the game's two screens, player 1's alone shown (with one, its CPU rival crashed the stage start) |
 | `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | as `lethal-enforcers-3`, two adapters (`WAL_KONAMI_PLAYERS=2`): one 640x480 screen per player in one window (`two_screens.rs`), each gun aims at its own half |
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | `game.exe`, a memory dump of the HASP-enveloped game: started by wal-loader with the payload as `inpout32.dll` (`payload_loader`); its imports rebuilt, `WinMain`'s instance fixed, HASP HL API answered, parallel port I/O board and guns (calibration skipped), `z:/data/bin` relative, saves on E: (`SAVE`), MP42 movies need the GE winedmo MP42 patch |
+| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | `game.exe` (Unity 2017, 64-bit, §6.3h), the payload as `winhttp.dll`: BM-System's System, Io and Consume modules bound through Mono (watchdog, credits, test / service, export region), the I/O board's status handed to UsbIO (COM6 absent), the touch screen's touches; drawn at the cabinet's 2160x1920 desktop into a texture of the payload's, the two monitors and the bezel's marquee composed for the screen; `LC_ALL=en_US.UTF-8` |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

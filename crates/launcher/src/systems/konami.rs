@@ -2,7 +2,7 @@
 //! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
 //! Contra: Evolution, Wartran Troopers, Chase Chase Jokers, Lethal Enforcers 3, Cooper's 9,
 //! Castlevania: The Arcade, Silent Hill: The Arcade, Action Deka, Hyper Sports 2011 Remake,
-//! The Bishi Bashi, Thrill Drive 4: Crazy Streets, Hello! Pop'n Music).
+//! The Bishi Bashi, Thrill Drive 4: Crazy Streets, Hello! Pop'n Music, Rainbow Bomber Girl).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -58,6 +58,11 @@
 //! `libaio-iob2_video.dll` (its profile's `payload_install`), and answers its raw input
 //! trackball and touch screen.
 //!
+//! Rainbow Bomber Girl (Unity, 64-bit) has no cabinet library in its dump: its profile installs
+//! the 64-bit payload as the `winhttp.dll` UnityPlayer imports. It answers the game's BM-System
+//! library (credits, switches, watchdog) and I/O board through Mono, its touch screen, and shows
+//! its two monitors (drawn as the cabinet's 2160x1920 desktop) side by side on the screen.
+//!
 //! Bishi Bashi Channel's code is a 64-bit AVS2 DLL (`contents/modules/bsch.dll`): run by
 //! `wal-avs-boot64.exe` (installed as `wal-avs-boot.exe`), the 64-bit payload is its
 //! `libacio.dll` and `libacio_pix.dll` (BMPU and PIX boards: four players' buttons and disks).
@@ -94,6 +99,10 @@
 //!   (set off)
 //! - Chase Chase Jokers: `WAL_KONAMI_TRACKBALL_SPEED` the trackball's counts per 10 ms at the
 //!   right stick's full tilt (default 12)
+//! - Rainbow Bomber Girl: `WAL_KONAMI_PRICE` credits per game (default 1),
+//!   `WAL_KONAMI_FREEPLAY=1` free play, `WAL_KONAMI_REGION=asia` the export version,
+//!   `WAL_KONAMI_LAYOUT` the screens (`main_left`: the main monitor on the left, no bezel;
+//!   `raw`: the game's own picture)
 //!
 //! Native inputs for `native_map`: the board's switches `test service start trigger button2`
 //! and `coin` (players 1 and 2 have their own start, trigger and button2); Gashaaaan and Gashaaaan
@@ -114,7 +123,8 @@
 //! right touch`; Bishi Bashi Channel: `test service coin red green blue disk_left disk_right`
 //! (players 1-4); The Bishi Bashi: `test service coin red green blue yellow` (players 1-3);
 //! Hello! Pop'n Music: `test service coin start button1 button2 button3 button4` (players 1
-//! and 2).
+//! and 2); Rainbow Bomber Girl: `test service coin bomb skill1 skill2 back detonate headphone up
+//! down left right touch`.
 
 use super::{Payload, System};
 
@@ -130,7 +140,8 @@ impl System for Konami {
     }
 
     fn payloads64(&self) -> Option<&'static [Payload]> {
-        // Chase Chase Jokers: its profile installs it as the AIO libraries (payload_install)
+        // Chase Chase Jokers: its profile installs it as the AIO libraries (payload_install),
+        // Rainbow Bomber Girl as winhttp.dll
         Some(&[Payload { file: "wal_konami64.dll", install_as: "libaio-iob2_video.dll" }])
     }
 
