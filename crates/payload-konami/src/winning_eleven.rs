@@ -45,6 +45,9 @@ pub fn init(module: *mut c_void) {
     }
     rom_check_init();
     settings_init();
+    notice_init();
+    controller_select_init();
+    sound_effects_init();
     game_log_init();
     log!("winning eleven: {hooked} libtouchpanel imports answered by the payload");
 }
@@ -250,6 +253,95 @@ fn settings_init() {
     }
 }
 
+/// Where the network notice setter continues.
+static NOTICE_SET: AtomicUsize = AtomicUsize::new(0);
+
+/// The network notice shown over the attract (`id`: a row of the table at 0xc898c0, title and
+/// message; 0 none, drawn by rva 0x28880 while it is not 0). Id 1, "operating in local mode,
+/// e-AMUSEMENT PASS and e-AMUSEMENT service unavailable", is always the case here: none.
+unsafe extern "C" fn notice_set(id: i32) -> i32 {
+    let original: unsafe extern "C" fn(i32) -> i32 = unsafe { std::mem::transmute(NOTICE_SET.load(Ordering::Relaxed)) };
+    unsafe { original(if id == 1 { 0 } else { id }) }
+}
+
+fn notice_init() {
+    // sub esp, 0xc; push ebx; push ebp; push esi
+    let head = [0x83, 0xec, 0x0c, 0x53, 0x55, 0x56];
+    match unsafe { detour(0x28770, &head, notice_set as *const () as usize) } {
+        Some(t) => NOTICE_SET.store(t, Ordering::Relaxed),
+        None => log!("winning eleven: network notice code differs, the local mode notice stays"),
+    }
+}
+
+/// The controller choice before a match (ControllerSelect scene, rva 0x467d0 each frame): touch
+/// buttons, the arcade panel (0) and the home controller (1); a button touched twice is taken.
+/// The touch hit test (rva 0x46670: the button under the finger, 2 none) answers the arcade
+/// panel: taken in two frames, as if touched.
+fn controller_select_init() {
+    let at = unsafe { GetModuleHandleW(std::ptr::null()) } as usize + 0x467f6;
+    // call 0x446670 -> xor eax, eax
+    if unsafe { std::slice::from_raw_parts(at as *const u8, 5) } != [0xe8, 0x75, 0xfe, 0xff, 0xff] {
+        log!("winning eleven: controller choice code differs, chosen by touch or timer");
+        return;
+    }
+    let mut old = 0;
+    unsafe {
+        VirtualProtect(at as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
+        std::ptr::copy_nonoverlapping([0x33, 0xc0, 0x90, 0x90, 0x90].as_ptr(), at as *mut u8, 5);
+        VirtualProtect(at as *const c_void, 5, old, &mut old);
+    }
+}
+
+/// Where the sound effects setup continues.
+static SOUND_EFFECTS_SETUP: AtomicUsize = AtomicUsize::new(0);
+
+/// The end of the sound effects setup (rva 0x57df30: the performance's port, default audio path,
+/// reverb). Wine's `InitAudio` creates the default audio path inactive, which deactivates the
+/// synthesizer's port: every note is dropped ("Failed to update performance latency"). DirectX's
+/// is active: activated here.
+unsafe extern "C" fn sound_effects_started() -> u32 {
+    let original: unsafe extern "C" fn() -> u32 = unsafe { std::mem::transmute(SOUND_EFFECTS_SETUP.load(Ordering::Relaxed)) };
+    let ret = unsafe { original() };
+    let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    let on = unsafe { *((base + 0x44cbd40) as *const u32) };
+    // IDirectMusicAudioPath*
+    let path = unsafe { *((base + 0x44cbd38) as *const *mut *const usize) };
+    if on != 0 && !path.is_null() {
+        // IDirectMusicAudioPath::Activate(TRUE)
+        let activate: unsafe extern "system" fn(*mut *const usize, i32) -> i32 = unsafe { std::mem::transmute(*(*path).add(4)) };
+        let hr = unsafe { activate(path, 1) };
+        log!("winning eleven: sound effects on, default audio path activated ({hr:#x})");
+    } else {
+        log!("winning eleven: sound effects off");
+    }
+    ret
+}
+
+/// The match's sound effects (players, ball, referee) are DirectMusic (the `text/sound/internal`
+/// banks): after the performance starts, rva 0x57d1a0 sets its audio path's reverb (a DMO effect
+/// of the path's buffer) and turns the sound effects off when that fails, as with Wine's
+/// DirectMusic (no DMO effects). Without the reverb they stay on.
+fn sound_effects_init() {
+    // mov eax, [0x48cbd40]
+    match unsafe { detour(0x57df30, &[0xa1, 0x40, 0xbd, 0x8c, 0x04], sound_effects_started as *const () as usize) } {
+        Some(t) => SOUND_EFFECTS_SETUP.store(t, Ordering::Relaxed),
+        None => log!("winning eleven: sound effects setup code differs, their audio path kept"),
+    }
+    let at = unsafe { GetModuleHandleW(std::ptr::null()) } as usize + 0x57d20f;
+    // mov dword ptr [0x48cbd40], 0 -> jmp over it
+    let off = [0xc7, 0x05, 0x40, 0xbd, 0x8c, 0x04, 0x00, 0x00, 0x00, 0x00];
+    if unsafe { std::slice::from_raw_parts(at as *const u8, off.len()) } != off {
+        log!("winning eleven: reverb setup code differs, sound effects off without it");
+        return;
+    }
+    let mut old = 0;
+    unsafe {
+        VirtualProtect(at as *const c_void, off.len(), PAGE_EXECUTE_READWRITE, &mut old);
+        std::ptr::copy_nonoverlapping([0xeb, 0x08].as_ptr(), at as *mut u8, 2);
+        VirtualProtect(at as *const c_void, off.len(), old, &mut old);
+    }
+}
+
 /// Enters the executable's function at `rva` through `target` when it starts with `head`
 /// (whole instructions, none relative): returns the trampoline that runs them and continues.
 unsafe fn detour(rva: usize, head: &[u8], target: usize) -> Option<usize> {
@@ -282,3 +374,4 @@ unsafe fn detour(rva: usize, head: &[u8], target: usize) -> Option<usize> {
 extern "C" fn fck_set_eq(_mode: i32) -> i32 {
     0
 }
+

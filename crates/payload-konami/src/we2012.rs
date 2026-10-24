@@ -65,6 +65,7 @@ pub fn init(module: *mut c_void) {
         log!("we2012: touch screen device check differs, kept");
     }
     touch_init();
+    controller_select_init();
     // the network notice (rva 0xfe5a00, drawn while its id is not 0): not for id 1, "Operating
     // in Local Mode" (e-Amusement offline, always here): cmp [ebx+0x68], 1; jbe (was 0; je)
     if !patch(0xfe5a16, &[0x83, 0x7b, 0x68, 0x00, 0x0f, 0x84], &[0x83, 0x7b, 0x68, 0x01, 0x0f, 0x86]) {
@@ -214,4 +215,67 @@ fn product_check_init() {
     let mut jump = vec![0xe9];
     jump.extend_from_slice(&rel.to_le_bytes());
     patch(0xedfef0, &head, &jump);
+}
+
+
+/// Frames of the controller choice scene (AcSceneControllerTypeSelect_2012, vtable rva
+/// 0x14d90ac: its slot 5 runs once a frame while it is on screen).
+static CONTROLLER_FRAMES: AtomicUsize = AtomicUsize::new(0);
+static CONTROLLER_UPDATE: AtomicUsize = AtomicUsize::new(0);
+
+core::arch::global_asm!(
+    ".globl {name}\n{name}:",
+    "lock inc dword ptr [{frames}]",
+    "jmp dword ptr [{update}]",
+    name = sym controller_update,
+    frames = sym CONTROLLER_FRAMES,
+    update = sym CONTROLLER_UPDATE,
+);
+unsafe extern "C" {
+    fn controller_update();
+}
+
+/// The controller choice before a match: touch buttons, the arcade controller (left) and the
+/// home one (right), until its timer runs out. While the scene is on screen the payload touches
+/// the arcade controller's button (every 2/3 s, 0.1 s each): taken as if the player had.
+fn controller_select_init() {
+    let slot = (game_module() + 0x14d90ac + 5 * 4) as *mut usize;
+    // the scene's update (rva 0xfc3e60: push ecx; cmp dword ptr [...], 0)
+    let update = game_module() + 0xfc3e60;
+    if unsafe { *slot } != update || unsafe { std::slice::from_raw_parts(update as *const u8, 3) } != [0x51, 0x83, 0x3d] {
+        log!("we2012: controller choice code differs, chosen by touch or timer");
+        return;
+    }
+    CONTROLLER_UPDATE.store(update, Ordering::Relaxed);
+    let mut old = 0;
+    unsafe {
+        VirtualProtect(slot.cast(), 4, PAGE_EXECUTE_READWRITE, &mut old);
+        *slot = controller_update as *const () as usize;
+        VirtualProtect(slot.cast(), 4, old, &mut old);
+    }
+    std::thread::spawn(|| {
+        // the arcade controller's button, in fractions of the picture
+        const BUTTON: (f32, f32) = (0.351, 0.5);
+        let mut seen = CONTROLLER_FRAMES.load(Ordering::Relaxed);
+        let mut start: Option<usize> = None;
+        let mut idle = 0;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(16));
+            let frames = CONTROLLER_FRAMES.load(Ordering::Relaxed);
+            if frames != seen {
+                seen = frames;
+                idle = 0;
+                let first = *start.get_or_insert(frames);
+                let n = frames - first;
+                let down = n % 40 >= 20 && n % 40 < 26;
+                crate::touchpanel::set_auto_touch(Some((BUTTON.0, BUTTON.1, down)));
+            } else if start.is_some() {
+                idle += 1;
+                if idle > 15 {
+                    start = None;
+                    crate::touchpanel::set_auto_touch(None);
+                }
+            }
+        }
+    });
 }

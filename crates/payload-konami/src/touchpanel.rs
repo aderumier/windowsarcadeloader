@@ -23,6 +23,27 @@ pub fn set_touch_button(mask: u32) {
 
 /// The panel spans the whole screen, whatever its coordinates' aspect (Winning Eleven 2012's
 /// 640x480 panel over its 16:9 picture).
+/// A touch made by the payload (a choice taken for the player): x, y in 1/65535 of the panel,
+/// down, and whether it is on.
+static AUTO_TOUCH: AtomicU32 = AtomicU32::new(0);
+static AUTO_DOWN: AtomicBool = AtomicBool::new(false);
+static AUTO_ON: AtomicBool = AtomicBool::new(false);
+
+/// Touches the panel at (x, y), fractions of it, `down` or not, in place of the player's
+/// touch; `None` gives it back.
+pub fn set_auto_touch(touch: Option<(f32, f32, bool)>) {
+    match touch {
+        Some((x, y, down)) => {
+            let fx = (x.clamp(0.0, 1.0) * 65535.0) as u32;
+            let fy = (y.clamp(0.0, 1.0) * 65535.0) as u32;
+            AUTO_TOUCH.store(fx << 16 | fy, Ordering::Relaxed);
+            AUTO_DOWN.store(down, Ordering::Relaxed);
+            AUTO_ON.store(true, Ordering::Relaxed);
+        }
+        None => AUTO_ON.store(false, Ordering::Relaxed),
+    }
+}
+
 static FULL_SCREEN: AtomicBool = AtomicBool::new(false);
 
 pub fn set_full_screen(full: bool) {
@@ -131,10 +152,16 @@ pub extern "C" fn ac_touchpanel_read_on(panel: *mut Panel, x: *mut i32, y: *mut 
     let sx = (stick.axis(Axis::RightX) as f32 + 32768.0) / 65535.0;
     let sy = (stick.axis(Axis::RightY) as f32 + 32768.0) / 65535.0;
     let (x0, y0, w, h) = picture(panel);
-    let px = (sx - x0) / w * panel.width as f32;
-    let py = (sy - y0) / h * panel.height as f32;
+    let mut px = (sx - x0) / w * panel.width as f32;
+    let mut py = (sy - y0) / h * panel.height as f32;
     let mask = TOUCH_BUTTON.load(Ordering::Relaxed);
-    let touched = mask != 0 && stick.pressed(mask);
+    let mut touched = mask != 0 && stick.pressed(mask);
+    if AUTO_ON.load(Ordering::Relaxed) {
+        let t = AUTO_TOUCH.load(Ordering::Relaxed);
+        px = (t >> 16) as f32 / 65535.0 * panel.width as f32;
+        py = (t & 0xffff) as f32 / 65535.0 * panel.height as f32;
+        touched = AUTO_DOWN.load(Ordering::Relaxed);
+    }
     unsafe {
         if !x.is_null() {
             *x = (px as i32).clamp(0, panel.width - 1);

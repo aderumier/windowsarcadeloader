@@ -10,6 +10,20 @@ name: Winning Eleven 2008
 # The dump's D3D8.dll is dgVoodoo (Direct3D 12 output): Wine's own is used.
 hide: [D3D8.dll]
 
+# The match's sound effects (players, ball, referee) are DirectMusic: the prefix's native
+# DirectMusic (other games' tricks) fails with wine's dsound, wine's own plays them.
+dll_overrides:
+  dmband: b
+  dmcompos: b
+  dmime: b
+  dmloader: b
+  dmscript: b
+  dmstyle: b
+  dmsynth: b
+  dmusic: b
+  dmusic32: b
+  dswave: b
+
 env:
   # Japanese text (messages, test menu) in Shift-JIS
   WAL_ANSI_CODEPAGE: "932"

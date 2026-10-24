@@ -209,10 +209,15 @@ unsafe extern "system" fn mmioOpenW(path: *mut u16, info: P, flags: u32) -> P {
     unsafe { original(p.ptr().cast_mut(), info, flags) }
 }
 
-fn init_mmio() {
+/// The game's `mmioOpen` imports, or those of the module at `base` (a game DLL).
+fn init_mmio(base: Option<usize>) {
     for (i, (name, f)) in [("mmioOpenA", mmioOpenA as *const () as usize), ("mmioOpenW", mmioOpenW as *const () as usize)].into_iter().enumerate() {
-        if let Some(o) = unsafe { iat::hook("winmm.dll", name, f) } {
-            MMIO_ORIG[i].store(o, Ordering::Relaxed);
+        let hooked = match base {
+            None => unsafe { iat::hook("winmm.dll", name, f) },
+            Some(base) => unsafe { iat::hook_module(base, "winmm.dll", name, f) },
+        };
+        if let Some(o) = hooked {
+            let _ = MMIO_ORIG[i].compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
         }
     }
 }
@@ -244,8 +249,9 @@ unsafe extern "system" fn AddSourceFilter(this: P, file: *const u16, name: *cons
 
 /// `ole32!CoCreateInstance`: a DirectShow filter graph opens the game's movies itself (Battle
 /// Gear 4's attract movie, `E:/data/Scene/demo/attract/attract_demo.wmv`: not found, then a crash
-/// on its never created player): its `RenderFile` / `AddSourceFilter` get the game drive's paths
-/// redirected too (the graph's vtable, shared by its instances, patched once).
+/// on its never created player; Winning Eleven 2008's on D:): its `RenderFile` / `AddSourceFilter`
+/// get the redirected drive's and the game drive's paths redirected too (the graph's vtable,
+/// shared by its instances, patched once).
 unsafe extern "system" fn CoCreateInstance(clsid: *const Guid, outer: P, ctx: u32, iid: *const Guid, out: *mut P) -> i32 {
     let original: unsafe extern "system" fn(*const Guid, P, u32, *const Guid, *mut P) -> i32 = unsafe { std::mem::transmute(GRAPH_ORIG[0].load(Ordering::Relaxed)) };
     let hr = unsafe { original(clsid, outer, ctx, iid, out) };
@@ -278,13 +284,15 @@ unsafe fn patch_graph(object: P) {
     log!("drive: DirectShow filter graph: its file paths on the game's drive redirected");
 }
 
-/// Installs the game drive hooks (game executable only) when `WAL_GAME_DRIVE` is set.
+/// Installs the DirectShow hook, and the game drive hooks (game executable only) when
+/// `WAL_GAME_DRIVE` is set.
 fn init_game_drive() {
-    if game_drive().is_none() {
-        return;
-    }
+    // Winning Eleven 2008's attract movies (`D:/HCK/data/movie`): the redirected drive too
     if let Some(o) = unsafe { iat::hook("ole32.dll", "CoCreateInstance", CoCreateInstance as *const () as usize) } {
         GRAPH_ORIG[0].store(o, Ordering::Relaxed);
+    }
+    if game_drive().is_none() {
+        return;
     }
     let hooks: [(&str, usize); 5] = [
         ("GetLogicalDrives", GetLogicalDrives as *const () as usize),
@@ -405,7 +413,7 @@ macro_rules! hooks {
             let _ = CONFIG.set(Config { letter: letter.to_ascii_uppercase(), var: var.to_string(), default: default.to_string() });
             prepare_data_dir();
             init_game_drive();
-            init_mmio();
+            init_mmio(None);
             $(
                 if let Some(o) = unsafe { iat::hook("kernel32.dll", stringify!($name), $name as *const () as usize) } {
                     ORIG[$idx].store(o, Ordering::Relaxed);
@@ -431,6 +439,8 @@ macro_rules! hooks {
                     let _ = ORIG[$idx].compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
                 }
             )*
+            // Winning Eleven 2008's sound.dll opens its banks with mmioOpenA
+            init_mmio(Some(base));
             true
         }
     };
