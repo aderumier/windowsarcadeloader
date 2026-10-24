@@ -34,9 +34,13 @@ fn card_id() -> [u8; 8] {
     id
 }
 
+fn card_pressed() -> bool {
+    wal_payload_common::input(0).pressed(wal_protocol::button::CARD)
+}
+
 /// The card slot after the latest `card` control state (a press toggles the card).
 fn inserted() -> bool {
-    let pressed = crate::hbhi::card_pressed();
+    let pressed = card_pressed();
     if pressed && !HELD.swap(true, Ordering::Relaxed) {
         let now = !INSERTED.fetch_xor(true, Ordering::Relaxed);
         log!("icca: card {}", if now { "inserted" } else { "ejected" });
@@ -105,7 +109,7 @@ static CARD_HELD: AtomicBool = AtomicBool::new(false);
 /// A press of the `card` control: the card is presented (or taken back while the reader waits
 /// for its removal).
 fn workflow_update() {
-    let pressed = crate::hbhi::card_pressed();
+    let pressed = card_pressed();
     if pressed && !CARD_HELD.swap(true, Ordering::Relaxed) {
         let state = WORKFLOW.load(Ordering::Relaxed);
         if state == WF_EJECT_CHECK {
@@ -141,9 +145,12 @@ pub extern "C" fn ac_io_icca_workflow(workflow: i32, _device: u32) -> i32 {
     state
 }
 
+/// The reader's status: `(out, device)`; some games pass `(device, out)` (spice2x's note on
+/// Metal Gear Arcade): the pointer is the argument that is not a small device number.
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_icca_get_status(out: *mut u8, _device: u32) -> bool {
-    if out.is_null() {
+pub extern "C" fn ac_io_icca_get_status(a: usize, b: usize) -> bool {
+    let out = if b > 2 { b } else { a } as *mut u8;
+    if out.is_null() || (out as usize) <= 2 {
         return false;
     }
     workflow_update();
@@ -170,4 +177,40 @@ pub extern "C" fn ac_io_icca_get_uid_felica(_device: u32, out: *mut u8) -> bool 
         *out.add(8) = (id[0] != 0xe0) as u8 & (id != [0; 8]) as u8;
     }
     true
+}
+
+// The later readers' setup (Bishi Bashi Channel): the card's encryption, its power, the
+// keep-alive: done, no error.
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_icca_crypt_init(_device: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_icca_device_control_iccard_power_supply_on(_device: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_icca_device_control_iccard_power_supply_off(_device: u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_icca_device_control_isfinished(_device: u32, _status: *mut u32) -> bool {
+    true
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_icca_get_keep_alive_error(_device: u32, error: *mut u32) -> bool {
+    if !error.is_null() {
+        unsafe { *error = 0 };
+    }
+    false
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_icca_send_keep_alive_packet(_a: u32, _b: u32, _c: u32) -> i32 {
+    0
 }

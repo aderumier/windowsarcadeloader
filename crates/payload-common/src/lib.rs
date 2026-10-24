@@ -49,6 +49,8 @@ pub mod sdl;
 #[cfg(windows)]
 pub mod vfw;
 #[cfg(windows)]
+pub mod wasapi;
+#[cfg(windows)]
 pub mod wcase;
 #[cfg(windows)]
 pub mod window;
@@ -121,6 +123,7 @@ pub fn start(name: &'static str) {
             mouse_stick::init();
             joystick::init();
             wcase::init();
+            wasapi::init();
         }
         std::thread::spawn(move || connection_loop(name, port));
     });

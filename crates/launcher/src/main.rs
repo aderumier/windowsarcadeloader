@@ -331,7 +331,12 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     // a game DLL (Konami AVS): run by the system's host program
     let dll_host = if exe.extension().is_some_and(|e| e.eq_ignore_ascii_case("dll")) {
         let host = system.dll_host().with_context(|| format!("{}: a DLL, and system {} runs no game DLL", profile.exe, system.name()))?;
-        payloads.push((payload_dir.join(host), host));
+        // a 64-bit game DLL: the host's 64-bit build (`<host>64.exe`), installed under its name
+        let file = match host.strip_suffix(".exe") {
+            Some(stem) if rundir::is_pe64(&exe) => format!("{stem}64.exe"),
+            _ => host.to_string(),
+        };
+        payloads.push((payload_dir.join(file), host));
         Some(host)
     } else {
         None

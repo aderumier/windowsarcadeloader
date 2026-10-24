@@ -50,6 +50,10 @@
 //! `libaio-iob2_video.dll` (its profile's `payload_install`), and answers its raw input
 //! trackball and touch screen.
 //!
+//! Bishi Bashi Channel's code is a 64-bit AVS2 DLL (`contents/modules/bsch.dll`): run by
+//! `wal-avs-boot64.exe` (installed as `wal-avs-boot.exe`), the 64-bit payload is its
+//! `libacio.dll` and `libacio_pix.dll` (BMPU and PIX boards: four players' buttons and disks).
+//!
 //! Cooper's 9's executable is a memory dump without imports: its profile starts it through
 //! wal-loader (`payload_loader`) with the payload as `inpout32.dll` (its parallel port I/O
 //! board), which rebuilds the imports and answers the game's HASP dongle.
@@ -77,6 +81,8 @@
 //! - Cooper's 9: `WAL_KONAMI_REGION` the dongle's region (`J`, `U`, `A`, `K`, `E`; default
 //!   `E`), `WAL_KONAMI_SAVE_DRIVE` the drive of the settings files, `WAL_KONAMI_GUN_FLASH=1` the
 //!   light gun flash at each shot
+//! - Bishi Bashi Channel: `WAL_KONAMI_EAMUSEMENT=1` keeps the test menu's e-amusement setting
+//!   (set off)
 //! - Chase Chase Jokers: `WAL_KONAMI_TRACKBALL_SPEED` the trackball's counts per 10 ms at the
 //!   right stick's full tilt (default 12)
 //!
@@ -95,7 +101,8 @@
 //! Arcade: `test service coin start trigger offscreen option_l option_r` (players 1 and 2); Castlevania: The
 //! Arcade: `test service coin start attack switch whip subweapon select` (players 1 and 2); Chase Chase
 //! Jokers: `test service coin dash skill attack jump slide headphone up down left
-//! right touch`.
+//! right touch`; Bishi Bashi Channel: `test service coin red green blue disk_left disk_right`
+//! (players 1-4).
 
 use super::{Payload, System};
 

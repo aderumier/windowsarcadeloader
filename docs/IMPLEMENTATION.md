@@ -512,7 +512,16 @@ profile), `show` (merged profile).
   music) and a DirectShow filter graph's `RenderFile` / `AddSourceFilter` (`CoCreateInstance` of
   CLSID_FilterGraph as IGraphBuilder / IFilterGraph2: vtable methods 13 / 14 patched once): Battle
   Gear 4 (2005) plays `E:/data/Scene/demo/attract/attract_demo.wmv` that way, not found otherwise,
-  then crashed ~20 s after boot stopping its never created movie (NULL `IMediaControl`).
+  then crashed ~20 s after boot stopping its never created movie (NULL `IMediaControl`). The
+  DirectShow hook is also installed for a redirected drive without a game drive (Winning
+  Eleven 2008's attract movies, `D:/HCK/data/movie`); a game DLL's own file functions are
+  redirected with `redirect_module`, its `mmioOpen` too (Winning Eleven 2008's sound.dll banks).
+* `wasapi`: `WAL_WASAPI_SHARED=1` plays a game's exclusive-mode WASAPI stream in shared mode
+  (winepulse.drv has none: Initialize fails, silence): exclusive IsFormatSupported answered for
+  PCM / float, Initialize shared with `AUTOCONVERTPCM`, GetBufferSize one device period, the
+  game's GetBuffer / ReleaseBuffer through a FIFO given to the device as it has room (spice2x's
+  `-wasapishared`). Wine's IAudioClient / IAudioRenderClient vtables patched on the first device
+  (Bishi Bashi Channel).
 * `patches`: `WAL_PATCHES=<rva>:<hex>,...` game code patches from the profile (keeps game
   knowledge in profiles, e.g. known per-game patches). `WAL_PATCHES_EXE=<file>` limits
   them to one executable: test menus (`TestMode.exe`) load the payload too.
@@ -2144,7 +2153,10 @@ used. spice2x supports the later Winning Eleven 2012/2014 (KCK, NCK) with the sa
 - **D: drive.** `D:/HCK/data`, `D:/HCK/save`, `D:\romcheck.bin`: payload-common's D: redirection
   to the dump root (`..\..` from the executable, `WAL_KONAMI_DDRIVE`), also on sound.dll, which
   opens its banks itself (`drive::redirect_module`; "failed not found AudioObjectContextData"
-  otherwise).
+  otherwise), with `mmioOpenA` (the menu music and sounds: silent otherwise; `redirect_module`
+  also redirects a module's `mmioOpen`). The attract movies (`D:/HCK/data/movie/demo_<n>.dat`,
+  WMV) are a DirectShow graph's `RenderFile`: payload-common's `CoCreateInstance` hook redirects
+  the drive's paths there too (it was only installed with `WAL_GAME_DRIVE`).
 - **Security plug and devices.** The game tries four software plugs, `G[U|C]HCK[J|H][A|B]A`. The
   `U`/`A` ones are spec A, the Live Monitor PC (the shop's spectator screen, no controls), the
   `C`/`B` ones spec B, a player cabinet; the device check then needs the card reader and the pad
@@ -2164,8 +2176,21 @@ used. spice2x supports the later Winning Eleven 2012/2014 (KCK, NCK) with the sa
   found). After the data is loaded (rva 0x13400, the struct at 0xc83088: e-AMUSEMENT, then LIVE
   MONITOR CONNECT) both are set off unless `WAL_KONAMI_EAMUSEMENT=1` / `WAL_KONAMI_LIVE_MONITOR=1`:
   attract in local mode, free play by default.
+- **In-match sound effects.** CRI ADX (in game.exe, its own DirectSound device) streams the
+  commentary and the crowd from `src/wedat/root/*_sound.afs`; the other match effects are
+  DirectMusic (`src/wedat/area/0/text/sound/internal` banks). The prefix's native DirectMusic
+  (other games' tricks) fails with Wine's dsound (it asks dsound for a private interface): the
+  profile uses Wine's. After the performance starts, rva 0x57d1a0 sets the audio path's reverb
+  (a DMO effect, not in Wine) and turns the effects off when that fails: kept on. Wine's
+  `InitAudio` creates the default audio path inactive, which deactivates the synthesizer's port
+  (every note dropped, "Failed to update performance latency"): activated after the setup (rva
+  0x57df30). Wine's performance still processes few of the game's messages.
+- **Network notice.** "Operating in local mode: e-AMUSEMENT PASS and e-AMUSEMENT service not
+  available" (notice 1 of the table at 0xc898c0, set by rva 0x28770, drawn by rva 0x28880 while
+  its id is not 0) is always the case here: id 1 is set as 0.
 - **Controls.** The player chooses the arcade stick or the home (PS2) controller by touching the
-  screen; untouched, the timer picks the arcade stick: the PJEI board, stick and buttons A-F
+  screen (ControllerSelect scene, a button touched twice is taken); the touch hit test (rva
+  0x46670, called at 0x467f6) answers the arcade panel, taken at once: the PJEI board, stick and buttons A-F
   (byte 4 A 0x04, B 0x02, C 0x01, byte 6 D 0x80, E 0x40, F 0x20). The touch panel is never
   touched (every virtual button is a pad button). The PJEC pad (72 bytes, analog controller 7,
   present 0x5a, buttons bytes 4-5, sticks 8-11) is answered from the same stick.
@@ -2202,7 +2227,10 @@ its heaps 30 MB (`WAL_KONAMI_AVS_HEAP_MB`). The payload is its `libacio.dll` (`w
   answered present), the game reads `GetCursorPos` (hooked) and its window's left button
   messages (byte 1 of its key table, written by the payload); the PC's mouse messages are not
   dispatched. The controller and mode choices are touch buttons; untouched, their timers pick
-  the arcade stick and the COM match.
+  the arcade stick and the COM match. The controller choice (AcSceneControllerTypeSelect_2012,
+  vtable rva 0x14d90ac, slot 5 once a frame) is taken for the player: while it is on screen the
+  payload touches the arcade controller's button on the serial panel (Asia, China; the Japan
+  USB touch is not driven).
 - **LCD monitor (Japan).** COM1: `0<command> <value>\r\n` (`MODEL?`, `BRI`, `CON`, `BL`, `CSM`,
   colors) echoed `9<command> <value>\r\n`, then `9OK \r\n` (spice2x's answer); LCD MONITOR ERROR
   5-1514-0000 without it.
@@ -2493,6 +2521,41 @@ module. `coopers9.rs`, before the game's code runs:
 
 Headless tests: attract (movies), coins, both players' start, mode selection by shooting,
 story intro movie, play (hits, score, the protect shot), game over, test menu (TEST), saves.
+
+#### Bishi Bashi Channel
+
+Bishi Bashi Channel (2018, game code R66) is `contents/modules/bsch.dll`, a 64-bit AVS2 (2.17.3)
+game DLL (Direct3D 9, AFP Flash UI), run by `wal-avs-boot64.exe` (the 64-bit build of
+wal-avs-boot: AVS2's `avs2-core.dll` / `avs2-ea3.dll`, spice2x's 2.17 export names, one heap
+for `avs_boot`, log writer `(chars, n, ctx)`; 192 MB heap, `WAL_KONAMI_AVS_HEAP_MB`). Four
+players, each a red, a green and a blue button and a disk (a dial). The payload is the 64-bit
+`wal_konami64.dll`, installed as `libacio.dll` and `libacio_pix.dll` (`bsch.rs`); spice2x's
+`acio/bmpu`, `acio/pix`, `games/bbc` were the layout reference.
+
+- **Boot checks.** The game finds `kbt.dll` with `GetModuleHandle` and calls its `k_bt0002`
+  (which runs the game's init); the dump has none: the payload answers `GetModuleHandle` of
+  `kbt.dll` / `kld.dll` with itself and exports `k_bt0001`, `k_bt0002`, `bt_get_ikey_status`
+  (spice2x's stubs).
+- **Boards.** BMPU (`libacio.dll`): a 56-byte status, test (`0xf0000000`) and service
+  (`0x0f000000`) in each of its first four u32, the coin stock. PIX rvol (`libacio_pix.dll`): a
+  60-byte status, the players' buttons by bit (player 1 red 44, green 107, blue 41; players
+  2-4's red and blue active low), the disks' positions in bytes 20-23 (players 1, 3, 2, 4).
+  The `libacio_pix.dll` copy's exports resolve the game's imports; the `libacio.dll` copy
+  points them at its own (one state). HDXS (LEDs) and the newer ICCA calls (crypt init, card
+  power, keep-alive) answered. COM1: the LCD monitor (as Winning Eleven 2012's).
+- **e-Amusement off.** On (the dump's test menu setting), the boot stops on 5-2000 (no
+  router). NETWORK OPTIONS are `/cabinet/net` in `dev/nvram/tm_net.xml` (Konami binary XML),
+  e-amusement its first byte: cleared at start unless `WAL_KONAMI_EAMUSEMENT=1`. Off, the boot
+  wants no network link (5-1507 "network connection detected": "OFFGETIP", from AVS's IPv4
+  addresses, rva 0xdec30): skipped. The attract shows the local mode notice; free play.
+- **Sound.** The game's WASAPI stream is exclusive mode (44.1 kHz, 16 bits, 5 ms); without it
+  (winepulse.drv has no exclusive mode) the game was silent and its attract stopped on "Please
+  wait" after the first demo. `WAL_WASAPI_SHARED=1` (payload-common `wasapi.rs`): shared mode,
+  `AUTOCONVERTPCM`, one device period reported as the buffer, the game's full-buffer writes
+  queued and given to the device as it has room.
+- **Controls.** Blue starts a game and joins it (the attract's prompt); the disks from the left
+  stick (or left / right). The entry screen's language choice is the card reader's keypad (not
+  mapped).
 
 #### Chase Chase Jokers
 
@@ -2902,6 +2965,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | `contents/modules/weac12_bootstrap_release.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.13 names, 30 MB heaps), region `WAL_KONAMI_DEST` (`A`: the product code `KCK-002` answered, English data); `libacio.dll` replaced: PJEI board, PS2 and PS3 pad ports, card reader; touch screen (serial panel, or the Japanese USB one and its COM1 LCD monitor) from the mouse |
+| `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | `contents/modules/bsch.dll` run by `wal-avs-boot64.exe` (§6.3h, AVS2 2.17, 64-bit); `libacio.dll` + `libacio_pix.dll` replaced: BMPU and PIX boards (4 players: R/G/B buttons, disks), card reader, LCD, kbt.dll answered; e-amusement off, network check skipped; exclusive WASAPI played shared |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | `AMContra.exe` (§6.3h), `libacio.dll` replaced (its MSVC-named imports, never called): controls on a fake DirectInput keyboard from the virtual sticks (the game's key table), coins from the COM1 control panel, clock reported set, GB2312 text (code page 936) |
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | `D00/game/game.exe` (§6.3h), `panicdialog.dll` replaced; COM2 pcio hub chain emulated (4 boards, firmware versions from the dump, switches, coin counter, security plug region `WAL_KONAMI_PLUG`), COM1 gun boards; the gun read replaced by the pointer; two monitors in one window (2 D3D8 devices presenting side by side); E: settings drive seeded from the dump's CFGs; DirectMusic tricks |

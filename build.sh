@@ -8,6 +8,8 @@ PROFILE=${PROFILE:-release}
 cargo build --profile "$PROFILE" -p wal-launcher
 cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-loader
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica -p wal-payload-arcadepc -p wal-payload-konami
+# the AVS boot of the 64-bit Konami game DLLs (Bishi Bashi Channel)
+cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-loader --bin wal-avs-boot
 
 # copy + rename: works while a previous launcher is running ("Text file busy")
 install_file() {
@@ -22,5 +24,6 @@ install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_namcoes3.dll" dist/paylo
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_nesica.dll" dist/payloads/wal_nesica64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_arcadepc.dll" dist/payloads/wal_arcadepc.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_konami.dll" dist/payloads/wal_konami64.dll
+install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-avs-boot.exe" dist/payloads/wal-avs-boot64.exe
 echo "built: dist/arcade-launcher dist/payloads/"
 ls dist/payloads

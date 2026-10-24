@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use wal_payload_common::log;
 use wal_payload_common::mapping::ButtonMap;
-use wal_protocol::{Axis, button};
+use wal_protocol::Axis;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Native {
@@ -324,11 +324,6 @@ pub extern "C" fn ac_io_hbhi_control_lamp_mode(_mode: u32) -> bool {
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_hbhi_get_watchdog_status() -> bool {
     true
-}
-
-/// Whether the virtual card button of player 1 is pressed (the card reader's control).
-pub(crate) fn card_pressed() -> bool {
-    wal_payload_common::input(0).pressed(button::CARD)
 }
 
 // The rest of the board's functions Road Fighters 3D looks up in its HGTH bus library

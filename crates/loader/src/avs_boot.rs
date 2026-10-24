@@ -22,6 +22,9 @@
 //! `avs.log` there. `WAL_KONAMI_AVS_HEAP_MB`: the size of each AVS heap (16 MB by default;
 //! Winning Eleven 2012 needs 30). `WAL_KONAMI_DEST`: the destination (region letter) in place of
 //! the dump's `/ea3/soft/dest` (Winning Eleven 2012: `J` Japan, `A` Asia, `C` China).
+//!
+//! AVS2 2.17 (64-bit, Bishi Bashi Channel: `avs2-core.dll`, `avs2-ea3.dll`, built as
+//! `wal-avs-boot64.exe`): its own export names, one heap, and a log writer `(chars, n, ctx)`.
 
 #![cfg_attr(not(windows), allow(dead_code))]
 
@@ -39,10 +42,13 @@ const HEAP_SIZE_MB: usize = 16;
 
 type Reader = unsafe extern "C" fn(u32, *mut u8, usize) -> i32;
 type LogWriter = unsafe extern "C" fn(*mut c_void, *const u8, u32) -> u32;
+/// AVS 2.16 and later: `(chars, n, ctx)`.
+type LogWriter2 = unsafe extern "C" fn(*const u8, u32, *mut c_void) -> i32;
 
 /// The AVS functions the boot uses (cdecl).
 struct Avs {
-    boot: unsafe extern "C" fn(*mut c_void, *mut c_void, usize, *mut c_void, usize, LogWriter, *mut c_void),
+    /// `avs_boot` (`boot2` for AVS 2.16+: one heap)
+    boot: usize,
     shutdown: unsafe extern "C" fn(),
     read_query_memsize: unsafe extern "C" fn(Reader, u32, *mut c_void, *mut c_void) -> i32,
     create: unsafe extern "C" fn(u32, *mut c_void, u32) -> *mut c_void,
@@ -95,6 +101,11 @@ unsafe extern "C" fn reader(_ctx: u32, buf: *mut u8, count: usize) -> i32 {
 
 static LOG: Mutex<Option<std::fs::File>> = Mutex::new(None);
 
+unsafe extern "C" fn log_writer2(chars: *const u8, n: u32, ctx: *mut c_void) -> i32 {
+    unsafe { log_writer(ctx, chars, n) };
+    1
+}
+
 unsafe extern "C" fn log_writer(_ctx: *mut c_void, chars: *const u8, n: u32) -> u32 {
     if let Some(file) = LOG.lock().unwrap().as_mut()
         && !chars.is_null()
@@ -112,6 +123,11 @@ unsafe extern "C" fn log_writer(_ctx: *mut c_void, chars: *const u8, n: u32) -> 
 /// The AVS functions' export names: plain in the older AVS 2 builds; AVS 2.13 (Winning Eleven
 /// 2012) exports them as numbered `XC058ba5...` names (spice2x's table for that version).
 struct AvsNames {
+    /// The core and e-Amusement DLLs.
+    core: &'static str,
+    ea3: &'static str,
+    /// `avs_boot` takes one heap (AVS 2.16+).
+    one_heap: bool,
     boot: &'static str,
     shutdown: &'static str,
     read_query_memsize: &'static str,
@@ -127,6 +143,9 @@ struct AvsNames {
 }
 
 const AVS_LEGACY: AvsNames = AvsNames {
+    core: "libavs-win32.dll",
+    ea3: "libavs-win32-ea3.dll",
+    one_heap: false,
     boot: "avs_boot",
     shutdown: "avs_shutdown",
     read_query_memsize: "property_read_query_memsize",
@@ -142,6 +161,9 @@ const AVS_LEGACY: AvsNames = AvsNames {
 };
 
 const AVS_2_13: AvsNames = AvsNames {
+    core: "libavs-win32.dll",
+    ea3: "libavs-win32-ea3.dll",
+    one_heap: false,
     boot: "XC058ba50000f4",
     shutdown: "XC058ba5000154",
     read_query_memsize: "XC058ba5000066",
@@ -156,19 +178,45 @@ const AVS_2_13: AvsNames = AvsNames {
     ea3_shutdown: "XEb552d5000060",
 };
 
+/// AVS2 2.17 (Bishi Bashi Channel, 64-bit; spice2x's table for 2.17.0 / 2.17.3).
+const AVS_2_17: AvsNames = AvsNames {
+    core: "avs2-core.dll",
+    ea3: "avs2-ea3.dll",
+    one_heap: true,
+    boot: "XCgsqzn0000129",
+    shutdown: "XCgsqzn000012a",
+    read_query_memsize: "XCgsqzn00000b0",
+    create: "XCgsqzn0000090",
+    insert_read: "XCgsqzn0000094",
+    search: "XCgsqzn00000a1",
+    node_refer: "XCgsqzn00000af",
+    node_remove: "XCgsqzn00000a3",
+    node_create: "XCgsqzn00000a2",
+    setenv: "XCgsqzn00000d4",
+    ea3_boot: "XEmdwapa000024",
+    ea3_shutdown: "XEmdwapa000025",
+};
+
 impl AvsNames {
-    /// The names of this libavs-win32.dll's build.
-    fn of(m: HMODULE) -> &'static AvsNames {
-        if unsafe { GetProcAddress(m, c"avs_boot".as_ptr().cast()) }.is_some() { &AVS_LEGACY } else { &AVS_2_13 }
+    /// The game's AVS build and its core DLL, loaded: AVS2's `avs2-core.dll` when the game
+    /// has it, else `libavs-win32.dll` (its export names tell the build).
+    fn load() -> (&'static AvsNames, HMODULE) {
+        let avs2 = unsafe { LoadLibraryA(c"avs2-core.dll".as_ptr().cast()) };
+        if !avs2.is_null() {
+            return (&AVS_2_17, avs2);
+        }
+        let m = load("libavs-win32.dll");
+        let names = if unsafe { GetProcAddress(m, c"avs_boot".as_ptr().cast()) }.is_some() { &AVS_LEGACY } else { &AVS_2_13 };
+        (names, m)
     }
 }
 
 impl Avs {
     fn new(m: HMODULE, n: &AvsNames) -> Avs {
-        let d = "libavs-win32.dll";
+        let d = n.core;
         unsafe {
             Avs {
-                boot: std::mem::transmute(proc(m, d, n.boot)),
+                boot: proc(m, d, n.boot),
                 shutdown: std::mem::transmute(proc(m, d, n.shutdown)),
                 read_query_memsize: std::mem::transmute(proc(m, d, n.read_query_memsize)),
                 create: std::mem::transmute(proc(m, d, n.create)),
@@ -261,8 +309,7 @@ fn main() {
     }
 
     // 1. AVS
-    let avs_dll = load("libavs-win32.dll");
-    let names = AvsNames::of(avs_dll);
+    let (names, avs_dll) = AvsNames::load();
     let avs = Avs::new(avs_dll, names);
     let config = avs.read("prop/avs-config.xml", 0x1000);
     let config_node = avs.node(config, "/config");
@@ -279,15 +326,21 @@ fn main() {
     };
     avs.set(config, "/config/time/gmt_offset", NODE_TYPE_S32, offset as usize);
     let heap1 = Box::leak(vec![0u8; heap_size].into_boxed_slice());
-    let heap2 = Box::leak(vec![0u8; heap_size].into_boxed_slice());
-    unsafe {
-        (avs.boot)(config_node, heap1.as_mut_ptr().cast(), heap_size, heap2.as_mut_ptr().cast(), heap_size, log_writer, std::ptr::null_mut())
-    };
+    if names.one_heap {
+        let boot: unsafe extern "C" fn(*mut c_void, *mut c_void, usize, *mut c_void, LogWriter2, *mut c_void) -> i32 =
+            unsafe { std::mem::transmute(avs.boot) };
+        unsafe { boot(config_node, heap1.as_mut_ptr().cast(), heap_size, std::ptr::null_mut(), log_writer2, std::ptr::null_mut()) };
+    } else {
+        let heap2 = Box::leak(vec![0u8; heap_size].into_boxed_slice());
+        let boot: unsafe extern "C" fn(*mut c_void, *mut c_void, usize, *mut c_void, usize, LogWriter, *mut c_void) =
+            unsafe { std::mem::transmute(avs.boot) };
+        unsafe { boot(config_node, heap1.as_mut_ptr().cast(), heap_size, heap2.as_mut_ptr().cast(), heap_size, log_writer, std::ptr::null_mut()) };
+    }
 
     // 2. e-Amusement library, the game
-    let ea3_dll = load("libavs-win32-ea3.dll");
-    let ea3_boot: unsafe extern "C" fn(*mut c_void) = unsafe { std::mem::transmute(proc(ea3_dll, "libavs-win32-ea3.dll", names.ea3_boot)) };
-    let ea3_shutdown: unsafe extern "C" fn() = unsafe { std::mem::transmute(proc(ea3_dll, "libavs-win32-ea3.dll", names.ea3_shutdown)) };
+    let ea3_dll = load(names.ea3);
+    let ea3_boot: unsafe extern "C" fn(*mut c_void) = unsafe { std::mem::transmute(proc(ea3_dll, names.ea3, names.ea3_boot)) };
+    let ea3_shutdown: unsafe extern "C" fn() = unsafe { std::mem::transmute(proc(ea3_dll, names.ea3, names.ea3_shutdown)) };
     let game_dll = load(&game);
     let entry_init: unsafe extern "C" fn(*mut u8, *mut c_void) -> bool = unsafe { std::mem::transmute(proc(game_dll, &game, "dll_entry_init")) };
     let entry_main: unsafe extern "C" fn() -> bool = unsafe { std::mem::transmute(proc(game_dll, &game, "dll_entry_main")) };

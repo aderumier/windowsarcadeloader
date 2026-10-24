@@ -1,0 +1,37 @@
+# Bishi Bashi Channel (Konami, game code R66): contents/modules/bsch.dll (AVS2 2.17, 64-bit,
+# Direct3D 9), run by wal-avs-boot64.exe from contents/ (the dump's
+# bishi-bashi-channel.windowsloader names the DLL). Four players, each a red, a green and a
+# blue button and a disk (a spinning dial). The payload replaces libacio.dll (BMPU board: test,
+# service, coins; card reader) and libacio_pix.dll (PIX board: the players' buttons and disks).
+# Override values in userprofiles/konami/bishi-bashi-channel.yaml.
+system: konami
+name: Bishi Bashi Channel
+
+payload_install: [libacio.dll, libacio_pix.dll]
+
+env:
+  # the game's AVS heap (spice2x's size for bsch.dll)
+  WAL_KONAMI_AVS_HEAP_MB: "192"
+  # its WASAPI stream is exclusive mode, which Wine's PulseAudio driver lacks: shared mode
+  WAL_WASAPI_SHARED: "1"
+
+input:
+  # red, green, blue under the right hand; the disk on the stick (or the d-pad's left / right)
+  gamepad:
+    x: b1
+    a: b2
+    b: b3
+    y: none
+
+controls:
+  lx: Disk (turn)
+  left: Disk left
+  right: Disk right
+  b1: Red
+  b2: Green
+  b3: Blue (start, join)
+  start: Blue (start, join)
+  coin: Coin
+  service: Service
+  test: Test
+  card: Insert / eject the card
