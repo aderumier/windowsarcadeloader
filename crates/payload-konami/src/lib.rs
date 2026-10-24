@@ -38,6 +38,9 @@
 //! Castlevania: The Arcade loads it as `libbms.dll` too, from where `hcv.rs` answers its I/O
 //! library, hcvACLib, and feeds the players' whips.
 //!
+//! Action Deka loads it as `libacio.dll` (`gdki.rs`: its action controllers), from where
+//! `deka.rs` answers its libbms, its EZ-USB library and its debug input (the players' guns).
+//!
 //! Silent Hill: The Arcade loads it as `libbms.dll` too, from where `shg.rs` points the
 //! game's I/O library, shaiolib, at the payload.
 //!
@@ -71,9 +74,13 @@ mod crosshair;
 #[cfg(target_arch = "x86")]
 mod eamuse;
 #[cfg(target_arch = "x86")]
+mod deka;
+#[cfg(target_arch = "x86")]
 mod f24;
 #[cfg(target_arch = "x86")]
 mod f24_screen;
+#[cfg(target_arch = "x86")]
+mod gdki;
 #[cfg(target_arch = "x86")]
 mod gti_club;
 #[cfg(target_arch = "x86")]
@@ -135,6 +142,8 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub use acio::*;
 #[cfg(target_arch = "x86")]
 pub use bms::*;
+#[cfg(target_arch = "x86")]
+pub use gdki::*;
 #[cfg(target_arch = "x86")]
 pub use hbhi::*;
 #[cfg(target_arch = "x86")]
@@ -203,6 +212,11 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if file_name(module).eq_ignore_ascii_case("libbms.dll") {
             ig2::init();
             crosshair::init();
+            return TRUE;
+        }
+        if deka::detected() {
+            deka::init(module);
+            log!("konami: GDKI action controllers, card reader and BM-System emulated (Action Deka)");
             return TRUE;
         }
         if file_name(std::ptr::null_mut()).eq_ignore_ascii_case("otomedius.exe") {

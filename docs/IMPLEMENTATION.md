@@ -1936,6 +1936,47 @@ at the screen, an IR camera follows them. `HCV.exe` loads its own `hcvACLib.dll`
   renderer) stays black: winedmo decodes it, quartz logs `get_output_samples Failed to get
   sample for source 0, hr 0x80040211`.
 
+#### Action Deka (GDK)
+
+Action Deka (2008, game code GDK, Direct3D 9, 1024x768, Japanese): two players act out a cop
+story holding a motion controller in each hand (punch, shoot, throw, drive). `deka.exe` loads
+`libacio.dll` (the payload: the GDKI controllers, devices 7-10, and the card reader, whose
+device 2 holds the system plug), links `libbms.dll` (pointed at the payload's BM-System, as
+Otomedius), and drives the rest itself: a Cypress EZ-USB I/O board and a 3D sensor (`deka.rs`).
+
+- **EZ-USB board** (CyUSB driver, IOCTL 0x220020/0x220024: switches, coin counter, lamps,
+  security, SRAM, the tactile transducers): deka.exe links Konami's EZ-USB library; its flat
+  `usb*` functions (0x4829f0-0x482d30, cdecl, 0 done, 0x60 busy, -33 failed; boot error
+  5-1502-0967 = 1000 + -33, open failed) are pointed at the payload. Switches (active high):
+  TEST 0x8000, SERVICE 0x4000, P1 START 0x800, P2 START 0x400; coins: the board's 16-bit
+  counter. The "USB SOUND" is the controllers' tactile effects (`data/tacsound/*.tac`
+  uploaded to the board, played per controller): silent.
+- **3D sensor** (an ultrasonic hand tracker on COM1, 38400 8N1: commands 0x03, the frequency id
+  0xb0-0xb3, 0x0c, then 0x06 / 0x07 polls answered by 10-byte packets, 8 data bytes, 0x75 and
+  the complement of their sum): not started, the profile passes the game's own `-no3d` (the
+  boot list shows 3D SENSOR BAD). The boot's settings checks then stop on the clock (setting
+  0x1d, 5-2503-0000) and the sensor's calibration (setting 0x1c): both `jne` (set) become
+  `jmp` (0x4c1670, 0x4c16b8).
+- **The hands**: the game's debug input, DebugGameIO (`*0x713084`, keyboard and mouse on the
+  developers' PCs), overrides the controller API: its per-frame update (vtable, 0x4cff70) sets
+  each controller's motion code (+0x2c, the previous frame's at +0x3c, +0x50 enabled), its
+  methods answer the aim (0x4d0160: 1024x768, y down) and the trigger (held 0x4d00f0, pressed
+  0x4d00c0). Replaced by the payload for both players from their guns: the right hand aims at
+  the pointer and holds the trigger; the left hand reports no aim (0, 0: used, the game asks
+  "USE RIGHT"). Motion codes (the game's names): 0x10 GUARD, 0x12 / 0x14 ST_UP_HARD /
+  ST_DOWN_HARD (a punch, alternating hands, high or low with the aim), 0x19 HOLD then 0x1b
+  THROW on release, 0x1c SPECIAL (both hands). Reload: the aim off the screen (the game's
+  on-screen test, 0x4d3330) while the button is held.
+- **Steering**: the angle of the line between the player's hands (radians, the engine's
+  0x4d3230 has no debug override): pointed at the payload, the d-pad turns it toward ±1.2 at
+  2.4 rad/s (beyond ±1.05 the game takes a hard turn), back to 0 on release. Driving is in
+  stage 3 (the military base).
+- **Controls** (default map): b1 trigger + punch, b2 guard + reload (right click), b3 throw,
+  b4 special, left / right steering.
+- **Stage 4** (IPO) locked until 1-3 are cleared: `WAL_KONAMI_UNLOCK_FINAL=1` (GUI option,
+  default on) clears the select's lock flag (`sete cl` -> `mov cl, 0` at 0x4b76ff).
+- Text in Shift-JIS: `WAL_ANSI_CODEPAGE` / `WAL_FONT_CODEPAGE` 932.
+
 #### Silent Hill: The Arcade (GHL)
 
 Silent Hill: The Arcade (2007, game code GHL, Direct3D 9, 640x480): two players with light guns.

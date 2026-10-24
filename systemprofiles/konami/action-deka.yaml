@@ -1,0 +1,49 @@
+# Action Deka (Konami, 2008, game code GDK): two players act as cops with a motion controller in
+# each hand (punch, shoot, throw, drive). deka.exe (Direct3D 9); the payload replaces libacio.dll
+# (the action controllers, card reader) and answers the game's libbms.dll (BM-System) imports.
+# Override values in userprofiles/konami/action-deka.yaml.
+system: konami
+name: Action Deka
+
+# -no3d: the 3D sensor (ultrasonic hand tracker on COM1) is not started: the payload gives
+# the aim and the motions (the game's own debug input)
+args: [-no3d]
+
+env:
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  WAL_DINPUT_DISABLE: "1"
+  # the mission select offers the 4th mission (IPO) at once ("0": once 1-3 are cleared)
+  WAL_KONAMI_UNLOCK_FINAL: "1"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_UNLOCK_FINAL
+        label: Stage 4 unlocked
+        kind: bool
+        description: >-
+          The mission select offers stage 4 (IPO) from the start. Off: as on the cabinet, it
+          opens once stages 1 to 3 are cleared.
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Trigger (shoot, punch, menus)
+  b2: Guard / reload (right click)
+  b3: Throw (hold, release)
+  b4: Special
+  left: Steer left (driving)
+  right: Steer right (driving)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

@@ -233,11 +233,22 @@ pub extern "C" fn bms_credit_update_option(option: *const u8) -> i32 {
         return FAILED;
     }
     let o = unsafe { std::slice::from_raw_parts(option, 13) };
+    OPTION.lock().unwrap().copy_from_slice(o);
     let mut c = CREDITS.lock().unwrap();
     c.freeplay = o[0] != 0;
     c.coins_per_credit = u32::from(o[9]).max(1);
     c.start_cost = [o[1], o[2], o[3], o[4]].map(u32::from);
     log!("bms: coin options: freeplay {}, {} coin(s) per credit, start {:?}", c.freeplay, c.coins_per_credit, &o[1..5]);
+    DONE
+}
+
+/// The coin options last set (Action Deka reads them back at boot): 1 coin 1 credit, a start
+/// costs 1 credit until the game sets its own.
+static OPTION: Mutex<[u8; 13]> = Mutex::new([0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bms_credit_get_option_blocking(out: *mut [u8; 13]) -> i32 {
+    unsafe { put(out, *OPTION.lock().unwrap()) };
     DONE
 }
 
