@@ -1919,6 +1919,9 @@ at the screen, an IR camera follows them. `HCV.exe` loads its own `hcvACLib.dll`
   answered through `GetProcAddress` (`hcvACLibIOGetButton`, `hcvACLibIOCoinGetIncrease`,
   `CoinConsume`); the emulated sensor's call (0x483965) points at the payload, which writes each
   player's current sample after the history shift.
+- **Secret character.** `setting.csv`'s `useSecretChara` (FALSE in the dump) opens the Little
+  Witch on the CHARACTER SELECT: its read (0x4059b7, the bool reader 0x64a6f0 into the settings
+  +0xd0) is replaced with TRUE.
 - **Buttons** (`hcvACLibIOGetButton`, 30 bytes; the game's bits): 11 SERVICE 0x1, 12 TEST 0x2,
   14/15 the players' START 0x8/0x10, 16/17 the whips' red buttons 0x80/0x100 (next
   sub-weapon), 18/19 their yellow buttons 0x20/0x40 (menus: point and press; in game: throw the
@@ -2274,6 +2277,11 @@ payload again (`gti_club.rs`): one instance for both buses. The dump's `dinput8.
   CALIBRATION (ERROR 5-1550-0000 "PERFORM THE I/O CALIBRATION" otherwise): passed in memory
   (rva 0x4bad8). A fresh `CONF/NVRAM` shows 5-1514-0000 (backup initialized) once: TEST opens
   the test menu, GAME MODE saves.
+- **Hidden content.** The test menu's GAME APPEARANCE OPTIONS takes a password that sets a
+  content level (0x331d71c, saved in the backup, 0..3; the codes, 64-bit values rotated by 4
+  bits at 0x692fcc: KXTY8YP2 1, QH84EVVA 2, GZ6LYJD5 3, the U.S. course, Money Run and 2 VS 2
+  car football). The backup load (0x51c470) answers level 3, the saved backup's and the fresh
+  one's.
 - **Boot time.** The boot reads every drive's volume and free space (`GetLogicalDriveStringsA`):
   Wine's Z: (the host's `/`) took over 30 s. The game gets C: alone.
 - **Rendering.** DXVK draws the test menu's black background and the HUD's dark panels white:

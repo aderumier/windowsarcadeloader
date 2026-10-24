@@ -104,6 +104,19 @@ pub fn init(module: *mut c_void) {
             &[0xeb, 0x13, 0x90, 0x90, 0x90, 0x90, 0x90],
         )
     };
+    // The test menu's GAME APPEARANCE OPTIONS password sets the content level (0x331d71c, saved
+    // in the backup, 0..3): KXTY8YP2 1, QH84EVVA 2, GZ6LYJD5 3 (all: the USA track, Money Run,
+    // 2 VS 2 car football). Its backup load (0x51c470) answers 3: the saved level, and the fresh
+    // backup's (its level byte; the rest was zeroed on entry).
+    unsafe {
+        patch(
+            "content level loaded as 3 (all tracks and modes)",
+            0x51c4a0,
+            &[0xf3, 0x0f, 0x7e, 0x05, 0x48, 0xd7, 0x31, 0x03, 0x66, 0x0f, 0xd6, 0x07],
+            &[0xc7, 0x07, 0x03, 0x00, 0x00, 0x00, 0xc6, 0x47, 0x04, 0x00, 0x90, 0x90],
+        );
+        patch("fresh backup content level 3", 0x51c4bb, &[0x89, 0x1f, 0x88, 0x5f, 0x04], &[0xc6, 0x07, 0x03, 0x90, 0x90]);
+    }
     crate::net::adapters_fit();
     crate::avs::init();
 }

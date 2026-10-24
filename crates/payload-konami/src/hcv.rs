@@ -364,6 +364,16 @@ pub fn init() {
         // the coin thread's emulateIO branch (no coins): `je` -> `jmp` to the coin read
         patch("coins read with emulateIO", 0x482e66, &[0x0f, 0x84, 0xa0, 0, 0, 0], &[0xe9, 0xa1, 0, 0, 0, 0x90]);
         patch("whips from the virtual sticks", SENSOR_CALL, &[0xe8, 0x86, 0xd5, 0xff, 0xff], &sensor_call);
+        // setting.csv's useSecretChara (FALSE in the dump), the secret character (Little
+        // Witch): its read (bool reader 0x64a6f0, `ret 8`) -> settings +0xd0 = TRUE
+        let mut secret = [0x90; 21];
+        secret[..7].copy_from_slice(&[0xc6, 0x86, 0xd0, 0, 0, 0, 1]);
+        patch(
+            "secret character unlocked (useSecretChara)",
+            0x4059b7,
+            &[0x68, 0x24, 0xb0, 0x69, 0x00, 0x8d, 0x8e, 0xd0, 0, 0, 0, 0x51, 0x8d, 0x4c, 0x24, 0x14, 0xe8, 0x24, 0x4d, 0x24, 0x00],
+            &secret,
+        );
         if std::env::var("WAL_KONAMI_UNLIMITED_SUBWEAPON").is_ok_and(|v| v == "1") {
             // the throw's hearts check (`jl`, not enough hearts) and their payment (`sub`)
             patch("sub-weapons without hearts: check", 0x444a9c, &[0x7c, 0x04], &[0x90, 0x90]);
