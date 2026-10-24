@@ -29,7 +29,10 @@
 //! * `WAL_D3D9_ASPECT=<w>:<h>`: windowed devices present to the largest centered rectangle of
 //!   that aspect ratio in the window, black bars around. For games stretching a 4:3 picture over
 //!   a wide back buffer (Elevator Action: 1280x768), with `WAL_D3D9_WINDOWED_SIZE` and a
-//!   screen-sized window. `WAL_KEEP_ASPECT_RATIO=0` (Batocera ES's KEEP ASPECT RATIO off)
+//!   screen-sized window. The d3d9 picture is composed in a swap chain of its own, black
+//!   around it, on a topmost window over the game's: Proton's DXVK leaves the window outside a
+//!   `Present` destination rectangle unpainted (Dariusburst: white bars) ([`letterbox`]).
+//!   `WAL_KEEP_ASPECT_RATIO=0` (Batocera ES's KEEP ASPECT RATIO off)
 //!   turns it off: the picture stretched to the whole window ([`d3d9_aspect`]).
 //! * `WAL_D3D9_SOURCE=<x>,<y>,<w>,<h>`: windowed devices present only that rectangle of the back
 //!   buffer (when the game gives none), scaled to the window. For games drawing a picture
@@ -208,6 +211,7 @@ unsafe fn present_overlay(dev: P, chain: P) -> HRESULT {
 }
 
 unsafe fn overlay_reset(dev: P) {
+    letterbox_reset();
     let f = OVERLAY_RESET.load(Ordering::Relaxed);
     if f != 0 {
         let f: unsafe fn(P) = unsafe { std::mem::transmute(f) };
@@ -535,6 +539,11 @@ unsafe extern "system" fn present_ex(dev: P, src: P, dst: P, window: P, dirty: P
     }
     let orig: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT_EX.load(Ordering::Relaxed)) };
     if let Some(chain) = composed {
+        return unsafe { present_overlay(dev, chain) };
+    }
+    if dst.is_null()
+        && let Some(chain) = unsafe { letterbox(dev, src, window) }
+    {
         return unsafe { present_overlay(dev, chain) };
     }
     let (src, dst) = whole_window(src, dst);
@@ -901,6 +910,11 @@ unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -
     if let Some(chain) = composed {
         return unsafe { present_overlay(dev, chain) };
     }
+    if dst.is_null()
+        && let Some(chain) = unsafe { letterbox(dev, src, window) }
+    {
+        return unsafe { present_overlay(dev, chain) };
+    }
     let (src, dst) = whole_window(src, dst);
     let mut rect = [0i32; 4];
     let dst = unsafe { aspect_rect(dst, window, &mut rect) };
@@ -974,14 +988,174 @@ unsafe fn aspect_rect(dst: P, window: P, rect: &mut [i32; 4]) -> P {
     if cw <= 0 || ch <= 0 {
         return dst;
     }
-    let (aw, ah) = (aw as i64, ah as i64);
-    let (w, h) = if cw as i64 * ah > ch as i64 * aw { ((ch as i64 * aw / ah) as i32, ch) } else { (cw, (cw as i64 * ah / aw) as i32) };
-    let (x, y) = ((cw - w) / 2, (ch - h) / 2);
-    *rect = [x, y, x + w, y + h];
+    *rect = fit(cw, ch, aw, ah);
+    let [x, y, w, h] = [rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1]];
     if !LOGGED.swap(true, Ordering::Relaxed) {
         log!("d3d9: Present to {w}x{h} at {x},{y} of the {cw}x{ch} window ({aw}:{ah})");
     }
     rect.as_mut_ptr().cast()
+}
+
+/// The largest centered rectangle of aspect `aw`:`ah` in `cw`x`ch` (left, top, right, bottom).
+fn fit(cw: i32, ch: i32, aw: u32, ah: u32) -> [i32; 4] {
+    let (aw, ah) = (aw as i64, ah as i64);
+    let (w, h) = if cw as i64 * ah > ch as i64 * aw { ((ch as i64 * aw / ah) as i32, ch) } else { (cw, (cw as i64 * ah / aw) as i32) };
+    let (x, y) = ((cw - w) / 2, (ch - h) / 2);
+    [x, y, x + w, y + h]
+}
+
+const DEV_CREATE_ADDITIONAL_SWAP_CHAIN: usize = 13;
+const DEV_COLOR_FILL: usize = 35;
+const CHAIN_GET_BACK_BUFFER: usize = 5;
+const D3DTEXF_LINEAR: u32 = 2;
+
+/// The letterbox's swap chain (on its own window) for a device and window client size.
+struct Letterbox {
+    device: usize,
+    size: (i32, i32),
+    chain: usize,
+}
+
+static LETTERBOX: Mutex<Option<Letterbox>> = Mutex::new(None);
+static LETTERBOX_WINDOW: AtomicUsize = AtomicUsize::new(0);
+static LETTERBOX_FAILED: AtomicBool = AtomicBool::new(false);
+static LETTERBOX_STRETCH_LOGGED: AtomicBool = AtomicBool::new(false);
+
+/// `WAL_D3D9_ASPECT`: the back buffer (its `WAL_D3D9_SOURCE` part) scaled into the centered
+/// rectangle of that aspect of a swap chain the size of the game window's client area, black
+/// around, on a borderless topmost window over it. The swap chain to present, `None`
+/// without an aspect (or when it cannot be created: a `Present` destination rectangle then).
+unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
+    use windows_sys::Win32::Foundation::{POINT, RECT};
+    use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, SW_HIDE, ShowWindow};
+    let (aw, ah) = (*ASPECT.lock().unwrap())?;
+    if LETTERBOX_FAILED.load(Ordering::Relaxed) {
+        return None;
+    }
+    let hwnd = if window.is_null() { DEVICE_WINDOW.load(Ordering::Relaxed) as P } else { window };
+    let mut client = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    if hwnd.is_null() || unsafe { GetClientRect(hwnd, &mut client) } == 0 {
+        return None;
+    }
+    let (cw, ch) = (client.right - client.left, client.bottom - client.top);
+    if cw <= 0 || ch <= 0 {
+        return None;
+    }
+    let mut origin = POINT { x: 0, y: 0 };
+    unsafe { ClientToScreen(hwnd, &mut origin) };
+
+    let mut state = LETTERBOX.lock().unwrap();
+    if state.as_ref().is_some_and(|l| l.device != dev as usize || l.size != (cw, ch)) {
+        unsafe { release(state.take().unwrap().chain as P) };
+    }
+    let overlay = letterbox_window();
+    if overlay.is_null() {
+        LETTERBOX_FAILED.store(true, Ordering::Relaxed);
+        return None;
+    }
+    if state.is_none() {
+        // D3DPRESENT_PARAMETERS: the client size, discard, the letterbox window, windowed, no
+        // depth, presentation interval default
+        let mut params: [u32; 14] = [cw as u32, ch as u32, D3DFMT_X8R8G8B8, 1, 0, 0, 1, overlay as u32, 1, 0, 0, 0, 0, 0];
+        let create: unsafe extern "system" fn(P, *mut u32, *mut P) -> HRESULT = unsafe { std::mem::transmute(method(dev, DEV_CREATE_ADDITIONAL_SWAP_CHAIN)) };
+        let mut chain: P = std::ptr::null_mut();
+        let hr = unsafe { create(dev, params.as_mut_ptr(), &mut chain) };
+        let rect = fit(cw, ch, aw, ah);
+        log!("d3d9: letterbox {cw}x{ch} swap chain: {hr:#x}, picture {}x{} at {},{} ({aw}:{ah})", rect[2] - rect[0], rect[3] - rect[1], rect[0], rect[1]);
+        if hr < 0 || chain.is_null() {
+            LETTERBOX_FAILED.store(true, Ordering::Relaxed);
+            unsafe { ShowWindow(overlay, SW_HIDE) };
+            return None;
+        }
+        // the game's window stays shown under it: The Swarm stops drawing once its window is
+        // hidden
+        *state = Some(Letterbox { device: dev as usize, size: (cw, ch), chain: chain as usize });
+    }
+    let chain = state.as_ref().unwrap().chain as P;
+    drop(state);
+
+    let get_back: unsafe extern "system" fn(P, u32, u32, u32, *mut P) -> HRESULT = unsafe { std::mem::transmute(method(dev, DEV_GET_BACK_BUFFER)) };
+    let get_chain_back: unsafe extern "system" fn(P, u32, u32, *mut P) -> HRESULT = unsafe { std::mem::transmute(method(chain, CHAIN_GET_BACK_BUFFER)) };
+    let fill: unsafe extern "system" fn(P, P, *const i32, u32) -> HRESULT = unsafe { std::mem::transmute(method(dev, DEV_COLOR_FILL)) };
+    let stretch: unsafe extern "system" fn(P, P, *const i32, P, *const i32, u32) -> HRESULT = unsafe { std::mem::transmute(method(dev, DEV_STRETCH_RECT)) };
+    let (mut back, mut target): (P, P) = (std::ptr::null_mut(), std::ptr::null_mut());
+    if unsafe { get_back(dev, 0, 0, 0, &mut back) } < 0 || back.is_null() {
+        return None;
+    }
+    if unsafe { get_chain_back(chain, 0, 0, &mut target) } < 0 || target.is_null() {
+        unsafe { release(back) };
+        return None;
+    }
+    let mut source = [0i32; 4];
+    let src = source_rect(src, &mut source);
+    let rect = fit(cw, ch, aw, ah);
+    unsafe {
+        fill(dev, target, std::ptr::null(), 0xFF00_0000);
+        let hr = stretch(dev, back, src as *const i32, target, rect.as_ptr(), D3DTEXF_LINEAR);
+        if hr < 0 && !LETTERBOX_STRETCH_LOGGED.swap(true, Ordering::Relaxed) {
+            log!("d3d9: letterbox StretchRect failed: {hr:#x}");
+        }
+        release(back);
+        release(target);
+    }
+    letterbox_place(overlay, [origin.x, origin.y, cw, ch]);
+    Some(chain)
+}
+
+/// The letterbox's swap chain released (before a device `Reset`).
+fn letterbox_reset() {
+    if let Some(l) = LETTERBOX.lock().unwrap().take() {
+        unsafe { release(l.chain as P) };
+    }
+}
+
+/// The letterbox's borderless window (created once), its messages handled.
+fn letterbox_window() -> P {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, RegisterClassW, WNDCLASSW, WS_EX_NOACTIVATE,
+        WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+    };
+    let mut hwnd = LETTERBOX_WINDOW.load(Ordering::Relaxed) as P;
+    if hwnd.is_null() {
+        let class: Vec<u16> = "WalLetterbox\0".encode_utf16().collect();
+        let instance = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) };
+        let wc = WNDCLASSW {
+            style: 0,
+            lpfnWndProc: Some(DefWindowProcW),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
+            hInstance: instance,
+            hIcon: std::ptr::null_mut(),
+            hCursor: std::ptr::null_mut(),
+            hbrBackground: std::ptr::null_mut(),
+            lpszMenuName: std::ptr::null(),
+            lpszClassName: class.as_ptr(),
+        };
+        unsafe { RegisterClassW(&wc) };
+        let flags = WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+        hwnd = unsafe { CreateWindowExW(flags, class.as_ptr(), class.as_ptr(), WS_POPUP, 0, 0, 1, 1, std::ptr::null_mut(), std::ptr::null_mut(), instance, std::ptr::null()) };
+        log!("d3d9: letterbox window {hwnd:?}");
+        LETTERBOX_WINDOW.store(hwnd as usize, Ordering::Relaxed);
+    }
+    // it belongs to the game's render thread, which may have no message loop
+    let mut msg: MSG = unsafe { std::mem::zeroed() };
+    while !hwnd.is_null() && unsafe { PeekMessageW(&mut msg, hwnd, 0, 0, PM_REMOVE) } != 0 {
+        unsafe { DispatchMessageW(&msg) };
+    }
+    hwnd
+}
+
+/// Keeps the letterbox window shown over the game window's client area.
+fn letterbox_place(hwnd: P, [x, y, w, h]: [i32; 4]) {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetWindowRect, HWND_TOPMOST, IsWindowVisible, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetWindowPos};
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    unsafe { GetWindowRect(hwnd, &mut r) };
+    if unsafe { IsWindowVisible(hwnd) } != 0 && [r.left, r.top, r.right - r.left, r.bottom - r.top] == [x, y, w, h] {
+        return;
+    }
+    unsafe { SetWindowPos(hwnd, HWND_TOPMOST, x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW) };
 }
 
 /// `WAL_D3D9_SOURCE`: the back buffer rectangle presented, when the game gives none.

@@ -20,11 +20,27 @@ env:
   # Right (players 3/4) screen un-flipped, as EX: the composite shader's isInv_RV -> 0.0f
   # (1.05 build addresses).
   WAL_PATCHES: "0x4D4E34:302E306620202020,0x4D4E4C:2A20302E306620202020202D"
+  # The game draws both screens side by side in one 2720x768 back buffer (two 1360x768) and
+  # sizes its window to the screen: stretched to it, the picture was too tall. Presented to a
+  # centered 85:24 rectangle, black bars ("0": stretched; Batocera ES: KEEP ASPECT RATIO).
+  WAL_D3D9_ASPECT: "85:24"
+  WAL_KEEP_ASPECT_RATIO: "1"
 
 # The dump's init.ini disables JVS (6th line 0): coins never credited. EX's file, JVS on
 # (same settings otherwise).
 files:
   init.ini: systemprofiles/nesica/files/dariusburst-another-chronicle-ex/init.ini
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The game's wide picture (two 16:9 screens side by side) with its aspect kept, black
+          bars above and below. Off: stretched to the whole screen.
 
 # Control names (the GUI's mapping rows).
 controls:
