@@ -9,7 +9,7 @@ use wal_protocol::{Axis, StickState, button};
 use windows_sys::Win32::Foundation::{ERROR_BAD_ARGUMENTS, ERROR_DEVICE_NOT_CONNECTED, ERROR_INVALID_PARAMETER, HINSTANCE, HWND, LPARAM, LRESULT, TRUE, WPARAM};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleA;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
-use windows_sys::Win32::System::Registry::{HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, RegCreateKeyExW};
+use windows_sys::Win32::System::Registry::{HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ, RegCloseKey, RegCreateKeyExW, RegSetValueExW};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, GetCapture, ReleaseCapture, SetCapture, VK_RBUTTON};
 use windows_sys::Win32::UI::Input::XboxController::{XINPUT_CAPABILITIES, XINPUT_CAPS_VOICE_SUPPORTED, XINPUT_DEVTYPE_GAMEPAD, XINPUT_DEVSUBTYPE_GAMEPAD, XINPUT_GAMEPAD, XINPUT_STATE, XINPUT_VIBRATION};
 use windows_sys::Win32::UI::WindowsAndMessaging::{FindWindowA, GetForegroundWindow, GetSystemMetrics, GetWindowRect, ShowWindow, SM_CXSCREEN, SM_CYSCREEN, SWP_NOZORDER, SWP_NOSIZE, SW_MINIMIZE, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE};
@@ -92,6 +92,7 @@ pub(crate) fn init(name: &str) -> bool {
     hook_xinput();
     hook_game_explorer();
     hook_awl_registry();
+    force_english();
     configure_game();
     hook_windowing();
 
@@ -228,6 +229,23 @@ fn hook_awl_registry_module(awl: usize) -> bool {
     if let Some(original) = create { let _ = REG_CREATE_KEY_EX_W.compare_exchange(0, original, Ordering::Relaxed, Ordering::Relaxed); }
     if open.is_some() || create.is_some() { log!("guitarhero: AWL Aspyr HKLM key redirected to per-user registry"); }
     open.is_some() && create.is_some()
+}
+
+/// AWL reads the game language from the Aspyr key's `Language` value, else from the Windows UI
+/// language: on a French system the game then loads `pak/qb_f.pak.xen`, which the arcade data
+/// lacks (English only), and crashes on the missing pak.
+fn force_english() {
+    let mut key: HKEY = std::ptr::null_mut();
+    let mut disposition = 0u32;
+    if unsafe { RegCreateKeyExW(HKEY_CURRENT_USER, ASPYR_KEY.as_ptr(), 0, std::ptr::null(), REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, std::ptr::null(), &mut key, &mut disposition) } != 0 {
+        log!("guitarhero: cannot open the Aspyr key to set the language");
+        return;
+    }
+    let name: Vec<u16> = "Language\0".encode_utf16().collect();
+    let value: Vec<u16> = "en\0".encode_utf16().collect();
+    let result = unsafe { RegSetValueExW(key, name.as_ptr(), 0, REG_SZ, value.as_ptr().cast(), (value.len() * 2) as u32) };
+    unsafe { RegCloseKey(key) };
+    if result == 0 { log!("guitarhero: language forced to en"); } else { log!("guitarhero: cannot set the language ({result})"); }
 }
 
 fn configure_game() {

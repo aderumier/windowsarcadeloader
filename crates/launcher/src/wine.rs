@@ -149,6 +149,12 @@ impl Wine {
             ("DXVK_LOG_LEVEL".into(), "none".into()),
             ("VKD3D_DEBUG".into(), "none".into()),
             ("WINE_MONO_OVERRIDES".into(), "Microsoft.Xna.Framework.*,Gac=n".into()),
+            // the games were validated with a US locale: the user's own language changes their
+            // data (Guitar Hero loads a missing French pak, Rainbow Bomber Girl's CSV numbers
+            // need a "." decimal point). A UTF-8 one keeps non-ASCII file names. A profile's
+            // `env` can still set another locale.
+            ("LC_ALL".into(), "en_US.UTF-8".into()),
+            ("LANGUAGE".into(), "en_US".into()),
         ];
         if config.wow64 {
             wine.set_env("WINEARCH", "wow64");
