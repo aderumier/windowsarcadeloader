@@ -24,6 +24,11 @@
 //! A fire held when the front end ends is ignored until released (the stage selection shot
 //! would otherwise fire in game).
 //!
+//! The game draws 16:9 (`-width 1920 -height 1080`): on another screen shape its window is
+//! the screen (`WAL_WINDOW_SIZE=screen`) and the picture a centered 16:9 rectangle of it
+//! (`WAL_D3D9_ASPECT=16:9`, black bars; `WAL_KEEP_ASPECT_RATIO=0`: stretched). The aim (0..1 over the screen) is then mapped onto that
+//! rectangle ([`Letterbox`]).
+//!
 //! Stage changes (a run of the game per stage): `swarm_campaign.rs`. Imports the dump left
 //! unresolved (a Lua error crashed the game): `swarm_imports.rs`.
 //!
@@ -39,6 +44,7 @@ use wal_protocol::{Axis, StickState};
 use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
 use windows_sys::Win32::System::Memory::{CreateFileMappingW, FILE_MAP_ALL_ACCESS, MapViewOfFile, PAGE_READWRITE};
 use windows_sys::Win32::System::SystemInformation::GetTickCount;
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
 
 const NAME: &str = "Local\\SwarmPcInputV1";
 const SIZE: usize = 512;
@@ -139,9 +145,36 @@ fn aim(v: i16) -> f32 {
     (v as i32 + 32768) as f32 / 65535.0
 }
 
+/// The picture's place on the screen (fractions: x, y, width, height) with `WAL_D3D9_ASPECT`
+/// (not `WAL_KEEP_ASPECT_RATIO=0`), the window being the screen; else the whole screen.
+struct Letterbox([f32; 4]);
+
+impl Letterbox {
+    fn new() -> Self {
+        let aspect = wal_payload_common::screenshot::d3d9_aspect().map(|(w, h)| (w as f32, h as f32));
+        let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN) as f32, GetSystemMetrics(SM_CYSCREEN) as f32) };
+        let Some((aw, ah)) = aspect.filter(|&(w, h)| w > 0.0 && h > 0.0 && sw > 0.0 && sh > 0.0) else {
+            return Letterbox([0.0, 0.0, 1.0, 1.0]);
+        };
+        // the largest centered rectangle of that aspect (as the d3d9 shim's)
+        let (w, h) = if sw * ah > sh * aw { (sh * aw / ah / sw, 1.0) } else { (1.0, sw * ah / aw / sh) };
+        log!("swarm: aim mapped onto the {aw}:{ah} picture, {w:.3}x{h:.3} of the {sw}x{sh} screen");
+        Letterbox([(1.0 - w) / 2.0, (1.0 - h) / 2.0, w, h])
+    }
+
+    /// Screen aim -> picture aim (0..1, held at the picture's edges).
+    fn map(&self, s: &StickState) -> (f32, f32) {
+        let [x, y, w, h] = self.0;
+        let px = (aim(s.axis(Axis::LeftX)) - x) / w;
+        let py = (aim(s.axis(Axis::LeftY)) - y) / h;
+        (px.clamp(0.0, 1.0), py.clamp(0.0, 1.0))
+    }
+}
+
 impl Adapter {
     fn run(mut self, shm: Shm) {
         let map = MAP.get().unwrap();
+        let letterbox = Letterbox::new();
         loop {
             let frontend = shm.int(84).load(Ordering::SeqCst) == 1;
             if frontend != self.frontend {
@@ -195,7 +228,7 @@ impl Adapter {
                 for p in 0..2 {
                     let fire = self.clicked[p] || self.fire_held[p];
                     self.clicked[p] = false;
-                    let (x, y) = (aim(sticks[p].axis(Axis::LeftX)), aim(sticks[p].axis(Axis::LeftY)));
+                    let (x, y) = letterbox.map(&sticks[p]);
                     self.pending.push(format!("scriptRun UI:PcFrontendAim({p},{x:.6},{y:.6},{fire})"));
                 }
             }
@@ -204,14 +237,15 @@ impl Adapter {
             shm.int(8).store(unsafe { GetTickCount() } as i32, Ordering::SeqCst);
             for p in 0..2 {
                 let off = 16 + 16 * p;
-                shm.float(off, aim(sticks[p].axis(Axis::LeftX)));
-                shm.float(off + 4, aim(sticks[p].axis(Axis::LeftY)));
+                let (x, y) = letterbox.map(&sticks[p]);
+                shm.float(off, x);
+                shm.float(off + 4, y);
                 shm.int(off + 8).store(bits[p] as i32, Ordering::SeqCst);
             }
             shm.int(4).store(1, Ordering::SeqCst);
             if trace() && self.traced.is_none_or(|t| t.elapsed() >= Duration::from_secs(1)) {
                 self.traced = Some(Instant::now());
-                let aim = |p: usize| (aim(sticks[p].axis(Axis::LeftX)), aim(sticks[p].axis(Axis::LeftY)));
+                let aim = |p: usize| letterbox.map(&sticks[p]);
                 log!("swarm: P1 {:.3?} {:#x}, P2 {:.3?} {:#x}", aim(0), bits[0], aim(1), bits[1]);
             }
             self.flush(shm);

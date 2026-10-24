@@ -29,7 +29,8 @@
 //! * `WAL_D3D9_ASPECT=<w>:<h>`: windowed devices present to the largest centered rectangle of
 //!   that aspect ratio in the window, black bars around. For games stretching a 4:3 picture over
 //!   a wide back buffer (Elevator Action: 1280x768), with `WAL_D3D9_WINDOWED_SIZE` and a
-//!   screen-sized window.
+//!   screen-sized window. `WAL_KEEP_ASPECT_RATIO=0` (Batocera ES's KEEP ASPECT RATIO off)
+//!   turns it off: the picture stretched to the whole window ([`d3d9_aspect`]).
 //! * `WAL_D3D9_SOURCE=<x>,<y>,<w>,<h>`: windowed devices present only that rectangle of the back
 //!   buffer (when the game gives none), scaled to the window. For games drawing a picture
 //!   letterboxed in their back buffer (Phantom Breaker: Another Code, 16:9 in 800x600).
@@ -260,10 +261,7 @@ pub fn init() {
     *FULLSCREEN_SIZE.lock().unwrap() = size;
     let windowed_size = parse_size("WAL_D3D9_WINDOWED_SIZE");
     *WINDOWED_SIZE.lock().unwrap() = windowed_size;
-    let aspect = std::env::var("WAL_D3D9_ASPECT").ok().and_then(|v| {
-        let (w, h) = v.split_once(':')?;
-        Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
-    });
+    let aspect = d3d9_aspect();
     *ASPECT.lock().unwrap() = aspect;
     let source = std::env::var("WAL_D3D9_SOURCE").ok().and_then(|v| {
         let n: Vec<i32> = v.split(',').filter_map(|c| c.trim().parse().ok()).collect();
@@ -944,6 +942,17 @@ unsafe fn show_device_window() {
 unsafe fn remember_window(params: P, focus: P) {
     let device_window = if params.is_null() { 0 } else { (unsafe { *(params as *const u32).add(7) }) as usize };
     DEVICE_WINDOW.store(if device_window != 0 { device_window } else { focus as usize }, Ordering::Relaxed);
+}
+
+/// `WAL_D3D9_ASPECT` (`<w>:<h>`), unless `WAL_KEEP_ASPECT_RATIO=0`: the aspect windowed
+/// devices present with (payloads mapping a pointer onto the picture use it too).
+pub fn d3d9_aspect() -> Option<(u32, u32)> {
+    if std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0") {
+        return None;
+    }
+    let v = std::env::var("WAL_D3D9_ASPECT").ok()?;
+    let (w, h) = v.split_once(':')?;
+    Some((w.trim().parse().ok()?, h.trim().parse().ok()?)).filter(|&(w, h)| w > 0 && h > 0)
 }
 
 /// `WAL_D3D9_ASPECT`: destination `rect` centered in the presentation window's client area

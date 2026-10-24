@@ -10,6 +10,14 @@ args: ["-windowed", "-width", "1920", "-height", "1080", "-logFull"]
 
 env:
   WAL_GLOBALVR_SWARM: "1"
+  # The game draws its 1920x1080 window: on a smaller screen (1600x1200) the window was larger
+  # than the screen, the picture cut. A borderless screen-sized window the 1920x1080 back
+  # buffer is stretched to (the aim follows); WAL_KEEP_ASPECT_RATIO "1": presented to a
+  # centered 16:9 rectangle instead, black bars (Batocera ES: KEEP ASPECT RATIO)
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_KEEP_ASPECT_RATIO: "0"
 
 input:
   # lightguns first, then mice
@@ -23,6 +31,17 @@ input:
 # start the game again (payload swarm_campaign.rs).
 files:
   The Swarm/data/ui/scripts/work/pc_start_mode.lua: systemprofiles/globalvr/files/the-swarm/pc_start_mode.lua
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The game's 16:9 picture with its aspect kept, black bars on a 4:3 or 16:10 screen.
+          Off: stretched to the whole screen.
 
 # Control names (the GUI's mapping rows).
 controls:
