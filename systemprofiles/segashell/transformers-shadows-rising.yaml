@@ -35,13 +35,19 @@ env:
   WAL_PATCHES: "0x17a380:B801000000C3,0x1e70e4:00"
   # (the payload is also loaded by the test menu program)
   WAL_PATCHES_EXE: Transformers2.exe
-  # native 1280x720 by default, lighter on small GPUs (its DefaultResolution() made to return
-  # "hdtv"; its command line resolution names are ignored), 1920x1080 with the option
+  # 1920x1080 by default, the cabinet's: at 1280x720 (the option off: its DefaultResolution()
+  # made to return "hdtv"; its command line resolution names are ignored) the stage select's
+  # panels and FREE PLAY are placed for 1080 lines (Wales off the bottom of the screen)
   WAL_SEGASHELL_DEFAULT_RESOLUTION: "0x2607f0"
-  WAL_SEGASHELL_FULLHD: "0"
+  WAL_SEGASHELL_FULLHD: "1"
+  # its window (a 1920x1080 popup) made the screen's size, its back buffer kept 1920x1080 (it
+  # takes the window's size): Direct3D stretches the picture to smaller screens (without it,
+  # cropped)
+  WAL_WINDOW_SIZE: screen
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
   # vsync and the launcher's 60 fps limit kept: without vsync it ran too fast on a Batocera
   # machine (60 frames per second all the same). At 1920x1080 an integrated GPU missed
-  # refreshes with vsync (~22 frames per second): the default 1280x720 holds 60.
+  # refreshes with vsync (~22 frames per second): 1280x720 holds 60.
   # test menu: TEST (F2) ends the game and starts the Shell (from the game's directory)
   WAL_SEGASHELL_TEST_MENU: ../shell/Shell.exe
   # the Shell: straight into its test menu after its start (state 1 returns 0x21 instead of 2:
@@ -61,4 +67,5 @@ options:
         kind: bool
         description: >-
           Render at 1920x1080, the cabinet's resolution. Off: 1280x720, lighter on small
-          GPUs (integrated graphics drop below 60 frames per second in stages at 1080p).
+          GPUs (integrated graphics drop below 60 frames per second in stages at 1080p), but
+          the stage select screen's panels go off the bottom of the screen.
