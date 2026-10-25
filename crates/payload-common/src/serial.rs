@@ -86,6 +86,8 @@ impl Device {
 
 static DEVICES: Mutex<Vec<&'static Device>> = Mutex::new(Vec::new());
 static HOOKED: AtomicBool = AtomicBool::new(false);
+/// The modules whose serial calls are already ours.
+static HOOKED_MODULES: Mutex<Vec<usize>> = Mutex::new(Vec::new());
 
 /// The device behind a fake handle.
 fn device(h: P) -> Option<&'static Device> {
@@ -140,8 +142,16 @@ fn install_device(device: Device, modules: &[usize]) {
 }
 
 /// Points the serial calls of the modules at `modules` at the emulated devices (each device's
-/// install hooks its own modules; a module hooked twice keeps the first originals).
+/// install hooks its own modules). A module already hooked is left alone: its entries may now
+/// be another hook's chaining to ours (Medal no Gunman: JVS, the RingEdge devices, then its
+/// COM1 board), which hooking it again would skip.
 fn hook_modules(modules: &[usize]) {
+    let modules: Vec<usize> = {
+        let mut hooked = HOOKED_MODULES.lock().unwrap();
+        let new: Vec<usize> = modules.iter().copied().filter(|m| !hooked.contains(m)).collect();
+        hooked.extend(&new);
+        new
+    };
     let hooks: [(&str, usize); COUNT] = [
         ("CreateFileA", create_file_a as *const () as usize),
         ("CreateFileW", create_file_w as *const () as usize),
@@ -164,7 +174,7 @@ fn hook_modules(modules: &[usize]) {
     ];
     let kernel32 = unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) };
     for (idx, (name, f)) in hooks.into_iter().enumerate() {
-        for &module in modules {
+        for &module in &modules {
             if let Some(o) = unsafe { iat::hook_module(module, "kernel32.dll", name, f) } {
                 // a later module's entry is already ours; the first original stays
                 if o != f {
