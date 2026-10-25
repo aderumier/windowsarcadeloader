@@ -411,35 +411,61 @@ pub extern "C" fn ac_io_hbhi_get_coin_input_wave_buffer(_out: *mut u8) -> bool {
     false
 }
 
-/// The card dispenser: none (every request fails).
-#[unsafe(no_mangle)]
-pub extern "C" fn ac_io_hbhi_req_carddispenser_init() -> bool {
-    false
+/// The card dispenser (Yu-Gi-Oh! Duel Terminal's: `set_dispenser`), else none (every request
+/// fails). Its requests finish at once: status 7, done and ready (init, payout: libio's state
+/// "ready"); the status request answers 3 (finished), its status 2 (ready).
+static DISPENSER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn set_dispenser() {
+    DISPENSER.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn dispenser() -> bool {
+    DISPENSER.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// A finished request's status: `value`.
+fn dispenser_done(status: *mut u32, value: u32) -> bool {
+    if !dispenser() {
+        return false;
+    }
+    if !status.is_null() {
+        unsafe { *status = value };
+    }
+    true
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_hbhi_req_carddispenser_init_isfinished(_status: *mut u32) -> bool {
-    false
+pub extern "C" fn ac_io_hbhi_req_carddispenser_init() -> bool {
+    dispenser()
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_req_carddispenser_init_isfinished(status: *mut u32) -> bool {
+    dispenser_done(status, 7)
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_hbhi_req_carddispenser_get_status() -> bool {
-    false
+    dispenser()
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_hbhi_req_carddispenser_get_status_isfinished(_status: *mut u32) -> bool {
-    false
+pub extern "C" fn ac_io_hbhi_req_carddispenser_get_status_isfinished(status: *mut u32) -> u32 {
+    if dispenser_done(status, 2) { 3 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_hbhi_req_carddispenser_disburse() -> bool {
-    false
+    if dispenser() {
+        wal_payload_common::log!("hbhi: a card dispensed");
+    }
+    dispenser()
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_hbhi_req_carddispenser_disburse_isfinished(_status: *mut u32) -> bool {
-    false
+pub extern "C" fn ac_io_hbhi_req_carddispenser_disburse_isfinished(status: *mut u32) -> bool {
+    dispenser_done(status, 7)
 }
 
 // The HDXS board (cabinet LEDs): not in this cabinet; its status is empty.

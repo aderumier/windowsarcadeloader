@@ -1,0 +1,53 @@
+# Yu-Gi-Oh! 5D's Duel Terminal 6 (Konami): contents/exe/game.exe (Direct3D 9), a card game
+# cabinet with a touch screen (Pentel), a camera reading the players' cards and a card
+# dispenser. The payload replaces libacio.dll (HBHI board, card dispenser, card reader).
+# Override values in userprofiles/konami/yugioh-duel-terminal-6.yaml.
+system: konami
+name: Yu-Gi-Oh! Duel Terminal 6
+
+env:
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+  # the cabinet's E: drive (E:\CONF\NVRAM, E:\CONF\RAW: settings, bookkeeping): the
+  # executable's folder
+  WAL_GAME_DRIVE: E
+  # the touch pointer: a small red dot where the mouse or gun points
+  WAL_KONAMI_CROSSHAIRS: "1"
+  WAL_KONAMI_CROSSHAIR_AXES: right-stick
+  WAL_KONAMI_CROSSHAIR_STYLE: disc
+  WAL_KONAMI_CROSSHAIR_SIZE: "1"
+  WAL_KONAMI_CROSSHAIR_COLOR: FF2020
+  WAL_KONAMI_CROSSHAIR_HIDE: "0"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_CROSSHAIRS
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun points (the touch position).
+      - key: WAL_KONAMI_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
+
+input:
+  # the game is played on the touch screen: the mouse (or a gun) touches it
+  guns_enabled: true
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b4
+
+controls:
+  b4: Touch the screen
+  rx: Touch position (x)
+  ry: Touch position (y)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

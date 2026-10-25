@@ -15,6 +15,7 @@
 //!   Metal Gear Arcade's `system.getmaster`, Winning Eleven 2008's services list;
 //! - `easrv/hck.rs`: Winning Eleven 2008's own modules (settings, its players' records, login);
 //! - `easrv/jmp.rs`: Hello! Pop'n Music's `game` module (Asphyxia CORE's popn-hello plugin);
+//! - `easrv/mdx.rs`: Dance Dance Revolution 2013's `game` module (bemaniutils' backend);
 //! - `easrv/cards.rs`: the card manager (cards, PINs: `dev/nvram/easrv/`);
 //! - `easrv/playerdata.rs`: the players' records (`playerdata.usergamedata_*`), per card;
 //! - anything else an empty answer.
@@ -56,6 +57,7 @@ mod cards;
 mod hck;
 mod jmp;
 pub mod kbin;
+mod mdx;
 mod playerdata;
 
 /// This server's services URL (`/` and `localhost` are refused by the game's e-Amusement
@@ -119,6 +121,11 @@ fn answer(model: &str, module: &str, method: &str, req: Option<&Node>) -> (Vec<u
         && let Some(answer) = hck::handle(module, method, req)
     {
         return (Node::new("response").child(answer).to_binary(), "HCK");
+    }
+    if model.starts_with("MDX")
+        && let Some(answer) = mdx::handle(module, method, req)
+    {
+        return (Node::new("response").child(answer).to_binary(), "MDX");
     }
     if model.starts_with("JMP")
         && let Some(answer) = jmp::handle(module, method, req)

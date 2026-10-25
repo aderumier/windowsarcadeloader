@@ -2,8 +2,8 @@
 
 /// A path argument, rewritten when it points to the redirected drive.
 pub struct Redirected<T> {
-    original: *const T,
-    replaced: Option<Vec<T>>,
+    pub(crate) original: *const T,
+    pub(crate) replaced: Option<Vec<T>>,
 }
 
 impl<T> Redirected<T> {

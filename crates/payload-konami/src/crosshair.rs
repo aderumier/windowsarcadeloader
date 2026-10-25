@@ -11,8 +11,9 @@
 //! - `WAL_KONAMI_CROSSHAIR_SIZE`: its size in percent of the screen height (6).
 //! - `WAL_KONAMI_CROSSHAIR_COLOR`: `RRGGBB`, every player's color instead of theirs.
 //! - `WAL_KONAMI_CROSSHAIR_AXES`: what it follows, `stick` (the left stick, the guns' aim:
-//!   default) or `pedals` (`accel` / `brake`, 0..32767 across the screen: the touch pointer of
-//!   Steel Chronicle Victroopers, whose sticks steer).
+//!   default), `pedals` (`accel` / `brake`, 0..32767 across the screen: the touch pointer of
+//!   Steel Chronicle Victroopers, whose sticks steer) or `right-stick` (`rx` / `ry`: the touch
+//!   pointer of the other touch screens, Yu-Gi-Oh! Duel Terminal 6).
 //! - `WAL_KONAMI_CROSSHAIR_HIDE`: seconds without moving before it hides (5; 0: never).
 //!
 //! Before each `Present` (payload-common's Direct3D 9 overlay) the crosshairs are drawn into the
@@ -42,10 +43,21 @@ fn idle() -> Option<Duration> {
     })
 }
 
-/// The aim follows `accel` / `brake` (`WAL_KONAMI_CROSSHAIR_AXES=pedals`).
-fn pedals() -> bool {
-    static PEDALS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *PEDALS.get_or_init(|| std::env::var("WAL_KONAMI_CROSSHAIR_AXES").is_ok_and(|v| v.trim() == "pedals"))
+/// What the aim follows (`WAL_KONAMI_CROSSHAIR_AXES`).
+#[derive(Clone, Copy, PartialEq)]
+enum Axes {
+    LeftStick,
+    Pedals,
+    RightStick,
+}
+
+fn axes() -> Axes {
+    static AXES: std::sync::OnceLock<Axes> = std::sync::OnceLock::new();
+    *AXES.get_or_init(|| match std::env::var("WAL_KONAMI_CROSSHAIR_AXES").as_deref().map(str::trim) {
+        Ok("pedals") => Axes::Pedals,
+        Ok("right-stick") => Axes::RightStick,
+        _ => Axes::LeftStick,
+    })
 }
 
 /// `WAL_KONAMI_CROSSHAIR_COLOR` (`RRGGBB`) as B, G, R.
@@ -377,12 +389,14 @@ fn aims(state: &mut State) -> [Option<(i16, i16)>; MAX_PLAYERS] {
     let mut shown = [None; MAX_PLAYERS];
     for (player, (last, moved)) in state.aims.iter_mut().enumerate() {
         let stick = wal_payload_common::input(player);
-        let aim = if pedals() {
-            // 0..32767 to the sticks' -32768..32767
-            let full = |v: i16| (v.max(0) as i32 * 2 - 32768).clamp(-32768, 32767) as i16;
-            (full(stick.axis(Axis::Accel)), full(stick.axis(Axis::Brake)))
-        } else {
-            (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY))
+        let aim = match axes() {
+            Axes::Pedals => {
+                // 0..32767 to the sticks' -32768..32767
+                let full = |v: i16| (v.max(0) as i32 * 2 - 32768).clamp(-32768, 32767) as i16;
+                (full(stick.axis(Axis::Accel)), full(stick.axis(Axis::Brake)))
+            }
+            Axes::RightStick => (stick.axis(Axis::RightX), stick.axis(Axis::RightY)),
+            Axes::LeftStick => (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY)),
         };
         if aim != *last {
             *last = aim;

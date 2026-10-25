@@ -99,6 +99,8 @@ mod crosshair;
 #[cfg(target_arch = "x86")]
 mod eamuse;
 #[cfg(target_arch = "x86")]
+mod ddr;
+#[cfg(target_arch = "x86")]
 mod deka;
 #[cfg(target_arch = "x86")]
 mod f24;
@@ -158,6 +160,8 @@ mod wartran;
 mod we2012;
 #[cfg(target_arch = "x86")]
 mod winning_eleven;
+#[cfg(target_arch = "x86")]
+mod ygo;
 #[cfg(target_arch = "x86_64")]
 mod bbg;
 #[cfg(target_arch = "x86_64")]
@@ -245,10 +249,16 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         let we12 = we2012::game_module();
         let popn = hpm::game_module();
         let mga = mga::game_module();
-        if jgt != 0 || we12 != 0 || popn != 0 || mga != 0 {
-            wal_payload_common::iat::set_game_module(jgt.max(we12).max(popn).max(mga));
+        let mdx = ddr::game_module();
+        if jgt != 0 || we12 != 0 || popn != 0 || mga != 0 || mdx != 0 {
+            wal_payload_common::iat::set_game_module(jgt.max(we12).max(popn).max(mga).max(mdx));
         }
         wal_payload_common::start("konami");
+        if mdx != 0 {
+            ddr::init(module, mdx);
+            log!("konami: P3IO board, card readers, foot and satellite light boards emulated (Dance Dance Revolution)");
+            return TRUE;
+        }
         if mga != 0 {
             mga::init(module);
             log!("konami: I36G cabinet and gun boards, gun aim and card reader emulated (Metal Gear Arcade)");
@@ -323,6 +333,9 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             td4::init(module);
             log!("konami: PJEI board, D44H wheel motor board and card reader emulated (Thrill Drive 4)");
             return TRUE;
+        }
+        if ygo::detected() {
+            ygo::init();
         }
         if winning_eleven::detected() {
             winning_eleven::init(module);

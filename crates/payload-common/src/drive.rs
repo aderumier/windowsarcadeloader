@@ -89,8 +89,37 @@ pub fn data_dir() -> String {
     String::from_utf16_lossy(&target().wide)
 }
 
+/// A folder of the drive's root that is the target folder itself (`D:\\jd6\\...` on a cabinet
+/// whose game is `D:\\jd6`): [`skip_folder`].
+static SKIP: OnceLock<String> = OnceLock::new();
+
+/// Paths in `folder` of the redirected drive's root land in the target folder itself, the
+/// folder name dropped (the dump is that folder's content).
+pub fn skip_folder(folder: &str) {
+    let _ = SKIP.set(folder.to_ascii_lowercase());
+}
+
+/// `path` (a redirected one, `target` its first `target_len` elements) without the skipped
+/// folder after the target.
+fn skip<T: Copy + Into<u32>>(mut r: Redirected<T>, target_len: usize) -> Redirected<T> {
+    let Some(folder) = SKIP.get() else { return r };
+    if let Some(v) = r.replaced.as_mut() {
+        let n = folder.len();
+        let rest = v.get(target_len + 1..target_len + 1 + n);
+        let sep = v.get(target_len + 1 + n).map(|c| (*c).into());
+        let matches = rest.is_some_and(|r| r.iter().zip(folder.bytes()).all(|(c, f)| {
+            let c: u32 = (*c).into();
+            c < 128 && (c as u8).to_ascii_lowercase() == f
+        }));
+        if matches && matches!(sep, Some(0x5c | 0x2f)) {
+            v.drain(target_len + 1..target_len + 2 + n);
+        }
+    }
+    r
+}
+
 fn ansi(p: *const u8) -> Redirected<u8> {
-    let r = unsafe { rewrite_drive(p, letter(), &target().ansi) };
+    let r = skip(unsafe { rewrite_drive(p, letter(), &target().ansi) }, target().ansi.len());
     match game_drive() {
         Some(g) if !r.is_replaced() => unsafe { rewrite_drive(p, g.letter, &g.ansi) },
         _ => r,
@@ -98,7 +127,7 @@ fn ansi(p: *const u8) -> Redirected<u8> {
 }
 
 fn wide(p: *const u16) -> Redirected<u16> {
-    let r = unsafe { rewrite_drive(p, letter(), &target().wide) };
+    let r = skip(unsafe { rewrite_drive(p, letter(), &target().wide) }, target().wide.len());
     match game_drive() {
         Some(g) if !r.is_replaced() => unsafe { rewrite_drive(p, g.letter, &g.wide) },
         _ => r,

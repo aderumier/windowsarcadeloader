@@ -8,7 +8,8 @@
 //!    calls kbt's `bt_get_ikey_status` through `GetModuleHandleA`).
 //! 1. AVS (`libavs-win32.dll`) booted with `prop/avs-config.xml`: file systems (`/dev/nvram`,
 //!    `/dev/raw`), threads, the log.
-//! 2. `libavs-win32-ea3.dll` and the game DLL loaded (its `libacio.dll` import: the payload).
+//! 2. `libavs-win32-ea3.dll` and the game DLL loaded (its `libacio.dll` import: the payload;
+//!    loaded after it when it has none).
 //! 3. The e-Amusement identity of `prop/eamuse-config.xml` (`ea3-config.xml` when there is one)
 //!    set in the AVS environment (`/env/profile/...`: security code, PCB id, soft id code).
 //! 4. `dll_entry_init(<model><dest><spec><rev><ext>, prop/app-config.xml's /param)`.
@@ -28,7 +29,7 @@
 //! (`http://127.0.0.1:33701/service/`, `/ea3/network/services`); `WAL_KONAMI_SERVICES=<url>`:
 //! at that server instead (an external e-Amusement server).
 //!
-//! AVS2 2.16.7 (32-bit, Steel Chronicle Victroopers) and 2.17 (64-bit, Bishi Bashi Channel: `avs2-core.dll`, `avs2-ea3.dll`, built as
+//! AVS 2.15.8 (Dance Dance Revolution 2013), AVS2 2.16.7 (32-bit, Steel Chronicle Victroopers) and 2.17 (64-bit, Bishi Bashi Channel: `avs2-core.dll`, `avs2-ea3.dll`, built as
 //! `wal-avs-boot64.exe`): its own export names, one heap, and a log writer `(chars, n, ctx)`.
 
 #![cfg_attr(not(windows), allow(dead_code))]
@@ -133,6 +134,8 @@ struct AvsNames {
     ea3: &'static str,
     /// `avs_boot` takes one heap (AVS 2.16+).
     one_heap: bool,
+    /// Its log writer is `(chars, n, ctx)` (AVS 2.14+; older: `(ctx, chars, n)`).
+    writer2: bool,
     boot: &'static str,
     shutdown: &'static str,
     read_query_memsize: &'static str,
@@ -151,6 +154,7 @@ const AVS_LEGACY: AvsNames = AvsNames {
     core: "libavs-win32.dll",
     ea3: "libavs-win32-ea3.dll",
     one_heap: false,
+    writer2: false,
     boot: "avs_boot",
     shutdown: "avs_shutdown",
     read_query_memsize: "property_read_query_memsize",
@@ -169,6 +173,7 @@ const AVS_2_13: AvsNames = AvsNames {
     core: "libavs-win32.dll",
     ea3: "libavs-win32-ea3.dll",
     one_heap: false,
+    writer2: false,
     boot: "XC058ba50000f4",
     shutdown: "XC058ba5000154",
     read_query_memsize: "XC058ba5000066",
@@ -183,11 +188,32 @@ const AVS_2_13: AvsNames = AvsNames {
     ea3_shutdown: "XEb552d5000060",
 };
 
+/// AVS 2.15.8 (Dance Dance Revolution 2013; spice2x's table for 2.15.8.0).
+const AVS_2_15_8: AvsNames = AvsNames {
+    core: "libavs-win32.dll",
+    ea3: "libavs-win32-ea3.dll",
+    one_heap: false,
+    writer2: true,
+    boot: "XCd229cc0000aa",
+    shutdown: "XCd229cc00001d",
+    read_query_memsize: "XCd229cc0000ff",
+    create: "XCd229cc000126",
+    insert_read: "XCd229cc00009a",
+    search: "XCd229cc00012e",
+    node_refer: "XCd229cc000009",
+    node_remove: "XCd229cc000028",
+    node_create: "XCd229cc00002c",
+    setenv: "XCd229cc000094",
+    ea3_boot: "XE592acd00008c",
+    ea3_shutdown: "XE592acd00005a",
+};
+
 /// AVS2 2.17 (Bishi Bashi Channel, 64-bit; spice2x's table for 2.17.0 / 2.17.3).
 const AVS_2_17: AvsNames = AvsNames {
     core: "avs2-core.dll",
     ea3: "avs2-ea3.dll",
     one_heap: true,
+    writer2: true,
     boot: "XCgsqzn0000129",
     shutdown: "XCgsqzn000012a",
     read_query_memsize: "XCgsqzn00000b0",
@@ -208,6 +234,7 @@ const AVS_2_16_7: AvsNames = AvsNames {
     core: "libavs-win32.dll",
     ea3: "libavs-win32-ea3.dll",
     one_heap: true,
+    writer2: true,
     boot: "XCnbrep7000129",
     shutdown: "XCnbrep700012a",
     read_query_memsize: "XCnbrep70000b0",
@@ -235,6 +262,8 @@ impl AvsNames {
             &AVS_LEGACY
         } else if unsafe { GetProcAddress(m, c"XCnbrep7000129".as_ptr().cast()) }.is_some() {
             &AVS_2_16_7
+        } else if unsafe { GetProcAddress(m, c"XCd229cc0000aa".as_ptr().cast()) }.is_some() {
+            &AVS_2_15_8
         } else {
             &AVS_2_13
         };
@@ -414,9 +443,10 @@ fn main() {
         unsafe { boot(config_node, heap1.as_mut_ptr().cast(), heap_size, std::ptr::null_mut(), log_writer2, std::ptr::null_mut()) };
     } else {
         let heap2 = Box::leak(vec![0u8; heap_size].into_boxed_slice());
-        let boot: unsafe extern "C" fn(*mut c_void, *mut c_void, usize, *mut c_void, usize, LogWriter, *mut c_void) =
+        let boot: unsafe extern "C" fn(*mut c_void, *mut c_void, usize, *mut c_void, usize, usize, *mut c_void) =
             unsafe { std::mem::transmute(avs.boot) };
-        unsafe { boot(config_node, heap1.as_mut_ptr().cast(), heap_size, heap2.as_mut_ptr().cast(), heap_size, log_writer, std::ptr::null_mut()) };
+        let writer = if names.writer2 { log_writer2 as *const () as usize } else { log_writer as *const () as usize };
+        unsafe { boot(config_node, heap1.as_mut_ptr().cast(), heap_size, heap2.as_mut_ptr().cast(), heap_size, writer, std::ptr::null_mut()) };
     }
 
     // 2. e-Amusement library, the game
@@ -424,6 +454,23 @@ fn main() {
     let ea3_boot: unsafe extern "C" fn(*mut c_void) = unsafe { std::mem::transmute(proc(ea3_dll, names.ea3, names.ea3_boot)) };
     let ea3_shutdown: unsafe extern "C" fn() = unsafe { std::mem::transmute(proc(ea3_dll, names.ea3, names.ea3_shutdown)) };
     let game_dll = load(&game);
+    // the payload (`libacio.dll` beside the game) loaded when the game DLL does not import it
+    // (Dance Dance Revolution's `mdxja_945.dll`: its I/O board is a USB device)
+    let payload = {
+        let mut buf = [0u8; 520];
+        let n = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleFileNameA(game_dll, buf.as_mut_ptr(), buf.len() as u32) } as usize;
+        let path = String::from_utf8_lossy(&buf[..n]).into_owned();
+        match path.rfind(['\\', '/']) {
+            Some(i) => format!("{}\\libacio.dll", &path[..i]),
+            None => "libacio.dll".to_string(),
+        }
+    };
+    if unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(c"libacio.dll".as_ptr().cast()) }.is_null()
+        && exists(&payload)
+    {
+        let _ = load(&payload);
+        eprintln!("wal-avs-boot: {payload} (the payload) loaded after {game}");
+    }
     // the AVS log kept (Metal Gear Arcade's launch.dll sends it elsewhere; spice2x's fix)
     if LOG.lock().unwrap().is_some() {
         for f in ["log_change_output", "log_change_level"] {
@@ -458,16 +505,19 @@ fn main() {
     if model.is_empty() {
         fail(&format!("{ea3_path}: no /ea3/soft/model"));
     }
-    let mut pcbid = avs.str(ea3, "/ea3/id/pcbid");
+    // the PCB and hardware ids: the profile's (`WAL_KONAMI_PCBID`, `WAL_KONAMI_HARDID`), else the
+    // dump's, else defaults
+    let env_id = |var: &str| std::env::var(var).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+    let mut pcbid = env_id("WAL_KONAMI_PCBID").unwrap_or_else(|| avs.str(ea3, "/ea3/id/pcbid"));
     if pcbid.is_empty() {
         pcbid = "01201000000000010101".into();
-        avs.set_str(ea3, "/ea3/id/pcbid", &pcbid);
     }
-    let mut hardid = avs.str(ea3, "/ea3/id/hardid");
+    avs.set_str(ea3, "/ea3/id/pcbid", &pcbid);
+    let mut hardid = env_id("WAL_KONAMI_HARDID").unwrap_or_else(|| avs.str(ea3, "/ea3/id/hardid"));
     if hardid.is_empty() {
         hardid = "0100DEADBEEF".into();
-        avs.set_str(ea3, "/ea3/id/hardid", &hardid);
     }
+    avs.set_str(ea3, "/ea3/id/hardid", &hardid);
     let mut softid = avs.str(ea3, "/ea3/id/softid");
     if softid.is_empty() {
         softid = "012199999999".into();

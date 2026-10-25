@@ -152,6 +152,29 @@ impl Node {
         self.value_text()
     }
 
+    /// An array of numbers (`u8`, `s16`, `u16`, `s32`, `u32`), big endian.
+    pub fn array(name: &str, kind_name: &str, values: &[i64]) -> Node {
+        let (kind, size) = match kind_name {
+            "s8" => (2, 1),
+            "u8" => (3, 1),
+            "s16" => (4, 2),
+            "u16" => (5, 2),
+            "s32" => (6, 4),
+            _ => (7, 4),
+        };
+        let raw = values.iter().flat_map(|&v| (v as u64).to_be_bytes()[8 - size..].to_vec()).collect();
+        Node { kind, array: true, raw, ..Node::new(name) }
+    }
+
+    /// Every element of a number value (an array's, or the single one).
+    pub fn ints(&self) -> Vec<i64> {
+        let Some((_, size, _)) = kind(self.kind) else { return Vec::new() };
+        if size == 0 {
+            return Vec::new();
+        }
+        self.raw.chunks(size).map(|c| Node { kind: self.kind, raw: c.to_vec(), ..Node::new("") }.int()).collect()
+    }
+
     /// A number value (the first element), or 0.
     pub fn int(&self) -> i64 {
         let Some((name, size, _)) = kind(self.kind) else { return 0 };

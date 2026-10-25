@@ -3,7 +3,8 @@
 //! Contra: Evolution, Wartran Troopers, Chase Chase Jokers, Lethal Enforcers 3, Cooper's 9,
 //! Castlevania: The Arcade, Silent Hill: The Arcade, Action Deka, Hyper Sports 2011 Remake,
 //! The Bishi Bashi, Thrill Drive 4: Crazy Streets, Hello! Pop'n Music, Rainbow Bomber Girl,
-//! Metal Gear Arcade, Steel Chronicle Victroopers).
+//! Metal Gear Arcade, Steel Chronicle Victroopers, Dance Dance Revolution 2013, Yu-Gi-Oh! 5D's
+//! Duel Terminal 6).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -108,6 +109,8 @@
 //! - `WAL_KONAMI_EASRV=1`: the loader's fake e-Amusement server (Steel Chronicle Victroopers,
 //!   Metal Gear Arcade, Winning Eleven 2008, Hello! Pop'n Music); `WAL_KONAMI_SERVICES=<url>`:
 //!   an external server's services URL instead (Winning Eleven 2008: its host)
+//! - wal-avs-boot: `WAL_KONAMI_PCBID`, `WAL_KONAMI_HARDID` the PCB and hardware ids in place of
+//!   the dump's; Dance Dance Revolution 2013: `WAL_KONAMI_DDR_SD=1` the SD cabinet
 //! - The e-Amusement cards (GUI window): `WAL_KONAMI_CARD_ID`, `WAL_KONAMI_CARD_PIN`; player
 //!   2's `WAL_KONAMI_CARD2_ID`, `WAL_KONAMI_CARD2_PIN` (Hello! Pop'n Music's second reader)
 //! - Steel Chronicle Victroopers: `WAL_KONAMI_FREEPLAY` free play (`1` default, `0` coins)

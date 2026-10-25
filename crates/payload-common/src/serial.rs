@@ -201,6 +201,12 @@ pub fn transact(h: P, packet: &[u8]) -> Option<Vec<u8>> {
     Some(reply)
 }
 
+/// The port of the emulated device behind the fake handle `h` (e.g. to answer its
+/// `DeviceIoControl` calls). `None`: not a device handle.
+pub fn port_of(h: P) -> Option<String> {
+    device(h).map(|d| d.port.clone())
+}
+
 /// Opens `ports` (comma separated) as silent devices: writes succeed, reads return nothing.
 /// A `!` prefix (`!COM3`) makes the port absent instead: opening it fails.
 /// Call after [`install`], which installs the hooks.

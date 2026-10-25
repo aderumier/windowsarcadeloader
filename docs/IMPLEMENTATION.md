@@ -2687,6 +2687,90 @@ names (`ibb.rs`; the UDP link between cabinets fails to open, the cabinet runs a
 - **Input.** The game's DirectInput keyboard (`data/xml/IBBconf.xml`'s debug keys) gets no
   device (`WAL_DINPUT_DISABLE=1`).
 
+#### Dance Dance Revolution 2013 (MDX)
+
+Dance Dance Revolution (2013, game code MDX, `MDX:J:A:A:2014032700`, Direct3D 9, 1280x720) is
+`modules/mdxja_945.dll` (the dump's `.windowsloader`), run by `wal-avs-boot.exe` (AVS 2.15.8:
+its `XCd229cc` export names, two heaps, the `(chars, n, ctx)` log writer). The dump also has
+`mdxja_hm65.dll`, the P4IO cabinets' build. 945 does not import `libacio.dll`: wal-avs-boot
+loads the payload from the game DLL's folder after it. The cabinet's boards (`ddr.rs`;
+spice2x's emulation is the reference):
+
+- **P3IO.** SetupAPI's P3IO classes (and P4IO's) answered with one device, `\\.\P3IO`
+  (description "Generic Monitor": the HD cabinet), opened as `\\.\P3IO\p3io`; the inputs by
+  `DeviceIoControl` (4 bytes, inverted), the commands as `AA <len> <data>` (`FF` escapes):
+  version `JDX`, watchdog, lights, security plugs, cabinet type HD, video frequency, coin
+  stock, and its serial port: an ACIO bus with the two card readers (ICCA, nodes 1-2) and
+  the HD panel's lights (HDXS, node 3). COM1 the pads' lights (FOOT, `11` answers), COM2 the
+  satellites (SATE, 7 `DDRS` ACIO nodes), COM3 the USB memory port ("not connected").
+- **P4IO** (hm65): `AA <cmd> <seq> <len>` commands, 64-byte answers, 16-byte inputs, the pads'
+  arrows from libacio's MDXF boards (`ac_io_mdxf_*`, a 16-entry ring per pad, the game's
+  `arkGetTickTime64`). spice2x's P4IO plugs are later DDRs': hm65's SECURITY fails; 945 is run.
+- **Security.** The plug's 32 data bytes: a 6-byte signature, then the game code in 6-bit ASCII
+  (`c - 0x20`, four per 24-bit little-endian word). spice2x's black plug is DDR X's
+  `GCJDXJAA` (libp3io logs `secplug:0 GCJDXJAA`): the payload signs `GCMDXJAA` with the game's
+  own function (rva 0x138310: key = table rva 0x1abe08 ^ code ^ (0x7f - i), the reversed plug
+  id; checked against spice2x's data first). SECURITY BAD 5-1505 remained: the boot check
+  (vtable 0x101f2fe0, rva 0x20c00) also needs the dongles, `kbt.dll`'s `bt_get_ikey_status`
+  (`kbt.rs`: both present).
+- `/env/profile` ids: `WAL_KONAMI_PCBID`, `WAL_KONAMI_HARDID` (wal-avs-boot) override the dump's.
+- **Codecs.** `k-clvsd.dll` and `xactengine2_10.dll` (movies, sounds) registered at start
+  (their `DllRegisterServer`, regsvr32's work).
+- **e-Amusement.** `WAL_KONAMI_EASRV=1` (the profile's default): the boot's NETWORK check
+  passes, the game runs online. The `game` module is bemaniutils' DDR 2013 backend
+  (`easrv/mdx.rs`): `common` (256 final event flags, 700 play counts), `shop`, `lock`,
+  `tax_info`, `new` / `load` / `save` (the dancer: name, area, play counts, experience, stars,
+  options, flags, groove radar, rivals by 8-digit code), `load_m` / `save_m` / `score` /
+  `trace` (best score, rank, combo type, the last five scores, the best play's steps),
+  `hiscore` / `area_hiscore`, `friend`, `load_daily`, `load_c` / `save_c`; kept in
+  `dev/nvram/easrv/<refid>/MDX.kbin`.
+- **Cards.** The game reads a reader's card (`0x131`) during the attract, inquires 4 s later,
+  its PIN screen 3 s after (15 s): the configured PIN is typed on the reader's keypad 10 s
+  after the read (numpad otherwise). A new card: the terms (menu left = yes, START), the
+  DANCER NAME grid (90 s). Headless: login, a new dancer, a song (`save_m`), the game's end
+  (`save`), reloaded at the next login.
+
+#### Yu-Gi-Oh! 5D's Duel Terminal 6
+
+Yu-Gi-Oh! 5D's Duel Terminal 6 (2011, US, Direct3D 9, 1280x1024) is `contents/exe/game.exe`
+(the dump's `.windowsloader`): a card game cabinet played on a touch screen, a camera reading
+the players' cards, a card dispenser. `libacio.dll` (HBHI board) is the payload (`ygo.rs`,
+detected by `libpenteltp.dll`).
+
+- **Drives.** The cabinet keeps the game in `D:\jd6`: D: is the dump root
+  (`WAL_KONAMI_DDRIVE`, `..\..` from the executable), `jd6` skipped (`drive::skip_folder`).
+  The AVS and media libraries (libavs, libgraph, libaep, libmv, sound, libamsd, ...) open their
+  data themselves: their file functions are redirected too, and Wine's DirectShow quartz and
+  winedmo (libmv's WMV previews). E: (`WAL_GAME_DRIVE`, settings `E:\CONF\NVRAM`) is the
+  executable's folder.
+- **Card dispenser.** The HBHI board's dispenser emulated (`hbhi::set_dispenser`): init and
+  disburse finish (status 7), a card is always taken.
+- **Touch panel.** Pentel, COM1, libpenteltp's protocol: the start command `81 02` answered with
+  the two status responses (`C1 03 00`, `C2 0E 00 00` + 10 bytes), then one 8-byte packet per
+  read until the stop command `82 02`: `82`, the touch flag (byte 1 bit 0), X and Y (14 bits,
+  7 per byte, low first). The touch: player 1's right stick over the screen (the mouse or a gun
+  drives `rx` / `ry`) and button 4, the 5:4 picture fitted in the screen.
+  The dump's libpenteltp has two jumps of `CPentelTPObserver::update` (rva 0x25db, 0x2629)
+  nopped: every packet after an untouched one was a touch edge whatever its flag and the
+  release edge never came (one touch filled both calibration targets, the touch check showed
+  nothing). The payload puts them back (bytes checked). Its poll parses one packet per call,
+  also after an empty read: hence one packet per read.
+- **Calibration.** A new cabinet stops at a notice until the panel is calibrated (test menu,
+  TOUCH PANEL CHECK, test + service held 5 s: two targets). The panel being exact here, the
+  game's calibration readers (rva 0x1b9b00 values, 0x1b9bf0 calibrated) jump to the payload's:
+  with none saved, the two targets (64, 80) and (1216, 944) touched dead on, calibrated. One
+  made in the test menu is used as is.
+- **Camera.** `libcamera.dll` (DirectShow, none here): its imports answered, one 640x480 RGB24
+  camera, blank pictures (no card under it).
+- **Touch pointer.** `WAL_KONAMI_CROSSHAIRS` (on by default): a small red dot where the mouse
+  points (`crosshair.rs`, `WAL_KONAMI_CROSSHAIR_AXES=right-stick`).
+- Headless: the attract, coins, mode select, Speed Duel's tutorial (a card dispensed, the duel).
+- **Status.** User: 100%. Limits: no card scanning (the camera's pictures are blank: modes
+  needing scanned cards untested); the dump lacks `data/sem0` (a few common sound effects fail
+  to open, error 3); a black frame where a mode preview clip loops. The previews (segments of
+  one WMV, seeked to) need the runner's winedmo.dll with GE patch 0103 (the WM reader's seek
+  reads the file while flushing), else they stay grey after the first.
+
 #### Hello! Pop'n Music (JMP)
 
 Hello! Pop'n Music (2011, game code JMP, `JMP:J:A:A:2014122500`, Direct3D 9, 1360x768) is
@@ -3366,6 +3450,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | `contents/modules/weac12_bootstrap_release.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.13 names, 30 MB heaps), region `WAL_KONAMI_DEST` (`A`: the product code `KCK-002` answered, English data); `libacio.dll` replaced: PJEI board, PS2 and PS3 pad ports, card reader; touch screen (serial panel, or the Japanese USB one and its COM1 LCD monitor) from the mouse |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | `contents/modules/bsch.dll` run by `wal-avs-boot64.exe` (§6.3h, AVS2 2.17, 64-bit); `libacio.dll` + `libacio_pix.dll` replaced: BMPU and PIX boards (4 players: R/G/B buttons, disks), card reader, LCD, kbt.dll answered; e-amusement off, network check skipped; exclusive WASAPI played shared |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | `launcher.exe` (§6.3h), `libacio.dll` replaced: HBHI board (3 players: red, green, blue, yellow buttons; player 3 on the analog channels), card reader, the libbms imports (BM-System offline); clock check skipped |
+| `dance-dance-revolution-2013` | Dance Dance Revolution 2013 | konami | works (headless), e-Amusement cards (loader's server) | `modules/mdxja_945.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.15.8), payload loaded after it: P3IO (inputs, ACIO card readers, lights), FOOT / SATE / USBMEM serial boards, security plug signed for MDX, kbt dongles, codecs registered; P4IO + MDXF for hm65 |
+| `yugioh-duel-terminal-6` | Yu-Gi-Oh! 5D's Duel Terminal 6 | konami | works (user: 100%) | `contents/exe/game.exe`, payload as libacio.dll: HBHI board + card dispenser, Pentel touch panel (COM1, libpenteltp's nopped edge jumps restored), default calibration, blank camera, red touch pointer |
 | `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%), e-Amusement cards for both players (loader's server) | `PMU/popn.dll` run by `wal-avs-boot.exe` (§6.3h, 30 MB heaps); `libacio.dll` replaced: HBHI board (2 players: OK, red, blue, yellow, green), a card reader per player (PIN typed); kbt.dll answered; DirectInput joystick config refused; e-AMUSEMENT option set with the server (`game` module as Asphyxia's plugin) |
 | `metal-gear-arcade` | Metal Gear Arcade | konami | works (user: 100%), gun, e-Amusement cards (loader's server), test menu | `game/launch.dll` run by `wal-avs-boot.exe` (§6.3h); `libacio.dll` replaced: I36G cabinet and gun boards, gun aim (COM1), card reader; fake e-Amusement server (cards: touch, PIN typed by the reader; player data), or offline (boot error taken as non-fatal); free play set in the dump; 3D (line-interleaved) still on by default, START toggles |
 | `steel-chronicle-victroopers` | Steel Chronicle Victroopers | konami | works (user: 100%), two flight sticks, touch screen (mouse or gun), e-Amusement cards (loader's server) | `arkkgg.dll` run by `wal-avs-boot.exe` (§6.3h, AVS2 2.16.7), `gamekgg.dll` the game; `libacio.dll` replaced: HBHI board (two flight sticks), card reader; touch screen (TwTouchDriver), LCD (COM1), TTC fonts split per face for Wine's GDI+, Japanese locale, settings marked calibrated, fake e-Amusement server (`WAL_KONAMI_EASRV`) |

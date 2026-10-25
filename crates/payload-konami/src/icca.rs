@@ -452,3 +452,21 @@ pub extern "C" fn ac_io_icca_get_keep_alive_error(_device: u32, error: *mut u32)
 pub extern "C" fn ac_io_icca_send_keep_alive_packet(_a: u32, _b: u32, _c: u32) -> i32 {
     0
 }
+
+/// The card in player `reader`'s reader (0: player 1, 1: player 2), for the boards that carry
+/// the readers themselves (Dance Dance Revolution's P3IO).
+pub(crate) fn reader_card(reader: usize) -> Option<[u8; 8]> {
+    if reader == 0 { inserted().then(card_id) } else { reader2_card() }
+}
+
+/// The digit down on player `reader`'s keypad (the numpad, or the configured PIN being typed).
+pub(crate) fn keypad_digit(reader: usize) -> Option<usize> {
+    keypad_key(reader)
+}
+
+/// Types player `reader`'s configured PIN from `delay` on, once (a reader whose PIN screen
+/// follows its card's read: Dance Dance Revolution's).
+pub(crate) fn type_pin(reader: usize, delay: std::time::Duration) {
+    PIN_ON_POLL.store(true, Ordering::Relaxed);
+    *PIN_FROM[reader].lock().unwrap() = (std::time::Instant::now() + delay).checked_sub(PIN_DELAY);
+}
