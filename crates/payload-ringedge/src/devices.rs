@@ -26,7 +26,8 @@
 //! The EEPROM's static record (amLib's system data record 0, written by the system at install,
 //! zero in a new `E2PROM.bin`) is written with `WAL_RINGEDGE_REGION` ([`write_static_record`]),
 //! the SRAM's credit settings record (record 7, made by the system menu) with
-//! `WAL_RINGEDGE_CREDIT_RECORD=1` ([`write_credit_record`]).
+//! `WAL_RINGEDGE_CREDIT_RECORD=1` ([`write_credit_record`]), the game's own settings (its test
+//! menu's, in the EEPROM) with `WAL_RINGEDGE_GAME_SETTINGS` ([`write_game_settings`]).
 //!
 //! Save folder: `WAL_RINGEDGE_SAVE` (default `sv`, relative to the game directory).
 //!
@@ -124,6 +125,7 @@ pub(crate) fn init() {
                 let _ = f.set_len(EEPROM_SIZE as u64);
             }
             write_static_record(&f);
+            write_game_settings(&f);
             *EEPROM.lock().unwrap() = Some(f);
         }
         Err(e) => log!("devices: cannot open {eeprom}: {e}"),
@@ -442,6 +444,56 @@ fn write_credit_record(mut f: &std::fs::File) {
         }
     }
     log!("devices: SRAM credit record written");
+}
+
+/// The game's test menu settings in the EEPROM (Dream Raiders: a record at 0x1000, its copy
+/// at 0x408 after it: CRC-32 of the next 0x404 bytes, the game id, then the settings, each
+/// `u8 type, u8 name length (with its NUL), name, value` (type 0: i32)).
+/// `WAL_RINGEDGE_GAME_SETTINGS=<name>=<value>,...` sets those integers at each boot (the cabinet
+/// settings of the profile: a test menu change of them does not last), in a valid record only:
+/// a new EEPROM gets the game's defaults on its first boot, the values on the next one.
+fn write_game_settings(mut f: &std::fs::File) {
+    const RECORDS: [u64; 2] = [0x1000, 0x1408];
+    const LEN: usize = 0x408;
+    let Ok(spec) = std::env::var("WAL_RINGEDGE_GAME_SETTINGS") else { return };
+    let settings: Vec<(&str, i32)> = spec
+        .split(',')
+        .filter_map(|s| {
+            let (name, value) = s.split_once('=')?;
+            Some((name.trim(), value.trim().parse().ok()?))
+        })
+        .collect();
+    let mut record = vec![0u8; LEN];
+    let valid = |r: &[u8]| u32::from_le_bytes(r[..4].try_into().unwrap()) == crc32(&r[4..]);
+    if !RECORDS.iter().any(|&at| f.seek(SeekFrom::Start(at)).is_ok() && f.read_exact(&mut record).is_ok() && valid(&record)) {
+        log!("devices: no valid game settings record in the EEPROM (first boot?)");
+        return;
+    }
+    let original = record.clone();
+    for (name, value) in &settings {
+        let mut key = vec![0u8, name.len() as u8 + 1];
+        key.extend_from_slice(name.as_bytes());
+        key.push(0);
+        match record[8..].windows(key.len()).position(|w| w == key.as_slice()) {
+            Some(i) if 8 + i + key.len() + 4 <= LEN => {
+                let at = 8 + i + key.len();
+                record[at..at + 4].copy_from_slice(&value.to_le_bytes());
+            }
+            _ => log!("devices: game setting {name} not in the EEPROM record"),
+        }
+    }
+    if record == original {
+        return;
+    }
+    let crc = crc32(&record[4..]);
+    record[..4].copy_from_slice(&crc.to_le_bytes());
+    for at in RECORDS {
+        if f.seek(SeekFrom::Start(at)).and_then(|_| f.write_all(&record)).is_err() {
+            log!("devices: cannot write the EEPROM's game settings");
+            return;
+        }
+    }
+    log!("devices: game settings written: {spec}");
 }
 
 /// CRC-32 (IEEE), amBackup's record checksum.

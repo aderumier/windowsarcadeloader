@@ -51,3 +51,14 @@ env:
   WAL_RINGEDGE_DS_FILE: SBXM_Table.dat
   # the test button (application 3): the game with T (its gametest.bat)
   WAL_RINGEDGE_FOREGROUND: "3=T"
+  # its test menu's game settings (the EEPROM): GAME ENTRY MODE INDEPENDENT (gentry 0: each
+  # player starts on their own, an energy bar each; 1 SHARE: one start seats both players),
+  # CONTINUATION ON (gct 1; SHARE forces it), SEAT MOTION DISABLE (ioseat 0: no motion seat)
+  WAL_RINGEDGE_GAME_SETTINGS: gentry=0,gct=1,ioseat=0
+  # a player's sight only once that player plays (an unused gun at the center showed player
+  # 2's sight all the time), whatever the player's status (+0x118ff60, 0x9c a player: 0 not
+  # playing, 1 playing, 3 game over) said: stubs in the int3 padding at +0x250600 skip a
+  # status 0 player. In game the sight drawer (+0x84720) asks +0x7e700 for its alpha (0: not
+  # drawn): its call answers 0; the dream selection draws the sight sprite (+0x84630, eax the
+  # player) directly: it returns at once.
+  WAL_PATCHES: "0x250600:8BC369C09C00000083B860FF58010074078BC3E9E8E0E2FF33C0C3,0x847b1:E84ABE1C009090,0x250620:5269D09C00000083BA60FF5801005A7501C383EC08576A00E9F93FE3FF,0x84630:E9EBBF1C0090"

@@ -5,7 +5,8 @@
 //! `/userdata/saves/<system>/<image name>`, the same save data).
 //!
 //! As root: kernel squashfs (loop) and overlayfs mounts. Else FUSE: squashfuse and
-//! fuse-overlayfs.
+//! fuse-overlayfs, the image's files shown as the user's (`squash_to_uid`/`gid`: files of
+//! another owner could not be copied up).
 
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -140,6 +141,9 @@ impl Mount {
         if fuse {
             run(Command::new("squashfuse").arg(&image).arg(&mount.lower))
                 .context("mounting the image (install squashfuse, or run as root)")?;
+            // the image's files as the user's: a non-root overlay cannot copy up a file of
+            // another owner (an image packed on a NAS, uid 1026: Dream Raiders' EEPROM)
+            let options = format!("{options},squash_to_uid={},squash_to_gid={}", unsafe { libc::getuid() }, unsafe { libc::getgid() });
             run(Command::new("fuse-overlayfs").arg("-o").arg(&options).arg(&mount.merged))
                 .context("mounting its overlay (install fuse-overlayfs, or run as root)")?;
         } else {
