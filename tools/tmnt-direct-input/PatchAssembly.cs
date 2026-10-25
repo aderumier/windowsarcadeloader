@@ -69,24 +69,33 @@ public static class PatchAssembly
             heightCall.Operand = module.ImportReference(heightHelper);
             updateJump.Body.MaxStackSize = Math.Max(updateJump.Body.MaxStackSize, 5);
 
-            // Developer shortcuts (I/K volume, J/L service/test, U/O navigation)
-            // collide with the launcher's player keyboard bindings. Both menus must
-            // use IOManager exclusively, including the input-test indicators.
-            foreach (string menuName in new[] { "TestInputManager", "TestInputMenuManager" })
+            // The game's input comes from IOManager alone: real keyboard, mouse buttons
+            // and joysticks read through UnityEngine.Input read as released. Developer
+            // shortcuts (test menus: I/K volume, J/L service/test, U/O navigation; level
+            // select: W starts a level) collide with the launcher's player keys.
+            foreach (TypeDefinition type in module.GetTypes())
             {
-                MethodDefinition menuUpdate = module.GetType(menuName).Methods.Single(m => m.Name == "Update");
-                ILProcessor menuIl = menuUpdate.Body.GetILProcessor();
-                foreach (Instruction instruction in menuUpdate.Body.Instructions.ToArray())
+                foreach (MethodDefinition method in type.Methods)
                 {
-                    MethodReference call = instruction.Operand as MethodReference;
-                    if (instruction.OpCode != OpCodes.Call || call == null ||
-                        call.DeclaringType.FullName != "UnityEngine.Input" ||
-                        (call.Name != "GetKey" && call.Name != "GetKeyDown"))
+                    if (!method.HasBody)
                         continue;
-                    // Consume the key argument and return false, preserving branch targets.
-                    instruction.OpCode = OpCodes.Pop;
-                    instruction.Operand = null;
-                    menuIl.InsertAfter(instruction, Instruction.Create(OpCodes.Ldc_I4_0));
+                    ILProcessor methodIl = method.Body.GetILProcessor();
+                    foreach (Instruction instruction in method.Body.Instructions.ToArray())
+                    {
+                        MethodReference call = instruction.Operand as MethodReference;
+                        if (instruction.OpCode != OpCodes.Call || call == null ||
+                            call.DeclaringType.FullName != "UnityEngine.Input" ||
+                            call.Parameters.Count != 1 || !IsRealInput(call.Name))
+                            continue;
+                        // Consume the key/button/axis argument and return false or 0,
+                        // preserving branch targets.
+                        bool axis = call.ReturnType.FullName == "System.Single";
+                        instruction.OpCode = OpCodes.Pop;
+                        instruction.Operand = null;
+                        methodIl.InsertAfter(instruction, axis
+                            ? Instruction.Create(OpCodes.Ldc_R4, 0f)
+                            : Instruction.Create(OpCodes.Ldc_I4_0));
+                    }
                 }
             }
 
@@ -117,5 +126,13 @@ public static class PatchAssembly
         }
         Console.WriteLine("patched direct launcher input into " + target);
         return 0;
+    }
+
+    private static bool IsRealInput(string name)
+    {
+        return name == "GetKey" || name == "GetKeyDown" || name == "GetKeyUp" ||
+               name == "GetButton" || name == "GetButtonDown" || name == "GetButtonUp" ||
+               name == "GetMouseButton" || name == "GetMouseButtonDown" || name == "GetMouseButtonUp" ||
+               name == "GetAxis" || name == "GetAxisRaw";
     }
 }

@@ -4,7 +4,8 @@
 //!
 //! Most games read their JAMMA USB I/O board (HID) themselves and import no driver DLL to
 //! replace: the payload is started with the game through `wal-loader`. TMNT reads the common
-//! input socket in its patched Unity poll; Guitar Hero Arcade feeds the game's internal guitar
+//! input socket in its patched Unity poll (`WAL.DirectInput.dll`, built from
+//! `tools/tmnt-direct-input/InputBridge.cs`); Guitar Hero Arcade feeds the game's internal guitar
 //! state from that same input stream.
 //!
 //! Payload options (profile `env`):
@@ -45,9 +46,10 @@ impl System for RawThrills {
     }
 
     fn payloads64(&self) -> Option<&'static [Payload]> {
-        // TMNT's patched Unity IOManager reads the launcher's input socket directly; it needs
-        // no architecture-specific Raw Thrills board payload.
-        Some(&[])
+        // TMNT (the only 64-bit game): its patched Unity IOManager calls this managed input
+        // bridge, which reads the launcher's input socket. The launcher's copy replaces the
+        // dump's, so a dump patched with an older bridge gets the current one.
+        Some(&[Payload { file: "WAL.DirectInput.dll", install_as: "TMNT_Data/Managed/WAL.DirectInput.dll" }])
     }
 
     fn hidden(&self) -> &'static [&'static str] {

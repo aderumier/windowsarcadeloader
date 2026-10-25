@@ -25,5 +25,8 @@ install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_nesica.dll" dist/payload
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_arcadepc.dll" dist/payloads/wal_arcadepc.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_konami.dll" dist/payloads/wal_konami64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-avs-boot.exe" dist/payloads/wal-avs-boot64.exe
+# TMNT's managed input bridge (Mono's C# compiler, .NET 2.0 profile as the game's Unity)
+mcs -target:library -sdk:2 -out:dist/payloads/WAL.DirectInput.dll.tmp tools/tmnt-direct-input/InputBridge.cs
+mv -f dist/payloads/WAL.DirectInput.dll.tmp dist/payloads/WAL.DirectInput.dll
 echo "built: dist/arcade-launcher dist/payloads/"
 ls dist/payloads

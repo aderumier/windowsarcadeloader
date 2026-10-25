@@ -17,17 +17,16 @@ namespace WALDirect
         private static FieldInfo switchCountLastField;
         private static FieldInfo inputTimeField;
         private static PropertyInfo deltaTimeProperty;
-        private static MethodInfo getKeyMethod;
-        private static object volumeUpKey;
-        private static object volumeDownKey;
+        private static uint volumeUpMask = uint.MaxValue;
+        private static uint volumeDownMask;
         private static readonly bool[] switchStates = new bool[50];
         private static readonly uint[] switchCounts = new uint[50];
         private static bool switchStateInitialized;
         private static readonly int[] combinedRoots = { 4, 10, 15, 20, 25, 30, 35, 40, 45 };
 
         // Pawn.UpdateJump expects true only when the pawn has landed. The bundled
-        // TeknoParrot implementation delegates this calculation to its host process;
-        // without that host it leaves height/velocity unchanged and returns false.
+        // plugin delegates this calculation to its host process; without that host
+        // it leaves height/velocity unchanged and returns false.
         public static bool GetNewHeight(ref float baseOffset, ref float velocity,
                                         float deltaTime, bool gravityOn, float gravity)
         {
@@ -51,6 +50,7 @@ namespace WALDirect
                 worker.IsBackground = true;
                 worker.Name = "WAL direct input client";
                 worker.Start();
+                ReleaseRealKeyboard();
             }
 
             if (inputDataField == null)
@@ -72,15 +72,17 @@ namespace WALDirect
                 uint buttons = ReadU32(current, offset);
                 short lx = ReadI16(current, offset + 4);
                 short ly = ReadI16(current, offset + 6);
+                // GameInput: each control is P0 (combined) followed by P1..P4, and a
+                // pawn reads root + its 1-based controller index.
                 int p = player + 1;
                 pressed[10 + p] = (buttons & (1u << 12)) != 0;
-                pressed[14 + p] = (buttons & 1u) != 0 || ly < -12000;
-                pressed[19 + p] = (buttons & 2u) != 0 || ly > 12000;
-                pressed[24 + p] = (buttons & 4u) != 0 || lx < -12000;
-                pressed[29 + p] = (buttons & 8u) != 0 || lx > 12000;
-                pressed[34 + p] = (buttons & (1u << 4)) != 0;
-                pressed[39 + p] = (buttons & (1u << 5)) != 0;
-                pressed[44 + p] = (buttons & (1u << 6)) != 0;
+                pressed[15 + p] = (buttons & 1u) != 0 || ly < -12000;
+                pressed[20 + p] = (buttons & 2u) != 0 || ly > 12000;
+                pressed[25 + p] = (buttons & 4u) != 0 || lx < -12000;
+                pressed[30 + p] = (buttons & 8u) != 0 || lx > 12000;
+                pressed[35 + p] = (buttons & (1u << 4)) != 0;
+                pressed[40 + p] = (buttons & (1u << 5)) != 0;
+                pressed[45 + p] = (buttons & (1u << 6)) != 0;
                 // Coin0 (index 4) is the game's shared/combined coin input. The four
                 // player coin inputs are Coin1..Coin4 at indices 5..8.
                 pressed[4 + p] = (buttons & (1u << 13)) != 0;
@@ -88,7 +90,7 @@ namespace WALDirect
             uint p1 = ReadU32(current, 0);
             pressed[0] = (p1 & (1u << 15)) != 0;
             pressed[1] = (p1 & (1u << 14)) != 0;
-            ReadVolumeKeys(pressed);
+            ReadVolumeButtons(p1, pressed);
 
             // These are the roots used by IOManager.CombinedInputs. Keep each root's
             // desired state equal to the OR of its five player inputs so the game's
@@ -152,6 +154,62 @@ namespace WALDirect
             }
         }
 
+        // Dumps patched before the game's own UnityEngine.Input reads were removed from
+        // Assembly-CSharp still read the real keyboard (level select: W starts a level).
+        // With the launcher's copy of this assembly, Unity's key wrappers read as released
+        // through the dump's Harmony; the game's input comes from the launcher only.
+        private static void ReleaseRealKeyboard()
+        {
+            try
+            {
+                Type harmony = null, harmonyMethod = null, input = null;
+                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    harmony = harmony ?? assembly.GetType("HarmonyLib.Harmony", false);
+                    harmonyMethod = harmonyMethod ?? assembly.GetType("HarmonyLib.HarmonyMethod", false);
+                    input = input ?? assembly.GetType("UnityEngine.Input", false);
+                }
+                if (harmony == null || harmonyMethod == null || input == null)
+                {
+                    Console.WriteLine("WAL TMNT: no Harmony, real keyboard not released");
+                    return;
+                }
+                object instance = Activator.CreateInstance(harmony, new object[] { "wal.directinput" });
+                MethodInfo patch = null;
+                foreach (MethodInfo method in harmony.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    ParameterInfo[] parameters = method.GetParameters();
+                    if (method.Name == "Patch" && parameters.Length >= 2 &&
+                        parameters[0].ParameterType == typeof(MethodBase) && parameters[1].ParameterType == harmonyMethod)
+                        patch = method;
+                }
+                if (patch == null)
+                    return;
+                object prefix = Activator.CreateInstance(harmonyMethod, new object[] { typeof(InputBridge).GetMethod("KeyReleased") });
+                foreach (MethodInfo key in input.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
+                    if ((key.Name != "GetKey" && key.Name != "GetKeyDown" && key.Name != "GetKeyUp") ||
+                        key.GetParameters().Length != 1)
+                        continue;
+                    object[] args = new object[patch.GetParameters().Length];
+                    args[0] = key;
+                    args[1] = prefix;
+                    patch.Invoke(instance, args);
+                }
+                Console.WriteLine("WAL TMNT: real keyboard released");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("WAL TMNT: real keyboard not released: " + e);
+            }
+        }
+
+        public static bool KeyReleased(ref bool __result)
+        {
+            __result = false;
+            return false;
+        }
+
         private static bool IsCombinedRoot(int input)
         {
             for (int i = 0; i < combinedRoots.Length; i++)
@@ -160,35 +218,43 @@ namespace WALDirect
             return false;
         }
 
-        private static void ReadVolumeKeys(bool[] pressed)
+        // Cabinet volume from the launcher's player 1 buttons named in WAL_MAP
+        // (`b7=volup,b8=voldown`), never from the real keyboard.
+        private static void ReadVolumeButtons(uint p1, bool[] pressed)
         {
-            if (getKeyMethod == null)
+            if (volumeUpMask == uint.MaxValue)
             {
-                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+                volumeUpMask = 0;
+                volumeDownMask = 0;
+                string map = Environment.GetEnvironmentVariable("WAL_MAP") ?? "";
+                foreach (string pair in map.Split(','))
                 {
-                    Type input = assembly.GetType("UnityEngine.Input", false);
-                    if (input == null)
+                    string[] parts = pair.Split('=');
+                    if (parts.Length != 2)
                         continue;
-                    foreach (MethodInfo method in input.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                    uint mask = ButtonMask(parts[0].Trim());
+                    foreach (string native in parts[1].Split('+'))
                     {
-                        ParameterInfo[] parameters = method.GetParameters();
-                        if (method.Name != "GetKey" || parameters.Length != 1 ||
-                            parameters[0].ParameterType.FullName != "UnityEngine.KeyCode")
-                            continue;
-                        getKeyMethod = method;
-                        volumeUpKey = Enum.Parse(parameters[0].ParameterType, "PageUp");
-                        volumeDownKey = Enum.Parse(parameters[0].ParameterType, "PageDown");
-                        break;
+                        string name = native.Trim().ToLowerInvariant();
+                        if (name == "volup")
+                            volumeUpMask |= mask;
+                        else if (name == "voldown")
+                            volumeDownMask |= mask;
                     }
-                    if (getKeyMethod != null)
-                        break;
                 }
             }
-            if (getKeyMethod != null)
-            {
-                pressed[2] = (bool)getKeyMethod.Invoke(null, new object[] { volumeUpKey });
-                pressed[3] = (bool)getKeyMethod.Invoke(null, new object[] { volumeDownKey });
-            }
+            pressed[2] = (p1 & volumeUpMask) != 0;
+            pressed[3] = (p1 & volumeDownMask) != 0;
+        }
+
+        private static uint ButtonMask(string name)
+        {
+            string[] names = { "up", "down", "left", "right", "b1", "b2", "b3", "b4", "b5", "b6", "b7", "b8",
+                               "start", "coin", "service", "test" };
+            for (int i = 0; i < names.Length; i++)
+                if (string.Equals(names[i], name, StringComparison.OrdinalIgnoreCase))
+                    return 1u << i;
+            return 0;
         }
 
         private static float DeltaTime()

@@ -3,10 +3,12 @@
 system: rawthrills
 name: Teenage Mutant Ninja Turtles
 
-# The patched IOManager reads the launcher's standard four-player input frame.
-# Cabinet volume: Page Up increases, Page Down decreases. The game's developer
-# keyboard shortcuts are disabled so they cannot overlap player controls.
-native_map: {}
+# The patched IOManager reads the launcher's standard four-player input frame and
+# nothing else: the game's keyboard, mouse and joystick reads are disabled.
+# Cabinet volume: player 1's b7 / b8 (keyboard C / V).
+native_map:
+  b7: volup
+  b8: voldown
 
 input:
   stick_as_dpad: false

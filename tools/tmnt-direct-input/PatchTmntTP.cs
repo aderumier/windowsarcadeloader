@@ -27,7 +27,7 @@ public static class PatchTmntTP
             TypeDefinition inputPatch = ioManager.NestedTypes.Single(t => t.Name == "UpdateInput_Unity");
             MethodDefinition poll = inputPatch.Methods.Single(m => m.Body != null && m.Body.Instructions.Any(i =>
                 i.OpCode.Code == Code.Switch));
-            // This Harmony postfix replays TeknoParrot's own switch mapping over the game's
+            // This Harmony postfix replays the plugin's own switch mapping over the game's
             // input counters after the launcher bridge runs. Leave it inert so the direct
             // bridge is the sole writer, using the Linuxloader TMNT switch indices.
             poll.Body.Instructions.Clear();
@@ -42,7 +42,7 @@ public static class PatchTmntTP
             File.Delete(temp);
         }
 
-        Console.WriteLine("disabled the TeknoParrot input counter writer in " + target);
+        Console.WriteLine("disabled the plugin's input counter writer in " + target);
         return 0;
     }
 
