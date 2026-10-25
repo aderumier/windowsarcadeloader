@@ -6,7 +6,7 @@
 //! its raw axes and buttons become gamepad ones, the game's gamepad mapping drives it. Force feedback outputs of the game go back to the player's devices:
 //! wheels through evdev (`ffb.rs`), gamepads as SDL rumble.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::{Duration, Instant};
 
@@ -21,6 +21,7 @@ use crate::config::Profile;
 use crate::ffb;
 use crate::guns::{self, PointerEvent};
 use crate::mapping::{self, DeviceState, Mapping, RawKey, Source};
+use crate::players;
 use crate::wheels::{self, Calibration, Wheels};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -58,6 +59,8 @@ pub struct Hub<'a> {
     handles: HashMap<u32, Handle>,
     wheels: HashMap<u32, ffb::Wheel>,
     rumbles: HashMap<u32, Rumble>,
+    /// The SDL devices read as wheels (always P1, with the first gamepad).
+    wheel_ids: HashSet<u32>,
     _sdl: sdl3::Sdl,
     gamepads: GamepadSubsystem,
     joysticks: JoystickSubsystem,
@@ -148,7 +151,7 @@ impl<'a> Hub<'a> {
         let joysticks = sdl.joystick().map_err(|e| anyhow::anyhow!("SDL joystick: {e}"))?;
         let pump = sdl.event_pump().map_err(|e| anyhow::anyhow!("SDL events: {e}"))?;
 
-        Ok(Hub {
+        let mut hub = Hub {
             config,
             gamepad_map,
             wheel_map,
@@ -159,6 +162,7 @@ impl<'a> Hub<'a> {
             handles: HashMap::new(),
             wheels: HashMap::new(),
             rumbles: HashMap::new(),
+            wheel_ids: HashSet::new(),
             _sdl: sdl,
             gamepads,
             joysticks,
@@ -169,7 +173,29 @@ impl<'a> Hub<'a> {
             ramped: [[0; Axis::COUNT]; MAX_PLAYERS],
             last_frame: Instant::now(),
             verbose: false,
-        })
+        };
+        hub.add_connected();
+        Ok(hub)
+    }
+
+    /// The devices connected at start, added in player order (`players.rs`); their
+    /// added events then do nothing, a device plugged later gets its player the same way.
+    fn add_connected(&mut self) {
+        let ids = match self.joysticks.joysticks() {
+            Ok(ids) => ids,
+            Err(e) => return eprintln!("input: SDL joysticks: {e}"),
+        };
+        let priority = players::load(&self.config.root).unwrap_or_else(|e| {
+            eprintln!("input: {e:#}");
+            players::Priority::new()
+        });
+        let devices: Vec<_> = ids
+            .iter()
+            .map(|id| players::Device { key: *id, guid: players::sdl_guid(id.raw()), path: players::sdl_path(id.raw()) })
+            .collect();
+        for id in players::order(&devices, &priority, &players::frontend_order()) {
+            self.add(id);
+        }
     }
 
     /// Processes pending events, waiting at most `timeout`.
@@ -285,10 +311,17 @@ impl<'a> Hub<'a> {
         }
     }
 
-    fn free_player(&self) -> usize {
-        (0..MAX_PLAYERS)
-            .find(|p| !self.devices.iter().any(|(k, d)| matches!(k, DevKey::Sdl(_)) && d.player == *p))
-            .unwrap_or(MAX_PLAYERS)
+    /// The player of a new SDL device (`players::next_player`).
+    fn free_player(&self, wheel: bool) -> usize {
+        let taken: Vec<_> = self
+            .devices
+            .iter()
+            .filter_map(|(k, d)| match k {
+                DevKey::Sdl(id) => Some((d.player, self.wheel_ids.contains(id))),
+                _ => None,
+            })
+            .collect();
+        players::next_player(wheel, &taken)
     }
 
     fn add(&mut self, id: JoystickId) {
@@ -304,7 +337,6 @@ impl<'a> Hub<'a> {
         let dev_cfg = self.config.input.devices.iter().find(|(m, _)| lower.contains(&m.to_ascii_lowercase()));
         let dev_name = dev_cfg.map(|(m, _)| m.clone()).unwrap_or_default();
         let dev_cfg = dev_cfg.map(|(_, d)| d);
-        let player = dev_cfg.and_then(|d| d.player).map(|p| p.saturating_sub(1)).unwrap_or_else(|| self.free_player());
         // a calibrated wheel (by its joystick name: SDL may know it as a gamepad under another),
         // unless the game maps the device itself
         let joy_name = {
@@ -346,6 +378,9 @@ impl<'a> Hub<'a> {
             }
         };
 
+        // a wheel is P1, the first gamepad (SDL does not know it as a wheel) joins it
+        let wheel = !matches!(handle, Handle::Pad(_)) || players::sdl_is_wheel(raw_id);
+        let player = dev_cfg.and_then(|d| d.player).map(|p| p.saturating_sub(1)).unwrap_or_else(|| self.free_player(wheel));
         let mut state = DeviceState::new(player, mapping);
         match &handle {
             // pedals rest at a non zero position: read the initial axes
@@ -370,16 +405,16 @@ impl<'a> Hub<'a> {
             Handle::Joy(_) => "joystick",
             Handle::Wheel(..) => "calibrated wheel (as a gamepad)",
         };
-        eprintln!("input: {kind} '{name}' -> player {}", player + 1);
+        let path = players::sdl_path(raw_id).unwrap_or_default();
+        eprintln!("input: {kind} '{name}' ({path}, {}) -> player {}", players::sdl_guid(raw_id), player + 1);
         if self.config.input.ffb.enabled {
             // the device's evdev node: a wheel when it supports a constant force
-            let path = unsafe { sdl3::sys::joystick::SDL_GetJoystickPathForID(sdl3::sys::joystick::SDL_JoystickID(raw_id)) };
-            if !path.is_null() {
-                let path = unsafe { std::ffi::CStr::from_ptr(path) }.to_string_lossy().into_owned();
-                if let Some(wheel) = ffb::Wheel::open(&path, &self.config.input.ffb) {
-                    self.wheels.insert(raw_id, wheel);
-                }
+            if let Some(wheel) = (!path.is_empty()).then(|| ffb::Wheel::open(&path, &self.config.input.ffb)).flatten() {
+                self.wheels.insert(raw_id, wheel);
             }
+        }
+        if wheel {
+            self.wheel_ids.insert(raw_id);
         }
         self.devices.insert(DevKey::Sdl(raw_id), state);
         self.handles.insert(raw_id, handle);
@@ -390,6 +425,7 @@ impl<'a> Hub<'a> {
             self.devices.remove(&DevKey::Sdl(id.raw()));
             self.wheels.remove(&id.raw());
             self.rumbles.remove(&id.raw());
+            self.wheel_ids.remove(&id.raw());
             eprintln!("input: device {} removed", id.raw());
         }
     }

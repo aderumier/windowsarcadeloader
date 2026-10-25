@@ -13,14 +13,16 @@ use sdl3::joystick::Joystick;
 use crate::guns;
 use crate::input;
 use crate::mapping::RawKey;
+use crate::players;
 
 pub enum InputEvent {
     /// The number of keyboards read (0: no access to /dev/input).
     Keyboards(usize),
     /// evdev key code, pressed.
     Key(u16, bool),
-    /// A device connected: SDL id, name, SDL knows it as a gamepad, its axes at rest.
-    Added { id: u32, name: String, is_pad: bool, axes: Vec<i32> },
+    /// A device connected: SDL id, name, SDL GUID, evdev node, SDL knows it as a gamepad, as a
+    /// wheel, its axes at rest.
+    Added { id: u32, name: String, guid: String, path: Option<String>, is_pad: bool, is_wheel: bool, axes: Vec<i32> },
     Removed(u32),
     /// Any gamepad (SDL positional names of the profiles).
     PadButton { id: u32, name: &'static str, down: bool },
@@ -118,7 +120,15 @@ fn read_sdl(tx: &Sender<InputEvent>, wake: &impl Fn()) -> Result<(), String> {
                     };
                     let is_pad = matches!(handle, Handle::Pad(..));
                     handles.insert(id, handle);
-                    InputEvent::Added { id, name, is_pad, axes }
+                    InputEvent::Added {
+                        id,
+                        name,
+                        guid: players::sdl_guid(id),
+                        path: players::sdl_path(id),
+                        is_pad,
+                        is_wheel: players::sdl_is_wheel(id),
+                        axes,
+                    }
                 }
                 Event::JoyDeviceRemoved { which, .. } => {
                     handles.remove(&which.raw());

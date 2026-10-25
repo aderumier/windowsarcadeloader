@@ -23,6 +23,7 @@ use crate::squashfs::{self, DumpFile};
 use crate::mapping::RawKey;
 use crate::eamuse_card;
 use crate::nesica_card::{self, Card};
+use crate::players::{self, Priority};
 use crate::wheels::{self, Calibration, Wheels};
 use bindings::{Captured, Device, Row, RowKind};
 use calibration::{Step, Wizard};
@@ -101,7 +102,12 @@ impl Tab {
 /// A connected SDL device.
 struct Connected {
     name: String,
+    guid: String,
+    /// evdev node (the frontend's player order).
+    path: Option<String>,
     is_pad: bool,
+    /// SDL knows it as a wheel.
+    is_wheel: bool,
     axes: Vec<i32>,
 }
 
@@ -224,6 +230,10 @@ struct App {
     show_eamuse: bool,
     eamuse: eamuse_card::Card,
     eamuse_saved: Option<eamuse_card::Card>,
+    /// The players window (`players.rs`): the priority list and its selected entry.
+    show_players: bool,
+    priority: Priority,
+    priority_selected: Option<usize>,
 }
 
 impl App {
@@ -261,6 +271,10 @@ impl App {
             status = format!("{e:#}");
             None
         });
+        let priority = players::load(&root).unwrap_or_else(|e| {
+            status = format!("{e:#}");
+            Priority::new()
+        });
         let eamuse = eamuse_saved.clone().unwrap_or_else(|| eamuse_card::Card { card_id: eamuse_card::DEFAULT_ID.into(), ..Default::default() });
         App {
             root,
@@ -295,6 +309,9 @@ impl App {
             show_eamuse: false,
             eamuse,
             eamuse_saved,
+            show_players: false,
+            priority,
+            priority_selected: None,
         }
     }
 
@@ -474,8 +491,8 @@ impl App {
             }
             match ev {
                 InputEvent::Keyboards(n) => self.keyboards = Some(n),
-                InputEvent::Added { id, name, is_pad, axes } => {
-                    self.devices.insert(id, Connected { name, is_pad, axes });
+                InputEvent::Added { id, name, guid, path, is_pad, is_wheel, axes } => {
+                    self.devices.insert(id, Connected { name, guid, path, is_pad, is_wheel, axes });
                 }
                 InputEvent::Removed(id) => {
                     self.devices.remove(&id);
@@ -1395,6 +1412,136 @@ impl App {
         }
     }
 
+    fn players_window(&mut self, ctx: &egui::Context) {
+        if !self.show_players {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("🎮 Players").open(&mut open).default_width(560.0).show(ctx, |ui| self.players_ui(ui));
+        if !open {
+            self.show_players = false;
+        }
+    }
+
+    fn save_priority(&mut self) {
+        self.status = match players::save(&self.root, &self.priority) {
+            Ok(()) => "saved the player priority".into(),
+            Err(e) => format!("{e:#}"),
+        };
+    }
+
+    fn players_ui(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            "By default the players follow the frontend's order (Batocera's controller settings). \
+             The connected devices of this list go first, in its order: P1, P2... the others follow. \
+             Two identical gamepads (same id) take their entries in the frontend's order. \
+             A wheel is always P1, the first gamepad with it.",
+        );
+        ui.add_space(6.0);
+        ui.strong("Priority");
+        let connected = |guid: &str| self.devices.values().filter(|d| d.guid.eq_ignore_ascii_case(guid)).count();
+        let mut moved = None;
+        ui.horizontal(|ui| {
+            egui::Frame::group(ui.style()).show(ui, |ui| {
+                ui.set_min_width(400.0);
+                ui.vertical(|ui| {
+                    if self.priority.is_empty() {
+                        ui.weak("Empty: the frontend's order.");
+                    }
+                    for (i, pad) in self.priority.iter().enumerate() {
+                        // its rank among the entries of its id, against the devices of that id
+                        let rank = self.priority[..i].iter().filter(|p| p.guid.eq_ignore_ascii_case(&pad.guid)).count();
+                        let text = format!("{}. {}", i + 1, pad.name);
+                        let text = if rank < connected(&pad.guid) {
+                            egui::RichText::new(text)
+                        } else {
+                            egui::RichText::new(format!("{text} (not connected)")).weak()
+                        };
+                        let selected = self.priority_selected == Some(i);
+                        if ui.selectable_label(selected, text).on_hover_text(&pad.guid).clicked() {
+                            self.priority_selected = (!selected).then_some(i);
+                        }
+                    }
+                });
+            });
+            ui.vertical(|ui| {
+                let sel = self.priority_selected.filter(|i| *i < self.priority.len());
+                let n = self.priority.len();
+                if ui.add_enabled(sel.is_some_and(|i| i > 0), egui::Button::new("▲ Up")).clicked() {
+                    moved = sel.map(|i| (i, Some(i - 1)));
+                }
+                if ui.add_enabled(sel.is_some_and(|i| i + 1 < n), egui::Button::new("▼ Down")).clicked() {
+                    moved = sel.map(|i| (i, Some(i + 1)));
+                }
+                if ui.add_enabled(sel.is_some(), egui::Button::new("✖ Remove")).clicked() {
+                    moved = sel.map(|i| (i, None));
+                }
+            });
+        });
+        if let Some((i, to)) = moved {
+            let pad = self.priority.remove(i);
+            if let Some(to) = to {
+                self.priority.insert(to, pad);
+            }
+            self.priority_selected = to;
+            self.save_priority();
+        }
+
+        ui.add_space(8.0);
+        ui.strong("Connected");
+        if self.devices.is_empty() {
+            ui.weak("No gamepad connected.");
+        }
+        let mut add = None;
+        let mut seen: HashMap<String, usize> = HashMap::new();
+        for d in self.devices.values() {
+            let guid = d.guid.to_ascii_lowercase();
+            // the n-th device of its id is listed when its id has more than n entries
+            let nth = *seen.entry(guid.clone()).and_modify(|n| *n += 1).or_insert(0);
+            let listed = self.priority.iter().filter(|p| p.guid.eq_ignore_ascii_case(&guid)).count() > nth;
+            ui.horizontal(|ui| {
+                ui.label(&d.name).on_hover_text(&d.guid);
+                if !d.is_pad {
+                    ui.weak("(joystick)");
+                }
+                if listed {
+                    ui.weak("in the list");
+                } else if ui.button("➕ Add").clicked() {
+                    add = Some(players::Pad { guid: d.guid.clone(), name: d.name.clone() });
+                }
+            });
+        }
+        if let Some(pad) = add {
+            self.priority.push(pad);
+            self.save_priority();
+        }
+
+        ui.add_space(8.0);
+        ui.strong("Players in a game now");
+        let frontend = players::frontend_order();
+        let devices: Vec<_> = self
+            .devices
+            .iter()
+            .map(|(id, d)| players::Device { key: *id, guid: d.guid.clone(), path: d.path.clone() })
+            .collect();
+        if frontend.is_empty() {
+            ui.weak("(the frontend's order is unknown here: the others in their connection order)");
+        }
+        // as the launcher reads them: calibrated wheels, joysticks and SDL's wheels are wheels
+        let mut taken: Vec<(usize, bool)> = Vec::new();
+        let mut by_player: BTreeMap<usize, Vec<&str>> = BTreeMap::new();
+        for id in players::order(&devices, &self.priority, &frontend) {
+            let d = &self.devices[&id];
+            let wheel = d.is_wheel || !d.is_pad || self.calibration(id).is_some();
+            let p = players::next_player(wheel, &taken);
+            taken.push((p, wheel));
+            by_player.entry(p).or_default().push(&d.name);
+        }
+        for (p, names) in by_player {
+            ui.label(format!("P{}: {}", p + 1, names.join(" + ")));
+        }
+    }
+
     fn card_window(&mut self, ctx: &egui::Context) {
         if !self.show_card {
             return;
@@ -1753,6 +1900,8 @@ impl eframe::App for App {
                 ui.toggle_value(&mut self.show_log, "📄 Game log");
                 ui.toggle_value(&mut self.show_wheels, "🚗 Wheel calibration")
                     .on_hover_text("calibrate a wheel and its pedals: then read as a gamepad in every game");
+                ui.toggle_value(&mut self.show_players, "🎮 Players")
+                    .on_hover_text("which gamepad is player 1, 2...: a priority list over the frontend's order");
                 ui.toggle_value(&mut self.show_card, "🎫 NESiCA card")
                     .on_hover_text("your player card in every NESiCA game: player name and card id");
                 ui.toggle_value(&mut self.show_eamuse, "🎫 e-Amusement card")
@@ -1785,6 +1934,7 @@ impl eframe::App for App {
             });
         }
         self.wheels_window(ui.ctx());
+        self.players_window(ui.ctx());
         self.card_window(ui.ctx());
         self.eamuse_window(ui.ctx());
         egui::Panel::left("games").resizable(true).default_size(320.0).show(ui, |ui| self.game_list(ui));

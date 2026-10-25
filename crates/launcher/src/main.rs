@@ -15,6 +15,7 @@ mod input;
 mod mapping;
 mod eamuse_card;
 mod nesica_card;
+mod players;
 mod rundir;
 mod script;
 mod server;

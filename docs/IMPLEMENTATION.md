@@ -223,6 +223,14 @@ those profiles add `tricks: [d3dcompiler_47]`.
 * `Hub` (input.rs):
   * SDL3 runs on the main thread (`wait_event_timeout` 4 ms). `SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1`
     is required: the game window has the focus.
+  * Players (`players.rs`): the devices connected at start are added in player order, the ones
+    plugged later take the first free player. The order: the GUI's priority list
+    (`userprofiles/players.yaml`, SDL GUIDs, P1 first), then the frontend's order
+    (`WAL_PLAYER_PADS`: evdev nodes, P1 first, `;` separated, set by the Batocera generator from
+    ES's players), then SDL's. Devices sharing a GUID take its entries in the frontend's order.
+    A wheel (calibrated, SDL's wheel type, or a raw `input.devices` joystick) is always P1, the
+    first gamepad joins it there; the others (and a second wheel) take the first free player.
+    An `input.devices` entry's `player` wins.
   * Device add uses `JoyDeviceAdded` only (SDL also emits `GamepadAdded`). Gamepads known to SDL
     use `input.gamepad` (+ the device's `map` extras); other joysticks (wheels) are only opened
     if an `input.devices` entry matches their name, with raw sources. `raw: true` forces raw
