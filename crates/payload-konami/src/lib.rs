@@ -75,14 +75,17 @@
 //! The 64-bit build (`wal_konami64.dll`) is Bishi Bashi Channel's `libacio.dll` and
 //! `libacio_pix.dll` (`bsch.rs`: BMPU and PIX boards; `acio.rs`, `icca.rs`), and Chase Chase Jokers' AIO libraries (`ccj.rs`: the
 //! BI2X TBS I/O board; `ccj_trackball.rs`: its raw input trackball; `ccj_pointer.rs`: its touch
-//! screen; `ccj_mono.rs`: game settings through Mono), and Rainbow Bomber Girl's `winhttp.dll`
+//! screen; `ccj_mono.rs`: game settings through Mono), Rainbow Bomber Girl's `winhttp.dll`
 //! (`bbg.rs`; `bbg_system.rs`: its BM-System library; `bbg_io.rs`: its I/O board and touch
-//! screen through Mono, `mono.rs`; `bbg_screen.rs`: its two monitors on one screen); the
-//! modules above are the 32-bit games'.
+//! screen through Mono, `mono.rs`; `bbg_screen.rs`: its two monitors on one screen), and the
+//! `dxva2.dll` of Silent Scope: Bone Eater's widescreen runtime (`ndd.rs`: its keys, gun and
+//! scope); the modules above are the 32-bit games'. `ark.rs` is the ARK engine games' (Steel
+//! Chronicle, Bone Eater) shared fixes.
 
 #![allow(non_snake_case)]
 
 mod acio;
+mod ark;
 #[cfg(target_arch = "x86")]
 mod avs;
 #[cfg(target_arch = "x86")]
@@ -175,6 +178,8 @@ mod ccj_pointer;
 mod ccj_trackball;
 #[cfg(target_arch = "x86_64")]
 mod mono;
+#[cfg(target_arch = "x86_64")]
+mod ndd;
 
 use std::ffi::c_void;
 
@@ -335,7 +340,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
 
 /// Chase Chase Jokers (64-bit): the payload is its three AIO libraries; the I/O board's copy
 /// runs it. Bishi Bashi Channel: its `libacio.dll` and `libacio_pix.dll`; the first runs it.
-/// Rainbow Bomber Girl: its `winhttp.dll`.
+/// Rainbow Bomber Girl: its `winhttp.dll`. Silent Scope: Bone Eater: its runtime's `dxva2.dll`.
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
@@ -346,6 +351,8 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         ccj::init();
     } else if reason == DLL_PROCESS_ATTACH && bsch::detected(module) {
         bsch::init(module);
+    } else if reason == DLL_PROCESS_ATTACH && ndd::detected(module) {
+        ndd::init();
     }
     TRUE
 }

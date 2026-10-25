@@ -2866,6 +2866,39 @@ payload starts then, with gamekgg.dll as the game module (arkkgg's own lookups, 
 - **Flow (headless tests).** Touch → e-AMUSEMENT PASS (SKIP: guest) → story → "Charge Your STE"
   (1-5 credits, touch) → ... (not driven further headless).
 
+#### Silent Scope: Bone Eater (NDD), Widescreen Edition
+
+Silent Scope: Bone Eater (game code NDD, 64-bit, Direct3D 11) runs as its community Widescreen
+Edition: the dump's `game/BoneEater.exe` is that edition's runtime (natemac's, GPL-3.0, spice2x
+with its own hooks; source at github.com/natemac/SilentScope-BoneEater-WidescreenEdition). It
+runs `arkndd.dll` / `gamendd.dll`, emulates the cabinet's boards itself (the gun on the BMPU
+status buffer) and draws the portrait main screen, the front LCD and the scope on one 16:9
+picture. The `.windowsloader` names `game\BoneEater.exe`, the profile gives it the edition
+launcher's arguments (`launch-settings.json` defaults). The payload (`ndd.rs`) is its
+`dxva2.dll` import (override `n,b`, the one function forwarded to the system's), loaded before
+the runtime's `main`:
+
+- **Setup.** The edition's launcher (`Bone Eater WS-Edition.exe`) refuses the run directory's
+  links ("Redirected user-data path refused"); the payload does its setup: `../user` gets a
+  copy of the dump's `conf`, `avs-config.xml` with the nvram / raw mounts pointed there,
+  `layout-v1.txt`, the cabinet marker `conf/raw/dx` (widescreen aiming), the gun calibration at
+  the full 0-4095 range in `testmode-v.xml` (CRC-32 rewritten), the clock set, free play
+  (`WAL_KONAMI_FREEPLAY`).
+- **Keys.** The controls (`../user/bone-eater-controls.xml`, rewritten each start) are spice2x
+  naive keys, one per native input (F13-F23, Q for the scope); `GetAsyncKeyState` /
+  `GetKeyState` / `GetKeyboardState` answer them from the virtual sticks, every other key
+  released (runtime, arkndd.dll, gamendd.dll); `-inputfocus never`.
+- **Gun.** Gun X / Gun Y unbound: the runtime reads the cursor over its main window;
+  `GetCursorPos` returns player 1's left stick across the largest visible window of the process
+  (not the `MultiDisplay` scope outputs), `SetCursorPos` does nothing.
+- **Scope.** The edition makes tap (2x) / hold (10x) from its scope key's window messages
+  (`--scope-bindings Q`): the scope button posts `WM_KEYDOWN` / `WM_KEYUP` to the main window
+  with lParam bit 25 set; `PeekMessageA` / `GetMessageA` turn real keyboard and mouse button
+  messages into `WM_NULL`.
+- **Fonts, pads.** gamendd.dll's TrueType collections go to Wine's GDI+ face by face (`ark.rs`,
+  shared with Steel Chronicle; otherwise the "No font loaded" assert), its XInput pads read as
+  not connected.
+
 #### Chase Chase Jokers
 
 Chase Chase Jokers (2023, game code UJK) is `chaseproject.exe`, a 64-bit Unity (Mono, Direct3D
@@ -3336,6 +3369,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%), e-Amusement cards for both players (loader's server) | `PMU/popn.dll` run by `wal-avs-boot.exe` (§6.3h, 30 MB heaps); `libacio.dll` replaced: HBHI board (2 players: OK, red, blue, yellow, green), a card reader per player (PIN typed); kbt.dll answered; DirectInput joystick config refused; e-AMUSEMENT option set with the server (`game` module as Asphyxia's plugin) |
 | `metal-gear-arcade` | Metal Gear Arcade | konami | works (user: 100%), gun, e-Amusement cards (loader's server), test menu | `game/launch.dll` run by `wal-avs-boot.exe` (§6.3h); `libacio.dll` replaced: I36G cabinet and gun boards, gun aim (COM1), card reader; fake e-Amusement server (cards: touch, PIN typed by the reader; player data), or offline (boot error taken as non-fatal); free play set in the dump; 3D (line-interleaved) still on by default, START toggles |
 | `steel-chronicle-victroopers` | Steel Chronicle Victroopers | konami | works (user: 100%), two flight sticks, touch screen (mouse or gun), e-Amusement cards (loader's server) | `arkkgg.dll` run by `wal-avs-boot.exe` (§6.3h, AVS2 2.16.7), `gamekgg.dll` the game; `libacio.dll` replaced: HBHI board (two flight sticks), card reader; touch screen (TwTouchDriver), LCD (COM1), TTC fonts split per face for Wine's GDI+, Japanese locale, settings marked calibrated, fake e-Amusement server (`WAL_KONAMI_EASRV`) |
+| `silent-scope-bone-eater` | Silent Scope: Bone Eater (Widescreen Edition) | konami | works (user: 100%), gun or mouse, scope tap / hold | the edition's `game/BoneEater.exe` (§6.3h, a spice2x runtime: one 16:9 picture), the payload as its `dxva2.dll`: `../user` prepared (NVRAM mounts, full range gun calibration, free play), keys / gun (cursor) / scope key messages from the virtual sticks, real keyboard, mouse buttons and pads hidden, TTC fonts split per face |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | `AMContra.exe` (§6.3h), `libacio.dll` replaced (its MSVC-named imports, never called): controls on a fake DirectInput keyboard from the virtual sticks (the game's key table), coins from the COM1 control panel, clock reported set, GB2312 text (code page 936) |
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | `D00/game/game.exe` (§6.3h), `panicdialog.dll` replaced; COM2 pcio hub chain emulated (4 boards, firmware versions from the dump, switches, coin counter, security plug region `WAL_KONAMI_PLUG`), COM1 gun boards; the gun read replaced by the pointer; two monitors in one window (2 D3D8 devices presenting side by side); E: settings drive seeded from the dump's CFGs; DirectMusic tricks |

@@ -1,0 +1,67 @@
+# Silent Scope: Bone Eater (Konami, 2014, game code NDD), as its Widescreen Edition (natemac's
+# community runtime, GPL-3.0, built on spice2x): the dump's game/BoneEater.exe runs arkndd.dll /
+# gamendd.dll (64-bit, Direct3D 11) and draws the cabinet's portrait screen, front LCD and scope
+# on one 16:9 picture. The payload is that runtime's dxva2.dll: it prepares the runtime's ../user
+# folder (what the edition's launcher, Bone Eater WS-Edition.exe, does: it refuses the run
+# directory's links), feeds its keys, gun (the cursor over the main window) and scope from the
+# virtual sticks, and hides the real keyboard, mouse buttons and pads. One player: a sniper rifle
+# (lightgun or mouse), its scope button (tap: 2x zoom, hold: 10x).
+# Override values in userprofiles/konami/silent-scope-bone-eater.yaml.
+system: konami
+name: "Silent Scope: Bone Eater"
+
+payload_install: [dxva2.dll]
+dll_overrides:
+  dxva2: "n,b"
+
+# the edition launcher's arguments (its launch-settings.json defaults: view balanced125, scope
+# toggle_hold, angled lens), the scope on the payload's key (Q); input read without the
+# window's focus (spice2x's naive keys)
+args: [
+  -2Display, --native-wide, --main-monitor, --native-fov-zoom, "1.25", --native-hud-fit, --native-rear-hud-fit,
+  --native-input-desktop, --scope-overlay, --desktop-reticle, --native-battle-background-align,
+  --aim-framing, --park-auxiliary, --native-movie-fit, --native-replay-align, --native-ranking-backing,
+  --native-menu-margin, --native-normal-start-backing, --native-options-backing, --quiet-diagnostics,
+  --scope-mode, toggle_hold, --scope-bindings, Q, --scope-shape, angled, --scope-hold-release, exit,
+  --scope-hold-ms, "250", --scope-low-gain, "0.25", --scope-high-gain, "0.1",
+  --scope-low-smoothing-ms, "35", --scope-high-smoothing-ms, "55",
+  -inputfocus, never,
+]
+
+env:
+  # free play (the test menu's COIN OPTIONS, set at each start; "0": coins)
+  WAL_KONAMI_FREEPLAY: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Free play (the test menu's COIN OPTIONS). Off: coins buy credits.
+
+input:
+  # the rifle: a gun or the mouse aims (left stick), its trigger shoots, its second button the
+  # scope (tap: 2x zoom, hold: 10x)
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: b1
+    BTN_RIGHT: b2
+    BTN_MIDDLE: start
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  b1: Trigger
+  b2: Scope (tap 2x, hold 10x)
+  b3: Scope (left sensor)
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
