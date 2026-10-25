@@ -4,7 +4,8 @@
 //!
 //! - `usergamedata_recv` (`data/refid`, `data/recv_csv`: `<name>,<mask>,...`): `result` 0 and
 //!   `player/record` with each asked record's `d` node it has (base64 text, its `bin1` child
-//!   base64 binary), in the asked order, and `player/record_num` (0 records: a new player;
+//!   base64 binary; its text without the first two fields), in the asked order, and
+//!   `player/record_num` (0 records: a new player;
 //!   `result` 1 is an error: the game ends the session).
 //! - `usergamedata_send` (`data/refid`, `data/record/d...`): each `d` stored under its record
 //!   name (`d`'s text decodes to `<mask>,<name>,<data>...`).
@@ -40,6 +41,16 @@ fn record_name(d: &Node) -> Option<String> {
     (!name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')).then(|| name.to_string())
 }
 
+/// A kept record as answered: its text without the first two fields (`<mask>,<name>`), as
+/// Asphyxia's and bemaniutils' servers answer it (the games read the data fields only), its
+/// `bin1` kept.
+fn record_answer(d: &Node) -> Node {
+    let text = base64_decode(&d.text());
+    let fields: Vec<&[u8]> = text.split(|&b| b == b',').collect();
+    let data = fields.get(2..).unwrap_or_default().join(&b',');
+    Node::str("d", &crate::hck::base64_encode(&data)).children(d.children.iter().cloned())
+}
+
 /// The `playerdata.<method>` answer (the `<response>`'s child).
 pub fn handle(method: &str, req: Option<&Node>) -> Node {
     let data = req.and_then(|r| r.path("playerdata/data"));
@@ -60,7 +71,7 @@ pub fn handle(method: &str, req: Option<&Node>) -> Node {
             let mut record = Node::new("record");
             let mut count = 0u32;
             for d in stored.into_iter().flatten() {
-                record = record.child(d);
+                record = record.child(record_answer(&d));
                 count += 1;
             }
             answer = answer

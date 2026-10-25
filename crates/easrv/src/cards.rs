@@ -1,7 +1,7 @@
 //! The e-Amusement card manager (`cardmng`): cards and their PIN, kept in
 //! `dev/nvram/easrv/cards.txt` (`<card id> <refid> <PIN>` per line). A card registers on the
 //! game's screens (new PIN, entered twice), or beforehand: `WAL_KONAMI_CARD_PIN` registers the
-//! card of `WAL_KONAMI_CARD_ID` (`preregister`).
+//! card of `WAL_KONAMI_CARD_ID`, `WAL_KONAMI_CARD2_PIN` player 2's (`preregister`).
 //!
 //! - `inquire` (`cardid`): an unknown card answers status 112 (the game offers to register it);
 //!   a known one its refid (`newflag` 1 until the game bound it with `bindmodel`).
@@ -59,17 +59,25 @@ fn card_id() -> String {
 }
 
 /// The card of `WAL_KONAMI_CARD_ID` registered with `WAL_KONAMI_CARD_PIN` (4 digits), when
-/// set: the game then knows the card (no registration on its screen) and asks that PIN.
+/// set, and player 2's (`WAL_KONAMI_CARD2_ID`, `WAL_KONAMI_CARD2_PIN`): the game then knows the
+/// card (no registration on its screen) and asks that PIN.
 pub fn preregister() {
-    let Ok(pin) = std::env::var("WAL_KONAMI_CARD_PIN").map(|p| p.trim().to_string()) else { return };
+    let card2 = std::env::var("WAL_KONAMI_CARD2_ID").map(|v| v.trim().to_ascii_uppercase()).unwrap_or_default();
+    preregister_card(card_id(), "WAL_KONAMI_CARD_PIN");
+    if card2.len() == 16 && card2.bytes().all(|b| b.is_ascii_hexdigit()) {
+        preregister_card(card2, "WAL_KONAMI_CARD2_PIN");
+    }
+}
+
+fn preregister_card(id: String, pin_var: &str) {
+    let Ok(pin) = std::env::var(pin_var).map(|p| p.trim().to_string()) else { return };
     if pin.is_empty() {
         return;
     }
     if pin.len() != 4 || !pin.bytes().all(|b| b.is_ascii_digit()) {
-        crate::log!("easrv: WAL_KONAMI_CARD_PIN must be 4 digits, the card is not registered");
+        crate::log!("easrv: {pin_var} must be 4 digits, the card is not registered");
         return;
     }
-    let id = card_id();
     let _guard = LOCK.lock().unwrap();
     let mut cards = load();
     match cards.iter_mut().find(|c| c.id.eq_ignore_ascii_case(&id)) {
@@ -78,7 +86,7 @@ pub fn preregister() {
         None => cards.push(Card { refid: refid_of(&id), id: id.clone(), pin }),
     }
     save(&cards);
-    crate::log!("easrv: card {id} registered (PIN from WAL_KONAMI_CARD_PIN)");
+    crate::log!("easrv: card {id} registered (PIN from {pin_var})");
 }
 
 /// `system.convcardnumber` (`data/card_id`): the card's printed number (16 characters; here its

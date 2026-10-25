@@ -201,7 +201,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | not in the test |  |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | not in the test |  |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | not in the test |  |
-| `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%) | not in the test |  |
+| `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%), e-Amusement cards for both players (loader's server) | not in the test |  |
 | `metal-gear-arcade` | Metal Gear Arcade | konami | works (user: 100%), gun, e-Amusement cards (loader's server), test menu | not in the test |  |
 | `steel-chronicle-victroopers` | Steel Chronicle Victroopers | konami | works (user: 100%), two flight sticks, touch screen (mouse or gun), e-Amusement cards (loader's server) | not in the test |  |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | not in the test |  |

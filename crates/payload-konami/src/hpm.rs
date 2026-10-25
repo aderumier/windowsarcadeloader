@@ -134,4 +134,37 @@ pub fn init(module: *mut std::ffi::c_void) {
         None => log!("hpm: mixerSetControlDetails import not found"),
     }
     crate::net::adapters_fit();
+    crate::icca::set_pin_on_poll();
+    eamusement_setting(module);
+}
+
+/// The test menu's settings (`dev/nvram/config.dat`, beside the payload: 0x70 bytes, then their
+/// MD5): NETWORK OPTIONS' e-AMUSEMENT (u32 at 0x28) set on with an e-Amusement server
+/// (`WAL_KONAMI_EASRV=1`, `WAL_KONAMI_SERVICES`), off without (the boot's network check fails
+/// otherwise). On, the game takes e-Amusement cards (`game.*`: the server's `easrv/jmp.rs`).
+fn eamusement_setting(module: *mut std::ffi::c_void) {
+    let mut buf = [0u16; 520];
+    let n = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(module as _, buf.as_mut_ptr(), buf.len() as u32) } as usize;
+    let path = std::path::PathBuf::from(String::from_utf16_lossy(&buf[..n]));
+    let Some(path) = path.parent().map(|d| d.join("dev").join("nvram").join("config.dat")) else { return };
+    let Ok(mut data) = std::fs::read(&path) else {
+        log!("hpm: {} not found, e-AMUSEMENT as the game sets it", path.display());
+        return;
+    };
+    if data.len() != 0x80 {
+        log!("hpm: {} is {} bytes, e-AMUSEMENT kept", path.display(), data.len());
+        return;
+    }
+    let server = std::env::var("WAL_KONAMI_EASRV").is_ok_and(|v| v.trim() == "1")
+        || std::env::var("WAL_KONAMI_SERVICES").is_ok_and(|v| !v.trim().is_empty());
+    if (data[0x28] != 0) == server && wal_easrv::kbin::md5(&data[..0x70])[..] == data[0x70..] {
+        return;
+    }
+    data[0x28..0x2c].copy_from_slice(&(server as u32).to_le_bytes());
+    let sum = wal_easrv::kbin::md5(&data[..0x70]);
+    data[0x70..].copy_from_slice(&sum);
+    match std::fs::write(&path, &data) {
+        Ok(()) => log!("hpm: e-AMUSEMENT {}", if server { "on" } else { "off" }),
+        Err(e) => log!("hpm: {}: {e}", path.display()),
+    }
 }

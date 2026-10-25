@@ -3,6 +3,8 @@
 //! (`WAL_KONAMI_CARD_PIN`), the loader's e-Amusement server registers it with that PIN (the
 //! game then only asks the PIN; Metal Gear Arcade's reader types it). Each game keeps its own
 //! progress on it (its dump's `dev/nvram/easrv/`). A game profile's own `env` values win.
+//! Player 2's card (`card2_id`, `pin2`; `WAL_KONAMI_CARD2_ID`, `WAL_KONAMI_CARD2_PIN`), when
+//! set, is in player 2's reader (Hello! Pop'n Music: a reader per player).
 
 use std::hash::{BuildHasher, Hasher};
 use std::path::{Path, PathBuf};
@@ -23,6 +25,11 @@ pub struct Card {
     /// 4 digits; empty: the card is registered on the game's screens.
     #[serde(default)]
     pub pin: String,
+    /// Player 2's card: 16 hex digits, empty: none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub card2_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub pin2: String,
 }
 
 fn path(root: &Path) -> PathBuf {
@@ -72,6 +79,12 @@ pub fn env(card: &Card) -> Vec<(&'static str, String)> {
     }
     if valid_pin(&card.pin) && !card.pin.is_empty() {
         env.push(("WAL_KONAMI_CARD_PIN", card.pin.clone()));
+    }
+    if valid_id(&card.card2_id) {
+        env.push(("WAL_KONAMI_CARD2_ID", card.card2_id.to_ascii_uppercase()));
+        if valid_pin(&card.pin2) && !card.pin2.is_empty() {
+            env.push(("WAL_KONAMI_CARD2_PIN", card.pin2.clone()));
+        }
     }
     env
 }

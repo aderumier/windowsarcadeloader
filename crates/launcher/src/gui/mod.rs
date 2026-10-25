@@ -261,7 +261,7 @@ impl App {
             status = format!("{e:#}");
             None
         });
-        let eamuse = eamuse_saved.clone().unwrap_or_else(|| eamuse_card::Card { card_id: eamuse_card::DEFAULT_ID.into(), pin: String::new() });
+        let eamuse = eamuse_saved.clone().unwrap_or_else(|| eamuse_card::Card { card_id: eamuse_card::DEFAULT_ID.into(), ..Default::default() });
         App {
             root,
             games,
@@ -1462,7 +1462,9 @@ impl App {
                 "The card every Konami game reads (inserted or touched with the card input, F4). \
                  With a PIN, the loader's e-Amusement server registers the card with it: the game \
                  only asks the PIN (Metal Gear Arcade's reader types it, START touches the card). \
-                 Each game keeps its own progress on it. A new card id starts over in every game.",
+                 Each game keeps its own progress on it. A new card id starts over in every game. \
+                 Player 2's card is for games with a reader per player (Hello! Pop'n Music), \
+                 inserted with player 2's card input.",
             );
             ui.add_space(8.0);
             egui::Grid::new("eamuse").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
@@ -1478,13 +1480,34 @@ impl App {
                 ui.add(egui::TextEdit::singleline(&mut self.eamuse.pin).char_limit(4).font(egui::TextStyle::Monospace).hint_text("none"))
                     .on_hover_text("4 digits: the card registered with this PIN; empty: registered on the game's screens");
                 ui.end_row();
+                ui.label("Player 2 card id");
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut self.eamuse.card2_id).char_limit(16).font(egui::TextStyle::Monospace).hint_text("none"))
+                        .on_hover_text("player 2's card, in player 2's reader (games with a reader per player); empty: none");
+                    if ui.button("🔄 New card").on_hover_text("a new card id for player 2").clicked() {
+                        self.eamuse.card2_id = eamuse_card::new_id();
+                    }
+                });
+                ui.end_row();
+                ui.label("Player 2 PIN");
+                ui.add(egui::TextEdit::singleline(&mut self.eamuse.pin2).char_limit(4).font(egui::TextStyle::Monospace).hint_text("none"))
+                    .on_hover_text("4 digits: player 2's card registered with this PIN");
+                ui.end_row();
             });
-            let valid = eamuse_card::valid_id(&self.eamuse.card_id) && eamuse_card::valid_pin(&self.eamuse.pin);
-            if !eamuse_card::valid_id(&self.eamuse.card_id) {
-                ui.colored_label(ui.visuals().error_fg_color, "the card id is 16 hex digits (e.g. E004010027104B1D)");
+            let card2_ok = self.eamuse.card2_id.is_empty() || eamuse_card::valid_id(&self.eamuse.card2_id);
+            let valid = eamuse_card::valid_id(&self.eamuse.card_id)
+                && eamuse_card::valid_pin(&self.eamuse.pin)
+                && card2_ok
+                && eamuse_card::valid_pin(&self.eamuse.pin2)
+                && !self.eamuse.card2_id.eq_ignore_ascii_case(&self.eamuse.card_id);
+            if !eamuse_card::valid_id(&self.eamuse.card_id) || !card2_ok {
+                ui.colored_label(ui.visuals().error_fg_color, "a card id is 16 hex digits (e.g. E004010027104B1D)");
             }
-            if !eamuse_card::valid_pin(&self.eamuse.pin) {
-                ui.colored_label(ui.visuals().error_fg_color, "the PIN is 4 digits");
+            if !eamuse_card::valid_pin(&self.eamuse.pin) || !eamuse_card::valid_pin(&self.eamuse.pin2) {
+                ui.colored_label(ui.visuals().error_fg_color, "a PIN is 4 digits");
+            }
+            if self.eamuse.card2_id.eq_ignore_ascii_case(&self.eamuse.card_id) {
+                ui.colored_label(ui.visuals().error_fg_color, "player 2's card must differ from player 1's");
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {

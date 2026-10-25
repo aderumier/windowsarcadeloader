@@ -2,7 +2,10 @@
 # run by wal-avs-boot.exe (the dump's hello-popn-music.windowsloader names the DLL). Two
 # players, each an OK button (start) and four buttons: red, blue, yellow, green (blue / yellow
 # also move the menus' cursor, OK confirms). The payload replaces libacio.dll (HBHI board:
-# the players' buttons, test, service, coins, security plug; card reader).
+# the players' buttons, test, service, coins, security plug; a card reader per player).
+# e-Amusement: the loader's own server (the cabinet's e-AMUSEMENT option set on: cards, PIN,
+# players' characters and scores; the GUI's e-Amusement card window, player 2's card for the
+# right reader), or offline with WAL_KONAMI_EASRV "0".
 # Override values in userprofiles/konami/hello-popn-music.yaml.
 system: konami
 name: Hello! Pop'n Music
@@ -17,6 +20,27 @@ env:
   WAL_HIDE_CURSOR: "1"
   # the game's DirectInput keyboard: no device
   WAL_DINPUT_DISABLE: "1"
+  # the e-Amusement services from the loader's own server ("0": offline, no cards)
+  WAL_KONAMI_EASRV: "1"
+  # an external e-Amusement server's services URL instead (empty: the loader's)
+  WAL_KONAMI_SERVICES: ""
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_EASRV
+        label: e-Amusement server
+        kind: bool
+        description: >-
+          The game's e-Amusement services from the loader's own server: e-Amusement cards (one
+          per player) and their characters and scores. Off: offline, no cards.
+      - key: WAL_KONAMI_SERVICES
+        label: External e-Amusement server
+        kind: text
+        description: >-
+          An external e-Amusement server's services URL (e.g. http://192.168.1.10:8083/), used
+          instead of the loader's own. Empty: the loader's server (when on).
 
 input:
   # the four buttons left to right (red, blue, yellow, green) on the pad's face: X, Y, B, A
@@ -25,6 +49,28 @@ input:
     y: b2
     b: b3
     a: b4
+  # Keyboard: the numpad is player 1's card keypad (the card's PIN), F5 player 2's card
+  keyboard:
+    p1:
+      KEY_KP0: kp0
+      KEY_KP1: kp1
+      KEY_KP2: kp2
+      KEY_KP3: kp3
+      KEY_KP4: kp4
+      KEY_KP5: kp5
+      KEY_KP6: kp6
+      KEY_KP7: kp7
+      KEY_KP8: kp8
+      KEY_KP9: kp9
+    p2:
+      KEY_F5: card
+    # the numpad is the card keypad (player 1), not player 4's keys
+    p4:
+      KEY_KP8: none
+      KEY_KP2: none
+      KEY_KP4: none
+      KEY_KP6: none
+      KEY_KP0: none
 
 controls:
   b1: Red
@@ -35,3 +81,14 @@ controls:
   coin: Coin
   service: Service
   test: Test
+  card: "Insert / eject the card (player 1: F4, player 2: F5)"
+  kp0: Card keypad 0
+  kp1: Card keypad 1
+  kp2: Card keypad 2
+  kp3: Card keypad 3
+  kp4: Card keypad 4
+  kp5: Card keypad 5
+  kp6: Card keypad 6
+  kp7: Card keypad 7
+  kp8: Card keypad 8
+  kp9: Card keypad 9

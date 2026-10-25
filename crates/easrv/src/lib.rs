@@ -14,6 +14,7 @@
 //!   event log, machine control, Steel Chronicle's `system.getmaster` / `hdkoperation.get`,
 //!   Metal Gear Arcade's `system.getmaster`, Winning Eleven 2008's services list;
 //! - `easrv/hck.rs`: Winning Eleven 2008's own modules (settings, its players' records, login);
+//! - `easrv/jmp.rs`: Hello! Pop'n Music's `game` module (Asphyxia CORE's popn-hello plugin);
 //! - `easrv/cards.rs`: the card manager (cards, PINs: `dev/nvram/easrv/`);
 //! - `easrv/playerdata.rs`: the players' records (`playerdata.usergamedata_*`), per card;
 //! - anything else an empty answer.
@@ -53,6 +54,7 @@ pub(crate) use log;
 mod answers;
 mod cards;
 mod hck;
+mod jmp;
 pub mod kbin;
 mod playerdata;
 
@@ -117,6 +119,20 @@ fn answer(model: &str, module: &str, method: &str, req: Option<&Node>) -> (Vec<u
         && let Some(answer) = hck::handle(module, method, req)
     {
         return (Node::new("response").child(answer).to_binary(), "HCK");
+    }
+    if model.starts_with("JMP")
+        && let Some(answer) = jmp::handle(module, method, req)
+    {
+        return (Node::new("response").child(answer).to_binary(), "JMP");
+    }
+    // Metal Gear Arcade's server messages: `INFO` (the unlocks, the fixed answer below); the
+    // others (`MAPPAT`, `RK_TERM`) none, `result` 0 (bemaniutils' answer)
+    if model.starts_with("I36")
+        && module == "system"
+        && method == "getmaster"
+        && req.and_then(|r| r.path("system/data/datakey")).is_some_and(|k| k.text() != "INFO")
+    {
+        return (Node::new("response").child(Node::new("system").child(Node::value("result", kbin::Value::S32(0)))).to_binary(), "I36 getmaster");
     }
     if module == "cardmng" {
         return (Node::new("response").child(cards::handle(method, req)).to_binary(), "cardmng");
