@@ -212,6 +212,6 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | not in the test |  |
 | `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | not in the test |  |
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | not in the test |  |
-| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | not in the test |  |
+| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%), e-Amusement card (player kept by the loader: class, girls' experience / rank / decks / dress; skills, items, missions not yet) | not in the test |  |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | not in the test |  |
 <!-- GAMELIST END -->

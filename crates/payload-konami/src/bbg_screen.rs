@@ -603,3 +603,42 @@ fn draw(r: &Resources, context: P, back: P, source: Option<P>) {
     release(previous);
     release(rtv);
 }
+
+/// `WAL_SCREENSHOT=<seconds>` (automated tests; the Direct3D 9 screenshots' option): the game's
+/// own picture saved by Unity (`ScreenCapture.CaptureScreenshot`, PNG) every `<seconds>`, as
+/// `shot-NNNN.png` in `WAL_SCREENSHOT_DIR` (a Windows path, else the game's folder). Called on
+/// Unity's main thread (the I/O module's button poll, every frame).
+pub fn unity_screenshot() {
+    struct Shots {
+        every: Duration,
+        dir: String,
+        capture: usize,
+        next: std::time::Instant,
+        count: u32,
+    }
+    static SHOTS: Mutex<Option<Option<Shots>>> = Mutex::new(None);
+    let mut shots = SHOTS.lock().unwrap();
+    let shots = shots.get_or_insert_with(|| {
+        let secs = std::env::var("WAL_SCREENSHOT").ok()?.trim().parse::<f64>().ok().filter(|s| *s > 0.0)?;
+        let m = crate::mono::mono()?;
+        let class = m.class(m.image("UnityEngine.ScreenCaptureModule"), "UnityEngine", "ScreenCapture");
+        let capture = m.method(class, "CaptureScreenshot", 1) as usize;
+        if capture == 0 {
+            log!("bbg: ScreenCapture not found, no screenshots");
+            return None;
+        }
+        let every = Duration::from_secs_f64(secs);
+        let dir = std::env::var("WAL_SCREENSHOT_DIR").unwrap_or_else(|_| ".".into());
+        Some(Shots { every, dir, capture, next: std::time::Instant::now() + every, count: 0 })
+    });
+    let Some(s) = shots.as_mut() else { return };
+    if std::time::Instant::now() < s.next {
+        return;
+    }
+    s.next += s.every;
+    s.count += 1;
+    let Some(m) = crate::mono::mono() else { return };
+    let path = format!("{}\\shot-{:04}.png", s.dir.trim_end_matches('\\'), s.count);
+    let mut args = [m.string(&path)];
+    m.invoke(s.capture as P, std::ptr::null_mut(), &mut args);
+}

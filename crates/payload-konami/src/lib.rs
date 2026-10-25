@@ -165,6 +165,8 @@ mod ygo;
 #[cfg(target_arch = "x86_64")]
 mod bbg;
 #[cfg(target_arch = "x86_64")]
+mod bbg_entry;
+#[cfg(target_arch = "x86_64")]
 mod bbg_io;
 #[cfg(target_arch = "x86_64")]
 mod bbg_screen;

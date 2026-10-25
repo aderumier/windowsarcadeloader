@@ -3045,14 +3045,34 @@ forwarded to the system's. `bbg.rs`, `bbg_system.rs`, `bbg_io.rs`, `bbg_screen.r
 - **System library** (`bbg_system.rs`). The game binds its system interface by export name
   (`SystemImport_System`, ...: `GetProcAddress(module, name)` for each of a module's functions).
   Once the game has created `SystemImport` (its stand-ins), a payload thread attached to Mono
-  replaces the System, Io and Consume modules by the game's own bindings, initialized with the
+  replaces the System, Io, Consume and Entry modules by the game's own bindings, initialized with the
   payload's handle (`IFSystemImportBase.Initialize`), the backing fields set with
   `mono_field_set_value`. System: boot checks passed, the watchdog's lock function called at
   once and its unlock never (the stand-in calls both: the game quit after ~40 s), `IsAsia`
   (`WAL_KONAMI_REGION=asia`: the export version's English texts and pictures, where it has
   them). Io: test, service, coin (`IoGetBtnPress`). Consume: credits (a coin is one credit; a
   game `WAL_KONAMI_PRICE`, default 1, a gacha 1; `WAL_KONAMI_FREEPLAY=1`), PASELI not offered.
-  Card entry, e-Amusement coin, network, logs and test settings keep the stand-ins: guest play.
+  e-Amusement coin, network, logs and test settings keep the stand-ins.
+- **e-Amusement card** (`bbg_entry.rs`, Entry module). Started alone (not by BM-System), the
+  game's card entry takes its debug path: its manager (`GameEntryStateManager`) is given the
+  card in player 1's reader (`icca.rs`: `WAL_KONAMI_CARD_ID`, F4, a configured card in from the
+  start) as `cardID` and `debugCardType` (NEWCARD / CONTINUE), the PIN screen
+  (`GameEntrtyState_PassAuthentication.debugPass`, else 0123) the card's PIN, from the Entry
+  exports (Unity's main thread, every frame of the entry scene). The entry state returned in
+  the game's numbering (its enum has DATA_VER_ERR before END). A new card: terms, PIN twice,
+  card number (skip), name: the player created, an empty record (the game's defaults). A known
+  card: its PIN, the record (`EntryGetPlayerData`). A configured PIN (`WAL_KONAMI_CARD_PIN`) is
+  typed by itself: the keypads' digits move each time, the screen's `OnNum` is called digit by
+  digit (`mCurrentState`: PassAuthentication 6, PassRegist 7). The game saves through NetworkV2
+  (stand-in kept: lobby, messages); at `EntryPlayerSaveEndNotice` the payload rebuilds that save
+  (`ProcessPacketBridge.CreatePlayerSaveCard`, `Marshal.StructureToPtr`: the native layout) and
+  applies it to the record: class experience, title, last girl, play count, win streak,
+  headphone volume, girls opened (OR), each girl's experience (+ the experience won, the rank
+  from `GirlRankData.GetRank`), chat set, skill deck, dress. Not kept: skills, dresses and items
+  won, missions, events, titles won, chats, play records. Records: `dev/nvram/bbg/<card>.bin`
+  in the run directory (`WALBBG1`, the PIN, the 19232-byte `READ_PLAYER_DATA`; layouts from
+  Mono's own `Marshal.OffsetOf`). Ejected card: guest play. `WAL_SCREENSHOT=<s>`: Unity's
+  `ScreenCapture` (tests: the composed picture is black in headless gamescope captures).
 - **I/O board** (`bbg_io.rs`). UsbIO's `IoManagerMain` talks to the board on COM6 (System.IO.Ports:
   its ANSI `CreateFile` `DllImport`, resolved through Mono's `GetProcAddress`, opens no COM
   port: the board's boot fails at once). Every 10 ms the payload builds the board's 16 status
@@ -3462,7 +3482,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | `game.exe` (§6.3h), `iob.dll` replaced (switches, coins), `gunio.dll` answered (gun boards booted); the gun read replaced by the pointer, off screen = cover/reload; `D:\D22\` paths made relative (data, DirectShow movies); boot CRC, clock and calibration checks skipped; E:/F: save drives; the game's two screens, player 1's alone shown (with one, its CPU rival crashed the stage start) |
 | `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | as `lethal-enforcers-3`, two adapters (`WAL_KONAMI_PLAYERS=2`): one 640x480 screen per player in one window (`two_screens.rs`), each gun aims at its own half |
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | `game.exe`, a memory dump of the HASP-enveloped game: started by wal-loader with the payload as `inpout32.dll` (`payload_loader`); its imports rebuilt, `WinMain`'s instance fixed, HASP HL API answered, parallel port I/O board and guns (calibration skipped), `z:/data/bin` relative, saves on E: (`SAVE`), MP42 movies need the GE winedmo MP42 patch |
-| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | `game.exe` (Unity 2017, 64-bit, §6.3h), the payload as `winhttp.dll`: BM-System's System, Io and Consume modules bound through Mono (watchdog, credits, test / service, export region), the I/O board's status handed to UsbIO (COM6 absent), the touch screen's touches; drawn at the cabinet's 2160x1920 desktop into a texture of the payload's, the two monitors and the bezel's marquee composed for the screen; `LC_ALL=en_US.UTF-8` |
+| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | `game.exe` (Unity 2017, 64-bit, §6.3h), the payload as `winhttp.dll`: BM-System's System, Io, Consume and Entry modules bound through Mono (watchdog, credits, test / service, export region, e-Amusement card: player created / loaded / saved by the payload), the I/O board's status handed to UsbIO (COM6 absent), the touch screen's touches; drawn at the cabinet's 2160x1920 desktop into a texture of the payload's, the two monitors and the bezel's marquee composed for the screen; `LC_ALL=en_US.UTF-8` |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

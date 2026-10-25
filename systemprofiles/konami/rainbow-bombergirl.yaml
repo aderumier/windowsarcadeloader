@@ -1,6 +1,7 @@
 # Rainbow Bomber Girl (Konami, 2022): game.exe (Unity 2017.2, Mono, 64-bit, Direct3D 11). The
 # cabinet's BM-System (system library, I/O board on COM6, touch screen) is answered by the
-# payload, installed as the winhttp.dll UnityPlayer imports. Offline: guest play, no card.
+# payload, installed as the winhttp.dll UnityPlayer imports. The e-Amusement card (F4, the card
+# window's card and PIN) logs a player in, kept by the payload; no card: guest play.
 # The two monitors (portrait main, landscape touch screen on its side) shown on one screen:
 # main on the right, touch screen bottom left, the dump's bezel.png above it.
 # Override values in userprofiles/konami/rainbow-bombergirl.yaml.

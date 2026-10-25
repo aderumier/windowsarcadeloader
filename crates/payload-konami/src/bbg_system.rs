@@ -286,6 +286,7 @@ pub extern "C" fn IsAsia() -> i32 {
 /// IoBtn: testBtnPress, serviceBtnPress, coinIn, coinBlockerIsOpen.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn IoGetBtnPress(btn: *mut u8) {
+    crate::bbg_screen::unity_screenshot();
     if btn.is_null() {
         return;
     }

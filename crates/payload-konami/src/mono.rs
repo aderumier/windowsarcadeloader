@@ -33,6 +33,9 @@ pub struct Mono {
     gchandle_new: unsafe extern "C" fn(P, i32) -> u32,
     array_new: unsafe extern "C" fn(P, P, usize) -> P,
     get_byte_class: unsafe extern "C" fn() -> P,
+    string_new: unsafe extern "C" fn(P, *const c_char) -> P,
+    class_get_type: unsafe extern "C" fn(P) -> P,
+    type_get_object: unsafe extern "C" fn(P, P) -> P,
 }
 
 /// Mono, once the game has loaded it.
@@ -69,6 +72,9 @@ pub fn mono() -> Option<&'static Mono> {
             gchandle_new: std::mem::transmute(get("mono_gchandle_new")?),
             array_new: std::mem::transmute(get("mono_array_new")?),
             get_byte_class: std::mem::transmute(get("mono_get_byte_class")?),
+            string_new: std::mem::transmute(get("mono_string_new")?),
+            class_get_type: std::mem::transmute(get("mono_class_get_type")?),
+            type_get_object: std::mem::transmute(get("mono_type_get_object")?),
         }
     };
     Some(MONO.get_or_init(|| m))
@@ -76,6 +82,8 @@ pub fn mono() -> Option<&'static Mono> {
 
 /// Offset of an array's first element (MonoArray: vtable, synchronisation, bounds, length).
 pub const ARRAY_DATA: usize = 4 * size_of::<usize>();
+/// Offset of a boxed value (vtable, synchronisation).
+pub const BOXED: usize = 2 * size_of::<usize>();
 
 fn c(s: &str) -> CString {
     CString::new(s).unwrap()
@@ -195,6 +203,19 @@ impl Mono {
         obj
     }
 
+    /// A new string of `text`.
+    pub fn string(&self, text: &str) -> P {
+        unsafe { (self.string_new)(self.domain(), c(text).as_ptr()) }
+    }
+
+    /// The `System.Type` object of `class`.
+    pub fn type_object(&self, class: P) -> P {
+        if class.is_null() {
+            return class;
+        }
+        unsafe { (self.type_get_object)(self.domain(), (self.class_get_type)(class)) }
+    }
+
     /// A new `byte[len]`.
     pub fn byte_array(&self, len: usize) -> P {
         unsafe { (self.array_new)(self.domain(), (self.get_byte_class)(), len) }
@@ -216,3 +237,4 @@ pub unsafe fn read<T: Copy>(base: *const u8, offset: usize) -> T {
 pub unsafe fn write<T: Copy>(base: *mut u8, offset: usize, value: T) {
     unsafe { (base.add(offset) as *mut T).write_unaligned(value) }
 }
+

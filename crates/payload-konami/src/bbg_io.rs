@@ -2,7 +2,7 @@
 //! payload attached to Mono:
 //!
 //! * The system library: once the game has created its system interface (`SystemImport`, with
-//!   its stand-ins), its System, Io and Consume modules are replaced by the game's own bindings
+//!   its stand-ins), its System, Io, Consume and Entry modules are replaced by the game's own bindings
 //!   to the library (`SystemImport_System`, ...), initialized with the payload's module handle:
 //!   they find `bbg_system.rs`'s exports by name.
 //! * The I/O board (UsbIO's `IoManagerMain`): the board would answer on COM6, kept absent (Mono
@@ -90,7 +90,7 @@ fn run() {
 
 // ---- the system library ----
 
-/// Replaces the stand-ins of `SystemImport`'s System, Io and Consume modules by the game's
+/// Replaces the stand-ins of `SystemImport`'s System, Io, Consume and Entry modules by the game's
 /// bindings to the payload's exports.
 fn bind_system(m: &Mono, game: P) {
     let class = m.class(game, "", "SystemImport");
@@ -111,7 +111,7 @@ fn bind_system(m: &Mono, game: P) {
         std::thread::sleep(Duration::from_millis(5));
     };
     let mut module = crate::bbg_system::module();
-    for name in ["System", "Io", "Consume"] {
+    for name in ["System", "Io", "Consume", "Entry"] {
         let field = m.field(class, &format!("<{name}>k__BackingField"));
         let binding = m.new_object(m.class(game, "", &format!("SystemImport_{name}")));
         if field.is_null() || binding.is_null() {
