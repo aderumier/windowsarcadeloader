@@ -44,9 +44,11 @@ pub fn init(module: *mut c_void) {
         log!("winning eleven: fck_set_eq import not found");
     }
     rom_check_init();
+    eamuse_init();
     settings_init();
     notice_init();
     controller_select_init();
+    pin_screen_init();
     sound_effects_init();
     game_log_init();
     log!("winning eleven: {hooked} libtouchpanel imports answered by the payload");
@@ -219,6 +221,52 @@ fn rom_check_init() {
     }
 }
 
+/// The e-Amusement services host (`WAL_KONAMI_EASRV=1`: the fake server, `WAL_KONAMI_SERVICES`
+/// an external one), else none: e-AMUSEMENT stays off.
+static SERVICES: std::sync::OnceLock<std::ffi::CString> = std::sync::OnceLock::new();
+
+/// Where `property_node_create` continues.
+static NODE_CREATE: AtomicUsize = AtomicUsize::new(0);
+
+/// The game's e-Amusement configuration (rva 0x715c0) gives `/ea3/network/services` as
+/// `services.<the PC's DNS domain>` (the shop's network; AVS posts to `http://<services>/`): the
+/// services host instead. The values after the path are passed on as they are (two words: an
+/// `s64` at most).
+unsafe extern "C" fn node_create(prop: usize, node: usize, kind: u32, path: *const c_char, a: usize, b: usize) -> usize {
+    let original: unsafe extern "C" fn(usize, usize, u32, *const c_char, usize, usize) -> usize =
+        unsafe { std::mem::transmute(NODE_CREATE.load(Ordering::Relaxed)) };
+    let mut a = a;
+    if kind == 11 && !path.is_null() && unsafe { std::ffi::CStr::from_ptr(path) } == c"/ea3/network/services" {
+        if let Some(host) = SERVICES.get() {
+            log!("winning eleven: e-Amusement services {:?} -> {host:?}", unsafe { std::ffi::CStr::from_ptr(a as *const c_char) });
+            a = host.as_ptr() as usize;
+        }
+    }
+    unsafe { original(prop, node, kind, path, a, b) }
+}
+
+/// The e-Amusement services: the fake server (`WAL_KONAMI_EASRV=1`, `wal-easrv`, started here)
+/// or an external one (`WAL_KONAMI_SERVICES`: `<host>[:<port>]`, an `http://` URL's host part).
+fn eamuse_init() {
+    let external = std::env::var("WAL_KONAMI_SERVICES").map(|v| v.trim().to_string()).unwrap_or_default();
+    let host = if !external.is_empty() {
+        external.trim_start_matches("http://").trim_end_matches('/').to_string()
+    } else if std::env::var("WAL_KONAMI_EASRV").is_ok_and(|v| v.trim() == "1") {
+        wal_easrv::set_logger(|line| log!("{line}"));
+        wal_easrv::init();
+        format!("127.0.0.1:{}", wal_easrv::PORT)
+    } else {
+        return;
+    };
+    match unsafe { iat::hook("libavs-win32.dll", "property_node_create", node_create as *const () as usize) } {
+        Some(original) => {
+            NODE_CREATE.store(original, Ordering::Relaxed);
+            let _ = SERVICES.set(std::ffi::CString::new(host).unwrap_or_default());
+        }
+        None => log!("winning eleven: property_node_create import not found, e-Amusement services of the PC's domain"),
+    }
+}
+
 /// Where the test-mode data load continues.
 static SETTINGS_LOAD: AtomicUsize = AtomicUsize::new(0);
 
@@ -236,7 +284,9 @@ unsafe extern "C" fn settings_load() -> i32 {
     let ret = unsafe { original() };
     let network = (unsafe { GetModuleHandleW(std::ptr::null()) } as usize + NETWORK_SETTINGS) as *mut u32;
     for (i, (var, name)) in [("WAL_KONAMI_EAMUSEMENT", "e-AMUSEMENT"), ("WAL_KONAMI_LIVE_MONITOR", "LIVE MONITOR CONNECT")].iter().enumerate() {
-        if !std::env::var(var).is_ok_and(|v| v.trim() == "1") {
+        // e-AMUSEMENT on with a services host (the fake server or an external one)
+        let keep = std::env::var(var).is_ok_and(|v| v.trim() == "1") || (i == 0 && SERVICES.get().is_some());
+        if !keep {
             unsafe { *network.add(i) = 0 };
             log!("winning eleven: {name} off");
         }
@@ -289,6 +339,95 @@ fn controller_select_init() {
         VirtualProtect(at as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
         std::ptr::copy_nonoverlapping([0x33, 0xc0, 0x90, 0x90, 0x90].as_ptr(), at as *mut u8, 5);
         VirtualProtect(at as *const c_void, 5, old, &mut old);
+    }
+}
+
+/// Where the PIN screen's start and end continue.
+static PIN_START: AtomicUsize = AtomicUsize::new(0);
+static PIN_END: AtomicUsize = AtomicUsize::new(0);
+/// The PIN screens shown so far (odd: one is up).
+static PIN_SCREENS: AtomicUsize = AtomicUsize::new(0);
+
+/// The PIN screen's keypad buttons 0-9 (touch screen), fractions of the picture.
+fn pin_button(digit: usize) -> (f32, f32) {
+    let (col, row) = if digit == 0 { (0, 3) } else { ((digit - 1) % 3, (digit - 1) / 3) };
+    (0.109 + 0.098 * col as f32, 0.346 + 0.078 * row as f32)
+}
+
+/// The PIN screen (ICCardPasswordCheck scene, rva 0x2c740 its start, 0x2c800 its end): the
+/// card's PIN is touched on its keypad. The player's numpad (`kp0`..`kp9`) touches the digits;
+/// a configured card's PIN (`WAL_KONAMI_CARD_PIN`) is touched by itself.
+unsafe extern "C" fn pin_start(a: usize, b: usize, c: usize, d: usize) -> usize {
+    let original: unsafe extern "C" fn(usize, usize, usize, usize) -> usize = unsafe { std::mem::transmute(PIN_START.load(Ordering::Relaxed)) };
+    let screen = PIN_SCREENS.fetch_add(1, Ordering::Relaxed) + 1;
+    std::thread::spawn(move || pin_keypad(screen));
+    unsafe { original(a, b, c, d) }
+}
+
+unsafe extern "C" fn pin_end(a: usize, b: usize, c: usize, d: usize) -> usize {
+    let original: unsafe extern "C" fn(usize, usize, usize, usize) -> usize = unsafe { std::mem::transmute(PIN_END.load(Ordering::Relaxed)) };
+    if PIN_SCREENS.load(Ordering::Relaxed) % 2 == 1 {
+        PIN_SCREENS.fetch_add(1, Ordering::Relaxed);
+    }
+    unsafe { original(a, b, c, d) }
+}
+
+/// The keypad's touches while PIN screen `screen` is up: the numpad's digit held, else the
+/// configured PIN's digits from 1.5 s on (each touched 150 ms, 300 ms apart).
+fn pin_keypad(screen: usize) {
+    use std::time::{Duration, Instant};
+    let pin: Vec<usize> = std::env::var("WAL_KONAMI_CARD_PIN")
+        .unwrap_or_default()
+        .trim()
+        .bytes()
+        .filter(u8::is_ascii_digit)
+        .map(|b| (b - b'0') as usize)
+        .collect();
+    let pin = if pin.len() == 4 { pin } else { Vec::new() };
+    let start = Instant::now();
+    let mut typed = false;
+    while PIN_SCREENS.load(Ordering::Relaxed) == screen {
+        let stick = wal_payload_common::input(0);
+        let key = (0..10).find(|&d| stick.pressed(wal_protocol::button::KP0 << d));
+        let since = start.elapsed().as_millis().saturating_sub(1500);
+        let auto = (!pin.is_empty() && start.elapsed() >= Duration::from_millis(1500) && since < 300 * 4).then(|| {
+            let slot = since / 150;
+            (slot % 2 == 0).then(|| pin[(slot / 2) as usize])
+        });
+        match (key, auto) {
+            (Some(d), _) | (None, Some(Some(d))) => {
+                let (x, y) = pin_button(d);
+                crate::touchpanel::set_auto_touch(Some((x, y, true)));
+            }
+            (None, Some(None)) => {
+                let (x, y) = pin_button(pin[0]);
+                crate::touchpanel::set_auto_touch(Some((x, y, false)));
+            }
+            (None, None) => crate::touchpanel::set_auto_touch(None),
+        }
+        if !typed && since >= 300 * 4 && !pin.is_empty() {
+            typed = true;
+            log!("winning eleven: card PIN touched on the PIN screen");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    crate::touchpanel::set_auto_touch(None);
+}
+
+fn pin_screen_init() {
+    // push -1; push 0x99b33b
+    let start = [0x6a, 0xff, 0x68, 0x3b, 0xb3, 0x99, 0x00];
+    // sub esp, 0x6b0
+    let end = [0x81, 0xec, 0xb0, 0x06, 0x00, 0x00];
+    // the end first: the start's hook needs it
+    let Some(e) = (unsafe { detour(0x2c800, &end, pin_end as *const () as usize) }) else {
+        log!("winning eleven: PIN screen code differs, its keypad only by touch");
+        return;
+    };
+    PIN_END.store(e, Ordering::Relaxed);
+    match unsafe { detour(0x2c740, &start, pin_start as *const () as usize) } {
+        Some(s) => PIN_START.store(s, Ordering::Relaxed),
+        None => log!("winning eleven: PIN screen code differs, its keypad only by touch"),
     }
 }
 
@@ -374,4 +513,3 @@ unsafe fn detour(rva: usize, head: &[u8], target: usize) -> Option<usize> {
 extern "C" fn fck_set_eq(_mode: i32) -> i32 {
     0
 }
-

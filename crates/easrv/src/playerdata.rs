@@ -13,7 +13,7 @@ use crate::kbin::{Node, Value};
 
 use crate::cards::DIR;
 
-fn base64_decode(text: &str) -> Vec<u8> {
+pub(crate) fn base64_decode(text: &str) -> Vec<u8> {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = Vec::new();
     let (mut acc, mut bits) = (0u32, 0);

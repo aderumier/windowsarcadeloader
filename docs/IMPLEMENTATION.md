@@ -2182,8 +2182,55 @@ used. spice2x supports the later Winning Eleven 2012/2014 (KCK, NCK) with the sa
   test-mode data `D:/HCK/save/weags_config_data.bin`, checksummed) are on by default: the boot
   stops on 5-2002-0000 (center server, SERVICE continues), then 5-2505-0000 (Live Monitor not
   found). After the data is loaded (rva 0x13400, the struct at 0xc83088: e-AMUSEMENT, then LIVE
-  MONITOR CONNECT) both are set off unless `WAL_KONAMI_EAMUSEMENT=1` / `WAL_KONAMI_LIVE_MONITOR=1`:
-  attract in local mode, free play by default.
+  MONITOR CONNECT) both are set off unless `WAL_KONAMI_EAMUSEMENT=1` / `WAL_KONAMI_LIVE_MONITOR=1`
+  (e-AMUSEMENT also kept with a services host, below): attract in local mode, free play by
+  default.
+- **e-Amusement server.** `WAL_KONAMI_EASRV=1` (the profile's default): the payload starts the
+  fake server (crate `wal-easrv`, 127.0.0.1:33701) and the game boots online. game.exe builds
+  its e-Amusement configuration itself (rva 0x715c0): `/ea3/network/services` is
+  `services.<the PC's DNS domain>` (its `GetNetworkParams` domain, the shop's network), a host
+  AVS posts to as `http://<host>/`; the payload's `property_node_create` import gives
+  `127.0.0.1:33701` there (`WAL_KONAMI_SERVICES=<host[:port]>`: an external server's). The
+  2008 library (libavs-win32.dll):
+  - posts `POST /` with text XML (`<call model=..><services method="get"/>`): the server
+    takes the module and method from the call. Its answers stay binary XML, encrypted;
+  - reads an answer into the game's 4 KB `sz_xrpc_buf`: the full services list (23 items,
+    1608 bytes of binary XML) fails ("read error by mem"): HCK gets its own modules only
+    (cardmng, clientlog, facility, goalreplay, message, netconfig, package, pcbevent,
+    pcbtracker, playerdata, posevent, ranking, sidmgr, system, takeover, local, keepalive) at
+    the server's root;
+  - `ea3_get_status` is 1 ("checking the network": notice 3, "e-AMUSEMENT PASS and services
+    unavailable") until its `server` keepalive answers: with the services list's `keepalive`
+    item it turns 3 (online) after about 10 s and the notice goes.
+- **Its own modules** (`easrv/hck.rs`, the `ac_net_*` code of game.exe). Most answers are
+  wrapped: the module node holds `data` strings, base64 chunks (≤ 1020 characters) of a
+  document whose `/player` node has the fields (restore_recvdata, rva 0x95e20); the session
+  and takeover answers are plain fields of the module node:
+  - `netconfig.get` (`config_name`): `player/config_value`, base64 text. `SETTING` is the
+    shop-to-shop match's settings (`ONLINE_MATCH_SETTING`, five `|`-separated numbers; "GET
+    SETTING: FAILED" without), `OSHIRASE` (news), `TABOONAME` (banned names): empty.
+  - `dbfunc_call` / `dbfunc_call64` (stored procedures: leagues, tournaments): `result`, base64
+    text (the first reads it wrapped, the second in the module node): empty.
+  - `ranking.getlist`: `player/result`, `record_num` 0.
+  - `playerdata.login` / `logout`: `status` (`invalid` a failure), `comid` (the session id),
+    `login` / `logout` s32. `takeover.load` (Winning Eleven 2006 and location test data):
+    `flg_comp`, `flg_play_we06`... 13 s32, 0.
+  - `playerdata.usergamedatadetail_send` / `_recv`: the player's records by key (`T1I01`,
+    `T1S01`... 42), a CSV line each of the columns `vk,i1..i8,d1..d7,l1..l8,s1..s3` (`vk` the
+    key) and maybe a `bin`. Sent as `d`: base64 of the text's length (u32) and the text in
+    LZSS (Okumura's: 4 KB ring of zeros from 0xfee, flag bytes from the lowest bit, 1 a
+    literal, 0 a 12-bit position and length - 3); read back (`_recv`: `vkeycsv` the keys,
+    space-padded) as `player/record/d`: base64 of the plain text in the asked columns, or
+    `<NODATA>`, `record_num` their count. Kept as `dev/nvram/easrv/<eaid>/HCK/<key>.kbin`
+    beside game.exe (the run directory). A card's first login sends its new records after
+    `bindmodel`; the next ones load them.
+- **Cards.** The reader is the old slot one (`ac_io_icca_req_uid`), no keypad: the card's PIN
+  is touched on the screen (ICCardPasswordCheck scene, rva 0x2c740 its start, 0x2c800 its
+  end; 20 s). The payload touches its keypad buttons for the player's numpad (`kp0`..`kp9`)
+  and, with a configured card (`WAL_KONAMI_CARD_PIN`), the PIN by itself 1.5 s after the
+  screen opens (`touchpanel::set_auto_touch`). Then `authpass`, a new card's `bindmodel`, the
+  data load, the e-AMUSEMENT PASS notice, ICCardSucceed; a new player names a team (stick,
+  A/B) and picks an emblem.
 - **In-match sound effects.** CRI ADX (in game.exe, its own DirectSound device) streams the
   commentary and the crowd from `src/wedat/root/*_sound.afs`; the other match effects are
   DirectMusic (`src/wedat/area/0/text/sound/internal` banks). The prefix's native DirectMusic
@@ -2195,7 +2242,7 @@ used. spice2x supports the later Winning Eleven 2012/2014 (KCK, NCK) with the sa
   0x57df30). Wine's performance still processes few of the game's messages.
 - **Network notice.** "Operating in local mode: e-AMUSEMENT PASS and e-AMUSEMENT service not
   available" (notice 1 of the table at 0xc898c0, set by rva 0x28770, drawn by rva 0x28880 while
-  its id is not 0) is always the case here: id 1 is set as 0.
+  its id is not 0) is the case offline: id 1 is set as 0.
 - **Controls.** The player chooses the arcade stick or the home (PS2) controller by touching the
   screen (ControllerSelect scene, a button touched twice is taken); the touch hit test (rva
   0x46670, called at 0x467f6) answers the arcade panel, taken at once: the PJEI board, stick and buttons A-F
@@ -3258,7 +3305,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `gashaaaan` | Gashaaaan | konami | works (headless test) | `bin/ballshooting.exe` (§6.3h), `iob.dll` replaced: I/O board (buttons, coins, ball supply, plugs), ballio's camera board answered (ball hits from the guns), the two overlapping screens shown as one picture, E:/F: save drives, OpenGL crosshairs |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |
 | `otomedius` | Otomedius | konami | works (user: 100%) | `otomedius.exe` (§6.3h), `libacio.dll` replaced: PJEI board (stick, buttons, coins, security plug), card reader, the libbms imports (BM-System, e-Amusement offline) and libtouchpanel imports (touch screen from the mouse, fitted to the 5:4 picture) answered, missing `ChkSum.bin` data check passed, E:/F: save drives |
-| `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (never touched), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, e-Amusement and Live Monitor off, D: (exe and sound.dll) to the dump root |
+| `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), e-Amusement cards (loader's server) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (touched only on the PIN screen), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, Live Monitor off, fake e-Amusement server (services host, its own modules: player records, login, PIN touched), or e-Amusement off, D: (exe and sound.dll) to the dump root |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | `contents/modules/weac12_bootstrap_release.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.13 names, 30 MB heaps), region `WAL_KONAMI_DEST` (`A`: the product code `KCK-002` answered, English data); `libacio.dll` replaced: PJEI board, PS2 and PS3 pad ports, card reader; touch screen (serial panel, or the Japanese USB one and its COM1 LCD monitor) from the mouse |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | `contents/modules/bsch.dll` run by `wal-avs-boot64.exe` (§6.3h, AVS2 2.17, 64-bit); `libacio.dll` + `libacio_pix.dll` replaced: BMPU and PIX boards (4 players: R/G/B buttons, disks), card reader, LCD, kbt.dll answered; e-amusement off, network check skipped; exclusive WASAPI played shared |

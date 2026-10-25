@@ -71,6 +71,7 @@ pub enum Value {
     U64(u64),
     Ip4([u8; 4]),
     Bool(bool),
+    Bin(Vec<u8>),
 }
 
 #[derive(Clone)]
@@ -104,6 +105,7 @@ impl Node {
             Value::U64(v) => (9, v.to_be_bytes().to_vec()),
             Value::Ip4(v) => (IP4, v.to_vec()),
             Value::Bool(v) => (52, vec![v as u8]),
+            Value::Bin(v) => (BIN, v),
         };
         Node { kind, raw, ..Node::new(name) }
     }

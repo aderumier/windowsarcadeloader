@@ -8,6 +8,12 @@ const SERVICES: &[&str] = &[
     "lobby2", "local", "local2", "apsmanager", "netlog", "userdata", "eventlog", "matching", "system", "hdkoperation",
 ];
 
+/// Winning Eleven 2008's services (its xrpc modules).
+const SERVICES_HCK: &[&str] = &[
+    "cardmng", "clientlog", "facility", "goalreplay", "message", "netconfig", "package", "pcbevent", "pcbtracker", "playerdata",
+    "posevent", "ranking", "sidmgr", "system", "takeover", "local",
+];
+
 fn s32(name: &str, v: i32) -> Node {
     Node::value(name, Value::S32(v))
 }
@@ -30,7 +36,7 @@ pub fn answers(url: &str) -> Vec<(&'static str, Vec<u8>)> {
         Node::new("services")
             .children(SERVICES.iter().map(|s| Node::new("item").attr("name", s).attr("url", url)))
             .child(Node::new("item").attr("name", "ntp").attr("url", "ntp://pool.ntp.org/"))
-            .child(Node::new("item").attr("name", "keepalive").attr("url", keepalive)),
+            .child(Node::new("item").attr("name", "keepalive").attr("url", &keepalive)),
     );
     let facility = Node::new("response").child(
         Node::new("facility")
@@ -69,8 +75,17 @@ pub fn answers(url: &str) -> Vec<(&'static str, Vec<u8>)> {
                     )),
             ),
     );
+    // Winning Eleven 2008: its services only, at the server's root (the answer is read into the
+    // game's 4 KB `sz_xrpc_buf`: the full list does not fit, "read error by mem")
+    let root = url.trim_end_matches("service/");
+    let services_hck = Node::new("response").child(
+        Node::new("services")
+            .children(SERVICES_HCK.iter().map(|s| Node::new("item").attr("name", s).attr("url", root)))
+            .child(Node::new("item").attr("name", "keepalive").attr("url", format!("{root}keepalive?pa=127.0.0.1&ia=127.0.0.1&ga=127.0.0.1&ma=127.0.0.1&t1=2&t2=10"))),
+    );
     let docs = [
         ("services.get", services),
+        ("HCK.services.get", services_hck),
         (
             "pcbtracker.alive",
             Node::new("response").child(

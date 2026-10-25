@@ -1,17 +1,19 @@
 //! A fake e-Amusement server (`WAL_KONAMI_EASRV=1`): the games whose boot needs Konami's network
 //! (Steel Chronicle Victroopers: 5-2000-0000 otherwise) get its services from this one, on
 //! `127.0.0.1:33701`. wal-avs-boot runs it (before the game's e-Amusement boot, which asks for the
-//! services at once) and points the game's `/ea3/network/services` at it.
+//! services at once) and points the game's `/ea3/network/services` at it; Winning Eleven 2008's
+//! payload does both itself (the game boots e-Amusement).
 //!
 //! The game posts `<model>/<module>/<method>` (or `?model=..&module=..&method=..`, or
-//! `?model=..&f=<module>.<method>`) requests: binary XML (`kbin.rs`), RC4-encrypted with the key
-//! of its `X-Eamuse-Info` header, maybe LZ77-compressed (`X-Compress: lz77`). The answers are
-//! built as binary XML too, encrypted when the request is (for spice2x's `X-Eamuse-Info:
-//! 1-53d121c7-a8b3`):
+//! `?model=..&f=<module>.<method>`, or `/` with the call naming them) requests: binary or text
+//! XML (`kbin.rs`), RC4-encrypted with the key of its `X-Eamuse-Info` header, maybe
+//! LZ77-compressed (`X-Compress: lz77`). The answers are built as binary XML, encrypted when the
+//! request is (for spice2x's `X-Eamuse-Info: 1-53d121c7-a8b3`):
 //! - `easrv/answers.rs`: spice2x's (easrv.cpp, the open-source reference): the services list
 //!   (every service here), the PCB tracker, messages, the facility, package list, tax phase,
 //!   event log, machine control, Steel Chronicle's `system.getmaster` / `hdkoperation.get`,
-//!   Metal Gear Arcade's `system.getmaster`;
+//!   Metal Gear Arcade's `system.getmaster`, Winning Eleven 2008's services list;
+//! - `easrv/hck.rs`: Winning Eleven 2008's own modules (settings, its players' records, login);
 //! - `easrv/cards.rs`: the card manager (cards, PINs: `dev/nvram/easrv/`);
 //! - `easrv/playerdata.rs`: the players' records (`playerdata.usergamedata_*`), per card;
 //! - anything else an empty answer.
@@ -50,6 +52,7 @@ pub(crate) use log;
 
 mod answers;
 mod cards;
+mod hck;
 pub mod kbin;
 mod playerdata;
 
@@ -99,8 +102,22 @@ fn request(path: &str) -> (String, String, String) {
     }
 }
 
+/// `(model, module, method)` of a request's `<call model=..><module method=../></call>`.
+fn body_request(call: &Node) -> (String, String, String) {
+    let attr = |n: &Node, key: &str| n.attrs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default();
+    match call.children.first() {
+        Some(module) => (attr(call, "model"), module.name.clone(), attr(module, "method")),
+        None => Default::default(),
+    }
+}
+
 /// The answer document and how it was found (for the log).
 fn answer(model: &str, module: &str, method: &str, req: Option<&Node>) -> (Vec<u8>, &'static str) {
+    if model.starts_with("HCK")
+        && let Some(answer) = hck::handle(module, method, req)
+    {
+        return (Node::new("response").child(answer).to_binary(), "HCK");
+    }
     if module == "cardmng" {
         return (Node::new("response").child(cards::handle(method, req)).to_binary(), "cardmng");
     }
@@ -116,7 +133,8 @@ fn answer(model: &str, module: &str, method: &str, req: Option<&Node>) -> (Vec<u
     let name = format!("{module}.{method}");
     let game = format!("{}.{name}", model.get(..3).unwrap_or_default());
     let all = fixed();
-    match all.iter().find(|(n, _)| *n == game || *n == name) {
+    // the game's own answer first
+    match all.iter().find(|(n, _)| *n == game).or_else(|| all.iter().find(|(n, _)| *n == name)) {
         Some((n, doc)) => (doc.clone(), *n),
         None => (all.iter().find(|(n, _)| *n == "empty").unwrap().1.clone(), "empty"),
     }
@@ -178,8 +196,13 @@ fn serve(mut stream: TcpStream) {
     // an encrypted request (its X-Eamuse-Info header) wants an encrypted answer
     let crypt = header(&head, "x-eamuse-info").is_some();
     let body: Vec<u8> = if head.starts_with("POST") {
-        let (model, module, method) = request(&path);
         let req = decode(&head, &data[head_end..(head_end + length).min(data.len())]);
+        let (model, module, method) = match request(&path) {
+            // the older form (Winning Eleven 2008): `POST /`, the call's child is the module, its
+            // `method` attribute the method
+            (_, module, _) if module.is_empty() => req.as_ref().map(body_request).unwrap_or_default(),
+            r => r,
+        };
         let (mut doc, name) = answer(&model, &module, &method, req.as_ref());
         if LOGGED.fetch_add(1, Ordering::Relaxed) < 200 {
             log!("easrv: {module}.{method} -> {name}{}", if req.is_none() { " (request not decoded)" } else { "" });

@@ -196,7 +196,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `gashaaaan` | Gashaaaan | konami | works (headless test) | not in the test |  |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | not in the test |  |
 | `otomedius` | Otomedius | konami | works (user: 100%) | not in the test |  |
-| `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | not in the test |  |
+| `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), e-Amusement cards (loader's server) | not in the test |  |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | not in the test |  |
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | not in the test |  |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | not in the test |  |

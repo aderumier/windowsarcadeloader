@@ -3681,6 +3681,7 @@ name = "wal-payload-konami"
 version = "0.1.0"
 dependencies = [
  "png 0.17.16",
+ "wal-easrv",
  "wal-payload-common",
  "wal-protocol",
  "windows-sys 0.61.2",

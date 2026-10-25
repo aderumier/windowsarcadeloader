@@ -105,8 +105,9 @@
 //!   (set off)
 //! - Chase Chase Jokers: `WAL_KONAMI_TRACKBALL_SPEED` the trackball's counts per 10 ms at the
 //!   right stick's full tilt (default 12)
-//! - `WAL_KONAMI_EASRV=1`: the payload's fake e-Amusement server (Steel Chronicle Victroopers);
-//!   `WAL_KONAMI_SERVICES=<url>`: an external server's services URL instead
+//! - `WAL_KONAMI_EASRV=1`: the loader's fake e-Amusement server (Steel Chronicle Victroopers,
+//!   Metal Gear Arcade, Winning Eleven 2008); `WAL_KONAMI_SERVICES=<url>`: an external server's
+//!   services URL instead (Winning Eleven 2008: its host)
 //! - Steel Chronicle Victroopers: `WAL_KONAMI_FREEPLAY` free play (`1` default, `0` coins)
 //! - Rainbow Bomber Girl: `WAL_KONAMI_PRICE` credits per game (default 1),
 //!   `WAL_KONAMI_FREEPLAY=1` free play, `WAL_KONAMI_REGION=asia` the export version,
