@@ -72,6 +72,7 @@ const COLORS: [[u8; 3]; MAX_PLAYERS] = [[0xff, 0x80, 0x20], [0x30, 0x30, 0xff], 
 /// Built-in shapes are drawn at this size.
 const SHAPE: usize = 128;
 
+const DEV_TEST_COOPERATIVE_LEVEL: usize = 3;
 const DEV_GET_BACK_BUFFER: usize = 18;
 const DEV_CREATE_TEXTURE: usize = 23;
 const DEV_SET_RENDER_TARGET: usize = 37;
@@ -417,6 +418,14 @@ unsafe fn draw(dev: P, _window: P) -> Option<P> {
         return None;
     }
     unsafe {
+        // a lost device (the game resets it): nothing drawn, nothing of its kept (its state block
+        // holds the game's resources: the game's Reset would fail again and again)
+        let test: unsafe extern "system" fn(P) -> i32 = std::mem::transmute(method(dev, DEV_TEST_COOPERATIVE_LEVEL));
+        if test(dev) != 0 {
+            drop(guard);
+            reset(dev);
+            return None;
+        }
         if state.res.as_ref().is_some_and(|r| r.device != dev as usize) {
             drop(guard);
             reset(dev);

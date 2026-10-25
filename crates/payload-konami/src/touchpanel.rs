@@ -50,17 +50,30 @@ pub fn set_full_screen(full: bool) {
     FULL_SCREEN.store(full, Ordering::Relaxed);
 }
 
+/// The game calibrates the panel in screen pixels (Winning Eleven 2012): the panel's raw point is
+/// the pointer's place in screen pixels (`read_on_direct`, what the test menu's calibration
+/// reads), its point the raw one through the game's calibration (`ac_touchpanel_caribrate_set`:
+/// two raw points and the screen points they are, identity until calibrated).
+static SCREEN_CALIBRATION: AtomicBool = AtomicBool::new(false);
+
+pub fn set_screen_calibration(on: bool) {
+    SCREEN_CALIBRATION.store(on, Ordering::Relaxed);
+}
+
 /// A panel: the size of the coordinates it reports, when a diagnostic answer is due.
 pub struct Panel {
     width: i32,
     height: i32,
     answer_at: Instant,
+    /// The game's calibration (screen calibration): raw x0, y0, screen x0, y0, raw x1, y1,
+    /// screen x1, y1.
+    calibration: Option<[f32; 8]>,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_touchpanel_new(width: i32, height: i32) -> *mut Panel {
     log!("touchpanel: {width}x{height}");
-    Box::into_raw(Box::new(Panel { width, height, answer_at: Instant::now() }))
+    Box::into_raw(Box::new(Panel { width, height, answer_at: Instant::now(), calibration: None }))
 }
 
 /// Winning Eleven 2008's constructor: the serial port's number too.
@@ -81,9 +94,17 @@ pub extern "C" fn ac_touchpanel_delete(panel: *mut Panel) -> bool {
 /// The coordinates' range (raw 0..0xfff onto the picture size, which is all this panel has).
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_touchpanel_caribrate_set(
-    panel: *mut Panel, _x0: i32, _y0: i32, _x1: i32, _y1: i32, width: i32, height: i32, _a: i32, _b: i32,
+    panel: *mut Panel, x0: i32, y0: i32, x1: i32, y1: i32, width: i32, height: i32, a: i32, b: i32,
 ) -> bool {
     let Some(panel) = (unsafe { panel.as_mut() }) else { return false };
+    if SCREEN_CALIBRATION.load(Ordering::Relaxed) {
+        // raw (x0, y0) is screen (x1, y1), raw (width, height) is screen (a, b)
+        let c = [x0, y0, x1, y1, width, height, a, b].map(|v| v as f32);
+        if c[4] != c[0] && c[5] != c[1] {
+            panel.calibration = Some(c);
+        }
+        return true;
+    }
     if width > 0 && height > 0 {
         panel.width = width;
         panel.height = height;
@@ -149,25 +170,36 @@ pub extern "C" fn ac_touchpanel_receive_check_diag(_panel: *mut Panel, ok: *mut 
 pub extern "C" fn ac_touchpanel_read_on(panel: *mut Panel, x: *mut i32, y: *mut i32, z: *mut i32, down: *mut u32) -> bool {
     let Some(panel) = (unsafe { panel.as_ref() }) else { return false };
     let stick = wal_payload_common::input(0);
-    let sx = (stick.axis(Axis::RightX) as f32 + 32768.0) / 65535.0;
-    let sy = (stick.axis(Axis::RightY) as f32 + 32768.0) / 65535.0;
-    let (x0, y0, w, h) = picture(panel);
-    let mut px = (sx - x0) / w * panel.width as f32;
-    let mut py = (sy - y0) / h * panel.height as f32;
     let mask = TOUCH_BUTTON.load(Ordering::Relaxed);
-    let mut touched = mask != 0 && stick.pressed(mask);
-    if AUTO_ON.load(Ordering::Relaxed) {
+    // the point, in fractions of the screen (the pointer), or of the panel (the payload's touch)
+    let auto = AUTO_ON.load(Ordering::Relaxed);
+    let (sx, sy, touched) = if auto {
         let t = AUTO_TOUCH.load(Ordering::Relaxed);
-        px = (t >> 16) as f32 / 65535.0 * panel.width as f32;
-        py = (t & 0xffff) as f32 / 65535.0 * panel.height as f32;
-        touched = AUTO_DOWN.load(Ordering::Relaxed);
-    }
+        ((t >> 16) as f32 / 65535.0, (t & 0xffff) as f32 / 65535.0, AUTO_DOWN.load(Ordering::Relaxed))
+    } else {
+        let sx = (stick.axis(Axis::RightX) as f32 + 32768.0) / 65535.0;
+        let sy = (stick.axis(Axis::RightY) as f32 + 32768.0) / 65535.0;
+        (sx, sy, mask != 0 && stick.pressed(mask))
+    };
+    let (px, py, max_x, max_y) = if SCREEN_CALIBRATION.load(Ordering::Relaxed) {
+        let (raw_x, raw_y, sw, sh) = screen_raw(sx, sy);
+        let (px, py) = match panel.calibration {
+            Some(c) => (c[2] + (raw_x - c[0]) * (c[6] - c[2]) / (c[4] - c[0]), c[3] + (raw_y - c[1]) * (c[7] - c[3]) / (c[5] - c[1])),
+            None => (raw_x, raw_y),
+        };
+        (px, py, sw as i32 - 1, sh as i32 - 1)
+    } else if auto {
+        (sx * panel.width as f32, sy * panel.height as f32, panel.width - 1, panel.height - 1)
+    } else {
+        let (x0, y0, w, h) = picture(panel);
+        ((sx - x0) / w * panel.width as f32, (sy - y0) / h * panel.height as f32, panel.width - 1, panel.height - 1)
+    };
     unsafe {
         if !x.is_null() {
-            *x = (px as i32).clamp(0, panel.width - 1);
+            *x = (px as i32).clamp(0, max_x);
         }
         if !y.is_null() {
-            *y = (py as i32).clamp(0, panel.height - 1);
+            *y = (py as i32).clamp(0, max_y);
         }
         if !z.is_null() {
             *z = if touched { 0xff } else { 0 };
@@ -198,5 +230,36 @@ fn picture(panel: &Panel) -> (f32, f32, f32, f32) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_touchpanel_read_on_direct(panel: *mut Panel, x: *mut i32, y: *mut i32, z: *mut i32, down: *mut u32) -> bool {
-    ac_touchpanel_read_on(panel, x, y, z, down)
+    if !SCREEN_CALIBRATION.load(Ordering::Relaxed) || AUTO_ON.load(Ordering::Relaxed) {
+        return ac_touchpanel_read_on(panel, x, y, z, down);
+    }
+    // the raw point: the pointer in screen pixels
+    let stick = wal_payload_common::input(0);
+    let sx = (stick.axis(Axis::RightX) as f32 + 32768.0) / 65535.0;
+    let sy = (stick.axis(Axis::RightY) as f32 + 32768.0) / 65535.0;
+    let (raw_x, raw_y, sw, sh) = screen_raw(sx, sy);
+    let mask = TOUCH_BUTTON.load(Ordering::Relaxed);
+    let touched = mask != 0 && stick.pressed(mask);
+    unsafe {
+        if !x.is_null() {
+            *x = (raw_x as i32).clamp(0, sw as i32 - 1);
+        }
+        if !y.is_null() {
+            *y = (raw_y as i32).clamp(0, sh as i32 - 1);
+        }
+        if !z.is_null() {
+            *z = if touched { 0xff } else { 0 };
+        }
+        if !down.is_null() {
+            *down = touched as u32;
+        }
+    }
+    true
+}
+
+/// The pointer (fractions of the screen) in screen pixels, and the screen's size.
+fn screen_raw(sx: f32, sy: f32) -> (f32, f32, f32, f32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+    let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN) as f32, GetSystemMetrics(SM_CYSCREEN) as f32) };
+    (sx * sw, sy * sh, sw.max(1.0), sh.max(1.0))
 }

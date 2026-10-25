@@ -2297,6 +2297,33 @@ its heaps 30 MB (`WAL_KONAMI_AVS_HEAP_MB`). The payload is its `libacio.dll` (`w
   play from the dump's
   `dev/nvram/coin.xml`. The online update fails each minute (`F:\KCK-000\update`), harmless.
 
+- **e-Amusement** (`WAL_KONAMI_EASRV=1`, the profile's default; `WAL_KONAMI_SERVICES` an
+  external server). The dump's network options (`dev/nvram/networkopt.xml`, the test menu's
+  NETWORK OPTIONS) are all 0: "Operating in Local Mode", no card. With a server, their getter
+  (rva 0xf03c70, a trampoline) returns them with the network on. The card's PIN screens
+  (AcSceneIcCardConfirmPassword_2012 / RegistPassword_2012, vtable slot 5) shuffle their keypad
+  (14 patterns, the scene's +0x234, the game's digit strings at rva 0x172b718): the configured
+  PIN (`WAL_KONAMI_CARD_PIN`), else the numpad, is pressed through the keypad's own handlers
+  (key press rva 0xfb35a0, esi scene / edi key; commit rva 0xfb3360). The server's `KCK`
+  module (`easrv/kck.rs`): `userdata.login` (session, is_new), `load` (the player's data as
+  saved, or a new player), `save` (kept in `dev/nvram/easrv/<refid>/KCK.kbin`), `takeover`
+  (none), `userenv.get`. The game requires its answers' some 240 values and lists (each
+  missing one: "the line is congested", the game ends): while the card's login runs
+  (AcCardEntryLoadUserDataSeq_2012, vtable slot 8) and `userenv.get` is parsed (rva 0x10bd150,
+  also after a game), the game's libavs `property_node_refer` reads a missing value as 0 (a
+  date: the game's release) and `property_search` answers a missing group or list entry with
+  the answer's `empty` group (the server's). The player list needs 32 entries (`player/num`).
+  A new card: e-Amusement terms (touch YES), the team, a match. Not verified yet: the save at
+  a game's end and its reload (user test pending).
+- **Touch** (`touchpanel.rs`, screen calibration). The game calibrates its serial panel in
+  screen pixels every frame (`ac_touchpanel_caribrate_set`: raw (128, 128) is screen (128, 128),
+  raw (1792, 952) is screen (1792, 952), identity until the test menu's TOUCH PANEL CHECK
+  calibrates): the panel's raw point is the pointer in screen pixels (`read_on_direct`), its
+  point the raw one through that calibration (`read_on`); reading the calibration's size as the
+  panel's (as before) put the touch 7% short toward the bottom right. The red touch pointer
+  (`WAL_KONAMI_CROSSHAIRS`, `crosshair.rs`, `right-stick` axes) skips lost devices: its state
+  block kept the game's resources and every `Reset` failed (the game froze).
+
 #### GTI Club: Supermini Festa!
 
 GTI Club: Supermini Festa! (2009, game code HGT, Direct3D 9, 1360x768) runs `gti3.exe` from the
@@ -3467,7 +3494,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `otomedius` | Otomedius | konami | works (user: 100%) | `otomedius.exe` (§6.3h), `libacio.dll` replaced: PJEI board (stick, buttons, coins, security plug), card reader, the libbms imports (BM-System, e-Amusement offline) and libtouchpanel imports (touch screen from the mouse, fitted to the 5:4 picture) answered, missing `ChkSum.bin` data check passed, E:/F: save drives |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), e-Amusement cards (loader's server) | `HCK/bin/game.exe` (§6.3h), `libacio.dll` replaced: PJEI board (arcade stick, buttons A-F), PS2 pad port, card reader, the libtouchpanel imports answered (touched only on the PIN screen), security plug of a player cabinet, the payload passed by the ROM check, `GetAdaptersInfo` fitted to the game's buffer, Realtek equalizer answered, Live Monitor off, fake e-Amusement server (services host, its own modules: player records, login, PIN touched), or e-Amusement off, D: (exe and sound.dll) to the dump root |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | `gti3.exe` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coin stock, security plug), card reader; `dllibacio.dll` loads the payload: HGTH board (wheel and pedals scaled onto the game's calibration, motor torque and vibration as force feedback); boot calibration check passed, C: the only drive (boot time), wined3d |
-| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | `contents/modules/weac12_bootstrap_release.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.13 names, 30 MB heaps), region `WAL_KONAMI_DEST` (`A`: the product code `KCK-002` answered, English data); `libacio.dll` replaced: PJEI board, PS2 and PS3 pad ports, card reader; touch screen (serial panel, or the Japanese USB one and its COM1 LCD monitor) from the mouse |
+| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%); e-Amusement cards (login, new player, match; save at a game's end not verified yet) | `contents/modules/weac12_bootstrap_release.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.13 names, 30 MB heaps), region `WAL_KONAMI_DEST` (`A`: the product code `KCK-002` answered, English data); `libacio.dll` replaced: PJEI board, PS2 and PS3 pad ports, card reader; touch screen (serial panel in screen pixels, or the Japanese USB one and its COM1 LCD monitor) from the mouse, red pointer; e-Amusement (network on, PIN on the shuffled keypad, `easrv/kck.rs`, missing values read 0 at login) |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | `contents/modules/bsch.dll` run by `wal-avs-boot64.exe` (§6.3h, AVS2 2.17, 64-bit); `libacio.dll` + `libacio_pix.dll` replaced: BMPU and PIX boards (4 players: R/G/B buttons, disks), card reader, LCD, kbt.dll answered; e-amusement off, network check skipped; exclusive WASAPI played shared |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | `launcher.exe` (§6.3h), `libacio.dll` replaced: HBHI board (3 players: red, green, blue, yellow buttons; player 3 on the analog channels), card reader, the libbms imports (BM-System offline); clock check skipped |
 | `dance-dance-revolution-2013` | Dance Dance Revolution 2013 | konami | works (user: 100%), e-Amusement cards (loader's server) | `modules/mdxja_945.dll` run by `wal-avs-boot.exe` (§6.3h, AVS 2.15.8), payload loaded after it: P3IO (inputs, ACIO card readers, lights), FOOT / SATE / USBMEM serial boards, security plug signed for MDX, kbt dongles, codecs registered; P4IO + MDXF for hm65 |

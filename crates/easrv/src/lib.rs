@@ -16,6 +16,7 @@
 //! - `easrv/hck.rs`: Winning Eleven 2008's own modules (settings, its players' records, login);
 //! - `easrv/jmp.rs`: Hello! Pop'n Music's `game` module (Asphyxia CORE's popn-hello plugin);
 //! - `easrv/mdx.rs`: Dance Dance Revolution 2013's `game` module (bemaniutils' backend);
+//! - `easrv/kck.rs`: Winning Eleven 2012's `userdata` module (its players' data, kept as saved);
 //! - `easrv/cards.rs`: the card manager (cards, PINs: `dev/nvram/easrv/`);
 //! - `easrv/playerdata.rs`: the players' records (`playerdata.usergamedata_*`), per card;
 //! - anything else an empty answer.
@@ -56,6 +57,7 @@ mod answers;
 mod cards;
 mod hck;
 mod jmp;
+mod kck;
 pub mod kbin;
 mod mdx;
 mod playerdata;
@@ -131,6 +133,11 @@ fn answer(model: &str, module: &str, method: &str, req: Option<&Node>) -> (Vec<u
         && let Some(answer) = jmp::handle(module, method, req)
     {
         return (Node::new("response").child(answer).to_binary(), "JMP");
+    }
+    if model.starts_with("KCK")
+        && let Some(answer) = kck::handle(module, method, req)
+    {
+        return (Node::new("response").child(answer).to_binary(), "KCK");
     }
     // Metal Gear Arcade's server messages: `INFO` (the unlocks, the fixed answer below); the
     // others (`MAPPAT`, `RK_TERM`) none, `result` 0 (bemaniutils' answer)

@@ -198,7 +198,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `otomedius` | Otomedius | konami | works (user: 100%) | not in the test |  |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), e-Amusement cards (loader's server) | not in the test |  |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | not in the test |  |
-| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | not in the test |  |
+| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%), e-Amusement cards (login, new player, match; save at a game's end not verified yet), red touch pointer | not in the test |  |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | not in the test |  |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | not in the test |  |
 | `dance-dance-revolution-2013` | Dance Dance Revolution 2013 | konami | works (user: 100%), e-Amusement cards (loader's server); menus on the menu buttons (b1-b4: Left Ctrl / Left Alt / Space / Left Shift), not the pad arrows | not in the test |  |
