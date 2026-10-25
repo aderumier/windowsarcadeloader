@@ -1,6 +1,7 @@
 //! The cabinet's boot check libraries `kbt.dll` and `kld.dll` (not in the dumps): the game
 //! finds them with `GetModuleHandle` and looks up their functions (`bt_get_ikey_status`, the
-//! dongles' status; Bishi Bashi Channel also `k_bt0001` / `k_bt0002`), which this DLL exports:
+//! dongles' status; Bishi Bashi Channel also `k_bt0001` / `k_bt0002`; Metal Gear Arcade kld's
+//! `bt_fcheck_init` / `_main` / `_finish`, the file check), which this DLL exports:
 //! `GetModuleHandle` answers this DLL for them. spice2x's stubs are the reference.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -71,11 +72,35 @@ pub extern "C" fn bt_get_ikey_status(status: *mut u32) -> i32 {
     0
 }
 
+/// kld.dll's file check (the game's files against their checksums): done, nothing wrong
+/// (spice2x's stubs).
+#[unsafe(no_mangle)]
+pub extern "C" fn bt_fcheck_init(_spawn_thread: bool, _quick: bool) -> i32 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bt_fcheck_main(_a: *mut std::ffi::c_void) -> i32 {
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bt_fcheck_finish() -> i32 {
+    0
+}
+
 /// Points the game's `GetModuleHandleA` / `GetModuleHandleW` imports at the answers above.
 pub(crate) fn init(module: crate::HINSTANCE) {
     PAYLOAD.store(module as usize, Ordering::Relaxed);
+    hook_module(iat::game_module());
+}
+
+/// Same, in another module of the game (loaded later; `init` first).
+pub(crate) fn hook_module(base: usize) {
     for (name, f) in [("GetModuleHandleA", get_module_handle_a as *const () as usize), ("GetModuleHandleW", get_module_handle_w as *const () as usize)] {
-        if let Some(o) = unsafe { iat::hook("kernel32.dll", name, f) } {
+        if let Some(o) = unsafe { iat::hook_module(base, "kernel32.dll", name, f) }
+            && o != f
+        {
             ORIG_GET_MODULE[(name == "GetModuleHandleW") as usize].store(o, Ordering::Relaxed);
         }
     }

@@ -3,12 +3,17 @@
 //! throw lands).
 //!
 //! - `WAL_KONAMI_CROSSHAIR_STYLE`: the built-in shape, `ring-cross` (default), `cross`, `ring`,
-//!   `dot`, white with a black outline, in the player's color (P1 blue, P2 red, P3 green, P4
+//!   `dot`, `disc` (a filled circle of the crosshair's size), white with a black outline, in the player's color (P1 blue, P2 red, P3 green, P4
 //!   yellow).
 //! - `WAL_KONAMI_CROSSHAIR_P1` ... `_P4`: a PNG of the player's own instead (a Linux path, or a
 //!   Windows one). A dark icon (a silhouette, as icon sites ship them) is drawn in the player's
 //!   color, a colored one with the player's color applied (`WAL_KONAMI_CROSSHAIR_TINT=0`: as is).
 //! - `WAL_KONAMI_CROSSHAIR_SIZE`: its size in percent of the screen height (6).
+//! - `WAL_KONAMI_CROSSHAIR_COLOR`: `RRGGBB`, every player's color instead of theirs.
+//! - `WAL_KONAMI_CROSSHAIR_AXES`: what it follows, `stick` (the left stick, the guns' aim:
+//!   default) or `pedals` (`accel` / `brake`, 0..32767 across the screen: the touch pointer of
+//!   Steel Chronicle Victroopers, whose sticks steer).
+//! - `WAL_KONAMI_CROSSHAIR_HIDE`: seconds without moving before it hides (5; 0: never).
 //!
 //! Before each `Present` (payload-common's Direct3D 9 overlay) the crosshairs are drawn into the
 //! game's back buffer as alpha-blended quads, the game's render states, render target and depth
@@ -27,8 +32,29 @@ use wal_protocol::{Axis, MAX_PLAYERS};
 
 type P = *mut c_void;
 
-/// A crosshair is hidden when its gun did not move for this long.
-const IDLE: Duration = Duration::from_secs(5);
+/// A crosshair is hidden when its gun did not move for this long (`WAL_KONAMI_CROSSHAIR_HIDE`;
+/// `None`: never).
+fn idle() -> Option<Duration> {
+    static IDLE: std::sync::OnceLock<Option<Duration>> = std::sync::OnceLock::new();
+    *IDLE.get_or_init(|| {
+        let secs = std::env::var("WAL_KONAMI_CROSSHAIR_HIDE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(5.0);
+        (secs > 0.0).then(|| Duration::from_secs_f32(secs))
+    })
+}
+
+/// The aim follows `accel` / `brake` (`WAL_KONAMI_CROSSHAIR_AXES=pedals`).
+fn pedals() -> bool {
+    static PEDALS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *PEDALS.get_or_init(|| std::env::var("WAL_KONAMI_CROSSHAIR_AXES").is_ok_and(|v| v.trim() == "pedals"))
+}
+
+/// `WAL_KONAMI_CROSSHAIR_COLOR` (`RRGGBB`) as B, G, R.
+fn color_override() -> Option<[u8; 3]> {
+    let v = std::env::var("WAL_KONAMI_CROSSHAIR_COLOR").ok()?;
+    let v = v.trim().trim_start_matches('#');
+    let n = u32::from_str_radix(v, 16).ok().filter(|_| v.len() == 6)?;
+    Some([n as u8, (n >> 8) as u8, (n >> 16) as u8])
+}
 /// Player colors (B, G, R).
 const COLORS: [[u8; 3]; MAX_PLAYERS] = [[0xff, 0x80, 0x20], [0x30, 0x30, 0xff], [0x40, 0xe0, 0x30], [0x20, 0xe0, 0xff]];
 /// Built-in shapes are drawn at this size.
@@ -112,20 +138,22 @@ fn load() -> bool {
     let style = std::env::var("WAL_KONAMI_CROSSHAIR_STYLE").unwrap_or_default();
     let tint = !std::env::var("WAL_KONAMI_CROSSHAIR_TINT").is_ok_and(|v| v == "0");
     let size = std::env::var("WAL_KONAMI_CROSSHAIR_SIZE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(6.0);
+    let custom_color = color_override();
     let images = (0..MAX_PLAYERS)
         .map(|player| {
+            let color = custom_color.unwrap_or(COLORS[player]);
             let custom = std::env::var(format!("WAL_KONAMI_CROSSHAIR_P{}", player + 1)).ok().filter(|p| !p.trim().is_empty());
             let image = custom.and_then(|path| match read_png(&windows_path(path.trim())) {
                 Ok(image) => {
                     log!("crosshair: P{} {path}", player + 1);
-                    Some(if tint { colorize(image, COLORS[player]) } else { image })
+                    Some(if tint { colorize(image, color) } else { image })
                 }
                 Err(e) => {
                     log!("crosshair: P{} {path}: {e}, built-in crosshair", player + 1);
                     None
                 }
             });
-            image.unwrap_or_else(|| multiply(shape(&style), COLORS[player]))
+            image.unwrap_or_else(|| multiply(shape(&style), color))
         })
         .collect();
     *STATE.lock().unwrap() = Some(State {
@@ -150,9 +178,11 @@ fn shape(style: &str) -> Image {
     let (ring, cross, dot) = match style {
         "cross" => (false, true, true),
         "ring" => (true, false, true),
-        "dot" => (false, false, true),
+        "dot" | "disc" => (false, false, true),
         _ => (true, true, true),
     };
+    // the dot's radius: `disc` fills the picture (a pointer dot of the picture's size)
+    let dot_radius = if style == "disc" { c - 6.0 } else { 7.0 };
     // distance from the shape's white strokes, in pixels (negative inside)
     let stroke = |x: f32, y: f32| -> f32 {
         let (dx, dy) = (x - c, y - c);
@@ -170,7 +200,7 @@ fn shape(style: &str) -> Image {
             }
         }
         if dot {
-            d = d.min(r - 7.0);
+            d = d.min(r - dot_radius);
         }
         d
     };
@@ -347,12 +377,18 @@ fn aims(state: &mut State) -> [Option<(i16, i16)>; MAX_PLAYERS] {
     let mut shown = [None; MAX_PLAYERS];
     for (player, (last, moved)) in state.aims.iter_mut().enumerate() {
         let stick = wal_payload_common::input(player);
-        let aim = (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY));
+        let aim = if pedals() {
+            // 0..32767 to the sticks' -32768..32767
+            let full = |v: i16| (v.max(0) as i32 * 2 - 32768).clamp(-32768, 32767) as i16;
+            (full(stick.axis(Axis::Accel)), full(stick.axis(Axis::Brake)))
+        } else {
+            (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY))
+        };
         if aim != *last {
             *last = aim;
             *moved = Some(now);
         }
-        if moved.is_some_and(|m| now.duration_since(m) < IDLE) {
+        if moved.is_some_and(|m| idle().is_none_or(|idle| now.duration_since(m) < idle)) {
             shown[player] = Some(aim);
         }
     }

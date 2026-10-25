@@ -101,6 +101,9 @@ fn packet() -> [u8; 15] {
     if crate::hpm::active() {
         return crate::hpm::packet();
     }
+    if crate::sc::active() {
+        return crate::sc::packet();
+    }
     let mut guard = BOARD.lock().unwrap();
     let board = guard.get_or_insert_with(|| Board {
         maps: [ButtonMap::new(NATIVES, DEFAULT_MAP), ButtonMap::with_defaults(NATIVES, DEFAULT_MAP)],

@@ -135,7 +135,7 @@ fn touch_init() {
 /// `0<name> <value>\r\n` (`MODEL?`, `INFO`, `BRI`, `CON`, `BL`, `CSM`, `RED`, `GREEN`, `BLUE`)
 /// is echoed `9<name> <value>\r\n`, then `9OK \r\n` (spice2x's answer). Without it the boot
 /// stops on LCD MONITOR ERROR 5-1514-0000.
-fn lcd(packet: &[u8]) -> Vec<u8> {
+pub(crate) fn lcd(packet: &[u8]) -> Vec<u8> {
     let Some(command) = packet.strip_prefix(b"0") else { return Vec::new() };
     let command = String::from_utf8_lossy(command);
     let command = command.trim_end_matches(['\r', '\n']);

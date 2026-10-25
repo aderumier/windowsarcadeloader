@@ -1,0 +1,8 @@
+[package]
+name = "wal-easrv"
+description = "A fake e-Amusement server (Konami's arcade network): boot services, cards, player data"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]

@@ -44,6 +44,12 @@
 //! Action Deka loads it as `libacio.dll` (`gdki.rs`: its action controllers), from where
 //! `deka.rs` answers its libbms, its EZ-USB library and its debug input (the players' guns).
 //!
+//! Metal Gear Arcade (`mga.rs`) is `launch.dll`, run by `wal-avs-boot.exe`: its `system.dll`'s
+//! `libacio.dll` (the I36G cabinet and gun boards, the card reader) and its gun's aim (COM1).
+//!
+//! Steel Chronicle Victroopers (`sc.rs`) is `arkkgg.dll`, run by `wal-avs-boot.exe`: its
+//! `lib_acio.dll`'s `libacio.dll` (the HBHI board: two flight sticks, card reader).
+//!
 //! Hello! Pop'n Music (`hpm.rs`) is `popn.dll`, run by `wal-avs-boot.exe`: its `libacio.dll`
 //! (the HBHI board: two players' start and four buttons).
 //!
@@ -120,6 +126,8 @@ mod ig2;
 #[cfg(target_arch = "x86")]
 mod le3;
 #[cfg(target_arch = "x86")]
+mod mga;
+#[cfg(target_arch = "x86")]
 mod net;
 #[cfg(target_arch = "x86")]
 mod otomedius;
@@ -129,6 +137,8 @@ mod pjec;
 mod pjei;
 #[cfg(target_arch = "x86")]
 mod rf3d;
+#[cfg(target_arch = "x86")]
+mod sc;
 #[cfg(target_arch = "x86")]
 mod screen;
 #[cfg(target_arch = "x86")]
@@ -220,14 +230,25 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             hypersports::init();
             return TRUE;
         }
+        // Steel Chronicle Victroopers: the common payload starts when arkkgg.dll loads gamekgg.dll
+        if sc::ark_module() != 0 {
+            sc::init(module);
+            return TRUE;
+        }
         // Road Fighters 3D: the game is jgt.dll (the common hooks go there), run by wal-avs-boot
         let jgt = rf3d::game_module();
         let we12 = we2012::game_module();
         let popn = hpm::game_module();
-        if jgt != 0 || we12 != 0 || popn != 0 {
-            wal_payload_common::iat::set_game_module(jgt.max(we12).max(popn));
+        let mga = mga::game_module();
+        if jgt != 0 || we12 != 0 || popn != 0 || mga != 0 {
+            wal_payload_common::iat::set_game_module(jgt.max(we12).max(popn).max(mga));
         }
         wal_payload_common::start("konami");
+        if mga != 0 {
+            mga::init(module);
+            log!("konami: I36G cabinet and gun boards, gun aim and card reader emulated (Metal Gear Arcade)");
+            return TRUE;
+        }
         if popn != 0 {
             hpm::init(module);
             log!("konami: HBHI board and card reader emulated (Hello! Pop'n Music)");

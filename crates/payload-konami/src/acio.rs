@@ -8,8 +8,12 @@ use wal_payload_common::log;
 /// `ac_io_is_active2` status of a bus whose node enumeration completed.
 const BUS_READY: u32 = 6;
 
+/// `(port, version, out, flags)`; Metal Gear Arcade passes `(port, device, version, out,
+/// flags)`: the version is the second argument unless it is a small number (cdecl: reading a
+/// fifth argument is harmless).
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_begin(_a: u32, version: *const c_char, out: *mut u32, _b: u32) -> bool {
+pub extern "C" fn ac_io_begin(_a: u32, b: usize, c: usize, d: usize, _e: u32) -> bool {
+    let (version, out) = if b < 0x10000 { (c as *const c_char, d as *mut u32) } else { (b as *const c_char, c as *mut u32) };
     let version = if version.is_null() {
         String::new()
     } else {
@@ -60,11 +64,15 @@ pub extern "C" fn ac_io_is_active_device(_device: u32) -> bool {
     true
 }
 
-/// A device's version record (0x2c bytes): zeros.
+/// A device's version record (0x2c bytes): firmware 2.0.0 at bytes 5-7 (spice2x's answer: some
+/// games check it), the rest zeros.
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_get_version(out: *mut u8, device: u32) -> bool {
     if !out.is_null() {
-        unsafe { std::ptr::write_bytes(out, 0, 0x2c) };
+        unsafe {
+            std::ptr::write_bytes(out, 0, 0x2c);
+            *out.add(5) = 2;
+        }
     }
     log!("acio: device {device} present");
     true

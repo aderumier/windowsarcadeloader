@@ -13,6 +13,7 @@ mod guns;
 mod gui;
 mod input;
 mod mapping;
+mod eamuse_card;
 mod nesica_card;
 mod rundir;
 mod script;
@@ -453,6 +454,14 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     if matches!(system.name(), "nesica" | "nesica2") {
         match nesica_card::load(&profile.root) {
             Ok(Some(card)) => nesica_card::env(&card).into_iter().for_each(|(k, v)| wine.set_env(k, &v)),
+            Ok(None) => {}
+            Err(e) => eprintln!("launcher: {e:#}"),
+        }
+    }
+    // the player's e-Amusement card (GUI), before the profile's own values
+    if system.name() == "konami" {
+        match eamuse_card::load(&profile.root) {
+            Ok(Some(card)) => eamuse_card::env(&card).into_iter().for_each(|(k, v)| wine.set_env(k, &v)),
             Ok(None) => {}
             Err(e) => eprintln!("launcher: {e:#}"),
         }

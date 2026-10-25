@@ -21,6 +21,7 @@ use serde_yaml_ng::Value;
 use crate::config::{self, DUMP_EXT, Dump, GameOption, Layers, MapTable, OptionKind, Profile, USER_PROFILES};
 use crate::squashfs::{self, DumpFile};
 use crate::mapping::RawKey;
+use crate::eamuse_card;
 use crate::nesica_card::{self, Card};
 use crate::wheels::{self, Calibration, Wheels};
 use bindings::{Captured, Device, Row, RowKind};
@@ -219,6 +220,10 @@ struct App {
     show_card: bool,
     card: Card,
     card_saved: Option<Card>,
+    /// The e-Amusement card window (`eamuse_card.rs`): the card edited, and as saved.
+    show_eamuse: bool,
+    eamuse: eamuse_card::Card,
+    eamuse_saved: Option<eamuse_card::Card>,
 }
 
 impl App {
@@ -252,6 +257,11 @@ impl App {
             None
         });
         let card = card_saved.clone().unwrap_or_else(|| Card { card_id: nesica_card::DEFAULT_ID.into(), player_name: String::new() });
+        let eamuse_saved = eamuse_card::load(&root).unwrap_or_else(|e| {
+            status = format!("{e:#}");
+            None
+        });
+        let eamuse = eamuse_saved.clone().unwrap_or_else(|| eamuse_card::Card { card_id: eamuse_card::DEFAULT_ID.into(), pin: String::new() });
         App {
             root,
             games,
@@ -282,6 +292,9 @@ impl App {
             show_card: false,
             card,
             card_saved,
+            show_eamuse: false,
+            eamuse,
+            eamuse_saved,
         }
     }
 
@@ -1439,6 +1452,67 @@ impl App {
         }
     }
 
+    fn eamuse_window(&mut self, ctx: &egui::Context) {
+        if !self.show_eamuse {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("🎫 e-Amusement card").open(&mut open).default_width(460.0).show(ctx, |ui| {
+            ui.label(
+                "The card every Konami game reads (inserted or touched with the card input, F4). \
+                 With a PIN, the loader's e-Amusement server registers the card with it: the game \
+                 only asks the PIN (Metal Gear Arcade's reader types it, START touches the card). \
+                 Each game keeps its own progress on it. A new card id starts over in every game.",
+            );
+            ui.add_space(8.0);
+            egui::Grid::new("eamuse").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                ui.label("Card id");
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut self.eamuse.card_id).char_limit(16).font(egui::TextStyle::Monospace));
+                    if ui.button("🔄 New card").on_hover_text("a new card id: no progress in any game").clicked() {
+                        self.eamuse.card_id = eamuse_card::new_id();
+                    }
+                });
+                ui.end_row();
+                ui.label("PIN");
+                ui.add(egui::TextEdit::singleline(&mut self.eamuse.pin).char_limit(4).font(egui::TextStyle::Monospace).hint_text("none"))
+                    .on_hover_text("4 digits: the card registered with this PIN; empty: registered on the game's screens");
+                ui.end_row();
+            });
+            let valid = eamuse_card::valid_id(&self.eamuse.card_id) && eamuse_card::valid_pin(&self.eamuse.pin);
+            if !eamuse_card::valid_id(&self.eamuse.card_id) {
+                ui.colored_label(ui.visuals().error_fg_color, "the card id is 16 hex digits (e.g. E004010027104B1D)");
+            }
+            if !eamuse_card::valid_pin(&self.eamuse.pin) {
+                ui.colored_label(ui.visuals().error_fg_color, "the PIN is 4 digits");
+            }
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                let changed = self.eamuse_saved.as_ref() != Some(&self.eamuse);
+                if ui.add_enabled(valid && changed, egui::Button::new("💾 Save")).clicked() {
+                    self.status = match eamuse_card::save(&self.root, &self.eamuse) {
+                        Ok(()) => {
+                            self.eamuse_saved = Some(self.eamuse.clone());
+                            "saved the e-Amusement card".into()
+                        }
+                        Err(e) => format!("{e:#}"),
+                    };
+                }
+                if changed && let Some(saved) = &self.eamuse_saved {
+                    if ui.button("Undo").clicked() {
+                        self.eamuse = saved.clone();
+                    }
+                }
+                if self.eamuse_saved.is_none() {
+                    ui.label(format!("not saved: the games use card {}", eamuse_card::DEFAULT_ID));
+                }
+            });
+        });
+        if !open {
+            self.show_eamuse = false;
+        }
+    }
+
     fn save_calibrations(&mut self) {
         self.status = match wheels::save(&self.root, &self.calibrations) {
             Ok(()) => "saved the wheel calibrations".into(),
@@ -1658,6 +1732,8 @@ impl eframe::App for App {
                     .on_hover_text("calibrate a wheel and its pedals: then read as a gamepad in every game");
                 ui.toggle_value(&mut self.show_card, "🎫 NESiCA card")
                     .on_hover_text("your player card in every NESiCA game: player name and card id");
+                ui.toggle_value(&mut self.show_eamuse, "🎫 e-Amusement card")
+                    .on_hover_text("your player card in every Konami game: card id and PIN");
             });
         });
         // Esc (window focused, no game running, no input awaited) quits, as Exit
@@ -1687,6 +1763,7 @@ impl eframe::App for App {
         }
         self.wheels_window(ui.ctx());
         self.card_window(ui.ctx());
+        self.eamuse_window(ui.ctx());
         egui::Panel::left("games").resizable(true).default_size(320.0).show(ui, |ui| self.game_list(ui));
         egui::CentralPanel::default().show(ui, |ui| match self.selected {
             Some(i) => self.game_page(ui, i),

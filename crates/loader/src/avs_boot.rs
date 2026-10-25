@@ -19,11 +19,16 @@
 //! `contents/modules/`, the cabinet's layout) runs from the directory above, which holds
 //! `prop/`, `data/` and `dev/`: the boot is started in `modules/` (beside the DLLs, which load
 //! from the program's directory) and moves up. `WAL_KONAMI_AVS_LOG=1`: the AVS log in
-//! `avs.log` there. `WAL_KONAMI_AVS_HEAP_MB`: the size of each AVS heap (16 MB by default;
+//! `avs.log` there (the game DLL's `log_change_output` / `log_change_level` calls, which send it
+//! elsewhere, ignored). `WAL_KONAMI_AVS_HEAP_MB`: the size of each AVS heap (16 MB by default;
 //! Winning Eleven 2012 needs 30). `WAL_KONAMI_DEST`: the destination (region letter) in place of
 //! the dump's `/ea3/soft/dest` (Winning Eleven 2012: `J` Japan, `A` Asia, `C` China).
+//! `WAL_KONAMI_EASRV=1`: the e-Amusement services at the fake server (crate `wal-easrv`, run
+//! here before `ea3_boot`)
+//! (`http://127.0.0.1:33701/service/`, `/ea3/network/services`); `WAL_KONAMI_SERVICES=<url>`:
+//! at that server instead (an external e-Amusement server).
 //!
-//! AVS2 2.17 (64-bit, Bishi Bashi Channel: `avs2-core.dll`, `avs2-ea3.dll`, built as
+//! AVS2 2.16.7 (32-bit, Steel Chronicle Victroopers) and 2.17 (64-bit, Bishi Bashi Channel: `avs2-core.dll`, `avs2-ea3.dll`, built as
 //! `wal-avs-boot64.exe`): its own export names, one heap, and a log writer `(chars, n, ctx)`.
 
 #![cfg_attr(not(windows), allow(dead_code))]
@@ -197,6 +202,26 @@ const AVS_2_17: AvsNames = AvsNames {
     ea3_shutdown: "XEmdwapa000025",
 };
 
+/// AVS2 2.16.7 (Steel Chronicle Victroopers, 32-bit `libavs-win32.dll`; spice2x's table for
+/// 2.16.7.1: 2.17's numbers, its own prefixes). The other 2.16 builds number them differently.
+const AVS_2_16_7: AvsNames = AvsNames {
+    core: "libavs-win32.dll",
+    ea3: "libavs-win32-ea3.dll",
+    one_heap: true,
+    boot: "XCnbrep7000129",
+    shutdown: "XCnbrep700012a",
+    read_query_memsize: "XCnbrep70000b0",
+    create: "XCnbrep7000090",
+    insert_read: "XCnbrep7000094",
+    search: "XCnbrep70000a1",
+    node_refer: "XCnbrep70000af",
+    node_remove: "XCnbrep70000a3",
+    node_create: "XCnbrep70000a2",
+    setenv: "XCnbrep70000d4",
+    ea3_boot: "XEyy2igh000007",
+    ea3_shutdown: "XEyy2igh000008",
+};
+
 impl AvsNames {
     /// The game's AVS build and its core DLL, loaded: AVS2's `avs2-core.dll` when the game
     /// has it, else `libavs-win32.dll` (its export names tell the build).
@@ -206,7 +231,13 @@ impl AvsNames {
             return (&AVS_2_17, avs2);
         }
         let m = load("libavs-win32.dll");
-        let names = if unsafe { GetProcAddress(m, c"avs_boot".as_ptr().cast()) }.is_some() { &AVS_LEGACY } else { &AVS_2_13 };
+        let names = if unsafe { GetProcAddress(m, c"avs_boot".as_ptr().cast()) }.is_some() {
+            &AVS_LEGACY
+        } else if unsafe { GetProcAddress(m, c"XCnbrep7000129".as_ptr().cast()) }.is_some() {
+            &AVS_2_16_7
+        } else {
+            &AVS_2_13
+        };
         (names, m)
     }
 }
@@ -286,6 +317,57 @@ impl Avs {
     }
 }
 
+/// Points `module`'s import of `name` (from any DLL) at `replacement` (a 32/64-bit PE walk of
+/// its import directory).
+fn hook_import(module: HMODULE, name: &str, replacement: usize) -> bool {
+    use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
+    let base = module as usize;
+    let read32 = |off: usize| unsafe { std::ptr::read_unaligned((base + off) as *const u32) } as usize;
+    let pe = read32(0x3c);
+    let pe64 = unsafe { *((base + pe + 0x18) as *const u16) } == 0x20b;
+    let import_dir = read32(pe + if pe64 { 0x90 } else { 0x80 });
+    if import_dir == 0 {
+        return false;
+    }
+    let ptr_size = if pe64 { 8 } else { 4 };
+    let mut desc = base + import_dir;
+    loop {
+        let names = read32(desc - base);
+        let thunks = read32(desc - base + 16);
+        if thunks == 0 {
+            return false;
+        }
+        let lookup = if names != 0 { names } else { thunks };
+        for i in 0.. {
+            let entry = unsafe { std::ptr::read_unaligned((base + lookup + i * ptr_size) as *const usize) };
+            let entry = if pe64 { entry } else { entry & 0xffff_ffff };
+            if entry == 0 {
+                break;
+            }
+            let by_ordinal = entry & (1usize << (ptr_size * 8 - 1)) != 0;
+            if by_ordinal {
+                continue;
+            }
+            let import = unsafe { std::ffi::CStr::from_ptr((base + entry + 2) as *const std::ffi::c_char) };
+            if import.to_bytes() == name.as_bytes() {
+                let slot = (base + thunks + i * ptr_size) as *mut usize;
+                let mut old = 0;
+                unsafe {
+                    VirtualProtect(slot.cast(), ptr_size, PAGE_READWRITE, &mut old);
+                    *slot = replacement;
+                    VirtualProtect(slot.cast(), ptr_size, old, &mut old);
+                }
+                return true;
+            }
+        }
+        desc += 20;
+    }
+}
+
+unsafe extern "C" fn log_change_ignored(_a: usize, _b: usize) -> usize {
+    0
+}
+
 fn exists(path: &str) -> bool {
     std::path::Path::new(path).is_file()
 }
@@ -342,6 +424,14 @@ fn main() {
     let ea3_boot: unsafe extern "C" fn(*mut c_void) = unsafe { std::mem::transmute(proc(ea3_dll, names.ea3, names.ea3_boot)) };
     let ea3_shutdown: unsafe extern "C" fn() = unsafe { std::mem::transmute(proc(ea3_dll, names.ea3, names.ea3_shutdown)) };
     let game_dll = load(&game);
+    // the AVS log kept (Metal Gear Arcade's launch.dll sends it elsewhere; spice2x's fix)
+    if LOG.lock().unwrap().is_some() {
+        for f in ["log_change_output", "log_change_level"] {
+            if hook_import(game_dll, f, log_change_ignored as *const () as usize) {
+                eprintln!("wal-avs-boot: {game}: {f} ignored (AVS log kept)");
+            }
+        }
+    }
     let entry_init: unsafe extern "C" fn(*mut u8, *mut c_void) -> bool = unsafe { std::mem::transmute(proc(game_dll, &game, "dll_entry_init")) };
     let entry_main: unsafe extern "C" fn() -> bool = unsafe { std::mem::transmute(proc(game_dll, &game, "dll_entry_main")) };
 
@@ -355,6 +445,14 @@ fn main() {
     if let Some(dest) = std::env::var("WAL_KONAMI_DEST").ok().map(|d| d.trim().to_string()).filter(|d| !d.is_empty()) {
         avs.set_str(ea3, "/ea3/soft/dest", &dest);
         soft[1] = dest;
+    }
+    // the e-Amusement services: an external server (WAL_KONAMI_SERVICES), else the payload's
+    // fake one (WAL_KONAMI_EASRV=1), else the dump's
+    let external = std::env::var("WAL_KONAMI_SERVICES").map(|v| v.trim().to_string()).unwrap_or_default();
+    if !external.is_empty() {
+        avs.set_str(ea3, "/ea3/network/services", &external);
+    } else if std::env::var("WAL_KONAMI_EASRV").is_ok_and(|v| v.trim() == "1") {
+        avs.set_str(ea3, "/ea3/network/services", "http://127.0.0.1:33701/service/");
     }
     let [model, dest, spec, rev, ext] = [&soft[0], &soft[1], &soft[2], &soft[3], &soft[4]];
     if model.is_empty() {
@@ -406,7 +504,9 @@ fn main() {
         eprintln!("wal-avs-boot: dll_entry_init failed");
     }
 
-    // 5. e-Amusement
+    // 5. e-Amusement (the fake server first, WAL_KONAMI_EASRV=1: the boot asks for the services
+    // at once)
+    wal_easrv::init();
     unsafe { ea3_boot(avs.node(ea3, "/ea3")) };
 
     // 6. the game

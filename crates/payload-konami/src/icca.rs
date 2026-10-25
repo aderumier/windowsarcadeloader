@@ -1,6 +1,7 @@
 //! The ICCA e-Amusement card reader (ACIO device 1), a slot reader: a press of the `card`
 //! control inserts the card, the next one ejects it. Its 8-byte id is `WAL_KONAMI_CARD_ID`
-//! (16 hex digits), by default an e-Amusement card id (`E004...`).
+//! (16 hex digits), by default an e-Amusement card id (`E004...`). A card configured in the GUI
+//! (`WAL_KONAMI_CARD_PIN` set) starts inserted, unless `WAL_KONAMI_CARD_AUTO=0`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -14,12 +15,115 @@ const CARD_PRESENT: u32 = 9;
 const NO_CARD: u32 = 0xb;
 
 static INSERTED: AtomicBool = AtomicBool::new(false);
+/// Metal Gear Arcade's status layout (`set_compat`).
+static COMPAT: AtomicBool = AtomicBool::new(false);
+
+/// Metal Gear Arcade's reader (spice2x's compat mode): a touch reader, its status the state
+/// START (2) while a card is on it (else CLOSE_EJECT), the card's id at byte 2 (not 4), the
+/// keypad's level at 12 (<< 16), edge at 16, level at 20. The game asks the card's PIN on the
+/// reader's keypad: the player's numpad (`kp0`..`kp9`), or the configured PIN
+/// (`WAL_KONAMI_CARD_PIN`) typed there by itself. A card
+/// touch lasts 2 s (the game then waits for the card to leave): the card key, or with a
+/// configured card (`auto_insert`) a press of START (the attract's START opens the player
+/// entry, which reads it).
+pub(crate) fn set_compat() {
+    COMPAT.store(true, Ordering::Relaxed);
+}
+
+const TOUCH: std::time::Duration = std::time::Duration::from_secs(2);
+static TOUCHED: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+static TOUCH_KEYS_HELD: AtomicBool = AtomicBool::new(false);
+
+/// The keypad's key codes and numbers (spice2x's), index = the digit (0-9), 10 the decimal
+/// point, 11 the `00` key.
+const KEY_CODES: [u32; 12] = [0x100, 0x200, 0x2000, 2, 0x400, 0x4000, 4, 0x800, 0x8000, 8, 1, 0x1000];
+const KEY_NUMS: [u32; 12] = [0, 1, 5, 9, 2, 6, 10, 3, 7, 11, 8, 4];
+/// The PIN typed from this long after the touch (the PIN screen shows about 10 s after it, once
+/// the card's login is done), again every `PIN_REPEAT` until `PIN_END` (a slower login), each
+/// digit pressed and released this long.
+const PIN_DELAY: std::time::Duration = std::time::Duration::from_secs(10);
+const PIN_REPEAT: u128 = 4000;
+const PIN_END: u128 = 20000;
+const PIN_KEY: std::time::Duration = std::time::Duration::from_millis(200);
+static KEY_EDGE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static KEY_SERIAL: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static KEY_DOWN: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
+
+/// When the configured PIN starts being typed from (`PIN_DELAY` after the first touch of a
+/// login: later touches, within `PIN_DELAY + PIN_END`, do not restart it).
+static PIN_FROM: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
+/// The digit the keypad has down: the player's (the `kp0`..`kp9` controls: the keyboard's
+/// numpad), else the configured PIN's (`WAL_KONAMI_CARD_PIN`) as typed after a touch.
+fn keypad_key() -> Option<usize> {
+    let stick = wal_payload_common::input(0);
+    if let Some(d) = (0..10).find(|&d| stick.pressed(wal_protocol::button::KP0 << d)) {
+        return Some(d);
+    }
+    let pin = std::env::var("WAL_KONAMI_CARD_PIN").unwrap_or_default();
+    let digits: Vec<usize> = pin.trim().bytes().filter(u8::is_ascii_digit).map(|b| (b - b'0') as usize).collect();
+    PIN_FROM.lock().unwrap().and_then(|t| {
+        let since = t.elapsed().checked_sub(PIN_DELAY)?.as_millis();
+        if since >= PIN_END {
+            return None;
+        }
+        let slot = ((since % PIN_REPEAT) / PIN_KEY.as_millis()) as usize;
+        // even slots: a digit down, odd ones: released
+        (slot % 2 == 0).then(|| digits.get(slot / 2).copied()).flatten()
+    })
+}
+
+/// The keypad's `(edge, level)` words (spice2x's encoding): the level the key down's code, the
+/// edge (kept after the release, its code cleared) the last press: code << 16, 0x80, a 3-bit
+/// serial << 4, the key's number.
+fn keypad() -> (u32, u32) {
+    let key = keypad_key();
+    let down = key.map(|k| k as i32).unwrap_or(-1);
+    let was = KEY_DOWN.swap(down, Ordering::Relaxed);
+    match key {
+        Some(k) => {
+            if was != down {
+                let serial = KEY_SERIAL.fetch_add(1, Ordering::Relaxed) & 7;
+                KEY_EDGE.store((KEY_CODES[k] << 16) | 0x80 | (serial << 4) | KEY_NUMS[k], Ordering::Relaxed);
+                log!("icca: keypad {k}");
+            }
+            (KEY_EDGE.load(Ordering::Relaxed), KEY_CODES[k])
+        }
+        None => {
+            let edge = KEY_EDGE.load(Ordering::Relaxed) & 0xffff;
+            KEY_EDGE.store(edge, Ordering::Relaxed);
+            (edge, 0)
+        }
+    }
+}
+
+/// A touch reader's card: on it for 2 s after the card key (or START, a configured card).
+fn touched() -> bool {
+    let stick = wal_payload_common::input(0);
+    let key = stick.pressed(wal_protocol::button::CARD) || (auto_insert() && stick.pressed(wal_protocol::button::START));
+    let mut touched = TOUCHED.lock().unwrap();
+    if key && !TOUCH_KEYS_HELD.swap(true, Ordering::Relaxed) {
+        let now = std::time::Instant::now();
+        *touched = Some(now);
+        let mut pin_from = PIN_FROM.lock().unwrap();
+        if pin_from.is_none_or(|t| t.elapsed() > PIN_DELAY + std::time::Duration::from_millis(PIN_END as u64)) {
+            *pin_from = Some(now);
+        }
+        log!("icca: card touched");
+    } else if !key {
+        TOUCH_KEYS_HELD.store(false, Ordering::Relaxed);
+    }
+    touched.is_some_and(|t| t.elapsed() < TOUCH)
+}
 static HELD: AtomicBool = AtomicBool::new(false);
 
-fn card_id() -> [u8; 8] {
+pub(crate) fn card_id() -> [u8; 8] {
     let mut id = [0xe0, 0x04, 0x01, 0x00, 0x27, 0x10, 0x4b, 0x1d];
     if let Ok(text) = std::env::var("WAL_KONAMI_CARD_ID") {
         let text = text.trim();
+        if text.is_empty() {
+            return id;
+        }
         if text.len() == 16 {
             for (i, b) in id.iter_mut().enumerate() {
                 match u8::from_str_radix(&text[i * 2..i * 2 + 2], 16) {
@@ -28,7 +132,8 @@ fn card_id() -> [u8; 8] {
                 }
             }
         } else {
-            log!("icca: WAL_KONAMI_CARD_ID must be 16 hex digits, default card used");
+            static WARNED: std::sync::Once = std::sync::Once::new();
+            WARNED.call_once(|| log!("icca: WAL_KONAMI_CARD_ID must be 16 hex digits, default card used"));
         }
     }
     id
@@ -38,8 +143,28 @@ fn card_pressed() -> bool {
     wal_payload_common::input(0).pressed(wal_protocol::button::CARD)
 }
 
+/// Whether the card starts inserted: a card configured (its PIN set), `WAL_KONAMI_CARD_AUTO`
+/// not `0`.
+fn auto_insert() -> bool {
+    let pin = std::env::var("WAL_KONAMI_CARD_PIN").is_ok_and(|p| !p.trim().is_empty());
+    let auto = !std::env::var("WAL_KONAMI_CARD_AUTO").is_ok_and(|v| v.trim() == "0");
+    pin && auto
+}
+
+/// A configured card in the reader from the first look at it.
+fn auto_start() {
+    static START: std::sync::Once = std::sync::Once::new();
+    START.call_once(|| {
+        if auto_insert() {
+            INSERTED.store(true, Ordering::Relaxed);
+            log!("icca: card inserted (configured card)");
+        }
+    });
+}
+
 /// The card slot after the latest `card` control state (a press toggles the card).
 fn inserted() -> bool {
+    auto_start();
     let pressed = card_pressed();
     if pressed && !HELD.swap(true, Ordering::Relaxed) {
         let now = !INSERTED.fetch_xor(true, Ordering::Relaxed);
@@ -153,6 +278,22 @@ pub extern "C" fn ac_io_icca_get_status(a: usize, b: usize) -> bool {
     if out.is_null() || (out as usize) <= 2 {
         return false;
     }
+    if COMPAT.load(Ordering::Relaxed) {
+        let card = touched();
+        let mut status = [0u8; 24];
+        status[0] = if card { WF_START as u8 } else { WF_CLOSE_EJECT as u8 };
+        if card {
+            status[2..10].copy_from_slice(&card_id());
+        }
+        // the reader's keypad: the configured PIN typed after the touch
+        let (edge, level) = keypad();
+        status[12..16].copy_from_slice(&(level << 16).to_le_bytes());
+        status[16..20].copy_from_slice(&edge.to_le_bytes());
+        status[20..24].copy_from_slice(&level.to_le_bytes());
+        unsafe { std::ptr::copy_nonoverlapping(status.as_ptr(), out, status.len()) };
+        return true;
+    }
+    auto_start();
     workflow_update();
     let mut status = [0u8; 24];
     status[0] = WORKFLOW.load(Ordering::Relaxed) as u8;
@@ -161,6 +302,10 @@ pub extern "C" fn ac_io_icca_get_status(a: usize, b: usize) -> bool {
         status[3] = 1;
         status[4..12].copy_from_slice(&card_id());
     }
+    // the reader's keypad (the player's numpad)
+    let (edge, level) = keypad();
+    status[16..20].copy_from_slice(&edge.to_le_bytes());
+    status[20..24].copy_from_slice(&level.to_le_bytes());
     unsafe { std::ptr::copy_nonoverlapping(status.as_ptr(), out, status.len()) };
     true
 }

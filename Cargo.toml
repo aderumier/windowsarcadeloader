@@ -18,6 +18,7 @@ members = [
     "crates/payload-konami",
     "crates/payload-arcadepc",
     "crates/loader",
+    "crates/easrv",
 ]
 # Payloads are Windows DLLs: build them with --target i686-pc-windows-gnu, the 64-bit ones
 # (namcoes3) with x86_64-pc-windows-gnu (see build.sh)

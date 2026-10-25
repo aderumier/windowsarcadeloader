@@ -122,15 +122,26 @@ pub fn install_streaming(port: &str, handler: Handler, idle: Idle) {
     install_device(device, &[unsafe { GetModuleHandleW(std::ptr::null()) } as usize]);
 }
 
+/// Same as [`install_streaming`], for the serial calls of the modules loaded at `modules`.
+pub fn install_streaming_in(port: &str, handler: Handler, idle: Idle, modules: &[usize]) {
+    let device = Device { port: port.to_string(), handler, idle: Some(idle), replies: Mutex::new(VecDeque::new()), wait: Mutex::new(None), read: Mutex::new(None) };
+    install_device(device, modules);
+}
+
 fn install_device(device: Device, modules: &[usize]) {
     let device = Box::leak(Box::new(device));
     DEVICES.lock().unwrap().push(device);
-    if HOOKED.swap(true, Ordering::Relaxed) {
-        return;
+    if !HOOKED.swap(true, Ordering::Relaxed) {
+        // read now: an environment lookup inside a hook sets the thread's last error
+        trace_files();
+        pending_reads();
     }
-    // read now: an environment lookup inside a hook sets the thread's last error
-    trace_files();
-    pending_reads();
+    hook_modules(modules);
+}
+
+/// Points the serial calls of the modules at `modules` at the emulated devices (each device's
+/// install hooks its own modules; a module hooked twice keeps the first originals).
+fn hook_modules(modules: &[usize]) {
     let hooks: [(&str, usize); COUNT] = [
         ("CreateFileA", create_file_a as *const () as usize),
         ("CreateFileW", create_file_w as *const () as usize),
@@ -155,9 +166,9 @@ fn install_device(device: Device, modules: &[usize]) {
     for (idx, (name, f)) in hooks.into_iter().enumerate() {
         for &module in modules {
             if let Some(o) = unsafe { iat::hook_module(module, "kernel32.dll", name, f) } {
-                // a later module's entry is already ours
+                // a later module's entry is already ours; the first original stays
                 if o != f {
-                    ORIG[idx].store(o, Ordering::Relaxed);
+                    let _ = ORIG[idx].compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
                 }
             }
         }

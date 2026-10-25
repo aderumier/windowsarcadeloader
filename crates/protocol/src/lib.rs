@@ -52,8 +52,10 @@ pub mod button {
     pub const TEST: u32 = 1 << 15;
     /// Insert/remove the player's card (card readers: NESiCA, ...), toggles on each press.
     pub const CARD: u32 = 1 << 16;
+    /// The card reader's keypad (e-Amusement readers: the card's PIN), digits 0-9: `KP0 << n`.
+    pub const KP0: u32 = 1 << 17;
 
-    pub const NAMES: [(&str, u32); 17] = [
+    pub const NAMES: [(&str, u32); 27] = [
         ("up", UP),
         ("down", DOWN),
         ("left", LEFT),
@@ -71,6 +73,16 @@ pub mod button {
         ("service", SERVICE),
         ("test", TEST),
         ("card", CARD),
+        ("kp0", KP0),
+        ("kp1", KP0 << 1),
+        ("kp2", KP0 << 2),
+        ("kp3", KP0 << 3),
+        ("kp4", KP0 << 4),
+        ("kp5", KP0 << 5),
+        ("kp6", KP0 << 6),
+        ("kp7", KP0 << 7),
+        ("kp8", KP0 << 8),
+        ("kp9", KP0 << 9),
     ];
 
     pub fn from_name(name: &str) -> Option<u32> {

@@ -97,6 +97,7 @@ One per player, `MAX_PLAYERS = 4`:
 | buttons | `b1 b2 b3 b4` (top row), `b5 b6 b7 b8` (bottom row) | bits 4-11 |
 | system | `start coin service test` | bits 12-15 |
 | card | `card` (toggles the player's card in card readers) | bit 16 |
+| card keypad | `kp0`..`kp9` (e-Amusement readers' keypad: the card's PIN; Konami profiles map the numpad) | bits 17-26 |
 | sticks | `lx ly rx ry` | i16, centered 0, +y = down |
 | pedals | `accel brake` | i16, 0 released .. 32767 pressed |
 
@@ -2660,6 +2661,141 @@ four buttons, left to right red, blue, yellow, green (blue / yellow move the men
 - `SetCurrentDirectoryW` is a no-op and `mixerSetControlDetails` always succeeds (spice2x's
   patches).
 
+#### Metal Gear Arcade (I36)
+
+Metal Gear Arcade (2010, game code I36, `I36:J:A:A:2011092900`, Direct3D 9, 1920x1080) is
+`game/launch.dll` (the `.windowsloader`), run by `wal-avs-boot.exe`; it loads `system.dll`
+(the game) and its modes (`bootmode.dll`, `testmode.dll`, `gamemode.dll`). The dump's `MGA.exe`
+(a PyInstaller launcher registering the cabinet on savemga.com, a revival network whose hosts
+no longer resolve), `spice.exe` and dgVoodoo (`D3D9.dll`, `DDraw.dll`, `D3DImm.dll`) are hidden.
+`libacio.dll` is the payload (`mga.rs`; spice2x's `games/mga` and `acio/i36g` the reference).
+
+- **Boards.** I36G, two ACIO nodes of 88-byte status buffers (`get_control_status_buffer(node,
+  out)`; the `ac_io_i36s_*` names are the same functions, node 23 the head tracker of the 3D
+  glasses, left empty): node 21 the cabinet (bits 42 coin mech, 44 service, 45 test, 124
+  start), node 22 the gun controller (104 side lever, 105 side right, 106 front bottom, 107
+  side left, 108 front top, 109 trigger, 124 top, 125 switch; bytes 42-45 the thumb stick's y
+  and x, 16 bits centered on 0x7fff, forward 0). The test menu's INPUT CHECK shows them all.
+  `ac_io_begin` takes `(port, device, version, out, flags)` here (one more argument than the
+  other games): `acio.rs` finds the version pointer.
+- **Gun aim.** COM1, the gun board (Team FrontLine gun I/O): a 1-byte command, the answer and
+  a checksum (0xff minus the bytes). 0x08 the position (x, y 10 bits big endian, y 0 at the
+  bottom: the dump's `calib.xml` L 0 R 1023 U 1023 D 0), 0x04 version, 0x10 frequency DIP
+  switches, 0x14 / 0x18 / 0x19 / 0x1a set the frequency, 0x1c LED board check. Menus are
+  answered by aiming and pulling the trigger (MG / credit choice, control type).
+- **Boot checks.** bootmode.dll's device check (rva 0x19f30, a state machine; state 0 waits
+  for `MGO::GetPhase() >= 2`) finds kbt.dll / kld.dll with `GetModuleHandleA` in each mode DLL
+  (hooked as system.dll loads them: `kbt.rs`, now also kld's `bt_fcheck_init` / `_main` /
+  `_finish`). Its e-AMUSEMENT CONNECTION CHECK (checker poll rva 0x2a00) waits forever on the
+  services' error 2000 (the error table marks it fatal; no button continues it, with the
+  test menu's e-AMUSEMENT option off too): its sub-state 2 goes to the non-fatal path
+  (`GsNetwork::SetEaLicense`, then the network ready flag) with result 1. Skipping the check
+  altogether is wrong: ess.dll (e-Amusement services) is started there, and the first credit
+  call later blocks on its uninitialized lock. The game then runs in offline mode (the
+  "オフラインモードで運営中" notice). With the fake e-Amusement server (`WAL_KONAMI_EASRV=1`, the profile's
+  default) the check passes for real and the patch is not applied.
+- **e-Amusement server** (crate `wal-easrv`, run by wal-avs-boot before `ea3_boot`: MGA asks for
+  the services at once, before its system.dll loads the payload). This older client posts text
+  XML (`EAMUSE.Httpac/1.0`, HTTP/1.0, LZ77): `kbin.rs` reads it too. `I36.system.getmaster`
+  (spice2x's), `playerdata.usergamedata_scorerank` (`result`, `rank/rank` s32,
+  `rank/updatetime` u64, read by ess.dll), `usergamedata_recv` with the player as `eaid`
+  (records `PLAYDATA`, `OUTFIT`, `WEAPON`, `MAINRULE`).
+- **Card reader** (`icca.rs` compat mode, spice2x's): a touch reader, its status START (2) while
+  a card is on it, the id at byte 2; a touch lasts 2 s (the game then waits for the card to
+  leave: "e-AMUSEMENT PASSを忘れずに..."). F4 touches the card; with `WAL_KONAMI_CARD_PIN` set,
+  START too (the attract's START opens the player entry). The PIN is asked on the reader's
+  keypad (spice2x's key codes: level at 12 << 16 and 20, edge at 16): the configured PIN is
+  typed by the reader 10 s after the first touch of a login (later touches do not restart it;
+  the login before the PIN screen), again every 4 s until 30 s; or by the player on the
+  numpad (`kp0`..`kp9`, player 4's numpad keys off in the profile). Headless: touch, PIN, terms (YES by gun), the card player's MG screens.
+- **Sound.** spice2x's patches: the sound engine failure (rva 0x571852, error 500) ignored,
+  `setvolume_MGA_dll.dll!setvolume` not called (the cabinet's amplifier).
+- **Credits.** The coin mech switch shows in the INPUT CHECK but adds no credit (the game's
+  coins come another way, not found): the dump is set to free play in the test menu (COIN
+  OPTIONS, saved in `dev/nvram`), e-AMUSEMENT off in NETWORK OPTIONS.
+- **3D.** The game draws line-interleaved stereo (`mga_real3d_oddeven`, the cabinet's passive
+  3D monitor, `app-config.xml` `draw3d_cx/cy` 1920x540 per eye) by default. The caution screen
+  names START the "Start / 2D⇔3D" button; in the tutorial START opens the 3D level selector
+  (1-10, default 5). Not forced to 2D yet.
+- `WAL_KONAMI_AVS_LOG=1`: wal-avs-boot ignores launch.dll's `log_change_output` /
+  `log_change_level` (the game sends the AVS log elsewhere otherwise; spice2x's fix).
+
+#### Steel Chronicle Victroopers (KGG)
+
+Steel Chronicle Victroopers (game code KGG, `KGG:J:A:A:2016062901`, Direct3D 9, 1920x1080) is
+`arkkgg.dll` (the `.windowsloader`), run by `wal-avs-boot.exe` (AVS2 2.16.7: `libavs-win32.dll`
+with `XCnbrep7...` export names, spice2x's numbering, one heap). arkkgg.dll's I/O library
+`lib_acio.dll` drives `libacio.dll`, the payload (`sc.rs`); the game's code is `gamekgg.dll`
+(Direct3D 9, the window, DirectInput), which arkkgg loads in `dll_entry_init`: the common
+payload starts then, with gamekgg.dll as the game module (arkkgg's own lookups, kbt/kld,
+`setvolume`, the LCD, are hooked on arkkgg.dll from `DllMain`). spice2x's `games/sc` and
+`acio/hbhi` are the reference.
+
+- **Locale.** The game's text is Shift-JIS throughout its DLLs: the profile runs it with
+  `LC_ALL=ja_JP.UTF-8` (code page 932; the error screens are mojibake otherwise; spice2x: other
+  locales crash).
+- **Fonts.** Its fonts are TrueType collections (`data/common/font/df-heiseigothic-w*.ttc`)
+  added with `GdipPrivateAddMemoryFont`: Wine's GDI+ parses plain TrueType only, adds no family,
+  and the game then reads an uninitialized family count (crash in `GdipCloneFontFamily`). The
+  dump's native gdiplus.dll is not used (a KnownDLL in the prefix). The payload adds each face on
+  its own: a copy of the collection with that face's table directory at the start (its table
+  offsets count from the file's start).
+- **HBHI.** Two flight sticks: packet byte 1 test 0x20, service 0x10; byte 8 L 0x01, L1 0x02,
+  L2 0x04, jog left 0x08, jog right 0x10, R 0x20, R1 0x40, R2 0x80; analog channels 0-3 the left
+  stick's x (inverted) and y, the right stick's x (inverted) and y. Coins: the board's coin stock.
+  `ac_io_get_version` answers firmware 2.0.0 (spice2x's answer, every game).
+- **Touch screen.** libtouchpanel3m.dll reads `\\.\TwTouchDriver` (`ReadFile` until nothing is
+  left, at most 100 reports): 24-byte reports, type 5, status at 12 (1 touching, 3 released), x
+  and y at 16 and 18 (spice2x's factory calibration: offsets -1500 / 3100, both axes flipped). A
+  serial streaming device in libtouchpanel3m.dll (serial.rs now hooks each install's modules):
+  player 1's `start` at the pointer `accel` / `brake` (the profile's mouse or gun). Without it:
+  I/O ERROR 5-1551-2399 (touch panel). The pointer is shown as a small red dot (crosshair.rs: `WAL_KONAMI_CROSSHAIR_AXES=pedals`,
+  style `disc`, `_COLOR`, `_HIDE=0`; GUI "Touch pointer" and its size).
+- **LCD monitor** on COM1: Winning Eleven 2012's handler.
+- **Test menu settings** (`dev/nvram/testmode-v.xml`, a CRC-32 in `testmode-v.crc`): the payload
+  marks the touch panel and the sticks calibrated (5-2506-0000 otherwise; the factory
+  calibration spans the payload's full ranges), the clock set (5-2503-0000 otherwise) and free
+  play (`WAL_KONAMI_FREEPLAY`, default on), and rewrites the CRC. `dev/raw` (AVS's log and share
+  cache) is created.
+- **e-Amusement.** The boot's network check (5-2000-0000 "cannot communicate with the router",
+  no button continues) wants Konami's servers: `WAL_KONAMI_EASRV=1` starts the payload's fake
+  server (`easrv.rs`, 127.0.0.1:33701; wal-avs-boot points `/ea3/network/services` at
+  `http://127.0.0.1:33701/service/`: `localhost` and `/` are refused, "bad services host /
+  URI"). Requests are `?model=..&f=<module>.<method>`, encrypted (`X-Eamuse-Info`): the
+  answers must be too ("crypt level not match" otherwise). Answers: spice2x's (services,
+  pcbtracker, message, facility, pcbevent, package, tax, eventlog, machine control, KGG
+  `system.getmaster` / `hdkoperation.get`), built at start as binary XML (`kbin.rs`: the
+  kbin writer, its byte / word packing of small values; `easrv/answers.rs`) and RC4-encrypted
+  for spice2x's `X-Eamuse-Info: 1-53d121c7-a8b3` header (key: MD5 of its 6 bytes and
+  e-Amusement's secret). The game boots online (`boot_status: 2,0,0`) to its attract.
+  `WAL_KONAMI_SERVICES=<url>` (the GUI's "External e-Amusement server"): an external
+  server's services URL instead, wal-avs-boot sets it and the fake server is not started.
+- **Cards and players.** The fake server decodes every request (`kbin.rs`: RC4 with the key
+  of its `X-Eamuse-Info` header, MD5 of its 6 bytes and e-Amusement's secret; LZ77; the
+  binary XML reader) and answers (`easrv/cards.rs`, `easrv/playerdata.rs`; data in the dump's
+  `dev/nvram/easrv/`):
+  - `cardmng`: `inquire` (an unknown card: status 112, the game registers it on its screens:
+    terms, a PIN entered twice, `getrefid`), `authpass` (116: wrong PIN), `bindmodel`; cards
+    and PINs in `cards.txt`. `WAL_KONAMI_CARD_PIN` (GUI "e-Amusement card PIN") registers the
+    card of `WAL_KONAMI_CARD_ID` beforehand: the game only asks its PIN.
+  - `system.convcardnumber`: the printed number (`data/card_number`, `result` s32: the ess.dll
+    receiver fails without it).
+  - `playerdata.usergamedata_recv`: `result` 0, `player/record/d...` (each record as the game
+    sent it), `player/record_num` (0: a new player; `result` 1 ends the session);
+    `usergamedata_send`: each `d` stored under its name (its base64 text's second field:
+    `rl1_bas`, `rl1_cus1`... 35 records, `<refid>/<name>.kbin`); `usergamedata_inheritance`
+    (the previous version's `lt2_*` / `lt1_*` records) and `usergamedata_condrecv` (rankings):
+    no records.
+  - KGG's own modules, their fields read from arkkgg.dll's receivers: `group.getid`
+    (`dataid`, `groupid` s32, `date`), `climax.load` (`recordcount` u8 0),
+    `soundvoltex.printcount` (`playcount`, `printcount` s32), `soundvoltex.playcheck`.
+  - `WAL_KONAMI_EASRV_LOG=1`: every request and answer as XML in `easrv.log` (the protocol of
+    a game's next module). Headless: a card logs in, a new player is created (the S.I.V.A.
+    story), a second login loads it. `machine.testmodev_send` (the operator settings) is still
+    refused by the game's receiver (no effect seen).
+- **Flow (headless tests).** Touch → e-AMUSEMENT PASS (SKIP: guest) → story → "Charge Your STE"
+  (1-5 credits, touch) → ... (not driven further headless).
+
 #### Chase Chase Jokers
 
 Chase Chase Jokers (2023, game code UJK) is `chaseproject.exe`, a 64-bit Unity (Mono, Direct3D
@@ -3128,6 +3264,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | `contents/modules/bsch.dll` run by `wal-avs-boot64.exe` (§6.3h, AVS2 2.17, 64-bit); `libacio.dll` + `libacio_pix.dll` replaced: BMPU and PIX boards (4 players: R/G/B buttons, disks), card reader, LCD, kbt.dll answered; e-amusement off, network check skipped; exclusive WASAPI played shared |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | `launcher.exe` (§6.3h), `libacio.dll` replaced: HBHI board (3 players: red, green, blue, yellow buttons; player 3 on the analog channels), card reader, the libbms imports (BM-System offline); clock check skipped |
 | `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%) | `PMU/popn.dll` run by `wal-avs-boot.exe` (§6.3h, 30 MB heaps); `libacio.dll` replaced: HBHI board (2 players: OK, red, blue, yellow, green), card reader; kbt.dll answered; DirectInput joystick config refused |
+| `metal-gear-arcade` | Metal Gear Arcade | konami | works (user: 100%), gun, e-Amusement cards (loader's server), test menu | `game/launch.dll` run by `wal-avs-boot.exe` (§6.3h); `libacio.dll` replaced: I36G cabinet and gun boards, gun aim (COM1), card reader; fake e-Amusement server (cards: touch, PIN typed by the reader; player data), or offline (boot error taken as non-fatal); free play set in the dump; 3D (line-interleaved) still on by default, START toggles |
+| `steel-chronicle-victroopers` | Steel Chronicle Victroopers | konami | works (user: 100%), two flight sticks, touch screen (mouse or gun), e-Amusement cards (loader's server) | `arkkgg.dll` run by `wal-avs-boot.exe` (§6.3h, AVS2 2.16.7), `gamekgg.dll` the game; `libacio.dll` replaced: HBHI board (two flight sticks), card reader; touch screen (TwTouchDriver), LCD (COM1), TTC fonts split per face for Wine's GDI+, Japanese locale, settings marked calibrated, fake e-Amusement server (`WAL_KONAMI_EASRV`) |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | `jgt.dll` run by `wal-avs-boot.exe` (§6.3h): AVS and e-Amusement booted from `prop/`, the cabinet's `kbt.dll`/`kld.dll` loaded; `libacio.dll` replaced: HBHI board (switches, H-pattern lever with a sequential gear, coins, security plug), card reader (workflow API); `libacioEx.dll` loads the payload: HGTH board (wheel and pedals, motor torque as force feedback); C: the only drive, wined3d |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | `AMContra.exe` (§6.3h), `libacio.dll` replaced (its MSVC-named imports, never called): controls on a fake DirectInput keyboard from the virtual sticks (the game's key table), coins from the COM1 control panel, clock reported set, GB2312 text (code page 936) |
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | `D00/game/game.exe` (§6.3h), `panicdialog.dll` replaced; COM2 pcio hub chain emulated (4 boards, firmware versions from the dump, switches, coin counter, security plug region `WAL_KONAMI_PLUG`), COM1 gun boards; the gun read replaced by the pointer; two monitors in one window (2 D3D8 devices presenting side by side); E: settings drive seeded from the dump's CFGs; DirectMusic tricks |

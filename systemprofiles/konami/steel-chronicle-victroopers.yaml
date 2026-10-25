@@ -1,0 +1,159 @@
+# Steel Chronicle Victroopers (Konami, 2014, game code KGG): a mech shooter played with two
+# flight sticks (each a trigger button and two buttons) and a jog, plus a touch screen. Its code
+# is arkkgg.dll (which loads gamekgg.dll, Direct3D 9): wal-avs-boot.exe runs it (the dump's
+# steel-chronicle-victroopers.windowsloader names arkkgg.dll). The payload replaces libacio.dll
+# (HBHI board, card reader, under the dump's lib_acio.dll) and answers the LCD monitor (COM1).
+# Override values in userprofiles/konami/steel-chronicle-victroopers.yaml.
+system: konami
+name: Steel Chronicle Victroopers
+
+
+env:
+  # a Japanese Windows (code page 932): its text is Shift-JIS throughout its DLLs (spice2x: the
+  # game crashes on other locales)
+  LC_ALL: ja_JP.UTF-8
+  LANGUAGE: ja_JP
+  # the e-Amusement services from the payload's fake server (the boot's network check)
+  WAL_KONAMI_EASRV: "1"
+  # an external e-Amusement server's services URL instead (empty: the payload's fake one)
+  WAL_KONAMI_SERVICES: ""
+  # the e-Amusement card (GUI window), its PIN set, starts inserted ("0": inserted with the card key, F4)
+  WAL_KONAMI_CARD_AUTO: "1"
+  # the touch pointer (the mouse or gun) shown as a small red dot
+  WAL_KONAMI_CROSSHAIRS: "1"
+  WAL_KONAMI_CROSSHAIR_AXES: pedals
+  WAL_KONAMI_CROSSHAIR_STYLE: disc
+  WAL_KONAMI_CROSSHAIR_SIZE: "1"
+  WAL_KONAMI_CROSSHAIR_COLOR: FF2020
+  WAL_KONAMI_CROSSHAIR_HIDE: "0"
+  # free play (the test menu's COIN OPTIONS, set at each start; "0": coins)
+  WAL_KONAMI_FREEPLAY: "1"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # the PC keyboard / pads through DirectInput: only the board drives it
+  WAL_DINPUT_DISABLE: "1"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Free play (the test menu's COIN OPTIONS). Off: coins buy credits.
+      - key: WAL_KONAMI_EASRV
+        label: e-Amusement server
+        kind: bool
+        description: >-
+          The game's e-Amusement services from the loader's own server (offline, guest play).
+          Off: the dump's server address (Konami's, gone: the boot stops on 5-2000-0000).
+      - key: WAL_KONAMI_SERVICES
+        label: External e-Amusement server
+        kind: text
+        description: >-
+          An external e-Amusement server's services URL (e.g. http://192.168.1.10:8083/), used
+          instead of the loader's own. Empty: the loader's server (when on).
+      - key: WAL_KONAMI_CARD_AUTO
+        label: Card inserted at start
+        kind: bool
+        description: >-
+          With the e-Amusement card's PIN set (the e-Amusement card window), the card is in the reader from the start (F4 still ejects and
+          inserts it). Off: insert it with F4.
+      - key: WAL_KONAMI_CROSSHAIRS
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun points (the touch position).
+      - key: WAL_KONAMI_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
+
+input:
+  # left stick and right stick: the two flight sticks; the touch screen: a gun or the mouse
+  # points (accel, brake: the pointer across the screen), its trigger touches (start)
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: start
+    BTN_RIGHT: none
+    BTN_MIDDLE: none
+  gamepad:
+    l2: b1
+    l1: b2
+    x: b3
+    r2: b4
+    r1: b5
+    b: b6
+    dpleft: b7
+    dpright: b8
+  # Keyboard (player 1): W A S D the left stick, the arrows the right stick (analog axes: the
+  # digital directions are not the sticks); Ctrl / Alt / Space L, L1, L2; Shift / Z / X R, R1,
+  # R2; C / V jog left / right; 5 coin, F4 card.
+  keyboard_ramp_ms: 100
+  keyboard:
+    p1:
+      KEY_W: -ly
+      KEY_S: ly
+      KEY_A: -lx
+      KEY_D: lx
+      KEY_UP: -ry
+      KEY_DOWN: ry
+      KEY_LEFT: -rx
+      KEY_RIGHT: rx
+      # the numpad: the card reader's keypad (the card's PIN)
+      KEY_KP0: kp0
+      KEY_KP1: kp1
+      KEY_KP2: kp2
+      KEY_KP3: kp3
+      KEY_KP4: kp4
+      KEY_KP5: kp5
+      KEY_KP6: kp6
+      KEY_KP7: kp7
+      KEY_KP8: kp8
+      KEY_KP9: kp9
+    # the numpad is the card reader's keypad (player 1), not player 4's keys
+    p4:
+      KEY_KP8: none
+      KEY_KP2: none
+      KEY_KP4: none
+      KEY_KP6: none
+      KEY_KP0: none
+
+controls:
+  lx: Left stick (x)
+  ly: Left stick (y)
+  rx: Right stick (x)
+  ry: Right stick (y)
+  b1: Left trigger (L)
+  b2: L1
+  b3: L2
+  b4: Right trigger (R)
+  b5: R1
+  b6: R2
+  b7: Jog left
+  b8: Jog right
+  accel: Touch (x)
+  brake: Touch (y)
+  start: Touch
+  coin: Coin
+  service: Service
+  test: Test
+  card: Card
+  kp0: Card keypad 0
+  kp1: Card keypad 1
+  kp2: Card keypad 2
+  kp3: Card keypad 3
+  kp4: Card keypad 4
+  kp5: Card keypad 5
+  kp6: Card keypad 6
+  kp7: Card keypad 7
+  kp8: Card keypad 8
+  kp9: Card keypad 9

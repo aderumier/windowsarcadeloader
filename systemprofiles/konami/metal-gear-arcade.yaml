@@ -1,0 +1,111 @@
+# Metal Gear Arcade (Konami, 2010, game code I36): an online shooter played with a gun
+# controller (trigger, buttons, a thumb stick to move) and 3D glasses. Its code is
+# game/launch.dll, which loads game/system.dll (Direct3D 9): wal-avs-boot.exe runs it (the dump's
+# metal-gear-arcade.windowsloader names launch.dll). The payload replaces libacio.dll (I36G
+# cabinet and gun boards; card reader) and answers the gun's aim board (COM1).
+# e-Amusement: the loader's own server (cards, player data), or offline (the boot's connection
+# error passed) with WAL_KONAMI_EASRV "0". Menus are
+# answered by aiming and pulling the trigger (credit choice, control type: GUN CONTROL TYPE moves
+# the view with the gun, HEAD needs the glasses' head tracker). The picture is the cabinet's
+# line-interleaved 3D: START is the cabinet's "Start / 2D-3D" button.
+# Override values in userprofiles/konami/metal-gear-arcade.yaml.
+system: konami
+name: Metal Gear Arcade
+
+# MGA.exe: a third-party online launcher; spice.exe / spicecfg.exe: another loader; D3D9.dll,
+# DDraw.dll, D3DImm.dll: dgVoodoo
+hide: [MGA.exe, spice.exe, spicecfg.exe, D3D9.dll, DDraw.dll, D3DImm.dll, dgVoodoo.conf]
+
+env:
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # the PC keyboard / pads through DirectInput: only the boards drive it
+  WAL_DINPUT_DISABLE: "1"
+  # the e-Amusement services from the loader's own server ("0": offline, guest play only)
+  WAL_KONAMI_EASRV: "1"
+  # an external e-Amusement server's services URL instead (empty: the loader's)
+  WAL_KONAMI_SERVICES: ""
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Game
+    options:
+      - key: WAL_KONAMI_EASRV
+        label: e-Amusement server
+        kind: bool
+        description: >-
+          The game's e-Amusement services from the loader's own server: e-Amusement cards and
+          their saved players. Off: offline, guest play only.
+      - key: WAL_KONAMI_SERVICES
+        label: External e-Amusement server
+        kind: text
+        description: >-
+          An external e-Amusement server's services URL (e.g. http://192.168.1.10:8083/), used
+          instead of the loader's own. Empty: the loader's server (when on).
+
+input:
+  # the gun (or mouse) aims, its trigger shoots; the d-pad / arrows (or the gamepad's left
+  # stick) move with the gun's thumb stick
+  guns_enabled: true
+  stick_as_dpad: false
+  gamepad:
+    leftx: rx
+    lefty: ry
+    rightx: lx
+    righty: ly
+  # Keyboard: the numpad is the card reader's keypad (the card's PIN)
+  keyboard:
+    p1:
+      KEY_KP0: kp0
+      KEY_KP1: kp1
+      KEY_KP2: kp2
+      KEY_KP3: kp3
+      KEY_KP4: kp4
+      KEY_KP5: kp5
+      KEY_KP6: kp6
+      KEY_KP7: kp7
+      KEY_KP8: kp8
+      KEY_KP9: kp9
+    # the numpad is the card reader's keypad (player 1), not player 4's keys
+    p4:
+      KEY_KP8: none
+      KEY_KP2: none
+      KEY_KP4: none
+      KEY_KP6: none
+      KEY_KP0: none
+
+controls:
+  lx: Aim (x)
+  ly: Aim (y)
+  rx: Move (x)
+  ry: Move (y)
+  up: Move forward
+  down: Move back
+  left: Move left
+  right: Move right
+  b1: Trigger
+  b2: Front top
+  b3: Front bottom
+  b4: Side left
+  b5: Side right
+  b6: Side lever
+  b7: Top
+  b8: Switch
+  start: "Start / 2D-3D (with a card PIN set: also touches the card)"
+  coin: Coin
+  service: Service
+  test: Test
+  card: Card (touch)
+  kp0: Card keypad 0
+  kp1: Card keypad 1
+  kp2: Card keypad 2
+  kp3: Card keypad 3
+  kp4: Card keypad 4
+  kp5: Card keypad 5
+  kp6: Card keypad 6
+  kp7: Card keypad 7
+  kp8: Card keypad 8
+  kp9: Card keypad 9

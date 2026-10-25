@@ -14,6 +14,9 @@ emulating each cabinet's I/O, dongle and network services in the game process.
   "NESiCA card" sets the player's card of every NESiCA game (`userprofiles/nesica-card.yaml`):
   card id ("New card": a fresh one) and player name (games whose card has one: Fighting EX
   Layer); each game keeps its own progress on it.
+  "e-Amusement card" sets the player's card of every Konami game
+  (`userprofiles/eamuse-card.yaml`): card id and PIN (with a PIN, the loader's e-Amusement
+  server registers the card: the game only asks the PIN); each game keeps its own progress.
 * Regression test: `tools/regression.py` (see its header), then `tools/gamelist.py` to refresh
   the list below
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
@@ -48,7 +51,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | pass | 2026-10-07 |
 | `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user; 1280x800: pillarboxed on a 16:9 screen) | fail: picture | 2026-10-07 |
 | `daemon-bride` | Daemon Bride: Additional Gain | nesica | in fight | pass | 2026-10-07 |
-| `dariusburst-another-chronicle` | Dariusburst Another Chronicle (1.05) | nesica | works (user: 100%) | pass | 2026-10-11 |
+| `dariusburst-another-chronicle` | Dariusburst Another Chronicle (1.05) | nesica | works (user: 100%) | fail: window | 2026-10-19 |
 | `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | works (user: 100%), 4 players, sound, test menu in Japanese | pass | 2026-10-08 |
 | `dark-awake` | Dark Awake: The King Has No Name | nesica | in fight | pass | 2026-10-07 |
 | `do-not-fall` | Do Not Fall: Run for Your Drink | nesica | works (user) | pass | 2026-10-07 |
@@ -92,7 +95,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card saved (user: name shown, no freeze after a match) | not in the test |  |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | pass | 2026-10-07 |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | pass | 2026-10-10 |
-| `cyber-diver` | Cyber Diver | typex | works (user: 100%) | not in the test |  |
+| `cyber-diver` | Cyber Diver | typex | works (user: 100%) | fail: window | 2026-10-19 |
 | `sonic-blast-heroes` | Sonic Blast Heroes | typex | works (user: 100%) | not in the test |  |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | pass | 2026-10-07 |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | pass | 2026-10-07 |
@@ -177,43 +180,36 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `operation-ghost` | Operation G.H.O.S.T. | ringedge | works (user: 100%) | not in the test |  |
 | `target-bravo-operation-ghost` | Target Bravo: Operation G.H.O.S.T. | ringedge | works (user: 100%) | not in the test |  |
 | `medal-no-gunman` | Medal no Gunman | ringedge | works (user: mouse) | not in the test |  |
-| `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%) | not in the test |  |
-| `sega-racing-classic` | SEGA Racing Classic | ringedge | works (user: 100%) | not in the test |  |
-| `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | not in the test |  |
 | `super-monkey-ball-ticket-blitz` | Super Monkey Ball Ticket Blitz | ringedge | works (user: 100%) | not in the test |  |
 | `lets-go-safari` | Let's Go Safari | ringedge | works (user: 100%) | not in the test |  |
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) | not in the test |  |
-| `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%), gun (mouse), test menu | not in the test |  |
+| `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | not in the test |  |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | not in the test |  |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | not in the test |  |
 | `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | not in the test |  |
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | not in the test |  |
-| `grid` | GRID | europar | works (user: 100%) | not in the test |  |
 | `showdown` | Showdown | segashell | works (user: 100%) | not in the test |  |
-| `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%), guns (mouse), test menu | not in the test |  |
-| `gashaaaan` | Gashaaaan | konami | works (headless test: attract, 2-player game, test menu), 4 players (guns or mice throw balls), crosshairs | not in the test |  |
-| `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%), 4 players (guns or mice throw balls), crosshairs, test menu | not in the test |  |
-| `action-deka` | Action Deka | konami | works (user: 100%), 2 players (guns or mice: shoot, punch, guard, throw, reload button, d-pad steering), stage 4 unlocked option | not in the test |  |
-| `hyper-sports-2011-remake` | Hyper Sports 2011 Remake | konami | works (user: 100%), 2 players with 3 buttons (blue, green, red), test menu | not in the test |  |
-| `silent-hill-the-arcade` | Silent Hill: The Arcade | konami | works (headless test: boot, attract, coins, start, game, test menu), 2 players (guns or mice), movies (runner with the quartz / winedmo MPEG-2 fixes) | not in the test |  |
-| `castlevania-the-arcade` | Castlevania: The Arcade | konami | works (headless test: menus, whip, sub-weapons, test menu), 2 players (guns or mice: whip swing, whip/sub-weapon switch, unlimited sub-weapons option); attract demo movie black | not in the test |  |
-| `otomedius` | Otomedius | konami | works (user: 100%), touch screen (mouse), test menu | not in the test |  |
-| `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), arcade stick, test menu | not in the test |  |
-| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%), arcade stick, touch screen (mouse), test menu | not in the test |  |
-| `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless test: attract, a 1-player game), 4 players (red, green, blue, disk) | not in the test |  |
-| `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%), 3 players (red, green, blue, yellow), test menu | not in the test |  |
-| `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%), 2 players (OK, red, blue, yellow, green) | not in the test |  |
-| `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%), wheel with force feedback, test menu | not in the test |  |
-| `road-fighters-3d` | Road Fighters 3D | konami | works (attract, race, test menu in headless tests), wheel with force feedback | not in the test |  |
-| `thrill-drive-4` | Thrill Drive 4: Crazy Streets | konami | works (headless test: boot, attract, coins, career race, test menu), wheel with force feedback, shift lever | not in the test |  |
-| `contra-evolution` | Contra: Evolution | konami | works (user: 100%), 2 players, test menu | not in the test |  |
-| `wartran-troopers` | Wartran Troopers | konami | works (user: 100%), 4 guns, 2 screens side by side, test menu | not in the test |  |
+| `grid` | GRID | europar | works (user: 100%) | not in the test |  |
+| `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | not in the test |  |
+| `gashaaaan` | Gashaaaan | konami | works (headless test) | not in the test |  |
+| `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | not in the test |  |
+| `otomedius` | Otomedius | konami | works (user: 100%) | not in the test |  |
+| `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%) | not in the test |  |
+| `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | not in the test |  |
+| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | not in the test |  |
+| `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | not in the test |  |
+| `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | not in the test |  |
+| `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%) | not in the test |  |
+| `metal-gear-arcade` | Metal Gear Arcade | konami | works (user: 100%), gun, e-Amusement cards (loader's server), test menu | not in the test |  |
+| `steel-chronicle-victroopers` | Steel Chronicle Victroopers | konami | works (user: 100%), two flight sticks, touch screen (mouse or gun), e-Amusement cards (loader's server) | not in the test |  |
+| `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | not in the test |  |
+| `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | not in the test |  |
+| `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | not in the test |  |
 | `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | not in the test |  |
 | `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | not in the test |  |
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | not in the test |  |
-| `chase-chase-jokers` | Chase Chase Jokers | konami | works (user: 100%), local matches with COM players, test menu, stick, trackball (right stick), touch screen (mouse) | not in the test |  |
-| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%), stick and 5 buttons, credits, touch screen (mouse or gun), main and touch screens side by side with the bezel's marquee | not in the test |  |
-| `galaxy-rangers` | Galaxy Rangers | arcadepc | works (coins, start, aim, shots, settings menu in headless tests), 4 guns | not in the test |  |
+| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | not in the test |  |
+| `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | not in the test |  |
 <!-- GAMELIST END -->

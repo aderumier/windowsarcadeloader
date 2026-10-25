@@ -2,7 +2,8 @@
 //! Winning Eleven 2008, Winning Eleven 2012, GTI Club: Supermini Festa!, Road Fighters 3D,
 //! Contra: Evolution, Wartran Troopers, Chase Chase Jokers, Lethal Enforcers 3, Cooper's 9,
 //! Castlevania: The Arcade, Silent Hill: The Arcade, Action Deka, Hyper Sports 2011 Remake,
-//! The Bishi Bashi, Thrill Drive 4: Crazy Streets, Hello! Pop'n Music, Rainbow Bomber Girl).
+//! The Bishi Bashi, Thrill Drive 4: Crazy Streets, Hello! Pop'n Music, Rainbow Bomber Girl,
+//! Metal Gear Arcade, Steel Chronicle Victroopers).
 //!
 //! The game drives its cabinet through `libacio.dll`, Konami's ACIO bus driver (HBHI I/O board:
 //! switches, analog controllers, coins, security plugs; ICCA card reader): our payload replaces
@@ -45,7 +46,11 @@
 //! Road Fighters 3D's code is a DLL (`jgt.dll`, the dump's `.windowsloader`): `wal-avs-boot.exe`
 //! runs it as the cabinet's launcher does (AVS, e-Amusement boot, the DLL's entry points); its
 //! `libacio.dll` and `libacioEx.dll` (the HGTH wheel board's bus) are the payload. Hello! Pop'n
-//! Music's too (`PMU/popn.dll`: HBHI board, two players' OK and four buttons). Winning
+//! Music's too (`PMU/popn.dll`: HBHI board, two players' OK and four buttons). Metal Gear
+//! Arcade's too (`game/launch.dll`: I36G cabinet and gun boards, the gun's aim on COM1; the
+//! boot's e-Amusement error taken as non-fatal: offline). Steel Chronicle Victroopers' too
+//! (`arkkgg.dll`, AVS2 2.16.7, its game code gamekgg.dll: HBHI board with two flight sticks,
+//! touch screen, LCD; e-Amusement from the payload's fake server). Winning
 //! Eleven 2012's too (`contents/modules/weac12_bootstrap_release.dll`, AVS 2.13: PJEI board, PS2
 //! and PS3 pad ports, touch screen).
 //!
@@ -72,7 +77,8 @@
 //! board), which rebuilds the imports and answers the game's HASP dongle.
 //!
 //! Payload options (profile `env`):
-//! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits
+//! - `WAL_KONAMI_CARD_ID`: the e-Amusement card's id, 16 hex digits; `WAL_KONAMI_CARD_PIN`: its
+//!   PIN, the card registered beforehand in the payload's fake e-Amusement server
 //! - `WAL_KONAMI_AVS_LOG=1`: the AVS log (the game system's boot, errors) in the payload log
 //! - `WAL_KONAMI_CROSSHAIRS=1` (`_STYLE`, `_SIZE`, `_P1`..`_P4`, `_TINT`): the players' aim drawn
 //!   over the picture (Gashaaaan, Gashaaaan Refill!)
@@ -99,6 +105,9 @@
 //!   (set off)
 //! - Chase Chase Jokers: `WAL_KONAMI_TRACKBALL_SPEED` the trackball's counts per 10 ms at the
 //!   right stick's full tilt (default 12)
+//! - `WAL_KONAMI_EASRV=1`: the payload's fake e-Amusement server (Steel Chronicle Victroopers);
+//!   `WAL_KONAMI_SERVICES=<url>`: an external server's services URL instead
+//! - Steel Chronicle Victroopers: `WAL_KONAMI_FREEPLAY` free play (`1` default, `0` coins)
 //! - Rainbow Bomber Girl: `WAL_KONAMI_PRICE` credits per game (default 1),
 //!   `WAL_KONAMI_FREEPLAY=1` free play, `WAL_KONAMI_REGION=asia` the export version,
 //!   `WAL_KONAMI_LAYOUT` the screens (`main_left`: the main monitor on the left, no bezel;
@@ -123,7 +132,9 @@
 //! right touch`; Bishi Bashi Channel: `test service coin red green blue disk_left disk_right`
 //! (players 1-4); The Bishi Bashi: `test service coin red green blue yellow` (players 1-3);
 //! Hello! Pop'n Music: `test service coin start button1 button2 button3 button4` (players 1
-//! and 2); Rainbow Bomber Girl: `test service coin bomb skill1 skill2 back detonate headphone up
+//! and 2); Metal Gear Arcade: `test service coin start trigger top front_top front_bottom
+//! side_left side_right side_lever switch up down left right`; Steel Chronicle Victroopers:
+//! `test service coin l l1 l2 r r1 r2 jog_left jog_right`; Rainbow Bomber Girl: `test service coin bomb skill1 skill2 back detonate headphone up
 //! down left right touch`.
 
 use super::{Payload, System};
