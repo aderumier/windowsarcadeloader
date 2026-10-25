@@ -201,7 +201,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%) | not in the test |  |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | not in the test |  |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | not in the test |  |
-| `dance-dance-revolution-2013` | Dance Dance Revolution 2013 | konami | works (headless), e-Amusement cards (loader's server) | not in the test |  |
+| `dance-dance-revolution-2013` | Dance Dance Revolution 2013 | konami | works (user: 100%), e-Amusement cards (loader's server); menus on the menu buttons (b1-b4: Left Ctrl / Left Alt / Space / Left Shift), not the pad arrows | not in the test |  |
 | `yugioh-duel-terminal-6` | Yu-Gi-Oh! 5D's Duel Terminal 6 | konami | works (user: 100%), touch screen (mouse, red pointer); limits: no card scanning (the camera gives blank pictures), dump lacks `data/sem0` (some common sound effects), a black frame where a preview clip loops; movies seek with GE patch 0103 (winedmo) | not in the test |  |
 | `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%), e-Amusement cards for both players (loader's server) | not in the test |  |
 | `metal-gear-arcade` | Metal Gear Arcade | konami | works (user: 100%), gun, e-Amusement cards (loader's server), test menu | not in the test |  |
