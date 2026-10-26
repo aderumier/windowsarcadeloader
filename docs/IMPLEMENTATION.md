@@ -881,6 +881,60 @@ income mode 0x20, and (Million Arthur) HTTP posts 0x1B; later 0x4 game start, 0x
 * NxL2 settings the game reads are logged (`nxl2: setting <name> = ...`): e.g. KOF XIV's
   `Resolution` (0 = 720p, 1 = 1080p).
 
+**Theatrhythm Final Fantasy All-Star Carnival (Unity 5.3 Mono, 64-bit, `theatrhythm.rs`).** No
+`NxL2Core.dll`: the C# code DllImports three plugins of `game_Data/Plugins`, all three replaced by
+`wal_nesica64.dll` (profile `payload_install`):
+* `ismACIO.dll` (I/O board): `GetInputD` bits right lever 0x1-0x8, left lamp switch 0x20, Enter
+  0x80, left lever 0x100-0x800, Select 0x1000, Test 0x2000, Service 0x4000, coin 0x8000, right
+  lamp switch 0x10000; `GetCoin` / `DecreaseCoin` a coin counter; `GetStatus` 2 (OK). Natives
+  for `native_map`: `lup ldown lleft lright llamp rup rdown rleft rright rlamp select enter test
+  service coin`; the right lever also follows the right stick (`rx`/`ry` past half way).
+* `NESiCAReader.dll`: XIO status idle (1), `Read(timeout)` waits for the `card` input's card
+  (the game wants the reader empty when it starts reading: insert the card at the title, not
+  with `WAL_NESICA_CARD_AUTO`), `GetID` returns non-zero with the 16 characters.
+* `SimpleNesys.dll` (HTTPS REST client, not the `nesys_games` pipe), `theatrhythm_nesys.rs`:
+  ONLINE_MODE after `NESYS_START_ONLINE_MODE`, maintenance time -2 (-1 turns the reader off),
+  the certificate's `card_server` the payload's own (`127.0.0.1:33702`), `game_server` the
+  Photon address (must not be empty); card data `error_number` 0 (2020 would start the NESYS
+  registration); requests answered at once (handle > 0, status OK); `NESYS_PARSE_JSON` calls
+  back for each wanted key (names ANSI, strings UTF-16, booleans 4-byte). `WAL_THEATRHYTHM_SERVER=0`:
+  STANDALONE_MODE, every request -4, guest play only.
+* Card server (`theatrhythm_server.rs` HTTP, `theatrhythm_player.rs` answers, records
+  `theatrhythm-server/<card>.json`): Unity `JsonUtility`, so every field is sent (no null).
+  Errors are HTTP 200 + `result` `NG` + `code` (a non-2xx body is never read); `service/echo`
+  must be non-JSON (`OK`; JSON counts as an error); `service/version`'s `serviceVersion` must be
+  the game's (`GameVersion` header) or error 31001; `event/musicscoreranking` 404; one
+  `info/banner` info URL at least (the Information screen divides by their count); first play =
+  `user/profile` NG `#004` (no name entry), the record made at `user/accountlogin`; optional
+  services NG (play bonus U011, score ranking U013, domination U006/U004 with `eventInfo:{}`,
+  raid boss U019/U018); 3 parties of 4 characters; the song list 0 or >= 11 songs and not 20
+  (the client asks for details 10 at a time and divides by zero otherwise): the 171 default
+  medleys + the unlocked and played ones; 6 levels per song detail. Saved: `playupdate` (gains
+  summed, scores, parties, settings, characters' absolute exp), `playreward` (unlocks, absolute
+  medals / crystals, title), `playresult` (titles), `infoupdate`, `shopbuy`. Collection cards'
+  rarity is not kept (their table is in an asset bundle).
+* Managed code (`theatrhythm_mono.rs`, payload-common `mono.rs` `Mono::replace`: a jump at the
+  start of the method's compiled code, `mono_compile_method`; small methods may be inlined, so
+  only larger ones): `ServerManager.SetProtcol` does nothing (the card server stays `http://`),
+  `PhotonManager.Connect` sets `Online` for the boot / attract checks (no lobby option) and
+  `Standalone` for a credit (`GameStart` passes an option, even empty: `Online` would wait for a
+  room forever, black screen), `Disconnect` does nothing. The matching server is checked every
+  30 s in attract and gates the NESiCA reader.
+* Mono loads each plugin by full path: the first copy loaded hooks game.exe's and mono.dll's
+  `LoadLibraryW/ExW` so the other names return this module (one state).
+* Touch screen = Unity's mouse (Windows player): pointer `accel`/`brake`, touch `b7`, messages
+  posted and real ones filtered as Chase Chase Jokers; raw input registration and Unity's
+  XInput (`GetProcAddress`) hidden. The pointer is a red dot drawn over the picture
+  (payload-common `pointer_d3d11.rs`: DXGI `Present`/`Present1` hooked through a swap chain of
+  the payload's own, drawn in a device context state of its own);
+  `WAL_THEATRHYTHM_POINTER=arrow` keeps the Windows cursor shown and warped instead, `none` hides it.
+* `NanoTS_PTool_win8.exe` (touch panel setup / calibration / `connection:state`, polled) answers
+  "Not connected" without the USB controller (error 15001): mono.dll's `CreateProcessW` runs
+  `cmd.exe /c echo Connected` instead.
+* D:\ (settings, bookkeeping, logs) through mono.dll's file functions (`drive::redirect_module`).
+* The dump's `Assembly-CSharp.dll` is another loader's modified build (free play, checks
+  removed, data in `.\`): the profile installs `Assembly-CSharp_org.dll` (the original) instead.
+
 **Million Arthur white screen (2026-10-11, offline only).** Not seen with NESYS online (user:
 training and story modes fine); offline (NESYS off), with DXVK the picture turns white at the
 first coin after the title (~25 s) and stays white through character select: only the HUD
@@ -3397,6 +3451,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `samurai-shodown-130` | Samurai Shodown (1.30.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | Unreal Engine 4: `Onion-Win64-Shipping.exe` started directly, payload as the plugin's `NxL2Core.dll` (`payload_install`), NESYS offline (`WAL_NESICA_NESYS_OFFLINE`: online it waits for its card object storage before each fight) |
 | `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | as 1.30.00 |
 | `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card saved (user: name shown, no freeze after a match) | Unreal Engine 4: `EXF-Win64-Shipping.exe` started directly, its `NxL2Core.dll` replaced by the 64-bit payload; NESYS `ms`/`ss`, card reissue replies and session (§6.2b), card inserted automatically (`WAL_NESICA_CARD_AUTO`), card writes saved as their reads, ASCII case folding (`WAL_FAST_WCASE`: Wine's towlower stalled the game ~5 s twice after a match) |
+| `theatrhythm-final-fantasy-all-star-carnival` | Theatrhythm Final Fantasy All-Star Carnival | nesica2 | works (user: 100%), NESiCA cards (loader's card server, progress saved), touch screen (mouse, red pointer); right lever on I/J/K/L; no matching with other cabinets | `game.exe` (Unity 5.3, 64-bit); payload as `game_Data/Plugins` ismACIO / NESiCAReader / SimpleNesys (one module); NESYS online with the payload's card server (HTTP, managed `SetProtcol` / Photon `Connect` replaced); touch = Unity's mouse, red dot (Direct3D 11 Present); original `Assembly-CSharp_org.dll` installed |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) | Source client hl2.exe, -io 1, serial hooks in bin/xioman.dll, complete JVS 0x25 reply, cabinet start and active-low switches, fallback axis calibration; offline; some Japanese labels garbled; testmode.exe absent |

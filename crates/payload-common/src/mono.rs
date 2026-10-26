@@ -1,5 +1,6 @@
-//! Mono's embedding API (`mono-2.0-bdwgc.dll`'s exports), for the Unity games: classes,
-//! fields and methods of the game's managed code, looked up by name.
+//! Mono's embedding API (`mono-2.0-bdwgc.dll`'s exports, or the older Unity's `mono.dll`), for
+//! the Unity games: classes, fields and methods of the game's managed code, looked up by name;
+//! [`Mono::replace`] puts a native function in place of a method's compiled code.
 //!
 //! Mono's garbage collector (Boehm) does not move objects: an object's address stays valid
 //! while it is referenced (a static field, a GC handle, a pointer on an attached thread's
@@ -36,6 +37,7 @@ pub struct Mono {
     string_new: unsafe extern "C" fn(P, *const c_char) -> P,
     class_get_type: unsafe extern "C" fn(P) -> P,
     type_get_object: unsafe extern "C" fn(P, P) -> P,
+    compile_method: unsafe extern "C" fn(P) -> P,
 }
 
 /// Mono, once the game has loaded it.
@@ -44,7 +46,10 @@ pub fn mono() -> Option<&'static Mono> {
     if let Some(m) = MONO.get() {
         return Some(m);
     }
-    let module = unsafe { GetModuleHandleW(windows_sys::w!("mono-2.0-bdwgc.dll")) };
+    let mut module = unsafe { GetModuleHandleW(windows_sys::w!("mono-2.0-bdwgc.dll")) };
+    if module.is_null() {
+        module = unsafe { GetModuleHandleW(windows_sys::w!("mono.dll")) };
+    }
     if module.is_null() {
         return None;
     }
@@ -75,6 +80,7 @@ pub fn mono() -> Option<&'static Mono> {
             string_new: std::mem::transmute(get("mono_string_new")?),
             class_get_type: std::mem::transmute(get("mono_class_get_type")?),
             type_get_object: std::mem::transmute(get("mono_type_get_object")?),
+            compile_method: std::mem::transmute(get("mono_compile_method")?),
         }
     };
     Some(MONO.get_or_init(|| m))
@@ -214,6 +220,37 @@ impl Mono {
             return class;
         }
         unsafe { (self.type_get_object)(self.domain(), (self.class_get_type)(class)) }
+    }
+
+    /// Puts `target` in place of `method`'s code: its compiled code (compiled now) starts with a
+    /// jump to it, every caller ends there. `target` takes the method's arguments (`this` first
+    /// for an instance method) and returns its value, with the platform's calling convention.
+    /// Small methods (property getters...) may be inlined in their callers: only larger ones are
+    /// replaced this way.
+    pub fn replace(&self, method: P, target: usize) -> bool {
+        if method.is_null() {
+            return false;
+        }
+        let code = unsafe { (self.compile_method)(method) } as *mut u8;
+        if code.is_null() {
+            return false;
+        }
+        // jmp [rip+0]; the target's address
+        let mut jump = [0xFF, 0x25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        jump[6..].copy_from_slice(&(target as u64).to_le_bytes());
+        use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
+        use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        let mut old = 0;
+        unsafe {
+            if VirtualProtect(code.cast(), jump.len(), PAGE_EXECUTE_READWRITE, &mut old) == 0 {
+                return false;
+            }
+            std::ptr::copy_nonoverlapping(jump.as_ptr(), code, jump.len());
+            VirtualProtect(code.cast(), jump.len(), old, &mut old);
+            FlushInstructionCache(GetCurrentProcess(), code.cast(), jump.len());
+        }
+        true
     }
 
     /// A new `byte[len]`.

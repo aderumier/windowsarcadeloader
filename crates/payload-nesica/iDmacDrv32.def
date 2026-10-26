@@ -49,3 +49,51 @@ EXPORTS
     NxL2UnlockAutoEnd
     NxL2Update
     NxL2UpdateGameSetting
+    ; Theatrhythm Final Fantasy All-Star Carnival's plugins, imported by name
+    ismACIO_DecreaseCoin
+    ismACIO_Delete
+    ismACIO_GetCoin
+    ismACIO_GetCoinStatus
+    ismACIO_GetInputA
+    ismACIO_GetInputD
+    ismACIO_GetStatus
+    ismACIO_Init
+    ismACIO_SetOutputA
+    ismACIO_SetOutputD
+    ismACIO_Update
+    NESiCAReaderCancelRead
+    NESiCAReaderClose
+    NESiCAReaderGetID
+    NESiCAReaderGetResult
+    NESiCAReaderGetStatus
+    NESiCAReaderGetXioStatus
+    NESiCAReaderOpen
+    NESiCAReaderRead
+    NESiCAReaderUpdate
+    NESYS_CARD_INSERT_REQUEST
+    NESYS_CARD_REISSUE_REQUEST
+    NESYS_CLOSE_REQUEST_HANDLE
+    NESYS_GET_CARDDATA_REQUEST
+    NESYS_GET_CERTINFO
+    NESYS_GET_CERT_NAME
+    NESYS_GET_LANINTERFACE
+    NESYS_GET_LIBRARY_VER
+    NESYS_GET_LOCALSEARCH
+    NESYS_GET_LOCALSEARCH_ENTRY_NUM
+    NESYS_GET_MAINTENANCE_TIME
+    NESYS_GET_NETWORK_ERROR_CODE
+    NESYS_GET_NETWORK_STATUS
+    NESYS_GET_PLAYLOG_REQUEST
+    NESYS_GET_REQUEST_RECIEVED_DATA
+    NESYS_GET_REQUEST_STATUS
+    NESYS_INIT
+    NESYS_GET_SERVER_URL
+    NESYS_NOTIFY_INCOME_REQUEST
+    NESYS_PARSE_JSON
+    NESYS_RELEASE
+    NESYS_RESTART_ONLINE_MODE
+    NESYS_SET_DEBUG_LOGGER
+    NESYS_START_LOCALSEARCH
+    NESYS_START_ONLINE_MODE
+    NESYS_STOP_ONLINE_MODE
+    NESYS_UPDATE

@@ -183,7 +183,7 @@ mod ccj_pointer;
 #[cfg(target_arch = "x86_64")]
 mod ccj_trackball;
 #[cfg(target_arch = "x86_64")]
-mod mono;
+use wal_payload_common::mono;
 #[cfg(target_arch = "x86_64")]
 mod ndd;
 

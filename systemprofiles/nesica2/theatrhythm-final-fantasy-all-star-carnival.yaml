@@ -1,0 +1,102 @@
+# Theatrhythm Final Fantasy All-Star Carnival (Square Enix, NESiCAxLive 2, 64-bit Unity 5.3,
+# Mono) - template, override values in
+# userprofiles/nesica2/theatrhythm-final-fantasy-all-star-carnival.yaml.
+system: nesica2
+name: Theatrhythm Final Fantasy All-Star Carnival
+
+# The game's C# code calls three native plugins: I/O board, NESiCA reader, NESYS client. The
+# payload's x86_64 build replaces the three (theatrhythm.rs); NESYS online with the payload's
+# own card server (NESiCA play, the players' records in theatrhythm-server/ of the run
+# directory), no matching with other cabinets.
+payload_install:
+  - game_Data/Plugins/ismACIO.dll
+  - game_Data/Plugins/NESiCAReader.dll
+  - game_Data/Plugins/SimpleNesys.dll
+
+# The dump's Assembly-CSharp.dll is another loader's modified build (free play, no touch panel
+# check, data in the game folder): the original, kept as Assembly-CSharp_org.dll, runs.
+files:
+  game_Data/Managed/Assembly-CSharp.dll: "{dump}/game_Data/Managed/Assembly-CSharp_org.dll"
+
+env:
+  # "0": no card server (a cabinet without network: guest play only)
+  WAL_THEATRHYTHM_SERVER: "1"
+  # the players' name shown by the game (empty: the game's, 名もなき演奏者)
+  WAL_THEATRHYTHM_PLAYER_NAME: ""
+  # the touch pointer: dot (a red dot where the mouse or gun points), arrow (the Windows
+  # cursor), none
+  WAL_THEATRHYTHM_POINTER: dot
+  # the dot's size, in percent of the screen height
+  WAL_THEATRHYTHM_POINTER_SIZE: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_THEATRHYTHM_SERVER
+        label: NESiCA card server
+        kind: bool
+        description: >-
+          The game's card server from the loader: play with a NESiCA card (the card input),
+          the player's progress kept. Off: guest play only.
+      - key: WAL_THEATRHYTHM_PLAYER_NAME
+        label: Player name
+        kind: text
+        description: >-
+          The name the game shows for the card's player. Empty: the game's default name.
+      - key: WAL_THEATRHYTHM_POINTER
+        label: Touch pointer
+        kind: choice
+        choices: [dot, arrow, none]
+        description: >-
+          Where the mouse or gun touches: a red dot drawn over the picture, the Windows arrow,
+          or nothing.
+      - key: WAL_THEATRHYTHM_POINTER_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
+
+input:
+  # Keyboard: the right lever on I J K L (the left one on the arrows), taken from player 3
+  keyboard:
+    p1:
+      KEY_J: -rx
+      KEY_L: rx
+      KEY_I: -ry
+      KEY_K: ry
+    p3:
+      KEY_I: none
+      KEY_J: none
+      KEY_K: none
+      KEY_L: none
+  # The cabinet's touch screen (the menus, the notes can be touched too) is read as the mouse:
+  # a gun or the mouse points (accel, brake: the pointer across the screen), its button touches.
+  guns_enabled: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: b7
+    BTN_RIGHT: b1
+    BTN_MIDDLE: b2
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Left lever up
+  down: Left lever down
+  left: Left lever left
+  right: Left lever right
+  rx: Right lever (x)
+  ry: Right lever (y)
+  b1: Left lever button
+  b2: Right lever button
+  b3: Select (test menu)
+  b4: Enter (test menu)
+  b7: Touch the screen
+  accel: Touch position (x)
+  brake: Touch position (y)
+  start: Enter
+  coin: Coin
+  service: Service
+  test: Test

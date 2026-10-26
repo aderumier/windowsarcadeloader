@@ -8,6 +8,8 @@
 //! NESiCAxLive 2 games import `NxL2Core.dll` instead: the same DLL is installed under that name
 //! (system `nesica2`) and implements its API (`nxl2.rs`) on top of the FastIO emulation.
 //!
+//! Theatrhythm Final Fantasy All-Star Carnival (Unity) calls three native plugins instead: the
+//! same DLL is installed under their names (`theatrhythm.rs`).
 
 #![allow(non_snake_case)]
 
@@ -19,6 +21,11 @@ mod nesystrace;
 mod nxl2;
 mod registry;
 mod rfid;
+mod theatrhythm;
+mod theatrhythm_mono;
+mod theatrhythm_nesys;
+mod theatrhythm_player;
+mod theatrhythm_server;
 
 use std::ffi::c_void;
 use wal_payload_common::{log, patches};
@@ -28,7 +35,7 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub use fastio::*;
 
 #[unsafe(no_mangle)]
-pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
+pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("nesica");
         patches::apply();
@@ -46,6 +53,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         }
         if std::env::var("WAL_NESICA_CRYPT").map_or(true, |v| v != "0") {
             wal_payload_common::crypto::start();
+        }
+        if theatrhythm::detected(module) {
+            theatrhythm::init();
         }
         log!("nesica: initialized");
     }

@@ -30,14 +30,22 @@ pub mod font;
 pub mod dshow;
 #[cfg(windows)]
 pub mod iat;
+// JSON values (servers' requests and answers)
+pub mod json;
 pub mod jvs;
 #[cfg(windows)]
 pub mod jvs_board;
 pub mod log;
 pub mod mapping;
+// Unity games' managed code (Mono's embedding API)
+#[cfg(windows)]
+pub mod mono;
 pub mod paths;
 #[cfg(windows)]
 pub mod patches;
+// a touch screen's pointer over Direct3D 11 pictures
+#[cfg(windows)]
+pub mod pointer_d3d11;
 // parallel port force feedback boards (inpout32 Out32)
 pub mod port_ffb;
 #[cfg(windows)]
