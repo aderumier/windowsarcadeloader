@@ -9,11 +9,12 @@
 //! trigger its left button, the keys posted (`payload-common`'s `input_filter`: the real
 //! keyboard and mouse never reach the game, moves included).
 //!
-//! The game asks a 450x800 window (`CompanyLogo`: `Screen.SetResolution(450, 800, false)`):
-//! shown larger than it renders, its UI and its 3D camera disagree on the mouse's pixels (the
-//! hits on the crosshair, the shots' trails elsewhere). `Screen.SetResolution(int, int, bool)` is
-//! replaced (`Mono::replace`): the same window fitted on the screen's height (9:16), centered;
-//! the game renders at the size it is shown.
+//! The game asks a 450x800 window (`CompanyLogo`: `Screen.SetResolution(450, 800, false)`), but
+//! its UI effects (the shots' trails, sparks, the screen's cracks: `GameUI.ShowFire`) are placed
+//! at screen pixels on a 1080-wide canvas: off their place at any other width.
+//! `Screen.SetResolution(int, int, bool)` is replaced (`Mono::replace`): the same aspect fitted
+//! on the desktop's height, the profile's 1080x1920 fake desktop (`WAL_DESKTOP_SIZE`) fitted on
+//! the screen.
 //!
 //! Natives: `trigger coin` (player 1), `settings menu back left ok right` (the operator's).
 
@@ -149,13 +150,14 @@ fn center(hwnd: windows_sys::Win32::Foundation::HWND) {
 static SET_RESOLUTION: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// `Screen.SetResolution(int width, int height, bool fullscreen)`: the same aspect fitted on
-/// the screen's height, windowed.
+/// the (fake) desktop's height: windowed on the screen, full screen on a fake desktop (Unity
+/// makes no window taller than the real screen).
 extern "C" fn set_resolution(width: i32, height: i32, _fullscreen: u8) {
-    let sh = unsafe { GetSystemMetrics(SM_CYSCREEN) };
+    let sh = desktop::size().map_or_else(|| unsafe { GetSystemMetrics(SM_CYSCREEN) }, |d| d.1);
     let w = if height > 0 { (sh as i64 * width as i64 / height as i64) as i32 } else { width };
     log!("bullseye: SetResolution({width}, {height}) -> {w}x{sh}");
     let f: extern "C" fn(i32, i32, u8, i32) = unsafe { std::mem::transmute(SET_RESOLUTION.load(Ordering::Relaxed)) };
-    f(w, sh, 0, 0);
+    f(w, sh, desktop::size().is_some() as u8, 0);
 }
 
 /// Replaces `Screen.SetResolution(int, int, bool)` once UnityEngine's assembly is loaded.

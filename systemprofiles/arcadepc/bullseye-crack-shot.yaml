@@ -15,6 +15,7 @@ env:
   # the gun's crosshair (none on the cabinet): the common crosshair option's default
   WAL_CROSSHAIR: "1"
   # the cabinet art around the picture
+  WAL_DESKTOP_SIZE: 1080x1920
   WAL_BEZEL: Bezel.png
 
 input:
