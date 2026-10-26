@@ -3407,6 +3407,31 @@ SpiderZSoft's Top Gun ("BiuBiuGun", Unity 2019.3, Mono, 32-bit: the x86 payload
   launch, the prefix's own kept.
 - **Open.** Recoil and lamps outputs, a real gun on the box.
 
+#### Happy Water Sprite II
+
+SpyderZSoft's "SpriteT2" (yeruigame, Unity 3.5.6, Mono 2.6 `mono.dll`, 32-bit), two water guns
+(analog aim, no trigger: the game opens a playing player's valve). Same game as the "Monsters vs
+Water Sprite" repack. The dump is rebuilt without the repack's BepInEx, Doorstop and
+DemulShooter (`WaterSprite2.exe`: the save path follows the executable's name).
+
+- **Board (`commking.rs`, `WAL_ARCADEPC_BOARD=commking`).** `CommKingDeviceManager` on COM1,
+  19200 bauds, the game's own overlapped kernel32 calls (`DllImport`, through Mono's
+  `GetProcAddress`: `mono_imports.rs`, `mono.dll` too). Frames `AA len cmd data.. xor 55`
+  (`len` = data + 2). Answered: online (1), ID (2), valve (8, player) and pump (9) receipts, water
+  level (0x0B: normal), tickets (4 on: 5 player 1 every 150 ms). Sent (`serial::push`, which
+  completes the game's pending `WaitCommEvent`): coins (3), keys (0x0E/0x0F: 0 start P1 / its
+  big gun, 1 start P2, 2 set, 3 select (the system menu: set enters, select moves), 4..8),
+  aim (0x0A: x1 y1 x2 y2 big endian, 40 + 900 * position, y from the top).
+- **Calibration.** The game maps the aim through 13 points (sys.dat, the system menu's
+  PositionCorrection): the dump's are 900 times each point's place, (0, 0), (450, 0), ...
+  (225, 225)..., for both players.
+- **Dongle and registration.** HASP HL (`hasp_windows_96625.dll`, the payload installed under
+  that name and loaded by `wal-loader`): login, the read/write file (`000` + the text the game
+  checks), the session's serial. The game's registration (PlayerPrefs `tmp1`..`tmp5`, MD5s of
+  `xbly`, a GUID, the board's ID and the serial; its MD5 starts at 0x67452201) is written by the
+  payload at start; Unity 3.5's PlayerPrefs strings are REG_SZ. `ExitWindowsEx` ignored.
+- **Display.** 1920x1080 full screen (Direct3D 9); the game shows each gun's aim.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -3761,6 +3786,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 | `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun | SpiderZSoft's Top Gun repack (Unity 2019.3, 32-bit, §6.3i): rebuilt dump (`QuickShot.exe`, `Main` patched to 1080x1920), the repack's BepInEx plugins (logo, DemulShooter): the payload is the plugin's TCP client (`WAL_DEMUL_PORT`) and posts its keys; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen |
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun | SpiderZSoft's original (§6.3i), dump rebuilt from the repack's decrypted assembly without BepInEx (`TopGun.exe`, `Main` patched to 1080x1920): the payload emulates the `Dog_Ch.dll` dongle and the SY Fire COM1 board through Mono's `GetProcAddress`; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen, crosshair, bezel (`WAL_BEZEL=Layer.png`, the dump's cabinet art) |
+| `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | works (headless tests: registration, coins, start, stage, aim), 2 water guns | SpyderZSoft's "SpriteT2" (Unity 3.5, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `hasp_windows_96625.dll`, `wal-loader`) emulates the CommKing COM1 board, the HASP HL dongle and the registration; calibration in the dump's sys.dat |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

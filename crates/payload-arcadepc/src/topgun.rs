@@ -13,23 +13,19 @@
 //!   `A3 A9 len cmd data.. sum` (lamps, cmd 5 tickets to pay out, prize motors, the board's
 //!   state), each answered `4F 4B cmd` ("OK"); tickets are reported paid at once.
 //!
-//! Mono resolves its `DllImport`s with `GetProcAddress`: hooked in `mono-2.0-bdwgc.dll`'s
-//! imports (as soon as Unity loads it), the dongle functions and `SerialPort`'s kernel32
+//! Mono's `DllImport`s (`mono_imports.rs`): the dongle functions and `SerialPort`'s kernel32
 //! functions (`payload-common`'s `serial`) are ours.
 //!
 //! Natives: `trigger offscreen` (player 1's gun), `coin settings left right replenish refill
 //! door`.
 
-use std::ffi::{CStr, c_char, c_void};
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
 
 use wal_payload_common::mapping::ButtonMap;
-use wal_payload_common::{desktop, iat, input, log, serial};
-use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+use wal_payload_common::{desktop, input, log, serial};
 
-use crate::demul;
+use crate::{demul, mono_imports};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Native {
@@ -180,60 +176,20 @@ extern "C" fn do_something(_buf: *const u8, _len: u32, out: *mut u8, out_len: u3
     0
 }
 
-/// Mono's `GetProcAddress`.
-static ORIG_GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
-
-unsafe extern "system" fn get_proc_address(module: *mut c_void, name: *const c_char) -> usize {
-    let orig: unsafe extern "system" fn(*mut c_void, *const c_char) -> usize =
-        unsafe { std::mem::transmute(ORIG_GET_PROC_ADDRESS.load(Ordering::Relaxed)) };
-    // an ordinal
-    if (name as usize) >> 16 == 0 {
-        return unsafe { orig(module, name) };
-    }
-    let wanted = unsafe { CStr::from_ptr(name) }.to_str().unwrap_or("");
-    let ours = match wanted {
+/// The dongle's functions, and the serial functions of the emulated port.
+fn resolve(name: &str, kernel32: bool) -> Option<usize> {
+    match name {
         "open_dog" => Some(open_dog as *const () as usize),
         "close_dog" => Some(close_dog as *const () as usize),
         "do_something" => Some(do_something as *const () as usize),
-        _ if module == unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) } => serial::replacement(wanted),
+        _ if kernel32 => serial::replacement(name),
         _ => None,
-    };
-    match ours {
-        Some(f) => {
-            log!("syfire: {wanted} resolved to ours");
-            f
-        }
-        None => unsafe { orig(module, name) },
     }
-}
-
-/// Hooks Mono's `GetProcAddress` once Unity has loaded it.
-fn hook_mono() {
-    std::thread::spawn(|| {
-        loop {
-            let mono = unsafe { GetModuleHandleW(windows_sys::w!("mono-2.0-bdwgc.dll")) } as usize;
-            if mono != 0 {
-                match unsafe { iat::hook_module(mono, "kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) } {
-                    Some(o) => {
-                        ORIG_GET_PROC_ADDRESS.store(o, Ordering::Relaxed);
-                        log!("syfire: Mono's GetProcAddress hooked");
-                    }
-                    None => log!("syfire: Mono does not import GetProcAddress: no dongle, no board"),
-                }
-                return;
-            }
-            std::thread::sleep(Duration::from_millis(1));
-        }
-    });
 }
 
 pub fn init() {
     // the originals of the serial functions (no module's imports to hook)
     serial::install_streaming_in("COM1", handler, idle, &[]);
-    let kernel32 = unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) };
-    if let Some(f) = unsafe { GetProcAddress(kernel32, c"GetProcAddress".as_ptr().cast()) } {
-        ORIG_GET_PROC_ADDRESS.store(f as usize, Ordering::Relaxed);
-    }
-    hook_mono();
+    mono_imports::hook(resolve);
     log!("syfire: SY Fire board on COM1, Dog_Ch dongle");
 }

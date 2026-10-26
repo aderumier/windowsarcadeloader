@@ -19,4 +19,5 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Graphics_Gdi",
     "Win32_System_Threading",
+    "Win32_System_Registry",
 ] }

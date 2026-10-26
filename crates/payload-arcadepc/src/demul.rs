@@ -165,7 +165,12 @@ pub(crate) fn on_screen(stick: &wal_protocol::StickState, screen: (f32, f32)) ->
 
 /// Where player 1's gun points in the game's picture (fractions from its top left), on it.
 pub(crate) fn gun_in_picture() -> Option<(f32, f32)> {
-    let (sx, sy) = on_screen(&input(0), screen_size());
+    gun_of_player_in_picture(0)
+}
+
+/// Where `player`'s gun points in the game's picture (fractions from its top left), on it.
+pub(crate) fn gun_of_player_in_picture(player: usize) -> Option<(f32, f32)> {
+    let (sx, sy) = on_screen(&input(player), screen_size());
     let (x, y) = match desktop::size() {
         Some((w, h)) => {
             let (x, y) = desktop::from_screen(sx as f64, sy as f64);

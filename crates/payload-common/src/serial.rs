@@ -204,6 +204,15 @@ fn hook_modules(modules: &[usize]) {
     }
 }
 
+/// Data the device on `port` sends on its own (a board's inputs): queued for the game's
+/// reads, completing its pending `WaitCommEvent` / read.
+pub fn push(port: &str, data: &[u8]) {
+    let device = DEVICES.lock().unwrap().iter().find(|d| d.port.eq_ignore_ascii_case(port)).copied();
+    if let Some(device) = device {
+        device.reply(data.to_vec());
+    }
+}
+
 /// One request/reply exchange with the device behind the fake handle `h` (drivers that pass
 /// the packets with `DeviceIoControl`, e.g. RingEdge's `\\.\mxjvs`). `None`: not a device handle.
 pub fn transact(h: P, packet: &[u8]) -> Option<Vec<u8>> {

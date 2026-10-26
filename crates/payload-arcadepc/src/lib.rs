@@ -19,6 +19,9 @@
 //! Top Gun (`WAL_ARCADEPC_BOARD=syfire`): `topgun.rs` emulates its dongle and its serial I/O
 //! board (coins, keys, the camera gun's shots); no pads, no keyboard.
 //!
+//! Happy Water Sprite II (`WAL_ARCADEPC_BOARD=commking`): `commking.rs` emulates its I/O board,
+//! HASP dongle and registration.
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -26,7 +29,9 @@
 
 #![allow(non_snake_case)]
 
+mod commking;
 mod demul;
+mod mono_imports;
 mod pads;
 mod topgun;
 
@@ -58,6 +63,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 pads::disconnect();
                 wal_payload_common::input_filter::init(unity, |_| false);
                 topgun::init();
+            }
+            _ if board.trim() == "commking" => {
+                pads::disconnect();
+                // Unity 3.5: the player is the executable
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                commking::init();
             }
             Some(port) => {
                 pads::disconnect();
