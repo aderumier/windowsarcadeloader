@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use crate::{iat, log};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetMenu, GetParent, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SWP_NOMOVE, SWP_NOSIZE, SetMenu,
+    GetDesktopWindow, GetMenu, GetParent, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SWP_NOMOVE, SWP_NOSIZE, SetMenu,
 };
 
 type HWND = *mut c_void;
@@ -190,12 +190,18 @@ const WS_DECORATIONS: u32 = 0x00C0_0000 | 0x0004_0000 | 0x0008_0000 | 0x0002_000
 /// Extended styles adding a border.
 const WS_EX_DECORATIONS: u32 = 0x0000_0001 | 0x0000_0100 | 0x0000_0200 | 0x0002_0000;
 
+/// A window created with this parent is top-level: none, or the desktop window (Need for
+/// Speed GT's frontend creates its window as a child of `GetDesktopWindow()`).
+fn top_level(parent: HWND) -> bool {
+    parent.is_null() || parent == unsafe { GetDesktopWindow() }
+}
+
 /// Style and geometry of a window being created: popup style (`WAL_WINDOW_POPUP`) and forced
-/// size at 0,0 (`WAL_WINDOW_SIZE`) for top-level windows (`parent` null) with a size.
+/// size at 0,0 (`WAL_WINDOW_SIZE`) for top-level windows ([`top_level`]) with a size.
 pub(crate) fn created(ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32, parent: HWND) -> (u32, u32, i32, i32, i32, i32) {
     // child windows, and hidden helper windows created without a size (CRI's
     // CriDSoundOutput, its DirectSound window: as a popup the game was silent)
-    if !parent.is_null() || style & WS_CHILD != 0 || (w == 0 && h == 0) {
+    if !top_level(parent) || style & WS_CHILD != 0 || (w == 0 && h == 0) {
         return (ex, style, x, y, w, h);
     }
     let (mut ex2, mut style2, mut geometry) = (ex, style, (x, y, w, h));
@@ -224,7 +230,7 @@ unsafe extern "system" fn set_menu(hwnd: HWND, menu: P) -> i32 {
 
 /// A new top-level popup's menu bar (its class's or the one passed) removed.
 fn drop_menu(hwnd: HWND, parent: HWND) -> HWND {
-    if POPUP.load(Ordering::Relaxed) && !hwnd.is_null() && parent.is_null() && !unsafe { GetMenu(hwnd) }.is_null() {
+    if POPUP.load(Ordering::Relaxed) && !hwnd.is_null() && top_level(parent) && !unsafe { GetMenu(hwnd) }.is_null() {
         unsafe { SetMenu(hwnd, std::ptr::null_mut()) };
         log!("window: {hwnd:?} menu bar removed");
     }

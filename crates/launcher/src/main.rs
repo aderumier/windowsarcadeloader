@@ -322,6 +322,9 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         None
     } else if profile.payload_loader {
         payloads.first().map(|(_, at)| *at)
+    } else if !profile.payload_install.is_empty() {
+        // the game imports the payload under the profile's names
+        None
     } else {
         system.loader()
     };
@@ -443,6 +446,7 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             rundir::readonly_sections(&game_root.join(file), &run_dir.join(file), sections)?;
         }
     }
+    wine.map_c_folders(&profile.c_folders, &run_dir)?;
     let run_exe_dir = run_dir.join(exe_subdir);
 
     wine.set_env(env::PORT, &profile.port.to_string());

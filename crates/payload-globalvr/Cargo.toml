@@ -1,6 +1,6 @@
 [package]
 name = "wal-payload-globalvr"
-description = "Global VR payload: replacement USBIOExtreme.dll (USBIO board: lightguns, buttons, coins)"
+description = "Global VR payload: replacement USBIOExtreme.dll (USBIO board: lightguns, buttons, coins) and GVRInputRaw.dll (driving cabinets)"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -17,6 +17,8 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Diagnostics_Debug",
     "Win32_System_LibraryLoader",
     "Win32_System_Memory",
+    "Win32_System_Performance",
+    "Win32_System_Registry",
     "Win32_System_SystemInformation",
     "Win32_System_SystemServices",
     "Win32_System_Threading",

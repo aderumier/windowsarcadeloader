@@ -61,6 +61,8 @@ pub struct Profile {
     pub initial_files: BTreeMap<String, PathBuf>,
     /// Cabinet drive letters mapped to persistent directories relative to the dump root.
     pub drives: BTreeMap<String, PathBuf>,
+    /// Folders of C:\ the game uses by absolute path, linked to run directory folders.
+    pub c_folders: BTreeMap<String, PathBuf>,
     pub env: BTreeMap<String, String>,
     /// The game's own options for the GUI's Options tab (its environment variables).
     #[serde(default)]

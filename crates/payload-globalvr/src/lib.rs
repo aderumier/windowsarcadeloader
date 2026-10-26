@@ -1,14 +1,17 @@
-//! Global VR payload (Far Cry Paradise Lost).
+//! Global VR payload (Far Cry Paradise Lost, The Swarm, Aliens Extermination, Need for Speed GT).
 //!
-//! The game imports `USBIOExtreme.dll` (driver of Global VR's USBIO board: gun positions,
+//! Far Cry imports `USBIOExtreme.dll` (driver of Global VR's USBIO board: gun positions,
 //! gun and panel buttons, coin counters) statically: this DLL takes its place in the run
-//! directory, so it loads before the game code without any injector.
+//! directory, so it loads before the game code without any injector. The driving cabinets
+//! import it as `GVRInputRaw.dll` (both of its exports sets are in `USBIOExtreme.def`).
 //!
 //! * `usbio.rs`: the `CUSBIO` class the game calls, fed by the virtual arcade sticks.
 //! * `W:\` redirected to the game directory (the cabinet runs the game from `subst W: .`):
 //!   `WAL_GLOBALVR_WDRIVE`, default `.`.
 //! * `g_arcadeError` of `systemcfg.lua` reset at load (`WAL_GLOBALVR_CLEAR_ERRORS=0` keeps it).
 //! * `hasp.rs`: the game's HASP4 dongle calls.
+//! * `gvrinput.rs`: `GVRInputRaw.dll` of the driving cabinets (Need for Speed GT), the wheel,
+//!   pedals and buttons of the frontend and of the game it starts.
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
 //! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
@@ -22,6 +25,7 @@
 mod aliens;
 mod config;
 mod gamelog;
+mod gvrinput;
 mod hasp;
 mod keyboard;
 mod swarm;
@@ -35,10 +39,11 @@ use wal_payload_common::{drive, log, patches};
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 
+pub use gvrinput::*;
 pub use usbio::*;
 
 #[unsafe(no_mangle)]
-pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
+pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("globalvr");
         patches::apply();
@@ -47,6 +52,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             config::clear_errors();
         }
         usbio::init();
+        gvrinput::init(module);
         aliens::init();
         hasp::init();
         keyboard::init();

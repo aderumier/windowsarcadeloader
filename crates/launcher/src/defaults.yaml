@@ -105,6 +105,9 @@ initial_files: {}
 # Cabinet drive letters -> directories relative to the dump root. Created on launch and
 # mapped in Wine, so the game's settings and saves stay with this dump.
 drives: {}
+# Folders of C:\ the game reaches by absolute paths (the cabinet's C:\Gvr) -> folders from the
+# dump root. Linked at each launch to that folder of the run directory (with the payloads).
+c_folders: {}
 # Extra environment variables of the game process (system options, wine settings).
 env:
   # Direct3D 9/8 presents held to 60 per second: arcade games are timed by frames and ran

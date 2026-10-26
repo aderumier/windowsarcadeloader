@@ -199,6 +199,34 @@ impl Wine {
         Ok(())
     }
 
+    /// Links folders of drive C: a game reaches by absolute paths (`C:\Gvr`) to folders of its
+    /// run directory (one game runs at a time: the links follow the game launched).
+    pub fn map_c_folders(&self, folders: &std::collections::BTreeMap<String, PathBuf>, run_dir: &Path) -> Result<()> {
+        for (name, directory) in folders {
+            let plain = |p: &Path| !p.as_os_str().is_empty() && p.components().all(|c| matches!(c, std::path::Component::Normal(_)));
+            if !plain(Path::new(name)) || Path::new(name).components().count() != 1 {
+                bail!("invalid C: folder {name:?}: a folder name of C:\\");
+            }
+            if !plain(directory) {
+                bail!("C:\\{name}: directory must be relative to the dump root: {}", directory.display());
+            }
+            let target = run_dir.join(directory);
+            eprintln!("wine: C:\\{name} -> {}", target.display());
+            if self.dry_run { continue; }
+            // Wine finds C:\gvr in drive_c/Gvr: an entry of another case would hide it
+            let drive_c = self.prefix.join("drive_c");
+            for entry in fs::read_dir(&drive_c)?.flatten() {
+                if entry.file_name().to_string_lossy().eq_ignore_ascii_case(name) {
+                    let link = entry.path();
+                    if !link.is_symlink() { bail!("C:\\{name} exists in the prefix and is not a link: {}", link.display()); }
+                    fs::remove_file(&link)?;
+                }
+            }
+            std::os::unix::fs::symlink(&target, drive_c.join(name)).with_context(|| format!("linking C:\\{name}"))?;
+        }
+        Ok(())
+    }
+
     /// `dll[,dll...]=mode` in WINEDLLOVERRIDES. Wine looks up `*<dll>` first, in the
     /// environment then in the registry, before the plain name: winetricks writes `*dsound`
     /// keys, which would win over a plain `dsound=b`. The names get the `*` too.
