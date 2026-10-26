@@ -6,7 +6,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 PROFILE=${PROFILE:-release}
 
 cargo build --profile "$PROFILE" -p wal-launcher
-cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-loader
+cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-payload-arcadepc -p wal-loader
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica -p wal-payload-arcadepc -p wal-payload-konami
 # the AVS boot of the 64-bit Konami game DLLs (Bishi Bashi Channel)
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-loader --bin wal-avs-boot
@@ -23,6 +23,7 @@ done
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_namcoes3.dll" dist/payloads/wal_namcoes3.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_nesica.dll" dist/payloads/wal_nesica64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_arcadepc.dll" dist/payloads/wal_arcadepc.dll
+install_file "target/i686-pc-windows-gnu/$PROFILE/wal_arcadepc.dll" dist/payloads/wal_arcadepc32.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_konami.dll" dist/payloads/wal_konami64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-avs-boot.exe" dist/payloads/wal-avs-boot64.exe
 # TMNT's managed input bridge (Mono's C# compiler, .NET 2.0 profile as the game's Unity)

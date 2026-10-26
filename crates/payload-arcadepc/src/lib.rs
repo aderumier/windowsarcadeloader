@@ -15,10 +15,20 @@
 //!
 //! Unity loads `xinput1_4.dll` first: the profile disables it, so Unity loads this payload at
 //! start too (its own XInput pads are ours) and the filters are in place before the first frame.
+//!
+//! Top Gun (`WAL_ARCADEPC_BOARD=syfire`): `topgun.rs` emulates its dongle and its serial I/O
+//! board (coins, keys, the camera gun's shots); no pads, no keyboard.
+//!
+//! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
+//! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
+//! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
+//! (`WAL_CROSSHAIR`) draws player 1's crosshair (`pointer_d3d11`).
 
 #![allow(non_snake_case)]
 
+mod demul;
 mod pads;
+mod topgun;
 
 use std::ffi::c_void;
 
@@ -33,7 +43,29 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("arcadepc");
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
-        wal_payload_common::input_filter::init(unity, pads::key_held);
+        let board = std::env::var("WAL_ARCADEPC_BOARD").unwrap_or_default();
+        // the common crosshair option: player 1's gun on the picture (Direct3D 11)
+        if (board.trim() == "syfire" || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
+            wal_payload_common::pointer_d3d11::init(wal_payload_common::pointer_d3d11::Dot {
+                color: [1.0, 0.15, 0.15],
+                size: 0.06,
+                position: demul::gun_in_picture,
+                crosshair: true,
+            });
+        }
+        match std::env::var("WAL_DEMUL_PORT").ok().and_then(|p| p.trim().parse().ok()) {
+            _ if board.trim() == "syfire" => {
+                pads::disconnect();
+                wal_payload_common::input_filter::init(unity, |_| false);
+                topgun::init();
+            }
+            Some(port) => {
+                pads::disconnect();
+                wal_payload_common::input_filter::init(unity, demul::key_held);
+                demul::start(port);
+            }
+            None => wal_payload_common::input_filter::init(unity, pads::key_held),
+        }
     }
     1
 }

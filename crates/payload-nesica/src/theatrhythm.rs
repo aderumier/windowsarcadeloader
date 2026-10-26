@@ -471,7 +471,7 @@ fn init_input(exe: usize) {
         }
     } else if shown.trim() != "none" {
         let size = std::env::var("WAL_THEATRHYTHM_POINTER_SIZE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(1.0);
-        pointer_d3d11::init(pointer_d3d11::Dot { color: [1.0, 0.125, 0.125], size: (size / 100.0).clamp(0.005, 0.2), position: dot_position });
+        pointer_d3d11::init(pointer_d3d11::Dot { color: [1.0, 0.125, 0.125], size: (size / 100.0).clamp(0.005, 0.2), position: dot_position, crosshair: false });
     }
     let hooks: [(&str, &str, usize, Option<&AtomicUsize>); 9] = [
         ("user32.dll", "GetCursorPos", get_cursor_pos as *const () as usize, Some(&GET_CURSOR_POS)),

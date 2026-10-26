@@ -3349,36 +3349,63 @@ the arrows browse them (down next, up previous, right/Enter increase or select, 
 - **Not done.** Outputs (recoil, start lamps, life, ammo: DemulShooter reads them through its
   own Unity plugin), the operator's diagnostics overlay (F1), reloading `Controls.ini` (F5).
 
-#### The DemulShooter plugin games (Quick Shot Arcade)
+#### Top Gun Arcade / Quick Shot Arcade
 
-Community repacks of Chinese Unity gun games (SpiderZSoft's, mostly 32-bit) carry one of
-Argonlefou's BepInEx plugins (`<Game>_BepInEx_DemulShooter_Plugin.dll`, loaded by Unity
-Doorstop's `winhttp.dll`/`version.dll`): it patches out the dongle, the serial I/O board and the
-camera guns, and listens on `127.0.0.1:33610` for DemulShooter. Each read is one 37-byte input
-packet: per player (4) the aim `x`, `y` (`f32`, the game window's client pixels, `y` from the
-bottom), then bit masks of the trigger, reload, action and weapon change, then flags (bit 0 hide
-the crosshairs, bit 7 inputs from the packets instead of the mouse); it answers with output
-packets (`u32` length, header 2, lamps and recoil). The coin and the operator buttons stay on
-the keyboard (Unity's `Input.GetKey`), each plugin its own keys.
+SpiderZSoft's Top Gun ("BiuBiuGun", Unity 2019.3, Mono, 32-bit: the x86 payload
+`wal_arcadepc32.dll`, installed as `xinput1_3.dll` too, xinput1_4 disabled), a portrait cabinet
+(1080x1920) with one camera gun. Quick Shot Arcade is the American repack of the same game.
 
-- **Client (`demul.rs`).** The profile's `WAL_DEMUL_PORT` makes the payload that client (no
-  XInput pads then): a packet every change (at least every 100 ms) from the virtual sticks, the
-  gun position (`lx`, `ly` over the screen) mapped onto the game window's client area (the
-  Unity window `UnityWndClass`); a shot off the window or with the gun off the screen
-  (`offscreen`) sets the reload bit and aims at the window's top left corner (Top Gun's reload
-  coordinates). Outputs are read and dropped.
-- **Keys.** Natives `key_<name>` (`key_5`, `key_0`, `key_up`, `key_return`, `key_f2`...), mapped
-  by the profile's `native_map`, are posted to the Unity window as `WM_KEYDOWN`/`WM_KEYUP`
-  marked in their `lParam`'s reserved bits: `input_filter` lets those through (the real
-  keyboard's become `WM_NULL`) and reports them held to `GetKeyState`.
-- **x86 build.** `wal_arcadepc32.dll`, installed as `xinput1_3.dll` too (xinput1_4 disabled).
-- **Quick Shot Arcade** (SpiderZSoft's Top Gun "BiuBiuGun", Unity 2019.3, portrait, one gun):
-  the Batocera image's game folder (`drive_c/Quick Shot Arcade.pc`) is the dump. The repack's
-  assembly sets a 608x1080 window (`-popupwindow`: borderless; Unity centres it), its plugins
-  scale the portrait UI and replace the logo. Keys: `5` coin, `0` settings (press; held 3 s:
-  refill), arrows settings up/down and the left/right buttons, Enter replenish. The repack's
-  launcher (`Play Top Gun Arcade.exe`, a .NET bezel and crosshair overlay) is not used. Open:
-  the settings screen shows no text (a missing Windows font, to check), recoil output.
+- **Dumps.** The original's `Assembly-CSharp.dll` is encrypted (decrypted by its packed
+  `SpiderZSoft.exe`, which exits under Wine); the Quick Shot repack's (a Batocera Wine-prefix
+  image, game in `drive_c/Quick Shot Arcade.pc`) is decrypted, with its `Main` changed to a
+  608x1080 window. Both dumps are built from it, the repack's launcher, overlays and scripts
+  removed, the executable renamed (`TopGun.exe` / `TopGun_Data`, `QuickShot.exe` /
+  `QuickShot_Data`: Unity names the data folder after the executable), and `Main`'s
+  `SetResolution(608, 1080, false)` patched back to `SetResolution(1080, 1920, true)` (IL at file
+  offset 0x144A3: `20 38 04 00 00 20 80 07 00 00 17`).
+- **Portrait screen (`WAL_DESKTOP_SIZE=1080x1920`, `payload-common`'s `desktop.rs`).** Unity
+  makes no window taller than the desktop (at 1080x1080 the UI, laid out for 1080x1920, was
+  cut). The game's modules see a 1080x1920 desktop (`GetSystemMetrics`, monitors, work area,
+  display modes) and their top-level windows are fitted onto the real screen (608x1080 at 656,0
+  on 1920x1080, centered): Direct3D stretches the 1080x1920 back buffer into it. DXVK's
+  `ResizeTarget` (`MoveWindow` from `dxgi.dll`) is hooked too, and the windows are subclassed:
+  Unity's procedure puts its 1080x1920 back in `WM_WINDOWPOSCHANGING` and `WM_GETMINMAXINFO`
+  (Wine's X size hints: the window manager kept the window 1080x1920), fitted again. Gun
+  positions are mapped back (`desktop::from_screen`).
+- **Top Gun: the cabinet hardware (`topgun.rs`, `WAL_ARCADEPC_BOARD=syfire`).** The dongle
+  `Dog_Ch.dll` (cdecl `open_dog`, `do_something([0,1])` → `[1,0]`) and the SY Fire I/O board on
+  COM1 (38400 bauds, Mono's `SerialPort`): board → PC `B5 B6 len cmd data.. sum` (cmd 3 coin,
+  7 operator keys: bit 0 settings, 1 up/left button, 2 replenish, 3 down/right button, 7 refill;
+  9 doors; 17 a shot at the game's pixels from the top left, (0, 0) off the screen; 6 tickets
+  paid), PC → board `A3 A9 len cmd data.. sum` answered `4F 4B cmd`; cmd 5 (tickets to pay) is
+  answered paid at once (else a ticket error). Mono resolves its `DllImport`s with
+  `GetProcAddress`: hooked in `mono-2.0-bdwgc.dll`'s imports, the dongle and `SerialPort`'s
+  kernel32 functions (`serial::replacement`) are ours. Settings: a short press of the settings
+  key (held 3 s: refill all). Data: `D:\gametemp` → the dump's `NVRAM`.
+- **Quick Shot: the repack's plugins (`demul.rs`, `WAL_DEMUL_PORT=33610`).** Its logo comes
+  from a BepInEx plugin (`TopGunCanvasCheck`, `Overlays/QuickShotLogo.png`) that needs
+  Argonlefou's DemulShooter plugin, which replaces the dongle, the board and the gun: the
+  payload is that plugin's TCP client. Each read is one 37-byte packet: per player (4) the aim
+  `x`, `y` (`f32`, the game's pixels, `y` from the bottom), bit masks of trigger, reload,
+  action, weapon change, flags (bit 0 hide the crosshairs, bit 7 inputs from the packets); a
+  shot off the screen aims at (0, 0). The coin and the operator buttons are the plugin's
+  keyboard keys (`5`, `0`, arrows, Enter): natives `key_<name>` (`native_map`) posted to the
+  Unity window as `WM_KEYDOWN`/`WM_KEYUP` marked in their `lParam`'s reserved bits, which
+  `input_filter` lets through. Other DemulShooter plugins use other packet layouts (the
+  Batocera `batocera-wine-guns` bridge lists them).
+- **Crosshair.** The common crosshair option (`WAL_CROSSHAIR`, on by default in both
+  profiles: the cabinet's camera gun has none) draws player 1's crosshair over the picture
+  (`pointer_d3d11`, a ring with arms and a center dot).
+- **Bezel (`WAL_BEZEL=<image>`, `payload-common`'s `bezel.rs`).** The image (GDI+, loaded at
+  run time), fitted on the screen, is shown by four strip windows around the game's window
+  (following it), none over the picture: a full-screen window behind the game was stacked
+  above it by GNOME (black screen). Top Gun: `Layer.png` (the original dump's ReShade layer,
+  its Gemini watermark removed); Quick Shot: `Overlays/Bezel.png` (the repack's).
+- **Fonts.** The settings menu's texts use Unity's built-in `Arial.ttf`, the system's Arial:
+  the registry names `arial.ttf` in `C:\windows\Fonts`, which held none (invisible texts). The
+  launcher links the runner's fonts (`share/fonts`, as Proton installs them) there at each
+  launch, the prefix's own kept.
+- **Open.** Recoil and lamps outputs, a real gun on the box.
 
 ### 6.4 Batocera integration
 
@@ -3732,7 +3759,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | `game.exe`, a memory dump of the HASP-enveloped game: started by wal-loader with the payload as `inpout32.dll` (`payload_loader`); its imports rebuilt, `WinMain`'s instance fixed, HASP HL API answered, parallel port I/O board and guns (calibration skipped), `z:/data/bin` relative, saves on E: (`SAVE`), MP42 movies need the GE winedmo MP42 patch |
 | `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | `game.exe` (Unity 2017, 64-bit, §6.3h), the payload as `winhttp.dll`: BM-System's System, Io, Consume and Entry modules bound through Mono (watchdog, credits, test / service, export region, e-Amusement card: player created / loaded / saved by the payload), the I/O board's status handed to UsbIO (COM6 absent), the touch screen's touches; drawn at the cabinet's 2160x1920 desktop into a texture of the payload's, the two monitors and the bezel's marquee composed for the screen; `LC_ALL=en_US.UTF-8` |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
-| `quick-shot-arcade` | Quick Shot Arcade | arcadepc | works (headless tests: coin, mode and level select, aimed shots, settings menu entry), 1 gun | SpiderZSoft's Top Gun repack (Unity 2019.3, 32-bit, §6.3i): its BepInEx DemulShooter plugin's TCP inputs from the payload (`WAL_DEMUL_PORT`, x86 `wal_arcadepc32.dll` as `xinput1_3.dll`), keys `5`/`0`/arrows/Enter posted to the Unity window; 608x1080 borderless window; settings screen texts missing |
+| `quick-shot-arcade` | Quick Shot Arcade | arcadepc | works (headless tests: coin, mode and level select, aimed shots, Quick Shot logo), 1 gun | SpiderZSoft's Top Gun repack (Unity 2019.3, 32-bit, §6.3i): rebuilt dump (`QuickShot.exe`, `Main` patched to 1080x1920), the repack's BepInEx plugins (logo, DemulShooter): the payload is the plugin's TCP client (`WAL_DEMUL_PORT`) and posts its keys; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen |
+| `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun | SpiderZSoft's original (§6.3i), dump rebuilt from the repack's decrypted assembly without BepInEx (`TopGun.exe`, `Main` patched to 1080x1920): the payload emulates the `Dog_Ch.dll` dongle and the SY Fire COM1 board through Mono's `GetProcAddress`; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen, crosshair, bezel (`WAL_BEZEL=Layer.png`, the dump's cabinet art) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

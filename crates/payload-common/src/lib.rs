@@ -13,7 +13,9 @@ pub mod memdiff;
 #[cfg(windows)]
 pub mod crypto;
 #[cfg(windows)]
+pub mod bezel;
 pub mod d3dx;
+pub mod desktop;
 #[cfg(windows)]
 mod crypto_keys;
 #[cfg(windows)]
@@ -125,6 +127,8 @@ pub fn start(name: &'static str) {
             screenshot::init();
             window::init();
             workarea::init();
+            desktop::init();
+            bezel::init();
             font::init();
             sdl::init();
             codepage::init();

@@ -1,0 +1,48 @@
+# Top Gun Arcade (SpiderZSoft's "BiuBiuGun", Unity 2019.3, Mono, 32-bit, portrait) - template,
+# override values in userprofiles/arcadepc/top-gun-arcade.yaml.
+# The payload emulates the cabinet's dongle (Dog_Ch.dll) and its SY Fire I/O board on COM1:
+# coins, the operator keys and the camera gun's shots (docs §6.3i). One gun.
+system: arcadepc
+name: Top Gun Arcade
+
+# Unity's own log beside the game
+args: [-logFile, Player.log]
+
+
+dll_overrides:
+  # Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+# the game's data (d:\gametemp: settings, bookkeeping, rankings)
+drives:
+  d: NVRAM
+
+env:
+  WAL_ARCADEPC_BOARD: syfire
+  # the cabinet's portrait monitor: the game renders 1080x1920 full screen, fitted to the screen
+  WAL_DESKTOP_SIZE: 1080x1920
+  # the gun's crosshair (none on the cabinet's camera gun): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+  # the cabinet art around the picture
+  WAL_BEZEL: Layer.png
+
+input:
+  # the gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Left button
+  b3: Right button
+  b6: Gun off screen
+  start: Replenish
+  coin: Coin
+  test: "Settings (press; held 3 s: refill all)"
+  up: Settings up (left button)
+  down: Settings down (right button)

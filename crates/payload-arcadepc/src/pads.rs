@@ -14,6 +14,7 @@
 //! settings, the arrows choose and change them; Enter = right).
 
 use std::ffi::c_void;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use wal_payload_common::mapping::ButtonMap;
@@ -128,6 +129,17 @@ pub(crate) fn key_held(vk: i32) -> bool {
     KEYS.iter().any(|(n, k)| *k == vk && pressed(0).contains(n))
 }
 
+/// No pad connected (the DemulShooter plugin games: their guns are not pads).
+static DISCONNECTED: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn disconnect() {
+    DISCONNECTED.store(true, Ordering::Relaxed);
+}
+
+fn absent(index: u32) -> bool {
+    index as usize >= MAX_PLAYERS || DISCONNECTED.load(Ordering::Relaxed)
+}
+
 /// Last pad of each player and its packet number (changed with the pad).
 static LAST: Mutex<[(Gamepad, u32); MAX_PLAYERS]> = Mutex::new([(Gamepad { buttons: 0, left_trigger: 0, right_trigger: 0, lx: 0, ly: 0, rx: 0, ry: 0 }, 0); MAX_PLAYERS]);
 
@@ -141,7 +153,7 @@ pub struct State {
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn XInputGetState(index: u32, state: *mut State) -> u32 {
     let player = index as usize;
-    if player >= MAX_PLAYERS {
+    if absent(index) {
         return ERROR_DEVICE_NOT_CONNECTED;
     }
     let pad = gamepad(player);
@@ -170,7 +182,7 @@ pub unsafe extern "system" fn XInputGetStateEx(index: u32, state: *mut State) ->
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn XInputSetState(index: u32, _vibration: *mut c_void) -> u32 {
-    if index as usize >= MAX_PLAYERS { ERROR_DEVICE_NOT_CONNECTED } else { ERROR_SUCCESS }
+    if absent(index) { ERROR_DEVICE_NOT_CONNECTED } else { ERROR_SUCCESS }
 }
 
 /// XINPUT_CAPABILITIES: type, subtype, flags, the gamepad's supported inputs, the motors.
@@ -186,7 +198,7 @@ pub struct Capabilities {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn XInputGetCapabilities(index: u32, _flags: u32, caps: *mut Capabilities) -> u32 {
-    if index as usize >= MAX_PLAYERS {
+    if absent(index) {
         return ERROR_DEVICE_NOT_CONNECTED;
     }
     if !caps.is_null() {
@@ -202,7 +214,7 @@ pub extern "system" fn XInputEnable(_enable: i32) {}
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn XInputGetDSoundAudioDeviceGuids(index: u32, render: *mut [u8; 16], capture: *mut [u8; 16]) -> u32 {
-    if index as usize >= MAX_PLAYERS {
+    if absent(index) {
         return ERROR_DEVICE_NOT_CONNECTED;
     }
     for guid in [render, capture] {
@@ -215,7 +227,7 @@ pub unsafe extern "system" fn XInputGetDSoundAudioDeviceGuids(index: u32, render
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn XInputGetBatteryInformation(index: u32, _kind: u8, info: *mut [u8; 2]) -> u32 {
-    if index as usize >= MAX_PLAYERS {
+    if absent(index) {
         return ERROR_DEVICE_NOT_CONNECTED;
     }
     if !info.is_null() {
@@ -227,5 +239,5 @@ pub unsafe extern "system" fn XInputGetBatteryInformation(index: u32, _kind: u8,
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn XInputGetKeystroke(index: u32, _reserved: u32, _keystroke: *mut c_void) -> u32 {
-    if index as usize >= MAX_PLAYERS && index != 0xFF { ERROR_DEVICE_NOT_CONNECTED } else { ERROR_EMPTY }
+    if (index as usize >= MAX_PLAYERS && index != 0xFF) || DISCONNECTED.load(Ordering::Relaxed) { ERROR_DEVICE_NOT_CONNECTED } else { ERROR_EMPTY }
 }

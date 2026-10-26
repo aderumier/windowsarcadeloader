@@ -1,6 +1,7 @@
 //! A touch screen's pointer drawn over a Direct3D 11 game's picture: a dot (a disc with a black
 //! outline) where the mouse or gun touches, the Direct3D 11 counterpart of the Konami payload's
-//! crosshairs (`WAL_KONAMI_CROSSHAIR_STYLE=disc`).
+//! crosshairs (`WAL_KONAMI_CROSSHAIR_STYLE=disc`); or a gun's crosshair (a ring, four arms and
+//! a center dot, outlined in black).
 //!
 //! `IDXGISwapChain::Present` / `Present1` are replaced in the swap chains' vtable (found on a
 //! swap chain of the payload's own, a hidden window's: DXVK's swap chains share one vtable).
@@ -40,6 +41,8 @@ pub struct Dot {
     pub size: f32,
     /// Where it is (fractions of the picture from its top left corner); `None`: not shown.
     pub position: fn() -> Option<(f32, f32)>,
+    /// A crosshair instead of a disc.
+    pub crosshair: bool,
 }
 
 static DOT: OnceLock<Dot> = OnceLock::new();
@@ -195,8 +198,25 @@ float4 vs_main(uint id : SV_VertexID) : SV_Position {
     float2 p = float2((id << 1) & 2, id & 2);
     return float4(p.x * 2 - 1, 1 - p.y * 2, 0, 1);
 }
+// a centered box (half sizes h) at offset c: signed distance
+float box(float2 v, float2 c, float2 h) {
+    float2 q = abs(v - c) - h;
+    return length(max(q, 0)) + min(max(q.x, q.y), 0);
+}
 float4 ps_main(float4 pos : SV_Position) : SV_Target {
     float d = length(pos.xy - dot.xy);
+    if (color.w > 1.5) {
+        // crosshair: ring, four arms, center dot (half line width w), outline dot.w
+        float2 v = abs(pos.xy - dot.xy);
+        float r = dot.z, w = max(r * 0.07, 1.0);
+        float sd = abs(d - r * 0.7) - w;
+        sd = min(sd, box(v, float2(0, r * 0.65), float2(w, r * 0.3)));
+        sd = min(sd, box(v, float2(r * 0.65, 0), float2(r * 0.3, w)));
+        sd = min(sd, d - w * 1.5);
+        float edge = saturate(dot.w - sd + 0.5);
+        if (edge <= 0) discard;
+        return float4(color.rgb * saturate(0.5 - sd), edge);
+    }
     float a = saturate(dot.z - d + 0.5);
     if (a <= 0) discard;
     float inside = saturate(dot.z - dot.w - d + 0.5);
@@ -303,14 +323,14 @@ fn overlay(swap: P) {
     if let Some(r) = guard.as_ref() {
         let (w, h) = (desc.width as f32, desc.height as f32);
         let radius = (dot.size * h / 2.0).max(3.0);
-        draw(r, context, back, (x * w, y * h), radius, dot.color);
+        draw(r, context, back, (x * w, y * h), radius, dot.color, dot.crosshair);
     }
     release(context);
     release(device);
     release(back);
 }
 
-fn draw(r: &Resources, context: P, back: P, (x, y): (f32, f32), radius: f32, color: [f32; 3]) {
+fn draw(r: &Resources, context: P, back: P, (x, y): (f32, f32), radius: f32, color: [f32; 3], crosshair: bool) {
     let mut rtv: P = std::ptr::null_mut();
     if com!(r.device, 9, fn(P, P, *mut P) -> HRESULT, back, std::ptr::null_mut(), &mut rtv) < 0 {
         static ONCE: std::sync::Once = std::sync::Once::new();
@@ -318,13 +338,14 @@ fn draw(r: &Resources, context: P, back: P, (x, y): (f32, f32), radius: f32, col
         return;
     }
     let outline = (radius * 0.3).clamp(1.5, 3.0);
-    let constants: [f32; 8] = [x, y, radius, outline, color[0], color[1], color[2], 1.0];
+    // color.w: the shape (1 disc, 2 crosshair)
+    let constants: [f32; 8] = [x, y, radius, outline, color[0], color[1], color[2], if crosshair { 2.0 } else { 1.0 }];
     let mut previous: P = std::ptr::null_mut();
     com!(r.context1, 131, fn(P, *mut P) -> (), r.state, &mut previous);
     com!(context, 48, fn(P, u32, P, *const f32, u32, u32) -> (), r.constants, 0, std::ptr::null_mut(), constants.as_ptr(), 0, 0);
     com!(context, 33, fn(u32, *const P, P) -> (), 1, &rtv, std::ptr::null_mut());
     // only the dot's square drawn
-    let side = radius * 2.0 + 2.0;
+    let side = radius * 2.0 + 2.0 * outline + 2.0;
     let viewport = [x - side / 2.0, y - side / 2.0, side, side, 0.0, 1.0];
     com!(context, 44, fn(u32, *const f32) -> (), 1, viewport.as_ptr());
     com!(context, 35, fn(P, *const f32, u32) -> (), r.blend, std::ptr::null(), 0xFFFF_FFFF);

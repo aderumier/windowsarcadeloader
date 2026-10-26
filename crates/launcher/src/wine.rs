@@ -327,12 +327,36 @@ impl Wine {
         fs::write(&stamp_file, &inf_stamp)?;
         self.apply_settings()?;
 
+        self.link_fonts()?;
+
         // GE-Proton does not link vkd3d and icu in its builtin dlls
         for component in ["vkd3d", "icu"] {
             for (arch, dir) in [("x86_64-windows", self.system32()), ("i386-windows", self.syswow64())] {
                 if let Some(src) = self.component_dir(component, arch) {
                     link_all(&src, &dir, |_| true)?;
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// The runner's fonts (Proton's `share/fonts`: Arial, Courier New, Times New Roman,
+    /// Microsoft YaHei, SimSun...) linked in the prefix's `windows/Fonts`, as Proton installs
+    /// them: the registry names these files there (`Arial (TrueType)` = `arial.ttf`), and
+    /// programs opening them by that path got nothing (Unity's built-in `Arial.ttf` texts, Top
+    /// Gun's settings menu, were invisible). The prefix's own fonts are kept.
+    fn link_fonts(&self) -> Result<()> {
+        let src = self.runner.join("share/fonts");
+        let dst = self.prefix.join("drive_c/windows/Fonts");
+        let Ok(entries) = fs::read_dir(&src) else { return Ok(()) };
+        fs::create_dir_all(&dst)?;
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+            let font = [".ttf", ".ttc", ".otf"].iter().any(|e| name.ends_with(e));
+            let target = dst.join(entry.file_name());
+            // a real font of the prefix's, or a link to another runner's: replaced only if a link
+            if font && fs::symlink_metadata(&target).map_or(true, |m| m.file_type().is_symlink()) {
+                link(&entry.path(), &target)?;
             }
         }
         Ok(())

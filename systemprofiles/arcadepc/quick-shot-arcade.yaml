@@ -1,0 +1,62 @@
+# Quick Shot Arcade (SpiderZSoft's Top Gun, "BiuBiuGun", Unity 2019.3, Mono, 32-bit) - template,
+# override values in userprofiles/arcadepc/quick-shot-arcade.yaml.
+# The American "Quick Shot" repack of the portrait cabinet game (same game as top-gun-arcade):
+# its BepInEx plugins put the Quick Shot logo in (TopGunCanvasCheck, Overlays/QuickShotLogo.png,
+# which needs the other one) and replace the dongle, the I/O board and the camera gun
+# (Argonlefou's DemulShooter plugin): the payload is that plugin's TCP client, and posts its
+# keys (docs §6.3i). One gun.
+system: arcadepc
+name: Quick Shot Arcade
+
+# Unity's own log beside the game
+args: [-logFile, Player.log]
+
+dll_overrides:
+  # Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+  xinput1_4: ""
+  xinput1_3: "n,b"
+  # Unity Doorstop's BepInEx loader
+  winhttp: "n,b"
+
+env:
+  # the plugin's TCP port: the payload sends it the gun
+  WAL_DEMUL_PORT: "33610"
+  # the cabinet's portrait monitor: the game renders 1080x1920 full screen, fitted to the screen
+  WAL_DESKTOP_SIZE: 1080x1920
+  # the gun's crosshair (none on the cabinet's camera gun): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+  # the cabinet art around the picture
+  WAL_BEZEL: Overlays/Bezel.png
+
+input:
+  # the gun (or mouse) aims, its trigger shoots; shooting off the screen reloads
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    offscreen: b6
+
+# the plugin's keyboard keys: 5 coin, 0 settings (press: enter, confirm; held 3 s: refill all),
+# the arrows (settings up/down; the cabinet's left/right buttons), Enter (replenish)
+native_map:
+  coin: key_5
+  test: key_0
+  up: key_up
+  down: key_down
+  left: key_up
+  right: key_down
+  b2: key_up
+  b3: key_down
+  start: key_return
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Left button
+  b3: Right button
+  b6: Gun off screen
+  start: Replenish
+  coin: Coin
+  test: "Settings (press; held 3 s: refill all)"
+  up: Settings up (left button)
+  down: Settings down (right button)

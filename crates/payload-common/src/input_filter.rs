@@ -12,7 +12,9 @@
 //! * `GetRawInputData`: keyboard reports become the release of no key (virtual key 0xFF), mouse
 //!   reports a motion of 0 without buttons.
 //! * The Unity player's `PeekMessage` / `GetMessage` (`UnityPlayer.dll`, or the executable of
-//!   Unity 5 and older): keyboard and mouse button messages become `WM_NULL`.
+//!   Unity 5 and older): keyboard and mouse button messages become `WM_NULL`, but the payload's
+//!   own keys ([`post_key`], marked in their `lParam`'s reserved bits): the keys a game's own
+//!   code reads through Unity's `Input.GetKey` (the DemulShooter plugins' coin and operator keys).
 
 use std::ffi::c_void;
 use std::sync::OnceLock;
@@ -41,6 +43,8 @@ const HEADER: usize = 8 + 2 * size_of::<usize>();
 const RAWKEYBOARD: usize = 16;
 /// RAWMOUSE: flags, button flags and data, raw buttons, last x, last y, extra.
 const RAWMOUSE: usize = 24;
+/// `lParam` reserved bits (25..28) of the key messages [`post_key`] posts.
+const MARK: isize = 0x0A00_0000;
 
 /// A virtual key reported down.
 fn key_held(vk: i32) -> bool {
@@ -131,14 +135,28 @@ unsafe extern "system" fn get_raw_input_data(raw: P, command: u32, data: *mut u8
 }
 
 /// A real keyboard or mouse button message.
-fn filtered(msg: u32) -> bool {
-    (WM_KEYFIRST..=WM_KEYLAST).contains(&msg) || (WM_LBUTTONDOWN..=WM_MOUSEHWHEEL).contains(&msg)
+fn filtered(msg: &MSG) -> bool {
+    let key = (WM_KEYFIRST..=WM_KEYLAST).contains(&msg.message);
+    (key && msg.lParam & MARK != MARK) || (WM_LBUTTONDOWN..=WM_MOUSEHWHEEL).contains(&msg.message)
 }
 
 unsafe fn scrub(msg: *mut MSG) {
-    if !msg.is_null() && unsafe { filtered((*msg).message) } {
+    if !msg.is_null() && unsafe { filtered(&*msg) } {
         unsafe { (*msg).message = WM_NULL };
     }
+}
+
+/// Posts a key press (`down`) or release of virtual key `vk` to the game window `hwnd`, as the
+/// keyboard would: the filter lets it through. `key_held` should report it held meanwhile.
+pub fn post_key(hwnd: P, vk: u16, down: bool) {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{MAPVK_VK_TO_VSC, MapVirtualKeyW};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_KEYDOWN};
+    let scan = unsafe { MapVirtualKeyW(vk as u32, MAPVK_VK_TO_VSC) } as isize & 0xFF;
+    // the arrows, Insert/Delete, Home/End, Page Up/Down are extended keys
+    let extended = if (0x21..=0x2E).contains(&vk) { 1 << 24 } else { 0 };
+    let up = if down { 0 } else { 0xC000_0000u32 as i32 as isize };
+    let lparam = 1 | scan << 16 | extended | MARK | up;
+    unsafe { PostMessageW(hwnd, if down { WM_KEYDOWN } else { WM_KEYUP }, vk as usize, lparam) };
 }
 
 type PeekMessage = unsafe extern "system" fn(*mut MSG, P, u32, u32, u32) -> i32;

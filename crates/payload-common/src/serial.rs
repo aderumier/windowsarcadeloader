@@ -141,18 +141,9 @@ fn install_device(device: Device, modules: &[usize]) {
     hook_modules(modules);
 }
 
-/// Points the serial calls of the modules at `modules` at the emulated devices (each device's
-/// install hooks its own modules). A module already hooked is left alone: its entries may now
-/// be another hook's chaining to ours (Medal no Gunman: JVS, the RingEdge devices, then its
-/// COM1 board), which hooking it again would skip.
-fn hook_modules(modules: &[usize]) {
-    let modules: Vec<usize> = {
-        let mut hooked = HOOKED_MODULES.lock().unwrap();
-        let new: Vec<usize> = modules.iter().copied().filter(|m| !hooked.contains(m)).collect();
-        hooked.extend(&new);
-        new
-    };
-    let hooks: [(&str, usize); COUNT] = [
+/// The serial functions and their replacements.
+fn hooks() -> [(&'static str, usize); COUNT] {
+    [
         ("CreateFileA", create_file_a as *const () as usize),
         ("CreateFileW", create_file_w as *const () as usize),
         ("WriteFile", write_file as *const () as usize),
@@ -171,7 +162,28 @@ fn hook_modules(modules: &[usize]) {
         ("WriteFileEx", write_file_ex as *const () as usize),
         ("ReadFileEx", read_file_ex as *const () as usize),
         ("WaitCommEvent", wait_comm_event as *const () as usize),
-    ];
+    ]
+}
+
+/// Our replacement of the serial function `name` (`CreateFileW`, `ReadFile`...), for callers
+/// that resolve them with `GetProcAddress` (Mono's `DllImport("kernel32")`: `SerialPort`). The
+/// originals are looked up at the first [`install`].
+pub fn replacement(name: &str) -> Option<usize> {
+    hooks().into_iter().find(|(n, _)| *n == name).map(|(_, f)| f)
+}
+
+/// Points the serial calls of the modules at `modules` at the emulated devices (each device's
+/// install hooks its own modules). A module already hooked is left alone: its entries may now
+/// be another hook's chaining to ours (Medal no Gunman: JVS, the RingEdge devices, then its
+/// COM1 board), which hooking it again would skip.
+fn hook_modules(modules: &[usize]) {
+    let modules: Vec<usize> = {
+        let mut hooked = HOOKED_MODULES.lock().unwrap();
+        let new: Vec<usize> = modules.iter().copied().filter(|m| !hooked.contains(m)).collect();
+        hooked.extend(&new);
+        new
+    };
+    let hooks = hooks();
     let kernel32 = unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) };
     for (idx, (name, f)) in hooks.into_iter().enumerate() {
         for &module in &modules {
