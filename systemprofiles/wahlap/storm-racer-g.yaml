@@ -39,7 +39,10 @@ env:
   # The race's checkpoint billboards (HUD objects checkPoint, finishPoint, checkPole,
   # checkPole2, looked up at 0x416ac6) are in no resource of the dump: their per-frame update
   # (0x41bb20) dereferenced the missing objects (crash at the first race frame): it returns.
-  WAL_PATCHES: "0xc008b:B063909090,0x1bb20:C21800"
+  # Its debug overlay is hidden: "cam pos" (0x4e3d00) and "fps" (0x4e3e07), drawn while their
+  # debug menu options are on, the race's "ahead sect, arrow" line (0x40f4e0 returns) and the
+  # NetDb version label of the bottom status bar (0x465d13: drawn as empty; its icons stay).
+  WAL_PATCHES: "0xc008b:B063909090,0x1bb20:C21800,0xe3d00:90E9,0xe3e07:90E9,0xf4e0:C3,0x65d13:EB"
 
 controls:
   lx: Wheel
