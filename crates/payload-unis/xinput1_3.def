@@ -1,0 +1,10 @@
+; xinput1_3.dll exports, with their ordinals (100 = XInputGetStateEx, unnamed in the real DLL).
+EXPORTS
+    XInputGetState @2
+    XInputSetState @3
+    XInputGetCapabilities @4
+    XInputEnable @5
+    XInputGetDSoundAudioDeviceGuids @6
+    XInputGetBatteryInformation @7
+    XInputGetKeystroke @8
+    XInputGetStateEx @100 NONAME

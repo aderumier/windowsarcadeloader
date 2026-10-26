@@ -3511,6 +3511,43 @@ the payload.
   (1920, 0), (0, 1080), (960, 1080), (1920, 1080), the aim unchanged. The game draws each
   gun's sight.
 
+### 6.3j UNIS (`crates/payload-unis`)
+
+UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
+for 32-bit games) installed as `xinput1_3.dll`, which Unity loads at start: no pads, the real
+keyboard and mouse filtered, the common crosshair option. The Unity games' `DllImport`s are
+resolved through Mono's `GetProcAddress` (`payload-common`'s `mono_imports.rs`), the guns'
+place on the picture is `payload-common`'s `gun.rs` (both shared with the arcadepc payload).
+
+#### Dino Invasion
+
+The "shunxiang" gun cabinet (Unity 5.4, Mono `mono.dll`, 64-bit; `WAL_UNIS_BOARD=shunxiang`,
+the default), four guns. The dump is rebuilt without the repack's BepInEx, DemulShooter
+plugins, launcher, logs and the root copies of the plugins; the camera tracker's `FTD2XX.dll`
+(the dump's `ftd2xx64.dll`) is in `DinoInvasion_Data/Plugins`, so the real `LC64.dll` loads.
+
+- **Board (`shunxiang.rs`).** `serial_manage_shoulie` on COM3 (19200 bauds), Mono's
+  `SerialPort`. Frames `55 5A`, the coins inserted per gun (8 counter bytes), the start,
+  trigger and function bits (bytes 10, 11, 12; function 0 the menu, 1 the selection), two
+  zeros, the XOR of the 15 bytes before; at most every 16 ms. The PC's `55 5B` frames (the
+  guns' blowers) are ignored.
+- **Guns.** `LC64.dll`'s `LCGetPoint(gun, x, y, brightness)`: the gun's place on the picture,
+  0..1 from the bottom left (the camera's y up). The game maps it through its calibration
+  (`Assets/config/game/hwok_tmp/data1.txt`: its first four points the corners (0, 0), (1, 0),
+  (0, 1), (1, 1): the aim unchanged). The game draws no gun cursor: the crosshair option on.
+- **Dongles.** `DllBindFunc`: present, verified, the licence `dog_check` compares (95 215 208
+  249 248 165 248 66); `Sense4`: every call succeeds.
+- **The game scene's gun hardware.** The game scene reads its coins, triggers and operator
+  keys from `gun_hardware_shiyu`: a separate I/O server's data (`shiyu_gun_work`, a TCP
+  client of 127.0.0.1:5000, absent: the boot's "connection refused"); `gun_hardware_shunxiang`
+  reads a scene's own `serial_manage_shoulie`, idle (only the boot scene's, kept across
+  scenes, runs the port). Both classes' `get_coin_count`, `get_gun_status`, `get_key_func` and
+  `is_read_serial_data` are replaced (`Mono::replace`) by the payload's, reading the active
+  board manager (`serial_manage_shoulie.myserial_manage_shoulie`). They are replaced once the
+  game's domain runs (its board manager started): replaced earlier, the code is the root
+  domain's and the game compiles its own.
+- **Play.** A coin joins its player (bullets), no start key.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -3869,6 +3906,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | ridong's "jixiesheqiu" (Unity 2017.4, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `gameport.dll`, `wal-loader`) is the I/O DLL's C API; calibration in the dump's `D/jijiasheqiu.ini` |
 | `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons | Mrcq's "xiaofang" (Unity 2017.4, 64-bit, §6.3i): rebuilt dump; the payload (`xinput1_3.dll`) answers its `gameport.dll` C API; calibration in the dump's `xiaofang.ini` |
 | `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns | SpiderZSoft (Unreal Engine 4.25, 64-bit, §6.3i): rebuilt dump; the payload is its `GamePort.dll` (`GetInstance`'s object); calibration identity in the dump's `uiback.sav` |
+| `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 

@@ -17,6 +17,7 @@ members = [
     "crates/payload-europar",
     "crates/payload-konami",
     "crates/payload-arcadepc",
+    "crates/payload-unis",
     "crates/loader",
     "crates/easrv",
 ]

@@ -30,6 +30,9 @@ pub mod joystick;
 pub mod font;
 #[cfg(windows)]
 pub mod dshow;
+// where the players' guns point in the game's window
+#[cfg(windows)]
+pub mod gun;
 #[cfg(windows)]
 pub mod iat;
 #[cfg(windows)]
@@ -44,6 +47,9 @@ pub mod mapping;
 // Unity games' managed code (Mono's embedding API)
 #[cfg(windows)]
 pub mod mono;
+// a Unity game's `DllImport`s resolved to the payload's functions
+#[cfg(windows)]
+pub mod mono_imports;
 pub mod paths;
 #[cfg(windows)]
 pub mod patches;

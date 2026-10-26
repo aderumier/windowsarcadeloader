@@ -3761,6 +3761,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-payload-unis"
+version = "0.1.0"
+dependencies = [
+ "wal-payload-common",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "wal-payload-wahlap"
 version = "0.1.0"
 dependencies = [

@@ -40,12 +40,13 @@ mod commking;
 mod demul;
 mod gameport;
 mod jxboard;
-mod mono_imports;
 mod pads;
 mod topgun;
 mod zombiecrisis;
 
 use std::ffi::c_void;
+
+use wal_payload_common::mono_imports;
 
 use windows_sys::Win32::Foundation::HINSTANCE;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;

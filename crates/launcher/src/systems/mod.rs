@@ -12,6 +12,7 @@ mod ringedge;
 mod segashell;
 mod tsunami;
 mod typex;
+mod unis;
 mod wahlap;
 
 use anyhow::{Result, bail};
@@ -73,7 +74,8 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
         "wahlap" => Box::new(wahlap::Wahlap),
         "konami" => Box::new(konami::Konami),
         "arcadepc" => Box::new(arcadepc::ArcadePc),
+        "unis" => Box::new(unis::Unis),
         "europar" | "europa-r" | "segaeuropar" | "segaeuropa-r" => Box::new(europar::EuropaR),
-        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, konami, europar, arcadepc)"),
+        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, konami, europar, arcadepc, unis)"),
     })
 }

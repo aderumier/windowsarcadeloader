@@ -12,7 +12,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use wal_payload_common::{iat, log};
+use crate::{iat, log};
 use windows_sys::Win32::System::LibraryLoader::{GetModuleFileNameW, GetModuleHandleW, GetProcAddress};
 
 /// The payload's function for an export (`name`) of a module (`module`: its file name, lower

@@ -1,0 +1,18 @@
+[package]
+name = "wal-payload-unis"
+description = "UNIS payload: replacement xinput1_3.dll (the cabinet's I/O board, gun camera and dongles)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_unis"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemServices",
+] }

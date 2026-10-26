@@ -1,0 +1,31 @@
+# Dino Invasion (shunxiang guns, Unity 5.4, Mono, 64-bit) - template, override values in
+# userprofiles/unis/dino-invasion.yaml.
+# Four guns. The payload emulates the cabinet's COM3 board (coins, start, triggers, the
+# operator's keys), the guns' camera tracker (LC64) and the dongles (docs §6.3j).
+system: unis
+name: Dino Invasion
+
+# Unity 5.4 loads xinput1_3.dll at start: the payload
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_UNIS_BOARD: shunxiang
+  # where each gun points (no cursor in play): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Select (operator)
+  start: Start
+  coin: Coin
+  test: Menu
+  service: Select
+  down: Menu

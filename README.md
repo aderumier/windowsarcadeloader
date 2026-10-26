@@ -1,6 +1,6 @@
 # Windows Arcade Loader
 
-Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge, Sega Amusements Shell PCs, Wahlap, Sega Europa-R, Konami e-Amusement PC, arcade PCs)
+Runs Windows-based arcade games (Taito Type X / X2, NESiCAxLive, Global VR, Namco ES3, Tsunami, Sega RingEdge, Sega Amusements Shell PCs, Wahlap, Sega Europa-R, Konami e-Amusement PC, UNIS, arcade PCs)
 on Linux with Wine: a Linux launcher (inputs, Wine prefix and runner) and per-system payload DLLs
 emulating each cabinet's I/O, dongle and network services in the game process.
 
@@ -220,4 +220,5 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | not in the test |  |
 | `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%), e-Amusement card (player kept by the loader: class, girls' experience / rank / decks / dress; skills, items, missions not yet) | not in the test |  |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | not in the test |  |
+| `dino-invasion` | Dino Invasion | unis | works (user: 100%), 4 guns | not in the test |  |
 <!-- GAMELIST END -->
