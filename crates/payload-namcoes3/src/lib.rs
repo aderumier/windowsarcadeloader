@@ -1,8 +1,11 @@
-//! Namco ES3 payload (Star Wars Battle Pod: The Force Awakens, 64-bit).
+//! Namco ES3 payload (64-bit): Star Wars Battle Pod: The Force Awakens, Lost Land Adventure.
 //!
-//! It takes the place of `hasp_windows_x64_100610.dll`, imported (by ordinal) by both the
-//! cabinet launcher `Launcher\RSLauncher.exe` and the game it starts,
-//! `Binaries\Win64\SWArcGame-Win64-Shipping.exe`: loaded in both processes without injector.
+//! It takes the place of the HASP HL library both the cabinet launcher `RSLauncher.exe` and
+//! the game it starts import: loaded in both processes without injector. The library's name
+//! tells the game: `hasp_windows_x64_100610.dll` Battle Pod (`Launcher\RSLauncher.exe`,
+//! `Binaries\Win64\SWArcGame-Win64-Shipping.exe`), `hasp_windows_x64_106993.dll` Lost Land
+//! Adventure (`RSLauncher.exe`, `LLA\Binaries\Win64\DomeShooterGame-Win64-Shipping.exe`,
+//! `lla.rs`).
 //!
 //! * `hasp.rs`: the HASP HL dongle API.
 //! * `jvs.rs`: the JVS I/O board, on the serial calls of the launcher and of the game's I/O
@@ -15,10 +18,14 @@
 
 #![allow(non_snake_case)]
 
+mod bpreader;
 mod dinput;
+mod dome;
 mod hasp;
 mod jvs;
+mod lla;
 mod patches;
+mod projector;
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -64,7 +71,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let exe = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()));
         let exe = exe.unwrap_or_default();
         let base = module_base();
-        if exe.eq_ignore_ascii_case(LAUNCHER) {
+        if lla::is_lla() {
+            lla::attach(&exe, base);
+        } else if exe.eq_ignore_ascii_case(LAUNCHER) {
             jvs::init(&[base]);
             patches::launcher(base);
         } else if exe.eq_ignore_ascii_case(GAME) {

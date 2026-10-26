@@ -1,0 +1,38 @@
+# Lost Land Adventure (Bandai Namco, 2014, Unreal Engine 3, 64-bit) - template, override values
+# in userprofiles/namcoes3/lost-land-adventure.yaml.
+system: namcoes3
+name: Lost Land Adventure
+
+# The cabinet launcher RSLauncher.exe (I/O board, card reader, test menu) and the game it
+# starts both import the HASP library: the payload replaces both copies.
+payload_install: [hasp_windows_x64_106993.dll, LLA/Binaries/Win64/hasp_windows_x64_106993.dll]
+
+# The cabinet's save drives: test menu settings, bookkeeping, credits, rankings (each file
+# on both).
+drives:
+  f: F
+  g: G
+
+env:
+  # The game's language (the operator menu's otherwise): JPN, ENG, CHN, ITA, SPA, RUS, POR, IND,
+  # THA. JPN: the English patch's dumps carry the English texts and textures in the JPN
+  # files (the launcher adds -voicelanguage=English(US)); ENG: the original international
+  # texts over the Japanese textures.
+  WAL_NAMCOES3_LANGUAGE: JPN
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Operator menu enter
+  up: Operator menu up
+  down: Operator menu down
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test (operator menu)

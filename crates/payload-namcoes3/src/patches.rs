@@ -29,7 +29,7 @@ fn write(at: usize, bytes: &[u8]) {
 }
 
 /// Writes `new` at `base + rva` when the current bytes are `old`.
-fn patch(what: &str, base: usize, rva: usize, old: &[u8], new: &[u8]) -> bool {
+pub(crate) fn patch(what: &str, base: usize, rva: usize, old: &[u8], new: &[u8]) -> bool {
     let cur = unsafe { std::slice::from_raw_parts((base + rva) as *const u8, old.len()) };
     if cur != old {
         log!("patch {what} at {rva:#x}: other bytes, not applied");
@@ -46,19 +46,23 @@ pub(crate) fn launcher(base: usize) {
     if std::env::var("WAL_NAMCOES3_FLATSCREEN").map_or(true, |v| v != "0") {
         patch("flat screen", base, 0x32475, b"\x75\x09", b"\x90\x90");
     }
-    // [0x33cb60] = operator language 1..8 -> "-Language=JPN..THA", else English: replaced by
-    // `mov eax, <language>`
+    // [0x33cb60] = operator language 1..8 -> "-Language=JPN..THA", else English
+    language(base, 0x324ef, b"\x8b\x05\x6b\xa6\x30\x00");
+}
+
+/// `WAL_NAMCOES3_LANGUAGE`: the launcher's read of the operator language (`mov eax, [...]`,
+/// 6 bytes at `rva`, value 1..8 = JPN..THA, else English) replaced by `mov eax, <language>`.
+pub(crate) fn language(base: usize, rva: usize, old: &[u8]) {
     const LANGUAGES: [&str; 9] = ["ENG", "JPN", "CHN", "ITA", "SPA", "RUS", "POR", "IND", "THA"];
-    if let Ok(lang) = std::env::var("WAL_NAMCOES3_LANGUAGE") {
-        let wanted = if lang.trim().eq_ignore_ascii_case("INT") { "ENG" } else { lang.trim() };
-        match LANGUAGES.iter().position(|l| l.eq_ignore_ascii_case(wanted)) {
-            Some(i) => {
-                if patch("language", base, 0x324ef, b"\x8b\x05\x6b\xa6\x30\x00", &[0xB8, i as u8, 0, 0, 0, 0x90]) {
-                    log!("game language {}", LANGUAGES[i]);
-                }
+    let Ok(lang) = std::env::var("WAL_NAMCOES3_LANGUAGE") else { return };
+    let wanted = if lang.trim().eq_ignore_ascii_case("INT") { "ENG" } else { lang.trim() };
+    match LANGUAGES.iter().position(|l| l.eq_ignore_ascii_case(wanted)) {
+        Some(i) => {
+            if patch("language", base, rva, old, &[0xB8, i as u8, 0, 0, 0, 0x90]) {
+                log!("game language {}", LANGUAGES[i]);
             }
-            None => log!("WAL_NAMCOES3_LANGUAGE={lang}: unknown language, operator setting kept"),
         }
+        None => log!("WAL_NAMCOES3_LANGUAGE={lang}: unknown language, operator setting kept"),
     }
 }
 
@@ -88,14 +92,7 @@ unsafe extern "C" fn usb_key_enum(_a: i32, _b: i32, _c: u16, _d: u16, out: *mut 
         (false, false) => (0x0c10, 0x1573d28),
     };
     let serial = serial(template);
-    unsafe {
-        std::ptr::write_bytes(out, 0, 0x628);
-        *(out.add(0x22) as *mut u16) = id;
-        let wide = out.add(0x428) as *mut u16;
-        for (i, b) in serial.iter().enumerate() {
-            *wide.add(i) = *b as u16;
-        }
-    }
+    unsafe { usb_key(out, id, &serial) };
     static LOGGED: std::sync::Once = std::sync::Once::new();
     LOGGED.call_once(|| {
         let kind = if tfa { " (TFA key)" } else { "" };
@@ -104,9 +101,27 @@ unsafe extern "C" fn usb_key_enum(_a: i32, _b: i32, _c: u16, _d: u16, out: *mut 
     1
 }
 
-pub(crate) fn game(base: usize) {
-    // mov rax, usb_key_enum; jmp rax
+/// The enumeration's one device: id at +0x22, 12-wchar serial at +0x428.
+pub(crate) unsafe fn usb_key(out: *mut u8, id: u16, serial: &[u8; 12]) {
+    unsafe {
+        std::ptr::write_bytes(out, 0, 0x628);
+        *(out.add(0x22) as *mut u16) = id;
+        let wide = out.add(0x428) as *mut u16;
+        for (i, b) in serial.iter().enumerate() {
+            *wide.add(i) = *b as u16;
+        }
+    }
+}
+
+/// Replaces the USB key enumeration at `0x20b0` (the same Namco library in every game) with
+/// `enumerate`.
+pub(crate) fn hook_usb_key(base: usize, enumerate: unsafe extern "C" fn(i32, i32, u16, u16, *mut u8) -> i32) {
+    // mov rax, enumerate; jmp rax
     let mut jump = [0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xE0];
-    jump[2..10].copy_from_slice(&(usb_key_enum as *const () as usize as u64).to_le_bytes());
+    jump[2..10].copy_from_slice(&(enumerate as *const () as usize as u64).to_le_bytes());
     patch("usb key enumeration", base, 0x20b0, b"\x40\x55\x57\x41\x55\x41\x56\x41\x57\x48\x8d\xac", &jump);
+}
+
+pub(crate) fn game(base: usize) {
+    hook_usb_key(base, usb_key_enum);
 }

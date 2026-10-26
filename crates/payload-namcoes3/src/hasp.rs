@@ -3,7 +3,8 @@
 //!
 //! Outside Japanese, the game checks the HASP serial: its first 6 characters must match the
 //! game's run-time serial template (0x1573d28), so in the game process the serial is built
-//! from it.
+//! from it. Lost Land Adventure checks its own serial (`lla.rs`), and the byte at 0xd3f must be
+//! the complement of 0xd3e's.
 
 #![allow(clippy::missing_safety_doc)]
 
@@ -87,7 +88,9 @@ pub unsafe extern "C" fn hasp_read(_h: u32, file: u32, offset: u32, len: u32, bu
     let out = unsafe { std::slice::from_raw_parts_mut(buf, len as usize) };
     out.fill(0);
     let mut mem = *memory();
-    if crate::game_base() != 0 {
+    if crate::lla::is_lla() {
+        mem[0xD00..0xD0C].copy_from_slice(crate::lla::SERIAL);
+    } else if crate::game_base() != 0 {
         mem[0xD00..0xD0C].copy_from_slice(&crate::patches::serial(0x1573d28));
         static LOGGED: std::sync::Once = std::sync::Once::new();
         LOGGED.call_once(|| log!("hasp: serial {}", String::from_utf8_lossy(&mem[0xD00..0xD0C])));

@@ -6,6 +6,12 @@
 //! 1: byte 0 start 0x80, service 0x40, menu up 0x20, menu down 0x10, enter 0x02; byte 1 view
 //! 0x80; byte 2 weapon 0x01, trigger 0x02. System byte: test 0x80.
 //!
+//! Lost Land Adventure (`lla`): player 1's byte 0 as Battle Pod's (service, up, down, enter),
+//! plus the operator panel 0x01 (on with the test switch: the launcher only reads the test
+//! switch with the panel open), byte 1 start 1 0x80, start 2 0x40 (player 2's `start`); both
+//! players' coins in slot 1.
+//! The guns are the game's own serial device (`lla.rs`).
+//!
 //! The cabinet's test switch latches: `test` toggles it (`WAL_NAMCOES3_TEST_TOGGLE=0`: held).
 //! While it is on, up / down also move the test menu cursor. The stick and throttle follow
 //! the analog axes; the d-pad and the `accelerate` / `brake` buttons move them gradually.
@@ -70,6 +76,16 @@ const DEFAULT_MAP: &[(&str, &str)] = &[
     ("b8", "brake"),
 ];
 
+/// Lost Land Adventure: the guns' buttons are the game's; the test menu also moves with the
+/// d-pad while the test switch is on.
+const LLA_MAP: &[(&str, &str)] = &[
+    ("test", "test"),
+    ("service", "service"),
+    ("coin", "coin"),
+    ("start", "start"),
+    ("b2", "enter"),
+];
+
 /// Per poll, how far the d-pad and the throttle buttons move the axes.
 const RAMP: i32 = 16;
 /// Flight stick deadzone (virtual stick units), and the throttle's on the right stick.
@@ -78,6 +94,9 @@ const THROTTLE_DEADZONE: i32 = 8689;
 
 struct Board {
     map: ButtonMap<Native>,
+    /// Player 2's map (Lost Land Adventure's start 2 and coin).
+    map2: ButtonMap<Native>,
+    lla: bool,
     /// Raw bytes written by the game, up to a complete packet.
     pending: Vec<u8>,
     coins: i32,
@@ -96,8 +115,12 @@ static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 /// Installs the board on the serial calls of `modules`.
 pub(crate) fn init(modules: &[usize]) {
     let flag = |name: &str, default: bool| std::env::var(name).map_or(default, |v| v != "0");
+    let lla = crate::lla::is_lla();
+    let defaults = if lla { LLA_MAP } else { DEFAULT_MAP };
     *BOARD.lock().unwrap() = Some(Board {
-        map: ButtonMap::new(NATIVES, DEFAULT_MAP),
+        map: ButtonMap::new(NATIVES, defaults),
+        map2: ButtonMap::with_defaults(NATIVES, defaults),
+        lla,
         pending: Vec::new(),
         coins: 0,
         coin_held: false,
@@ -149,7 +172,17 @@ fn poll(board: &mut Board) -> Inputs {
     } else {
         board.test_on = on(Native::Test);
     }
-    let coin = on(Native::Coin);
+    // player 2 (Lost Land Adventure): start 2, coin
+    let (mut start2, mut coin2) = (false, false);
+    if board.lla {
+        let stick2: StickState = wal_payload_common::input(1);
+        board.map2.for_each_pressed(&stick2, |p| match p {
+            Native::Start => start2 = true,
+            Native::Coin => coin2 = true,
+            _ => {}
+        });
+    }
+    let coin = on(Native::Coin) || coin2;
     if board.coin_held && !coin {
         board.coins += 1;
     }
@@ -159,10 +192,24 @@ fn poll(board: &mut Board) -> Inputs {
     let menu_up = on(Native::MenuUp) || board.test_on && up;
     let menu_down = on(Native::MenuDown) || board.test_on && down;
     let mut sw = [0u8; 3];
-    for (bit, pressed) in [(0x80, on(Native::Start)), (0x40, on(Native::Service)), (0x20, menu_up), (0x10, menu_down), (0x02, on(Native::Enter))] {
+    // Lost Land Adventure: the starts are in byte 1
+    let start = on(Native::Start) && !board.lla;
+    for (bit, pressed) in [(0x80, start), (0x40, on(Native::Service)), (0x20, menu_up), (0x10, menu_down), (0x02, on(Native::Enter))] {
         if pressed {
             sw[0] |= bit;
         }
+    }
+    if board.lla {
+        // the launcher reads the test switch only with the operator panel open (0x01)
+        if board.test_on {
+            sw[0] |= 0x01;
+        }
+        for (bit, pressed) in [(0x80, on(Native::Start)), (0x40, start2)] {
+            if pressed {
+                sw[1] |= bit;
+            }
+        }
+        return Inputs { test: board.test_on, sw, throttle: 0x80, x: 0x80, y: 0x80 };
     }
     if on(Native::View) {
         sw[1] |= 0x80;
