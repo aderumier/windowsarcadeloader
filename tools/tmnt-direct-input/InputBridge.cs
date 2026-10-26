@@ -50,7 +50,7 @@ namespace WALDirect
                 worker.IsBackground = true;
                 worker.Name = "WAL direct input client";
                 worker.Start();
-                ReleaseRealKeyboard();
+                PatchGame();
             }
 
             if (inputDataField == null)
@@ -154,24 +154,33 @@ namespace WALDirect
             }
         }
 
+        // Patches through the dump's Harmony (BepInEx 0Harmony 2.9), by reflection.
+        //
         // Dumps patched before the game's own UnityEngine.Input reads were removed from
         // Assembly-CSharp still read the real keyboard (level select: W starts a level).
-        // With the launcher's copy of this assembly, Unity's key wrappers read as released
-        // through the dump's Harmony; the game's input comes from the launcher only.
-        private static void ReleaseRealKeyboard()
+        // With the launcher's copy of this assembly, Unity's key wrappers read as released;
+        // the game's input comes from the launcher only.
+        //
+        // The game's UnityNatives helpers (the cabinet's native library, absent from the
+        // dump) are prefixed by the bundled plugin, which forwards them to its host process.
+        // Without that host each one returns its default: no wave ever completes (the level
+        // never scrolls on after the first fight), players take no damage, enemies never
+        // attack. Postfixes run after that prefix and give the game's results.
+        private static void PatchGame()
         {
             try
             {
-                Type harmony = null, harmonyMethod = null, input = null;
+                Type harmony = null, harmonyMethod = null, input = null, natives = null;
                 foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
                 {
                     harmony = harmony ?? assembly.GetType("HarmonyLib.Harmony", false);
                     harmonyMethod = harmonyMethod ?? assembly.GetType("HarmonyLib.HarmonyMethod", false);
                     input = input ?? assembly.GetType("UnityEngine.Input", false);
+                    natives = natives ?? assembly.GetType("UnityNatives", false);
                 }
-                if (harmony == null || harmonyMethod == null || input == null)
+                if (harmony == null || harmonyMethod == null)
                 {
-                    Console.WriteLine("WAL TMNT: no Harmony, real keyboard not released");
+                    Console.WriteLine("WAL TMNT: no Harmony, real keyboard not released, no UnityNatives");
                     return;
                 }
                 object instance = Activator.CreateInstance(harmony, new object[] { "wal.directinput" });
@@ -179,28 +188,50 @@ namespace WALDirect
                 foreach (MethodInfo method in harmony.GetMethods(BindingFlags.Public | BindingFlags.Instance))
                 {
                     ParameterInfo[] parameters = method.GetParameters();
-                    if (method.Name == "Patch" && parameters.Length >= 2 &&
-                        parameters[0].ParameterType == typeof(MethodBase) && parameters[1].ParameterType == harmonyMethod)
+                    if (method.Name == "Patch" && parameters.Length >= 3 &&
+                        parameters[0].ParameterType == typeof(MethodBase) && parameters[1].ParameterType == harmonyMethod &&
+                        parameters[2].ParameterType == harmonyMethod)
                         patch = method;
                 }
                 if (patch == null)
                     return;
-                object prefix = Activator.CreateInstance(harmonyMethod, new object[] { typeof(InputBridge).GetMethod("KeyReleased") });
-                foreach (MethodInfo key in input.GetMethods(BindingFlags.Public | BindingFlags.Static))
+
+                if (input != null)
                 {
-                    if ((key.Name != "GetKey" && key.Name != "GetKeyDown" && key.Name != "GetKeyUp") ||
-                        key.GetParameters().Length != 1)
-                        continue;
-                    object[] args = new object[patch.GetParameters().Length];
-                    args[0] = key;
-                    args[1] = prefix;
-                    patch.Invoke(instance, args);
+                    object prefix = Activator.CreateInstance(harmonyMethod, new object[] { typeof(InputBridge).GetMethod("KeyReleased") });
+                    foreach (MethodInfo key in input.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                    {
+                        if ((key.Name != "GetKey" && key.Name != "GetKeyDown" && key.Name != "GetKeyUp") ||
+                            key.GetParameters().Length != 1)
+                            continue;
+                        object[] args = new object[patch.GetParameters().Length];
+                        args[0] = key;
+                        args[1] = prefix;
+                        patch.Invoke(instance, args);
+                    }
+                    Console.WriteLine("WAL TMNT: real keyboard released");
                 }
-                Console.WriteLine("WAL TMNT: real keyboard released");
+
+                if (natives != null)
+                {
+                    int patched = 0;
+                    foreach (MethodInfo native in natives.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                    {
+                        MethodInfo result = typeof(GameNatives).GetMethod(native.Name, BindingFlags.Public | BindingFlags.Static);
+                        if (result == null)
+                            continue;
+                        object[] args = new object[patch.GetParameters().Length];
+                        args[0] = native;
+                        args[2] = Activator.CreateInstance(harmonyMethod, new object[] { result });
+                        patch.Invoke(instance, args);
+                        patched++;
+                    }
+                    Console.WriteLine("WAL TMNT: {0} UnityNatives helpers", patched);
+                }
             }
             catch (Exception e)
             {
-                Console.WriteLine("WAL TMNT: real keyboard not released: " + e);
+                Console.WriteLine("WAL TMNT: game patches failed: " + e);
             }
         }
 
@@ -335,6 +366,113 @@ namespace WALDirect
                 offset += count;
             }
             return data;
+        }
+    }
+
+    // Harmony postfixes for the game's UnityNatives helpers, by method and parameter name
+    // (InputBridge.PatchGame). The cabinet library is absent, so these follow what each
+    // caller in Assembly-CSharp expects. GetNewHeight is not here: Pawn.UpdateJump calls
+    // InputBridge.GetNewHeight with the game's gravity.
+    public static class GameNatives
+    {
+        // Wave.Update, once all of a wave's spawns are out: the wave ends (GO arrow, camera
+        // released) when its enemies are dead, or at once for waves that end when all are
+        // spawned. Enemies dropped in by Level.DropInEnemies get a moment to be counted.
+        public static void CheckWaveComplete(float timeSinceDropIn, int numAliveEnemies, bool endWhenAllSpawned,
+                                             ref bool __result)
+        {
+            __result = timeSinceDropIn >= 0.5f && (endWhenAllSpawned || numAliveEnemies <= 0);
+        }
+
+        // EnemyPawn.CanAttack, after the game's own cap on enemies attacking one turtle.
+        // The player's time ratio is the credit's play time against the operator's target
+        // (1 and over: past it). Before that, a player under half health who was hit in the
+        // last 4 seconds gets a breather from enemies that hit recently.
+        public static void AllowAttack(float dmgLast5, float playerHealthRatio, float playerTimeRatio,
+                                       float timeSinceDamageDealt, ref bool __result)
+        {
+            if (playerTimeRatio >= 1f)
+                __result = true;
+            else if (dmgLast5 > 0f && playerHealthRatio < 0.5f)
+                __result = timeSinceDamageDealt > 3f;
+            else
+                __result = true;
+        }
+
+        // Damage taken by a player: the operator's modifier, rising up to twice that once
+        // the credit's play time goes past the cycle control time.
+        public static void CurrentDamageMod(float cycleTime, float cycleControlTime, float gameDamageMod,
+                                            ref float __result)
+        {
+            float over = cycleControlTime > 0f ? (cycleTime - cycleControlTime) / cycleControlTime : 0f;
+            __result = gameDamageMod * (1f + Math.Max(0f, Math.Min(1f, over)));
+        }
+
+        // Hits in a row before a boss turns invincible (default 5), fewer as it weakens.
+        public static void BossInvincibilityHits(float healthIn, float maxHealthIn, ref int __result)
+        {
+            float ratio = maxHealthIn > 0f ? healthIn / maxHealthIn : 1f;
+            __result = ratio > 0.66f ? 5 : ratio > 0.33f ? 4 : 3;
+        }
+
+        // Player throws (target from AcquireTarget within 3 units): a close Foot soldier
+        // in front, to the left or right. The game then checks the room behind the
+        // player for the over-the-shoulder throw, else tries the throw into the screen.
+        public static void ThrowCheck(float dist, float angleFromForward, float angleFromRight, ref bool __result)
+        {
+            __result = CanThrow(dist, angleFromForward, angleFromRight);
+        }
+
+        public static void ThrowCheckScreen(float dist, float angleFromForward, float angleFromRight, ref bool __result)
+        {
+            __result = CanThrow(dist, angleFromForward, angleFromRight);
+        }
+
+        private static bool CanThrow(float dist, float angleFromForward, float angleFromRight)
+        {
+            return dist <= 1.5f && angleFromForward <= 45f && (angleFromRight <= 45f || angleFromRight >= 135f);
+        }
+
+        // Enemy grab from behind (same facing as the turtle), Mouser grab from the front
+        // (facing the turtle); the game moves the enemy 0.75 units from the turtle.
+        public static void RestrainCheck(float dist, float angleBetweenForwards, ref bool __result)
+        {
+            __result = dist <= 1.5f && angleBetweenForwards <= 60f;
+        }
+
+        public static void RestrainCheckMouser(float dist, float angleBetweenForwards, ref bool __result)
+        {
+            __result = dist <= 1.5f && angleBetweenForwards <= 60f;
+        }
+
+        // Thrown objects settle on their second bounce: flat on the nearest quarter turn
+        // (eulerAngles: 0..360). A rectangular box lies on its long side.
+        public static void GetRotZTarget(float newEulerZ, ref float __result)
+        {
+            __result = (float)Math.Round(newEulerZ / 90f) * 90f;
+        }
+
+        public static void GetRotXTarget(bool rectShape, float newEulerX, ref float __result)
+        {
+            if (rectShape)
+                __result = newEulerX >= 180f ? 360f : 0f;
+            else
+                __result = (float)Math.Round(newEulerX / 90f) * 90f;
+        }
+
+        // The turtle's ground circle stays on the ground during jumps: the pawn's base
+        // offset is original + jump height + elevator; mod raises it to nearby NYC ground.
+        public static void GetCircleY(float startY, float offset, float originalOffset, float elevatorOffset, float mod,
+                                      ref float __result)
+        {
+            float jump = Math.Max(0f, offset - originalOffset - elevatorOffset);
+            __result = startY - jump + mod;
+        }
+
+        // PlayerPawn turning to its target: at most its turn speed (degrees per second).
+        public static void GetAngleDelta(float maxSpeed, float deltaT, float angle, ref float __result)
+        {
+            __result = Math.Min(maxSpeed * deltaT, angle);
         }
     }
 }

@@ -3349,6 +3349,37 @@ the arrows browse them (down next, up previous, right/Enter increase or select, 
 - **Not done.** Outputs (recoil, start lamps, life, ammo: DemulShooter reads them through its
   own Unity plugin), the operator's diagnostics overlay (F1), reloading `Controls.ini` (F5).
 
+#### The DemulShooter plugin games (Quick Shot Arcade)
+
+Community repacks of Chinese Unity gun games (SpiderZSoft's, mostly 32-bit) carry one of
+Argonlefou's BepInEx plugins (`<Game>_BepInEx_DemulShooter_Plugin.dll`, loaded by Unity
+Doorstop's `winhttp.dll`/`version.dll`): it patches out the dongle, the serial I/O board and the
+camera guns, and listens on `127.0.0.1:33610` for DemulShooter. Each read is one 37-byte input
+packet: per player (4) the aim `x`, `y` (`f32`, the game window's client pixels, `y` from the
+bottom), then bit masks of the trigger, reload, action and weapon change, then flags (bit 0 hide
+the crosshairs, bit 7 inputs from the packets instead of the mouse); it answers with output
+packets (`u32` length, header 2, lamps and recoil). The coin and the operator buttons stay on
+the keyboard (Unity's `Input.GetKey`), each plugin its own keys.
+
+- **Client (`demul.rs`).** The profile's `WAL_DEMUL_PORT` makes the payload that client (no
+  XInput pads then): a packet every change (at least every 100 ms) from the virtual sticks, the
+  gun position (`lx`, `ly` over the screen) mapped onto the game window's client area (the
+  Unity window `UnityWndClass`); a shot off the window or with the gun off the screen
+  (`offscreen`) sets the reload bit and aims at the window's top left corner (Top Gun's reload
+  coordinates). Outputs are read and dropped.
+- **Keys.** Natives `key_<name>` (`key_5`, `key_0`, `key_up`, `key_return`, `key_f2`...), mapped
+  by the profile's `native_map`, are posted to the Unity window as `WM_KEYDOWN`/`WM_KEYUP`
+  marked in their `lParam`'s reserved bits: `input_filter` lets those through (the real
+  keyboard's become `WM_NULL`) and reports them held to `GetKeyState`.
+- **x86 build.** `wal_arcadepc32.dll`, installed as `xinput1_3.dll` too (xinput1_4 disabled).
+- **Quick Shot Arcade** (SpiderZSoft's Top Gun "BiuBiuGun", Unity 2019.3, portrait, one gun):
+  the Batocera image's game folder (`drive_c/Quick Shot Arcade.pc`) is the dump. The repack's
+  assembly sets a 608x1080 window (`-popupwindow`: borderless; Unity centres it), its plugins
+  scale the portrait UI and replace the logo. Keys: `5` coin, `0` settings (press; held 3 s:
+  refill), arrows settings up/down and the left/right buttons, Enter replenish. The repack's
+  launcher (`Play Top Gun Arcade.exe`, a .NET bezel and crosshair overlay) is not used. Open:
+  the settings screen shows no text (a missing Windows font, to check), recoil output.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -3634,7 +3665,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `nicktoons-nitro-racing` | Nicktoons Nitro Racing | rawthrills | works (user: 100%) | wal-loader, JAMMA board and cabinet feature check emulated, 105 verified 3DNow math blocks replaced by SSE2, calibration and gameplay confirmed, opening movie has no embedded audio track, force feedback from its wheel motor force (untested on a wheel) |
 | `batman` | Batman | rawthrills | works (user-confirmed gameplay and controls; FFB wheel test pending) | wal-loader, RIO board over libusb bulk transfers, wheel and pedals, fire / start / brake switches corrected, numeric keypad, cabinet check emulated to avoid level-loading spin, force feedback from game float (wheel test pending) |
 | `injustice-arcade` | Injustice Arcade | rawthrills | works (user: 100%, virtual card readers) | wal-loader, `-simmobile`, HASP dongle emulated (cards authorized refilled), RIO board over libusb bulk transfers with status reports, card dispensers ready, webcams emulated: virtual barcode cards chosen on an OpenGL overlay, full screen; open: an intermittent crash in the attract movie (Bink) |
-| `teenage-mutant-ninja-turtles` | Teenage Mutant Ninja Turtles | rawthrills | works (user: 100%), four-player controls, test menu, variable-height jump, videos | TMNT 1.59 (`TMNT.exe`); run `tools/build-tmnt-direct-input.sh <game directory>` to patch `IOManager.Update` with direct launcher input before `UpdateCombinedInputs` (the bridge `WAL.DirectInput.dll` is also the system's 64-bit payload, built by `build.sh`: installed over the dump's copy, so dumps patched with an older bridge run the current one; on those, Unity's `Input.GetKey*` wrappers are made to return released at run time through the dump's Harmony), including per-frame counter snapshots and hold timers; player N on `GameInput` P0 + N (P0 is the game's combined input); WALInput disabled and TMNTTPPlugin input writer disabled; every `UnityEngine.Input` key / button / mouse button / axis read in `Assembly-CSharp` returns released (input from the launcher only; the level select's W developer key started a level); volume on player 1's b7 / b8 (`native_map` `volup` / `voldown`); `Pawn.UpdateJump` uses a local height/gravity helper instead of the plugin's host call, restoring landing and hold-dependent jump height; bundled Windows `OrenVid.dll` playback works; no winhttp override |
+| `teenage-mutant-ninja-turtles` | Teenage Mutant Ninja Turtles | rawthrills | works (user: 100%), four-player controls, test menu, variable-height jump, videos | TMNT 1.59 (`TMNT.exe`); run `tools/build-tmnt-direct-input.sh <game directory>` to patch `IOManager.Update` with direct launcher input before `UpdateCombinedInputs` (the bridge `WAL.DirectInput.dll` is also the system's 64-bit payload, built by `build.sh`: installed over the dump's copy, so dumps patched with an older bridge run the current one; on those, Unity's `Input.GetKey*` wrappers are made to return released at run time through the dump's Harmony), including per-frame counter snapshots and hold timers; player N on `GameInput` P0 + N (P0 is the game's combined input); WALInput disabled and TMNTTPPlugin input writer disabled; every `UnityEngine.Input` key / button / mouse button / axis read in `Assembly-CSharp` returns released (input from the launcher only; the level select's W developer key started a level); volume on player 1's b7 / b8 (`native_map` `volup` / `voldown`); `Pawn.UpdateJump` uses a local height/gravity helper instead of the plugin's host call, restoring landing and hold-dependent jump height; the other `UnityNatives` helpers the plugin forwards to its host (absent: each returned its default, so no wave ever completed and the level never scrolled on after the first fight, players took no damage, enemies never attacked) get results through Harmony postfixes from the bridge (`GameNatives`: wave complete once its enemies are dead, enemy attack pacing, player damage modifier rising past the cycle control time, boss hits before invincibility, throw / grab checks, thrown object rest angles, ground circle height, turn speed), on every dump; bundled Windows `OrenVid.dll` playback works; no winhttp override |
 | `super-alpine-racer` | Super Alpine Racer | rawthrills | in progress: boots, a race played from scripted inputs (swing, start) | wal-loader, inputs through the game's `SetControl` without a board (§6.3b), DXVK's d3d8 (dump's d3d8to9 hidden), picture rotated for a vertical monitor (no rotation yet) |
 | `x-games-snowboarder` | X-Games Snowboarder | rawthrills | in progress: boots, a race played from scripted inputs | as Super Alpine Racer, landscape |
 | `winter-x-games-snocross` | Winter X Games SnoCross | rawthrills | works (user: 100%) | wal-loader, inputs through the game's `SetControl` (§6.3b), no board: I/O init taken as success, no reboot, board missing displays off; the dump's protection traps undone, keyboard developer key Space (ends the game) made Escape, base path empty, force feedback from its handlebar force (untested on a wheel) |
@@ -3701,6 +3732,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | `game.exe`, a memory dump of the HASP-enveloped game: started by wal-loader with the payload as `inpout32.dll` (`payload_loader`); its imports rebuilt, `WinMain`'s instance fixed, HASP HL API answered, parallel port I/O board and guns (calibration skipped), `z:/data/bin` relative, saves on E: (`SAVE`), MP42 movies need the GE winedmo MP42 patch |
 | `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | `game.exe` (Unity 2017, 64-bit, §6.3h), the payload as `winhttp.dll`: BM-System's System, Io, Consume and Entry modules bound through Mono (watchdog, credits, test / service, export region, e-Amusement card: player created / loaded / saved by the payload), the I/O board's status handed to UsbIO (COM6 absent), the touch screen's touches; drawn at the cabinet's 2160x1920 desktop into a texture of the payload's, the two monitors and the bezel's marquee composed for the screen; `LC_ALL=en_US.UTF-8` |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
+| `quick-shot-arcade` | Quick Shot Arcade | arcadepc | works (headless tests: coin, mode and level select, aimed shots, settings menu entry), 1 gun | SpiderZSoft's Top Gun repack (Unity 2019.3, 32-bit, §6.3i): its BepInEx DemulShooter plugin's TCP inputs from the payload (`WAL_DEMUL_PORT`, x86 `wal_arcadepc32.dll` as `xinput1_3.dll`), keys `5`/`0`/arrows/Enter posted to the Unity window; 608x1080 borderless window; settings screen texts missing |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
