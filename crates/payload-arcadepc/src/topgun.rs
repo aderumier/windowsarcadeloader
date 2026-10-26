@@ -177,12 +177,12 @@ extern "C" fn do_something(_buf: *const u8, _len: u32, out: *mut u8, out_len: u3
 }
 
 /// The dongle's functions, and the serial functions of the emulated port.
-fn resolve(name: &str, kernel32: bool) -> Option<usize> {
+fn resolve(name: &str, module: &str) -> Option<usize> {
     match name {
         "open_dog" => Some(open_dog as *const () as usize),
         "close_dog" => Some(close_dog as *const () as usize),
         "do_something" => Some(do_something as *const () as usize),
-        _ if kernel32 => serial::replacement(name),
+        _ if module == "kernel32.dll" => serial::replacement(name),
         _ => None,
     }
 }

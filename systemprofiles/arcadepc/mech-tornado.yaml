@@ -1,0 +1,35 @@
+# Mech Tornado (ridong "jixiesheqiu", Unity 2017.4, Mono, 32-bit) - template, override values in
+# userprofiles/arcadepc/mech-tornado.yaml.
+# Water guns (the default cabinet mode), two players: the payload is the cabinet's I/O DLL
+# (gameport.dll's C API: coins, keys, the guns' two buttons and aim) (docs §6.3i).
+system: arcadepc
+name: Mech Tornado
+
+# the board's DLL, the game's DllImport: the payload, loaded at the executable's entry point
+payload_install: [mecha_Data/Plugins/gameport.dll]
+payload_loader: true
+
+# the cabinet's drive: d:\jijiasheqiu.ini (settings, the guns' calibration, bookkeeping)
+drives:
+  d: D
+
+env:
+  WAL_ARCADEPC_BOARD: gameport
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Fire
+  b2: Fire 2
+  b3: Bomb (both buttons)
+  start: Start
+  coin: Coin
+  test: Setting
+  service: Ticket
+  left: Left
+  right: Right

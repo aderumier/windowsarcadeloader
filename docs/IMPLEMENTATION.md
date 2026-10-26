@@ -3435,6 +3435,28 @@ Water Sprite 2 logo) and `WaterSprite2.exe` (the save path follows the executabl
   payload at start; Unity 3.5's PlayerPrefs strings are REG_SZ. `ExitWindowsEx` ignored.
 - **Display.** 1920x1080 full screen (Direct3D 9); the game shows each gun's aim.
 
+#### Mech Tornado
+
+ridong's "jixiesheqiu" (Unity 2017.4, Mono `mono.dll`, 32-bit), its I/O DLL `gameport.dll`
+(MFC, a serial board behind a C++ object). The dump is rebuilt without the repack's BepInEx,
+Doorstop and DemulShooter; the game's ini (`d:\jijiasheqiu.ini`: settings, calibration,
+bookkeeping) is on the cabinet's `D:` (the dump's `D` folder).
+
+- **Board (`gameport.rs`, `WAL_ARCADEPC_BOARD=gameport`).** The game's `dllInstance` imports
+  the DLL's flat C API (cdecl, the object `GetInstance` returns as first argument): the payload,
+  installed as `mecha_Data/Plugins/gameport.dll` and loaded by `wal-loader`, answers them through
+  Mono's `GetProcAddress` (`mono_imports.rs`, for that module only): `init` 1, coins buffered per
+  player (`GetBufferCoin<n>p`, `SubBufferCoin<n>p`), start keys, the guns' two buttons
+  (`Get<P>Frie1/2`: one the laser gun, both the water), the operator's setting / left / right /
+  ticket keys, the aim as 10-bit ADC readings (`GetWadc<n>pX/Y`, `Get<P>WadcX/Y`), every other
+  getter 0 (no error, no warning), every setter (lamps, motors, pump, tickets) ignored.
+- **Aim.** x 1 + 1022 * x, y 1 + 1022 * (1 - y) (0 is ignored); the game maps it through four
+  corners per gun (the ini's `gun`, `sgun`, `sdgun` points): the dump's are (1, 1023),
+  (1023, 1023), (1, 1), (1023, 1); in laser mode two points (`lgun`: (1, 1023), (1023, 1)).
+- **Cabinet.** The dump's ini: laser mode (`mode=2`, the user's choice; 1 water: one button the
+  laser, both the water; 0 the ball machine, 2 players), 4 players (`playernum=4`). The game
+  draws each gun's crosshair.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -3790,6 +3812,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun | SpiderZSoft's Top Gun repack (Unity 2019.3, 32-bit, §6.3i): rebuilt dump (`QuickShot.exe`, `Main` patched to 1080x1920), the repack's BepInEx plugins (logo, DemulShooter): the payload is the plugin's TCP client (`WAL_DEMUL_PORT`) and posts its keys; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen |
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun | SpiderZSoft's original (§6.3i), dump rebuilt from the repack's decrypted assembly without BepInEx (`TopGun.exe`, `Main` patched to 1080x1920): the payload emulates the `Dog_Ch.dll` dongle and the SY Fire COM1 board through Mono's `GetProcAddress`; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen, crosshair, bezel (`WAL_BEZEL=Layer.png`, the dump's cabinet art) |
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns | SpyderZSoft's "SpriteT2" (Unity 3.5, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `hasp_windows_96625.dll`, `wal-loader`) emulates the CommKing COM1 board, the HASP HL dongle and the registration; calibration in the dump's sys.dat |
+| `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | ridong's "jixiesheqiu" (Unity 2017.4, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `gameport.dll`, `wal-loader`) is the I/O DLL's C API; calibration in the dump's `D/jijiasheqiu.ini` |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

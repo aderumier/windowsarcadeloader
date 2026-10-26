@@ -256,7 +256,7 @@ extern "system" fn exit_windows_ex(flags: u32, _reason: u32) -> i32 {
 }
 
 /// The dongle's functions, `ExitWindowsEx`, and the serial functions of the emulated port.
-fn resolve(name: &str, kernel32: bool) -> Option<usize> {
+fn resolve(name: &str, module: &str) -> Option<usize> {
     let f = match name {
         "hasp_login" => hasp_login as *const () as usize,
         "hasp_logout" => hasp_logout as *const () as usize,
@@ -265,7 +265,7 @@ fn resolve(name: &str, kernel32: bool) -> Option<usize> {
         "hasp_get_info" => hasp_get_info as *const () as usize,
         "hasp_free" => hasp_free as *const () as usize,
         "ExitWindowsEx" => exit_windows_ex as *const () as usize,
-        _ if kernel32 => return serial::replacement(name),
+        _ if module == "kernel32.dll" => return serial::replacement(name),
         _ => return None,
     };
     Some(f)

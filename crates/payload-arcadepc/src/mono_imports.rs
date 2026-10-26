@@ -13,11 +13,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use wal_payload_common::{iat, log};
-use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+use windows_sys::Win32::System::LibraryLoader::{GetModuleFileNameW, GetModuleHandleW, GetProcAddress};
 
-/// The payload's function for an export (`name`) of a module (`kernel32`: whether the module is
-/// kernel32.dll), if any.
-pub type Resolver = fn(name: &str, kernel32: bool) -> Option<usize>;
+/// The payload's function for an export (`name`) of a module (`module`: its file name, lower
+/// case: `kernel32.dll`, `gameport.dll`), if any.
+pub type Resolver = fn(name: &str, module: &str) -> Option<usize>;
+
+/// The file name of the module at `module`, lower case.
+fn module_name(module: *mut c_void) -> String {
+    let mut path = [0u16; 260];
+    let n = unsafe { GetModuleFileNameW(module as _, path.as_mut_ptr(), path.len() as u32) } as usize;
+    let path = String::from_utf16_lossy(&path[..n]).to_lowercase();
+    path.rsplit(['\\', '/']).next().unwrap_or("").to_string()
+}
 
 static RESOLVER: OnceLock<Resolver> = OnceLock::new();
 /// Mono's `GetProcAddress`.
@@ -30,8 +38,7 @@ unsafe extern "system" fn get_proc_address(module: *mut c_void, name: *const c_c
         return unsafe { orig(module, name) };
     }
     let wanted = unsafe { CStr::from_ptr(name) }.to_str().unwrap_or("");
-    let kernel32 = module == unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) };
-    match RESOLVER.get().and_then(|resolve| resolve(wanted, kernel32)) {
+    match RESOLVER.get().and_then(|resolve| resolve(wanted, &module_name(module))) {
         Some(f) => {
             log!("mono: {wanted} resolved to the payload's");
             f
