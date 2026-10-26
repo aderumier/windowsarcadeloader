@@ -25,6 +25,8 @@ input:
   guns_enabled: true
   stick_as_dpad: false
 
+# The test menu (test switch, F2) opens behind the game (a black screen): alt-tab to it, and
+# back to the game after it.
 controls:
   lx: Gun aim (x)
   ly: Gun aim (y)
