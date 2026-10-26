@@ -1,0 +1,40 @@
+# Happy Water Sprite II (SpyderZSoft, "SpriteT2", Unity 3.5, Mono, 32-bit) - template, override
+# values in userprofiles/arcadepc/happy-water-sprite-2.yaml.
+# Two water guns. The payload emulates the cabinet's CommKing I/O board on COM1 (coins, keys,
+# the guns' aim), its HASP HL dongle and its registration (docs §6.3i).
+system: arcadepc
+name: Happy Water Sprite II
+
+# the dongle's DLL, the game's DllImport: the payload, loaded at the executable's entry point
+# (its Mono hooks in place before the game's code runs)
+payload_install: [WaterSprite2_Data/Plugins/hasp_windows_96625.dll]
+payload_loader: true
+
+args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
+
+# the cabinet's save drive: d:\data\SpyderZSoft (settings, calibration, bookkeeping)
+drives:
+  d: D
+
+env:
+  WAL_ARCADEPC_BOARD: commking
+
+# the game shows where each water gun points (Direct3D 9: no common crosshair)
+input:
+  # each player's gun (or mouse) aims; a water gun has no trigger: the trigger is the big gun
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Water gun aim (x)
+  ly: Water gun aim (y)
+  b1: "Big gun (start)"
+  b2: Operator OK
+  start: Start
+  coin: Coin
+  test: "Set (held: system menu)"
+  service: Select
+  left: Reduce
+  right: Add
+  up: Right
+  down: Down

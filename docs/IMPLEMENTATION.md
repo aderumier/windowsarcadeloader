@@ -3410,9 +3410,12 @@ SpiderZSoft's Top Gun ("BiuBiuGun", Unity 2019.3, Mono, 32-bit: the x86 payload
 #### Happy Water Sprite II
 
 SpyderZSoft's "SpriteT2" (yeruigame, Unity 3.5.6, Mono 2.6 `mono.dll`, 32-bit), two water guns
-(analog aim, no trigger: the game opens a playing player's valve). Same game as the "Monsters vs
-Water Sprite" repack. The dump is rebuilt without the repack's BepInEx, Doorstop and
-DemulShooter (`WaterSprite2.exe`: the save path follows the executable's name).
+(analog aim, no trigger: the game opens a playing player's valve). "Monsters vs Water Sprite"
+is a repack of the same game whose game code skips the repacker's start logo (`CLogo`, the
+data folder's `logo1.png`), clears the credits at boot and draws its own loading logo (its
+`sharedassets2.assets`) at 600x300. The dump is rebuilt from it without the repacks' BepInEx,
+Doorstop, DemulShooter and launchers, with Happy Water Sprite II's `sharedassets2.assets` (the
+Water Sprite 2 logo) and `WaterSprite2.exe` (the save path follows the executable's name).
 
 - **Board (`commking.rs`, `WAL_ARCADEPC_BOARD=commking`).** `CommKingDeviceManager` on COM1,
   19200 bauds, the game's own overlapped kernel32 calls (`DllImport`, through Mono's
@@ -3786,7 +3789,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | `WXR.exe` (Unity, 64-bit, §6.3i), the dump's community `Assembly-CSharp.dll` (XInput guns): payload = `xinput1_3.dll`, four pads aiming with the guns (absolute left stick), shot off screen = reload; real keyboard/mouse filtered (user32's win32u imports, UnityPlayer's messages), F2 / arrows operator keys from test / directions; xinput1_4 disabled (payload loaded at start); profile `Controls.ini`: 1920x1080 full screen |
 | `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun | SpiderZSoft's Top Gun repack (Unity 2019.3, 32-bit, §6.3i): rebuilt dump (`QuickShot.exe`, `Main` patched to 1080x1920), the repack's BepInEx plugins (logo, DemulShooter): the payload is the plugin's TCP client (`WAL_DEMUL_PORT`) and posts its keys; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen |
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun | SpiderZSoft's original (§6.3i), dump rebuilt from the repack's decrypted assembly without BepInEx (`TopGun.exe`, `Main` patched to 1080x1920): the payload emulates the `Dog_Ch.dll` dongle and the SY Fire COM1 board through Mono's `GetProcAddress`; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen, crosshair, bezel (`WAL_BEZEL=Layer.png`, the dump's cabinet art) |
-| `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | works (headless tests: registration, coins, start, stage, aim), 2 water guns | SpyderZSoft's "SpriteT2" (Unity 3.5, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `hasp_windows_96625.dll`, `wal-loader`) emulates the CommKing COM1 board, the HASP HL dongle and the registration; calibration in the dump's sys.dat |
+| `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns | SpyderZSoft's "SpriteT2" (Unity 3.5, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `hasp_windows_96625.dll`, `wal-loader`) emulates the CommKing COM1 board, the HASP HL dongle and the registration; calibration in the dump's sys.dat |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
