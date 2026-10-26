@@ -3457,6 +3457,29 @@ bookkeeping) is on the cabinet's `D:` (the dump's `D` folder).
   laser, both the water; 0 the ball machine, 2 players), 4 players (`playernum=4`). The game
   draws each gun's crosshair.
 
+#### Mech Dinosaur / Wisdom Zombies
+
+JxSoftWare's "RobotDragon" and "ShotZembies" (Unity 2017.2, Mono `mono.dll`, 64-bit: the payload
+as `xinput1_3.dll`, xinput1_4 disabled), four players: guns on pivots (Mech Dinosaur) or water
+guns that shoot while their player plays (Wisdom Zombies). The dumps are rebuilt without the
+repacks' BepInEx, DemulShooter, dgVoodoo and launchers; the databases (`D:\SettingData.db`:
+settings and the guns' calibration, identity; `AcountData.db`, `RankData.db`) on the cabinet's
+`D:`; `Game.json`'s per-seat gun angles zeroed (a skew for the cabinet's physical guns).
+
+- **Board (`jxboard.rs`, `WAL_ARCADEPC_BOARD=jxboard`).** `PortManager` on COM1 (`Game.json`:
+  115200 bauds), Mono's `SerialPort` (`mono_imports.rs`). Frames `3A len data[len] crc 3B`,
+  `data[0]` the command, the game's CRC (CRC-16/MODBUS's table, bytes swapped at each step,
+  from 0xFFFF; checked against the game's own frames). The board's command 1 (40 bytes) answers
+  each read (at most every 8 ms): 24 key bits (0..3 triggers, 4..7 starts, 19 the water level
+  fine, 20..23 menu, OK, up, down: Wisdom Zombies reads up and down the other way, its
+  profile's `native_map`), 8 axes (x, y per player, big endian, 0..4094, y up), tickets left
+  (0), coins since the last frame. The PC's frames (lamps, motors, tickets) are ignored.
+- **Crosshair.** The games draw no gun cursor in play: the common option (Direct3D 11).
+- **Maps.** The map select unlocks the maps as the player passes them
+  (`SelectMapManager.ShowPassLevel`: `OpenLocked(1..4)`): the dumps' assemblies open all of them
+  (each call's `ldc.i4.1/2/3` patched to `ldc.i4.4`; file offsets: Mech Dinosaur 0x5977B,
+  0x5978E, 0x597AD; Wisdom Zombies 0x3FBCB, 0x3FBDE, 0x3FC17).
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -3813,6 +3836,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun | SpiderZSoft's original (§6.3i), dump rebuilt from the repack's decrypted assembly without BepInEx (`TopGun.exe`, `Main` patched to 1080x1920): the payload emulates the `Dog_Ch.dll` dongle and the SY Fire COM1 board through Mono's `GetProcAddress`; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen, crosshair, bezel (`WAL_BEZEL=Layer.png`, the dump's cabinet art) |
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns | SpyderZSoft's "SpriteT2" (Unity 3.5, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `hasp_windows_96625.dll`, `wal-loader`) emulates the CommKing COM1 board, the HASP HL dongle and the registration; calibration in the dump's sys.dat |
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | ridong's "jixiesheqiu" (Unity 2017.4, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `gameport.dll`, `wal-loader`) is the I/O DLL's C API; calibration in the dump's `D/jijiasheqiu.ini` |
+| `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
+| `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

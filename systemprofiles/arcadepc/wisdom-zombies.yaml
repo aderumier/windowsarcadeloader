@@ -1,0 +1,44 @@
+# Wisdom Zombies (JxSoftWare "ShotZembies", Unity 2017.2, Mono, 64-bit) - template, override
+# values in userprofiles/arcadepc/wisdom-zombies.yaml.
+# Four water guns (analog aim, they shoot while playing). The payload emulates the cabinet's JX I/O board on
+# COM1 (coins, keys, the guns' aim) (docs §6.3i).
+system: arcadepc
+name: Wisdom Zombies
+
+args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
+
+# Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+# the cabinet's drive: d:\SettingData.db (settings, the guns' calibration), AcountData.db
+# (bookkeeping), RankData.db
+drives:
+  d: D
+
+env:
+  WAL_ARCADEPC_BOARD: jxboard
+  # where each gun points (no cursor in play): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+
+# its board's up and down keys are the other way round
+native_map:
+  up: down
+  down: up
+
+input:
+  # each player's water gun (or mouse) aims
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b2: Operator OK
+  start: Start
+  coin: Coin
+  test: Operator menu
+  service: Operator OK
+  up: Operator up
+  down: Operator down

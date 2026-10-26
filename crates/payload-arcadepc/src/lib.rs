@@ -23,6 +23,8 @@
 //! HASP dongle and registration.
 //!
 //! Mech Tornado (`WAL_ARCADEPC_BOARD=gameport`): `gameport.rs` is its I/O DLL's C API.
+//! Mech Dinosaur, Wisdom Zombies (`WAL_ARCADEPC_BOARD=jxboard`): `jxboard.rs` emulates their
+//! COM1 I/O board.
 //!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
@@ -34,6 +36,7 @@
 mod commking;
 mod demul;
 mod gameport;
+mod jxboard;
 mod mono_imports;
 mod pads;
 mod topgun;
@@ -53,7 +56,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
         let board = std::env::var("WAL_ARCADEPC_BOARD").unwrap_or_default();
         // the common crosshair option: player 1's gun on the picture (Direct3D 11)
-        if (matches!(board.trim(), "syfire" | "gameport") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
+        if (matches!(board.trim(), "syfire" | "jxboard") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
             wal_payload_common::pointer_d3d11::init(wal_payload_common::pointer_d3d11::Dot {
                 color: [1.0, 0.15, 0.15],
                 size: 0.06,
@@ -71,6 +74,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 pads::disconnect();
                 wal_payload_common::input_filter::init(unity, |_| false);
                 gameport::init_board();
+            }
+            _ if board.trim() == "jxboard" => {
+                pads::disconnect();
+                wal_payload_common::input_filter::init(unity, |_| false);
+                jxboard::init();
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();
