@@ -4,7 +4,7 @@
 //! Outside Japanese, the game checks the HASP serial: its first 6 characters must match the
 //! game's run-time serial template (0x1573d28), so in the game process the serial is built
 //! from it. Lost Land Adventure checks its own serial (`lla.rs`), and the byte at 0xd3f must be
-//! the complement of 0xd3e's.
+//! the complement of 0xd3e's. Wangan Midnight Maximum Tune 5 has its own serial (`wmmt5.rs`).
 
 #![allow(clippy::missing_safety_doc)]
 
@@ -90,6 +90,9 @@ pub unsafe extern "C" fn hasp_read(_h: u32, file: u32, offset: u32, len: u32, bu
     let mut mem = *memory();
     if crate::lla::is_lla() {
         mem[0xD00..0xD0C].copy_from_slice(crate::lla::SERIAL);
+    } else if crate::wmmt5::is_wmmt5() {
+        mem[0xD00..0xD0C].copy_from_slice(crate::wmmt5::SERIAL);
+        mem[0xD3E..0xD40].copy_from_slice(&crate::wmmt5::SERIAL_CHECK);
     } else if crate::game_base() != 0 {
         mem[0xD00..0xD0C].copy_from_slice(&crate::patches::serial(0x1573d28));
         static LOGGED: std::sync::Once = std::sync::Once::new();

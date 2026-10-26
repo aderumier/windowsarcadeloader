@@ -12,6 +12,11 @@
 //! players' coins in slot 1.
 //! The guns are the game's own serial device (`lla.rs`).
 //!
+//! Wangan Midnight Maximum Tune 5 (`wmmt5`): the wheel (analog 0), accelerator (1) and brake
+//! (2); see [`WMMT5_SWITCHES`] for the buttons and the shift lever's four switches (the gate
+//! of a 6-speed H pattern: 1 up-left, 2 down-left, 3 up, 4 down, 5 up-right, 6 down-right).
+//! `gear_up` / `gear_down` move a sequential gear through the H pattern (neutral below 1st).
+//!
 //! The cabinet's test switch latches: `test` toggles it (`WAL_NAMCOES3_TEST_TOGGLE=0`: held).
 //! While it is on, up / down also move the test menu cursor. The stick and throttle follow
 //! the analog axes; the d-pad and the `accelerate` / `brake` buttons move them gradually.
@@ -43,6 +48,13 @@ enum Native {
     MenuDown,
     Accelerate,
     Brake,
+    Interrupt,
+    LeverUp,
+    LeverDown,
+    LeverLeft,
+    LeverRight,
+    GearUp,
+    GearDown,
 }
 
 const NATIVES: &[(&str, Native)] = &[
@@ -58,6 +70,13 @@ const NATIVES: &[(&str, Native)] = &[
     ("menudown", Native::MenuDown),
     ("accelerate", Native::Accelerate),
     ("brake", Native::Brake),
+    ("interrupt", Native::Interrupt),
+    ("lever_up", Native::LeverUp),
+    ("lever_down", Native::LeverDown),
+    ("lever_left", Native::LeverLeft),
+    ("lever_right", Native::LeverRight),
+    ("gear_up", Native::GearUp),
+    ("gear_down", Native::GearDown),
 ];
 
 /// Virtual stick -> board; profiles override it with `native_map`.
@@ -86,6 +105,53 @@ const LLA_MAP: &[(&str, &str)] = &[
     ("b2", "enter"),
 ];
 
+/// Wangan Midnight Maximum Tune 5: the d-pad is the shift lever, b3 / b4 shift up / down.
+const WMMT5_MAP: &[(&str, &str)] = &[
+    ("test", "test"),
+    ("service", "service"),
+    ("coin", "coin"),
+    ("start", "view"),
+    ("b1", "view"),
+    ("b2", "interrupt"),
+    ("b3", "gear_up"),
+    ("b4", "gear_down"),
+    ("b5", "menuup"),
+    ("b6", "menudown"),
+    ("b7", "enter"),
+    ("up", "lever_up"),
+    ("down", "lever_down"),
+    ("left", "lever_left"),
+    ("right", "lever_right"),
+];
+
+/// Wangan Midnight Maximum Tune 5's switches: native input, byte of player 1, bit.
+const WMMT5_SWITCHES: &[(Native, usize, u8)] = &[
+    (Native::Service, 0, 0x40),
+    (Native::MenuUp, 0, 0x20),
+    (Native::MenuDown, 0, 0x10),
+    (Native::Enter, 0, 0x02),
+    (Native::View, 1, 0x02),
+    (Native::Interrupt, 1, 0x01),
+];
+/// The shift lever's switches: up, down, left, right (byte 1).
+const WMMT5_LEVER: [u8; 4] = [0x80, 0x40, 0x20, 0x10];
+/// The H pattern's gears: lever switches (up, down, left, right) of 1st..6th.
+const GEARS: [[bool; 4]; 6] = [
+    [true, false, true, false],
+    [false, true, true, false],
+    [true, false, false, false],
+    [false, true, false, false],
+    [true, false, false, true],
+    [false, true, false, true],
+];
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Game {
+    BattlePod,
+    Lla,
+    Wmmt5,
+}
+
 /// Per poll, how far the d-pad and the throttle buttons move the axes.
 const RAMP: i32 = 16;
 /// Flight stick deadzone (virtual stick units), and the throttle's on the right stick.
@@ -96,7 +162,7 @@ struct Board {
     map: ButtonMap<Native>,
     /// Player 2's map (Lost Land Adventure's start 2 and coin).
     map2: ButtonMap<Native>,
-    lla: bool,
+    game: Game,
     /// Raw bytes written by the game, up to a complete packet.
     pending: Vec<u8>,
     coins: i32,
@@ -108,6 +174,9 @@ struct Board {
     reverse_throttle: bool,
     /// Digital positions of x, y, throttle (0x80 = center).
     ramp: [i32; 3],
+    /// Wangan Midnight Maximum Tune 5: the sequential gear (0 neutral), the gear buttons held.
+    gear: usize,
+    gear_held: (bool, bool),
 }
 
 static BOARD: Mutex<Option<Board>> = Mutex::new(None);
@@ -115,12 +184,22 @@ static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 /// Installs the board on the serial calls of `modules`.
 pub(crate) fn init(modules: &[usize]) {
     let flag = |name: &str, default: bool| std::env::var(name).map_or(default, |v| v != "0");
-    let lla = crate::lla::is_lla();
-    let defaults = if lla { LLA_MAP } else { DEFAULT_MAP };
+    let game = if crate::lla::is_lla() {
+        Game::Lla
+    } else if crate::wmmt5::is_wmmt5() {
+        Game::Wmmt5
+    } else {
+        Game::BattlePod
+    };
+    let defaults = match game {
+        Game::Lla => LLA_MAP,
+        Game::Wmmt5 => WMMT5_MAP,
+        Game::BattlePod => DEFAULT_MAP,
+    };
     *BOARD.lock().unwrap() = Some(Board {
         map: ButtonMap::new(NATIVES, defaults),
         map2: ButtonMap::with_defaults(NATIVES, defaults),
-        lla,
+        game,
         pending: Vec::new(),
         coins: 0,
         coin_held: false,
@@ -130,6 +209,8 @@ pub(crate) fn init(modules: &[usize]) {
         reverse_y: flag("WAL_NAMCOES3_REVERSE_Y", false),
         reverse_throttle: flag("WAL_NAMCOES3_REVERSE_THROTTLE", false),
         ramp: [0x80; 3],
+        gear: 0,
+        gear_held: (false, false),
     });
     // sense line: present, then addressed
     serial::MODEM_STATUS[0].store(0x10, Ordering::Relaxed);
@@ -143,9 +224,8 @@ pub(crate) fn init(modules: &[usize]) {
 struct Inputs {
     test: bool,
     sw: [u8; 3],
-    throttle: u8,
-    x: u8,
-    y: u8,
+    /// Analog channels 0..8 (high byte).
+    analog: [u8; 8],
 }
 
 fn toward(cur: i32, neg: bool, pos: bool) -> i32 {
@@ -174,7 +254,7 @@ fn poll(board: &mut Board) -> Inputs {
     }
     // player 2 (Lost Land Adventure): start 2, coin
     let (mut start2, mut coin2) = (false, false);
-    if board.lla {
+    if board.game == Game::Lla {
         let stick2: StickState = wal_payload_common::input(1);
         board.map2.for_each_pressed(&stick2, |p| match p {
             Native::Start => start2 = true,
@@ -191,15 +271,18 @@ fn poll(board: &mut Board) -> Inputs {
     let (up, down) = (stick.pressed(button::UP), stick.pressed(button::DOWN));
     let menu_up = on(Native::MenuUp) || board.test_on && up;
     let menu_down = on(Native::MenuDown) || board.test_on && down;
+    if board.game == Game::Wmmt5 {
+        return wmmt5(board, &stick, &on, menu_up, menu_down);
+    }
     let mut sw = [0u8; 3];
     // Lost Land Adventure: the starts are in byte 1
-    let start = on(Native::Start) && !board.lla;
+    let start = on(Native::Start) && board.game != Game::Lla;
     for (bit, pressed) in [(0x80, start), (0x40, on(Native::Service)), (0x20, menu_up), (0x10, menu_down), (0x02, on(Native::Enter))] {
         if pressed {
             sw[0] |= bit;
         }
     }
-    if board.lla {
+    if board.game == Game::Lla {
         // the launcher reads the test switch only with the operator panel open (0x01)
         if board.test_on {
             sw[0] |= 0x01;
@@ -209,7 +292,7 @@ fn poll(board: &mut Board) -> Inputs {
                 sw[1] |= bit;
             }
         }
-        return Inputs { test: board.test_on, sw, throttle: 0x80, x: 0x80, y: 0x80 };
+        return Inputs { test: board.test_on, sw, analog: [0x80; 8] };
     }
     if on(Native::View) {
         sw[1] |= 0x80;
@@ -245,7 +328,49 @@ fn poll(board: &mut Board) -> Inputs {
     if board.reverse_throttle {
         throttle = !throttle;
     }
-    Inputs { test: board.test_on, sw, throttle, x, y }
+    let mut analog = [0x80; 8];
+    analog[1..4].copy_from_slice(&[throttle, x, y]);
+    Inputs { test: board.test_on, sw, analog }
+}
+
+/// Wangan Midnight Maximum Tune 5's poll: buttons, shift lever, wheel and pedals.
+fn wmmt5(board: &mut Board, stick: &StickState, on: &dyn Fn(Native) -> bool, menu_up: bool, menu_down: bool) -> Inputs {
+    let mut sw = [0u8; 3];
+    for &(native, byte, bit) in WMMT5_SWITCHES {
+        let pressed = match native {
+            Native::MenuUp => menu_up,
+            Native::MenuDown => menu_down,
+            n => on(n),
+        };
+        if pressed {
+            sw[byte] |= bit;
+        }
+    }
+    // the lever moved by hand (outside the test menu, where up / down move its cursor)
+    let lever = [Native::LeverUp, Native::LeverDown, Native::LeverLeft, Native::LeverRight].map(|n| on(n) && !board.test_on);
+    if lever.iter().any(|l| *l) {
+        // the sequential gear starts again from neutral
+        board.gear = 0;
+    }
+    let (gear_up, gear_down) = (on(Native::GearUp), on(Native::GearDown));
+    if gear_up && !board.gear_held.0 && board.gear < GEARS.len() {
+        board.gear += 1;
+    }
+    if gear_down && !board.gear_held.1 && board.gear > 0 {
+        board.gear -= 1;
+    }
+    board.gear_held = (gear_up, gear_down);
+    let switches = if board.gear > 0 { GEARS[board.gear - 1] } else { lever };
+    for (pressed, bit) in switches.into_iter().zip(WMMT5_LEVER) {
+        if pressed {
+            sw[1] |= bit;
+        }
+    }
+    let mut analog = [0x80; 8];
+    analog[0] = stick.axis_u8(Axis::LeftX);
+    analog[1] = stick.axis_u8(Axis::Accel);
+    analog[2] = stick.axis_u8(Axis::Brake);
+    Inputs { test: board.test_on, sw, analog }
 }
 
 /// Serial handler: raw bytes in, replies to the complete packets out.
@@ -338,12 +463,7 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
             }
             0x22 => {
                 for ch in 0..arg(1) {
-                    let v = match ch {
-                        1 => io.throttle,
-                        2 => io.x,
-                        3 => io.y,
-                        _ => 0x80,
-                    };
+                    let v = io.analog.get(ch).copied().unwrap_or(0x80);
                     rep.extend_from_slice(&[v, 0]);
                 }
                 2

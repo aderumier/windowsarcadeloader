@@ -1,0 +1,82 @@
+# Wangan Midnight Maximum Tune 5 (Bandai Namco, 2014, Direct3D 11, 64-bit) - template,
+# override values in userprofiles/namcoes3/wangan-midnight-maximum-tune-5.yaml.
+system: namcoes3
+name: Wangan Midnight Maximum Tune 5
+
+# The payload is the game's HASP library (wmn5r.exe imports it): dongle, I/O board on COM3,
+# boot patches, the store's card terminal (emulated on the loopback), force feedback.
+# The movies (WMV, Media Foundation) need the runner's mfreadwrite fix (GE patch 0104).
+payload_install: [hasp_windows_x64_109906.dll]
+
+# The dump's d3d11.dll is a force feedback plugin's wrapper: the runner's DXVK instead.
+hide: [d3d11.dll]
+
+# The cabinet's save drives: settings (setting.lua.gz), bookkeeping, error logs.
+drives:
+  f: F
+  g: G
+
+env:
+  # The store terminal's settings: free play (0: coins)
+  WAL_NAMCOES3_FREEPLAY: "1"
+
+options:
+  - title: Gameplay
+    options:
+      - key: WAL_NAMCOES3_FREEPLAY
+        label: Free play
+        kind: bool
+        description: Play without coins (the store terminal's setting).
+
+input:
+  stick_as_dpad: false
+  # Keyboard steering and pedals reach full travel in half a second.
+  keyboard_ramp_ms: 500
+  # Wheel on the left stick, pedals on the triggers, R1 / L1 shift up / down (a 6-speed H
+  # pattern), the d-pad is the shift lever itself (and the test menu cursor).
+  gamepad:
+    leftx: lx
+    r2: accel
+    l2: brake
+    x: b1
+    b: b2
+    r1: b3
+    l1: b4
+    y: b7
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_LEFTCTRL: b1
+      KEY_LEFTALT: b2
+      KEY_A: b3
+      KEY_Z: b4
+      KEY_PAGEUP: b5
+      KEY_PAGEDOWN: b6
+      KEY_ENTER: b7
+      KEY_1: start
+      KEY_5: coin
+      KEY_F1: service
+      KEY_F2: test
+
+controls:
+  lx: Steering wheel
+  accel: Gas pedal
+  brake: Brake pedal
+  up: 'Shift lever up'
+  down: 'Shift lever down'
+  left: 'Shift lever left'
+  right: 'Shift lever right'
+  b1: View change
+  b2: Interrupt
+  b3: Shift up
+  b4: Shift down
+  b5: Menu up
+  b6: Menu down
+  b7: Enter
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
