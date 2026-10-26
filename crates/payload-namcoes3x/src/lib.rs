@@ -2,6 +2,7 @@
 //! Mario Kart GP DX reads its wheel and buttons through DirectInput, so the same module also
 //! supplies the launcher's virtual wheel and reports the game's memory based force feedback.
 //! Installed as `bnusio.dll` (Point Blank X), it is the USIO and gun board API (`bnusio.rs`).
+//! Loaded in Mach Storm's executable, it is that game's I/O board and patches (`machstorm.rs`).
 
 #![allow(non_snake_case)]
 
@@ -15,6 +16,7 @@ mod amcus;
 mod bnusio;
 mod jvs;
 mod ipc;
+mod machstorm;
 mod netlog;
 mod profile;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
@@ -468,6 +470,8 @@ unsafe extern "system" fn co_create_instance(
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH && bnusio::installed_as_bnusio(module) {
         bnusio::init();
+    } else if reason == DLL_PROCESS_ATTACH && machstorm::is_machstorm() {
+        machstorm::init();
     } else if reason == DLL_PROCESS_ATTACH {
         thread_input();
         wal_payload_common::log!("namcoes3: 32-bit Banapass and DirectInput adapter loaded");

@@ -1,0 +1,79 @@
+# Mach Storm (Bandai Namco, 2013, Direct3D 9, 32-bit dome flight game) - template, override
+# values in userprofiles/namcoes3/mach-storm.yaml.
+# The dump's src\game\ACE7_WIN\ACE7_WIN_10.exe reads its data from ..\..\..\boot\WIN_GAME\USRDIR.
+# Nothing loads bngrw.dll: the payload is loaded at the executable's entry point.
+system: namcoes3
+name: Mach Storm
+
+env:
+  # The game makes a 1920x1080 windowed device: a borderless window the size of the screen
+  # (the picture is scaled to it).
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # 1: a flat screen picture; 0: the cabinet's dome projector warp
+  WAL_NAMCOES3_FLATSCREEN: "1"
+  WAL_NAMCOES3_REVERSE_Y: "0"
+  WAL_NAMCOES3_REVERSE_THROTTLE: "0"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_NAMCOES3_FLATSCREEN
+        label: Flat screen
+        kind: bool
+        description: >-
+          The picture for a flat screen. Off: the cabinet's dome projector warp (the picture
+          is bent for the dome).
+  - title: Controls
+    options:
+      - key: WAL_NAMCOES3_REVERSE_Y
+        label: Invert the control lever
+        kind: bool
+        description: Pull back to dive, push forward to climb.
+      - key: WAL_NAMCOES3_REVERSE_THROTTLE
+        label: Invert the throttle
+        kind: bool
+        description: The throttle lever pulled back accelerates.
+
+input:
+  stick_as_dpad: false
+  # Control lever on the left stick, throttle on the triggers (or the right stick), X / R1
+  # machine gun, A / L1 missile, Y third lever button, B enter.
+  gamepad:
+    r2: accel
+    l2: brake
+    x: b1
+    r1: b1
+    a: b2
+    l1: b2
+    y: b3
+    b: b4
+  # Keyboard (player 1): arrows control lever and test menu cursor, Left Ctrl machine gun,
+  # Left Alt missile, Space third button, Left Shift enter, Page Up / Page Down throttle.
+  keyboard:
+    p1:
+      KEY_PAGEUP: b7
+      KEY_PAGEDOWN: b8
+
+controls:
+  up: 'Lever up (digital)'
+  down: 'Lever down (digital)'
+  left: 'Lever left (digital)'
+  right: 'Lever right (digital)'
+  lx: Control lever X
+  ly: Control lever Y
+  accel: Throttle forward
+  brake: Throttle back
+  b1: Machine gun
+  b2: Missile
+  b3: Lever button 3
+  b4: Enter
+  b5: Menu up
+  b6: Menu down
+  b7: 'Throttle forward (digital)'
+  b8: 'Throttle back (digital)'
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

@@ -1568,6 +1568,32 @@ and a BepInEx input plugin).
 - **Not done.** Outputs (gun recoil `gun_StrikeOnce`, start lamps `usio_SetGout` 15/16, player
   lamps 9/10), the ticket dispenser (`TICKET 0`).
 
+#### Mach Storm
+
+`src\game\ACE7_WIN\ACE7_WIN_10.exe` (2013, Direct3D 9, 32-bit, `machstorm.rs`), a dome
+cabinet flight game; its data is `..\..\..\boot\WIN_GAME\USRDIR`. It imports no board
+DLL: `wal_bngrw.dll` is loaded at the entry point (the system's loader) and the executable's
+build (PE timestamp 0x52cfbf33, image size 0xf3a000) selects the Mach Storm code.
+
+- **I/O board.** NA-JV on COM3 (`jvs.rs`, `init_flight`, the Battle Pod layout): analog 1
+  throttle lever (0x80 idle), 2 / 3 control lever x / y; byte 0 service 0x40, up 0x20, down
+  0x10, enter 0x02; byte 2 machine gun 0x02, missile 0x01, a third button 0x04 (the game's
+  input object, 0x470e70, reads one byte per switch from the board state at +0x188).
+  `WAL_NAMCOES3_REVERSE_Y` / `_THROTTLE` invert the axes.
+- **Patches.** The device error list's push (0x7071e, `add [esi+4],0x10`) is removed: the
+  cabinet camera, USB dongle and network errors are never shown. Two boot checks of an extra
+  serial device (`RSTALL`, `vST` commands, 0x76430 / 0x76870) wait minutes without it: they
+  return 1. The save path `%c:\%s\%s.dat` (drives F and G) becomes `.\%c%s.dat`, the
+  `F*.dat` / `G*.dat` files dumps carry next to the executable.
+- **Flat screen.** The picture goes through a 1920x1080 RG16 lookup texture made for the dome
+  projector. `WAL_NAMCOES3_FLATSCREEN=1` (default): a 9-byte stub in the padding at 0x3d3637
+  replaces the data argument of the texture creation called at 0x3d2fed with a flat screen
+  map (each half bent toward the center, rows scaled with it; v below 0 wraps).
+- **Window.** A 1920x1080 windowed device: the profile's `WAL_WINDOW_POPUP` /
+  `WAL_WINDOW_SIZE: screen` make it a borderless full-screen window.
+- **Input filter.** XInput (#2-#4) reports no pads; keyboard and mouse messages filtered.
+- **Not done.** Outputs (lamps, fans, seat), the cabinet camera (photo).
+
 #### Lost Land Adventure
 
 64-bit (`crates/payload-namcoes3`, `lla.rs`): Unreal Engine 3, 2014, a dome cabinet for two
@@ -3805,6 +3831,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 |---|---|---|---|---|
 | `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented | version-aware dongle skip (v1.10.22 and v1.18.16), offline router/network bypass, 61-slot IPC compatibility object, Namco ES3 JVS steering and pedals, test-menu settings saved on F:/G: game drives, fullscreen DXVK; force feedback from the game's steering-force float (1.18 offsets implemented; physical wheel output unverified) |
 | `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns | `PBX100-2-NA-MPR0-A63.exe` (Unity 5.1, Mono, §6.3c): `Plugins/bnusio.dll` replaced (USIO switches and coins, gun board), loaded by wal-loader at the entry point; profile `Setting.ini` (`CONTROLLER 0`); real keyboard/mouse filtered; cabinet serial in the registry; the game's own crosshairs shown; BepInEx (`winhttp.dll`) hidden |
+| `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) | `ACE7_WIN_10.exe` (Direct3D 9, 32-bit): `bngrw.dll` payload loaded by wal-loader at the entry point, selected by the build; JVS on COM3 (flight layout: control lever, throttle lever, machine gun, missile, third button), device errors and extra serial device checks patched, dome lookup texture replaced by a flat screen map, saves next to the executable, borderless window fitted on the screen, XInput and real keyboard/mouse filtered |
 | `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_106993.dll` (dongle serial for both checks), JVS on COM3, Banapass reader on COM4 (no card), NEC projector on COM1, the gun camera on COM2 with the crosshair mapping inverted, the dumps' flat screen patch, English patch through JPN, F:/G: save drives |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |

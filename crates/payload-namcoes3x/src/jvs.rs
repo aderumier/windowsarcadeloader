@@ -2,6 +2,8 @@
 //! (`WAJVOpen("COM3")`, `WAJVCom*`).
 //!
 //! Mario Kart uses this board both for controls and the STR steering board's boot handshake.
+//! Mach Storm ([`init_flight`]): control lever x / y on channels 2 / 3, throttle lever on
+//! channel 1 (0x80 idle), machine gun / missile / third button in byte 2 (0x02, 0x01, 0x04).
 //!
 //! The cabinet's test switch latches: `test` toggles it (`WAL_NAMCOES3_TEST_TOGGLE=0`: held).
 //! While it is on, up / down also move the test menu cursor. Analog channels 0, 1 and 2
@@ -71,8 +73,29 @@ const DEFAULT_MAP: &[(&str, &str)] = &[
     ("b8", "menudown"),
 ];
 
-/// Per poll, how far digital steering moves the wheel.
+/// Mach Storm's map.
+const FLIGHT_MAP: &[(&str, &str)] = &[
+    ("test", "test"),
+    ("service", "service"),
+    ("coin", "coin"),
+    ("start", "start"),
+    ("b1", "trigger"),
+    ("b2", "weapon"),
+    ("b3", "view"),
+    ("b4", "enter"),
+    ("b5", "menuup"),
+    ("b6", "menudown"),
+    ("b7", "accelerate"),
+    ("b8", "brake"),
+];
+
+/// Per poll, how far digital steering (and Mach Storm's d-pad and throttle buttons) moves
+/// the axes.
 const RAMP: i32 = 16;
+/// Mach Storm: control lever deadzone (virtual stick units), and the throttle's on the right
+/// stick.
+const STICK_DEADZONE: i32 = 2500;
+const THROTTLE_DEADZONE: i32 = 8689;
 
 /// The STR board performs the steering self-test asynchronously: the result
 /// record at offset 0x35 only appears once the check completes. The FFB-off
@@ -100,15 +123,29 @@ struct Board {
     str_steer_off: i32,
     /// Steering-check records served (0..=5).
     str_steer_count: u32,
+    /// Mach Storm's layout, its inverted axes and digital x, y, throttle (0x80 = center).
+    flight: bool,
+    reverse_y: bool,
+    reverse_throttle: bool,
+    ramp: [i32; 3],
 }
 
 static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 
 /// Installs the board on the serial calls of `modules`.
 pub(crate) fn init(modules: &[usize]) {
+    install(modules, false);
+}
+
+/// Mach Storm's board.
+pub(crate) fn init_flight(modules: &[usize]) {
+    install(modules, true);
+}
+
+fn install(modules: &[usize], flight: bool) {
     let flag = |name: &str, default: bool| std::env::var(name).map_or(default, |v| v != "0");
     *BOARD.lock().unwrap() = Some(Board {
-        map: ButtonMap::new(NATIVES, DEFAULT_MAP),
+        map: ButtonMap::new(NATIVES, if flight { FLIGHT_MAP } else { DEFAULT_MAP }),
         pending: Vec::new(),
         coins: 0,
         coin_held: false,
@@ -120,6 +157,10 @@ pub(crate) fn init(modules: &[usize]) {
         str_steering_since: None,
         str_steer_off: -1,
         str_steer_count: 0,
+        flight,
+        reverse_y: flag("WAL_NAMCOES3_REVERSE_Y", false),
+        reverse_throttle: flag("WAL_NAMCOES3_REVERSE_THROTTLE", false),
+        ramp: [0x80; 3],
     });
     // JVS SENSE/CTS is clear until the host assigns an address, then asserted.
     serial::MODEM_STATUS[0].store(0, Ordering::Relaxed);
@@ -193,7 +234,7 @@ fn str_check_record(step: usize) -> Vec<u8> {
 struct Inputs {
     test: bool,
     sw: [u8; 3],
-    analog: [u16; 3],
+    analog: [u16; 4],
 }
 
 fn toward(cur: i32, neg: bool, pos: bool) -> i32 {
@@ -235,6 +276,9 @@ fn poll(board: &mut Board) -> Inputs {
             sw[0] |= bit;
         }
     }
+    if board.flight {
+        return poll_flight(board, &stick, on(Native::View), on(Native::Accelerate), on(Native::Brake), sw, on(Native::Weapon), on(Native::Trigger));
+    }
     if on(Native::View) {
         sw[1] |= 0x80;
     }
@@ -259,8 +303,45 @@ fn poll(board: &mut Board) -> Inputs {
         let value = if pressed { u16::MAX } else { stick.axis_u16(axis) };
         (0xa000 + u32::from(value) * 0x3000 / 65535) as u16
     };
-    let analog = [steering, pedal(Axis::Accel, on(Native::Accelerate)), pedal(Axis::Brake, on(Native::Brake))];
+    let analog = [steering, pedal(Axis::Accel, on(Native::Accelerate)), pedal(Axis::Brake, on(Native::Brake)), 0x8000];
     Inputs { test: board.test_on, sw, analog }
+}
+
+/// Mach Storm: the levers follow the d-pad / throttle buttons (gradually), else the analog
+/// axes. Up is a high y, like pushing the control lever forward; throttle: 0x80 idle, the
+/// accelerator pedal (or the right stick up) pushes it forward, the brake pulls it back.
+#[allow(clippy::too_many_arguments)]
+fn poll_flight(board: &mut Board, stick: &StickState, third: bool, accelerate: bool, brake: bool, mut sw: [u8; 3], missile: bool, gun: bool) -> Inputs {
+    for (bit, pressed) in [(0x04, third), (0x02, gun), (0x01, missile)] {
+        if pressed {
+            sw[2] |= bit;
+        }
+    }
+    // the d-pad moves the menu cursor in the test mode, not the lever
+    let dpad = |b: u32| !board.test_on && stick.pressed(b);
+    let r = &mut board.ramp;
+    r[0] = toward(r[0], dpad(button::LEFT), dpad(button::RIGHT));
+    r[1] = toward(r[1], dpad(button::DOWN), dpad(button::UP));
+    r[2] = toward(r[2], brake, accelerate);
+    let centered = |a: Axis| (stick.axis(a) as i32).abs() < STICK_DEADZONE;
+    let x = if r[0] != 0x80 || centered(Axis::LeftX) { r[0] as u8 } else { stick.axis_u8(Axis::LeftX) };
+    let mut y = if r[1] != 0x80 || centered(Axis::LeftY) { r[1] as u8 } else { 255 - stick.axis_u8(Axis::LeftY) };
+    let mut throttle = if r[2] != 0x80 {
+        r[2] as u8
+    } else {
+        let ry = stick.axis(Axis::RightY) as i32;
+        let ry = if ry.abs() < THROTTLE_DEADZONE { 0 } else { ry };
+        let pedals = stick.axis_u8(Axis::Accel) as i32 - stick.axis_u8(Axis::Brake) as i32;
+        (0x80 + pedals / 2 - ry / 256).clamp(0, 255) as u8
+    };
+    if board.reverse_y {
+        y = !y;
+    }
+    if board.reverse_throttle {
+        throttle = !throttle;
+    }
+    let wide = |v: u8| u16::from(v) << 8 | u16::from(v);
+    Inputs { test: board.test_on, sw, analog: [0x8000, wide(throttle), wide(x), wide(y)] }
 }
 
 /// Serial handler: raw bytes in, replies to the complete packets out.

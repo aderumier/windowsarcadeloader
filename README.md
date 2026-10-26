@@ -37,6 +37,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 |---|---|---|---|---|---|
 | `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented | not in the test |  |
 | `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns | not in the test |  |
+| `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) | not in the test |  |
 | `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab | not in the test |  |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | not in the test |  |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | pass | 2026-10-11 |
@@ -204,21 +205,33 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `otomedius` | Otomedius | konami | works (user: 100%) | not in the test |  |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), e-Amusement cards (loader's server) | not in the test |  |
 | `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | not in the test |  |
-| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%), e-Amusement cards (login, new player, match; save at a game's end not verified yet), red touch pointer | not in the test |  |
+| `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%); e-Amusement cards (login, new player, match; save at a game's end not verified yet) | not in the test |  |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | not in the test |  |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | not in the test |  |
-| `dance-dance-revolution-2013` | Dance Dance Revolution 2013 | konami | works (user: 100%), e-Amusement cards (loader's server); menus on the menu buttons (b1-b4: Left Ctrl / Left Alt / Space / Left Shift), not the pad arrows | not in the test |  |
-| `yugioh-duel-terminal-6` | Yu-Gi-Oh! 5D's Duel Terminal 6 | konami | works (user: 100%), touch screen (mouse, red pointer); limits: no card scanning (the camera gives blank pictures), dump lacks `data/sem0` (some common sound effects), a black frame where a preview clip loops; movies seek with GE patch 0103 (winedmo) | not in the test |  |
+| `dance-dance-revolution-2013` | Dance Dance Revolution 2013 | konami | works (user: 100%), e-Amusement cards (loader's server) | not in the test |  |
+| `yugioh-duel-terminal-6` | Yu-Gi-Oh! 5D's Duel Terminal 6 | konami | works (user: 100%) | not in the test |  |
 | `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%), e-Amusement cards for both players (loader's server) | not in the test |  |
 | `metal-gear-arcade` | Metal Gear Arcade | konami | works (user: 100%), gun, e-Amusement cards (loader's server), test menu | not in the test |  |
 | `steel-chronicle-victroopers` | Steel Chronicle Victroopers | konami | works (user: 100%), two flight sticks, touch screen (mouse or gun), e-Amusement cards (loader's server) | not in the test |  |
+| `silent-scope-bone-eater` | Silent Scope: Bone Eater (Widescreen Edition) | konami | works (user: 100%), gun or mouse, scope tap / hold | not in the test |  |
 | `road-fighters-3d` | Road Fighters 3D | konami | works (headless tests: attract, race, test menu) | not in the test |  |
 | `contra-evolution` | Contra: Evolution | konami | works (user: 100%) | not in the test |  |
 | `wartran-troopers` | Wartran Troopers | konami | works (user: 100%) | not in the test |  |
 | `lethal-enforcers-3` | Lethal Enforcers 3 | konami | works (user: 100%), 1 gun, player 1's screen (rival's screen option), test menu | not in the test |  |
 | `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | not in the test |  |
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | not in the test |  |
-| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%), e-Amusement card (player kept by the loader: class, girls' experience / rank / decks / dress; skills, items, missions not yet) | not in the test |  |
+| `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | not in the test |  |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | not in the test |  |
-| `dino-invasion` | Dino Invasion | unis | works (user: 100%), 4 guns | not in the test |  |
+| `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun | not in the test |  |
+| `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun | not in the test |  |
+| `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns | not in the test |  |
+| `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | not in the test |  |
+| `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons | not in the test |  |
+| `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns | not in the test |  |
+| `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | user 100%, 1 gun | not in the test |  |
+| `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | not in the test |  |
+| `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | not in the test |  |
+| `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | not in the test |  |
+| `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | not in the test |  |
+| `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | not in the test |  |
 <!-- GAMELIST END -->
