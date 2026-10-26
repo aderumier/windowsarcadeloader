@@ -6,6 +6,9 @@
 //! function for an export name (the cabinet's dongle and I/O DLLs, `kernel32`'s serial functions
 //! for a port the payload emulates). Mono resolves a `DllImport` at its first call: the game's
 //! hardware code runs long after the runtime is loaded.
+//!
+//! An IL2CPP game's `DllImport`s are resolved the same way, by `GameAssembly.dll` (its own
+//! `LoadLibrary` and `GetProcAddress` imports): hooked the same.
 
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::OnceLock;
@@ -68,7 +71,7 @@ pub fn hook(resolve: Resolver) {
 
 /// Hooks the runtime's `GetProcAddress`, if it is loaded.
 fn hook_runtime() -> bool {
-    for dll in [windows_sys::w!("mono-2.0-bdwgc.dll"), windows_sys::w!("mono.dll")] {
+    for dll in [windows_sys::w!("mono-2.0-bdwgc.dll"), windows_sys::w!("mono.dll"), windows_sys::w!("GameAssembly.dll")] {
         let mono = unsafe { GetModuleHandleW(dll) } as usize;
         if mono == 0 {
             continue;

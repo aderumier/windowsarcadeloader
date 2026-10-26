@@ -3541,6 +3541,32 @@ logs; its `TopData.db` (SQLite) holds the settings and the guns' aim calibration
 - **Dongle.** The developer's switch `C:\Boys` (`HASP.EnvConfig.IsBoys`: no retool request,
   unlimited time): the payload creates it.
 
+#### Hot Shots Fire Rescue
+
+Dacheng's "UAF" framework (`FireHero.exe`, Unity 2019.2, IL2CPP, 32-bit: `GameAssembly.dll`,
+the 2022-11-23 v3.3), four water cannons. The dump is rebuilt without the repack's launcher
+(memory patches: dongle, keyboard and mouse controls), its scripts and its board trace.
+IL2CPP resolves the game's `DllImport`s with `GameAssembly.dll`'s `GetProcAddress`, hooked
+like Mono's (`payload-common`'s `mono_imports.rs`). The input places are scene data, read
+from the live `UAF_ControlManager` (Il2CppDumper's `dump.cs` offsets).
+
+- **IO board (`uaf.rs`, `WAL_ARCADEPC_BOARD=uaf`).** `io_board.dll`: `openIOBoard` 0
+  (opened), `readIOBoard` a 32-byte report the game copies as is (`UAF_Board.UpdateIO`; an
+  input is `dataReceived[byte] & bit`), `writeIOBoard` (lamps, motors, pumps, tickets)
+  accepted. Byte 2 test 0x20, service 0x40, repair 0x80; byte 3 coins P1 0x01, P2 0x02,
+  starts P1 0x40, P2 0x80, the tank's level switches (0x04 low, 0x10 normal, 0x08 high:
+  filled 0x14, else "Add Water"); byte 29 coins P3 0x01, P4 0x02, triggers P1..P4 0x04 0x08
+  0x10 0x20, starts P3 0x40, P4 0x80. The control board (`control_board.dll`) is not used.
+- **SuperDog** (`api_dsp_windows.dll`, stdcall: each function pops its arguments): logged
+  in, data file 65524 zeros: `CheckDog` reads a perpetual licence.
+- **Aim.** The cannons' potentiometers (bytes 8..24) go through a 13-point grid calibration
+  (`Save.ini`, bytes shifted by 7); `UAF_ControlManager.MoveGunController` (RVA 0x42E910,
+  prologue checked) jumps to the payload's: the target is the cannon's place on the picture
+  in the game's centered pixels (x -960..960, y -540..540 up), its "moved" flag set. The game
+  draws each cannon's target ring.
+- **Encoding.** `UAF_DataManager.Awake`'s `Encoding.Default` throws (IL2CPP has no code page
+  encoding but UTF-8, `CP1252` or `CP936` alike): caught by the game, as on the cabinet.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -3936,6 +3962,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | ridong's "jixiesheqiu" (Unity 2017.4, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `gameport.dll`, `wal-loader`) is the I/O DLL's C API; calibration in the dump's `D/jijiasheqiu.ini` |
 | `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons | Mrcq's "xiaofang" (Unity 2017.4, 64-bit, §6.3i): rebuilt dump; the payload (`xinput1_3.dll`) answers its `gameport.dll` C API; calibration in the dump's `xiaofang.ini` |
 | `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns | SpiderZSoft (Unreal Engine 4.25, 64-bit, §6.3i): rebuilt dump; the payload is its `GamePort.dll` (`GetInstance`'s object); calibration identity in the dump's `uiback.sav` |
+| `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |

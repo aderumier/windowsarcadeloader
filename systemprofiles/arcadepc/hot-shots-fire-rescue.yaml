@@ -1,0 +1,27 @@
+# Hot Shots Fire Rescue (the "UAF" cabinet, Unity 2019.2, IL2CPP, 32-bit) - template, override
+# values in userprofiles/arcadepc/hot-shots-fire-rescue.yaml.
+# Four water cannons. The payload emulates the cabinet's IO and control boards and its
+# SuperDog dongle (docs §6.3i).
+system: arcadepc
+name: Hot Shots Fire Rescue
+
+# Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: uaf
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Cannon aim (x)
+  ly: Cannon aim (y)
+  b1: Water
+  start: Start
+  coin: Coin
+  test: Test
+  service: Service

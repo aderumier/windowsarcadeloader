@@ -46,6 +46,7 @@ mod gameport;
 mod jxboard;
 mod pads;
 mod topgun;
+mod uaf;
 mod zombiecrisis;
 
 use std::ffi::c_void;
@@ -100,6 +101,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 pads::disconnect();
                 wal_payload_common::input_filter::init(unity, |_| false);
                 boys::init();
+            }
+            _ if board.trim() == "uaf" => {
+                pads::disconnect();
+                wal_payload_common::input_filter::init(unity, |_| false);
+                uaf::init();
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();
