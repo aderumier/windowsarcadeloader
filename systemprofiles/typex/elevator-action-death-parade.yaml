@@ -43,7 +43,7 @@ env:
   # pictures (payload doors.rs; WAL_TYPEX_BEZEL: "0": doors only, black bars).
   WAL_TYPEX_DOORS: "Attraction Doors Pack"
   # "1": each player's crosshair (the dump's P1.png / P2.png) while their gun moves.
-  WAL_TYPEX_CROSSHAIRS: "0"
+  WAL_CROSSHAIR: "0"
   # Portrait 720x1280 picture (the cabinet's screen): a windowed 720x1280 device in a
   # screen-sized borderless window. doors.rs shows the screen composed from it (picture,
   # doors, bezel) in a window of its own over it; without it the picture is presented to a

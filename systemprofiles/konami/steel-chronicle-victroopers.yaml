@@ -20,7 +20,7 @@ env:
   # the e-Amusement card (GUI window), its PIN set, starts inserted ("0": inserted with the card key, F4)
   WAL_KONAMI_CARD_AUTO: "1"
   # the touch pointer (the mouse or gun) shown as a small red dot
-  WAL_KONAMI_CROSSHAIRS: "1"
+  WAL_CROSSHAIR: "1"
   WAL_KONAMI_CROSSHAIR_AXES: pedals
   WAL_KONAMI_CROSSHAIR_STYLE: disc
   WAL_KONAMI_CROSSHAIR_SIZE: "1"
@@ -61,7 +61,7 @@ options:
         description: >-
           With the e-Amusement card's PIN set (the e-Amusement card window), the card is in the reader from the start (F4 still ejects and
           inserts it). Off: insert it with F4.
-      - key: WAL_KONAMI_CROSSHAIRS
+      - key: WAL_CROSSHAIR
         label: Touch pointer
         kind: bool
         description: >-

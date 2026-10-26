@@ -138,7 +138,7 @@ fn loaded(name: &str, base: usize) {
         iat::set_game_module(base);
         wal_payload_common::start("konami");
         crate::ark::split_font_collections(base);
-        // the touch pointer shown (WAL_KONAMI_CROSSHAIRS)
+        // the touch pointer shown (WAL_CROSSHAIR)
         crate::crosshair::init();
         let touch = module("libtouchpanel3m.dll");
         if touch != 0 {

@@ -1,0 +1,43 @@
+# Point Blank X (Bandai Namco, 2016, Unity 5.1 / Mono, 32-bit) - template, override values in
+# userprofiles/namcoes3/point-blank-x.yaml.
+# The cabinet's USIO board (buttons, coins) and gun board are the game's
+# PBX100-2-NA-MPR0-A63_Data/Plugins/bnusio.dll: the payload replaces it, loaded at the
+# executable's entry point (input filters before Unity's), the same module the game's Mono
+# DllImports then use.
+system: namcoes3
+name: Point Blank X
+
+payload_install: [PBX100-2-NA-MPR0-A63_Data/Plugins/bnusio.dll]
+payload_loader: true
+
+# The cabinet's controller mode (CONTROLLER 0: USIO and gun board; the dump's is 1, the PC
+# keyboard and mouse), saves in NVRAM/ as the dump's.
+files:
+  PBX100-2-NA-MPR0-A63_Data/Setting.ini: systemprofiles/namcoes3/files/point-blank-x/Setting.ini
+
+# BepInEx (its doorstop winhttp.dll) and another input plugin some dumps carry: not loaded.
+hide: [winhttp.dll, doorstop_config.ini]
+
+env:
+  # the game's own crosshairs (off on the cabinet): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Operator menu enter
+  b6: Gun off screen
+  up: Operator menu up
+  down: Operator menu down
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test (operator menu)

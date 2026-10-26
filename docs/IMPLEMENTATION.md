@@ -1525,6 +1525,49 @@ parts: `amcus/` (AMAuthd replacement), `board/` (NA-JV JVS board, Banapass seria
   temporary hardware write watchpoint on the kart's throttle input; pedal values themselves
   were correct.
 
+#### Point Blank X
+
+`PBX100-2-NA-MPR0-A63.exe` (Unity 5.1.3, Mono, 32-bit). The cabinet's I/O is the Mono
+`DllImport`s of `BNUsio` (`Assembly-CSharp-firstpass.dll`) into
+`PBX100-2-NA-MPR0-A63_Data/Plugins/bnusio.dll` (cdecl, plain names): the USIO board (switches,
+coin and service counters, outputs) and the gun board on a COM port (`GUNPORT`). The game uses it
+when `Setting.ini` says `CONTROLLER 0`; `1` is a PC keyboard/mouse mode (dumps ship with `1`
+and a BepInEx input plugin).
+
+- **Install.** `payload_install` puts `wal_bngrw.dll` in place of `Plugins/bnusio.dll` and
+  `payload_loader` loads it at the executable's entry point (wal-loader): the filters are in
+  place before Unity's first frame, and Mono's later load of that path gets the same module.
+  The payload's `DllMain` takes the PBX path from its own file name (`bnusio.rs`).
+- **Board (`bnusio.rs`).** `BNUsioController.update` calls `usio_Communication` once per
+  frame, then `usio_GetSwIn` (test 0x80, service 0x4000, up 0x2000, down 0x1000, enter 0x200,
+  P1 start `SW_PUSH17` 0x2000000, P2 start `SW_PUSH18` 0x1000000), `usio_GetCoin` /
+  `usio_GetService` (counters the game decrements with `usio_DecCoin` / `usio_DecService`) and
+  the guns. The virtual sticks are sampled in `usio_Communication` (edges for coin, service,
+  test toggle). Boot checks: `usio_GetSystemError` 0, `usio_GetFirmwareVersion` 120..=126,
+  `gun_OpenEx` 0. Gun positions are 10-bit values shifted by 6 (the original's `<< 6`),
+  divided by 65535 and passed through `EightPointsGunCalibration`, whose default (no saved
+  calibration) is the identity with y up: `lx` as is, `ly` flipped, 0 avoided (no position
+  for the game). `gun_IsInRange` false while the `offscreen` native is held (b6, the gun's
+  off-screen source). Natives for `native_map`: `trigger offscreen start coin service test up
+  down enter`.
+- **Test switch.** It latches on the cabinet: `test` toggles it (`WAL_NAMCOES3_TEST_TOGGLE=0`:
+  held). On: the operator menu (`OperatorScene`); off: back to the game.
+- **Crosshairs.** The game draws one per player when `GlobalData.isCrosshairVisible` (false by
+  default, the cabinet has none). `WAL_CROSSHAIR=1` (the common option, the profile's default) sets it from
+  `usio_Communication` (the game's main thread, Mono attached): the `Singleton<GlobalData>`
+  instance is found with `mono_reflection_type_from_name`
+  (``Artoncode.Core.Singleton`1[[GlobalData, Assembly-CSharp]]``, `mono.rs`'
+  `class_of_type_name`).
+- **Serial number.** The boot check shows `HKLM\SOFTWARE\NBGI\SerialNumber` (ERROR when
+  missing, not fatal), written at load (`WAL_NAMCOES3_SERIAL`, default `WAL000000001`).
+- **Input filter.** Unity reads the keyboard (Escape quits) and, in the simulated mode, the
+  mouse: `payload-common`'s `input_filter` (shared with arcade PC, the executable's
+  `PeekMessage`/`GetMessage` since Unity 5 has no `UnityPlayer.dll`).
+- **Display.** `BootSceneController.Start` sets 1280x720 full screen; the picture is scaled
+  to the screen.
+- **Not done.** Outputs (gun recoil `gun_StrikeOnce`, start lamps `usio_SetGout` 15/16, player
+  lamps 9/10), the ticket dispenser (`TICKET 0`).
+
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 
 RingEdge games (Virtua Tennis 4; RingEdge 2: Guilty Gear XX Accent Core Plus R) link Sega's amLib statically and import no driver DLL: the
@@ -1960,7 +2003,7 @@ profile installs the payload as `libbms.dll` (`payload_install`).
   coins per credit, `bms_IG2.exe`'s coin.xml layout): a game is start kind 1, 2 credits by
   default (`/coin/p<player>s<kind>a1`).
 - **Crosshairs (`crosshair.rs`).** Nothing shows where a throw lands (the real balls did):
-  `WAL_KONAMI_CROSSHAIRS=1` draws each player's aim before `Present` (payload-common's d3d9
+  `WAL_CROSSHAIR=1` draws each player's aim before `Present` (payload-common's d3d9
   overlay: alpha-blended quads, the game's states in a state block, its render target and depth
   buffer restored), a built-in shape (`WAL_KONAMI_CROSSHAIR_STYLE`) or the player's PNG
   (`WAL_KONAMI_CROSSHAIR_P1`..`_P4`), in the player's color, `WAL_KONAMI_CROSSHAIR_SIZE` % of
@@ -2172,7 +2215,7 @@ exports under their MSVC names in `libacio.def`).
   the borderless screen-sized window (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`),
   stretched to it (the profile's default) or aspect kept (`WAL_KEEP_ASPECT_RATIO=1`, Batocera's
   KEEP ASPECT RATIO); the pointers are mapped onto that area. The test menu draws in the left 640x480.
-- **Crosshairs.** `WAL_KONAMI_CROSSHAIRS` as Gashaaaan Refill!'s, drawn after the scaling with
+- **Crosshairs.** `WAL_CROSSHAIR` as Gashaaaan Refill!'s, drawn after the scaling with
   the fixed-function pipeline (`crosshair::draw_gl`: the game's attributes, matrices, texture
   units and program saved around them).
 - A fresh `F/` shows OPTION SETTINGS / BOOKKEEPING BACKUP DATA ERROR: TEST repairs them.
@@ -2383,7 +2426,7 @@ its heaps 30 MB (`WAL_KONAMI_AVS_HEAP_MB`). The payload is its `libacio.dll` (`w
   calibrates): the panel's raw point is the pointer in screen pixels (`read_on_direct`), its
   point the raw one through that calibration (`read_on`); reading the calibration's size as the
   panel's (as before) put the touch 7% short toward the bottom right. The red touch pointer
-  (`WAL_KONAMI_CROSSHAIRS`, `crosshair.rs`, `right-stick` axes) skips lost devices: its state
+  (`WAL_CROSSHAIR`, `crosshair.rs`, `right-stick` axes) skips lost devices: its state
   block kept the game's resources and every `Reset` failed (the game froze).
 
 #### GTI Club: Supermini Festa!
@@ -2851,7 +2894,7 @@ detected by `libpenteltp.dll`).
   made in the test menu is used as is.
 - **Camera.** `libcamera.dll` (DirectShow, none here): its imports answered, one 640x480 RGB24
   camera, blank pictures (no card under it).
-- **Touch pointer.** `WAL_KONAMI_CROSSHAIRS` (on by default): a small red dot where the mouse
+- **Touch pointer.** `WAL_CROSSHAIR` (on by default): a small red dot where the mouse
   points (`crosshair.rs`, `WAL_KONAMI_CROSSHAIR_AXES=right-stick`).
 - Headless: the attract, coins, mode select, Speed Duel's tutorial (a card dispensed, the duel).
 - **Status.** User: 100%. Limits: no card scanning (the camera's pictures are blank: modes
@@ -3219,7 +3262,7 @@ the arrows browse them (down next, up previous, right/Enter increase or select, 
   `coin` BACK. A shot with the gun off the screen (`offscreen`, the gun's off-screen source on
   b6) is a reload, as the cabinet's guns. `XInputGetCapabilities`, battery, audio GUIDs answered;
   no keystrokes, rumble ignored.
-- **Inputs from the launcher only (`filter.rs`).** The game reads the keyboard through Unity
+- **Inputs from the launcher only (`payload-common`'s `input_filter.rs`).** The game reads the keyboard through Unity
   (window messages, raw input) and `ArcadeControls`' own `GetAsyncKeyState` polling of every key
   each frame and raw input thread (keyboard and mice). Wine's user32 functions are jumps through
   its win32u imports (`GetAsyncKeyState` → `NtUserGetAsyncKeyState`): hooked in user32's import
@@ -3255,9 +3298,24 @@ repository) runs `arcade-launcher run <rom> --root <emulator dir> --profile <es 
   the dump as a `.squashfs` image: configgen mounts it with a writable overlay
   (`writesToRom`, kept in `/userdata/saves/<system>/<image>`) and hands the mounted directory.
 * ES options (`es_features_windowsarcadeloader.cfg`): rotation (`reshade`), renderer (`dxvk`),
-  mouse as gun (`input.guns_mouse`), keyboard (`input.keyboard_enabled`). Only the options set in
+  mouse as gun (`input.guns_mouse`), keyboard (`input.keyboard_enabled`), keep aspect ratio
+  (`env.WAL_KEEP_ASPECT_RATIO`), crosshairs (`env.WAL_CROSSHAIR`, the common crosshair option).
+  Only the options set in
   ES are written to the `--profile` layer (merged last), so a game's own value stays otherwise.
 * Hotkey exit runs `pkill -TERM -x arcade-launcher` (the launcher stops the game on SIGTERM).
+
+### 6.5 Common crosshair option (`WAL_CROSSHAIR`)
+
+One option for every game able to show the players' crosshairs: `env.WAL_CROSSHAIR` (`1`/`0`).
+A game profile setting it declares the game able to, with its default; the payloads read it
+through `wal_payload_common::crosshairs(default)`. The GUI's Options tab gets a "Common" group
+with a Crosshairs checkbox for these games (`Profile::add_common_options`, unless the profile
+declares the key itself, e.g. as "Touch pointer"); Batocera's CROSSHAIRS (ES) writes it in the
+`--profile` layer. Games: Point Blank X (the game's own crosshairs, default on), Gashaaaan,
+Gashaaaan Refill! (konami `crosshair.rs` overlay, on), Elevator Action Death Parade (the dump's
+`P1.png`/`P2.png`, off), and the touch pointers of Winning Eleven 2012, Yu-Gi-Oh! DT6, Steel
+Chronicle (on). A new game: set `WAL_CROSSHAIR` in its profile's `env` and read it with
+`crosshairs()` in the payload.
 
 ## 7. Adding a system
 
@@ -3391,6 +3449,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | Game id | Game | System | Result | Needed |
 |---|---|---|---|---|
 | `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented | version-aware dongle skip (v1.10.22 and v1.18.16), offline router/network bypass, 61-slot IPC compatibility object, Namco ES3 JVS steering and pedals, test-menu settings saved on F:/G: game drives, fullscreen DXVK; force feedback from the game's steering-force float (1.18 offsets implemented; physical wheel output unverified) |
+| `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns | `PBX100-2-NA-MPR0-A63.exe` (Unity 5.1, Mono, §6.3c): `Plugins/bnusio.dll` replaced (USIO switches and coins, gun board), loaded by wal-loader at the entry point; profile `Setting.ini` (`CONTROLLER 0`); real keyboard/mouse filtered; cabinet serial in the registry; the game's own crosshairs shown; BepInEx (`winhttp.dll`) hidden |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |
@@ -3473,7 +3532,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | wal-loader, JVS (re-init after bus reset), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA); TODO: dispenser (reference "Skip Boot Check") |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
-| `elevator-action-death-parade` | Elevator Action Death Parade | typex | works (user: 100%, perfect), 2 guns, attraction doors and bezel, crosshairs option | wal-loader, JVS (`7D` acknowledged, cabinet switch layout `elevator-action`, volume knob on analog), guns in the gun board record (`WAL_TYPEX_GUNS`, aim relative to the picture), attraction doors and bezel drawn from the dump's pictures in a screen composed over the game's window (`WAL_TYPEX_DOORS`, `doors.rs`; crosshairs `WAL_TYPEX_CROSSHAIRS`), PhysX 2.8.1 system runtime (`tricks: [physx]`), portrait 720x1280 windowed device, 60 fps, known patches (door board error, door checks) |
+| `elevator-action-death-parade` | Elevator Action Death Parade | typex | works (user: 100%, perfect), 2 guns, attraction doors and bezel, crosshairs option | wal-loader, JVS (`7D` acknowledged, cabinet switch layout `elevator-action`, volume knob on analog), guns in the gun board record (`WAL_TYPEX_GUNS`, aim relative to the picture), attraction doors and bezel drawn from the dump's pictures in a screen composed over the game's window (`WAL_TYPEX_DOORS`, `doors.rs`; crosshairs `WAL_CROSSHAIR`), PhysX 2.8.1 system runtime (`tricks: [physx]`), portrait 720x1280 windowed device, 60 fps, known patches (door board error, door checks) |
 | `king-of-fighters-xiii` | The King of Fighters XIII | typex | works (user: 100%) | wal-loader, JVS (native 1280x720 in a fullscreen window, no override) |
 | `kof-xiii-climax-typex2` | The King of Fighters XIII Climax (Type X2) | typex | works (user: 100%) | wal-loader, JVS, Taito crypto service (`WAL_NESICA_KEY: kofxiiiclimax`, plaintext reply: media.kof is encrypted, black screen without it), dshow find-filter, xact, as the NESiCA build |
 | `music-gungun-2` | Music GunGun! 2 | typex | works (user: perfect), attract movie, sound, 2 guns | wal-loader, JVS, guns in both gun records (`WAL_TYPEX_GUNS`), `WAL_PIN_CWD`, patches: 0x137C70, 60 Hz-only mode enumeration (screens at 120 Hz), 1920x1080 instead of 1360x768 (no such Xwayland mode), volume knob at maximum (muted otherwise); start keys = trigger; GE-master video DLLs (0080: attract movie hung) |

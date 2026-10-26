@@ -24,9 +24,9 @@
 //! blended); that swap chain is presented instead of the game's. The guns aim relative to the
 //! picture (`guns::set_picture`).
 //!
-//! `WAL_TYPEX_CROSSHAIRS=1`: each player's aim drawn over the screen with the game directory's
-//! `P1.png` / `P2.png` (sized for a 1080-line screen, scaled with it), while that player's gun
-//! moved in the last few seconds.
+//! `WAL_CROSSHAIR=1` (the common crosshair option): each player's aim drawn over the screen
+//! with the game directory's `P1.png` / `P2.png` (sized for a 1080-line screen, scaled with
+//! it), while that player's gun moved in the last few seconds.
 
 use std::ffi::c_void;
 use std::sync::Mutex;
@@ -69,7 +69,7 @@ pub(crate) fn init() {
         return;
     }
     let bezel = std::env::var("WAL_TYPEX_BEZEL").map_or(true, |v| v != "0");
-    let crosshairs = if std::env::var("WAL_TYPEX_CROSSHAIRS").is_ok_and(|v| v == "1") {
+    let crosshairs = if wal_payload_common::crosshairs(false) {
         ["P1.png", "P2.png"]
             .iter()
             .filter_map(|name| match read_png(std::path::Path::new(name)) {
@@ -173,7 +173,7 @@ struct State {
     bezel: bool,
     pack: Option<Pack>,
     res: Option<Resources>,
-    /// Crosshair pictures of players 1, 2 (`WAL_TYPEX_CROSSHAIRS`).
+    /// Crosshair pictures of players 1, 2 (`WAL_CROSSHAIR`).
     crosshairs: Vec<Image>,
     /// Each player's last aim and when it last moved.
     aims: [((i16, i16), Option<Instant>); 2],

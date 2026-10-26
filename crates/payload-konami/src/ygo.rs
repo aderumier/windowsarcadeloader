@@ -53,7 +53,7 @@ pub fn init() {
     let name: Vec<u16> = "libpenteltp.dll\0".encode_utf16().collect();
     let panel = unsafe { GetModuleHandleW(name.as_ptr()) } as usize;
     serial::install_streaming_in("COM1", panel_command, panel_stream, &[panel]);
-    // the touch pointer shown (WAL_KONAMI_CROSSHAIRS)
+    // the touch pointer shown (WAL_CROSSHAIR)
     crate::crosshair::init();
     restore_edges(panel);
     default_calibration();

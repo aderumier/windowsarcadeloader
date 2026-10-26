@@ -1,5 +1,5 @@
-//! `WAL_KONAMI_CROSSHAIRS=1`: each player's aim drawn over the picture (Gashaaaan Refill! and
-//! Gashaaaan: the cabinet's players see where their real balls go, here nothing shows where a
+//! `WAL_CROSSHAIR=1` (the common crosshair option): each player's aim drawn over the picture
+//! (Gashaaaan Refill! and Gashaaaan: the cabinet's players see where their real balls go, here nothing shows where a
 //! throw lands).
 //!
 //! - `WAL_KONAMI_CROSSHAIR_STYLE`: the built-in shape, `ring-cross` (default), `cross`, `ring`,
@@ -145,7 +145,7 @@ pub fn init_gl() -> bool {
 
 /// The options read, the players' pictures made. Whether the crosshairs are on.
 fn load() -> bool {
-    if !std::env::var("WAL_KONAMI_CROSSHAIRS").is_ok_and(|v| v == "1") {
+    if !wal_payload_common::crosshairs(false) {
         return false;
     }
     let style = std::env::var("WAL_KONAMI_CROSSHAIR_STYLE").unwrap_or_default();

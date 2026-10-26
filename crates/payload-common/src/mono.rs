@@ -38,6 +38,8 @@ pub struct Mono {
     class_get_type: unsafe extern "C" fn(P) -> P,
     type_get_object: unsafe extern "C" fn(P, P) -> P,
     compile_method: unsafe extern "C" fn(P) -> P,
+    reflection_type_from_name: unsafe extern "C" fn(*mut c_char, P) -> P,
+    class_from_mono_type: unsafe extern "C" fn(P) -> P,
 }
 
 /// Mono, once the game has loaded it.
@@ -81,6 +83,8 @@ pub fn mono() -> Option<&'static Mono> {
             class_get_type: std::mem::transmute(get("mono_class_get_type")?),
             type_get_object: std::mem::transmute(get("mono_type_get_object")?),
             compile_method: std::mem::transmute(get("mono_compile_method")?),
+            reflection_type_from_name: std::mem::transmute(get("mono_reflection_type_from_name")?),
+            class_from_mono_type: std::mem::transmute(get("mono_class_from_mono_type")?),
         }
     };
     Some(MONO.get_or_init(|| m))
@@ -118,6 +122,21 @@ impl Mono {
             return image;
         }
         unsafe { (self.class_from_name)(image, c(namespace).as_ptr(), c(name).as_ptr()) }
+    }
+
+    /// The class of a full type name looked up from `image`, generic instances included
+    /// (``Ns.Singleton`1[[GlobalData, Assembly-CSharp]]``).
+    pub fn class_of_type_name(&self, image: P, name: &str) -> P {
+        if image.is_null() {
+            return image;
+        }
+        // parsed in place
+        let mut name = c(name).into_bytes_with_nul();
+        let ty = unsafe { (self.reflection_type_from_name)(name.as_mut_ptr().cast(), image) };
+        if ty.is_null() {
+            return ty;
+        }
+        unsafe { (self.class_from_mono_type)(ty) }
     }
 
     pub fn field(&self, class: P, name: &str) -> P {

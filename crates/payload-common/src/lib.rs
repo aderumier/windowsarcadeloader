@@ -30,6 +30,8 @@ pub mod font;
 pub mod dshow;
 #[cfg(windows)]
 pub mod iat;
+#[cfg(windows)]
+pub mod input_filter;
 // JSON values (servers' requests and answers)
 pub mod json;
 pub mod jvs;
@@ -208,6 +210,13 @@ pub fn request_relaunch(args: &str) {
 /// Started again at the payload's request ([`request_relaunch`]).
 pub fn relaunched() -> bool {
     std::env::var(wal_protocol::env::RELAUNCH).is_ok_and(|v| v == "1")
+}
+
+/// The common crosshair option, `WAL_CROSSHAIR` (`1`/`0`): the game profile's default, the
+/// GUI's or Batocera's choice. Whether the payload shows the players' crosshairs (`default`
+/// when unset).
+pub fn crosshairs(default: bool) -> bool {
+    std::env::var("WAL_CROSSHAIR").map_or(default, |v| matches!(v.trim(), "1" | "true" | "on"))
 }
 
 /// Reports a game output to the launcher (dropped while disconnected).

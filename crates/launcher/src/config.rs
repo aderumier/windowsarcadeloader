@@ -12,6 +12,9 @@ pub type MapTable = BTreeMap<String, String>;
 
 pub const SYSTEM_PROFILES: &str = "systemprofiles";
 pub const USER_PROFILES: &str = "userprofiles";
+/// The common crosshair option (`1`/`0`), in `env`: a game profile setting it (its default)
+/// can show crosshairs; the GUI's Common options and Batocera's CROSSHAIRS change it.
+pub const CROSSHAIR_ENV: &str = "WAL_CROSSHAIR";
 const DEFAULTS: &str = include_str!("defaults.yaml");
 
 /// Graphics stack for old DirectDraw/D3D games.
@@ -330,7 +333,36 @@ impl Profile {
         profile.root = root.to_path_buf();
         profile.id = id.to_string();
         profile.sources = sources;
+        profile.add_common_options();
         Ok(profile)
+    }
+
+    /// The common options of the games able to use them, for the GUI's Options tab (unless the
+    /// game declares the option itself, with its own label): the crosshairs of the games whose
+    /// profile sets [`CROSSHAIR_ENV`] (their default).
+    fn add_common_options(&mut self) {
+        let declared = |key: &str| self.options.iter().flat_map(|g| &g.options).any(|o| o.key == key);
+        if self.env.contains_key(CROSSHAIR_ENV) && !declared(CROSSHAIR_ENV) {
+            self.options.insert(
+                0,
+                OptionGroup {
+                    title: Some("Common".into()),
+                    options: vec![GameOption {
+                        key: CROSSHAIR_ENV.into(),
+                        label: Some("Crosshairs".into()),
+                        kind: OptionKind::Bool,
+                        choices: Vec::new(),
+                        min: None,
+                        max: None,
+                        description: Some(
+                            "Each player's crosshair shown where the gun (or mouse) aims. Batocera: \
+                             CROSSHAIRS in the game's advanced settings."
+                                .into(),
+                        ),
+                    }],
+                },
+            );
+        }
     }
 
     /// Defaults and `launcher.yaml` only, without a game (input test).
@@ -573,6 +605,26 @@ options:
         merge(&mut v, serde_yaml_ng::from_str("system: test\n").unwrap());
         let p = Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap();
         assert!(p.options.is_empty());
+    }
+
+    #[test]
+    fn common_crosshair_option() {
+        let load = |yaml: &str| {
+            let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
+            merge(&mut v, serde_yaml_ng::from_str(yaml).unwrap());
+            Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap()
+        };
+        // a game setting the crosshair default gets the common option first
+        let p = load("system: test\nenv: {WAL_CROSSHAIR: \"1\"}\noptions: [{title: Game, options: [{key: WAL_X}]}]\n");
+        assert_eq!(p.options.len(), 2);
+        assert_eq!(p.options[0].title.as_deref(), Some("Common"));
+        assert_eq!((p.options[0].options[0].key.as_str(), p.options[0].options[0].kind), (CROSSHAIR_ENV, OptionKind::Bool));
+        // declared by the game itself (its own label): not added again
+        let p = load("system: test\nenv: {WAL_CROSSHAIR: \"1\"}\noptions: [{options: [{key: WAL_CROSSHAIR, label: Pointer, kind: bool}]}]\n");
+        assert_eq!(p.options.len(), 1);
+        assert_eq!(p.options[0].options[0].label.as_deref(), Some("Pointer"));
+        // a game without crosshairs: none
+        assert!(load("system: test\n").options.is_empty());
     }
 
     #[test]

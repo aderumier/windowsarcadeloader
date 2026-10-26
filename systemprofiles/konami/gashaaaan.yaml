@@ -25,7 +25,7 @@ env:
   WAL_KEEP_ASPECT_RATIO: "0"
   WAL_HIDE_CURSOR: "1"
   # each player's aim drawn over the picture (where a throw lands)
-  WAL_KONAMI_CROSSHAIRS: "1"
+  WAL_CROSSHAIR: "1"
   WAL_KONAMI_CROSSHAIR_STYLE: ring-cross
   WAL_KONAMI_CROSSHAIR_SIZE: "6"
   WAL_KONAMI_CROSSHAIR_TINT: "1"
@@ -42,7 +42,7 @@ options:
           black bars above and below. Off: stretched to the whole screen.
   - title: Crosshairs
     options:
-      - key: WAL_KONAMI_CROSSHAIRS
+      - key: WAL_CROSSHAIR
         label: Crosshairs
         kind: bool
         description: >-

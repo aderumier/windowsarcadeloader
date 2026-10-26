@@ -1,26 +1,26 @@
-//! The real keyboard and mouse hidden from the game; the keys it polls from the virtual sticks.
+//! The real keyboard and mouse hidden from a Unity game; the keys it polls from the virtual
+//! sticks.
 //!
-//! Galaxy Rangers reads the keyboard three ways: Unity's `Input.GetKeyDown` (its window
-//! messages and raw input), and `ArcadeControls`' own `GetAsyncKeyState` polling of every key
-//! and raw input thread (keyboard and mice). Wine's user32 calls win32u for these
-//! (`GetAsyncKeyState` is a jump through user32's import of `NtUserGetAsyncKeyState`): user32's
-//! imports are hooked, so every caller, Unity's and the Mono `DllImport`s alike, gets ours:
+//! Unity reads the keyboard and mouse through its window messages and raw input; a game's own
+//! code may also poll `GetAsyncKeyState` (Galaxy Rangers' `ArcadeControls`). Wine's user32 calls
+//! win32u for these (`GetAsyncKeyState` is a jump through user32's import of
+//! `NtUserGetAsyncKeyState`): user32's imports are hooked, so every caller, Unity's and the Mono
+//! `DllImport`s alike, gets ours:
 //!
-//! * `GetAsyncKeyState`, `GetKeyState`, `GetKeyboardState`: only the operator keys of the
-//!   virtual sticks (`pads::key_held`) are down.
+//! * `GetAsyncKeyState`, `GetKeyState`, `GetKeyboardState`: only the keys the payload's
+//!   `key_held` reports (operator keys from the virtual sticks) are down.
 //! * `GetRawInputData`: keyboard reports become the release of no key (virtual key 0xFF), mouse
 //!   reports a motion of 0 without buttons.
-//! * UnityPlayer's `PeekMessage` / `GetMessage`: keyboard and mouse button messages become
-//!   `WM_NULL`.
+//! * The Unity player's `PeekMessage` / `GetMessage` (`UnityPlayer.dll`, or the executable of
+//!   Unity 5 and older): keyboard and mouse button messages become `WM_NULL`.
 
 use std::ffi::c_void;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use wal_payload_common::{iat, log};
+use crate::{iat, log};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{MSG, WM_KEYFIRST, WM_KEYLAST, WM_KEYUP, WM_LBUTTONDOWN, WM_MOUSEHWHEEL, WM_NULL};
-
-use crate::pads::key_held;
 
 type P = *mut c_void;
 
@@ -29,6 +29,7 @@ static PEEK_MESSAGE_A: AtomicUsize = AtomicUsize::new(0);
 static PEEK_MESSAGE_W: AtomicUsize = AtomicUsize::new(0);
 static GET_MESSAGE_A: AtomicUsize = AtomicUsize::new(0);
 static GET_MESSAGE_W: AtomicUsize = AtomicUsize::new(0);
+static KEY_HELD: OnceLock<fn(i32) -> bool> = OnceLock::new();
 
 /// `GetRawInputData` command returning the whole report.
 const RID_INPUT: u32 = 0x1000_0003;
@@ -41,13 +42,17 @@ const RAWKEYBOARD: usize = 16;
 /// RAWMOUSE: flags, button flags and data, raw buttons, last x, last y, extra.
 const RAWMOUSE: usize = 24;
 
-fn module(name: &str) -> usize {
-    let wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
-    unsafe { GetModuleHandleW(wide.as_ptr()) as usize }
+/// A virtual key reported down.
+fn key_held(vk: i32) -> bool {
+    KEY_HELD.get().is_some_and(|f| f(vk))
 }
 
-pub(crate) fn init() {
-    let user32 = module("user32.dll");
+/// Installs the filters. `unity`: the module importing the Unity player's message functions
+/// (`UnityPlayer.dll`, or the executable of Unity 5 and older; 0: none). `key_held`: whether a
+/// virtual key is down for the game.
+pub fn init(unity: usize, key_held: fn(i32) -> bool) {
+    let _ = KEY_HELD.set(key_held);
+    let user32 = unsafe { GetModuleHandleW(windows_sys::w!("user32.dll")) as usize };
     let win32u: [(&str, usize, Option<&AtomicUsize>); 4] = [
         ("NtUserGetAsyncKeyState", get_async_key_state as *const () as usize, None),
         ("NtUserGetKeyState", get_key_state as *const () as usize, None),
@@ -64,7 +69,6 @@ pub(crate) fn init() {
             None => log!("filter: user32 does not import win32u!{name}: the real keyboard may reach the game"),
         }
     }
-    let unity = module("UnityPlayer.dll");
     if unity == 0 {
         return;
     }

@@ -22,3 +22,52 @@ EXPORTS
     "_BngRwReqSendUrlTo@32"=BngRwReqSendUrlTo@32
     "_BngRwReqWaitTouch@20"=BngRwReqWaitTouch@20
     "_BngRwSetLedPower@12"=BngRwSetLedPower@12
+    ; Point Blank X's bnusio.dll (USIO and gun board, cdecl, plain names)
+    gun_Close
+    gun_GetLed
+    gun_GetPositionX
+    gun_GetPositionY
+    gun_GetRomVersion
+    gun_IsInRange
+    gun_IsLedChecked
+    gun_IsTriggered
+    gun_Open
+    gun_OpenEx
+    gun_SendCommand
+    gun_StrikeOnce
+    usio_Close
+    usio_Communication
+    usio_DecCoin
+    usio_DecService
+    usio_Finalize
+    usio_GetAnalogIn
+    usio_GetBuffer
+    usio_GetCoin
+    usio_GetCoinError
+    usio_GetExpansionMode
+    usio_GetFirmwareVersion
+    usio_GetGout
+    usio_GetIoBoardNameString
+    usio_GetRegisterU16
+    usio_GetRegisterU8
+    usio_GetService
+    usio_GetServiceError
+    usio_GetSwIn
+    usio_GetSwIn64
+    usio_GetSystemError
+    usio_Initialize
+    usio_IsConnected
+    usio_Open
+    usio_ResetCoin
+    usio_ResetIoBoard
+    usio_SetBuffer
+    usio_SetExpansionMode
+    usio_SetGout
+    usio_SetHopperLimit
+    usio_SetHopperRequest
+    usio_SetPLCounter
+    usio_SetRegisterU16
+    usio_SetRegisterU8
+    usio_SetSystemError
+    usio_Sram_Read
+    usio_Sram_Write

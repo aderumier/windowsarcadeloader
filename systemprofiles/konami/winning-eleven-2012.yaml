@@ -22,7 +22,7 @@ env:
   # an external e-Amusement server's services URL instead (e.g. http://192.168.1.10:8083/)
   WAL_KONAMI_SERVICES: ""
   # the touch pointer: a small red dot where the mouse or gun points
-  WAL_KONAMI_CROSSHAIRS: "1"
+  WAL_CROSSHAIR: "1"
   WAL_KONAMI_CROSSHAIR_AXES: right-stick
   WAL_KONAMI_CROSSHAIR_STYLE: disc
   WAL_KONAMI_CROSSHAIR_SIZE: "1"
@@ -44,7 +44,7 @@ options:
         description: >-
           An external e-Amusement server's services URL (e.g. http://192.168.1.10:8083/), used
           instead of the loader's own. Empty: the loader's server (when on).
-      - key: WAL_KONAMI_CROSSHAIRS
+      - key: WAL_CROSSHAIR
         label: Touch pointer
         kind: bool
         description: >-
