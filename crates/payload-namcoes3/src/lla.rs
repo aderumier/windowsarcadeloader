@@ -178,7 +178,8 @@ static STATUS_WINDOW: AtomicUsize = AtomicUsize::new(0);
 /// 30 times a second, full screen in test mode (0x62ee0: the test menu, the game window
 /// shrunk). It took the game's focus, GNOME pinged it ("not responding"), and over the game
 /// as a popup it took the game out of full screen. It is created as a borderless popup (out of
-/// the window manager) and, while small, moved off the screen without activation. Its first
+/// the window manager) and, while small, moved off the screen without activation; full
+/// screen (test menu), it is activated, and so is the game window it puts back. Its first
 /// show stays as it is: hidden or shown without activation, its test menu pages were never
 /// built (a crash in test mode, 0x48210).
 unsafe extern "system" fn create_window(
@@ -205,7 +206,17 @@ unsafe extern "system" fn set_window_pos(hwnd: usize, after: isize, x: i32, y: i
         // off the screen, not activated
         return unsafe { orig(hwnd, after, -4096, -4096, w, h, flags | SWP_NOACTIVATE) };
     }
-    unsafe { orig(hwnd, after, x, y, w, h, flags) }
+    let r = unsafe { orig(hwnd, after, x, y, w, h, flags) };
+    // A window the launcher puts full screen on top (its test menu, or the game back after
+    // it): the window manager kept the active game above it until it is activated.
+    const HWND_TOPMOST: isize = -1;
+    if after == HWND_TOPMOST && h >= 800 && flags & SWP_NOACTIVATE == 0 {
+        unsafe extern "system" {
+            fn SetForegroundWindow(hwnd: usize) -> i32;
+        }
+        unsafe { SetForegroundWindow(hwnd) };
+    }
+    r
 }
 
 pub(crate) fn attach(exe: &str, base: usize) {

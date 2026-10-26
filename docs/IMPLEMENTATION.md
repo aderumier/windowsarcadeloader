@@ -1626,7 +1626,9 @@ menu) starts `LLA\Binaries\Win64\DomeShooterGame-Win64-Shipping.exe`; they share
   full screen (GDI menu) and the game window shrinks to 256x60 (0x62ee0), the reverse when it
   ends (0x62fd0). The overlay took the game's focus and GNOME pinged it ("not responding");
   over the game as a popup it took the game out of full screen. The payload creates it as a
-  popup and, while small, moves it off the screen without activation. Its first show must stay
+  popup and, while small, moves it off the screen without activation; when the launcher puts
+  a window full screen on top (the menu, then the game back), it is activated (the window
+  manager kept the active game above the menu: alt-tab needed). Its first show must stay
   (hidden, or shown without activation: the test menu pages were never built, a crash at
   0x48210 on the test switch). The test switch counts only with the operator panel bit
   (byte 0, 0x01) on. Inside gamescope (headless test runs) the menu is not seen.
