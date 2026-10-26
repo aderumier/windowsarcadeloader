@@ -26,6 +26,9 @@
 //! Mech Dinosaur, Wisdom Zombies (`WAL_ARCADEPC_BOARD=jxboard`): `jxboard.rs` emulates their
 //! COM1 I/O board.
 //!
+//! Skull of Shadow (`WAL_ARCADEPC_BOARD=boys`): `boys.rs` emulates its USB board and its gun
+//! camera.
+//!
 //! Zombie Crisis (`WAL_ARCADEPC_BOARD=zombiecrisis`): `zombiecrisis.rs` is its `GamePort.dll`
 //! (`GetInstance`'s object).
 //!
@@ -36,6 +39,7 @@
 
 #![allow(non_snake_case)]
 
+mod boys;
 mod commking;
 mod demul;
 mod gameport;
@@ -91,6 +95,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 // Unreal's messages: the executable's
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
+            }
+            _ if board.trim() == "boys" => {
+                pads::disconnect();
+                wal_payload_common::input_filter::init(unity, |_| false);
+                boys::init();
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();

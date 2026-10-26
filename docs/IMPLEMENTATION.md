@@ -3511,6 +3511,36 @@ the payload.
   (1920, 0), (0, 1080), (960, 1080), (1920, 1080), the aim unchanged. The game draws each
   gun's sight.
 
+#### Skull of Shadow
+
+The "Boys" cabinet ("海盗传说", Unity 2021.3, Mono `mono-2.0-bdwgc.dll`, 64-bit; the repack's
+`PirateWar.exe` is a stub calling `UnityPlayer.dll`'s `UnityMain`, the game code decrypted),
+four guns. The dump is rebuilt without the repack's BepInEx, DemulShooter plugin, launcher and
+logs; its `TopData.db` (SQLite) holds the settings and the guns' aim calibration. English:
+`Value_Language` 0, and 0 the default `StreamingAssets/Top/TopMenu1.ini` applies at each start
+(the dump's was 1, Chinese).
+
+- **Board (`boys.rs`, `WAL_ARCADEPC_BOARD=boys`).** `Top.Modul.Uart.A` (`TopUart.ini`
+  `UartType 1`) through `BoysUSB.dll` (hidapi), resolved by Mono's `GetProcAddress`: 32-byte
+  reports, `AA`, the inputs at their `TopUart.ini` places (bit n: `1 << (n - 1)`), the frame
+  count at 30, the complement of the sum of the 31 bytes before at 31. Byte 1 the operator's
+  keys (up, right, left / service coin, menu / down), byte 2 the coins, 3 the triggers, 4 the
+  start keys (player n: bit 8 - n), byte 10 the lasers seen (`GunShot`). The PC's reports
+  (lamps, motors, tickets, the lasers' timing, `GameState`) are ignored.
+- **Gun camera.** The cabinet films the screen (`JHCap2.dll`, 320x240 grey): each gun's laser
+  spot is found when the board says its laser is on, undistorted (the lens's fixed model),
+  mapped through `Boys/ConfigGun3.ini`'s screen corners, then through the service menu's
+  five-target calibration. The payload's camera answers black pictures (no camera error, the
+  Unicode `...W` names Mono asks first included); the tracking of a laser seen
+  (`Boys.CamGun3.GunLogic.ProcessRayTracking`) is replaced (`Mono::replace`, once the game's
+  `GunLogic` exists) by the payload's: every gun's place on the picture (0..1 from the top
+  left) stored where the spot found goes (`RayPointTread`, seen: `IsGetRayPoint` 0.3 s), the
+  board reporting player 1's laser on all the time. The dump's calibration
+  (`UartMouse_5_<player>`: the targets at 25 % / 75 % of the screen, scale 0.5:
+  X 250 750 500 250 750, Y 750 750 500 250 250) maps it unchanged.
+- **Dongle.** The developer's switch `C:\Boys` (`HASP.EnvConfig.IsBoys`: no retool request,
+  unlimited time): the payload creates it.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -3906,6 +3936,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | ridong's "jixiesheqiu" (Unity 2017.4, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `gameport.dll`, `wal-loader`) is the I/O DLL's C API; calibration in the dump's `D/jijiasheqiu.ini` |
 | `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons | Mrcq's "xiaofang" (Unity 2017.4, 64-bit, §6.3i): rebuilt dump; the payload (`xinput1_3.dll`) answers its `gameport.dll` C API; calibration in the dump's `xiaofang.ini` |
 | `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns | SpiderZSoft (Unreal Engine 4.25, 64-bit, §6.3i): rebuilt dump; the payload is its `GamePort.dll` (`GetInstance`'s object); calibration identity in the dump's `uiback.sav` |
+| `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |

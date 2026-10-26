@@ -1,0 +1,31 @@
+# Skull of Shadow (the "Boys" cabinet, Unity 2021.3, Mono, 64-bit) - template, override values
+# in userprofiles/arcadepc/skull-of-shadow.yaml.
+# Four guns. The payload emulates the cabinet's USB board (coins, start, triggers, the
+# operator's keys) and its gun camera (docs §6.3i).
+system: arcadepc
+name: Skull of Shadow
+
+# Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: boys
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  start: Start
+  coin: Coin
+  test: Menu
+  down: Menu
+  up: Up
+  left: Left
+  right: Right
