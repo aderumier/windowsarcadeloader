@@ -26,6 +26,9 @@
 //! Mech Dinosaur, Wisdom Zombies (`WAL_ARCADEPC_BOARD=jxboard`): `jxboard.rs` emulates their
 //! COM1 I/O board.
 //!
+//! Zombie Crisis (`WAL_ARCADEPC_BOARD=zombiecrisis`): `zombiecrisis.rs` is its `GamePort.dll`
+//! (`GetInstance`'s object).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -40,6 +43,7 @@ mod jxboard;
 mod mono_imports;
 mod pads;
 mod topgun;
+mod zombiecrisis;
 
 use std::ffi::c_void;
 
@@ -48,6 +52,7 @@ use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 
 pub use pads::*;
+pub use zombiecrisis::GetInstance;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
@@ -79,6 +84,12 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 pads::disconnect();
                 wal_payload_common::input_filter::init(unity, |_| false);
                 jxboard::init();
+            }
+            _ if board.trim() == "zombiecrisis" => {
+                pads::disconnect();
+                // Unreal's messages: the executable's
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();

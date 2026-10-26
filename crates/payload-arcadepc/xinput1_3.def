@@ -8,3 +8,4 @@ EXPORTS
     XInputGetBatteryInformation @7
     XInputGetKeystroke @8
     XInputGetStateEx @100 NONAME
+    GetInstance

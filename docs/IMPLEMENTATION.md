@@ -3488,6 +3488,29 @@ settings and the guns' calibration, identity; `AcountData.db`, `RankData.db`) on
   (each call's `ldc.i4.1/2/3` patched to `ldc.i4.4`; file offsets: Mech Dinosaur 0x5977B,
   0x5978E, 0x597AD; Wisdom Zombies 0x3FBCB, 0x3FBDE, 0x3FC17).
 
+#### Zombie Crisis
+
+SpiderZSoft's "zombie" (Unreal Engine 4.25, 64-bit, `zombie\Binaries\Win64\ZombieCrisis.exe`,
+`spiderzsoft.exe` renamed),
+two guns. The dump is rebuilt without the repack's launcher, its shipping exe and debug files,
+the HASP runtime, the camera tracker's tools and the crash reports; the game's `GamePort.dll` is
+the payload.
+
+- **Board (`zombiecrisis.rs`, `WAL_ARCADEPC_BOARD=zombiecrisis`).** The game's
+  `ADllActorGameport` loads `GamePort.dll` and calls its only export, `GetInstance`: a C++
+  object used through its 113 virtual functions (`this` first). The payload (installed as
+  `zombie/Binaries/Win64/gameport.dll`, loaded by the game) answers `init` 1, the coins
+  buffered per player (got, subtracted, cleared), the start keys, the guns' `Frie1` (the
+  reload; a shot off the screen) and `Frie2` (the trigger; player 4's trigger is its
+  `Frie1`, slot 77), the aim in the screen's pixels (1920x1080, top left 0), the operator's
+  setting / left / right keys; every other slot (lamps, tickets, motors, the camera) 0.
+  Presses are latched until the game reads them.
+- **Calibration.** The game maps the aim through six points per gun (the service menu's
+  hardware adjust; `Saved/savegames/uiback.sav`: `arr_gun60`, `arr_gun61`, `Vector2D`s: top
+  left, middle, right, then the bottom row): the dump's are the screen's own (0, 0), (960, 0),
+  (1920, 0), (0, 1080), (960, 1080), (1920, 1080), the aim unchanged. The game draws each
+  gun's sight.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -3845,6 +3868,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns | SpyderZSoft's "SpriteT2" (Unity 3.5, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `hasp_windows_96625.dll`, `wal-loader`) emulates the CommKing COM1 board, the HASP HL dongle and the registration; calibration in the dump's sys.dat |
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | ridong's "jixiesheqiu" (Unity 2017.4, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `gameport.dll`, `wal-loader`) is the I/O DLL's C API; calibration in the dump's `D/jijiasheqiu.ini` |
 | `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons | Mrcq's "xiaofang" (Unity 2017.4, 64-bit, §6.3i): rebuilt dump; the payload (`xinput1_3.dll`) answers its `gameport.dll` C API; calibration in the dump's `xiaofang.ini` |
+| `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns | SpiderZSoft (Unreal Engine 4.25, 64-bit, §6.3i): rebuilt dump; the payload is its `GamePort.dll` (`GetInstance`'s object); calibration identity in the dump's `uiback.sav` |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 

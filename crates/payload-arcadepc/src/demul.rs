@@ -130,11 +130,13 @@ pub(crate) fn find_window() -> HWND {
         return current;
     }
     let pid = unsafe { GetCurrentProcessId() };
+    // Unity's window, Unreal's
+    for class in [windows_sys::w!("UnityWndClass"), windows_sys::w!("UnrealWindow")] {
     let mut hwnd: HWND = std::ptr::null_mut();
     loop {
-        hwnd = unsafe { FindWindowExW(std::ptr::null_mut(), hwnd, windows_sys::w!("UnityWndClass"), std::ptr::null()) };
+        hwnd = unsafe { FindWindowExW(std::ptr::null_mut(), hwnd, class, std::ptr::null()) };
         if hwnd.is_null() {
-            return hwnd;
+            break;
         }
         let mut owner = 0;
         unsafe { GetWindowThreadProcessId(hwnd, &mut owner) };
@@ -144,6 +146,8 @@ pub(crate) fn find_window() -> HWND {
             return hwnd;
         }
     }
+    }
+    std::ptr::null_mut()
 }
 
 /// The game window's client area on the screen: left, top, width, height.

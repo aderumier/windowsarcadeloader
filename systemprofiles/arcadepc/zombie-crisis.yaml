@@ -1,0 +1,30 @@
+# Zombie Crisis (SpiderZSoft, Unreal Engine 4.25, 64-bit) - template, override values in
+# userprofiles/arcadepc/zombie-crisis.yaml.
+# Two guns. The payload is the cabinet's I/O DLL (GamePort.dll's object: coins, start keys,
+# the guns' buttons and aim, the operator's keys) (docs §6.3i).
+system: arcadepc
+name: Zombie Crisis
+
+# the board's DLL, loaded by the game itself: the payload
+payload_install: [zombie/Binaries/Win64/gameport.dll]
+
+env:
+  WAL_ARCADEPC_BOARD: zombiecrisis
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots; a shot off the screen reloads
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b3: Reload
+  b6: Shot off the screen
+  start: Start
+  coin: Coin
+  test: Setting
+  down: Setting
+  left: Left
+  right: Right
