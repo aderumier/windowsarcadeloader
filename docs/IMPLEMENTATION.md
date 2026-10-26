@@ -3567,6 +3567,36 @@ from the live `UAF_ControlManager` (Il2CppDumper's `dump.cs` offsets).
 - **Encoding.** `UAF_DataManager.Awake`'s `Encoding.Default` throws (IL2CPP has no code page
   encoding but UTF-8, `CP1252` or `CP936` alike): caught by the game, as on the cabinet.
 
+#### Bullseye Crack Shot
+
+UDC's portrait gun game (Unity 2019.4, Mono `mono-2.0-bdwgc.dll`, 64-bit), one gun. Its
+`Assembly-CSharp.dll`'s method bodies are encrypted on disk; the game's own runtime decrypts
+each body when it parses its header (the image in memory stays encrypted). A readable copy for
+study: every method's IL through Mono's `mono_method_get_header` (the runtime's decryption),
+patched back into the file at its body (all 4369 bodies, the headers unchanged).
+
+- **No board.** The dump's game never opens its board (`SerialPortComm`: `$`-prefixed 10-byte
+  ASCII frames, `@` separated: `$A5` the trigger, `$A6` the operator's keys, `$Z5` the gun's
+  place, `$B5` the coins) and runs the developer's keyboard and mouse mode
+  (`GameData.KeyBoard`, `InputCtrl.Update`): the left button shoots at the mouse, `1` inserts
+  a coin, `U` the settings, `Y` their menu, `]` back, `A` / `S` / `D` left, OK, right. The
+  dongles (SuperDog, HASP) are not checked.
+- **Payload (`bullseye.rs`, `WAL_ARCADEPC_BOARD=bullseye`).** The gun is the mouse: its place
+  on the window's picture (client pixels) posted as `WM_MOUSEMOVE`, the trigger as the left
+  button, the keys posted (`input_filter`: `post_mouse`, marked in `wParam`; `own_mouse`: the
+  real mouse's moves dropped too, UnityPlayer's `GetCursorPos` answering the posted place and
+  its `SetCursorPos` ignored, since Unity reads `Input.mousePosition` with `GetCursorPos`).
+- **Display.** The game asks a 450x800 window (`CompanyLogo`: `Screen.SetResolution(450, 800,
+  false)`); shown larger than it renders, its UI and its 3D camera disagree on the mouse's
+  pixels. `Screen.SetResolution(int, int, bool)` is replaced (`Mono::replace`, the overloads
+  picked with `mono_method_desc_search_in_class`): the same aspect fitted on the screen's
+  height, windowed, centered. The dump's cabinet art goes around it (`WAL_BEZEL=Bezel.png`,
+  converted to RGBA: Wine's GDI+ does not read its palette; the bezel's `GdiplusStartupInput`
+  laid out as its C struct, 64-bit included), with the common crosshair (the game draws none).
+  Open: the shots hit at the crosshair, but their yellow trails are drawn off it.
+- **Dump.** Rebuilt without the repack's launchers (portrait bezel, cursor), its injected
+  helpers (`BullseyeTrace`, `BullseyeOutputs`, Harmony, MonoMod) and the runtime's archive.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -3962,6 +3992,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | ridong's "jixiesheqiu" (Unity 2017.4, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `gameport.dll`, `wal-loader`) is the I/O DLL's C API; calibration in the dump's `D/jijiasheqiu.ini` |
 | `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons | Mrcq's "xiaofang" (Unity 2017.4, 64-bit, §6.3i): rebuilt dump; the payload (`xinput1_3.dll`) answers its `gameport.dll` C API; calibration in the dump's `xiaofang.ini` |
 | `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns | SpiderZSoft (Unreal Engine 4.25, 64-bit, §6.3i): rebuilt dump; the payload is its `GamePort.dll` (`GetInstance`'s object); calibration identity in the dump's `uiback.sav` |
+| `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | works (user: shots ok), 1 gun | UDC's portrait game (Unity 2019.4, 64-bit, encrypted IL decrypted by its runtime, §6.3i): no board left in the dump: the payload plays its keyboard and mouse mode with the gun (`post_mouse`, `GetCursorPos`); `Screen.SetResolution` fitted on the screen, bezel, crosshair; shot trails off the crosshair |
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |

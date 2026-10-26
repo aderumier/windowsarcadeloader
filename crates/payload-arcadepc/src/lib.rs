@@ -29,6 +29,9 @@
 //! Skull of Shadow (`WAL_ARCADEPC_BOARD=boys`): `boys.rs` emulates its USB board and its gun
 //! camera.
 //!
+//! Bullseye Crack Shot (`WAL_ARCADEPC_BOARD=bullseye`): `bullseye.rs` plays its keyboard and
+//! mouse mode with the gun.
+//!
 //! Zombie Crisis (`WAL_ARCADEPC_BOARD=zombiecrisis`): `zombiecrisis.rs` is its `GamePort.dll`
 //! (`GetInstance`'s object).
 //!
@@ -40,6 +43,7 @@
 #![allow(non_snake_case)]
 
 mod boys;
+mod bullseye;
 mod commking;
 mod demul;
 mod gameport;
@@ -67,7 +71,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
         let board = std::env::var("WAL_ARCADEPC_BOARD").unwrap_or_default();
         // the common crosshair option: player 1's gun on the picture (Direct3D 11)
-        if (matches!(board.trim(), "syfire" | "jxboard") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
+        if (matches!(board.trim(), "syfire" | "jxboard" | "bullseye") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
             wal_payload_common::pointer_d3d11::init(wal_payload_common::pointer_d3d11::Dot {
                 color: [1.0, 0.15, 0.15],
                 size: 0.06,
@@ -106,6 +110,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 pads::disconnect();
                 wal_payload_common::input_filter::init(unity, |_| false);
                 uaf::init();
+            }
+            _ if board.trim() == "bullseye" => {
+                pads::disconnect();
+                bullseye::init(unity);
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();

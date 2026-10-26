@@ -15,6 +15,10 @@
 //!   Unity 5 and older): keyboard and mouse button messages become `WM_NULL`, but the payload's
 //!   own keys ([`post_key`], marked in their `lParam`'s reserved bits): the keys a game's own
 //!   code reads through Unity's `Input.GetKey` (the DemulShooter plugins' coin and operator keys).
+//!   The payload's own mouse messages ([`post_mouse`], marked in their `wParam`'s high bits) go
+//!   through too: a game played with the mouse (Bullseye's keyboard mode) aims and shoots with the
+//!   gun; [`own_mouse`] also drops the real mouse's moves and answers the Unity player's
+//!   `GetCursorPos` with the payload's cursor (Unity reads `Input.mousePosition` there).
 
 use std::ffi::c_void;
 use std::sync::OnceLock;
@@ -32,6 +36,8 @@ static PEEK_MESSAGE_W: AtomicUsize = AtomicUsize::new(0);
 static GET_MESSAGE_A: AtomicUsize = AtomicUsize::new(0);
 static GET_MESSAGE_W: AtomicUsize = AtomicUsize::new(0);
 static KEY_HELD: OnceLock<fn(i32) -> bool> = OnceLock::new();
+/// The real mouse's moves dropped too ([`own_mouse`]).
+static OWN_MOUSE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// `GetRawInputData` command returning the whole report.
 const RID_INPUT: u32 = 0x1000_0003;
@@ -45,6 +51,8 @@ const RAWKEYBOARD: usize = 16;
 const RAWMOUSE: usize = 24;
 /// `lParam` reserved bits (25..28) of the key messages [`post_key`] posts.
 const MARK: isize = 0x0A00_0000;
+/// `wParam` bits above the button flags of the mouse messages [`post_mouse`] posts.
+const MOUSE_MARK: usize = 0x0A00_0000;
 
 /// A virtual key reported down.
 fn key_held(vk: i32) -> bool {
@@ -134,10 +142,54 @@ unsafe extern "system" fn get_raw_input_data(raw: P, command: u32, data: *mut u8
     n
 }
 
-/// A real keyboard or mouse button message.
+/// A real keyboard or mouse button message (or mouse move, with [`own_mouse`]).
 fn filtered(msg: &MSG) -> bool {
+    use windows_sys::Win32::UI::WindowsAndMessaging::WM_MOUSEMOVE;
     let key = (WM_KEYFIRST..=WM_KEYLAST).contains(&msg.message);
-    (key && msg.lParam & MARK != MARK) || (WM_LBUTTONDOWN..=WM_MOUSEHWHEEL).contains(&msg.message)
+    let ours = msg.wParam & MOUSE_MARK == MOUSE_MARK;
+    let mouse = (WM_LBUTTONDOWN..=WM_MOUSEHWHEEL).contains(&msg.message)
+        || msg.message == WM_MOUSEMOVE && OWN_MOUSE.load(Ordering::Relaxed);
+    (key && msg.lParam & MARK != MARK) || (mouse && !ours)
+}
+
+/// The cursor's place on the screen (x << 32 | y), the payload's mouse ([`post_mouse`]).
+static CURSOR: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+unsafe extern "system" fn get_cursor_pos(point: *mut windows_sys::Win32::Foundation::POINT) -> i32 {
+    let c = CURSOR.load(Ordering::Relaxed);
+    if !point.is_null() {
+        unsafe { *point = windows_sys::Win32::Foundation::POINT { x: (c >> 32) as i32, y: c as u32 as i32 } };
+    }
+    1
+}
+
+unsafe extern "system" fn set_cursor_pos(_x: i32, _y: i32) -> i32 {
+    1
+}
+
+/// The game's mouse is the payload's only ([`post_mouse`]): the real mouse's moves dropped too,
+/// and the Unity player's (`unity`) cursor polls (`GetCursorPos`) answer the payload's cursor.
+pub fn own_mouse(unity: usize) {
+    OWN_MOUSE.store(true, Ordering::Relaxed);
+    if unity != 0 {
+        unsafe {
+            iat::hook_module(unity, "user32.dll", "GetCursorPos", get_cursor_pos as *const () as usize);
+            iat::hook_module(unity, "user32.dll", "SetCursorPos", set_cursor_pos as *const () as usize);
+        }
+    }
+}
+
+/// Posts a mouse message (`WM_MOUSEMOVE`, `WM_LBUTTONDOWN`...) at client point (`x`, `y`) of the
+/// game window `hwnd`, `buttons` its `MK_` flags: the filter lets it through.
+pub fn post_mouse(hwnd: P, message: u32, x: i32, y: i32, buttons: usize) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::PostMessageW;
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
+    let lparam = ((y as u16 as isize) << 16) | x as u16 as isize;
+    let mut at = POINT { x, y };
+    unsafe { ClientToScreen(hwnd, &mut at) };
+    CURSOR.store((at.x as u32 as u64) << 32 | at.y as u32 as u64, Ordering::Relaxed);
+    unsafe { PostMessageW(hwnd, message, buttons | MOUSE_MARK, lparam) };
 }
 
 unsafe fn scrub(msg: *mut MSG) {

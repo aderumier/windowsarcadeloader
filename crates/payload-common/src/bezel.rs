@@ -35,7 +35,16 @@ static IMAGE_H: AtomicUsize = AtomicUsize::new(0);
 
 /// Decodes `path` into a bitmap over black (GDI+), with its size.
 fn load(path: &str) -> Option<(HBITMAP, u32, u32)> {
-    type Startup = unsafe extern "system" fn(*mut usize, *const [u32; 4], P) -> i32;
+    /// GdiplusStartupInput: version, debug callback (a pointer: padded on 64-bit), background
+    /// thread suppressed, external codecs suppressed.
+    #[repr(C)]
+    struct StartupInput {
+        version: u32,
+        debug: usize,
+        no_thread: i32,
+        no_codecs: i32,
+    }
+    type Startup = unsafe extern "system" fn(*mut usize, *const StartupInput, P) -> i32;
     type FromFile = unsafe extern "system" fn(*const u16, *mut P) -> i32;
     type ToHbitmap = unsafe extern "system" fn(P, *mut HBITMAP, u32) -> i32;
     type Size = unsafe extern "system" fn(P, *mut u32) -> i32;
@@ -53,14 +62,18 @@ fn load(path: &str) -> Option<(HBITMAP, u32, u32)> {
     );
     unsafe {
         let mut token = 0usize;
-        // GdiplusStartupInput: version 1, no callback, background thread, codecs
-        let input = [1u32, 0, 0, 0];
-        if std::mem::transmute::<_, Startup>(startup)(&mut token, &input, std::ptr::null_mut()) != 0 {
+        // version 1, no callback, background thread, codecs
+        let input = StartupInput { version: 1, debug: 0, no_thread: 0, no_codecs: 0 };
+        let status = std::mem::transmute::<_, Startup>(startup)(&mut token, &input, std::ptr::null_mut());
+        if status != 0 {
+            log!("bezel: GdiplusStartup status {status}");
             return None;
         }
         let wide: Vec<u16> = path.encode_utf16().chain([0]).collect();
         let mut bitmap: P = std::ptr::null_mut();
-        if std::mem::transmute::<_, FromFile>(from_file)(wide.as_ptr(), &mut bitmap) != 0 {
+        let status = std::mem::transmute::<_, FromFile>(from_file)(wide.as_ptr(), &mut bitmap);
+        if status != 0 {
+            log!("bezel: {path}: GDI+ status {status}");
             return None;
         }
         let (mut w, mut h) = (0u32, 0u32);

@@ -1,0 +1,35 @@
+# Bullseye Crack Shot (Unity 2019.4, Mono, 64-bit, portrait) - template, override values in
+# userprofiles/arcadepc/bullseye-crack-shot.yaml.
+# One gun. The dump's game has no cabinet board left: the payload plays its keyboard and mouse
+# mode with the gun (docs §6.3i).
+system: arcadepc
+name: Bullseye Crack Shot
+
+# Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: bullseye
+  # the gun's crosshair (none on the cabinet): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+  # the cabinet art around the picture
+  WAL_BEZEL: Bezel.png
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: OK (operator)
+  coin: Coin
+  start: OK
+  test: Settings
+  service: Settings menu
+  up: Back
+  left: Left
+  right: Right
