@@ -4,7 +4,7 @@
 //! Launcher: the I/O board (JVS, `wajvio.dll` on COM3, `jvs.rs`), the Banapass reader (COM4,
 //! `bpreader.rs`; the international ROM, `Data\romVersion.txt` "LLA100-1", wants one), the
 //! language (`WAL_NAMCOES3_LANGUAGE`), the NEC projector (COM1, `projector.rs`), the status
-//! window (hidden while small).
+//! window (never activated while small).
 //!
 //! Game: the dongle thread (0xa30950) checks every 3 seconds either a USB key (the
 //! enumeration at 0x20b0, id 0x0c10) or the HASP (0xa2ac80: 0x40 bytes at 0xd00, byte 0x3f the
@@ -87,15 +87,10 @@ fn direction(x: f32, y: f32) -> Option<[f32; 3]> {
 }
 
 /// Where the game draws the crosshair (screen, 0..1 from the top left corner) for a dome
-/// point: a yaw / pitch seen from the eye, measured on the game's crosshair through the
-/// patched dome texture (`dome.rs`; fitted on a 5 x 5 grid, residuals under 0.5% of the
-/// screen), then placed on the payload's flat view.
+/// point: a yaw / pitch seen from the eye, measured on the game's crosshair with the
+/// flat screen patch of the dumps (`Startup.upk`'s dome texture replaced by a rectilinear
+/// view; fitted on a 5 x 5 grid, residuals under 0.5% of the screen).
 fn crosshair(d: [f32; 3]) -> (f32, f32) {
-    let (x, y) = crosshair_patched_view(d);
-    crate::dome::from_patched_view(x, y)
-}
-
-fn crosshair_patched_view(d: [f32; 3]) -> (f32, f32) {
     const EYE_Y: f32 = 0.3751;
     const EYE_Z: f32 = -0.1338;
     const YAW_SCALE: f32 = 1.0985;
@@ -134,7 +129,12 @@ fn solve(target: (f32, f32), start: (f32, f32)) -> (f32, f32) {
         }
         let dx = (-ex * d + ey * b) / det;
         let dy = (ex * c - ey * a) / det;
-        p = ((p.0 + dx).clamp(-1.0, 2.0), (p.1 + dy).clamp(-1.0, 2.0));
+        let next = ((p.0 + dx).clamp(-1.0, 2.0), (p.1 + dy).clamp(-1.0, 2.0));
+        if !next.0.is_finite() || !next.1.is_finite() {
+            // a NaN would stay the start of every later solve: the aim would freeze
+            return (0.5, 0.5);
+        }
+        p = next;
     }
     p
 }
@@ -170,15 +170,17 @@ fn gun_packets() -> Vec<u8> {
 }
 
 static CREATE_WINDOW: AtomicUsize = AtomicUsize::new(0);
-static SHOW_WINDOW: AtomicUsize = AtomicUsize::new(0);
 static SET_WINDOW_POS: AtomicUsize = AtomicUsize::new(0);
 /// The launcher's status window.
 static STATUS_WINDOW: AtomicUsize = AtomicUsize::new(0);
 
-/// The launcher's top-level window: a 256x60 status overlay (network icon) at the top left,
-/// topmost, full screen in test mode (0x62ee0: the test menu, the game window shrunk). The
-/// overlay took the focus from the game, and GNOME pinged it ("not responding"): it is
-/// created as a borderless popup and kept hidden while it is small.
+/// The launcher's top-level window: a small topmost status overlay (network icon), moved about
+/// 30 times a second, full screen in test mode (0x62ee0: the test menu, the game window
+/// shrunk). It took the game's focus, GNOME pinged it ("not responding"), and over the game
+/// as a popup it took the game out of full screen. It is created as a borderless popup (out of
+/// the window manager) and, while small, moved off the screen without activation. Its first
+/// show stays as it is: hidden or shown without activation, its test menu pages were never
+/// built (a crash in test mode, 0x48210).
 unsafe extern "system" fn create_window(
     ex: u32, class: *const u16, title: *const u16, style: u32, x: i32, y: i32, w: i32, h: i32, parent: usize, menu: usize, inst: usize, param: usize,
 ) -> usize {
@@ -195,23 +197,14 @@ unsafe extern "system" fn create_window(
     hwnd
 }
 
-unsafe extern "system" fn show_window(hwnd: usize, cmd: i32) -> i32 {
-    let orig: unsafe extern "system" fn(usize, i32) -> i32 = unsafe { std::mem::transmute(SHOW_WINDOW.load(Ordering::Relaxed)) };
-    // shown by SetWindowPos when it goes full screen
-    let cmd = if hwnd != 0 && hwnd == STATUS_WINDOW.load(Ordering::Relaxed) { 0 } else { cmd };
-    unsafe { orig(hwnd, cmd) }
-}
-
 unsafe extern "system" fn set_window_pos(hwnd: usize, after: isize, x: i32, y: i32, w: i32, h: i32, flags: u32) -> i32 {
     const SWP_NOACTIVATE: u32 = 0x10;
-    const SWP_SHOWWINDOW: u32 = 0x40;
-    const SWP_HIDEWINDOW: u32 = 0x80;
     let orig: unsafe extern "system" fn(usize, isize, i32, i32, i32, i32, u32) -> i32 = unsafe { std::mem::transmute(SET_WINDOW_POS.load(Ordering::Relaxed)) };
-    let flags = if hwnd != 0 && hwnd == STATUS_WINDOW.load(Ordering::Relaxed) {
-        if h >= 800 { (flags | SWP_SHOWWINDOW) & !SWP_HIDEWINDOW } else { (flags | SWP_HIDEWINDOW | SWP_NOACTIVATE) & !SWP_SHOWWINDOW }
-    } else {
-        flags
-    };
+    let small = hwnd != 0 && hwnd == STATUS_WINDOW.load(Ordering::Relaxed) && h < 800;
+    if small {
+        // off the screen, not activated
+        return unsafe { orig(hwnd, after, -4096, -4096, w, h, flags | SWP_NOACTIVATE) };
+    }
     unsafe { orig(hwnd, after, x, y, w, h, flags) }
 }
 
@@ -222,7 +215,6 @@ pub(crate) fn attach(exe: &str, base: usize) {
         crate::bpreader::init("COM4", &libs);
         for (name, f, slot) in [
             ("CreateWindowExW", create_window as *const () as usize, &CREATE_WINDOW),
-            ("ShowWindow", show_window as *const () as usize, &SHOW_WINDOW),
             ("SetWindowPos", set_window_pos as *const () as usize, &SET_WINDOW_POS),
         ] {
             match unsafe { wal_payload_common::iat::hook_module(base, "user32.dll", name, f) } {
@@ -237,7 +229,6 @@ pub(crate) fn attach(exe: &str, base: usize) {
         GAME_BASE.store(base, std::sync::atomic::Ordering::Relaxed);
         patches::hook_usb_key(base, usb_key_enum);
         wal_payload_common::serial::install_streaming_in("COM2", |_| Vec::new(), gun_packets, &[base]);
-        crate::dome::init(base);
     } else {
         log!("lla: loaded in {exe}, nothing to do");
     }

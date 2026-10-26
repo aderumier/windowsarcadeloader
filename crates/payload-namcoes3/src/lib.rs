@@ -20,7 +20,6 @@
 
 mod bpreader;
 mod dinput;
-mod dome;
 mod hasp;
 mod jvs;
 mod lla;

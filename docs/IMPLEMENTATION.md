@@ -1603,15 +1603,12 @@ menu) starts `LLA\Binaries\Win64\DomeShooterGame-Win64-Shipping.exe`; they share
   community English patch puts its English texts in the JPN files (the launcher adds
   `-voicelanguage=English(US)` for JPN), and the `*_LOC_JPN.upk` packages are the only
   localized ones. Menu captions baked in textures stay Japanese.
-- **Flat screen (`dome.rs`).** The game renders a 3520x1980 back buffer of two 90 degree
-  views yawed 45 degrees left and right (a straight object kinks at the seam), then draws the
-  screen through a same-size lookup texture in `Startup.upk` (two 16-bit big-endian texture
-  coordinates per texel, v up) made for the dome projector. A known dump patch replaces it with
-  a rectilinear view about 127 degrees wide (flat, stretched on the sides). The payload
-  substitutes the texture's bytes as the game reads them (`CreateFileW` / `ReadFile` hooks,
-  found by its bulk data header at 0x7f394fd in the uncompressed package) with one rectilinear
-  view `WAL_NAMCOES3_FOV` degrees wide (default 110). The attract demo's fisheye is a separate
-  render, left as is.
+- **Flat screen.** The game renders a 3520x1980 back buffer of two 90 degree views yawed 45
+  degrees left and right, then draws the screen through a lookup texture of `Startup.upk`
+  made for the dome projector. Dumps carry a known patch (`CreateDomeMap`, on the
+  uncompressed package) replacing it with a rectilinear view (about 127 degrees wide); the
+  payload relies on it (the crosshair mapping below was measured with it). The attract demo's
+  fisheye is a separate render, left as is.
 - **Guns.** The game reads its gun camera itself on COM2 (115200 bauds, 0xa2eec0): 12-byte
   packets `5F player x y buttons F5` (x, y: f32 camera coordinates, about 0..1; buttons bit 0
   player 1's trigger, bit 2 player 2's: `GunPeripheral1PTriggerMask` 1, `...2PTriggerMask` 4;
@@ -1621,16 +1618,18 @@ menu) starts `LLA\Binaries\Win64\DomeShooterGame-Win64-Shipping.exe`; they share
   then drawn elsewhere on the flat picture. Measured on a 5x5 grid: a yaw / pitch of the dome
   point seen from (0, 0.375, -0.134) (the config's `DomeEyePositionY` 0.375), yaw x1.0985,
   pitch x1.5159 + 0.4233 rad, then `0.5 + 0.2812 tan(yaw)`, `0.5 - 0.3921 tan(pitch) /
-  cos(yaw)`, measured through the patched 127 degree texture and converted to the payload's
-  flat view through the two-view geometry: within about 1.5% of the screen, in menus and in
-  game. The payload inverts it (Newton steps through the game's own 0xa2e570): each gun aims where it
+  cos(yaw)`, measured with the patched texture: within about 1% of the screen (2% on the
+  edges), in menus and in game. The payload inverts it (Newton steps through the game's own 0xa2e570): each gun aims where it
   points. The game writes 2 bytes back per poll (gun outputs, not used).
-- **Test menu.** The launcher's window (created with style 0 at the default size) is a
-  256x60 topmost status overlay (network icon); in test mode it goes full screen (GDI menu) and
-  the game window shrinks to 256x60 (0x62ee0), the reverse when it ends (0x62fd0). The overlay
-  took the focus from the game: the payload creates it as a popup and keeps it hidden while it
-  is small. The test switch counts only with the operator panel bit (byte 0, 0x01) on. Inside
-  gamescope (headless test runs) the menu is not seen.
+- **Test menu.** The launcher's window (created with style 0 at the default size) is a small
+  topmost status overlay (network icon) it moves about 30 times a second; in test mode it goes
+  full screen (GDI menu) and the game window shrinks to 256x60 (0x62ee0), the reverse when it
+  ends (0x62fd0). The overlay took the game's focus and GNOME pinged it ("not responding");
+  over the game as a popup it took the game out of full screen. The payload creates it as a
+  popup and, while small, moves it off the screen without activation. Its first show must stay
+  (hidden, or shown without activation: the test menu pages were never built, a crash at
+  0x48210 on the test switch). The test switch counts only with the operator panel bit
+  (byte 0, 0x01) on. Inside gamescope (headless test runs) the menu is not seen.
 - **Not done.** Gun outputs (recoil), Banapass cards.
 
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
@@ -3515,7 +3514,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 |---|---|---|---|---|
 | `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented | version-aware dongle skip (v1.10.22 and v1.18.16), offline router/network bypass, 61-slot IPC compatibility object, Namco ES3 JVS steering and pedals, test-menu settings saved on F:/G: game drives, fullscreen DXVK; force feedback from the game's steering-force float (1.18 offsets implemented; physical wheel output unverified) |
 | `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns | `PBX100-2-NA-MPR0-A63.exe` (Unity 5.1, Mono, §6.3c): `Plugins/bnusio.dll` replaced (USIO switches and coins, gun board), loaded by wal-loader at the entry point; profile `Setting.ini` (`CONTROLLER 0`); real keyboard/mouse filtered; cabinet serial in the registry; the game's own crosshairs shown; BepInEx (`winhttp.dll`) hidden |
-| `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: mouse aim, flat view, no warnings; headless: 2 players, aim and shots), 2 guns; real guns to verify | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_106993.dll` (dongle serial for both checks), JVS on COM3, Banapass reader on COM4 (no card), NEC projector on COM1, the gun camera on COM2 with the crosshair mapping inverted, flat view from the dome texture (`WAL_NAMCOES3_FOV`), English patch through JPN, F:/G: save drives |
+| `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: mouse aim, test menu, no warnings; headless: 2 players, aim and shots), 2 guns; real guns to verify | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_106993.dll` (dongle serial for both checks), JVS on COM3, Banapass reader on COM4 (no card), NEC projector on COM1, the gun camera on COM2 with the crosshair mapping inverted, the dumps' flat screen patch, English patch through JPN, F:/G: save drives |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | - |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |
