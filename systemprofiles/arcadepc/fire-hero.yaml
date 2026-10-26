@@ -1,0 +1,32 @@
+# Fire Hero (Mrcq "xiaofang", Unity 2017.4, Mono, 64-bit) - template, override values in
+# userprofiles/arcadepc/fire-hero.yaml.
+# Two water cannons. The payload is the cabinet's I/O DLL (gameport.dll's C API: coins, keys,
+# the cannons' buttons and aim) (docs §6.3i).
+system: arcadepc
+name: Fire Hero
+
+# Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: gameport
+
+input:
+  # each player's cannon (gun or mouse) aims, its trigger shoots water
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Cannon aim (x)
+  ly: Cannon aim (y)
+  b1: Water
+  b2: Button 2
+  b3: Bomb (both buttons)
+  start: Start
+  coin: Coin
+  test: Setting
+  service: Ticket
+  left: Left
+  right: Right

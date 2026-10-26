@@ -56,23 +56,31 @@ pub fn hook(resolve: Resolver) {
     if let Some(f) = unsafe { GetProcAddress(kernel32, c"GetProcAddress".as_ptr().cast()) } {
         ORIG.store(f as usize, Ordering::Relaxed);
     }
-    std::thread::spawn(|| {
-        loop {
-            for dll in [windows_sys::w!("mono-2.0-bdwgc.dll"), windows_sys::w!("mono.dll")] {
-                let mono = unsafe { GetModuleHandleW(dll) } as usize;
-                if mono == 0 {
-                    continue;
-                }
-                match unsafe { iat::hook_module(mono, "kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) } {
-                    Some(o) => {
-                        ORIG.store(o, Ordering::Relaxed);
-                        log!("mono: GetProcAddress hooked");
-                    }
-                    None => log!("mono: the runtime does not import GetProcAddress: no hardware emulated"),
-                }
-                return;
+    // now if Unity has loaded the runtime (the payload loaded by Mono itself), else at its load
+    if !hook_runtime() {
+        std::thread::spawn(|| {
+            while !hook_runtime() {
+                std::thread::sleep(Duration::from_millis(1));
             }
-            std::thread::sleep(Duration::from_millis(1));
+        });
+    }
+}
+
+/// Hooks the runtime's `GetProcAddress`, if it is loaded.
+fn hook_runtime() -> bool {
+    for dll in [windows_sys::w!("mono-2.0-bdwgc.dll"), windows_sys::w!("mono.dll")] {
+        let mono = unsafe { GetModuleHandleW(dll) } as usize;
+        if mono == 0 {
+            continue;
         }
-    });
+        match unsafe { iat::hook_module(mono, "kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) } {
+            Some(o) => {
+                ORIG.store(o, Ordering::Relaxed);
+                log!("mono: GetProcAddress hooked");
+            }
+            None => log!("mono: the runtime does not import GetProcAddress: no hardware emulated"),
+        }
+        return true;
+    }
+    false
 }

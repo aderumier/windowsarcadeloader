@@ -3435,7 +3435,7 @@ Water Sprite 2 logo) and `WaterSprite2.exe` (the save path follows the executabl
   payload at start; Unity 3.5's PlayerPrefs strings are REG_SZ. `ExitWindowsEx` ignored.
 - **Display.** 1920x1080 full screen (Direct3D 9); the game shows each gun's aim.
 
-#### Mech Tornado
+#### Mech Tornado / Fire Hero
 
 ridong's "jixiesheqiu" (Unity 2017.4, Mono `mono.dll`, 32-bit), its I/O DLL `gameport.dll`
 (MFC, a serial board behind a C++ object). The dump is rebuilt without the repack's BepInEx,
@@ -3453,7 +3453,15 @@ bookkeeping) is on the cabinet's `D:` (the dump's `D` folder).
 - **Aim.** x 1 + 1022 * x, y 1 + 1022 * (1 - y) (0 is ignored); the game maps it through four
   corners per gun (the ini's `gun`, `sgun`, `sdgun` points): the dump's are (1, 1023),
   (1023, 1023), (1, 1), (1023, 1); in laser mode two points (`lgun`: (1, 1023), (1023, 1)).
-- **Cabinet.** The dump's ini: laser mode (`mode=2`, the user's choice; 1 water: one button the
+- **Fire Hero** (Mrcq "xiaofang", same codebase, Unity 2017.4, 64-bit: the payload is
+  `xinput1_3.dll`, xinput1_4 disabled, and the dump keeps its `gameport.dll`, whose functions
+  Mono resolves to the payload's; every function of the module answered, its camera's
+  `OpenCam`, `ShowCamWnd` included). Two water cannons: one button the water, both the bomb.
+  The repack's game assembly (ini beside the game, English forced, the serial warning hidden)
+  calls a community mod (`HeroFireInputs.dll`, its TCP inputs unused: the hardware path, the
+  keyboard and mouse filtered); its backups, script and logs removed, `FireHero.exe`. The
+  calibration corners are in the dump's `xiaofang.ini`.
+- **Cabinet.** Mech Tornado's ini: laser mode (`mode=2`, the user's choice; 1 water: one button the
   laser, both the water; 0 the ball machine, 2 players), 4 players (`playernum=4`). The game
   draws each gun's crosshair.
 
@@ -3836,6 +3844,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun | SpiderZSoft's original (§6.3i), dump rebuilt from the repack's decrypted assembly without BepInEx (`TopGun.exe`, `Main` patched to 1080x1920): the payload emulates the `Dog_Ch.dll` dongle and the SY Fire COM1 board through Mono's `GetProcAddress`; `WAL_DESKTOP_SIZE=1080x1920` fitted on the screen, crosshair, bezel (`WAL_BEZEL=Layer.png`, the dump's cabinet art) |
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns | SpyderZSoft's "SpriteT2" (Unity 3.5, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `hasp_windows_96625.dll`, `wal-loader`) emulates the CommKing COM1 board, the HASP HL dongle and the registration; calibration in the dump's sys.dat |
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns | ridong's "jixiesheqiu" (Unity 2017.4, 32-bit, §6.3i): rebuilt dump without the repack's BepInEx/DemulShooter; the payload (as `gameport.dll`, `wal-loader`) is the I/O DLL's C API; calibration in the dump's `D/jijiasheqiu.ini` |
+| `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons | Mrcq's "xiaofang" (Unity 2017.4, 64-bit, §6.3i): rebuilt dump; the payload (`xinput1_3.dll`) answers its `gameport.dll` C API; calibration in the dump's `xiaofang.ini` |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 

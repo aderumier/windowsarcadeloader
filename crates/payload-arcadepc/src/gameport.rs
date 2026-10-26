@@ -1,5 +1,5 @@
 //! The "gameport" I/O DLL of the Mrcq / ridong cabinets (`gameport.dll`, MFC, its serial board
-//! behind a C++ object): Mech Tornado (`WAL_ARCADEPC_BOARD=gameport`).
+//! behind a C++ object): Mech Tornado (32-bit), Fire Hero (64-bit) (`WAL_ARCADEPC_BOARD=gameport`).
 //!
 //! The game's `dllInstance` imports its flat C API (`DllImport("gameport")`, cdecl thunks onto
 //! the object `GetInstance` returns): `init(dll, 1)` = 1 and `GetComErr` false open the board;
@@ -211,7 +211,8 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
                 // the outputs, the board's state (no error, no empty ticket hopper, water fine)
                 _ if name.starts_with("Set") || name.starts_with("Sub") || name.starts_with("Clear") => f(ignored as *const () as usize),
                 _ if name.starts_with("Get") => f(zero as *const () as usize),
-                _ => None,
+                // the rest (Fire Hero's camera: OpenCam, ShowCamWnd...)
+                _ => f(ignored as *const () as usize),
             }
         }
     }
