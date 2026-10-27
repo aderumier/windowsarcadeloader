@@ -180,3 +180,12 @@ pub unsafe extern "thiscall" fn cusbio_last_error(_this: *mut u32, _device: i32)
 pub unsafe extern "thiscall" fn cusbio_close(_this: *mut u32) {
     log!("usbio: close");
 }
+
+/// `void CUSBIO::SetEncoderThreadState(int)`: the board's encoder (trackball) thread, none here.
+#[unsafe(no_mangle)]
+pub unsafe extern "thiscall" fn cusbio_encoder_thread(_this: *mut u32, _state: i32) {}
+
+/// `void CUSBIO::SetOutputValue(int device, u8 output, u8 value, u8)`: lamps and coin meters
+/// (Need for Speed Carbon's coin monitor), nothing to drive.
+#[unsafe(no_mangle)]
+pub unsafe extern "thiscall" fn cusbio_output(_this: *mut u32, _device: i32, _output: u8, _value: u8, _extra: u8) {}

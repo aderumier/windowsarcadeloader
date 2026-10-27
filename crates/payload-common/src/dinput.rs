@@ -5,7 +5,8 @@
 //! game window sees it).
 //!
 //! `DirectInputCreateA/W/Ex` and `DirectInput8Create` return a static fake interface (the
-//! IDirectInput8 vtable, a superset of the older ones): `EnumDevices` lists nothing,
+//! IDirectInput8 vtable, a superset of the older ones): `EnumDevices` lists nothing (the system
+//! keyboard and mouse once a payload set up the keyboard: [`set_keyboard`]),
 //! `CreateDevice` returns a fake device whose methods succeed, with zeroed states and no
 //! buffered data. Failing the creation instead would end some games.
 //!
@@ -263,6 +264,42 @@ unsafe extern "system" fn create_device(_this: P, guid: *const [u8; 16], out: *m
 /// [`set_keyboard`] (its action map built and set, never any data), else nothing. Need for Speed
 /// Underground's race sets up its controls through DirectInput 8 action mapping, and reads its
 /// cabinet's wheel only from its keyboard's update.
+/// `EnumDevices(dwDevType, lpCallback, pvRef, dwFlags)`: the system keyboard of
+/// [`set_keyboard`] and the mouse next to it, when the type filter takes them (all devices,
+/// keyboards, pointers or their exact type); else none. Need for Speed Carbon's input manager
+/// reads the cabinet only with a keyboard and a mouse listed.
+unsafe extern "system" fn enum_devices(_this: P, filter: u32, cb: P, ctx: P, _flags: u32) -> i32 {
+    if KEYBOARD.get().is_none() || cb.is_null() {
+        return DI_OK;
+    }
+    type Callback = unsafe extern "system" fn(*const u8, P) -> i32;
+    let cb: Callback = unsafe { std::mem::transmute(cb) };
+    // (guid, dwDevType: DI8DEVTYPE_KEYBOARD / PCENH, DI8DEVTYPE_MOUSE / TRADITIONAL, class, name)
+    let devices: [(&[u8; 16], u32, u32, &[u8]); 2] =
+        [(&GUID_SYS_KEYBOARD, 0x0413, 3, b"Keyboard"), (&GUID_SYS_MOUSE, 0x0212, 2, b"Mouse")];
+    for (guid, devtype, class, name) in devices {
+        let f = filter & 0xff;
+        if f != 0 && f != class && f != devtype & 0xff {
+            continue;
+        }
+        // DIDEVICEINSTANCEA: dwSize, guidInstance, guidProduct, dwDevType, tszInstanceName[260],
+        // tszProductName[260], guidFFDriver, wUsagePage, wUsage
+        let mut instance = [0u8; 580];
+        instance[0..4].copy_from_slice(&580u32.to_le_bytes());
+        instance[4..20].copy_from_slice(guid);
+        instance[20..36].copy_from_slice(guid);
+        instance[36..40].copy_from_slice(&devtype.to_le_bytes());
+        instance[40..40 + name.len()].copy_from_slice(name);
+        instance[300..300 + name.len()].copy_from_slice(name);
+        let more = unsafe { cb(instance.as_ptr(), ctx) };
+        log!("dinput: EnumDevices(type {filter:#x}): {}", String::from_utf8_lossy(name));
+        if more == 0 {
+            break;
+        }
+    }
+    DI_OK
+}
+
 unsafe extern "system" fn enum_by_semantics(_this: P, _user: P, _format: P, cb: P, ctx: P, _flags: u32) -> i32 {
     if KEYBOARD.get().is_none() || cb.is_null() {
         log!("dinput: EnumDevicesBySemantics: none");
@@ -293,7 +330,7 @@ static DINPUT_VTABLE: VTable<11> = VTable([
     ref_count as *const (), // AddRef
     ref_count as *const (), // Release
     create_device as *const (),
-    ok4 as *const (), // EnumDevices: none
+    enum_devices as *const (),
     unsupported1 as *const (), // GetDeviceStatus
     ok2 as *const (), // RunControlPanel
     ok2 as *const (), // Initialize

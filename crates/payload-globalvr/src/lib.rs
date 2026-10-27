@@ -1,4 +1,4 @@
-//! Global VR payload (Far Cry Paradise Lost, The Swarm, Aliens Extermination, Need for Speed GT).
+//! Global VR payload (Far Cry Paradise Lost, The Swarm, Aliens Extermination, Need for Speed GT, Underground, Carbon).
 //!
 //! Far Cry imports `USBIOExtreme.dll` (driver of Global VR's USBIO board: gun positions,
 //! gun and panel buttons, coin counters) statically: this DLL takes its place in the run
@@ -13,6 +13,10 @@
 //! * `gvrinput.rs`: `GVRInputRaw.dll` of the driving cabinets (Need for Speed GT), the wheel,
 //!   pedals and buttons of the frontend and of the game it starts; `frontend_fit.rs`: Need for
 //!   Speed Underground's .NET frontend window fitted to the screen.
+//! * `gvrio.rs`: `GvrIO.dll` of the "Zeus" driving cabinets (Need for Speed Carbon), its messages.
+//! * `carbon_menu.rs`: Need for Speed Carbon's race selection screen (`WAL_GLOBALVR_CARBON_MENU=1`).
+//! * `carbon_shell.rs`: the cabinet monitors Need for Speed Carbon's real frontend needs.
+//! * `smartcard.rs`: Need for Speed Carbon's frontend card reader (`GVRSCR28.dll`).
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
 //! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
@@ -24,12 +28,16 @@
 #![allow(non_snake_case)]
 
 mod aliens;
+mod carbon_menu;
+mod carbon_shell;
 mod config;
 mod frontend_fit;
 mod gamelog;
 mod gvrinput;
+mod gvrio;
 mod hasp;
 mod keyboard;
+mod smartcard;
 mod swarm;
 mod swarm_campaign;
 mod swarm_imports;
@@ -42,7 +50,19 @@ use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 
 pub use gvrinput::*;
+pub use gvrio::*;
+pub use smartcard::*;
 pub use usbio::*;
+
+/// The process executable's image size (`SizeOfImage`): the fixed game offsets the modules
+/// check must lie inside it (the payload also loads in the other programs of a game).
+pub(crate) fn exe_size() -> usize {
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    unsafe {
+        let nt = base + ((base + 0x3c) as *const u32).read_unaligned() as usize;
+        ((nt + 0x50) as *const u32).read_unaligned() as usize
+    }
+}
 
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
@@ -55,6 +75,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         usbio::init();
         gvrinput::init(module);
+        gvrio::init();
+        carbon_menu::init();
+        carbon_shell::init();
+        smartcard::init();
         aliens::init();
         hasp::init();
         keyboard::init();
