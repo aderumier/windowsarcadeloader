@@ -11,6 +11,19 @@ static GET_INTERFACE_INFO: AtomicUsize = AtomicUsize::new(0);
 static IP_RENEW_ADDRESS: AtomicUsize = AtomicUsize::new(0);
 static WSA_RECV_FROM: AtomicUsize = AtomicUsize::new(0);
 static WSA_SEND_TO: AtomicUsize = AtomicUsize::new(0);
+static WSA_SEND: AtomicUsize = AtomicUsize::new(0);
+/// The (address, header) combinations of the link's datagrams already logged.
+static SEEN: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Logs `line` once per distinct `key`.
+fn log_new(key: String, line: String) {
+    let mut seen = SEEN.lock().unwrap();
+    if !seen.contains(&key) {
+        seen.push(key);
+        log!("{line}");
+    }
+}
+
 static LOGGED: AtomicUsize = AtomicUsize::new(0);
 
 fn logging() -> bool {
@@ -85,6 +98,13 @@ unsafe extern "system" fn wsa_recv_from(
 ) -> i32 {
     type F = unsafe extern "system" fn(usize, *mut WsaBuf, u32, *mut u32, *mut u32, *mut u8, *mut i32, *mut u8, usize) -> i32;
     let orig: F = unsafe { std::mem::transmute(WSA_RECV_FROM.load(Ordering::Relaxed)) };
+    // the buffers still hold the previous datagram (the game reads into the same ones)
+    if !from.is_null() && !bufs.is_null() && count > 0 {
+        let a = unsafe { std::slice::from_raw_parts(from, 8) };
+        let head = unsafe { std::slice::from_raw_parts((*bufs).buf, 2) };
+        let key = format!("{}.{}.{}.{} {head:02X?}", a[4], a[5], a[6], a[7]);
+        log_new(format!("in {key}"), format!("net: datagram from {key} (port {})", u16::from_be_bytes([a[2], a[3]])));
+    }
     let r = unsafe { orig(s, bufs, count, received, flags, from, fromlen, ov, cr) };
     if logging() {
         unsafe extern "system" {
@@ -117,11 +137,28 @@ unsafe extern "system" fn wsa_send_to(
             local[4..8].copy_from_slice(&[127, 0, 0, 1]);
             dest = local.as_ptr();
         }
-        if logging() {
-            log!("net: WSASendTo {}.{}.{}.{}:{} {}", addr[4], addr[5], addr[6], addr[7], u16::from_be_bytes([addr[2], addr[3]]), if link { "-> loopback" } else { "" });
-        }
+        let head: Vec<u8> = if !bufs.is_null() && count > 0 { unsafe { std::slice::from_raw_parts((*bufs).buf, ((*bufs).len as usize).min(2)) }.to_vec() } else { Vec::new() };
+        let key = format!("{}.{}.{}.{}:{} {head:02X?}", addr[4], addr[5], addr[6], addr[7], u16::from_be_bytes([addr[2], addr[3]]));
+        log_new(format!("out {key}"), format!("net: WSASendTo {key}{}", if link { " -> loopback" } else { "" }));
     }
     unsafe { orig(s, bufs, count, sent, flags, dest, tolen, ov, cr) }
+}
+
+/// The game's WSASend (connected sockets), logged once per peer and header.
+unsafe extern "system" fn wsa_send(s: usize, bufs: *mut WsaBuf, count: u32, sent: *mut u32, flags: u32, ov: *mut u8, cr: usize) -> i32 {
+    type F = unsafe extern "system" fn(usize, *mut WsaBuf, u32, *mut u32, u32, *mut u8, usize) -> i32;
+    let orig: F = unsafe { std::mem::transmute(WSA_SEND.load(Ordering::Relaxed)) };
+    unsafe extern "system" {
+        fn getpeername(s: usize, name: *mut u8, len: *mut i32) -> i32;
+    }
+    let mut peer = [0u8; 16];
+    let mut len = 16i32;
+    if unsafe { getpeername(s, peer.as_mut_ptr(), &mut len) } == 0 && !bufs.is_null() && count > 0 {
+        let head: Vec<u8> = unsafe { std::slice::from_raw_parts((*bufs).buf, ((*bufs).len as usize).min(2)) }.to_vec();
+        let key = format!("{}.{}.{}.{}:{} {head:02X?}", peer[4], peer[5], peer[6], peer[7], u16::from_be_bytes([peer[2], peer[3]]));
+        log_new(format!("send {key}"), format!("net: WSASend {key}"));
+    }
+    unsafe { orig(s, bufs, count, sent, flags, ov, cr) }
 }
 
 pub(crate) fn init(base: usize) {
@@ -131,6 +168,11 @@ pub(crate) fn init(base: usize) {
     }
     if std::env::var("WAL_NAMCOES3_NET_LOG").is_ok_and(|v| v == "1") {
         trace_errors(base);
+        trace_states(base);
+        match unsafe { iat::hook_module(base, "ws2_32.dll", "WSASend", wsa_send as *const () as usize) } {
+            Some(o) => WSA_SEND.store(o, Ordering::Relaxed),
+            None => log!("net: WSASend not hooked"),
+        }
         match unsafe { iat::hook_module(base, "ws2_32.dll", "WSARecvFrom", wsa_recv_from as *const () as usize) } {
             Some(o) => WSA_RECV_FROM.store(o, Ordering::Relaxed),
             None => log!("net: WSARecvFrom not hooked"),
@@ -176,4 +218,57 @@ pub(crate) fn trace_errors(base: usize) {
     let mut jump = [0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xE0];
     jump[2..10].copy_from_slice(&(network_error as *const () as usize as u64).to_le_bytes());
     crate::patches::patch("network error trace", base, 0x1eba10, b"\x48\x89\x5c\x24\x08\x57\x48\x83\xec\x30\x8b\x05", &jump);
+}
+
+/// The InfoSystem implementation (the boot sequence and network states), caught by its
+/// Banapassport getter (0x57fc00, called each frame).
+static INFO_IMPL: AtomicUsize = AtomicUsize::new(0);
+
+unsafe extern "system" fn banapass_usable(this: *const usize) -> u32 {
+    let imp = unsafe { *this.add(1) };
+    INFO_IMPL.store(imp, Ordering::Relaxed);
+    unsafe { *((imp + 0x2ed) as *const u8) as u32 }
+}
+
+/// An MSVC `std::string` at `p`.
+unsafe fn msvc_string(p: usize) -> String {
+    unsafe {
+        let len = *((p + 0x10) as *const usize);
+        let cap = *((p + 0x18) as *const usize);
+        if len > 0x200 {
+            return String::new();
+        }
+        let data = if cap >= 0x10 { *(p as *const usize) } else { p };
+        String::from_utf8_lossy(std::slice::from_raw_parts(data as *const u8, len)).into_owned()
+    }
+}
+
+/// Logs the boot and network states on change: InfoSystem mode (0x2d8), authentication
+/// (0x640, 2 OK), terminal link (0x660, 2 OK), server status (0x6c0), Banapassport usable
+/// (0x2ed); the network module's state (+0x600, 8 tested) and terminal proxy (+0x5c8).
+pub(crate) fn trace_states(base: usize) {
+    let mut jump = [0x48, 0xB8, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF, 0xE0];
+    jump[2..10].copy_from_slice(&(banapass_usable as *const () as usize as u64).to_le_bytes());
+    crate::patches::patch("banapassport getter trace", base, 0x57fc00, b"\x48\x8b\x41\x08\x0f\xb6\x80\xed\x02\x00\x00\xc3", &jump);
+    std::thread::spawn(move || {
+        let mut last = String::new();
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            let imp = INFO_IMPL.load(Ordering::Relaxed);
+            let net = unsafe { *((base + 0x1979ae0) as *const usize) };
+            let net = if net != 0 { unsafe { *(net as *const usize) } } else { 0 };
+            let mut state = String::new();
+            if imp != 0 {
+                let r32 = |o: usize| unsafe { *((imp + o) as *const u32) };
+                state += &format!("mode {} auth {} link {} server {} usable {} ", r32(0x2d8), r32(0x640), r32(0x660), r32(0x6c0), unsafe { *((imp + 0x2ed) as *const u8) });
+            }
+            if net != 0 {
+                state += &format!("net {} proxy {:?}", unsafe { *((net + 0x600) as *const u32) }, unsafe { msvc_string(net + 0x5c8) });
+            }
+            if state != last {
+                log!("net: state {state}");
+                last = state;
+            }
+        }
+    });
 }

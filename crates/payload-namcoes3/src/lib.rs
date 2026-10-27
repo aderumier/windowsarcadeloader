@@ -19,6 +19,7 @@
 
 #![allow(non_snake_case)]
 
+mod banapass;
 mod bpreader;
 mod dinput;
 mod hasp;
@@ -27,6 +28,7 @@ mod lla;
 mod patches;
 mod projector;
 mod wmmt5;
+mod wmmt5_amcus;
 mod wmmt5_net;
 mod wmmt5_terminal;
 

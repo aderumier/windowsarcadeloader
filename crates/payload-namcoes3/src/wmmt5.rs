@@ -25,6 +25,7 @@ const HASP: &str = "hasp_windows_x64_109906.dll";
 const GAME: &str = "wmn5r.exe";
 
 /// The cabinet serial (HASP memory 0xd00) and the two check bytes 0xd3e / 0xd3f.
+pub(crate) const SERIAL_STR: &str = "272213990002";
 pub(crate) const SERIAL: &[u8; 12] = b"272213990002";
 pub(crate) const SERIAL_CHECK: [u8; 2] = [0x65, 0x9A];
 
@@ -52,16 +53,30 @@ pub(crate) fn attach(exe: &str, base: usize) {
             log!("wmmt5: {name} not hooked");
         }
     }
+    match unsafe { wal_payload_common::iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
+        Some(o) => CO_CREATE_INSTANCE.store(o, Ordering::Relaxed),
+        None => log!("wmmt5: CoCreateInstance not hooked"),
+    }
     // the other cabinet devices (IC card reader, touch panel, drive board) are off in the
     // settings: their ports stay absent
     crate::jvs::init(&[base]);
+    card_reader(base);
+    // the game server (the ALL.Net answer's uri, wmmt5_amcus.rs)
+    // and the store terminal's HTTPS proxy, where a drive cabinet sends its requests while the
+    // terminal links (its address, port 50765: wmmt5_terminal.rs)
+    wal_wm5srv::start(
+        &[crate::wmmt5_amcus::game_server(), crate::wmmt5_terminal::PROXY.to_string()],
+        "F:\\wm5srv",
+        |line| log!("{line}"),
+        std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1"),
+    );
     FFB_LOG.store(std::env::var("WAL_NAMCOES3_FFB_LOG").is_ok_and(|v| v == "1"), Ordering::Relaxed);
     std::thread::spawn(move || ffb(base));
 }
 
-/// The operator settings a new cabinet starts with (`setting.lua`), but the IC card reader,
-/// touch panel and drive board off (the game stops on their absent ports otherwise), free
-/// play, and the pedals' rest at 0.
+/// The operator settings a new cabinet starts with (`setting.lua`), but the card dispenser,
+/// touch panel and drive board off (the game stops on their absent ports otherwise), the IC
+/// card reader on (the emulated Banapass reader), free play, and the pedals' rest at 0.
 const SETTINGS: &[(&str, i32)] = &[
     ("mCalibHandleCenter", 32768),
     ("mCalibAccelCenter", 0),
@@ -78,7 +93,7 @@ const SETTINGS: &[(&str, i32)] = &[
     ("mFullCourseCost", 4),
     ("mFreePlay", 1),
     ("mPcbId", 0),
-    ("mIcCardRw", 0),
+    ("mIcCardRw", 1),
     ("mIcCardVender", 0),
     ("mMgCardRw", 0),
     ("mForceFeedback", 0),
@@ -149,6 +164,35 @@ fn gzip_stored(data: &[u8]) -> Vec<u8> {
     out
 }
 
+/// The Banapass reader (COM4, `bpreader.rs`) and the player's card: `WAL_NAMCOES3_ACCESS_CODE`
+/// (20 digits), else a card made once and kept in `F:\banapass.txt`. The `card` button puts it
+/// on the reader (while held, and 3 seconds after).
+fn card_reader(base: usize) {
+    crate::bpreader::init("COM4", &[base]);
+    const SAVED: &str = "F:\\banapass.txt";
+    let configured = std::env::var("WAL_NAMCOES3_ACCESS_CODE").ok().filter(|c| !c.trim().is_empty());
+    let saved = std::fs::read_to_string(SAVED).ok();
+    let card = configured
+        .or(saved)
+        .and_then(|c| crate::banapass::Card::from_access_code(c.trim()))
+        .unwrap_or_else(|| {
+            let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64);
+            let card = crate::banapass::Card::generate(seed);
+            if let Err(e) = std::fs::write(SAVED, &card.access_code) {
+                log!("wmmt5: {SAVED}: {e}");
+            }
+            card
+        });
+    log!("wmmt5: Banapass card {}", card.access_code);
+    let card: &'static crate::banapass::Card = Box::leak(Box::new(card));
+    std::thread::spawn(move || loop {
+        if wal_payload_common::input(0).pressed(wal_protocol::button::CARD) {
+            crate::bpreader::insert(card, Duration::from_secs(3));
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    });
+}
+
 /// The boot sequence's checks (`game::InfoSystem`, 0x58b000..) and the movie player's.
 fn patches(base: usize) {
     // the serial check against the network's ("Dongle Mismatch"): match
@@ -163,13 +207,42 @@ fn patches(base: usize) {
     patch("network time 3", base, 0x8a1da2, b"\x77\x14", &[0x90; 2]);
     // Media Foundation start failure: no DebugBreak (the movies are skipped)
     patch("movie start failure", base, 0x804872, b"\x79", b"\xeb");
+    // the game server's certificate is not verified (SSL_VERIFY_PEER -> none): the built-in
+    // server's own certificate
+    patch("server certificate", base, 0x817ccd, b"\xba\x01\x00\x00\x00", b"\xba\x00\x00\x00\x00");
+    // E0554: the game stops when 36 hours passed since its last game server exchange (its
+    // time at 0x6d8, loaded from the backup): never
+    patch("network offline period", base, 0x58157e, b"\x7c\x3e", b"\xeb\x3e");
     // the store link counts a peer as linked from a private network address only (else state
     // 3, never linked): the terminal and the cabinet's own packets come from the loopback
     patch("link private address", base, 0x8a56e3, b"\x74\x31", b"\xeb\x31");
-    // the store link: one node per address (the cabinet's own packets and the terminal's)
-    patch("terminal scan", base, 0x87bd6e, b"\x0f\x84\x88\x00\x00\x00", &[0x90; 6]);
-    patch("terminal scan 2", base, 0x87bd77, b"\x74\x60", &[0x90; 2]);
-    patch("terminal scan 3", base, 0x87bd7d, b"\x75\x4f", &[0x90; 2]);
+    // the terminal's software revision against the cabinet's (terminal link error 8, E2401
+    // "revision mismatch"): the emulated terminal has the cabinet's, the game compares a stored
+    // copy that differs
+    patch("terminal revision", base, 0x5809fe, b"\xb9\x08\x00\x00\x00", b"\xb9\x02\x00\x00\x00");
+    patch("terminal revision at boot", base, 0x58e66a, b"\x75\x74", &[0x90; 2]);
+    // the store link keeps one node per address (a new node drops the address's older one):
+    // the cabinet and its emulated terminal share the loopback address
+    patch("link one node per address", base, 0x87bd6e, b"\x0f\x84\x88\x00\x00\x00", &[0x90; 6]);
+    patch("link one node per address 2", base, 0x87bd77, b"\x74\x60", &[0x90; 2]);
+    patch("link one node per address 3", base, 0x87bd7d, b"\x75\x4f", &[0x90; 2]);
+}
+
+static CO_CREATE_INSTANCE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The cabinet's AMCUS auth daemon (`IAuth`), in-process (`wmmt5_amcus.rs`).
+unsafe extern "system" fn co_create_instance(clsid: *const u8, outer: *mut std::ffi::c_void, context: u32, iid: *const u8, out: *mut *mut std::ffi::c_void) -> i32 {
+    if !clsid.is_null() && unsafe { std::slice::from_raw_parts(clsid, 16) } == crate::wmmt5_amcus::CLSID {
+        if !out.is_null() {
+            unsafe { *out = (&crate::wmmt5_amcus::OBJECT as *const crate::wmmt5_amcus::Object).cast_mut().cast() };
+        }
+        static LOGGED: std::sync::Once = std::sync::Once::new();
+        LOGGED.call_once(|| log!("wmmt5: in-process AMCUS auth (IAuth)"));
+        return 0;
+    }
+    type F = unsafe extern "system" fn(*const u8, *mut std::ffi::c_void, u32, *const u8, *mut *mut std::ffi::c_void) -> i32;
+    let real: F = unsafe { std::mem::transmute(CO_CREATE_INSTANCE.load(Ordering::Relaxed)) };
+    unsafe { real(clsid, outer, context, iid, out) }
 }
 
 /// The game's debug asserts (`_wassert`): logged, the game goes on.

@@ -4,7 +4,11 @@ system: namcoes3
 name: Wangan Midnight Maximum Tune 5
 
 # The payload is the game's HASP library (wmn5r.exe imports it): dongle, I/O board on COM3,
-# boot patches, the store's card terminal (emulated on the loopback), force feedback.
+# boot patches, the store's card terminal (emulated on the loopback), force feedback, the
+# cabinet's network authentication, the Banapass card reader (COM4) and a built-in game server
+# (the players' cards, cars and progress, kept in the dump's F\wm5srv). The card goes on the
+# reader with the Banapass card control; it is made once (F\banapass.txt) unless an access
+# code is set.
 # The movies (WMV, Media Foundation) need the runner's mfreadwrite fix (GE patch 0104).
 payload_install: [hasp_windows_x64_109906.dll]
 
@@ -19,6 +23,8 @@ drives:
 env:
   # The store terminal's settings: free play (0: coins)
   WAL_NAMCOES3_FREEPLAY: "1"
+  # The Banapassport card's 20-digit access code (empty: a card made for this dump)
+  WAL_NAMCOES3_ACCESS_CODE: ""
 
 options:
   - title: Gameplay
@@ -27,6 +33,14 @@ options:
         label: Free play
         kind: bool
         description: Play without coins (the store terminal's setting).
+  - title: Banapassport card
+    options:
+      - key: WAL_NAMCOES3_ACCESS_CODE
+        label: Access code
+        kind: text
+        description: >-
+          The card's 20-digit access code (a real card's, to keep its player on another
+          machine). Empty: a card made once for this dump (F\banapass.txt).
 
 input:
   stick_as_dpad: false
@@ -43,6 +57,7 @@ input:
     r1: b3
     l1: b4
     y: b7
+    guide: card
   keyboard:
     p1:
       KEY_LEFT: -lx
@@ -60,6 +75,7 @@ input:
       KEY_5: coin
       KEY_F1: service
       KEY_F2: test
+      KEY_F4: card
 
 controls:
   lx: Steering wheel
@@ -80,3 +96,4 @@ controls:
   coin: Coin
   service: Service
   test: Test
+  card: Banapass card

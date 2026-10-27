@@ -3,8 +3,10 @@
 //! packets to the cabinets (UDP 225.0.0.1:50765); the payload sends them to the cabinet's
 //! socket (bound to any address, port 50765) on the loopback instead: the cabinet does not
 //! check where they come from or to, and local multicast is often dropped (a firewall, the
-//! loopback without multicast). They come from 127.0.0.2: the cabinet keeps one node per
-//! address, and its own packets come back from 127.0.0.1 (`wmmt5_net.rs`).
+//! loopback without multicast). They come from 127.0.0.1, as the cabinet's own packets sent
+//! back to it (`wmmt5_net.rs`): the cabinet's one-node-per-address rule is patched out. The
+//! drive cabinet sends its game server requests to the terminal's HTTPS proxy (its address,
+//! port 50765): the built-in server listens there ([`PROXY`]).
 //!
 //! A packet: the link group (1), the sender's node (the terminal: 4), the length (u16 LE, the
 //! header and the message), a `wm5.protobuf.Message`, then the CRC-32/MPEG-2 of the rest (big
@@ -12,7 +14,7 @@
 //!
 //! The message: a heartbeat (frame number, the terminal serial: its 5th digit, the store
 //! group, must be the cabinet's), the store's settings (`batch_setting`: coin costs, free play
-//! `WAL_NAMCOES3_FREEPLAY`, closing hours, time zone) every other packet, the information and
+//! `WAL_NAMCOES3_FREEPLAY`, closing hours, time zone) in every packet, the information and
 //! feature version of the terminal. The cabinet links when the settings' sync time changes
 //! (the current time, a new one each second) and their software revision is its own.
 
@@ -23,8 +25,14 @@ use wal_payload_common::log;
 
 const PORT: u16 = 50765;
 const LINK_GROUP: u8 = 1;
+/// The terminal's address (its packets' source) and its HTTPS proxy, the game server for the
+/// drive cabinets of its store.
+const ADDRESS: Ipv4Addr = Ipv4Addr::LOCALHOST;
+pub(crate) const PROXY: &str = "127.0.0.1:50765";
 const TERMINAL_NODE: u8 = 4;
 const TERMINAL_SERIAL: &str = "272211990002";
+/// The heartbeat's server communication state: 1 with the game server (online), 0 without.
+pub(crate) static SERVER_COMM: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
 /// The cabinet's software revision (a global of the game).
 const SOFTWARE_REVISION: usize = 0x1948dbc;
 
@@ -89,7 +97,7 @@ fn packet(frame: u32, settings: bool, free_play: bool, revision: u32) -> Vec<u8>
     let mut m = Message::new()
         .message(2, car)
         .message(3, course)
-        .message(5, Message::new().int(1, frame as u64).bytes(2, TERMINAL_SERIAL.as_bytes()).int(3, 0));
+        .message(5, Message::new().int(1, frame as u64).bytes(2, TERMINAL_SERIAL.as_bytes()).int(3, SERVER_COMM.load(std::sync::atomic::Ordering::Relaxed) as u64));
     if free_play {
         // batch_setting_state
         m = m.int(6, 3);
@@ -128,7 +136,7 @@ fn packet(frame: u32, settings: bool, free_play: bool, revision: u32) -> Vec<u8>
 pub(crate) fn start(base: usize) {
     let free_play = std::env::var("WAL_NAMCOES3_FREEPLAY").map_or(true, |v| v != "0");
     std::thread::spawn(move || {
-        let socket = match UdpSocket::bind((Ipv4Addr::new(127, 0, 0, 2), 0)) {
+        let socket = match UdpSocket::bind((ADDRESS, 0)) {
             Ok(s) => s,
             Err(e) => {
                 log!("wmmt5 terminal: socket: {e}");
@@ -137,11 +145,21 @@ pub(crate) fn start(base: usize) {
         };
         log!("wmmt5 terminal: sending to {}:{PORT} (free play {free_play})", Ipv4Addr::LOCALHOST);
         let mut frame = 0u32;
+        let mut last_revision = u32::MAX;
         loop {
             frame = frame.wrapping_add(1);
             // the cabinet's software revision (its batch settings must carry the same)
             let revision = unsafe { *((base + SOFTWARE_REVISION) as *const u32) };
-            if let Err(e) = socket.send_to(&packet(frame, frame % 2 == 0, free_play, revision), (Ipv4Addr::LOCALHOST, PORT)) {
+            if revision == 0 {
+                // not computed yet: the cabinet keeps the first settings it gets
+                std::thread::sleep(Duration::from_millis(100));
+                continue;
+            }
+            if revision != last_revision {
+                log!("wmmt5 terminal: cabinet software revision {revision}");
+                last_revision = revision;
+            }
+            if let Err(e) = socket.send_to(&packet(frame, true, free_play, revision), (Ipv4Addr::LOCALHOST, PORT)) {
                 if frame < 5 {
                     log!("wmmt5 terminal: send: {e}");
                 }

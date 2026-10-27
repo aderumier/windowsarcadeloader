@@ -1,0 +1,10 @@
+[package]
+name = "wal-wm5srv"
+description = "A Wangan Midnight Maximum Tune 5 game server (Bandai Namco's network): cards, players, cars"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+rustls = { version = "0.23", default-features = false, features = ["ring", "tls12", "std"] }
+rcgen = { version = "0.13", default-features = false, features = ["ring"] }
