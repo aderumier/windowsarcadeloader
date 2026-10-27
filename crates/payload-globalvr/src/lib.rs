@@ -11,7 +11,8 @@
 //! * `g_arcadeError` of `systemcfg.lua` reset at load (`WAL_GLOBALVR_CLEAR_ERRORS=0` keeps it).
 //! * `hasp.rs`: the game's HASP4 dongle calls.
 //! * `gvrinput.rs`: `GVRInputRaw.dll` of the driving cabinets (Need for Speed GT), the wheel,
-//!   pedals and buttons of the frontend and of the game it starts.
+//!   pedals and buttons of the frontend and of the game it starts; `frontend_fit.rs`: Need for
+//!   Speed Underground's .NET frontend window fitted to the screen.
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
 //! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
@@ -24,6 +25,7 @@
 
 mod aliens;
 mod config;
+mod frontend_fit;
 mod gamelog;
 mod gvrinput;
 mod hasp;

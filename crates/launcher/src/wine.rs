@@ -227,6 +227,46 @@ impl Wine {
         Ok(())
     }
 
+    /// Links the game's own fonts (files of the dump) in the prefix's `windows/Fonts`, where Wine
+    /// loads them at startup: fonts a cabinet installed in Windows (Need for Speed Underground's
+    /// frontend draws its menus with them).
+    pub fn link_game_fonts(&self, fonts: &[PathBuf], game_root: &Path) -> Result<()> {
+        let dst = self.prefix.join("drive_c/windows/Fonts");
+        for font in fonts {
+            let src = game_root.join(font);
+            if !src.is_file() {
+                bail!("font {} missing", src.display());
+            }
+            if self.dry_run { continue; }
+            fs::create_dir_all(&dst)?;
+            let name = src.file_name().context("font without name")?;
+            link(&src, &dst.join(name))?;
+        }
+        Ok(())
+    }
+
+    /// Imports registry files (`regedit /S`, the 32-bit view of the games: WOW6432Node) before
+    /// the game starts: values a cabinet's installer wrote.
+    pub fn import_registry(&self, files: &[PathBuf]) -> Result<()> {
+        for file in files {
+            if !file.is_file() {
+                bail!("registry file {} missing", file.display());
+            }
+            eprintln!("wine: registry {}", file.display());
+            if self.dry_run { continue; }
+            let status = self
+                .command("C:\\windows\\syswow64\\regedit.exe")
+                .arg("/S")
+                .arg(self.windows_path(file))
+                .status()
+                .with_context(|| format!("importing {}", file.display()))?;
+            if !status.success() {
+                bail!("regedit {} failed: {status}", file.display());
+            }
+        }
+        Ok(())
+    }
+
     /// `dll[,dll...]=mode` in WINEDLLOVERRIDES. Wine looks up `*<dll>` first, in the
     /// environment then in the registry, before the plain name: winetricks writes `*dsound`
     /// keys, which would win over a plain `dsound=b`. The names get the `*` too.

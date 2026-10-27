@@ -429,8 +429,11 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
                 if let Some(dir) = dst.parent() {
                     std::fs::create_dir_all(dir)?;
                 }
-                std::fs::copy(profile.path(src), &dst)
-                    .with_context(|| format!("initial file {} -> {}", profile.path(src).display(), dst.display()))?;
+                let src = match src.strip_prefix("{dump}") {
+                    Ok(rel) => game_root.join(rel),
+                    Err(_) => profile.path(src),
+                };
+                std::fs::copy(&src, &dst).with_context(|| format!("initial file {} -> {}", src.display(), dst.display()))?;
                 eprintln!("launcher: {name} installed in the dump");
             }
         }
@@ -447,6 +450,8 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         }
     }
     wine.map_c_folders(&profile.c_folders, &run_dir)?;
+    wine.link_game_fonts(&profile.fonts, game_root)?;
+    wine.import_registry(&profile.registry.iter().map(|f| profile.path(f)).collect::<Vec<_>>())?;
     let run_exe_dir = run_dir.join(exe_subdir);
 
     wine.set_env(env::PORT, &profile.port.to_string());

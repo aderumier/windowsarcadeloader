@@ -100,7 +100,8 @@ gamescope:
 # a file of the dump, from its root (a DLL the dump keeps in another folder).
 files: {}
 # Files copied into the dump only when it does not have them yet (default settings or
-# calibration the game then keeps updating): <path from the dump root>: <source>.
+# calibration the game then keeps updating): <path from the dump root>: <source> (a source
+# "{dump}/<path>": a file of the dump).
 initial_files: {}
 # Cabinet drive letters -> directories relative to the dump root. Created on launch and
 # mapped in Wine, so the game's settings and saves stay with this dump.
@@ -108,6 +109,12 @@ drives: {}
 # Folders of C:\ the game reaches by absolute paths (the cabinet's C:\Gvr) -> folders from the
 # dump root. Linked at each launch to that folder of the run directory (with the payloads).
 c_folders: {}
+# Registry files (.reg, relative to the root) imported in the prefix before each launch, in the
+# 32-bit view the games read (WOW6432Node): the values a cabinet's installer wrote.
+registry: []
+# Font files of the dump (paths from its root) linked in the prefix's windows/Fonts: the
+# fonts a cabinet installed in Windows.
+fonts: []
 # Extra environment variables of the game process (system options, wine settings).
 env:
   # Direct3D 9/8 presents held to 60 per second: arcade games are timed by frames and ran

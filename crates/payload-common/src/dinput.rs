@@ -31,7 +31,8 @@
 //!
 //! [`set_keyboard`]: a payload gives the fake DirectInput a system keyboard whose key states it
 //! fills from the virtual sticks (Contra: Evolution plays on its DirectInput keyboard keys and
-//! needs the keyboard device to work: `GetDeviceInfo` answered).
+//! needs the keyboard device to work: `GetDeviceInfo` answered). `EnumDevicesBySemantics` lists
+//! it then, its action map accepted (Need for Speed Underground: DirectInput 8 action mapping).
 //!
 //! `WAL_KEYBOARD_STATE_DISABLE=1`: the game's `user32!GetKeyboardState` reports no key pressed
 //! (Wacky Races reads START on the PC keyboard's Enter and VIEW on Right Shift that way, next
@@ -231,6 +232,8 @@ static KEYBOARD_VTABLE: VTable<32> = {
     let mut v = DEVICE_VTABLE.0;
     v[9] = keyboard_state as *const ();
     v[15] = keyboard_info as *const ();
+    v[29] = ok3 as *const (); // BuildActionMap
+    v[30] = ok3 as *const (); // SetActionMap
     VTable(v)
 };
 static KEYBOARD_DEVICE: Object = Object { vtable: KEYBOARD_VTABLE.0.as_ptr() };
@@ -256,8 +259,30 @@ unsafe extern "system" fn create_device(_this: P, guid: *const [u8; 16], out: *m
     DI_OK
 }
 
-unsafe extern "system" fn enum_by_semantics(_this: P, _user: P, _format: P, _cb: P, _ctx: P, _flags: u32) -> i32 {
-    log!("dinput: EnumDevicesBySemantics: none");
+/// `EnumDevicesBySemantics(user, lpdiActionFormat, callback, ref, flags)`: the system keyboard of
+/// [`set_keyboard`] (its action map built and set, never any data), else nothing. Need for Speed
+/// Underground's race sets up its controls through DirectInput 8 action mapping, and reads its
+/// cabinet's wheel only from its keyboard's update.
+unsafe extern "system" fn enum_by_semantics(_this: P, _user: P, _format: P, cb: P, ctx: P, _flags: u32) -> i32 {
+    if KEYBOARD.get().is_none() || cb.is_null() {
+        log!("dinput: EnumDevicesBySemantics: none");
+        return DI_OK;
+    }
+    // DIDEVICEINSTANCEA: dwSize, guidInstance, guidProduct, dwDevType, tszInstanceName[260],
+    // tszProductName[260], guidFFDriver, wUsagePage, wUsage
+    let mut instance = [0u8; 580];
+    instance[0..4].copy_from_slice(&580u32.to_le_bytes());
+    instance[4..20].copy_from_slice(&GUID_SYS_KEYBOARD);
+    instance[20..36].copy_from_slice(&GUID_SYS_KEYBOARD);
+    // DI8DEVTYPE_KEYBOARD, DI8DEVTYPEKEYBOARD_PCENH
+    instance[36..40].copy_from_slice(&0x0413u32.to_le_bytes());
+    instance[40..48].copy_from_slice(b"Keyboard");
+    instance[300..308].copy_from_slice(b"Keyboard");
+    type Callback = unsafe extern "system" fn(*const u8, P, u32, u32, P) -> i32;
+    let cb: Callback = unsafe { std::mem::transmute(cb) };
+    // DIEDBS_MAPPEDPRI1, no device left
+    unsafe { cb(instance.as_ptr(), &KEYBOARD_DEVICE as *const Object as P, 1, 0, ctx) };
+    log!("dinput: EnumDevicesBySemantics: the keyboard");
     DI_OK
 }
 
@@ -273,7 +298,7 @@ static DINPUT_VTABLE: VTable<11> = VTable([
     ok2 as *const (), // RunControlPanel
     ok2 as *const (), // Initialize
     unsupported3 as *const (), // FindDevice
-    enum_by_semantics as *const (), // EnumDevicesBySemantics: none
+    enum_by_semantics as *const (), // EnumDevicesBySemantics
     unsupported4 as *const (), // ConfigureDevices
 ]);
 static DINPUT: Object = Object { vtable: DINPUT_VTABLE.0.as_ptr() };

@@ -34,3 +34,9 @@ EXPORTS
     GVRInputRawIncFFFault = gvr_none
     GVRInputRawIncStuckAxis = gvr_none
     GVRInputRawIncUncalibratedAxis = gvr_none
+    ; the newer library (Need for Speed Underground): its card dispenser, none here
+    GVRInputRawGetCardStatus = gvr_card_status
+    GVRInputRawGetCardShutdown = gvr_none
+    GVRInputRawDispenseCard = gvr_none
+    GVRInputRawSetMode = gvr_none
+    GVRInputRawSetInterfaceType = gvr_none

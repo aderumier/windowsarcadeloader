@@ -42,7 +42,7 @@
 //! | 0x40000 / 0x80000 | shift down / up |
 //! | 0x100000 | coin [X] |
 //!
-//! Loaded as `GVRInputRaw.dll`, the payload also writes the game's install keys the cabinet
+//! Loaded as NFSHP2's `GVRInputRaw.dll`, the payload also writes the game's install keys the cabinet
 //! has in its registry (the dump's `_Registry`): without them NFSHP2.exe stops on "Corrupted
 //! files or registry; please reinstall.".
 
@@ -124,12 +124,23 @@ const REGISTRY: &[(&str, &[(&str, Value)])] = &[
     ("SOFTWARE\\Electronic Arts\\EA Games\\Need For Speed Hot Pursuit 2\\ergc", &[("", Value::Str("3RE7AHLP4XQMZBZR"))]),
 ];
 
-/// Writes the cabinet's registry when the payload is installed as `GVRInputRaw.dll`.
-pub(crate) fn init(module: HINSTANCE) {
+fn file_name(module: HINSTANCE) -> String {
     let mut name = [0u16; 260];
     let n = unsafe { GetModuleFileNameW(module, name.as_mut_ptr(), name.len() as u32) } as usize;
-    let path = String::from_utf16_lossy(&name[..n]);
-    if !path.to_ascii_lowercase().ends_with("\\gvrinputraw.dll") {
+    String::from_utf16_lossy(&name[..n]).to_ascii_lowercase()
+}
+
+/// Writes NFSHP2's registry when the payload is installed as its `GVRInputRaw.dll`; gives
+/// Need for Speed Underground's race a keyboard.
+pub(crate) fn init(module: HINSTANCE) {
+    // UndergroundGVR.exe reads GVRInputRaw.dll from its keyboard's update (the keyboard keys and
+    // the cabinet's wheel together): without a keyboard device (the fake DirectInput of
+    // WAL_DINPUT_DISABLE has none) GVRInputRawUpdate is never called. An empty one.
+    if file_name(module).ends_with("\\gvrinputraw.dll") && crate::frontend_fit::exe_name() == "undergroundgvr.exe" {
+        wal_payload_common::dinput::set_keyboard(|_| {});
+        log!("gvrinput: empty DirectInput keyboard for the race");
+    }
+    if !file_name(module).ends_with("\\gvrinputraw.dll") || !file_name(std::ptr::null_mut()).ends_with("\\nfshp2.exe") {
         return;
     }
     for (key, values) in REGISTRY {
@@ -214,6 +225,75 @@ fn wheel(v: i16) -> i16 {
     v >> 8
 }
 
+/// How the program reads the state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Layout {
+    /// Need for Speed GT (frontend and NFSHP2.exe): the table above.
+    Gt = 0,
+    /// Need for Speed Underground's race (UndergroundGVR.exe): the wheel, gas and brake as Need
+    /// for Speed GT (it adds 0x80 to the wheel's low byte), and the gears of its H shifter
+    /// ([`shifter`]).
+    UgRace = 1,
+    /// Need for Speed Underground's frontend (UniverShell2.exe through NFSControl.dll): the wheel
+    /// selects by its position (i16), which must not change but on deliberate input (each new
+    /// selection is an event into its .NET engine: a wheel moving every frame left it busy, then
+    /// hung); no pedal fields, the gas is the accept button (0x100) and the brake the back one
+    /// (0x400), and 0x42..0x48 stay 0 (it reads them, garbage there spun it).
+    UgShell = 2,
+}
+
+static LAYOUT: AtomicU32 = AtomicU32::new(Layout::Gt as u32);
+/// The Underground race's gear, 1..=6 (manual transmission: the frontend's `-trans 1`).
+static GEAR: AtomicU32 = AtomicU32::new(1);
+/// The shift buttons held at the last update (edge detection).
+static SHIFT_HELD: AtomicU32 = AtomicU32::new(0);
+
+/// The Underground cabinet's 6-speed H shifter: the bits of each gear, 1st to 6th (none: 3rd).
+const SHIFTER: [u32; 6] = [0x1, 0x80001, 0, 0x80000, 0x2, 0x80002];
+const SHIFT_DOWN: u32 = 0x40000;
+const SHIFT_UP: u32 = 0x80000;
+
+/// The Underground race's buttons: the shift down / up buttons step the gear, sent as the H
+/// shifter's position (its bits share 0x80000 with shift up).
+fn shifter(buttons: u32) -> u32 {
+    let shift = buttons & (SHIFT_DOWN | SHIFT_UP);
+    let pressed = shift & !SHIFT_HELD.swap(shift, Ordering::Relaxed);
+    let mut gear = GEAR.load(Ordering::Relaxed);
+    if pressed & SHIFT_UP != 0 && gear < 6 {
+        gear += 1;
+    }
+    if pressed & SHIFT_DOWN != 0 && gear > 1 {
+        gear -= 1;
+    }
+    if pressed != 0 {
+        GEAR.store(gear, Ordering::Relaxed);
+        log!("gvrinput: gear {gear}");
+    }
+    (buttons & !(SHIFT_DOWN | SHIFT_UP)) | SHIFTER[gear as usize - 1]
+}
+/// The Underground frontend's wheel, -120..=120 in steps of 8.
+static SHELL_WHEEL: AtomicI32 = AtomicI32::new(0);
+
+fn layout() -> Layout {
+    match LAYOUT.load(Ordering::Relaxed) {
+        1 => Layout::UgRace,
+        2 => Layout::UgShell,
+        _ => Layout::Gt,
+    }
+}
+
+/// The Underground frontend's wheel for this stick value: quantized, moved only by a full step.
+fn shell_wheel(steer: i16) -> i16 {
+    const STEP: i32 = 8;
+    let target = ((steer as i32 / STEP) * STEP).clamp(-120, 120);
+    let current = SHELL_WHEEL.load(Ordering::Relaxed);
+    if (target - current).abs() >= STEP {
+        SHELL_WHEEL.store(target, Ordering::Relaxed);
+        return target as i16;
+    }
+    current as i16
+}
+
 fn fill(state: *mut u8) {
     let stick: StickState = wal_payload_common::input(0);
     let mut buttons = 0;
@@ -223,20 +303,49 @@ fn fill(state: *mut u8) {
     let brake = stick.axis_u8(Axis::Brake) as i16;
     unsafe {
         put16(state, 0x08, (state as *const i16).read_unaligned());
-        put16(state, 0x00, steer);
-        put16(state, 0x42, steer);
-        put16(state, 0x02, gas);
-        put16(state, 0x44, gas);
-        put16(state, 0x34, brake);
-        put16(state, 0x46, brake);
-        put16(state, 0x48, -128);
-        put16(state, 0x4A, 127);
+        match layout() {
+            Layout::Gt => {
+                put16(state, 0x00, steer);
+                put16(state, 0x42, steer);
+                put16(state, 0x02, gas);
+                put16(state, 0x44, gas);
+                put16(state, 0x34, brake);
+                put16(state, 0x46, brake);
+                put16(state, 0x48, -128);
+                put16(state, 0x4A, 127);
+            }
+            Layout::UgRace => {
+                put16(state, 0x00, steer);
+                put16(state, 0x02, gas);
+                put16(state, 0x34, brake);
+                buttons = shifter(buttons);
+            }
+            Layout::UgShell => {
+                put16(state, 0x00, shell_wheel(steer));
+                put16(state, 0x02, 0);
+                put16(state, 0x34, 0);
+                state.add(0x42).write_bytes(0, 6);
+                if gas > 0x80 {
+                    buttons |= 0x100;
+                }
+                if brake > 0x80 {
+                    buttons |= 0x400;
+                }
+            }
+        }
         put32(state, 0x10, get32(state, 0x0C));
         put32(state, 0x0C, buttons);
         put32(state, 0x30, DRIVER_WHEEL);
     }
     if LAST.swap(buttons, Ordering::Relaxed) != buttons {
         log!("gvrinput: buttons {buttons:#x}");
+    }
+    // WAL_GVR_TRACE=1: what the program gets, every 60 updates
+    static TRACE: OnceLock<bool> = OnceLock::new();
+    static COUNT: AtomicU32 = AtomicU32::new(0);
+    if *TRACE.get_or_init(|| std::env::var("WAL_GVR_TRACE").is_ok()) && COUNT.fetch_add(1, Ordering::Relaxed) % 60 == 0 {
+        let word = |o: usize| unsafe { (state.add(o) as *const i16).read_unaligned() };
+        log!("gvrinput: update wheel {} gas {} brake {} buttons {:#x}", word(0), word(2), word(0x34), unsafe { get32(state, 0x0C) });
     }
 }
 
@@ -248,7 +357,15 @@ pub unsafe extern "C" fn gvr_init(_hwnd: usize, state: *mut u8, game: *const u8)
     } else {
         unsafe { std::ffi::CStr::from_ptr(game.cast()) }.to_string_lossy().into_owned()
     };
-    log!("gvrinput: init for {name:?}, state at {state:p}");
+    let layout = if !name.eq_ignore_ascii_case("NFSUNDERGROUND") {
+        Layout::Gt
+    } else if crate::frontend_fit::exe_name() == "undergroundgvr.exe" {
+        Layout::UgRace
+    } else {
+        Layout::UgShell
+    };
+    LAYOUT.store(layout as u32, Ordering::Relaxed);
+    log!("gvrinput: init for {name:?}, state at {state:p}, {layout:?} layout");
     map();
     if state.is_null() {
         return 2;
@@ -270,6 +387,7 @@ pub unsafe extern "C" fn gvr_update(state: *mut u8) -> i32 {
     }
     fill(state);
     ffb(state);
+    crate::frontend_fit::update();
     0
 }
 
@@ -278,6 +396,13 @@ pub unsafe extern "C" fn gvr_update(state: *mut u8) -> i32 {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn gvr_none() -> i32 {
     0
+}
+
+/// `int GVRInputRawGetCardStatus()`: 1, what the original answers without a card dispenser (0
+/// is a card ready).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gvr_card_status() -> i32 {
+    1
 }
 
 /// `ReadDrivingValues` / `WriteDrivingValues`: the cabinet's calibration file, nothing to keep.
@@ -301,5 +426,13 @@ mod tests {
         assert_eq!(wheel(i16::MIN), -128);
         assert_eq!(wheel(0), 0);
         assert_eq!(wheel(i16::MAX), 127);
+    }
+
+    #[test]
+    fn shell_wheel_steps() {
+        assert_eq!(shell_wheel(5), 0);
+        assert_eq!(shell_wheel(40), 40);
+        assert_eq!(shell_wheel(44), 40);
+        assert_eq!(shell_wheel(127), 120);
     }
 }

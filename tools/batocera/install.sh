@@ -13,11 +13,13 @@ cp -r systemprofiles "$DEST/systemprofiles"
 [ -f "$DEST/launcher.yaml" ] || cp tools/batocera/launcher.yaml "$DEST/"
 # GUI: its wrapper and icon (the applications menu entry of the rgs tree points at them)
 cp tools/batocera/arcade-launcher-gui tools/batocera/icon.png "$DEST/"
-# shared prefix ready to unpack (tools/prefix-archive.sh), if built
-if [ -f wine-prefix/full.tar.gz ]; then
+# prefixes ready to unpack: the shared one (tools/prefix-archive.sh) and games' own
+# (wine-prefix/nfsu.tar.gz: Need for Speed Underground's .NET 1.1 prefix), if built
+for archive in wine-prefix/*.tar.gz; do
+    [ -f "$archive" ] || continue
     mkdir -p "$DEST/wine-prefix"
-    cp wine-prefix/full.tar.gz "$DEST/wine-prefix/"
+    cp "$archive" "$DEST/wine-prefix/"
     # its version: prefixes unpacked from an older archive are updated
-    [ -f wine-prefix/full.version ] && cp wine-prefix/full.version "$DEST/wine-prefix/"
-fi
+    [ -f "${archive%.tar.gz}.version" ] && cp "${archive%.tar.gz}.version" "$DEST/wine-prefix/"
+done
 echo "installed in $DEST"

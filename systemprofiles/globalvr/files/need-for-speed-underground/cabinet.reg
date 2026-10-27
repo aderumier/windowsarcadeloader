@@ -1,0 +1,43 @@
+Windows Registry Editor Version 5.00
+
+; Need for Speed Underground (Global VR): the cabinet's registry (its installer's values), the
+; paths on the C:\ folders the profile links (C:\gvrroot, C:\Underground, C:\GvrPlus).
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\Boot]
+"BootValue"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\Dongle]
+"Inserted"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\UniverShell2]
+"RestartEnable"="0"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Installer\DeskTopEngine]
+"Exists"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Plus\1.1\Cabinet]
+"GvrEventLogRemovalThreshold"="30"
+"LeaderboardWaitTime"="20000"
+"MaxObjectLoadCount"="30"
+"PatchDownloadPath"="C:\\PatchService\\"
+"PatchMaxDownloadRetry"="9"
+"PatchMaxExecutionRetry"="1"
+"PlayerCardRequestThreshold"="20"
+"PlusSchemaPath"="C:\\GvrPlus\\1\\schema\\nfscabinetXml.enc"
+"PublicKeyPath"="C:\\GvrPlus\\1\\key\\publickey.xml"
+"SyncRetryInterval"="15"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Plus\1.1\Server]
+"PlusSchemaPath"="C:\\GvrPlus\\1\\schema\\nfsserverXml.enc"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR]
+"PQI Version"="PGA 2.0.0"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\Need For Speed UnderGround]
+"Build"="027"
+"Prefix"=""
+"Suffix"=""
+"Version"="1.1.0"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\NFSUNDERGROUND]
+"Ini"="C:\\Underground\\NFSUnderground.ini"

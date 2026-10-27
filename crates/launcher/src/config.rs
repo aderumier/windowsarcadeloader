@@ -63,6 +63,10 @@ pub struct Profile {
     pub drives: BTreeMap<String, PathBuf>,
     /// Folders of C:\ the game uses by absolute path, linked to run directory folders.
     pub c_folders: BTreeMap<String, PathBuf>,
+    /// Registry files (relative to the root) imported in the prefix before each launch.
+    pub registry: Vec<PathBuf>,
+    /// Font files of the dump (relative to its root) installed in the prefix.
+    pub fonts: Vec<PathBuf>,
     pub env: BTreeMap<String, String>,
     /// The game's own options for the GUI's Options tab (its environment variables).
     #[serde(default)]
