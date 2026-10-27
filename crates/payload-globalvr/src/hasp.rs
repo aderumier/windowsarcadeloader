@@ -36,6 +36,10 @@ const ID: u32 = 0x5741_4c00;
 /// where expected (other build).
 pub(crate) fn init() {
     let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    if crate::exe_size() < HASP + 5 {
+        log!("hasp: executable too small, dongle not emulated");
+        return;
+    }
     for site in CALL_SITES {
         let at = base + site;
         let code = unsafe { std::slice::from_raw_parts(at as *const u8, 5) };

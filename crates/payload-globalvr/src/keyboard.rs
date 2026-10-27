@@ -116,6 +116,10 @@ pub(crate) fn init() {
     if let Some(o) = unsafe { iat::hook("user32.dll", "GetMessageA", get_message as *const () as usize) } {
         GET.store(o, Ordering::Relaxed);
     }
+    if crate::exe_size() < SITE + ORIGINAL.len() {
+        log!("keyboard: executable too small, game keyboard left alone");
+        return;
+    }
     let at = unsafe { GetModuleHandleW(std::ptr::null()) } as usize + SITE;
     let code = unsafe { std::slice::from_raw_parts_mut(at as *mut u8, ORIGINAL.len()) };
     if code != ORIGINAL {

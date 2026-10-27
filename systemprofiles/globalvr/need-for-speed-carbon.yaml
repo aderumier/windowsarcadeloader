@@ -1,0 +1,143 @@
+# Need for Speed Carbon (Global VR) - template, override values in
+# userprofiles/globalvr/need-for-speed-carbon.yaml.
+# The cabinet's frontend (its install discs, in the dump's _Cabinet folder at the cabinet's
+# paths): the Anark player AMPlayer.exe runs C:\Shell\shell.am (startup checks, attract, track
+# and car selection, operator menus) with its plug-ins, then starts the game for each race,
+# CarbonReleaseorig.exe -race ... -car ... (the original build, one race per run).
+# - Both talk to GvrIO.dll, the cabinet's message library (wheel, pedals, shifter, buttons,
+#   lamps, the dongle and I/O board the frontend checks): the payload takes its place next to
+#   each (payload gvrio.rs).
+# - The coins: the frontend reads them from the cabinet's coin monitor (Hercules
+#   GVRCoinMonitor.exe), which the payload starts and feeds as its USBIOExtreme.dll (payload
+#   carbon_shell.rs, usbio.rs).
+# - The frontend's plug-ins keep the cabinet's records (pricing, credits, statistics, career)
+#   in a SQL Server database through GVR's .NET 1.1 data engine (PLUSDE.dll): the dump's
+#   _Cabinet/Plus holds an engine whose SQL client is a SQLite one (GvrSqlite.dll) and the
+#   cabinet's database built from its schema (carbon.db, copied to the run directory once).
+# - The card reader: the payload's (smartcard.rs), the card control inserts / removes a card
+#   whose id the frontend links to a career (WAL_GLOBALVR_CARD_ID, default 1000000001).
+#   .NET 1.1 as in Need for Speed Underground's prefix (copied as wine-prefix/nfsc).
+system: globalvr
+name: Need for Speed Carbon
+
+prefix: wine-prefix/nfsc
+prefix_tricks: []
+
+# the cabinet's command line (its Hercules boot entry)
+args: ['C:\Shell\shell.am', '-v', 'FULL', '-cabinet']
+
+# The game's GvrIO.dll (game root), the frontend's (next to its player), the coin monitor's
+# USBIOExtreme.dll.
+payload_install: [./GvrIO.dll, _Cabinet/Shell/bin/GvrIO.dll, _Cabinet/Hercules/USBIOExtreme.dll]
+
+# the .NET 1.1 runtime (native) and its C runtime (Wine's msvcr71 lacks __CxxCallUnwindDtor)
+dll_overrides:
+  mscoree: n
+  mscorwks: n
+  fusion: n
+  msvcr71: n,b
+  msvcp71: n,b
+
+# the cabinet's folders, by absolute path in its data and registry
+c_folders:
+  Shell: _Cabinet/Shell
+  Config: _Cabinet/Config
+  GVR: _Cabinet/GVR
+
+# The frontend's libraries, from the cabinet's C:\GVR\DLLs and system folder, next to its
+# player; its plug-in list without the cabinet linking one (it waits for linked cabinets on
+# the network).
+files:
+  _Cabinet/Shell/bin/PLUSDE.dll: "{dump}/_Cabinet/Plus/PLUSDE.dll"
+  _Cabinet/Shell/bin/GvrSqlite.dll: "{dump}/_Cabinet/Plus/GvrSqlite.dll"
+  _Cabinet/Shell/bin/sqlite3.dll: "{dump}/_Cabinet/Plus/sqlite3.dll"
+  _Cabinet/Shell/bin/msvcr71.dll: "{dump}/msvcr71.dll"
+  _Cabinet/Shell/bin/msvcp71.dll: "{dump}/msvcp71.dll"
+  _Cabinet/Shell/bin/msvcr71d.dll: "{dump}/_Cabinet/System32/msvcr71d.dll"
+  _Cabinet/Shell/bin/msvcp71d.dll: "{dump}/_Cabinet/System32/msvcp71d.dll"
+  _Cabinet/Config/GvrShellPlugInList.xml: systemprofiles/globalvr/files/need-for-speed-carbon/GvrShellPlugInList.xml
+
+# The cabinet's database, kept in the run directory (credits, statistics, records).
+initial_files:
+  CarbonPlus/carbon.db: "{dump}/_Cabinet/Plus/carbon.db"
+
+registry: [systemprofiles/globalvr/files/need-for-speed-carbon/cabinet.reg]
+
+# the frontend's fonts
+fonts:
+  - _Cabinet/Fonts/ARBLI___.TTF
+  - _Cabinet/Fonts/ariblk.TTF
+  - _Cabinet/Fonts/EASDisplayItalic.ttf
+  - _Cabinet/Fonts/EASDisplayNormal.ttf
+  - _Cabinet/Fonts/Terminat.ttf
+
+# The motion seat's library (TsuMotion.dll loads motionLib.dll, which needs the seat's I/O card
+# driver): absent, no motion.
+hide: [TsuMotion.dll]
+
+# The frontend draws to the screen mode it set (1280x720): gamescope scales it, and the game
+# it starts, to the screen (on the desktop its window stopped being redrawn).
+gamescope:
+  enabled: true
+  width: 1280
+  height: 720
+
+env:
+  WAL_DINPUT_DISABLE: "1"
+  # the cabinet's C:\GVR\DLLs on the PATH (the player loads GvrParseXml.dll from there)
+  WINEPATH: 'C:\wal\globalvr\need-for-speed-carbon'
+  GVRSQLITE_DB: 'C:\wal\globalvr\need-for-speed-carbon\CarbonPlus\carbon.db'
+  # the coin monitor, relative to the player
+  WAL_GLOBALVR_CARBON_MONITORS: '..\..\Hercules'
+  # No HASP dongle: its check jumped over to the standard cabinet's setup (the dongle's region
+  # and cabinet type stay unset: warnings only; the dump's CarbonRelease.exe jumps to the
+  # motion cabinet's). The environment map's cube texture is never created in this build:
+  # its 6 face textures are not loaded (their completion copied them into it, an exception
+  # that ended the game). The controls are read whether the game is the active application or
+  # not (started by the frontend, its window does not get the activation: the car drove
+  # itself).
+  WAL_PATCHES: "0x252bf2:e9ad000000,0x2c5c7a:eb,0x239e4c:909090909090"
+  WAL_PATCHES_EXE: CarbonReleaseorig.exe
+
+input:
+  # the wheel must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, L1 / R1 shift down / up, X view, Y music, B nitrous,
+  # A e-brake, d-pad down look back, guide the card.
+  gamepad:
+    guide: card
+    r2: accel
+    l2: brake
+    l1: b5
+    r1: b6
+    a: b7
+    b: b3
+    dpdown: b4
+  # keyboard steering, gas and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_F4: card
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: View
+  b2: Music
+  b3: Nitrous
+  b4: Look back
+  b5: Shift down
+  b6: Shift up
+  b7: E-brake
+  b8: none
+  card: Insert / remove the card

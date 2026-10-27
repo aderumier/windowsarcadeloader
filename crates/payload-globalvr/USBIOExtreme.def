@@ -6,6 +6,9 @@ EXPORTS
     "?CUSBIO_Update@CUSBIO@@QAEXH@Z" = cusbio_update
     "?CUSBIO_GetLastError@CUSBIO@@QAEPADH@Z" = cusbio_last_error
     "?CUSBIO_Close@CUSBIO@@QAEXXZ" = cusbio_close
+; the cabinet monitors (Need for Speed Carbon's GVRCoinMonitor.exe, GVRVolumeMonitor.exe)
+    "?SetEncoderThreadState@CUSBIO@@QAEXH@Z" = cusbio_encoder_thread
+    "?SetOutputValue@CUSBIO@@QAEXHEEE@Z" = cusbio_output
 ; GVRInputRaw.dll (driving cabinets, gvrinput.rs), cdecl functions imported by name.
     GVRInputRawInit = gvr_init
     GVRInputRawUpdate = gvr_update
@@ -40,3 +43,12 @@ EXPORTS
     GVRInputRawDispenseCard = gvr_none
     GVRInputRawSetMode = gvr_none
     GVRInputRawSetInterfaceType = gvr_none
+; GvrIO.dll (Need for Speed Carbon, gvrio.rs): the cGvrIO class and the message function.
+    "??0cGvrIO@GvrIO@Zeus@Gvr@@QAE@XZ" = gvrio_new
+    "??1cGvrIO@GvrIO@Zeus@Gvr@@QAE@XZ" = gvrio_drop
+    "?Initialize@cGvrIO@GvrIO@Zeus@Gvr@@QAE_NW4GVR_DEVICE_TYPES@234@PAUHWND__@@P6APAXPAUsMessage@234@@Z@Z" = gvrio_initialize
+    "?MessageRegisterCallback@cGvrIO@GvrIO@Zeus@Gvr@@QAE_NW4GVR_DEVICE_TYPES@234@P6APAXPAUsMessage@234@@Z@Z" = gvrio_register_callback
+    "?GvrIOMessageSend@GvrIO@Zeus@Gvr@@YAPAXPAUsMessage@123@@Z" = gvrio_send
+; GVRSCR28.dll (Need for Speed Carbon's frontend, smartcard.rs): the card reader.
+    CreateGVRStorageDeviceImp = smartcard_create
+    ReleaseGVRStorageDeviceImp = smartcard_release
