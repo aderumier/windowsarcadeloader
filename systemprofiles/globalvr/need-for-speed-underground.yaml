@@ -11,16 +11,12 @@
 system: globalvr
 name: Need for Speed Underground
 
-# Its own prefix: .NET 1.1 (CLR 1.1, the mixed-mode PLUSDE.dll fails on Mono and CLR 2). Set up
-# by hand for now (winetricks dotnet11 installs nothing in a 64-bit prefix):
-# - netfx.msi of dotnetfx.exe (winetricks cache) with its only launch condition, the string
-#   "NOT (VersionNT64)", made "NOT (VersionNT65)", installed with `msiexec /i netfx.msi /qn`;
-# - the Global Assembly Cache filled from Microsoft.NET\Framework\v1.1.4322 (Wine's msi leaves
-#   it empty): System.EnterpriseServices.Internal.Publish.GacInstall from a small program built
-#   with the framework's csc.exe;
-# - native mscoree, mscorwks, fusion (below).
-prefix: wine-prefix/nfsu
-prefix_tricks: []
+# Its prefix: .NET 1.1 (CLR 1.1, the mixed-mode PLUSDE.dll fails on Mono and CLR 2), shared with
+# Need for Speed Carbon: unpacked from wine-prefix/dotnet11.tar.gz, else installed by the
+# launcher's dotnet11 verb (winetricks' installs nothing in a 64-bit prefix): netfx.msi without
+# its 64-bit launch condition, the assembly cache filled; native mscoree, mscorwks, fusion.
+prefix: wine-prefix/dotnet11
+prefix_tricks: [dotnet11]
 
 payload_install: [GvrRoot/GVRInputRaw.dll, UndergroundGVR/GVRInputRaw.dll]
 

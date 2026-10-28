@@ -16,12 +16,13 @@
 #   cabinet's database built from its schema (carbon.db, copied to the run directory once).
 # - The card reader: the payload's (smartcard.rs), the card control inserts / removes a card
 #   whose id the frontend links to a career (WAL_GLOBALVR_CARD_ID, default 1000000001).
-#   .NET 1.1 as in Need for Speed Underground's prefix (copied as wine-prefix/nfsc).
+# - .NET 1.1: the prefix shared with Need for Speed Underground (wine-prefix/dotnet11), each
+#   game's registry imported before its launch.
 system: globalvr
 name: Need for Speed Carbon
 
-prefix: wine-prefix/nfsc
-prefix_tricks: []
+prefix: wine-prefix/dotnet11
+prefix_tricks: [dotnet11]
 
 # the cabinet's command line (its Hercules boot entry)
 args: ['C:\Shell\shell.am', '-v', 'FULL', '-cabinet']
