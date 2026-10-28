@@ -14,7 +14,7 @@ cp -r systemprofiles "$DEST/systemprofiles"
 # GUI: its wrapper and icon (the applications menu entry of the rgs tree points at them)
 cp tools/batocera/arcade-launcher-gui tools/batocera/icon.png "$DEST/"
 # prefixes ready to unpack: the shared one (tools/prefix-archive.sh) and games' own
-# (wine-prefix/nfsu.tar.gz: Need for Speed Underground's .NET 1.1 prefix), if built
+# (wine-prefix/dotnet11.tar.gz: the .NET 1.1 prefix of Need for Speed Underground and Carbon), if built
 for archive in wine-prefix/*.tar.gz; do
     [ -f "$archive" ] || continue
     mkdir -p "$DEST/wine-prefix"

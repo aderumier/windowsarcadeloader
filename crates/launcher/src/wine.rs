@@ -4,6 +4,7 @@
 //! 64-bit system libs, runner x86_64-unix, then the runner's own FFmpeg last), GE-Proton
 //! prefixes get vkd3d and icu linked in, prefixes are updated when the runner changes.
 //! A new prefix is unpacked from `<prefix>.tar.gz` when present (`tools/prefix-archive.sh`).
+//! Verbs are winetricks', except `dotnet11` (`dotnet11.rs`).
 
 use std::ffi::OsStr;
 use std::fs;
@@ -13,6 +14,8 @@ use std::process::{Command, ExitStatus};
 use anyhow::{Context, Result, bail};
 
 use crate::config::{Graphics, Profile};
+
+mod dotnet11;
 
 pub struct Wine {
     pub runner: PathBuf,
@@ -68,6 +71,7 @@ fn trick_dlls(verb: &str) -> Vec<String> {
             .to_vec(),
         // registrations, sound bank, fonts: no DLL override
         "dsdmo" | "gmdls" | "fakejapanese" => vec![],
+        "dotnet11" => dotnet11::DLLS.map(String::from).to_vec(),
         _ => vec![verb.into()],
     }
 }
@@ -542,6 +546,15 @@ impl Wine {
             if done.lines().any(|l| l.trim() == verb) {
                 continue;
             }
+            if verb == "dotnet11" {
+                // the launcher's own (dotnet11.rs): winetricks' installs nothing in a 64-bit prefix
+                eprintln!("wine: applying {verb}");
+                if !self.dry_run {
+                    self.install_dotnet11()?;
+                    self.mark_trick(&stamp, verb)?;
+                }
+                continue;
+            }
             eprintln!("wine: applying winetricks {verb}");
             if self.dry_run {
                 continue;
@@ -572,11 +585,17 @@ impl Wine {
                 }
             }
             self.wineserver("-w")?;
-            let mut list = fs::read_to_string(&stamp).unwrap_or_default();
-            list.push_str(verb);
-            list.push('\n');
-            fs::write(&stamp, list)?;
+            self.mark_trick(&stamp, verb)?;
         }
+        Ok(())
+    }
+
+    /// Records `verb` as applied (`.wal-tricks`).
+    fn mark_trick(&self, stamp: &Path, verb: &str) -> Result<()> {
+        let mut list = fs::read_to_string(stamp).unwrap_or_default();
+        list.push_str(verb);
+        list.push('\n');
+        fs::write(stamp, list)?;
         Ok(())
     }
 

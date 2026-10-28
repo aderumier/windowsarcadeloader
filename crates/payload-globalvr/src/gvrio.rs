@@ -26,7 +26,12 @@
 //!   wheel -127..=127, 1 gas 0..=255, 2 brake 0..=255) and id 0x42 a button by name (the H
 //!   shifter of the manual transmission: `ShifterLeft` / `Right` / `Up` / `Down`; the
 //!   frontend's `IsButtonDown`: `Music`...). The other
-//!   ids (lamps by name, force feedback settings) are answered 0.
+//!   ids (lamps by name) are answered 0.
+//! * Force feedback: the race (and the frontend's menus) drive the wheel with a spring whose
+//!   center moves (0x1D: force 0..=100, center -90..=90 pointed to by the message) and two sines
+//!   (0x19 / 0x1B: crashes, terrain), each with its off message, and set a damper (0x35, not
+//!   sent): to the launcher as `FFB_SPRING` (the force), `FFB_CONSTANT` (force x center / 90: the
+//!   pull toward the game's center) and `FFB_VIBRATION` (the stronger sine).
 //! * The cabinet frontend (its `ZeusIOPlugIn.dll`) also asks the original's plug-ins: the
 //!   dongle (`Dongle.dll`: 0x23 present, answered by the callback's 0x24 too, 0x25 present, 0x26
 //!   region, 0x27 game, 0x28 version, 0x29 HASP id) and the card dispenser (`CardDispenser.dll`:
@@ -39,7 +44,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicI32, AtomicU32, AtomicUsize, Ordering};
 
 use wal_payload_common::{log, mapping::ButtonMap};
-use wal_protocol::{Axis, StickState};
+use wal_protocol::{Axis, StickState, output};
 
 #[repr(C)]
 pub struct Message {
@@ -156,6 +161,69 @@ const ID_SET_SELECTION_Y: u32 = 0x12;
 const ID_RANGE_X: u32 = 0x13;
 const ID_RANGE_Y: u32 = 0x14;
 const ID_AXIS_RAW: u32 = 0x06;
+
+/// Force feedback: sines (force 0..=100, period), the spring (force 0..=100, center -90..=90 as
+/// the value pointed to: 90 = turned fully right), each with its off message; the damper.
+const ID_SINE: u32 = 0x19;
+const ID_SINE_OFF: u32 = 0x1A;
+const ID_SINE2: u32 = 0x1B;
+const ID_SINE2_OFF: u32 = 0x1C;
+const ID_SPRING: u32 = 0x1D;
+const ID_SPRING_OFF: u32 = 0x1E;
+const ID_DAMPER: u32 = 0x35;
+const ID_DAMPER_OFF: u32 = 0x36;
+
+/// The force feedback effects on: spring force and center, the two sines' forces.
+static SPRING_FORCE: AtomicI32 = AtomicI32::new(0);
+static SPRING_CENTER: AtomicI32 = AtomicI32::new(0);
+static SINE_FORCE: [AtomicI32; 2] = [AtomicI32::new(0), AtomicI32::new(0)];
+/// The last values sent: spring, constant force, vibration.
+static SENT: [AtomicI32; 3] = [AtomicI32::new(-1), AtomicI32::new(-1), AtomicI32::new(-1)];
+
+/// The effects as the launcher's: the spring centered on the wheel's middle plus a constant
+/// force toward the game's center (together a spring around it), the stronger sine.
+fn ffb_outputs() -> [(u16, i32); 3] {
+    let force = SPRING_FORCE.load(Ordering::Relaxed);
+    let center = SPRING_CENTER.load(Ordering::Relaxed).clamp(-90, 90);
+    let sine = SINE_FORCE[0].load(Ordering::Relaxed).max(SINE_FORCE[1].load(Ordering::Relaxed));
+    [
+        (output::FFB_SPRING, force * output::FFB_MAX / 100),
+        (output::FFB_CONSTANT, force * center * output::FFB_MAX / (100 * 90)),
+        (output::FFB_VIBRATION, sine * output::FFB_MAX / 100),
+    ]
+}
+
+/// A force feedback message: the effect's state updated, the launcher's outputs sent on change.
+fn ffb(id: u32, value: i32, param: *const i32) {
+    let force = value.clamp(0, 100);
+    match id {
+        ID_SPRING => {
+            SPRING_FORCE.store(force, Ordering::Relaxed);
+            SPRING_CENTER.store(if param.is_null() { 0 } else { unsafe { param.read() } }, Ordering::Relaxed);
+        }
+        ID_SPRING_OFF => SPRING_FORCE.store(0, Ordering::Relaxed),
+        ID_SINE => SINE_FORCE[0].store(force, Ordering::Relaxed),
+        ID_SINE_OFF => SINE_FORCE[0].store(0, Ordering::Relaxed),
+        ID_SINE2 => SINE_FORCE[1].store(force, Ordering::Relaxed),
+        ID_SINE2_OFF => SINE_FORCE[1].store(0, Ordering::Relaxed),
+        _ => {}
+    }
+    for ((output, value), sent) in ffb_outputs().into_iter().zip(&SENT) {
+        if sent.swap(value, Ordering::Relaxed) != value {
+            log!("gvrio: ffb {} {value}", ["", "constant", "spring", "vibration"][output as usize]);
+            wal_payload_common::send_output(0, output, value);
+        }
+    }
+}
+
+/// The frontend's force feedback sent again (the launcher keeps the last values: a race that
+/// ended left its own).
+fn ffb_resend() {
+    for ((output, value), sent) in ffb_outputs().into_iter().zip(&SENT) {
+        sent.store(value, Ordering::Relaxed);
+        wal_payload_common::send_output(0, output, value);
+    }
+}
 
 static MAP: OnceLock<ButtonMap<Native>> = OnceLock::new();
 static CALLBACK: AtomicUsize = AtomicUsize::new(0);
@@ -336,10 +404,13 @@ pub unsafe extern "thiscall" fn gvrio_initialize(_this: *mut c_void, device: u32
     static THREAD: std::sync::Once = std::sync::Once::new();
     THREAD.call_once(|| {
         std::thread::spawn(|| {
-            loop {
+            for tick in 0u32.. {
                 std::thread::sleep(std::time::Duration::from_millis(16));
                 if CALLBACK.load(Ordering::Relaxed) != 0 {
                     update();
+                }
+                if tick % 60 == 0 && in_frontend() {
+                    ffb_resend();
                 }
             }
         });
@@ -418,6 +489,12 @@ pub unsafe extern "C" fn gvrio_send(message: *mut Message) -> *const c_void {
             target.store(message.value, Ordering::Relaxed);
             0
         }
+        ID_SINE | ID_SINE_OFF | ID_SINE2 | ID_SINE2_OFF | ID_SPRING | ID_SPRING_OFF => {
+            ffb(message.id, message.value, message.data.cast());
+            0
+        }
+        // the damper: the spring's companion, not sent
+        ID_DAMPER | ID_DAMPER_OFF => 0,
         ID_AXIS_MIN => 0,
         ID_AXIS_MAX => 255,
         // the wheel as 0..=255 too (centered 128)
