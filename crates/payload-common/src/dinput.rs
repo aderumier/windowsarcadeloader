@@ -22,8 +22,11 @@
 //! motor that is not there. `WAL_DINPUT_WHEEL_Y_AXIS` / `_Z_` / `_RX_` / `_RY_` / `_RZ_AXIS`
 //! map more axes (Rx, Ry, Rz are listed only when mapped: GRID's "SEGA IO Controller" has its
 //! gas on Rx); `WAL_DINPUT_WHEEL_BUTTONS=<virtual button>,...` gives the buttons in order
-//! (`none` for an unused one; default: b1-b8, start, coin, service, test).
+//! (`none` for an unused one, `b1+start` pressed by either; default: b1-b8, start, coin,
+//! service, test).
 //! `WAL_DINPUT_WHEEL_FFB=0`: no force feedback (`CreateEffect` unsupported).
+//! `WAL_DINPUT_WHEEL_VIDPID=<vid>:<pid>` (hex): the USB ids in its product GUID (Blazing Angels
+//! picks its controls layout by the vendor id: the cabinet board's, 1ab7).
 //!
 //! `WAL_DINPUT_BOARD=<product name or 1>`: the same fake DirectInput, with one cabinet button
 //! box (26 buttons, the Injustice cabinet's layout): the players' fight buttons, coins, start,
@@ -56,6 +59,37 @@ struct Object {
 unsafe impl Sync for Object {}
 
 struct VTable<const N: usize>([*const (); N]);
+
+// An enumeration callback called with the caller's stack pointer kept: the callbacks are stdcall,
+// but some games declare theirs cdecl (Blazing Angels' calibration page), which leaves its two
+// arguments on the stack; real DirectInput copes with it.
+#[cfg(target_arch = "x86")]
+core::arch::global_asm!(
+    ".globl {stub}",
+    "{stub}:",
+    "push ebp",
+    "mov ebp, esp",
+    "push dword ptr [ebp + 16]",
+    "push dword ptr [ebp + 12]",
+    "call dword ptr [ebp + 8]",
+    "mov esp, ebp",
+    "pop ebp",
+    "ret",
+    stub = sym wal_dinput_enum_callback,
+);
+
+#[cfg(target_arch = "x86")]
+unsafe extern "C" {
+    fn wal_dinput_enum_callback(cb: usize, item: *const u8, context: P) -> i32;
+}
+
+/// Calls an enumeration callback `BOOL cb(item, context)`, whatever its calling convention.
+unsafe fn enum_callback(cb: unsafe extern "system" fn(*const u8, P) -> i32, item: *const u8, context: P) -> i32 {
+    #[cfg(target_arch = "x86")]
+    return unsafe { wal_dinput_enum_callback(cb as usize, item, context) };
+    #[cfg(not(target_arch = "x86"))]
+    return unsafe { cb(item, context) };
+}
 unsafe impl<const N: usize> Sync for VTable<N> {}
 
 // Methods by argument count after `this` (stdcall: the callee pops them).
@@ -480,7 +514,8 @@ mod wheel {
         [a[0], a[1], a[2], a[3], b[0], b[1], c[0], c[1], d4[0], d4[1], d4[2], d4[3], d4[4], d4[5], d4[6], d4[7]]
     }
     pub(super) const INSTANCE: [u8; 16] = guid(0x5741_4C57, 0x4845, 0x454C, *b"WALWHEEL");
-    const PRODUCT: [u8; 16] = guid(0x5741_4C57, 0, 0, *b"\0\0PIDVID");
+    /// The product GUID's first field: product id << 16 | vendor id (`WAL_DINPUT_WHEEL_VIDPID`).
+    static VIDPID: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x5741_4C57);
     /// GUID_XAxis, GUID_YAxis, GUID_ZAxis, GUID_RxAxis, GUID_RyAxis, GUID_RzAxis
     const AXES: [[u8; 16]; AXIS_COUNT] = [
         guid(0xA36D_02E0, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]),
@@ -530,14 +565,24 @@ mod wheel {
                 .map(|b| {
                     let b = b.trim();
                     if b.eq_ignore_ascii_case("none") { 0 } else {
-                        wal_protocol::button::from_name(b).unwrap_or_else(|| {
-                            log!("dinput: unknown wheel button {b:?}");
-                            0
+                        // `b1+start`: pressed with either
+                        b.split('+').fold(0, |mask, b| {
+                            mask | wal_protocol::button::from_name(b.trim()).unwrap_or_else(|| {
+                                log!("dinput: unknown wheel button {b:?}");
+                                0
+                            })
                         })
                     }
                 })
                 .collect();
             let _ = BUTTONS.set(buttons);
+        }
+        if let Ok(ids) = std::env::var("WAL_DINPUT_WHEEL_VIDPID") {
+            let ids = ids.split_once(':').and_then(|(v, p)| Some((u16::from_str_radix(v.trim(), 16).ok()?, u16::from_str_radix(p.trim(), 16).ok()?)));
+            match ids {
+                Some((vid, pid)) => VIDPID.store((pid as u32) << 16 | vid as u32, Ordering::Relaxed),
+                None => log!("dinput: bad WAL_DINPUT_WHEEL_VIDPID"),
+            }
         }
         log!("dinput: wheel {name:?}");
         let _ = NAME.set(name);
@@ -571,7 +616,8 @@ mod wheel {
             std::ptr::write_bytes(out, 0, size);
             (out as *mut u32).write_unaligned(size as u32);
             std::ptr::copy_nonoverlapping(INSTANCE.as_ptr(), out.add(4), 16);
-            std::ptr::copy_nonoverlapping(PRODUCT.as_ptr(), out.add(20), 16);
+            let product = guid(VIDPID.load(Ordering::Relaxed), 0, 0, *b"\0\0PIDVID");
+            std::ptr::copy_nonoverlapping(product.as_ptr(), out.add(20), 16);
             (out.add(36) as *mut u32).write_unaligned(DEV_TYPE);
             put_str(out.add(40), 260, name(), wide);
             put_str(out.add(40 + 260 * chars), 260, name(), wide);
@@ -596,7 +642,7 @@ mod wheel {
             let mut instance = [0u8; 0x44C];
             let r = unsafe {
                 device_instance(instance.as_mut_ptr(), wide);
-                cb(instance.as_ptr(), context)
+                super::enum_callback(cb, instance.as_ptr(), context)
             };
             static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
             if !LOGGED.swap(true, Ordering::Relaxed) {
@@ -698,7 +744,7 @@ mod wheel {
                 (o.add(20) as *mut u32).write_unaligned(4 * i as u32); // dwOfs in DIJOYSTATE
                 (o.add(24) as *mut u32).write_unaligned(ABS_AXIS | (i as u32) << 8); // dwType
                 put_str(o.add(32), 260, AXIS_NAMES[i], wide);
-                if cb(o, context) == 0 {
+                if super::enum_callback(cb, o, context) == 0 {
                     break; // DIENUM_STOP
                 }
             }
@@ -716,7 +762,7 @@ mod wheel {
                     (o.add(24) as *mut u32).write_unaligned(4 | (i as u32) << 8);
                     let label = format!("Button {}", i + 1);
                     put_str(o.add(32), 260, &label, wide);
-                    if cb(o, context) == 0 { break; }
+                    if super::enum_callback(cb, o, context) == 0 { break; }
                 }
             }
         }
@@ -1020,8 +1066,9 @@ mod wheel {
         DI_OK
     }
 
-    /// `CreateEffect(rguidSrc, lpdiEffect, lplpDirectInputEffect)`
-    unsafe extern "system" fn create_effect(_this: P, guid: *const u8, _effect: P, out: *mut P) -> i32 {
+    /// `CreateEffect(rguidSrc, lpdiEffect, lplpDirectInputEffect, pUnkOuter)` (stdcall: the
+    /// 5 arguments popped, Blazing Angels' caller depends on it)
+    unsafe extern "system" fn create_effect(_this: P, guid: *const u8, _effect: P, out: *mut P, _outer: P) -> i32 {
         if out.is_null() {
             return super::DIERR_DEVICENOTREG;
         }

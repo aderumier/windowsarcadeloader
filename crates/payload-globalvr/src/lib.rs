@@ -20,6 +20,7 @@
 //! * `linking.rs`: the NASCAR frontends' `GvrLinking.dll` (a cabinet alone).
 //! * `netcomm.rs`: NASCAR Team Racing's `gvrNetComm.dll` (no cabinet linked).
 //! * `aklog.rs`: the Anark player's logger (its messages and script errors), for debugging.
+//! * `blazing.rs`: Blazing Angels' coin and volume monitors, dongle and player profile.
 //! * `smartcard.rs`: Need for Speed Carbon's frontend card reader (`GVRSCR28.dll`).
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
@@ -33,6 +34,7 @@
 
 mod aklog;
 mod aliens;
+mod blazing;
 mod carbon_menu;
 mod carbon_shell;
 mod config;
@@ -107,6 +109,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         keyboard::init();
         gamelog::init();
         swarm::init();
+        blazing::init();
         log!("globalvr: initialized");
     }
     TRUE

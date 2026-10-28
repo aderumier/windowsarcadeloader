@@ -1,0 +1,37 @@
+Windows Registry Editor Version 5.00
+
+; The game's PC settings (its settings program writes them): the game creates its controller
+; (the cabinet's GVRIO board, a DirectInput joystick) only with "Disable pad" present and 0, and
+; uses the first one listed for player 1.
+[HKEY_CURRENT_USER\Software\Ubisoft\BlazingAngels\{2CBE667E-1193-47DC-852E-2CB4747C12E3}\Basic video]
+"Disable pad"=dword:00000000
+
+[HKEY_CURRENT_USER\Software\Ubisoft\BlazingAngels\{2CBE667E-1193-47DC-852E-2CB4747C12E3}\Key bindings]
+"Player1 Joy selection"=dword:00000001
+
+; The joystick bindings of the flight (the game's PC setting: the input code of each action, by
+; its pad input): the cabinet's, as its menus read the board. Without them every action was
+; unbound in flight (the stick, throttle and buttons did nothing). Codes: 0x204 / 0x205 stick
+; left / right, 0x207 / 0x206 forward / back (pulled back: nose up), 0x20a / 0x20b throttle forward / back, 0x20c + n
+; button n. Roll and pause unbound (the cabinet has no roll control; start does not pause).
+[HKEY_CURRENT_USER\Software\Ubisoft\BlazingAngels\{2CBE667E-1193-47DC-852E-2CB4747C12E3}\Joy bindingsBA]
+"Turn left"=dword:00000204
+"Turn right"=dword:00000205
+"Pitch up"=dword:00000206
+"Pitch down"=dword:00000207
+"Roll left"=dword:00000000
+"Roll right"=dword:00000000
+"Speed up"=dword:0000020a
+"Slow down"=dword:0000020b
+"Primary fire"=dword:00000212
+"Secondary fire"=dword:0000021c
+"Follow camera"=dword:00000210
+"Landing gear"=dword:00000211
+"Closest threat"=dword:00000000
+"Next objective"=dword:00000000
+"Squad order1"=dword:0000020e
+"Squad order2"=dword:00000000
+"Squad order3"=dword:00000000
+"Squad order4"=dword:00000000
+"Pause game"=dword:00000000
+"Multiplayer stats"=dword:00000000
