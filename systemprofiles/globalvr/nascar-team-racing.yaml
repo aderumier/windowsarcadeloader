@@ -1,0 +1,164 @@
+# NASCAR Team Racing 2.0.2 (Global VR) - template, override values in
+# userprofiles/globalvr/nascar-team-racing.yaml.
+# The cabinet's install (C:\NASCAR: the dump's Game and Shell folders): the Anark player
+# AMPlayer.exe runs C:\NASCAR\Shell\shell.am (startup checks, attract, driver, transmission and
+# track selection, operator menus) with its plug-ins, then starts the race for each game,
+# NASCAR_GVR.exe -track ... (EA's NASCAR engine). The same frontend as Need for Speed Carbon's
+# (the same player and I/O plug-ins), set up the same way:
+# - Both talk to GvrIO.dll, the cabinet's message library (wheel, pedals, shifter, buttons, the
+#   dongle and I/O board the frontend checks): the payload takes its place next to each (payload
+#   gvrio.rs). The race also imports gvrNetComm.dll (linked cabinets, not in the dump): the
+#   payload again, its exports only (no cabinet linked).
+# - The race's HASP dongle (linked into the executable): its reader patched to a dongle for
+#   NASCAR 2.0; display modes up to 16384 pixels (the engine dropped every mode over 1600).
+# - The coins: the frontend reads them from the cabinet's coin monitor (Hercules
+#   GVRCoinMonitor.exe, from the NASCAR Racing 1.1 disc in _Cabinet), started and fed by the
+#   payload as its USBIOExtreme.dll (payload carbon_shell.rs, usbio.rs).
+# - The frontend's NASCARPlugIn.dll keeps the cabinet's records (pricing, credits, statistics,
+#   leaderboards) in a SQL Server database through GVR's .NET 1.1 data engine (PLUSDE.dll): the
+#   dump's _Cabinet/Plus holds an engine whose SQL client is a SQLite one (GvrSqlite.dll) and the
+#   cabinet's database (game.db, copied to the dump once), from the NASCAR_GVR project
+#   (github.com/iGThomas/NASCAR_GVR, Deploy-2.0.2). Its schema (C:\GvrPlus\4\schema\
+#   NAS09cabinetXml.enc, not in the dump) is rebuilt in _Cabinet/GvrPlus: NASCAR Racing 1.1's,
+#   its tables renamed and laid out as the 2.0.2 database's (_NAS3).
+# - .NET 1.1: the prefix shared with the Need for Speed games.
+system: globalvr
+name: NASCAR Team Racing
+
+prefix: wine-prefix/dotnet11
+prefix_tricks: [dotnet11]
+
+# the cabinet's command line (its Hercules boot entry)
+args: ['C:\NASCAR\Shell\shell.am', '-v', 'FULL', '-cabinet']
+
+# The race's GvrIO.dll and gvrNetComm.dll (game folder), the frontend's GvrIO.dll and GvrLinking.dll
+# (next to its player), the coin monitor's USBIOExtreme.dll.
+payload_install: [Game/GvrIO.dll, Game/gvrNetComm.dll, Shell/bin/GvrIO.dll, Shell/bin/GvrLinking.dll, _Cabinet/Hercules/USBIOExtreme.dll]
+
+# the .NET 1.1 runtime (native) and its C runtime (Wine's msvcr71 lacks __CxxCallUnwindDtor)
+dll_overrides:
+  mscoree: n
+  mscorwks: n
+  fusion: n
+  msvcr71: n,b
+  msvcp71: n,b
+
+# the cabinet's folders, by absolute path in its data and registry (the scenes load
+# c:\NASCAR\Shell\Textures\...)
+c_folders:
+  NASCAR: .
+  GvrPlus: _Cabinet/GvrPlus
+  Hercules: _Cabinet/Hercules
+
+# The frontend's libraries, from the cabinet's system folder and GvrPlus engine, next to its
+# player (NASCARPlugIn.dll imports the debug C++ runtime); the race's C++ runtime; the plug-in
+# list without the motion seat (the cabinet linking's network is the payload's GvrLinking.dll).
+files:
+  Shell/bin/PLUSDE.dll: "{dump}/_Cabinet/Plus/PLUSDE.dll"
+  Shell/bin/GvrSqlite.dll: "{dump}/_Cabinet/Plus/GvrSqlite.dll"
+  Shell/bin/sqlite3.dll: "{dump}/_Cabinet/Plus/sqlite3.dll"
+  Shell/bin/msvcr71.dll: "{dump}/_Cabinet/System32/msvcr71.dll"
+  Shell/bin/msvcp71.dll: "{dump}/_Cabinet/System32/msvcp71.dll"
+  Shell/bin/msvcr71d.dll: "{dump}/_Cabinet/System32/msvcr71d.dll"
+  Shell/bin/msvcp71d.dll: "{dump}/_Cabinet/System32/msvcp71d.dll"
+  Shell/bin/GVRStorageDevice.dll: "{dump}/_Cabinet/System32/GVRStorageDevice.dll"
+  Shell/bin/DongleStorageDevice.dll: "{dump}/_Cabinet/System32/DongleStorageDevice.dll"
+  Shell/bin/GVR_Resources.dll: "{dump}/_Cabinet/System32/GVR_Resources.dll"
+  Shell/bin/Resources.dll: "{dump}/_Cabinet/System32/Resources.dll"
+  Shell/bin/MFC71.dll: "{dump}/_Cabinet/System32/MFC71.dll"
+  Shell/bin/GvrPlusLib.dll: "{dump}/_Cabinet/GvrPlus/4/lib/GvrPlusLib.dll"
+  Shell/bin/GvrPeEngine.dll: "{dump}/_Cabinet/GvrPlus/4/lib/GvrPeEngine.dll"
+  Shell/bin/GvrPeClient.dll: "{dump}/_Cabinet/GvrPlus/4/lib/GvrPeClient.dll"
+  Shell/bin/GvrPeUtil.dll: "{dump}/_Cabinet/GvrPlus/4/lib/GvrPeUtil.DLL"
+  Shell/bin/GvrPeSchemaUtil.dll: "{dump}/_Cabinet/GvrPlus/4/lib/GvrPeSchemaUtil.DLL"
+  Shell/bin/GvrPeDialer.dll: "{dump}/_Cabinet/GvrPlus/4/lib/GvrPeDialer.dll"
+  Shell/bin/C1.C1Zip.dll: "{dump}/_Cabinet/GvrPlus/4/lib/C1.C1Zip.dll"
+  Shell/bin/ICSharpCode.SharpZipLib.dll: "{dump}/_Cabinet/GvrPlus/4/lib/ICSharpCode.SharpZipLib.DLL"
+  Game/msvcr71.dll: "{dump}/_Cabinet/System32/msvcr71.dll"
+  Game/msvcp71.dll: "{dump}/_Cabinet/System32/msvcp71.dll"
+  Game/config/GvrShellPlugInList.xml: systemprofiles/globalvr/files/nascar-team-racing/GvrShellPlugInList.xml
+
+# The cabinet's database, kept in the dump (credits, statistics, records).
+initial_files:
+  NascarPlus/game.db: "{dump}/_Cabinet/Plus/game.db"
+
+registry: [systemprofiles/globalvr/files/nascar-team-racing/cabinet.reg]
+
+# the frontend's fonts
+fonts:
+  - _Cabinet/Fonts/GVR_NASCAR.ttf
+  - _Cabinet/Fonts/AVANGMBI.TTF
+
+# The motion seat's library (motionLib.dll needs the seat's I/O card driver): absent, no motion.
+# The frontend's cabinet gamma tool (NVIDIA control panel).
+hide: [TsuMotion.dll, GammaSet.exe]
+
+# The frontend draws to the screen mode it set (1360x768): gamescope scales it, and the race it
+# starts, to the screen.
+gamescope:
+  enabled: true
+  width: 1360
+  height: 768
+
+env:
+  WAL_DINPUT_DISABLE: "1"
+  # the cabinet's C:\NASCAR\Shell\bin on the PATH (the player loads GvrParseXml.dll from there)
+  WINEPATH: 'C:\wal\globalvr\nascar-team-racing\Shell\bin'
+  GVRSQLITE_DB: 'C:\wal\globalvr\nascar-team-racing\NascarPlus\game.db'
+  # the coin and volume monitors, relative to the player
+  WAL_GLOBALVR_CARBON_MONITORS: '..\..\_Cabinet\Hercules'
+  # the dongle the frontend checks (game, version, region)
+  WAL_GLOBALVR_DONGLE: "NASCAR,2.0,XX"
+  # the I/O board firmware the frontend wants (3.03 or later)
+  WAL_GLOBALVR_BOARD_VERSION: "3.3"
+  # the 4-position shifter of the manual transmission
+  WAL_GLOBALVR_GEARS: "4"
+  # the menus' selection follows the wheel's position (the driver and track lists scroll at
+  # the speed of its zone)
+  WAL_GLOBALVR_SELECTION: position
+  # The race's HASP dongle reader (0x675b10) replaced by a dongle for NASCAR 2.0 (present, game,
+  # version: its record at 0x7792c0); display modes up to 16384 pixels (0x5079b0).
+  WAL_PATCHES: "0x275b10:8B44240485C07523B8C0927700C60001C740014E415343C7400541520000C74008322E3000B801000000C333C0C3,0x1079b6:00400000"
+  WAL_PATCHES_EXE: NASCAR_GVR.exe
+  # The frontend's NASCARPlugIn.dll: the nightly Windows restart never due (0x111e0, 0x11f10),
+  # no 1 s wait on the coin monitor's answers (0x3251c), no CD check on D:\ (0x3f038).
+  WAL_GLOBALVR_SHELL_PATCHES: "NASCARPlugIn.dll!0x111e0:31C0C3,NASCARPlugIn.dll!0x11f10:31C0C3,NASCARPlugIn.dll!0x3251c:33C99090,NASCARPlugIn.dll!0x3f038:3F"
+
+input:
+  # the wheel must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, L1 / R1 shift down / up (manual transmission, 4
+  # gears), X view, Y music, d-pad down look back. No horn: the cabinet's (its NOS button)
+  # never stops once pressed.
+  gamepad:
+    r2: accel
+    l2: brake
+    l1: b5
+    r1: b6
+    dpdown: b4
+  # keyboard steering, gas and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: View
+  b2: Music
+  b3: none
+  b4: Look back
+  b5: Shift down
+  b6: Shift up
+  b7: none
+  b8: none

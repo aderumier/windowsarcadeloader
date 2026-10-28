@@ -1,4 +1,5 @@
-//! Global VR payload (Far Cry Paradise Lost, The Swarm, Aliens Extermination, Need for Speed GT, Underground, Carbon).
+//! Global VR payload (Far Cry Paradise Lost, The Swarm, Aliens Extermination, Need for Speed GT, Underground, Carbon,
+//! NASCAR Team Racing).
 //!
 //! Far Cry imports `USBIOExtreme.dll` (driver of Global VR's USBIO board: gun positions,
 //! gun and panel buttons, coin counters) statically: this DLL takes its place in the run
@@ -16,6 +17,9 @@
 //! * `gvrio.rs`: `GvrIO.dll` of the "Zeus" driving cabinets (Need for Speed Carbon), its messages.
 //! * `carbon_menu.rs`: Need for Speed Carbon's race selection screen (`WAL_GLOBALVR_CARBON_MENU=1`).
 //! * `carbon_shell.rs`: the cabinet monitors Need for Speed Carbon's real frontend needs.
+//! * `linking.rs`: the NASCAR frontends' `GvrLinking.dll` (a cabinet alone).
+//! * `netcomm.rs`: NASCAR Team Racing's `gvrNetComm.dll` (no cabinet linked).
+//! * `aklog.rs`: the Anark player's logger (its messages and script errors), for debugging.
 //! * `smartcard.rs`: Need for Speed Carbon's frontend card reader (`GVRSCR28.dll`).
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
@@ -27,6 +31,7 @@
 
 #![allow(non_snake_case)]
 
+mod aklog;
 mod aliens;
 mod carbon_menu;
 mod carbon_shell;
@@ -37,6 +42,8 @@ mod gvrinput;
 mod gvrio;
 mod hasp;
 mod keyboard;
+mod linking;
+mod netcomm;
 mod smartcard;
 mod swarm;
 mod swarm_campaign;
@@ -51,6 +58,8 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 
 pub use gvrinput::*;
 pub use gvrio::*;
+pub use linking::*;
+pub use netcomm::*;
 pub use smartcard::*;
 pub use usbio::*;
 
@@ -64,9 +73,23 @@ pub(crate) fn exe_size() -> usize {
     }
 }
 
+/// The file name of a loaded module.
+fn module_name(module: HINSTANCE) -> String {
+    let mut buf = [0u16; 260];
+    let n = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(module, buf.as_mut_ptr(), 260) } as usize;
+    let path = String::from_utf16_lossy(&buf[..n]);
+    path.rsplit('\\').next().unwrap_or(&path).to_string()
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
+        // the copies installed as gvrNetComm.dll / GvrLinking.dll: their exports only (the
+        // GvrIO.dll copy initializes)
+        let name = module_name(module).to_ascii_lowercase();
+        if name == "gvrnetcomm.dll" || name == "gvrlinking.dll" {
+            return TRUE;
+        }
         wal_payload_common::start("globalvr");
         patches::apply();
         drive::init_letter(b'W', "WAL_GLOBALVR_WDRIVE", ".");

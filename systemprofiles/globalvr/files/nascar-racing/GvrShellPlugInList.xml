@@ -1,0 +1,10 @@
+<GvrShell>
+	<ZeusIOPlugIn />
+	<HerculesPlugIn />
+	<GvrDiagnosticsPlugIn />
+	<NASCARPlugIn />
+	<GvrMusicPlugIn />
+	<GvrDirtyWordPlugIn />
+	<GvrPlusDEPlugin />
+	<GvrLinkingPlugIn />
+</GvrShell>

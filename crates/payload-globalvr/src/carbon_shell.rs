@@ -1,5 +1,6 @@
-//! Need for Speed Carbon's cabinet frontend (the Anark player `AMPlayer.exe` running
-//! `shell.am`): the cabinet's monitor programs it talks to, started with it.
+//! The cabinet frontend of Need for Speed Carbon and NASCAR Team Racing (the same Anark player
+//! `AMPlayer.exe` running `shell.am`): the cabinet's monitor programs it talks to, started with
+//! it, and its scripts' cabinet-only parts.
 //!
 //! On the cabinet `GVRBoot.exe` starts the Hercules monitors with the frontend. Its
 //! `HerculesPlugIn.dll` needs the coin monitor (`GVRCoinMonitor.exe`: coins and credits, shared
@@ -10,12 +11,24 @@
 //! payload starts them (`WAL_GLOBALVR_CARBON_MONITORS`: the monitors' folder, relative to the
 //! frontend's executable).
 //!
-//! The startup checks (`Shell.am`'s script, "Please Wait") wait 45 s before reading the I/O
-//! board (`ioBoardDelay = presentation.realTime + 45.0`: the cabinet's USB board coming up), the
-//! payload's board answers at once: the player's script compilations (its SpiderMonkey's
-//! `JS_CompileUC*` / `JS_EvaluateUC*`, called directly) get a copy of the script with 1 s. The
-//! decompressed `.am` text itself stays untouched: the player checks it (an edited script did
-//! not run).
+//! The player's script compilations (its SpiderMonkey's `JS_CompileUC*` / `JS_EvaluateUC*`,
+//! called directly) get a copy of the script with these edits ([`EDITS`]):
+//! * the startup checks (`Shell.am`'s script, "Please Wait") wait 45 s (Carbon) / 15 s (NASCAR)
+//!   before reading the I/O board (`ioBoardDelay = presentation.realTime + 45.0`: the cabinet's
+//!   USB board coming up), the payload's board answers at once: 1 s;
+//! * NASCAR's startup sets the screen mode with the NVIDIA control panel (`rundll32 nvcpl.dll`)
+//!   and waits for it: no wait (it fails);
+//! * NASCAR's attract reads the linked cabinets' packets every frame, none without the linking
+//!   plug-in: a script error each frame (its packet checked first);
+//! * NASCAR Racing 1.1's scenes send their state to the linked cabinets (`SendPacket`, a method
+//!   of the linking plug-in, not loaded): a call no plug-in answers ends the script's whole
+//!   frame (the driver selection never showed its car): not sent.
+//!
+//! The decompressed `.am` text itself stays untouched: the player checks it (an edited script
+//! did not run).
+//!
+//! `WAL_GLOBALVR_SHELL_PATCHES`: code patches of the frontend, in the `WAL_PATCHES` format
+//! (`<module>!<rva>:<hex>` for its plug-ins).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -31,16 +44,46 @@ use windows_sys::Win32::System::Threading::{
 const MONITORS: &[&str] = &["GVRCoinMonitor.exe", "GVRVolumeMonitor.exe"];
 
 /// The player's script compilations (SpiderMonkey, UTF-16 source), as image offsets: each
-/// function and its calls.
-const COMPILE_SCRIPT: usize = 0x26c080;
-const COMPILE_SCRIPT_CALLS: [usize; 7] = [0x26c5b6, 0x26de9b, 0x26dee0, 0x26ea58, 0x2733bf, 0x27c336, 0x2ac69f];
-const COMPILE_FUNCTION: usize = 0x26c250;
-const COMPILE_FUNCTION_CALLS: [usize; 3] = [0x26df9a, 0x26dfef, 0x26ebc7];
-const EVALUATE_SCRIPT: usize = 0x26c590;
-const EVALUATE_SCRIPT_CALLS: [usize; 3] = [0x26e180, 0x26e1c5, 0x26ec1d];
-/// The I/O board delay of the startup checks, and its replacement (same length).
-const BOARD_DELAY: &str = "presentation.realTime + 45.0;";
-const BOARD_DELAY_NEW: &str = "presentation.realTime +  1.0;";
+/// function and its calls, per player build.
+struct Build {
+    name: &'static str,
+    compile_script: usize,
+    compile_script_calls: [usize; 7],
+    compile_function: usize,
+    compile_function_calls: [usize; 3],
+    evaluate_script: usize,
+    evaluate_script_calls: [usize; 3],
+}
+
+const BUILDS: &[Build] = &[
+    Build {
+        name: "Anark Client 4.0 (Need for Speed Carbon, NASCAR Team Racing)",
+        compile_script: 0x26c080,
+        compile_script_calls: [0x26c5b6, 0x26de9b, 0x26dee0, 0x26ea58, 0x2733bf, 0x27c336, 0x2ac69f],
+        compile_function: 0x26c250,
+        compile_function_calls: [0x26df9a, 0x26dfef, 0x26ebc7],
+        evaluate_script: 0x26c590,
+        evaluate_script_calls: [0x26e180, 0x26e1c5, 0x26ec1d],
+    },
+    Build {
+        name: "Anark Client 3.0 (NASCAR Racing 1.1)",
+        compile_script: 0x1cfe40,
+        compile_script_calls: [0x1d0376, 0x1d1c5b, 0x1d1ca0, 0x1d2818, 0x1d717f, 0x1e00f6, 0x21045f],
+        compile_function: 0x1d0010,
+        compile_function_calls: [0x1d1d5a, 0x1d1daf, 0x1d2987],
+        evaluate_script: 0x1d0350,
+        evaluate_script_calls: [0x1d1f40, 0x1d1f85, 0x1d29dd],
+    },
+];
+/// The scripts' edits: text, replacement (a leading 0 would make the number octal).
+const EDITS: &[(&str, &str)] = &[
+    ("presentation.realTime + 45.0;", "presentation.realTime + 1.0;"),
+    ("presentation.realTime + 15.0;", "presentation.realTime + 1.0;"),
+    (" 32 60\", \"\", 0 );", " 32 60\", \"\", 2 );"),
+    ("while ( receivedPacket.length > 0 )", "while ( receivedPacket && receivedPacket.length > 0 )"),
+    ("Gvr.Call( \"SendPacket\", this.SendString );", ";"),
+    ("Gvr.Call( \"SendPacket\", sendString );", ";"),
+];
 
 static ORIG_COMPILE_SCRIPT: AtomicUsize = AtomicUsize::new(0);
 static ORIG_COMPILE_FUNCTION: AtomicUsize = AtomicUsize::new(0);
@@ -56,26 +99,66 @@ type CompileFunction = unsafe extern "C" fn(P, P, P, P, u32, P, *const u16, usiz
 /// rval)`.
 type EvaluateScript = unsafe extern "C" fn(P, P, P, *const u16, usize, P, u32, P) -> i32;
 
-/// The script with the board delay replaced (a copy kept for good: the engine may refer to
-/// its source), else the script itself.
-fn script(chars: *const u16, length: usize) -> *const u16 {
-    if chars.is_null() || length < BOARD_DELAY.len() {
-        return chars;
+/// The profile's own edits, for debugging (`output()` checkpoints, in the player's log with
+/// `aklog.rs`): `WAL_GLOBALVR_SCRIPT_EDITS=<text>=><replacement>|||...`.
+fn extra_edits() -> &'static [(String, String)] {
+    static EXTRA: std::sync::OnceLock<Vec<(String, String)>> = std::sync::OnceLock::new();
+    EXTRA.get_or_init(|| {
+        std::env::var("WAL_GLOBALVR_SCRIPT_EDITS")
+            .unwrap_or_default()
+            .split("|||")
+            .filter_map(|e| e.split_once("=>").map(|(a, b)| (a.to_string(), b.to_string())))
+            .collect()
+    })
+}
+
+/// `text` with every [`EDITS`] text replaced, or None without any.
+fn edited(text: &[u16]) -> Option<Vec<u16>> {
+    let mut out: Option<Vec<u16>> = None;
+    let extra = extra_edits().iter().map(|(a, b)| (a.as_str(), b.as_str()));
+    for (from, to) in EDITS.iter().copied().chain(extra) {
+        let from: Vec<u16> = from.encode_utf16().collect();
+        let to: Vec<u16> = to.encode_utf16().collect();
+        let current = out.as_deref().unwrap_or(text);
+        if !current.windows(from.len()).any(|w| w == from) {
+            continue;
+        }
+        let mut new = Vec::with_capacity(current.len() + to.len());
+        let mut i = 0;
+        while i < current.len() {
+            if current[i..].starts_with(&from) {
+                new.extend_from_slice(&to);
+                i += from.len();
+            } else {
+                new.push(current[i]);
+                i += 1;
+            }
+        }
+        log!("carbon shell: script edit {:?}", String::from_utf16_lossy(&to));
+        out = Some(new);
     }
-    let text = unsafe { std::slice::from_raw_parts(chars, length) };
-    let pattern: Vec<u16> = BOARD_DELAY.encode_utf16().collect();
-    let Some(i) = text.windows(pattern.len()).position(|w| w == pattern) else { return chars };
-    let mut copy = text.to_vec();
-    for (dst, src) in copy[i..].iter_mut().zip(BOARD_DELAY_NEW.encode_utf16()) {
-        *dst = src;
+    out
+}
+
+/// The script with its edits (a copy kept for good: the engine may refer to its source), else
+/// the script itself.
+fn script(chars: *const u16, length: usize) -> (*const u16, usize) {
+    if chars.is_null() || length == 0 {
+        return (chars, length);
     }
-    log!("carbon shell: startup I/O board delay 45 s -> 1 s");
-    Box::leak(copy.into_boxed_slice()).as_ptr()
+    match edited(unsafe { std::slice::from_raw_parts(chars, length) }) {
+        Some(copy) => {
+            let length = copy.len();
+            (Box::leak(copy.into_boxed_slice()).as_ptr(), length)
+        }
+        None => (chars, length),
+    }
 }
 
 unsafe extern "C" fn compile_script(cx: P, obj: P, pr: P, chars: *const u16, length: usize, file: P, line: u32) -> P {
     let f: CompileScript = unsafe { std::mem::transmute(ORIG_COMPILE_SCRIPT.load(Ordering::Relaxed)) };
-    unsafe { f(cx, obj, pr, script(chars, length), length, file, line) }
+    let (chars, length) = script(chars, length);
+    unsafe { f(cx, obj, pr, chars, length, file, line) }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -92,13 +175,15 @@ unsafe extern "C" fn compile_function(
     line: u32,
 ) -> P {
     let f: CompileFunction = unsafe { std::mem::transmute(ORIG_COMPILE_FUNCTION.load(Ordering::Relaxed)) };
-    unsafe { f(cx, obj, pr, name, nargs, argnames, script(chars, length), length, file, line) }
+    let (chars, length) = script(chars, length);
+    unsafe { f(cx, obj, pr, name, nargs, argnames, chars, length, file, line) }
 }
 
 #[allow(clippy::too_many_arguments)]
 unsafe extern "C" fn evaluate_script(cx: P, obj: P, pr: P, chars: *const u16, length: usize, file: P, line: u32, rval: P) -> i32 {
     let f: EvaluateScript = unsafe { std::mem::transmute(ORIG_EVALUATE_SCRIPT.load(Ordering::Relaxed)) };
-    unsafe { f(cx, obj, pr, script(chars, length), length, file, line, rval) }
+    let (chars, length) = script(chars, length);
+    unsafe { f(cx, obj, pr, chars, length, file, line, rval) }
 }
 
 /// Whether all `calls` call `function` (image offsets).
@@ -128,20 +213,24 @@ fn repoint(base: usize, calls: &[usize], hook: usize) {
 /// [`evaluate_script`], if their calls are where expected.
 fn hook_scripts() {
     let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
-    if crate::exe_size() < EVALUATE_SCRIPT + 5
-        || !calls_found(base, COMPILE_SCRIPT, &COMPILE_SCRIPT_CALLS)
-        || !calls_found(base, COMPILE_FUNCTION, &COMPILE_FUNCTION_CALLS)
-        || !calls_found(base, EVALUATE_SCRIPT, &EVALUATE_SCRIPT_CALLS)
-    {
-        log!("carbon shell: script compilation calls not found, startup delay kept");
+    let size = crate::exe_size();
+    let Some(b) = BUILDS.iter().find(|b| {
+        let sites = b.compile_script_calls.iter().chain(&b.compile_function_calls).chain(&b.evaluate_script_calls);
+        sites.chain([b.compile_script, b.compile_function, b.evaluate_script].iter()).all(|&at| at + 5 <= size)
+            && calls_found(base, b.compile_script, &b.compile_script_calls)
+            && calls_found(base, b.compile_function, &b.compile_function_calls)
+            && calls_found(base, b.evaluate_script, &b.evaluate_script_calls)
+    }) else {
+        log!("carbon shell: script compilation calls not found, scripts not edited");
         return;
-    }
-    ORIG_COMPILE_SCRIPT.store(base + COMPILE_SCRIPT, Ordering::Relaxed);
-    ORIG_COMPILE_FUNCTION.store(base + COMPILE_FUNCTION, Ordering::Relaxed);
-    ORIG_EVALUATE_SCRIPT.store(base + EVALUATE_SCRIPT, Ordering::Relaxed);
-    repoint(base, &COMPILE_SCRIPT_CALLS, compile_script as *const () as usize);
-    repoint(base, &COMPILE_FUNCTION_CALLS, compile_function as *const () as usize);
-    repoint(base, &EVALUATE_SCRIPT_CALLS, evaluate_script as *const () as usize);
+    };
+    log!("carbon shell: player {}", b.name);
+    ORIG_COMPILE_SCRIPT.store(base + b.compile_script, Ordering::Relaxed);
+    ORIG_COMPILE_FUNCTION.store(base + b.compile_function, Ordering::Relaxed);
+    ORIG_EVALUATE_SCRIPT.store(base + b.evaluate_script, Ordering::Relaxed);
+    repoint(base, &b.compile_script_calls, compile_script as *const () as usize);
+    repoint(base, &b.compile_function_calls, compile_function as *const () as usize);
+    repoint(base, &b.evaluate_script_calls, evaluate_script as *const () as usize);
 }
 
 pub(crate) fn init() {
@@ -150,6 +239,9 @@ pub(crate) fn init() {
         return;
     }
     hook_scripts();
+    if let Ok(spec) = std::env::var("WAL_GLOBALVR_SHELL_PATCHES") {
+        wal_payload_common::patches::apply_list(&spec);
+    }
     let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) else {
         return;
     };
@@ -188,5 +280,22 @@ fn start(dir: &std::path::Path) {
                 CloseHandle(pi.hThread);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn utf16(s: &str) -> Vec<u16> {
+        s.encode_utf16().collect()
+    }
+
+    #[test]
+    fn script_edits() {
+        let text = utf16("a = presentation.realTime + 15.0;\nwhile ( receivedPacket.length > 0 ) x;");
+        let out = String::from_utf16(&edited(&text).unwrap()).unwrap();
+        assert_eq!(out, "a = presentation.realTime + 1.0;\nwhile ( receivedPacket && receivedPacket.length > 0 ) x;");
+        assert!(edited(&utf16("nothing here")).is_none());
     }
 }

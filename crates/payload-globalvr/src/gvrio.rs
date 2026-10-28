@@ -1,4 +1,4 @@
-//! Global VR "Zeus" cabinets (Need for Speed Carbon): `GvrIO.dll`, the message library between
+//! Global VR "Zeus" cabinets (Need for Speed Carbon, NASCAR Team Racing): `GvrIO.dll`, the message library between
 //! the game and the cabinet's controls.
 //!
 //! The original reads its configuration (`Config\GvrIO.xml` under the cabinet's `GameRoot`),
@@ -15,16 +15,19 @@
 //! | 0x04 | u32 message id |
 //! | 0x08 | i32 value (axis index, lamp value...) |
 //! | 0x0C | pointer (name of the event, lamp or button) |
+//! | 0x10 | pointer to the answer (the menu selection's) |
 //! | 0x14 | u8 handled (set by the receiver) |
 //!
 //! * The callback gets id 0 once the controls are ready (the game polls nothing before), then
 //!   id 0x0B for each button change: the event name, `onGvrStartButtonDown`,
-//!   `onGvrNosButtonUp`...
+//!   `onGvrNosButtonUp`... The frontend's player takes only the events declared to it first
+//!   (id 0x0D, each name).
 //! * The button events come from a thread (as the original's), 60 times a second.
 //! * `GvrIOMessageSend(message)` answers a pointer to an i32: id 1 is the race's per-frame
 //!   update, id 5 the axes (value 0
 //!   wheel -127..=127, 1 gas 0..=255, 2 brake 0..=255) and id 0x42 a button by name (the H
-//!   shifter of the manual transmission: `ShifterLeft` / `Right` / `Up` / `Down`; the
+//!   shifter of the manual transmission: `ShifterLeft` / `Right` / `Up` / `Down`, NASCAR's
+//!   4-position one `Shifter1`..`Shifter4`; the
 //!   frontend's `IsButtonDown`: `Music`...). The other
 //!   ids (lamps by name) are answered 0.
 //! * Force feedback: the race (and the frontend's menus) drive the wheel with a spring whose
@@ -52,7 +55,8 @@ pub struct Message {
     id: u32,
     value: i32,
     data: *const u8,
-    _reserved: u32,
+    /// a pointer to the answer (the menu selection's)
+    answer: usize,
     handled: u8,
 }
 
@@ -62,6 +66,7 @@ const ID_READY: u32 = 0;
 const ID_UPDATE: u32 = 1;
 const ID_AXIS: u32 = 5;
 const ID_EVENT: u32 = 0x0B;
+const ID_DECLARE_EVENT: u32 = 0x0D;
 const ID_BUTTON: u32 = 0x42;
 const ID_DONGLE_CHECK: u32 = 0x23;
 const ID_DONGLE_CHECKED: u32 = 0x24;
@@ -81,18 +86,44 @@ const ID_AXIS_CALIBRATED: u32 = 0x54;
 const ID_BOARD_NAME: u32 = 0x60;
 const ID_BOARD_PRODUCT: u32 = 0x6F;
 
-/// The board the frontend accepts: a GvrIOmini 1.x (minor below 5), a known product id.
+/// The board the frontend accepts: a GvrIOmini 1.x (minor below 5), a known product id; NASCAR's
+/// wants firmware 3.03 or later: `WAL_GLOBALVR_BOARD_VERSION=<major>.<minor>`.
 const BOARD_NAME: &CStr = c"GvrIOmini";
 const BOARD_VERSION: (i32, i32) = (1, 2);
+
+fn board_version() -> (i32, i32) {
+    static VERSION: OnceLock<(i32, i32)> = OnceLock::new();
+    *VERSION.get_or_init(|| {
+        std::env::var("WAL_GLOBALVR_BOARD_VERSION")
+            .ok()
+            .and_then(|v| {
+                let (major, minor) = v.split_once('.')?;
+                Some((major.trim().parse().ok()?, minor.trim().parse().ok()?))
+            })
+            .unwrap_or(BOARD_VERSION)
+    })
+}
 const BOARD_PRODUCT: i32 = 7021;
 
 /// The dongle's answers, what the frontend checks (its DongleError.am script: game, version,
-/// region "XX"; the game accepts XX too).
+/// region "XX"; the game accepts XX too): `WAL_GLOBALVR_DONGLE=<game>,<version>,<region>`,
+/// default Need for Speed Carbon's.
 static PRESENT: u8 = 1;
 static DONGLE_ID: u32 = 0x5741_4c00;
-const REGION: &CStr = c"XX";
-const GAME: &CStr = c"CARBON";
-const VERSION: &CStr = c"1.0";
+const DEFAULT_DONGLE: &str = "CARBON,1.0,XX";
+
+/// The dongle's game, version and region, as C strings.
+fn dongle_fields() -> &'static [std::ffi::CString; 3] {
+    static FIELDS: OnceLock<[std::ffi::CString; 3]> = OnceLock::new();
+    FIELDS.get_or_init(|| {
+        let spec = std::env::var("WAL_GLOBALVR_DONGLE").unwrap_or_else(|_| DEFAULT_DONGLE.into());
+        let mut parts = spec.split(',').map(|p| std::ffi::CString::new(p.trim()).unwrap_or_default());
+        let mut next = |default: &str| parts.next().unwrap_or_else(|| std::ffi::CString::new(default).unwrap());
+        let fields = [next("CARBON"), next("1.0"), next("XX")];
+        log!("gvrio: dongle {:?}", fields);
+        fields
+    })
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Native(u32);
@@ -228,8 +259,14 @@ fn ffb_resend() {
 static MAP: OnceLock<ButtonMap<Native>> = OnceLock::new();
 static CALLBACK: AtomicUsize = AtomicUsize::new(0);
 static BUTTONS: AtomicU32 = AtomicU32::new(0);
-/// The manual transmission's gear, 1..=6.
+/// The manual transmission's gear, 1..=[`gears`].
 static GEAR: AtomicU32 = AtomicU32::new(1);
+
+/// The manual transmission's gears: `WAL_GLOBALVR_GEARS`, default 6 (NASCAR's shifter has 4).
+fn gears() -> u32 {
+    static GEARS: OnceLock<u32> = OnceLock::new();
+    *GEARS.get_or_init(|| std::env::var("WAL_GLOBALVR_GEARS").ok().and_then(|v| v.parse().ok()).unwrap_or(6).clamp(1, 6))
+}
 /// The answers: the game reads them right after the call.
 static ANSWER: AtomicI32 = AtomicI32::new(0);
 static ZERO: AtomicI32 = AtomicI32::new(0);
@@ -254,7 +291,7 @@ fn post_value(id: u32, value: i32, name: Option<&CStr>) {
         id,
         value,
         data: name.map_or(std::ptr::null(), |n| n.as_ptr().cast()),
-        _reserved: 0,
+        answer: 0,
         handled: 0,
     };
     unsafe { callback(&mut message) };
@@ -273,7 +310,7 @@ fn update() {
     let old = BUTTONS.swap(buttons, Ordering::Relaxed);
     let pressed = buttons & !old;
     let mut gear = GEAR.load(Ordering::Relaxed);
-    if pressed & SHIFT_UP != 0 && gear < 6 {
+    if pressed & SHIFT_UP != 0 && gear < gears() {
         gear += 1;
     }
     if pressed & SHIFT_DOWN != 0 && gear > 1 {
@@ -298,9 +335,33 @@ fn update() {
     select(axis(0));
 }
 
+/// The menu selection follows the wheel's position (`WAL_GLOBALVR_SELECTION=position`: NASCAR's
+/// screens split the wheel's travel in zones, its driver and track lists scroll at the speed
+/// of the zone, the middle one still), else [`step`].
+fn select(wheel: i32) {
+    static POSITION: OnceLock<bool> = OnceLock::new();
+    if !*POSITION.get_or_init(|| std::env::var("WAL_GLOBALVR_SELECTION").is_ok_and(|v| v == "position")) {
+        return step(wheel);
+    }
+    let range = RANGE_X.load(Ordering::Relaxed);
+    if range <= 0 {
+        return;
+    }
+    let new = zone(wheel, range);
+    if SELECTION_X.swap(new, Ordering::Relaxed) != new {
+        log!("gvrio: selection {new} of {range}");
+        post(ID_EVENT, Some(c"onSelectionChanged"));
+    }
+}
+
+/// The zone of the wheel (-127..=127) among `range`.
+fn zone(wheel: i32, range: i32) -> i32 {
+    ((wheel.clamp(-127, 127) + 127) * range / 255).clamp(0, range - 1)
+}
+
 /// Steps the menu selection with the wheel turned past half: once, then every 150 ms while held
 /// (after 400 ms).
-fn select(wheel: i32) {
+fn step(wheel: i32) {
     let dir = if wheel < -64 { -1 } else if wheel > 64 { 1 } else { 0 };
     let old = WHEEL_DIR.swap(dir, Ordering::Relaxed);
     let step = if dir == 0 {
@@ -328,6 +389,23 @@ fn select(wheel: i32) {
         log!("gvrio: selection {new} of {range}");
         post(ID_EVENT, Some(c"onSelectionChanged"));
     }
+}
+
+/// The frontend's events, declared to the player (as the original does for its `GvrIO.xml`'s):
+/// the player hands the scenes only the events declared (the attract's Start, the operator
+/// button did nothing).
+fn declare_events() {
+    let mut names = vec!["onSelectionChanged".to_string()];
+    for &(_, name) in EVENTS {
+        names.push(format!("onGvr{name}Pressed"));
+        names.push(format!("onGvr{name}ButtonDown"));
+        names.push(format!("onGvr{name}ButtonUp"));
+    }
+    for name in names {
+        let event = std::ffi::CString::new(name).unwrap();
+        post(ID_DECLARE_EVENT, Some(&event));
+    }
+    log!("gvrio: frontend events declared");
 }
 
 /// Loaded in the cabinet frontend (not the game).
@@ -364,6 +442,8 @@ fn button(name: &[u8]) -> i32 {
         b"ShifterRight" => right,
         b"ShifterUp" => up,
         b"ShifterDown" => down,
+        // NASCAR's 4-position shifter
+        [b'S', b'h', b'i', b'f', b't', b'e', b'r', n @ b'1'..=b'4'] => GEAR.load(Ordering::Relaxed) == (n - b'0') as u32,
         // the frontend's IsButtonDown (Music held with the gas enters a locked Career)
         _ => EVENTS.iter().any(|&(bit, n)| n.as_bytes() == name && BUTTONS.load(Ordering::Relaxed) & bit != 0),
     };
@@ -399,6 +479,9 @@ pub unsafe extern "thiscall" fn gvrio_initialize(_this: *mut c_void, device: u32
     map();
     CALLBACK.store(callback, Ordering::Relaxed);
     post(ID_READY, None);
+    if in_frontend() {
+        declare_events();
+    }
     // the original's message thread: the button events at 60 Hz, also in the frontend (the
     // per-frame update message is the race's only)
     static THREAD: std::sync::Once = std::sync::Once::new();
@@ -468,8 +551,8 @@ pub unsafe extern "C" fn gvrio_send(message: *mut Message) -> *const c_void {
             message.handled = 1;
             return BOARD_NAME.as_ptr().cast();
         }
-        ID_BOARD_MAJOR => BOARD_VERSION.0,
-        ID_BOARD_MINOR => BOARD_VERSION.1,
+        ID_BOARD_MAJOR => board_version().0,
+        ID_BOARD_MINOR => board_version().1,
         ID_BOARD_PRODUCT => BOARD_PRODUCT,
         ID_BAD_BUTTONS => 0,
         ID_DONGLE_COUNT => 1,
@@ -477,8 +560,13 @@ pub unsafe extern "C" fn gvrio_send(message: *mut Message) -> *const c_void {
             0 => axis(0) + 128,
             index => axis(index),
         },
-        ID_SELECTION_X => SELECTION_X.load(Ordering::Relaxed),
-        ID_SELECTION_Y => SELECTION_Y.load(Ordering::Relaxed),
+        // the frontend reads the selection through the message's answer pointer
+        ID_SELECTION_X | ID_SELECTION_Y => {
+            let selection = if message.id == ID_SELECTION_X { &SELECTION_X } else { &SELECTION_Y };
+            message.answer = selection.as_ptr() as usize;
+            message.handled = 1;
+            return selection.as_ptr().cast();
+        }
         ID_SET_SELECTION_X | ID_SET_SELECTION_Y | ID_RANGE_X | ID_RANGE_Y => {
             let target = match message.id {
                 ID_SET_SELECTION_X => &SELECTION_X,
@@ -487,6 +575,10 @@ pub unsafe extern "C" fn gvrio_send(message: *mut Message) -> *const c_void {
                 _ => &RANGE_Y,
             };
             target.store(message.value, Ordering::Relaxed);
+            // a new screen's range: its selection inside it (the previous screen's may be past it)
+            if message.id == ID_RANGE_X && message.value > 0 && SELECTION_X.load(Ordering::Relaxed) >= message.value {
+                SELECTION_X.store(message.value - 1, Ordering::Relaxed);
+            }
             0
         }
         ID_SINE | ID_SINE_OFF | ID_SINE2 | ID_SINE2_OFF | ID_SPRING | ID_SPRING_OFF => {
@@ -530,9 +622,9 @@ fn dongle(id: u32) -> *const c_void {
             (&PRESENT as *const u8).cast()
         }
         ID_DONGLE_PRESENT => (&PRESENT as *const u8).cast(),
-        ID_DONGLE_REGION => REGION.as_ptr().cast(),
-        ID_DONGLE_GAME => GAME.as_ptr().cast(),
-        ID_DONGLE_VERSION => VERSION.as_ptr().cast(),
+        ID_DONGLE_REGION => dongle_fields()[2].as_ptr().cast(),
+        ID_DONGLE_GAME => dongle_fields()[0].as_ptr().cast(),
+        ID_DONGLE_VERSION => dongle_fields()[1].as_ptr().cast(),
         ID_DONGLE_ID => (&DONGLE_ID as *const u32).cast(),
         // no card ready
         _ => 1 as *const c_void,
@@ -542,6 +634,15 @@ fn dongle(id: u32) -> *const c_void {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wheel_zones() {
+        assert_eq!(zone(0, 5), 2);
+        assert_eq!(zone(-127, 5), 0);
+        assert_eq!(zone(127, 5), 4);
+        assert_eq!(zone(0, 2), 0);
+        assert_eq!(zone(100, 2), 1);
+    }
 
     #[test]
     fn shifter_gears() {
