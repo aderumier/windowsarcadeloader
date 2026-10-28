@@ -1,0 +1,67 @@
+Windows Registry Editor Version 5.00
+
+; NASCAR Racing 1.1's cabinet (the dump's InstallGVR folder): the frontend's settings, the game
+; it starts (in the run directory), the Hercules monitors' settings (not their boot entry), the
+; cabinet's game root, version and database schema paths.
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\NASCAR]
+"Version"="1.1.0"
+"Build"="163"
+"CommVersion"="1.1.0"
+"Prefix"=""
+"Suffix"=""
+"FullScreenWidth"="1360"
+"FullScreenHeight"="768"
+"FourButtonAbort"="1"
+"StallMonitorTest"="0"
+"cmd"="-startPos 43 "
+"wtf"=""
+"launchName"="NASCAR_GVR.exe"
+"launchFolder"="C:\\wal\\globalvr\\nascar-racing\\Game"
+"attractName"="NASCAR_Attract.am"
+"attractFolder"="C:\\NASCAR\\shell"
+"selectName"="NASCAR_Selection.am"
+"selectFolder"="C:\\NASCAR\\shell"
+"AttractAudioCounter"="0"
+"MusicVolume"="70"
+"SimpleAttract"="0"
+"FirstTimeStartup"="0"
+; the last session's up time, read at startup (not on a first startup: FirstTimeStartup is 0)
+"UpTimeStart"="1/1/2008 12:00:00 AM"
+"UpTimeEnd"="1/1/2008 12:00:00 AM"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\gvr\Plus\2.0\Cabinet]
+"GameRoot"="C:\\NASCAR\\Game\\"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\gvr\Plus\1.1\Cabinet]
+"GvrEventLogRemovalThreshold"="30"
+"MaxObjectLoadCount"="300"
+"PatchDownloadPath"="C:\\PatchService\\"
+"PatchMaxDownloadRetry"="9"
+"PatchMaxExecutionRetry"="1"
+"PlayerCardRequestThreshold"="20"
+"PlusSchemaPath"="C:\\GvrPlus\\4\\schema\\NASCARcabinetXml.enc"
+"PromotionPath"="C:\\GvrPlus\\4\\promotions"
+"PublicKeyPath"="C:\\GvrPlus\\4\\key\\publickey.xml"
+"SyncRetryInterval"="15"
+"WebServerIP"="192.168.1.39"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCoinMonitor]
+"CoinMeterMask1"=dword:00000000
+"CoinMeterMask2"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCacheWarmer]
+"NumResources"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCoinSound\Sound]
+"SoundPath"="c:\\hercules\\coin_drop.wav"
+
+; the frontend's preferences: its Direct3D renderer (as the cabinet)
+[HKEY_CURRENT_USER\Software\Anark\Client\3.0\Preferences]
+"InstallReturnCode"=dword:00000000
+"Initialized"=dword:00000001
+"UpdateInterval"=dword:00000007
+"LastUpdateCheck"=dword:00000122
+"EnableScriptDebugger"=dword:00000001
+"DebugMode"=dword:00000000
+"DisableGL"="1"

@@ -125,6 +125,26 @@ fn log_cpp_exception(record: &windows_sys::Win32::System::Diagnostics::Debug::EX
                 .collect();
             log!("crash: C++ exception what: {text}");
         }
+        // other exception classes (Anark's CAKExceptionClass: its message and source file in
+        // UTF-16 inside the object): the object's text runs
+        let mut runs = Vec::new();
+        let mut run = String::new();
+        let mut i = 0;
+        while i < 0x2000 && readable(object + i, 2) && runs.len() < 6 {
+            let c = std::ptr::read_volatile((object + i) as *const u16);
+            if (0x20..0x7f).contains(&c) {
+                run.push(c as u8 as char);
+            } else {
+                if run.len() >= 6 {
+                    runs.push(std::mem::take(&mut run));
+                }
+                run.clear();
+            }
+            i += 2;
+        }
+        if !runs.is_empty() {
+            log!("crash: C++ exception text: {}", runs.join(" | "));
+        }
     }
     log!("crash: C++ exception {name} (object {object:#x}, throw info {throw_info:#x}) at {:#x}", record.ExceptionAddress as usize);
 }

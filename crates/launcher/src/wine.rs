@@ -211,7 +211,8 @@ impl Wine {
             if !plain(Path::new(name)) || Path::new(name).components().count() != 1 {
                 bail!("invalid C: folder {name:?}: a folder name of C:\\");
             }
-            if !plain(directory) {
+            // "." is the dump root itself (NASCAR's C:\NASCAR holds its Game and Shell folders)
+            if !plain(directory) && directory != Path::new(".") {
                 bail!("C:\\{name}: directory must be relative to the dump root: {}", directory.display());
             }
             let target = run_dir.join(directory);

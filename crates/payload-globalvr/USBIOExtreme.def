@@ -52,3 +52,32 @@ EXPORTS
 ; GVRSCR28.dll (Need for Speed Carbon's frontend, smartcard.rs): the card reader.
     CreateGVRStorageDeviceImp = smartcard_create
     ReleaseGVRStorageDeviceImp = smartcard_release
+; gvrNetComm.dll (NASCAR Team Racing's race, netcomm.rs): no cabinet linked.
+    "??0GvrNetComm@0Gvr@@QAE@XZ" = netcomm_new
+    "??1GvrNetComm@0Gvr@@QAE@XZ" = netcomm_none
+    "?init@GvrNetComm@1Gvr@@QAEXPAD0@Z" = netcomm_init
+    "?link@GvrNetComm@1Gvr@@QAEXPAD@Z" = netcomm_link
+    "?sendPackets@GvrNetComm@1Gvr@@QAEXXZ" = netcomm_none
+    "?isIPValid@GvrNetComm@1Gvr@@QAE_NPAD@Z" = netcomm_ip_valid
+    "?getIncomingPacket@GvrNetComm@1Gvr@@QAEPAUgvrDataPacket@12@XZ" = netcomm_packet
+    "?getNextIncomingPacket@GvrNetComm@1Gvr@@QAEPAUgvrDataPacket@12@XZ" = netcomm_packet
+    "?getNumValidIPs@GvrNetComm@1Gvr@@QAEHXZ" = netcomm_ip_count
+    "?getValidIP@GvrNetComm@1Gvr@@QAEPADH@Z" = netcomm_ip
+    "?addOutgoingPacket@GvrNetComm@1Gvr@@QAEXPAXKW4gvrSendType@12@PAD@Z" = netcomm_add_packet
+; COM in-process server of the Anark player's logger (aklog.rs), when a registry layer names it.
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE
+; GvrLinking.dll (the NASCAR frontends' linking plug-in, linking.rs): a cabinet alone.
+    "??0GvrLinking@0Zeus@Gvr@@QAE@XZ" = linking_new
+    "??1GvrLinking@0Zeus@Gvr@@QAE@XZ" = linking_drop
+    "?SetPacketDataBlock@GvrLinking@1Zeus@Gvr@@QAEXKPAX@Z" = linking_set_data
+    "?SuspendPackets@GvrLinking@1Zeus@Gvr@@QAEX_N@Z" = linking_suspend
+    "?GetPacketsReceived@GvrLinking@1Zeus@Gvr@@QAEKXZ" = linking_zero
+    "?GetCabIndex@GvrLinking@1Zeus@Gvr@@QAEHXZ" = linking_zero
+    "?GetNumCabinetsOnline@GvrLinking@1Zeus@Gvr@@QAEHXZ" = linking_online_count
+    "?GetMacAddress@GvrLinking@1Zeus@Gvr@@QAE_NPADHH@Z" = linking_mac
+    "?GetIPAddress@GvrLinking@1Zeus@Gvr@@QAE_NPADHH@Z" = linking_ip
+    "?IsOnline@GvrLinking@1Zeus@Gvr@@QAE_NH@Z" = linking_is_online
+    "?SetCabinetNumber@GvrLinking@1Zeus@Gvr@@QAE_NH@Z" = linking_set_cabinet
+    "?GetCabinetNumber@GvrLinking@1Zeus@Gvr@@QAEHXZ" = linking_cabinet
+    "?SetPacketReceiveCallback@GvrLinking@1Zeus@Gvr@@QAE_NP6APAXHPAUsGvrPacket@123@@Z@Z" = linking_set_callback
