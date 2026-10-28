@@ -1,0 +1,70 @@
+# Blazing Angels: Squadrons of WWII (Global VR) - template, override values in
+# userprofiles/globalvr/blazing-angels.yaml.
+# The Ubisoft PC game (MainR.exe, Direct3D 9) in its arcade build:
+# - The controls: the cabinet's GVRIO board, a DirectInput joystick (flight stick X / Y, throttle
+#   on Rx, the buttons): the payload's fake DirectInput game controller, with the board's USB
+#   vendor id (the game takes its controls layout from it).
+# - GvrIO.dll (the cabinet's lamps): the payload takes its place (payload gvrio.rs).
+# - The cabinet's coin and volume monitors (Hercules), the HASP dongle and the player's profile:
+#   payload blazing.rs.
+system: globalvr
+name: "Blazing Angels: Squadrons of WWII"
+
+payload_install: [Bin/GvrIO.dll]
+
+env:
+  WAL_DINPUT_WHEEL: "GVRIO"
+  WAL_DINPUT_WHEEL_VIDPID: "1ab7:0001"
+  # flight stick X / Y, the throttle lever (Rx, forward: faster) on the right stick
+  WAL_DINPUT_WHEEL_AXIS: lx
+  WAL_DINPUT_WHEEL_Y_AXIS: ly
+  WAL_DINPUT_WHEEL_RX_AXIS: "-ry"
+  # The board's buttons, as the game reads them: 0 start (the trigger starts and selects too),
+  # 2 squadron orders, 4 find enemy (the throttle's button), 5 landing gear, 6 machine guns (the
+  # trigger), 10 / 11 service up / down (test menu, volume), 12 operator (test menu), 13
+  # service credit, 16 missiles. The coins: the payload's coin monitor.
+  WAL_DINPUT_WHEEL_BUTTONS: "start+b1,none,b4,none,b3,b5,b1,none,none,none,up,down,test,service,none,none,b2"
+
+# The game creates its controller only with its PC settings' "Disable pad" at 0, player 1 on
+# the first one listed; the flight takes its controls from its PC joystick bindings (the
+# cabinet's set there).
+registry: [systemprofiles/globalvr/files/blazing-angels/settings.reg]
+
+input:
+  # the flight stick must not press the d-pad (service up / down in the test menu)
+  stick_as_dpad: false
+  # Left stick flight stick, right stick up / down throttle, R2 / X machine guns, R1 / Y
+  # missiles, L2 find enemy, L1 squadron orders, A landing gear.
+  gamepad:
+    r2: b1
+    r1: b2
+    l2: b3
+    l1: b4
+  # keyboard flight stick (arrows) and throttle (W / S, Z / S on AZERTY): full in 0.3 s
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly
+      KEY_DOWN: ly
+      KEY_W: -ry
+      KEY_S: ry
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Test menu up
+  down: Test menu down
+  left: none
+  right: none
+  lx: Flight stick
+  ly: Flight stick
+  ry: Throttle
+  b1: Machine guns (and start)
+  b2: Missiles
+  b3: Find enemy
+  b4: Squadron orders
+  b5: Landing gear
+  b6: none
+  b7: none
+  b8: none
