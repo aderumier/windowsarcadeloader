@@ -1,0 +1,96 @@
+# Need for Speed (Global VR) - template, override values in
+# userprofiles/globalvr/need-for-speed.yaml. The earlier version of Need for Speed GT: the same
+# cabinet, frontend and game in older builds, set up the same way.
+# The cabinet frontend UniverShell2.exe (attract, coins, car and track choice, operator menus)
+# starts the game, Need for Speed Hot Pursuit 2 (C:\Gvr\Games\HP2\NFSHP2\NFSHP2.exe -nofrontend
+# ...), for each race. Both import GVRInputRaw.dll, the cabinet's wheel, pedals and buttons:
+# the payload takes its place next to each of them (payload gvrinput.rs).
+system: globalvr
+name: Need for Speed
+
+payload_install: [GvrRoot/NFS/GVRInputRaw.dll, Gvr/Games/HP2/NFSHP2/GVRInputRaw.dll]
+
+# The cabinet's paths: C:\Gvr (the game) and C:\GvrRoot (the frontend).
+c_folders:
+  Gvr: Gvr
+  GvrRoot: GvrRoot
+
+# The frontend's DLLs, installed in the cabinet's Windows folder. Its movies are Indeo 5: the
+# native codec (ir50_32.dll, from the dump's _Codec (Optional)/indeoxp.exe, copied to System
+# Files). The runner has no Indeo decoder (and Wine's offers no YUY2, the only format of the
+# frontend's movie renderer).
+files:
+  GvrRoot/NFS/GVR_Resources.dll: "{dump}/System Files/GVR_Resources.dll"
+  GvrRoot/NFS/MSVCRTD.DLL: "{dump}/System Files/MSVCRTD.DLL"
+  GvrRoot/NFS/ir50_32.dll: "{dump}/System Files/ir50_32.dll"
+
+dll_overrides:
+  ir50_32: n
+
+env:
+  # The game's own controllers (DirectInput keyboard and pads, Controllers/defaults.ini): it
+  # takes the wheel, pedals and buttons from GVRInputRaw.dll, its DirectInput sees nothing.
+  WAL_DINPUT_DISABLE: "1"
+  # The frontend and the game draw a 4:3 800x600 window: a borderless screen-sized window the
+  # back buffer is stretched to, presented to a centered 4:3 rectangle (black bars);
+  # WAL_KEEP_ASPECT_RATIO "0" (Batocera ES: KEEP ASPECT RATIO off): the whole screen.
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_D3D9_ASPECT: "4:3"
+  # the game's fullscreen device made windowed (same size), so it fits the window as well
+  WAL_D3D9_WINDOWED_SIZE: 800x600
+  WAL_KEEP_ASPECT_RATIO: "1"
+
+input:
+  # the wheel must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, L1 / R1 shift down / up, X view, Y music, B horn,
+  # A handbrake, d-pad down look back.
+  gamepad:
+    r2: accel
+    l2: brake
+    l1: b5
+    r1: b6
+    a: b7
+    b: b3
+    dpdown: b4
+  # keyboard steering, gas and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  # Keyboard (player 1): Left / Right wheel, Up gas, Down brake, Ctrl view, Alt music, Space
+  # horn, Left Shift look back, Z / X shift down / up (W / X on AZERTY), C handbrake, 1 start,
+  # 5 coin, F2 operator menu.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The game's 4:3 picture with its aspect kept, black bars on a wide screen. Off:
+          stretched to the whole screen.
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: View
+  b2: Music
+  b3: Horn
+  b4: Look back
+  b5: Shift down
+  b6: Shift up
+  b7: Handbrake
+  b8: none
