@@ -1,0 +1,259 @@
+Windows Registry Editor Version 5.00
+
+; Beach Head 2000 (Global VR): the cabinet's registry. The frontend's ActiveX control
+; (C:\Orion\ShellControl.ocx, its regsvr32 registration, safe for scripting and initializing as
+; the cabinet's Internet Explorer settings let it run) and the shell's settings (the dump's
+; BH2000_Shell/gvrshell_p.reg and shell/GVRShell_BH.reg). Imported at each launch: the payload
+; then restores what the shell changed (operator settings, audits, high scores, coins), saved in
+; the dump's BH2000_Shell/gvrshell-saved.reg.
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}]
+@="ShellControl Control"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Control]
+@=""
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Implemented Categories\{7DD95801-9882-11CF-9FA9-00AA006C42C4}]
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Implemented Categories\{7DD95802-9882-11CF-9FA9-00AA006C42C4}]
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\InprocServer32]
+@="C:\\Orion\\ShellControl.ocx"
+"ThreadingModel"="Apartment"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\MiscStatus]
+@="0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\MiscStatus\1]
+@="132241"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\ProgID]
+@="SHELLCONTROL.ShellControlCtrl.1"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Version]
+@="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C206-067B-11D6-B8E9-0040CAB4F670}]
+@="ShellControl Property Page"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C206-067B-11D6-B8E9-0040CAB4F670}\InprocServer32]
+@="C:\\Orion\\ShellControl.ocx"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}]
+@="_DShellControl"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}\ProxyStubClsid32]
+@="{00020420-0000-0000-C000-000000000046}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+"Version"="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}]
+@="_DShellControlEvents"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}\ProxyStubClsid32]
+@="{00020420-0000-0000-C000-000000000046}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+"Version"="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\SHELLCONTROL.ShellControlCtrl.1]
+@="ShellControl Control"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\SHELLCONTROL.ShellControlCtrl.1\CLSID]
+@="{1745C205-067B-11D6-B8E9-0040CAB4F670}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0]
+@="ShellControl ActiveX Control module"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0\0\win32]
+@="C:\\Orion\\ShellControl.ocx"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0\FLAGS]
+@="0"
+
+; The shells' previous keys removed first (the Beach Head cabinets share them in the prefix: the
+; multigame shell would list the other cabinet's game and scores).
+[-HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000]
+"Inst"="c:\\bh2000_shell\\instructions_p.txt"
+"Reg1"="c:\\bh2000_shell\\gvrshell_v.reg"
+"PlayControl"="C:\\BH2000_Shell\\Operator\\PlayControl.html"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific]
+"MachineType"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Debug]
+"AttractGoodCount"=dword:00000000
+"AttractPauseCount"=dword:00000000
+"AttractTimeoutCount"=dword:00000000
+"AttractStuckPosCount"=dword:00000000
+"AttractStuckPos1"=dword:00000000
+"AttractStuckPos2"=dword:00000000
+"AttractStuckPos3"=dword:00000000
+"AttractStuckPos4"=dword:00000000
+"AttractStuckPos5"=dword:00000000
+"AttractStuckPos6"=dword:00000000
+"AttractStuckPos7"=dword:00000000
+"AttractStuckPos8"=dword:00000000
+"AttractStuckPos9"=dword:00000000
+"Trace0"=dword:00000000
+"Trace1"=dword:00000000
+"Trace2"=dword:00000000
+"Trace3"=dword:00000000
+"Trace4"=dword:00000000
+"TraceStr0"=" "
+"TraceStr1"=" "
+"TraceStr2"=" "
+"TraceStr3"=" "
+"TraceStr4"=" "
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator]
+"CurrentGame"="BH2000"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Buttons]
+"Operator"=dword:00000020
+"Accept"=dword:00000002
+"LastButtonStatus"=dword:00000000
+"Back"=dword:00000004
+"AttractAdvance"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000]
+"Title"="Beach Head 2000"
+"Menu"="C:\\BH2000_Shell\\Operator\\frame.html"
+"Play"="c:/BH2000_Shell/Shell/Attract/Attract.html"
+"Exec"="C:/Orion/BH2K/Beach16.exe"
+"PlayControl"="C:\\BH2000_Shell\\Operator\\PlayControl.html"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2002]
+"Title"="Beach Head 2002"
+"Menu"="C:\\BH2000_Shell\\Operator\\frame.html"
+"Play"="c:/BH2000_Shell/Shell/Attract/Attract.html"
+"Exec"="C:/Orion/BH2K/Beach16.exe"
+"PlayControl"="C:\\BH2000_Shell\\Operator\\PlayControl.html"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific]
+"MachineType"=dword:00000000
+"Volume"=dword:00000001
+"VolumeAnnouncer"=dword:00000002
+"AttractSound"=dword:00000002
+"Credits"=dword:0000000c
+"MaxCredits"=dword:00000032
+"ContinueCredits"=dword:00000002
+"player_total"=dword:00000002
+"play_mode"=dword:00000001
+"golfers"=" /GIDX 0,7 /GIDX 1,0 /GIDX 2,2 /GIDX 3,11"
+"course"=dword:00000001
+"front"=dword:00000002
+"buyin"=dword:00000003
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\Credits]
+; game and continue times (none in the dump): 5 s steps from 30 s to 300 s, 150 s each (the
+; cabinet's c:\orion\orion.cfg TimeLimit and ContinueTimeLimit)
+"TimeMulti"=dword:00000005
+"ContinueTimeMulti"=dword:00000005
+"MinTime"=dword:00000006
+"MaxTime"=dword:0000003c
+"GameTime"=dword:00000018
+"ContinueTime"=dword:00000018
+"ViolenceLevel"=dword:00000000
+"Pay4Play"=dword:00000000
+"MaxCredits"=dword:00000032
+"CreditDisplay"=dword:00000001
+"cDisplayType"=dword:00000000
+"CoinPerMonUnit"=dword:00000003
+"CoinPerMonUnitMax"=dword:00000014
+"COIN0"=dword:00000003
+"COIN6"=dword:00000001
+"CreditsPhantom"=dword:00000003
+"CreditsPhantomMax"=dword:00000064
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\Credits\UK]
+"COIN0"=dword:0000000a
+"COIN6"=dword:00000005
+"CoinPerMonUnit"=dword:00000009
+"SkillLevel"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\Credits\USA]
+"COIN0"=dword:00000003
+"COIN6"=dword:00000001
+"CoinPerMonUnit"=dword:00000003
+"SkillLevel"=dword:00000003
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\Factory]
+"Pay4Play"=dword:00000001
+"GameTime"=dword:00000018
+"ContinueTime"=dword:00000018
+"ViolenceLevel"=dword:00000000
+"CreditDisplay"=dword:00000001
+"Volume"=dword:00000001
+"AttractSound"=dword:00000002
+"DelayTime"=dword:00000003
+"DelayTimeOn"=dword:00000001
+"cDisplayType"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\GameAudit]
+"CoinUsed"=dword:00000001
+"LifetimeCoin"=dword:00000002
+"CoinBuyin"=dword:00000003
+"LifetimeCoinBuyin"=dword:00000004
+"LifetimeUpdate"="Tuesday, January 01, 2002 12:00:00 AM"
+"LifetimeUpdateRaw"="1009872000000"
+"CoinClearDate"="Tuesday, January 01, 2002 12:00:00 AM"
+"CoinClearDateRaw"="1009872000000"
+"Game0"=dword:00000005
+"LifetimeGame0"=dword:00000006
+"GameExtraTime"=dword:00000007
+"LifetimeGameExtraTime"=dword:00000008
+"GameClearDate"="Tuesday, January 01, 2002 12:00:00 AM"
+"GameClearDateRaw"="1009872000000"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\GameMode]
+"SkillLevel"=dword:00000003
+"MaxSkillLevel"=dword:00000005
+"DelayTime"=dword:00000003
+"DelayTimeOn"=dword:00000001
+"MaxDelayTime"=dword:00000018
+"MinDelayTime"=dword:00000003
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\Help]
+"HelpTitle"="MAC_"
+"HelpCheck"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\Scores]
+"WinAction"=dword:00000000
+"WinScore"=dword:00005800
+"WinName0"="AAA"
+"WinName1"="BAA"
+"WinName2"="CAA"
+"WinName3"="DAA"
+"WinName4"="EAA"
+"WinName5"="FAA"
+"WinName6"="GAA"
+"WinName7"="HAA"
+"WinName8"="IAA"
+"WinName9"="JAA"
+"WinScore0"=dword:0000b000
+"WinScore1"=dword:0000a000
+"WinScore2"=dword:00009000
+"WinScore3"=dword:00008000
+"WinScore4"=dword:00007000
+"WinScore5"=dword:00006000
+"WinScore6"=dword:00005000
+"WinScore7"=dword:00004000
+"WinScore8"=dword:00003000
+"WinScore9"=dword:00002000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\BH2000\GameSpecific\Shell]
+"gameExitStatus"=dword:00000000
+
+
+
+

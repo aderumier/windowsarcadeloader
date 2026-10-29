@@ -240,6 +240,8 @@ enum Layout {
     /// hung); no pedal fields, the gas is the accept button (0x100) and the brake the back one
     /// (0x400), and 0x42..0x48 stay 0 (it reads them, garbage there spun it).
     UgShell = 2,
+    /// Beach Head 2002 and its shell: the older library's state (`turret.rs`).
+    Turret = 3,
 }
 
 static LAYOUT: AtomicU32 = AtomicU32::new(Layout::Gt as u32);
@@ -278,6 +280,7 @@ fn layout() -> Layout {
     match LAYOUT.load(Ordering::Relaxed) {
         1 => Layout::UgRace,
         2 => Layout::UgShell,
+        3 => Layout::Turret,
         _ => Layout::Gt,
     }
 }
@@ -332,6 +335,8 @@ fn fill(state: *mut u8) {
                     buttons |= 0x400;
                 }
             }
+            // its own state (turret.rs), never filled here
+            Layout::Turret => return,
         }
         put32(state, 0x10, get32(state, 0x0C));
         put32(state, 0x0C, buttons);
@@ -357,7 +362,9 @@ pub unsafe extern "C" fn gvr_init(_hwnd: usize, state: *mut u8, game: *const u8)
     } else {
         unsafe { std::ffi::CStr::from_ptr(game.cast()) }.to_string_lossy().into_owned()
     };
-    let layout = if !name.eq_ignore_ascii_case("NFSUNDERGROUND") {
+    let layout = if crate::turret::is_turret(&name) {
+        Layout::Turret
+    } else if !name.eq_ignore_ascii_case("NFSUNDERGROUND") {
         Layout::Gt
     } else if crate::frontend_fit::exe_name() == "undergroundgvr.exe" {
         Layout::UgRace
@@ -370,7 +377,12 @@ pub unsafe extern "C" fn gvr_init(_hwnd: usize, state: *mut u8, game: *const u8)
     if state.is_null() {
         return 2;
     }
-    fill(state);
+    if layout == Layout::Turret {
+        crate::turret::set_caller(&name);
+        crate::turret::init(state);
+    } else {
+        fill(state);
+    }
     0
 }
 
@@ -384,6 +396,10 @@ pub unsafe extern "C" fn gvr_update(state: *mut u8) -> i32 {
         put32(state, 0x20, get32(state, 0x18));
         put32(state, 0x24, get32(state, 0x1C));
         QueryPerformanceCounter(state.add(0x18) as *mut i64);
+    }
+    if layout() == Layout::Turret {
+        crate::turret::fill(state);
+        return 0;
     }
     fill(state);
     ffb(state);

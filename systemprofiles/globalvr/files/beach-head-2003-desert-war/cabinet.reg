@@ -1,0 +1,330 @@
+Windows Registry Editor Version 5.00
+
+; Beach Head 2003 Desert War (Global VR): the cabinet's registry. The frontend's ActiveX control
+; (C:\Orion\ShellControl.ocx, its regsvr32 registration, safe for scripting and initializing as
+; the cabinet's Internet Explorer settings let it run) and the multigame shell's settings, from
+; the game's install CD (its _Registry, copied to the dump: stand/nogames.reg,
+; plug/GVRShell_desertwar.reg, update/GVRShell_Multi.reg, in its setup's order), with free play
+; and the stand-up cabinet (MachineType 0: the joystick turret, not the Vortek headset). Imported
+; at each launch: the payload then restores what the shell changed (operator settings, audits,
+; high scores, coins), saved in the dump's MULTIGAME_Shell/gvrshell-saved.reg.
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}]
+@="ShellControl Control"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Control]
+@=""
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Implemented Categories\{7DD95801-9882-11CF-9FA9-00AA006C42C4}]
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Implemented Categories\{7DD95802-9882-11CF-9FA9-00AA006C42C4}]
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\InprocServer32]
+@="C:\\Orion\\ShellControl.ocx"
+"ThreadingModel"="Apartment"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\MiscStatus]
+@="0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\MiscStatus\1]
+@="132241"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\ProgID]
+@="SHELLCONTROL.ShellControlCtrl.1"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Version]
+@="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C206-067B-11D6-B8E9-0040CAB4F670}]
+@="ShellControl Property Page"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C206-067B-11D6-B8E9-0040CAB4F670}\InprocServer32]
+@="C:\\Orion\\ShellControl.ocx"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}]
+@="_DShellControl"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}\ProxyStubClsid32]
+@="{00020420-0000-0000-C000-000000000046}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+"Version"="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}]
+@="_DShellControlEvents"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}\ProxyStubClsid32]
+@="{00020420-0000-0000-C000-000000000046}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+"Version"="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\SHELLCONTROL.ShellControlCtrl.1]
+@="ShellControl Control"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\SHELLCONTROL.ShellControlCtrl.1\CLSID]
+@="{1745C205-067B-11D6-B8E9-0040CAB4F670}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0]
+@="ShellControl ActiveX Control module"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0\0\win32]
+@="C:\\Orion\\ShellControl.ocx"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0\FLAGS]
+@="0"
+
+; The shells' previous keys removed first (the Beach Head cabinets share them in the prefix: the
+; multigame shell would list the other cabinet's game and scores).
+[-HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific]
+"Exec1"="NONE"
+"Exec2"="NONE"
+"Exec3"="NONE"
+"Exec4"="NONE"
+"Exec5"="NONE"
+"Exec6"="NONE"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\DesertWar]
+"ini"="C:\\orion\\DesertWar\\gvrinput.ini"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific]
+"Exec3"="C:/Orion/desertwar/desertwar.exe"
+"Dir3"="c:\\orion\\desertwar"
+"Start3"=dword:00003038
+"End3"=dword:00003776
+"Diff3"=dword:00000003
+"GameName3"="BH2003 Desert War"
+"Game3"="DesertWar"
+"Disable3"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\GameAudit]
+"CoinUsed3"=dword:00000000
+"LifetimeCoin3"=dword:00000000
+"CoinBuyin3"=dword:00000000
+"LifetimeCoinBuyin3"=dword:00000000
+"LifetimeUpdate3"="  01/01/2002  00:00"
+"LifetimeUpdateRaw3"="1009872000000"
+"CoinClearDate3"="  01/01/2002  00:00"
+"CoinClearDateRaw3"="1009872000000"
+"Game3"=dword:00000000
+"LifetimeGame3"=dword:00000000
+"GameExtraTime3"=dword:00000000
+"LifetimeGameExtraTime3"=dword:00000000
+"GameClearDate3"="  01/01/2002  00:00"
+"GameClearDateRaw3"="1009872000000"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\DesertWar]
+"Code2"=hex:44,57,41,52
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\Scores]
+"desertwarAction"=dword:00000000
+"desertwarScore"=dword:00000000
+"desertwarNum"=dword:0000000a
+"desertwarName0"="AAA"
+"desertwarName1"="BAA"
+"desertwarName2"="CAA"
+"desertwarName3"="DAA"
+"desertwarName4"="EAA"
+"desertwarName5"="FAA"
+"desertwarName6"="GAA"
+"desertwarName7"="HAA"
+"desertwarName8"="IAA"
+"desertwarName9"="JAA"
+"desertwarScore0"=dword:00000000
+"desertwarScore1"=dword:00000000
+"desertwarScore2"=dword:00000000
+"desertwarScore3"=dword:00000000
+"desertwarScore4"=dword:00000000
+"desertwarScore5"=dword:00000000
+"desertwarScore6"=dword:00000000
+"desertwarScore7"=dword:00000000
+"desertwarScore8"=dword:00000000
+"desertwarScore9"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Debug]
+"AttractGoodCount"=dword:00000000
+"AttractPauseCount"=dword:00000000
+"AttractTimeoutCount"=dword:00000000
+"AttractStuckPosCount"=dword:00000000
+"AttractStuckPos1"=dword:00000000
+"AttractStuckPos2"=dword:00000000
+"AttractStuckPos3"=dword:00000000
+"AttractStuckPos4"=dword:00000000
+"AttractStuckPos5"=dword:00000000
+"AttractStuckPos6"=dword:00000000
+"AttractStuckPos7"=dword:00000000
+"AttractStuckPos8"=dword:00000000
+"AttractStuckPos9"=dword:00000000
+"Trace0"=dword:00000000
+"Trace1"=dword:00000000
+"Trace2"=dword:00000000
+"Trace3"=dword:00000000
+"Trace4"=dword:00000000
+"TraceStr0"=" "
+"TraceStr1"=" "
+"TraceStr2"=" "
+"TraceStr3"=" "
+"TraceStr4"=" "
+"CreditsGoodCount"=dword:00000006
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Wtf]
+"Wtf"="c:/MULTIGAME_Shell/Shell/NoDongle/NoDongle.html"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator]
+"CurrentGame"="MULTIGAME"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Buttons]
+"Accept"= dword:00000008
+"AcceptAlternate"= dword:00000002
+"AttractAdvance"= dword:00000002
+"Back"= dword:00000002
+"Down"= dword:00000004
+"LastButtonStatus"= dword:00000000
+"Operator"= dword:00000020
+"Up"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME]
+"Title"="MultiGame Vortek Shell"
+"Menu"="C:/MULTIGAME_Shell/Operator/frame.html"
+"Play"="c:/MULTIGAME_Shell/Shell/Attract/Attract.html"
+"PlayControl"="c:/MULTIGAME_SHELL/Operator/PlayControlVortek.html"
+"Exec"=dword:00000000
+"NoDongle"="c:/MULTIGAME_Shell/Shell/NoDongle/NoDongle.html"
+"Code0"=hex:4D,47,56
+"Time"=dword:0000000f
+"Dir"="c:\\orion\\ob2k"
+"Inst"="c:\\orion\\ob2k\\instructions_p.txt"
+"Reg1"="c:\\MULTIGAME_shell\\gvrshell_v.reg"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\menuTune]
+"TuneRange"=dword:00000032
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific]
+"Volume"=dword:00000003
+"VolumeAnnouncer"=dword:00000003
+"AttractSound"=dword:00000001
+"Credits"=dword:0000000c
+"MaxCredits"=dword:00000032
+"ContinueCredits"=dword:00000002
+"play_mode"=dword:00000001
+"buyin"=dword:00000003
+"player_total"=dword:00000002
+"golfers"=" /GIDX 0,7 /GIDX 1,0 /GIDX 2,2 /GIDX 3,11"
+"course"=dword:00000001
+"front"=dword:00000002
+"MultiMode"=dword:00000001
+"MachineType"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\Credits]
+"Pay4Play"=dword:00000000
+"MaxCredits"=dword:00000032
+"CreditDisplay"=dword:00000001
+"cDisplayType"=dword:00000000
+"CoinPerMonUnit"=dword:00000003
+"CoinPerMonUnitMax"=dword:00000014
+"CreditsPhantom"=dword:00000000
+"CreditsPhantomMax"=dword:00000064
+"MinTime"=dword:00000003
+"MaxTime"=dword:00000012
+"Time"=dword:0000000a
+"ContinueTime"=dword:00000004
+"MinContinueTime"=dword:00000003
+"MaxContinueTime"=dword:00000012
+"GameTime"=dword:00000005
+"MinGameTime"=dword:00000003
+"MaxGameTime"=dword:00000012
+"ViolenceLevel"=dword:00000001
+"TimeMulti"=dword:00000014
+"COIN0"=dword:00000004
+"COIN6"=dword:00000004
+"ContinueTimeMulti"=dword:0000000a
+"GameTimeMulti"=dword:0000000a
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\Credits\UK]
+"COIN0"=dword:00000005
+"COIN6"=dword:00000005
+"CoinPerMonUnit"=dword:00000009
+"SkillLevel"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\Credits\USA]
+"CoinPerMonUnit"=dword:00000003
+"SkillLevel"=dword:00000003
+"COIN0"=dword:00000004
+"COIN6"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\Factory]
+"Pay4Play"=dword:00000001
+"MaxCredits"=dword:00000032
+"CreditDisplay"=dword:00000001
+"cDisplayType"=dword:00000000
+"CoinPerMonUnit"=dword:00000003
+"CoinPerMonUnitMax"=dword:00000014
+"CreditsPhantom"=dword:00000000
+"CreditsPhantomMax"=dword:00000064
+"MinTime"=dword:00000003
+"MaxTime"=dword:00000012
+"Time"=dword:0000000a
+"ContinueTime"=dword:00000004
+"MinContinueTime"=dword:00000003
+"MaxContinueTime"=dword:00000012
+"GameTime"=dword:00000005
+"MinGameTime"=dword:00000003
+"MaxGameTime"=dword:00000012
+"ViolenceLevel"=dword:00000001
+"TimeMulti"=dword:00000014
+"COIN0"=dword:00000004
+"COIN6"=dword:00000004
+"ContinueTimeMulti"=dword:0000000a
+"GameTimeMulti"=dword:0000000a
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\GameAudit]
+"CoinUsed0"=dword:00000000
+"LifetimeCoin0"=dword:00000000
+"CoinBuyin0"=dword:00000000
+"LifetimeCoinBuyin0"=dword:00000000
+"LifetimeUpdate0"="  01/01/2002  00:00"
+"LifetimeUpdateRaw0"="1009872000000"
+"CoinClearDate0"="  01/01/2002  00:00"
+"CoinClearDateRaw0"="1009872000000"
+"Game0"=dword:00000000
+"LifetimeGame0"=dword:00000000
+"GameExtraTime0"=dword:00000000
+"LifetimeGameExtraTime0"=dword:00000000
+"GameClearDate0"="  01/01/2002  00:00"
+"GameClearDateRaw0"="1009872000000"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\GameAudit\Help]
+"HelpTitle"="ACN_"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\GameMode]
+"CoinPerMonUnit"=dword:00000003
+"SkillLevel"=dword:00000003
+"MaxSkillLevel"=dword:00000005
+"MaxTime"=dword:00000018
+"MinTime"=dword:00000003
+"Time"=dword:0000000a
+"ContinueTime"=dword:0000000f
+"GameTime"=dword:00000012
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\Help]
+"HelpTitle"="MAC_"
+"HelpCheck"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\MULTIGAME\GameSpecific\Shell]
+"gameExitStatus"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Help]
+"HelpTitle"="MAC_"
+"HelpCheck"=dword:00000000
+
