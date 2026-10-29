@@ -1,0 +1,93 @@
+# Beach Head 2003 Desert War (Global VR) - template, override values in
+# userprofiles/globalvr/beach-head-2003-desert-war.yaml.
+# The dump: the game's install CD (beachhead2003desertwar_5-27-2003.chd) at the cabinet's paths,
+# its _Registry and fonts (Fonts) and system files (System Files) kept.
+# The cabinet's frontend UniverShell.exe (Internet Explorer showing the multigame shell's HTML
+# pages, scripted through its ShellControl.ocx: attract, coins, high scores, operator menu)
+# starts the game, C:\Orion\desertwar\desertwar.exe, for each play (payload beachhead.rs). Both
+# read the turret through GVRInputRaw.dll: the payload takes its place (payload gvrinput.rs).
+system: globalvr
+name: Beach Head 2003 Desert War
+
+# The start page, then the cabinet's 640x480 screen mode (the frontend's default is 800x600, its
+# pages are made for 640x480): the page first, the frontend reads any later word as the value
+# of the last switch.
+args: ["c:\\MULTIGAME_Shell\\Shell\\Attract\\Attract.html", "-width", "640", "-height", "480"]
+
+# The frontend runs with the payload (it hooks its pages and the game start), which is also the
+# GVRInputRaw.dll the shell control and the game load.
+payload_loader: true
+payload_install: [GVRInputRaw.dll, Orion/desertwar/GVRInputRaw.dll]
+
+# The cabinet's paths: C:\Orion (the frontend, the game in C:\Orion\desertwar),
+# C:\MULTIGAME_Shell (the frontend's pages) and C:\DESERTWAR_Shell (the game's high score pages).
+c_folders:
+  Orion: Orion
+  MULTIGAME_Shell: MULTIGAME_Shell
+  DESERTWAR_Shell: DESERTWAR_Shell
+
+registry: [systemprofiles/globalvr/files/beach-head-2003-desert-war/cabinet.reg]
+
+# The attract movie is Indeo 5: the native codec (ir50_32.dll, copied to the dump's System
+# Files) next to the frontend.
+files:
+  Orion/ir50_32.dll: "{dump}/System Files/ir50_32.dll"
+
+dll_overrides:
+  ir50_32: n
+
+# The game's MFC 4.2 library (the cabinet's Windows has it).
+tricks: [mfc42]
+
+# the shell's fonts
+fonts:
+  - Fonts/impact.ttf
+  - Fonts/SUNGLAS3.TTF
+  - Fonts/VENUSRIS.TTF
+
+# The game draws through Wine's DirectDraw.
+graphics: wine
+
+# The cabinet's 640x480 screen (the shell's pages and the game), scaled to the real one with its
+# aspect kept.
+gamescope:
+  enabled: true
+  width: 640
+  height: 480
+  args: [-S, fit, -f]
+
+env:
+  # the frontend's dialog is 800x600 whatever its screen mode: made a borderless 640x480 window
+  # (the size of its pages and of the game's screen)
+  WAL_WINDOW_SIZE: 640x480
+  WAL_WINDOW_POPUP: "1"
+
+input:
+  # the stick turns the gun, it must not press the d-pad
+  stick_as_dpad: false
+  # Keyboard (player 1): arrows turn the gun, Ctrl fire (and select), Alt weapon change
+  # (machine gun, cannon), 1 start, 5 coin, F2 operator menu.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly
+      KEY_DOWN: ly
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Gun left / right
+  ly: Gun up / down
+  b1: Fire
+  b2: Weapon change
+  b3: none
+  b4: none
+  b5: none
+  b6: none
+  b7: none
+  b8: none
+  service: none

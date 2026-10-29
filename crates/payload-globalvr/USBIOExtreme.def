@@ -9,10 +9,11 @@ EXPORTS
 ; the cabinet monitors (Need for Speed Carbon's GVRCoinMonitor.exe, GVRVolumeMonitor.exe)
     "?SetEncoderThreadState@CUSBIO@@QAEXH@Z" = cusbio_encoder_thread
     "?SetOutputValue@CUSBIO@@QAEXHEEE@Z" = cusbio_output
-; GVRInputRaw.dll (driving cabinets, gvrinput.rs), cdecl functions imported by name.
-    GVRInputRawInit = gvr_init
-    GVRInputRawUpdate = gvr_update
-    GVRInputRawCleanup = gvr_none
+; GVRInputRaw.dll (driving cabinets, gvrinput.rs), cdecl functions imported by name; the
+; older library (Beach Head 2002, turret.rs) has only cleanup, init and update, loaded by ordinal.
+    GVRInputRawInit = gvr_init @2
+    GVRInputRawUpdate = gvr_update @3
+    GVRInputRawCleanup = gvr_none @1
     GVRInputRawSleep = gvr_none
     GVRInputRawWake = gvr_none
     GVRInputRawResetCalibration = gvr_none
@@ -20,6 +21,7 @@ EXPORTS
     GVRInputRawReadDrivingValues = gvr_driving_values
     GVRInputRawWriteDrivingValues = gvr_driving_values
     GVRInputRawGetCUSBIO = gvr_cusbio
+    GVRInputRawHandleDeviceChanged = gvr_none
     GVRInputRawGetAxisFault = gvr_none
     GVRInputRawGetButtonFault = gvr_none
     GVRInputRawGetFFFault = gvr_none

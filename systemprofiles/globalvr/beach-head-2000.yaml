@@ -1,0 +1,78 @@
+# Beach Head 2000 (Global VR) - template, override values in
+# userprofiles/globalvr/beach-head-2000.yaml.
+# The cabinet's frontend UniverShell.exe (Internet Explorer showing the shell's HTML pages,
+# scripted through its ShellControl.ocx: attract, coins, high scores, operator menu) starts the
+# game, C:\Orion\BH2K\Beach16.exe, for each play (payload beachhead.rs). Both read the gun
+# turret: the I/O board's buttons as joystick 0, its encoders as the system mouse
+# (payload beachhead_io.rs).
+system: globalvr
+name: Beach Head 2000
+
+# The start page, then the cabinet's 640x480 screen mode (the frontend's default is 800x600, its
+# pages are made for 640x480): the page first, the frontend reads any later word as the value
+# of the last switch.
+args: ["c:\\BH2000_Shell\\Shell\\Attract\\Attract.html", "-width", "640", "-height", "480"]
+
+# The cabinet's paths: C:\Orion (the frontend, the game in C:\Orion\BH2K) and C:\BH2000_Shell
+# (the frontend's pages).
+c_folders:
+  Orion: Orion
+  BH2000_Shell: BH2000_Shell
+
+registry: [systemprofiles/globalvr/files/beach-head-2000/cabinet.reg]
+
+# The attract movies are Indeo 5: the native codec (ir50_32.dll, copied to the dump's System
+# Files) next to the frontend.
+files:
+  Orion/ir50_32.dll: "{dump}/System Files/ir50_32.dll"
+
+dll_overrides:
+  ir50_32: n
+
+# The game writes its 640x480 picture straight into DirectDraw's primary surface, which Wine
+# never shows: the dump's dgVoodoo (C:\Orion\BH2K\DDraw.dll) presents it.
+graphics: dgvoodoo
+
+# The cabinet's 640x480 screen (the shell's pages and the game), scaled to the real one with its
+# aspect kept.
+gamescope:
+  enabled: true
+  width: 640
+  height: 480
+  args: [-S, fit, -f]
+
+env:
+  # the frontend's dialog is 800x600 whatever its screen mode: made a borderless 640x480 window
+  # (the size of its pages and of the game's screen)
+  WAL_WINDOW_SIZE: 640x480
+  WAL_WINDOW_POPUP: "1"
+
+input:
+  # the stick turns the gun, it must not press the d-pad
+  stick_as_dpad: false
+  # Keyboard (player 1): arrows turn the gun, Ctrl machine gun, Alt cannon, Space air strike,
+  # 1 start, 5 coin, F2 operator menu.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly
+      KEY_DOWN: ly
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Gun left / right
+  ly: Gun up / down
+  b1: Machine gun
+  b2: Cannon (shell back)
+  b3: Air strike
+  b4: none
+  b5: none
+  b6: none
+  b7: none
+  b8: none
+  service: none

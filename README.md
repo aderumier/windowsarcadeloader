@@ -42,6 +42,16 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | not in the test |  |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | pass | 2026-10-11 |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | pass | 2026-10-11 |
+| `need-for-speed` | Need for Speed | globalvr | works (user: 100%) | not in the test |  |
+| `need-for-speed-gt` | Need for Speed GT | globalvr | works (user: 100%) | not in the test |  |
+| `need-for-speed-underground` | Need for Speed Underground | globalvr | works (user: 100%) | not in the test |  |
+| `need-for-speed-carbon` | Need for Speed Carbon | globalvr | works (user: 100%); force feedback not tested on a wheel | not in the test |  |
+| `nascar-racing` | NASCAR Racing | globalvr | works (user: 100%) | not in the test |  |
+| `nascar-team-racing` | NASCAR Team Racing | globalvr | works (user: 100%) | not in the test |  |
+| `blazing-angels` | Blazing Angels: Squadrons of WWII | globalvr | works (user: 100%) | not in the test |  |
+| `beach-head-2000` | Beach Head 2000 | globalvr | works (user: 100%) | not in the test |  |
+| `beach-head-2002` | Beach Head 2002 | globalvr | works (user: 100%) | not in the test |  |
+| `beach-head-2003-desert-war` | Beach Head 2003 Desert War | globalvr | works (user: 100%), machine gun, cannon, missiles | not in the test |  |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | pass | 2026-10-07 |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-10-08 |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | pass | 2026-10-07 |

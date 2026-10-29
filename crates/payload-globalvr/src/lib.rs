@@ -20,6 +20,11 @@
 //! * `linking.rs`: the NASCAR frontends' `GvrLinking.dll` (a cabinet alone).
 //! * `netcomm.rs`: NASCAR Team Racing's `gvrNetComm.dll` (no cabinet linked).
 //! * `aklog.rs`: the Anark player's logger (its messages and script errors), for debugging.
+//! * `beachhead.rs`: Beach Head 2000's frontend (`UniverShell.exe`) and game (`Beach16.exe`),
+//!   `beachhead_io.rs` their cabinet controls, `amovie.rs` the ActiveMovie control of the
+//!   frontend's HTML pages (their attract movies).
+//!   Beach Head 2002's and Desert War's multigame shell and games (`BH2.exe`, `desertwar.exe`)
+//!   the same way, their controls through the older `GVRInputRaw.dll` (`turret.rs`).
 //! * `blazing.rs`: Blazing Angels' coin and volume monitors, dongle and player profile.
 //! * `smartcard.rs`: Need for Speed Carbon's frontend card reader (`GVRSCR28.dll`).
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
@@ -34,6 +39,10 @@
 
 mod aklog;
 mod aliens;
+mod amovie;
+mod beachhead;
+mod beachhead_io;
+mod beachhead_save;
 mod blazing;
 mod carbon_menu;
 mod carbon_shell;
@@ -50,6 +59,7 @@ mod smartcard;
 mod swarm;
 mod swarm_campaign;
 mod swarm_imports;
+mod turret;
 mod usbio;
 
 use std::ffi::c_void;
@@ -109,6 +119,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         keyboard::init();
         gamelog::init();
         swarm::init();
+        beachhead::init(module);
         blazing::init();
         log!("globalvr: initialized");
     }
