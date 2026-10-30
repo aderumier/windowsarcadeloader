@@ -1,0 +1,8 @@
+<GvrShell>
+	<ZeusIOPlugIn />
+	<HerculesPlugIn />
+	<NITRO_SHELLPlugIn />
+	<GvrMusicPlugIn />
+	<GvrDirtyWordPlugIn />
+	<GvrLinkingPlugIn />
+</GvrShell>

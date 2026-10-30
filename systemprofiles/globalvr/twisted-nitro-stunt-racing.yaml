@@ -1,0 +1,138 @@
+# Twisted: Nitro Stunt Racing (Global VR) - template, override values in
+# userprofiles/globalvr/twisted-nitro-stunt-racing.yaml.
+# The cabinet's install (game disc 1.5, unpacked with unshield: C:\gvr_sdk\bin in the dump root,
+# the rest in _Cabinet; the motion card's library from the recovery disc's system image), the
+# platform of Need for Speed Carbon (need-for-speed-carbon.yaml):
+# - The Anark player AMPlayer.exe runs C:\Shell\shell.am (startup checks, attract, track and car
+#   selection, operator menus) with its plug-ins, then starts the race, NSR_S1.exe -track ...
+#   -car ... (one race per run).
+# - Both talk to GvrIO.dll, the cabinet's message library: the payload takes its place next to
+#   each (payload gvrio.rs).
+# - The coins: the cabinet's coin and volume monitors (Hercules), started and fed by the payload
+#   as their USBIOExtreme.dll (payload carbon_shell.rs, usbio.rs).
+# - The frontend's plug-ins keep the cabinet's records in a SQL Server database through GVR's
+#   .NET 1.1 data engine (PLUSDE.dll, Carbon's build): the dump's _Cabinet/Plus holds an engine
+#   whose SQL client is a SQLite one (GvrSqlite.dll) and the cabinet's database built from its
+#   schema (nitro.db, copied to the run directory once).
+# - .NET 1.1: the prefix shared with the Need for Speed and NASCAR games.
+system: globalvr
+name: "Twisted: Nitro Stunt Racing"
+
+prefix: wine-prefix/dotnet11
+prefix_tricks: [dotnet11]
+
+# the cabinet's command line (its Hercules boot entry)
+args: ['C:\Shell\shell.am', '-v', 'FULL', '-cabinet']
+
+# The race's GvrIO.dll (game root), the frontend's GvrIO.dll and GvrLinking.dll (next to its
+# player), the coin monitor's USBIOExtreme.dll.
+payload_install: [./GvrIO.dll, _Cabinet/Shell/bin/GvrIO.dll, _Cabinet/Shell/bin/GvrLinking.dll, _Cabinet/Hercules/USBIOExtreme.dll]
+
+# the .NET 1.1 runtime (native) and its C runtime (Wine's msvcr71 lacks __CxxCallUnwindDtor)
+dll_overrides:
+  mscoree: n
+  mscorwks: n
+  fusion: n
+  msvcr71: n,b
+  msvcp71: n,b
+  openal32: n
+  wrap_oal: n
+
+# the cabinet's folders, by absolute path in its data and registry
+c_folders:
+  Shell: _Cabinet/Shell
+  Config: _Cabinet/Config
+  GVR: _Cabinet/GVR
+  GvrPlus: _Cabinet/GvrPlus
+  Hercules: _Cabinet/Hercules
+
+# The frontend's libraries, from the cabinet's C:\GVR\DLLs and system folder, next to its
+# player; the race's OpenAL (the disc's installer) and motion card library; the plug-in list
+# without the motion seat.
+files:
+  _Cabinet/Shell/bin/PLUSDE.dll: "{dump}/_Cabinet/Plus/PLUSDE.dll"
+  _Cabinet/Shell/bin/GvrSqlite.dll: "{dump}/_Cabinet/Plus/GvrSqlite.dll"
+  _Cabinet/Shell/bin/sqlite3.dll: "{dump}/_Cabinet/Plus/sqlite3.dll"
+  _Cabinet/Shell/bin/msvcr71.dll: "{dump}/_Cabinet/System32/msvcr71.dll"
+  _Cabinet/Shell/bin/msvcp71.dll: "{dump}/_Cabinet/System32/msvcp71.dll"
+  _Cabinet/Shell/bin/msvcr71d.dll: "{dump}/_Cabinet/System32/msvcr71d.dll"
+  _Cabinet/Shell/bin/msvcp71d.dll: "{dump}/_Cabinet/System32/msvcp71d.dll"
+  ./OpenAL32.dll: "{dump}/_Cabinet/System32/OpenAL32.dll"
+  ./wrap_oal.dll: "{dump}/_Cabinet/System32/wrap_oal.dll"
+  ./cbw32.dll: "{dump}/_Cabinet/DAQ/cbw32.dll"
+  _Cabinet/Config/GvrShellPlugInList.xml: systemprofiles/globalvr/files/twisted-nitro-stunt-racing/GvrShellPlugInList.xml
+
+# The cabinet's database, kept in the dump (credits, statistics, records): the one its schema
+# builds, after the operator's first-time setup (its default settings; no pedal calibration).
+initial_files:
+  NitroPlus/nitro.db: "{dump}/_Cabinet/Plus/nitro.db"
+
+registry: [systemprofiles/globalvr/files/twisted-nitro-stunt-racing/cabinet.reg]
+
+# the frontend's fonts
+fonts:
+  - _Cabinet/Fonts/ARBLI___.TTF
+  - _Cabinet/Fonts/ariblk.TTF
+  - _Cabinet/Fonts/EASDisplayItalic.ttf
+  - _Cabinet/Fonts/EASDisplayNormal.ttf
+  - _Cabinet/Fonts/Terminat.ttf
+
+# the frontend's cabinet gamma tool (NVIDIA control panel)
+hide: [GammaSet.exe]
+
+gamescope:
+  enabled: true
+  width: 1360
+  height: 768
+
+env:
+  WAL_DINPUT_DISABLE: "1"
+  # the cabinet's C:\GVR\DLLs on the PATH (the player loads GvrParseXml.dll from there)
+  WINEPATH: 'C:\GVR\DLLs'
+  GVRSQLITE_DB: 'C:\wal\globalvr\twisted-nitro-stunt-racing\NitroPlus\nitro.db'
+  # the coin and volume monitors, relative to the player
+  WAL_GLOBALVR_CARBON_MONITORS: '..\..\Hercules'
+  # the dongle the frontend checks (game, version, region)
+  WAL_GLOBALVR_DONGLE: "NITRO,1.0,XX"
+  # The race's dongle API (HASP, linked into the executable), answered: present (0x4137d0),
+  # valid (0x413880), game "NITRO " (0x413910), version "1.0" (0x413960), region "US"
+  # (0x4138c0), cabinet "0" (0x413aa0: a standard cabinet, 3 and 5 are the motion seat's),
+  # each one the address of a string of the executable.
+  WAL_PATCHES: "0x137d0:B001C3,0x13880:B001C3,0x13910:B8F4C86D00C3,0x13960:B8109E6D00C3,0x138c0:B838DA6A00C3,0x13aa0:B8F4B96800C3"
+  WAL_PATCHES_EXE: NSR_S1.exe
+
+input:
+  # the wheel must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake, X view, Y music, B boost, d-pad down look back.
+  gamepad:
+    r2: accel
+    l2: brake
+    b: b3
+    dpdown: b4
+  # keyboard steering, gas and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: View
+  b2: Music
+  b3: Boost
+  b4: Look back
+  b5: none
+  b6: none
+  b7: none
+  b8: none
