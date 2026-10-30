@@ -1,0 +1,167 @@
+Windows Registry Editor Version 5.00
+
+; Twisted: Nitro Stunt Racing's cabinet (its game disc's Registry folder): the frontend's settings,
+; the game it starts (in the run directory), the Hercules monitors' settings (not their boot
+; entry), the motion seat, the cabinet's game root, version and database schema paths.
+[-HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\NITRO]
+
+[HKEY_CURRENT_USER\Software\Anark\Client\3.0\Preferences]
+"InstallReturnCode"=dword:00000000
+"Initialized"=dword:00000001
+"UpdateInterval"=dword:00000007
+"LastUpdateCheck"=dword:00000122
+"EnableScriptDebugger"=dword:00000001
+"DebugMode"=dword:00000000
+"DisableGL"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Global VR\NITRO]
+"FourButtonAbort"=dword:00000001
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\NITRO]
+"CommVersion"="1.5.0"
+"cmd"=""
+"wtf"=""
+"gamevolume"="-soundvolume 0.98"
+"launchName"="NSR_S1.exe"
+"launchFolder"="C:\\wal\\globalvr\\twisted-nitro-stunt-racing"
+"attractName"="Nitro_Attract.am"
+"attractFolder"="C:\\shell"
+"selectName"="Nitro_Selection.am"
+"selectFolder"="C:\\shell"
+"AttractAudioCounter"="0"
+"ShellVolume" = "50"
+"MusicVolume" = "50"
+"LoginTimeouts" = "0"
+"CareerLoginContinue" = "0"
+"CareerNumber" = "0"
+"CareerPath" = "0"
+"CareerIndex" = "0"
+"CareerTries" = "0"
+"LoginMethod" = "0"
+"LoginTimeouts" = "0"
+"PlayerName" = "0"
+"SelectedAI" = "1"
+"CarCustomized" = "0"
+"SelectedCar" = "0"
+"LobbyTimerAdjustment" = "0"
+; the last session's up time, read at startup
+"UpTimeStart"="1/1/2009 12:00"
+"UpTimeEnd" = "1/1/2009 12:00"
+"MotionAttractPos" = "-100"
+"MotionSelectPos" = "100"
+"FirstTimeStartup"="0"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVR\hercules]
+
+; CoinMeterMasks added 12/7/05 to support updated GvrCoinMonitor
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCoinMonitor]
+"CoinMeterMask1"=dword:00000000
+"CoinMeterMask2"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCacheWarmer]
+"NumResources"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor]
+"NumApps"=dword:00000008
+"SleepDelay"=dword:00000064
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog00]
+"cmdargs"=""
+"delay"=dword:00001F40
+"enabled"=dword:00000003
+"path"="c:\\hercules"
+"program"="GVRDongleMonitor.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog01]
+"cmdargs"=" "
+"delay"=dword:00001B58
+"enabled"=dword:00000001
+"path"="c:\\hercules"
+"program"="GVRCoinMonitor.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog02]
+"cmdargs"=""
+"delay"=dword:00002328
+"enabled"=dword:00000001
+"path"="c:\\hercules"
+"program"="GVRStallMonitor.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog03]
+"cmdargs"=""
+"delay"=dword:00002710
+"enabled"=dword:00000000
+"path"="c:\\hercules"
+"program"="GVRCacheWarmer.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog04]
+"cmdargs"="-minvol -1500"
+"delay"=dword:00002EE0
+"enabled"=dword:00000001
+"path"="c:\\Shell\\bin"
+"program"="AMPlayer.exe c:\\Shell\\shell.am -v FULL -cabinet"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog05]
+"cmdargs"=""
+"delay"=dword:00001770
+"enabled"=dword:00000001
+"path"="c:\\hercules"
+"program"="GvrCoinSound.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog06]
+"cmdargs"=" "
+"delay"=dword:00001388
+"enabled"=dword:00000001
+"path"="c:\\hercules"
+"program"="GVRVolumeMonitor.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog07]
+"cmdargs"=" "
+"delay"=dword:00002710
+"enabled"=dword:00000001
+"path"="C:\\GvrPlus\\PeerToPeer"
+"program"="PeerToPeerProcess.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCoinSound\Sound]
+"SoundPath"="c:\\hercules\\coin_drop.wav"
+
+[HKEY_LOCAL_MACHINE\Software\Gvr\Motion]
+"Channel0_DacMin"="5000"
+"Channel0_DacMax"="60000"
+"Channel1_DacMin"="15000"
+"Channel1_DacMax"="50000"
+"Channel2_DacMin"="5000"
+"Channel2_DacMax"="60000"
+"Channel3_DacMin"="5000"
+"Channel3_DacMax"="60000"
+"IniFileSuffix"="HEAVY"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\NITRO]
+"Version"="1.5.0"
+"Build"="106"
+"Prefix"=""
+"Suffix"="EX"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Plus\2.0\Cabinet]
+"GameRoot"="C:\\"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\gvr\Plus\1.1\Cabinet]
+"GvrEventLogRemovalThreshold"="30"
+"MaxObjectLoadCount"="300"
+"PatchDownloadPath"="C:\\PatchService\\"
+"PatchMaxDownloadRetry"="9"
+"PatchMaxExecutionRetry"="1"
+"PlayerCardRequestThreshold"="20"
+"PlusSchemaPath"="C:\\Gvr\\schema\\NitroCabinetXml.enc"
+"PromotionPath"="C:\\GvrPlus\\4\\promotions"
+"PublicKeyPath"="C:\\GvrPlus\\4\\key\\publickey.xml"
+"SyncRetryInterval"="15"
+"WebServerIP"="192.168.1.39"
+
+; The race runs on the Windows versions it knows only (2000 to Vista, its cabinet's XP): any
+; other is "Operating system is not supported".
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\NSR_S1.exe]
+"Version"="winxp"

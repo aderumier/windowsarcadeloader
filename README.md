@@ -52,6 +52,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `beach-head-2000` | Beach Head 2000 | globalvr | works (user: 100%) | not in the test |  |
 | `beach-head-2002` | Beach Head 2002 | globalvr | works (user: 100%) | not in the test |  |
 | `beach-head-2003-desert-war` | Beach Head 2003 Desert War | globalvr | works (user: 100%), machine gun, cannon, missiles | not in the test |  |
+| `twisted-nitro-stunt-racing` | Twisted: Nitro Stunt Racing | globalvr | works (user: 100%) | not in the test |  |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | pass | 2026-10-07 |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-10-08 |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | pass | 2026-10-07 |

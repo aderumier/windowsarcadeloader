@@ -119,7 +119,9 @@ fn dongle_fields() -> &'static [std::ffi::CString; 3] {
         let spec = std::env::var("WAL_GLOBALVR_DONGLE").unwrap_or_else(|_| DEFAULT_DONGLE.into());
         let mut parts = spec.split(',').map(|p| std::ffi::CString::new(p.trim()).unwrap_or_default());
         let mut next = |default: &str| parts.next().unwrap_or_else(|| std::ffi::CString::new(default).unwrap());
-        let fields = [next("CARBON"), next("1.0"), next("XX")];
+        // the game name is the dongle's 6 characters, space padded (Twisted's "NITRO ")
+        let game = std::ffi::CString::new(format!("{:<6}", next("CARBON").to_string_lossy())).unwrap();
+        let fields = [game, next("1.0"), next("XX")];
         log!("gvrio: dongle {:?}", fields);
         fields
     })
