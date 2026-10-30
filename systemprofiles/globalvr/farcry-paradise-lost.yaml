@@ -10,17 +10,27 @@ name: Far Cry Paradise Lost
 # Crimzon Clover) and nothing shows, and there is no sound: native dsound.
 tricks: [dsound]
 
+# The game's own Visual C++ 2003 runtime, shipped with it. The level's dependency lists give
+# each file's CRC as a decimal number that the game reads with the C runtime: Microsoft's
+# wraps CRCs from 0x80000000 up, Wine's clamps them to 0x7fffffff. With Wine's, half the models
+# and animations are never loaded: no crates, barrels or health boxes, statue enemies, and the
+# player's first person camera at his feet on the mounted guns (under the sea at the Island).
+dll_overrides:
+  msvcr71: "n,b"
+  msvcp71: "n,b"
+
 env:
+  # The executable is the original one, from the game's install disc (the payload answers its
+  # HASP4 dongle checks).
   # The game wants to run from W: (the cabinet's RunMe.bat does `subst W: .`) and stops on a
   # "You are not running under W drive!" message box otherwise: the payload redirects its
   # w:\ paths, skip the _getdrive() check (je -> jmp).
-  # The payload answers the HASP4 dongle (game PARLST 1.0), but with it present the boot and
-  # level-start dongle checks still show "IncorrectDongle": skip them (jne -> jmp at 0x5cbc57,
-  # 0x5cbc68 and 0x5ceef0, je -> nop at 0x5cc4af).
   # The PC mouse is FPS mouse look in levels: its update is removed from the input manager
   # (0x7af9a1, the guns are updated there too). The game reads the USBIO board's version over
   # HID and raises arcade error 0x400 ("n/a"): je -> nop at 0x7af4b6.
-  WAL_PATCHES: "0x1C89:EB,0x1CBC57:EB,0x1CBC68:EB,0x1CC4AF:9090,0x1CEEF0:EB,0x3AF9A1:909090909090909090909090909090909090,0x3AF4B6:9090"
+  # A gun whose data has not changed for 60 s raises arcade error 0x800 / 0x1000 (a real gun
+  # always jitters, the virtual ones hold still): jbe -> jmp at 0x5c5e56 and 0x5c7f27.
+  WAL_PATCHES: "0x1C89:EB,0x3AF9A1:909090909090909090909090909090909090,0x3AF4B6:9090,0x1C5E56:EB,0x1C7F27:EB"
   # systemcfg.lua asks a 1920x1080 window (r_Fullscreen = "0"): fullscreen device instead.
   WAL_D3D9_FULLSCREEN: "1"
 
@@ -37,6 +47,11 @@ input:
 # DirectInput setup, 0..2000). The game rewrites it when calibrating from the test menu.
 files:
   arcade_calibration.txt: systemprofiles/globalvr/files/farcry-paradise-lost/arcade_calibration.txt
+
+# The install disc has no cabinet settings: without them the game stops on "This machine has
+# not had the controller(s) calibrated". The game completes the file and keeps it in the dump.
+initial_files:
+  systemcfg.lua: systemprofiles/globalvr/files/farcry-paradise-lost/systemcfg.lua
 
 # Control names (the GUI's mapping rows).
 controls:
