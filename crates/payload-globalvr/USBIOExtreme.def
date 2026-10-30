@@ -22,6 +22,7 @@ EXPORTS
     GVRInputRawWriteDrivingValues = gvr_driving_values
     GVRInputRawGetCUSBIO = gvr_cusbio
     GVRInputRawHandleDeviceChanged = gvr_none
+    GVRInputRawSetPauseLight = gvr_none
     GVRInputRawGetAxisFault = gvr_none
     GVRInputRawGetButtonFault = gvr_none
     GVRInputRawGetFFFault = gvr_none

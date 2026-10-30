@@ -1,0 +1,48 @@
+# EA SPORTS Madden NFL Football Season 2 (Global VR) - template, override values in
+# userprofiles/globalvr/madden-nfl-season-2.yaml.
+# Madden Arcade 2.0.0.114, the cabinet's install (C:\gvr: the dump's gvr folder, from the game
+# discs 050-0095-01, unpacked with unshield): the frontend (gvr\shell\shell.exe, mixed-mode
+# .NET 1.1) starts the game (gvr\games\madden\mainapp.exe). Both read the cabinet's two sticks
+# and buttons through MaddenInputRaw.dll: the payload takes its place (payload madden.rs).
+system: globalvr
+name: "EA SPORTS Madden NFL Football Season 2"
+
+prefix: wine-prefix/dotnet11
+prefix_tricks: [dotnet11]
+
+payload_install: [gvr/shell/MaddenInputRaw.dll, gvr/games/madden/MaddenInputRaw.dll]
+
+dll_overrides:
+  mscoree: n
+  mscorwks: n
+  fusion: n
+  msvcr71: n,b
+  msvcp71: n,b
+
+# the cabinet's folders, by absolute path (gamepath.txt: c:\gvr\games\madden\mainapp.exe)
+c_folders:
+  gvr: gvr
+
+# The data engine on SQLite: PLUSDE.dll with its SQL Server client swapped for GvrSqlite.dll
+# (and its subscription to the server's info messages removed, GvrSqlite has none), next to the
+# frontend (found before the system folder's). The cabinet database is built from the engine's
+# schema (_Cabinet\gvr_net\schema, decrypted).
+files:
+  gvr/shell/PLUSDE.dll: "{dump}/_Cabinet/Plus/PLUSDE.dll"
+  gvr/shell/GvrSqlite.dll: "{dump}/_Cabinet/Plus/GvrSqlite.dll"
+  gvr/shell/sqlite3.dll: "{dump}/_Cabinet/Plus/sqlite3.dll"
+
+# The cabinet's database, kept in the dump (credits, statistics, records).
+initial_files:
+  MaddenPlus/game.db: "{dump}/_Cabinet/Plus/game.db"
+
+registry: [systemprofiles/globalvr/files/madden-nfl-season-2/cabinet.reg]
+
+env:
+  WAL_DINPUT_DISABLE: "1"
+  # the frontend's 800x600 window (a Direct3D window) stretched to the screen; the game it
+  # starts sets its own fullscreen mode (the payload keeps this from it)
+  WAL_WINDOW_SIZE: screen
+  GVRSQLITE_DB: 'C:\wal\globalvr\madden-nfl-season-2\MaddenPlus\game.db'
+  # the cabinet's system folder (GvrScript.dll, the C runtime...)
+  WINEPATH: 'C:\wal\globalvr\madden-nfl-season-2\_Cabinet\System32'
