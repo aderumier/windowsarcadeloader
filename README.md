@@ -39,7 +39,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns | not in the test |  |
 | `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) | not in the test |  |
 | `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab | not in the test |  |
-| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | not playable (user: in-game bug) | not in the test |  |
+| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | not in the test |  |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | pass | 2026-10-11 |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | pass | 2026-10-11 |
 | `need-for-speed` | Need for Speed | globalvr | works (user: 100%) | not in the test |  |
