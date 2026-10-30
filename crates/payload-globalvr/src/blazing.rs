@@ -58,20 +58,20 @@ fn counter(index: i32) -> Option<usize> {
 }
 
 /// 0x7da: the coins available.
-extern "C" fn coins(out: *mut i32) -> i32 {
+pub(crate) extern "C" fn coins(out: *mut i32) -> i32 {
     unsafe { put(out, BANK.load(Ordering::Relaxed)) };
     OK
 }
 
 /// 0x7d4: takes `n` coins (a start or a continue).
-extern "C" fn take(n: i32) -> i32 {
+pub(crate) extern "C" fn take(n: i32) -> i32 {
     let taken = BANK.try_update(Ordering::Relaxed, Ordering::Relaxed, |bank| (bank >= n).then(|| bank - n));
     log!("blazing: {n} coin(s) taken{}", if taken.is_ok() { "" } else { ": not enough" });
     if taken.is_ok() { OK } else { INSUFFICIENT_COINS }
 }
 
 /// 0x7d5: the service coins (none).
-extern "C" fn service_coins(out: *mut i32) -> i32 {
+pub(crate) extern "C" fn service_coins(out: *mut i32) -> i32 {
     unsafe { put(out, 0) };
     OK
 }
@@ -193,7 +193,7 @@ unsafe fn jump(at: usize, to: usize) {
 }
 
 /// The coin buttons of the virtual sticks, each press a coin in the bank and its counter.
-fn coin_thread() {
+pub(crate) fn coin_thread() {
     std::thread::spawn(|| {
         let mut previous = 0u32;
         loop {

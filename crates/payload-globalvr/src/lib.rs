@@ -26,6 +26,8 @@
 //!   Beach Head 2002's and Desert War's multigame shell and games (`BH2.exe`, `desertwar.exe`)
 //!   the same way, their controls through the older `GVRInputRaw.dll` (`turret.rs`).
 //! * `blazing.rs`: Blazing Angels' coin and volume monitors, dongle and player profile.
+//! * `madden.rs`: Madden NFL Football Season 2's sticks and buttons (`MaddenInputRaw.dll`),
+//!   dongle and cabinet monitors, its frontend's window hidden during the game.
 //! * `smartcard.rs`: Need for Speed Carbon's frontend card reader (`GVRSCR28.dll`).
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
@@ -44,6 +46,7 @@ mod beachhead;
 mod beachhead_io;
 mod beachhead_save;
 mod blazing;
+mod madden;
 mod carbon_menu;
 mod carbon_shell;
 mod config;
@@ -121,6 +124,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         swarm::init();
         beachhead::init(module);
         blazing::init();
+        madden::init();
         log!("globalvr: initialized");
     }
     TRUE

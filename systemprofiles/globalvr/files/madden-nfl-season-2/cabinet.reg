@@ -1,0 +1,13 @@
+Windows Registry Editor Version 5.00
+
+; Madden Season 2's cabinet (the dump's InstallGVR folder): the data engine's schema (the
+; encrypted XML the engine reads itself, the dump's _Cabinet\gvr_net\schema).
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Plus\1.1\Cabinet]
+"PlusSchemaPath"="C:\\wal\\globalvr\\madden-nfl-season-2\\_Cabinet\\gvr_net\\schema\\maddencabinetXml.enc"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Madden2]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Madden2\Errors]
+"RequiredNytrics"=dword:00000001
+"CDPath"="D:\\"
