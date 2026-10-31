@@ -356,9 +356,11 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     }
     // profile files are installed like the payloads: copied in place of the game's file
     for (name, src) in &profile.files {
-        let src = match src.strip_prefix("{dump}") {
-            Ok(rel) => game_root.join(rel),
-            Err(_) => profile.path(src),
+        let src = match (src.strip_prefix("{dump}"), src.strip_prefix("{payloads}")) {
+            (Ok(rel), _) => game_root.join(rel),
+            // a program built with the payloads (a dongle-wrapped executable's replacement)
+            (_, Ok(file)) => payload_dir.join(file),
+            _ => profile.path(src),
         };
         if !src.is_file() {
             bail!("profile file {} missing", src.display());

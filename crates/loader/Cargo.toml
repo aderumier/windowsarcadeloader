@@ -13,6 +13,10 @@ path = "src/main.rs"
 name = "wal-avs-boot"
 path = "src/avs_boot.rs"
 
+[[bin]]
+name = "wal-gasguzzlers"
+path = "src/gasguzzlers.rs"
+
 [dependencies]
 wal-easrv = { path = "../easrv" }
 sha2 = "0.10"

@@ -139,6 +139,11 @@ const EBRAKE: u32 = 0x20;
 const SHIFT_DOWN: u32 = 0x40;
 const SHIFT_UP: u32 = 0x80;
 const OPERATOR: u32 = 0x100;
+// Redline Rampage's weapons and its two boosts
+const FIRE: u32 = 0x200;
+const DROP: u32 = 0x400;
+const NOS1: u32 = 0x800;
+const NOS2: u32 = 0x1000;
 
 const NATIVES: &[(&str, Native)] = &[
     ("start", Native(START)),
@@ -150,6 +155,10 @@ const NATIVES: &[(&str, Native)] = &[
     ("shiftdown", Native(SHIFT_DOWN)),
     ("shiftup", Native(SHIFT_UP)),
     ("operator", Native(OPERATOR)),
+    ("fire", Native(FIRE)),
+    ("drop", Native(DROP)),
+    ("nos1", Native(NOS1)),
+    ("nos2", Native(NOS2)),
 ];
 
 /// Virtual stick -> cabinet, overridden by the profile `native_map`.
@@ -175,6 +184,10 @@ const EVENTS: &[(u32, &str)] = &[
     (MUSIC, "Music"),
     (EBRAKE, "Ebrake"),
     (OPERATOR, "Operator"),
+    (FIRE, "Fire"),
+    (DROP, "Drop"),
+    (NOS1, "Nos1"),
+    (NOS2, "Nos2"),
 ];
 
 /// The frontend's menu selection: an index the wheel steps (0x0F / 0x10 read X / Y, 0x11 /
@@ -472,6 +485,14 @@ pub unsafe extern "thiscall" fn gvrio_new(this: *mut c_void) -> *mut c_void {
 #[unsafe(no_mangle)]
 pub unsafe extern "thiscall" fn gvrio_drop(_this: *mut c_void) {
     CALLBACK.store(0, Ordering::Relaxed);
+}
+
+/// `bool cGvrIO::Initialize(GVR_DEVICE_TYPES, HWND, callback, unsigned int)`, the newer
+/// library's (Redline Rampage): as [`gvrio_initialize`].
+#[unsafe(no_mangle)]
+pub unsafe extern "thiscall" fn gvrio_initialize_ex(this: *mut c_void, device: u32, hwnd: usize, callback: usize, extra: u32) -> bool {
+    log!("gvrio: initialize extra argument {extra:#x}");
+    unsafe { gvrio_initialize(this, device, hwnd, callback) }
 }
 
 /// `bool cGvrIO::Initialize(GVR_DEVICE_TYPES, HWND, callback)`: the controls are ready.

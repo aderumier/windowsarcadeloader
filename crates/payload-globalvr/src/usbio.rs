@@ -66,15 +66,27 @@ static COINS: [AtomicU32; 2] = [const { AtomicU32::new(0) }; 2];
 static COIN_HELD: [AtomicBool; 2] = [const { AtomicBool::new(false) }; 2];
 static LAST: [AtomicU32; 2] = [const { AtomicU32::new(u32::MAX) }; 2];
 
+/// The shortest time between two counted coins of a player, as a coin mechanism's: the
+/// presses in between wait their turn. Coins counted 4 a second just after the frontend's start
+/// froze it (Redline Rampage, Anark player under Wine).
+const COIN_SPACING: std::time::Duration = std::time::Duration::from_millis(500);
+
 pub(crate) fn init() {
     map();
     // The board counts the coins by itself: the game does not poll it while loading.
     std::thread::spawn(|| {
+        let mut pending = [0u32; 2];
+        let mut last = [None::<std::time::Instant>; 2];
         loop {
             for player in 0..2 {
                 let mut coin = false;
                 map().for_each_pressed(&wal_payload_common::input(player), |n| coin |= n == Native::Coin);
                 if coin != COIN_HELD[player].swap(coin, Ordering::Relaxed) && coin {
+                    pending[player] += 1;
+                }
+                if pending[player] > 0 && last[player].is_none_or(|t| t.elapsed() >= COIN_SPACING) {
+                    pending[player] -= 1;
+                    last[player] = Some(std::time::Instant::now());
                     let total = COINS[player].fetch_add(1, Ordering::Relaxed) + 1;
                     log!("usbio: coin {} ({total})", player + 1);
                 }
