@@ -25,6 +25,9 @@
 //!   of the linking plug-in, not loaded): a call no plug-in answers ends the script's whole
 //!   frame (the driver selection never showed its car): not sent.
 //!
+//! The presentation thread's message wait never blocks ([`render_get_message`]): a message it
+//! was told about could vanish before it took it, and the frontend froze.
+//!
 //! The decompressed `.am` text itself stays untouched: the player checks it (an edited script
 //! did not run).
 //!
@@ -34,13 +37,15 @@
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use wal_payload_common::log;
+use wal_payload_common::{iat, log};
 use windows_sys::Win32::Foundation::CloseHandle;
-use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetModuleHandleW, GetProcAddress};
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
 use windows_sys::Win32::System::Threading::{
     CREATE_NO_WINDOW, CreateProcessW, PROCESS_INFORMATION, STARTUPINFOW,
 };
+use windows_sys::Win32::UI::WindowsAndMessaging::{MSG, PM_REMOVE, PeekMessageA, WM_QUIT};
 
 const MONITORS: &[&str] = &["GVRCoinMonitor.exe", "GVRVolumeMonitor.exe"];
 
@@ -54,6 +59,8 @@ struct Build {
     compile_function_calls: [usize; 3],
     evaluate_script: usize,
     evaluate_script_calls: [usize; 3],
+    /// The presentation thread's `call [GetMessageA]` (6 bytes), see [`render_get_message`].
+    render_get_message: Option<usize>,
 }
 
 const BUILDS: &[Build] = &[
@@ -65,6 +72,7 @@ const BUILDS: &[Build] = &[
         compile_function_calls: [0x26df9a, 0x26dfef, 0x26ebc7],
         evaluate_script: 0x26c590,
         evaluate_script_calls: [0x26e180, 0x26e1c5, 0x26ec1d],
+        render_get_message: Some(0x21490),
     },
     Build {
         name: "Anark Client 3.0 (NASCAR Racing 1.1)",
@@ -74,6 +82,7 @@ const BUILDS: &[Build] = &[
         compile_function_calls: [0x1d1d5a, 0x1d1daf, 0x1d2987],
         evaluate_script: 0x1d0350,
         evaluate_script_calls: [0x1d1f40, 0x1d1f85, 0x1d29dd],
+        render_get_message: None,
     },
 ];
 /// The scripts' edits: text, replacement (a leading 0 would make the number octal).
@@ -187,6 +196,51 @@ unsafe extern "C" fn evaluate_script(cx: P, obj: P, pr: P, chars: *const u16, le
     unsafe { f(cx, obj, pr, chars, length, file, line, rval) }
 }
 
+/// The presentation thread's loop renders a frame while `PeekMessageA` (`PM_NOREMOVE`) finds no
+/// message, else takes it with `GetMessageA`, which waits. A message Peek saw can be gone when
+/// Get looks (one for a window destroyed in between: the attract's slides, coins coming fast at
+/// its start): Get then waited for good and the frontend stood still on its last frame. Here
+/// the message is taken without waiting, else an empty one (`WM_NULL`): the loop renders on.
+/// The player's own `PeekMessageA` import is used (the keyboard filter's, `keyboard.rs`).
+unsafe extern "system" fn render_get_message(msg: *mut MSG, hwnd: HWND, min: u32, max: u32) -> i32 {
+    type Peek = unsafe extern "system" fn(*mut MSG, HWND, u32, u32, u32) -> i32;
+    let peek: Peek = match PEEK_SLOT.load(Ordering::Relaxed) {
+        0 => PeekMessageA,
+        slot => unsafe { std::mem::transmute(*(slot as *const usize)) },
+    };
+    if unsafe { peek(msg, hwnd, min, max, PM_REMOVE) } != 0 {
+        return (unsafe { (*msg).message } != WM_QUIT) as i32;
+    }
+    unsafe { *msg = std::mem::zeroed() };
+    1
+}
+
+/// The player's `PeekMessageA` import slot (0: none found).
+static PEEK_SLOT: AtomicUsize = AtomicUsize::new(0);
+
+/// Rewrites the 6-byte `call [GetMessageA]` at `site` (image offset) to `call
+/// render_get_message; nop`, if it is there.
+fn hook_render_get_message(base: usize, site: usize) {
+    let at = base + site;
+    let code = unsafe { std::slice::from_raw_parts(at as *const u8, 6) };
+    let slot = u32::from_le_bytes(code[2..6].try_into().unwrap()) as usize;
+    let get_message = unsafe { GetProcAddress(GetModuleHandleA(c"user32.dll".as_ptr().cast()), c"GetMessageA".as_ptr().cast()) };
+    if code[..2] != [0xFF, 0x15] || get_message.is_none_or(|f| unsafe { *(slot as *const usize) } != f as usize) {
+        log!("carbon shell: presentation loop's GetMessageA not found, left waiting");
+        return;
+    }
+    PEEK_SLOT.store(unsafe { iat::hook_addr("user32.dll", "PeekMessageA") }.unwrap_or(0), Ordering::Relaxed);
+    let rel = (render_get_message as *const () as usize).wrapping_sub(at + 5) as i32;
+    let mut old = 0;
+    unsafe {
+        VirtualProtect(at as *const c_void, 6, PAGE_EXECUTE_READWRITE, &mut old);
+        std::ptr::write_unaligned(at as *mut u8, 0xE8);
+        std::ptr::write_unaligned((at + 1) as *mut i32, rel);
+        std::ptr::write_unaligned((at + 5) as *mut u8, 0x90);
+        VirtualProtect(at as *const c_void, 6, old, &mut old);
+    }
+}
+
 /// Whether all `calls` call `function` (image offsets).
 fn calls_found(base: usize, function: usize, calls: &[usize]) -> bool {
     calls.iter().all(|&site| {
@@ -232,6 +286,9 @@ fn hook_scripts() {
     repoint(base, &b.compile_script_calls, compile_script as *const () as usize);
     repoint(base, &b.compile_function_calls, compile_function as *const () as usize);
     repoint(base, &b.evaluate_script_calls, evaluate_script as *const () as usize);
+    if let Some(site) = b.render_get_message.filter(|&s| s + 6 <= size) {
+        hook_render_get_message(base, site);
+    }
 }
 
 pub(crate) fn init() {

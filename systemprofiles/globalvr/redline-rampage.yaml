@@ -1,0 +1,145 @@
+# Redline Rampage (Global VR) - template, override values in
+# userprofiles/globalvr/redline-rampage.yaml.
+# The cabinet's install (game disc 1.0, unpacked with unshield: C:\Game in the dump root, the
+# rest in _Cabinet), the platform of Twisted: Nitro Stunt Racing (twisted-nitro-stunt-racing.yaml)
+# with Gamepires' Gas Guzzlers: Combat Carnage as its race:
+# - The Anark player AMPlayer.exe runs C:\Shell\shell.am (startup checks, attract, track and car
+#   selection, operator menus) with its plug-ins, then starts the race, Bin32\GasGuzzlers.exe,
+#   with the selection written to Bin32\GasGuzzlers.xml (one race per run).
+# - Both talk to GvrIO.dll, the cabinet's message library: the payload takes its place next to
+#   each (payload gvrio.rs).
+# - The coins: the cabinet's coin and volume monitors (Hercules), started and fed by the payload
+#   as their USBIOExtreme.dll (payload carbon_shell.rs, usbio.rs).
+# - The frontend's plug-ins keep the cabinet's records through GVR's .NET 1.1 data engine
+#   (PLUSDE.dll, Twisted's build): the dump's _Cabinet/Plus holds Twisted's engine on SQLite and
+#   its database (nitro.db, copied to the run directory once).
+system: globalvr
+name: "Redline Rampage"
+
+prefix: wine-prefix/dotnet11
+prefix_tricks: [dotnet11]
+
+# the cabinet's command line (its Hercules boot entry)
+args: ['C:\Shell\shell.am', '-v', 'FULL', '-cabinet']
+
+# The race's GvrIO.dll (next to it), the frontend's GvrIO.dll and GvrLinking.dll (next to its
+# player), the coin monitor's USBIOExtreme.dll.
+payload_install: [Bin32/GvrIO.dll, _Cabinet/Shell/bin/GvrIO.dll, _Cabinet/Shell/bin/GvrLinking.dll, _Cabinet/Hercules/USBIOExtreme.dll]
+
+# the .NET 1.1 runtime (native) and its C runtime (Wine's msvcr71 lacks __CxxCallUnwindDtor)
+dll_overrides:
+  mscoree: n
+  mscorwks: n
+  fusion: n
+  msvcr71: n,b
+  msvcp71: n,b
+
+# the cabinet's folders, by absolute path in its data and registry
+c_folders:
+  Shell: _Cabinet/Shell
+  Config: _Cabinet/Config
+  GVR: _Cabinet/GVR
+  GvrPlus: _Cabinet/GvrPlus
+  Hercules: _Cabinet/Hercules
+  Game: .
+
+# The frontend's libraries, from the cabinet's C:\GVR\DLLs and system folder, next to its
+# player; the race's D3DX; the plug-in list without the motion seat. The race's program: the
+# cabinet's is wrapped by the HASP HL envelope (its code needs the dongle), replaced by one that
+# starts the game's engine and plug-ins the same way (loader gasguzzlers.rs).
+files:
+  Bin32/GasGuzzlers.exe: "{payloads}/wal-gasguzzlers.exe"
+  _Cabinet/Shell/bin/PLUSDE.dll: "{dump}/_Cabinet/Plus/PLUSDE.dll"
+  _Cabinet/Shell/bin/GvrSqlite.dll: "{dump}/_Cabinet/Plus/GvrSqlite.dll"
+  _Cabinet/Shell/bin/sqlite3.dll: "{dump}/_Cabinet/Plus/sqlite3.dll"
+  _Cabinet/Shell/bin/msvcr71.dll: "{dump}/_Cabinet/System32/msvcr71.dll"
+  _Cabinet/Shell/bin/msvcp71.dll: "{dump}/_Cabinet/System32/msvcp71.dll"
+  _Cabinet/Shell/bin/msvcr71d.dll: "{dump}/_Cabinet/System32/msvcr71d.dll"
+  _Cabinet/Shell/bin/msvcp71d.dll: "{dump}/_Cabinet/System32/msvcp71d.dll"
+  Bin32/d3dx9_42.dll: "{dump}/_Cabinet/System32/D3DX9_42.dll"
+  _Cabinet/Config/GvrShellPlugInList.xml: systemprofiles/globalvr/files/redline-rampage/GvrShellPlugInList.xml
+
+# The cabinet's database, kept in the dump (credits, statistics, records).
+initial_files:
+  NitroPlus/nitro.db: "{dump}/_Cabinet/Plus/nitro.db"
+
+registry: [systemprofiles/globalvr/files/redline-rampage/cabinet.reg]
+
+# the frontend's fonts
+fonts:
+  - _Cabinet/Fonts/ARBLI___.TTF
+  - _Cabinet/Fonts/ariblk.TTF
+  - _Cabinet/Fonts/EASDisplayItalic.ttf
+  - _Cabinet/Fonts/EASDisplayNormal.ttf
+  - _Cabinet/Fonts/HVCBO___.ttf
+  - _Cabinet/Fonts/HVCO____.ttf
+  - _Cabinet/Fonts/Terminat.ttf
+
+# the frontend's cabinet gamma tool (NVIDIA control panel)
+hide: [GammaSet.exe]
+
+gamescope:
+  enabled: true
+  width: 1360
+  height: 768
+
+env:
+  # The race's controls: the cabinet's GvrIO board is also a DirectInput game controller (USB
+  # 1ab7:7021), the one the race binds its player profile's actions to (fire, powerup...: no
+  # controller listed, none bound); its inputs and force feedback come through GvrIO.
+  WAL_DINPUT_WHEEL: "GvrIOmini"
+  WAL_DINPUT_WHEEL_VIDPID: "1ab7:7021"
+  WAL_DINPUT_WHEEL_FFB: "0"
+  # the cabinet's C:\GVR\DLLs on the PATH (the player loads GvrParseXml.dll from there)
+  WINEPATH: 'C:\GVR\DLLs'
+  GVRSQLITE_DB: 'C:\wal\globalvr\redline-rampage\NitroPlus\nitro.db'
+  # the coin and volume monitors, relative to the player
+  WAL_GLOBALVR_CARBON_MONITORS: '..\..\Hercules'
+  # the dongle the frontend checks (game, version, region)
+  WAL_GLOBALVR_DONGLE: "GASGUZ,1.0,XX"
+
+# The race's buttons (its GvrIO.xml): fire and drop the weapons, the two boosts, the view, look
+# back.
+native_map:
+  start: start
+  b1: fire
+  b2: drop
+  b3: nos1
+  b4: nos2
+  b5: view
+  b6: lookback
+  test: operator
+
+input:
+  # the wheel must not press the d-pad
+  stick_as_dpad: false
+  # Left stick wheel, R2 gas, L2 brake.
+  gamepad:
+    r2: accel
+    l2: brake
+  # keyboard steering, gas and brake: full in 0.5 s
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Fire
+  b2: Drop
+  b3: Nitro 1
+  b4: Nitro 2
+  b5: View
+  b6: Look back
+  b7: none
+  b8: none
