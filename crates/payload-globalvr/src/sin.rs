@@ -30,6 +30,12 @@
 //! | 0x2 | forward (with 0x4: jump) | up | choose |
 //! | 0x4 | back | down | choose |
 //! | 0x8 | use (on press) | escape | |
+//!
+//! Heavy Gear II's pod (`C:\orion\hgx`) is the same: its frontend `HG2Shell.exe` (Hardlock
+//! words "GV" and "HG2 ") starts `hgx.exe`, whose `GCI_*` exports (the game's `hg2sim.dll`
+//! reads them) are a front for the library: the buttons (0x1 and 0x8 fire, 0x2 / 0x4 walk
+//! forward / back), the heading's change (turn, the arena choice in the frontend), the pitch
+//! from where it started (aim up / down), the credits. Its library is another build.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicI32, AtomicU32, AtomicUsize, Ordering};
