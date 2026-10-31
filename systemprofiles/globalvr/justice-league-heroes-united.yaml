@@ -1,0 +1,62 @@
+# Justice League: Heroes United (Global VR) - template, override values in
+# userprofiles/globalvr/justice-league-heroes-united.yaml.
+# The cabinet's game folder (JLA.exe, the Elemental Engine and its plug-ins, PhysX 2.x, OpenAL),
+# with dgVoodoo (D3D8.dll / D3D9.dll / DDraw.dll / D3DImm.dll, dgVoodoo.conf). The game reads its
+# two control panels as DirectInput joysticks.
+system: globalvr
+name: "Justice League: Heroes United"
+
+# The payload next to the game (started with it by wal-loader) and as the cabinet's USBIO
+# library of the Hercules coin and volume monitors (the game takes its coins from the coin
+# monitor's shared memory).
+payload_install: [./USBIOExtreme.dll, Hercules/USBIOExtreme.dll]
+payload_loader: true
+
+# The renderer compiles its HLSL shaders at run time with D3DX 9 (d3dx9_32): Wine's compiler
+# rejects some of them (a variable declared twice in one scope): Microsoft's.
+tricks: [d3dx9_32]
+
+# The movies (attract, story) are Indeo 5: the native codec (ir50_32.dll, from the dump's
+# iv5setup.exe, copied to System Files). The runner has none.
+dll_overrides:
+  d3dx9_32: n
+  ir50_32: n
+
+# Direct3D 9 through the dump's dgVoodoo D3D9.dll (to Direct3D 11, DXVK): straight on DXVK the
+# levels draw wrong (washed out sky and fog, polygons stretched into spikes). It shows its
+# watermark (bottom right) whatever dgVoodoo.conf says.
+hide: [D3D8.dll]
+files:
+  ir50_32.dll: "{dump}/System Files/ir50_32.dll"
+
+env:
+  # the cabinet's coin and volume monitors, started with the game
+  WAL_GLOBALVR_CARBON_MONITORS: Hercules
+  # The two control panels: DirectInput joysticks (the game's ini: UseGVRIOBoard=true,
+  # JoystickCount=2), A / B / D / C on their buttons 0 / 1 / 2 / 3 (AButtonMap...), start on 4.
+  WAL_DINPUT_PADS: "2"
+  WAL_DINPUT_PADS_BUTTONS: "b1,b2,b4,b3,start"
+  # Joystick 1 player 1, joystick 2 player 2, as the operator menu's controller assignment
+  # leaves them: with auto detection (the dump's) both joysticks drove player 1. Not
+  # calibrated, auto detection off would open the operator menu at each start.
+  WAL_INI_KEYS: "UseJoystickAutoDetect=false;ControlsCalibrated=true;Joystick0SoftwareMap=0;Joystick1SoftwareMap=1"
+
+input:
+  # the four buttons on the pad's face: X / A attacks (combos), Y power, B defend (hold; with
+  # the stick: fly, evade)
+  gamepad:
+    x: b1
+    a: b2
+    y: b3
+    b: b4
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: Attack A
+  b2: Attack B
+  b3: Power
+  b4: Defend / fly
+  b5: none
+  b6: none
+  b7: none
+  b8: none
