@@ -1,0 +1,55 @@
+# SiN (Global VR) - template, override values in userprofiles/globalvr/sin.yaml.
+# Global VR's virtual reality pod version of Ritual's SiN (2002, Quake II engine): the player
+# stands in the pod, a head-mounted display and its tracker aim and turn, the gun fires and
+# walks. The dump: the cabinet's install disc (SIN.iso, its WinZip installer unpacked) at the
+# cabinet's paths, C:\orion (the frontend and the game in C:\orion\sin, the configuration
+# orion.cfg) and its system files (System Files: the operator setup's Visual Basic runtime).
+# The frontend test.exe (attract, credits, character selection, high scores) starts the game,
+# sin.exe, for each play. Both read the pod through ogsdll.dll: the payload replaces its
+# hardware (payload sin.rs).
+system: globalvr
+name: SiN
+
+# The frontend runs with the payload (it hooks the pod library, the dongle check and the game
+# start).
+payload_loader: true
+
+# the cabinet's folder (configuration, bookkeeping)
+c_folders:
+  orion: orion
+
+# The frontend's 640x480 screen, scaled to the real one with its aspect kept.
+gamescope:
+  enabled: true
+  width: 640
+  height: 480
+  args: [-S, fit, -f]
+
+input:
+  # Keyboard (player 1): left / right turn, up / down walk forward / back, Ctrl fire (and
+  # start), Alt use, Space jump, 5 coin.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_PAGEUP: -ry
+      KEY_PAGEDOWN: ry
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Walk forward
+  down: Walk back
+  left: none
+  right: none
+  lx: Turn
+  rx: Turn
+  ry: Look up / down
+  b1: Fire
+  b2: Use
+  b3: Jump
+  b4: none
+  b5: none
+  b6: none
+  b7: none
+  b8: none
+  service: none

@@ -30,6 +30,8 @@
 //!   dongle and cabinet monitors, its frontend's window hidden during the game.
 //! * `smartcard.rs`: Need for Speed Carbon's frontend card reader (`GVRSCR28.dll`).
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
+//! * `sin.rs`: SiN's virtual reality pod (`ogsdll.dll`'s buttons, head tracker, recoil, coins;
+//!   the frontend's dongle).
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
 //! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
 //!   stage changes (`swarm_campaign.rs`: the game started again with the next map) and the
@@ -58,6 +60,7 @@ mod hasp;
 mod keyboard;
 mod linking;
 mod netcomm;
+mod sin;
 mod smartcard;
 mod swarm;
 mod swarm_campaign;
@@ -125,6 +128,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         beachhead::init(module);
         blazing::init();
         madden::init();
+        sin::init();
         log!("globalvr: initialized");
     }
     TRUE
