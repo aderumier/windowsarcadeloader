@@ -250,7 +250,7 @@ fn payload_path() -> String {
 fn loader_command(app: &str, cmd: &str, payload: &str) -> Option<String> {
     let exe = if app.is_empty() { cmd.split_whitespace().next().unwrap_or("").trim_matches('"') } else { app };
     let lower = exe.to_ascii_lowercase();
-    if !["beach16.exe", "bh2.exe", "desertwar.exe"].iter().any(|game| lower.ends_with(game)) {
+    if !["beach16.exe", "bh2.exe", "desertwar.exe", "sin.exe", "hgx.exe"].iter().any(|game| lower.ends_with(game)) {
         return None;
     }
     // the arguments: the command line without the program when it starts with it
@@ -282,8 +282,19 @@ unsafe extern "system" fn create_process(
     let orig: CreateProcessA = unsafe { std::mem::transmute(ORIG_CREATE_PROCESS.load(Ordering::Relaxed)) };
     let (app_s, cmd_s, dir_s) = (c_str(app), c_str(cmd), c_str(dir));
     log!("beachhead: the shell starts {app_s:?} {cmd_s:?} in {dir_s:?}");
-    let Some(command) = loader_command(&app_s, &cmd_s, &payload_path()) else {
+    let Some(mut command) = loader_command(&app_s, &cmd_s, &payload_path()) else {
         return unsafe { orig(app, cmd, pa, ta, inherit, flags, env, dir, si, pi) };
+    };
+    // the VR pods' games: the loader (a console program) without a console window over the
+    // frontend; SiN with its renderer's library
+    let flags = match crate::sin::pod_game(&app_s, &cmd_s) {
+        Some(game) => {
+            if game == "sin.exe" {
+                command.push_str(crate::sin::EXTRA_ARGS);
+            }
+            flags | windows_sys::Win32::System::Threading::CREATE_NO_WINDOW
+        }
+        None => flags,
     };
     let exe = if app_s.is_empty() { cmd_s.split_whitespace().next().unwrap_or("").trim_matches('"').to_string() } else { app_s };
     let folder = if dir_s.is_empty() { exe.replace('/', "\\").rsplit_once('\\').map_or(String::new(), |(d, _)| d.to_string()) } else { dir_s };
@@ -378,6 +389,14 @@ unsafe extern "system" fn ole_initialize(reserved: usize) -> i32 {
         ORIG_CREATE_PROCESS.store(o, Ordering::Relaxed);
     }
     hr
+}
+
+/// The game started with the payload by the frontend `module`'s `CreateProcessA` (SiN's
+/// frontend, `sin.rs`).
+pub(crate) fn hook_game_start(module: usize) {
+    if let Some(o) = unsafe { iat::hook_module(module, "kernel32.dll", "CreateProcessA", create_process as *const () as usize) } {
+        ORIG_CREATE_PROCESS.store(o, Ordering::Relaxed);
+    }
 }
 
 pub(crate) fn init(module: HINSTANCE) {
