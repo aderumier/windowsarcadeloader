@@ -1,0 +1,60 @@
+# Heavy Gear II (Global VR) - template, override values in
+# userprofiles/globalvr/heavy-gear-ii.yaml.
+# Global VR's virtual reality pod version of Activision's Heavy Gear II (2002 build, menu
+# "Heavy Gear II 4.08.2002"): the player stands in the pod, a head-mounted display and its
+# tracker turn the gear and aim up / down, the gun's trigger fires, its thumb buttons walk
+# forward and back. The dump: the cabinet's install disc (HGX.iso, its WinZip installer
+# unpacked) at the cabinet's paths, C:\orion (the frontend and the game in C:\orion\hgx, the
+# configuration orion.cfg) and its system files (System Files: the operator setup's Visual
+# Basic runtime). The frontend HG2Shell.exe (attract, credits, arena selection) starts the
+# game, hgx.exe (hg2sim.dll), for each play. Both read the pod through ogsdll.dll, the same
+# library as SiN's pod: the payload replaces its hardware (payload sin.rs).
+system: globalvr
+name: Heavy Gear II
+
+# The frontend runs with the payload (it hooks the pod library, the dongle check and the game
+# start).
+payload_loader: true
+
+# the cabinet's folder (configuration, bookkeeping)
+c_folders:
+  orion: orion
+
+# The frontend's and the game's 640x480 screen, scaled to the real one with its aspect kept.
+gamescope:
+  enabled: true
+  width: 640
+  height: 480
+  args: [-S, fit, -f]
+
+# The pod's buttons (the payload's default map, SiN's): the trigger (b1, also start and select
+# in the frontend) and the gun's second button (b2) both fire, the thumb buttons (up / down)
+# walk; SiN's jump (b3, both thumb buttons) does nothing here.
+input:
+  # Keyboard (player 1): left / right turn, up / down walk forward / back, page up / down
+  # aim up / down, Ctrl fire (and start), 5 coin.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_PAGEUP: -ry
+      KEY_PAGEDOWN: ry
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Walk forward
+  down: Walk back
+  left: none
+  right: none
+  lx: Turn
+  rx: Turn
+  ry: Aim up / down
+  b1: Fire
+  b2: Fire
+  b3: none
+  b4: none
+  b5: none
+  b6: none
+  b7: none
+  b8: none
+  service: none

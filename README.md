@@ -57,6 +57,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `justice-league-heroes-united` | Justice League: Heroes United | globalvr | works (user: 100%), 2 players | not in the test |  |
 | `madden-nfl-season-2` | EA SPORTS Madden NFL Football Season 2 | globalvr | works (user: 100%) | not in the test |  |
 | `sin` | SiN | globalvr | works (user: 100%), VR pod: head tracker on the stick | not in the test |  |
+| `heavy-gear-ii` | Heavy Gear II | globalvr | works (user: 100%), VR pod: head tracker on the stick | not in the test |  |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | pass | 2026-10-07 |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-10-08 |
 | `arcana-heart-2` | Arcana Heart 2 | nesica | in game (user) | pass | 2026-10-07 |
