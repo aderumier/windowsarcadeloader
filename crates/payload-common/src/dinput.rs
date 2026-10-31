@@ -28,6 +28,12 @@
 //! `WAL_DINPUT_WHEEL_VIDPID=<vid>:<pid>` (hex): the USB ids in its product GUID (Blazing Angels
 //! picks its controls layout by the vendor id: the cabinet board's, 1ab7).
 //!
+//! `WAL_DINPUT_PADS=<n>`: the same fake DirectInput, with `n` joysticks (players 1 to `n`, at
+//! most 4): X and Y from the player's d-pad, else its left stick, and the buttons
+//! `WAL_DINPUT_PADS_BUTTONS=<virtual button>,...` in order (as `WAL_DINPUT_WHEEL_BUTTONS`;
+//! default b1-b8, start, coin). Justice League: Heroes United reads its cabinet's two control
+//! panels as DirectInput joysticks.
+//!
 //! `WAL_DINPUT_BOARD=<product name or 1>`: the same fake DirectInput, with one cabinet button
 //! box (26 buttons, the Injustice cabinet's layout): the players' fight buttons, coins, start,
 //! the card dispensers' buy buttons and the card readers' scan buttons, from the virtual
@@ -379,11 +385,14 @@ fn fake(out: *mut P, wide: bool) -> i32 {
     if out.is_null() {
         return DIERR_DEVICENOTREG;
     }
+    let pads = std::env::var_os("WAL_DINPUT_PADS").is_some();
     let dinput = match (
         std::env::var("WAL_DINPUT_BOARD").is_ok(),
         std::env::var_os("WAL_DINPUT_WHEEL").is_some(),
         wide,
     ) {
+        _ if pads && !wide => &pads::DINPUT_A,
+        _ if pads => &pads::DINPUT_W,
         (true, _, false) => &board::DINPUT_A,
         (true, _, true) => &board::DINPUT_W,
         (false, true, false) => &wheel::DINPUT_A,
@@ -447,14 +456,19 @@ pub fn init() {
     }
     let board = std::env::var("WAL_DINPUT_BOARD").ok().map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
     let wheel = std::env::var("WAL_DINPUT_WHEEL").ok().map(|n| n.trim().to_string()).filter(|n| !n.is_empty());
-    if board.is_none() && wheel.is_none() && !std::env::var("WAL_DINPUT_DISABLE").is_ok_and(|v| v.trim() == "1") {
+    let pads = std::env::var("WAL_DINPUT_PADS").ok().and_then(|n| n.trim().parse::<usize>().ok()).filter(|&n| n > 0);
+    if pads.is_none() && board.is_none() && wheel.is_none() && !std::env::var("WAL_DINPUT_DISABLE").is_ok_and(|v| v.trim() == "1") {
         return;
     }
     unsafe {
-        iat::hook("dinput.dll", "DirectInputCreateA", create as *const () as usize);
-        iat::hook("dinput.dll", "DirectInputCreateW", create_w as *const () as usize);
-        iat::hook("dinput.dll", "DirectInputCreateEx", create_iid as *const () as usize);
-        iat::hook("dinput8.dll", "DirectInput8Create", create_iid as *const () as usize);
+        // the executable and the DLLs of its folder (Justice League: Heroes United's engine,
+        // ElementalEngine.dll, imports DirectInput)
+        for module in crate::workarea::game_modules(iat::game_module()) {
+            iat::hook_module(module, "dinput.dll", "DirectInputCreateA", create as *const () as usize);
+            iat::hook_module(module, "dinput.dll", "DirectInputCreateW", create_w as *const () as usize);
+            iat::hook_module(module, "dinput.dll", "DirectInputCreateEx", create_iid as *const () as usize);
+            iat::hook_module(module, "dinput8.dll", "DirectInput8Create", create_iid as *const () as usize);
+        }
         // games loading DirectInput at run time (Ford Racing: LoadLibrary("dinput8.dll"))
         // init runs once per hooked module set (Mario Kart: twice): a second hook returns our
         // own function, which must not become the original (endless recursion).
@@ -462,6 +476,10 @@ pub fn init() {
         if let Some(o) = iat::hook("kernel32.dll", "GetProcAddress", ours).filter(|&o| o != ours) {
             ORIG_GET_PROC_ADDRESS.store(o, std::sync::atomic::Ordering::Relaxed);
         }
+    }
+    if let Some(count) = pads {
+        pads::init(count);
+        return;
     }
     match (board, wheel) {
         (Some(name), _) => {
@@ -1499,6 +1517,486 @@ mod board {
         let mut v = DEVICE_VTABLE.0;
         v[3] = get_capabilities as *const ();
         v[4] = enum_objects;
+        v[9] = get_device_state as *const ();
+        v[11] = set_data_format as *const ();
+        v[15] = get_device_info as *const ();
+        VTable(v)
+    }
+}
+
+/// The fake joysticks of `WAL_DINPUT_PADS`.
+mod pads {
+    use std::sync::atomic::{AtomicI32, AtomicUsize, Ordering};
+    use std::sync::{Mutex, OnceLock};
+
+    use wal_protocol::{Axis, button};
+
+    use super::{DEVICE_VTABLE, DI_OK, DIERR_DEVICENOTREG, Object, P, VTable};
+    use crate::log;
+
+    const MAX: usize = wal_protocol::MAX_PLAYERS;
+    /// How many joysticks are listed (`WAL_DINPUT_PADS`).
+    static COUNT: AtomicUsize = AtomicUsize::new(0);
+    /// `WAL_DINPUT_PADS_BUTTONS`: the virtual stick buttons of each DirectInput button.
+    static BUTTONS: OnceLock<Vec<u32>> = OnceLock::new();
+    const DEFAULT_BUTTONS: [u32; 10] = [
+        button::B1,
+        button::B2,
+        button::B3,
+        button::B4,
+        button::B5,
+        button::B6,
+        button::B7,
+        button::B8,
+        button::START,
+        button::COIN,
+    ];
+
+    const fn guid(d1: u32, d2: u16, d3: u16, d4: [u8; 8]) -> [u8; 16] {
+        let a = d1.to_le_bytes();
+        let b = d2.to_le_bytes();
+        let c = d3.to_le_bytes();
+        [a[0], a[1], a[2], a[3], b[0], b[1], c[0], c[1], d4[0], d4[1], d4[2], d4[3], d4[4], d4[5], d4[6], d4[7]]
+    }
+    /// Instance GUID of joystick `i`: its last byte is the player.
+    const fn instance(i: usize) -> [u8; 16] {
+        guid(0x5741_4C57, 0x4150, 0x5344, [b'W', b'A', b'L', b'P', b'A', b'D', b'0', b'0' + i as u8])
+    }
+    const X_AXIS: [u8; 16] = guid(0xA36D_02E0, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]);
+    const Y_AXIS: [u8; 16] = guid(0xA36D_02E1, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]);
+    const BUTTON_GUID: [u8; 16] = guid(0xA36D_02F0, 0xC9F3, 0x11CF, [0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0, 0]);
+    /// DI8DEVTYPE_JOYSTICK, DI8DEVTYPEJOYSTICK_STANDARD, HID.
+    const DEV_TYPE: u32 = 0x14 | 2 << 8 | 0x1_0000;
+    const ABS_AXIS: u32 = 2;
+    const DIPROP_RANGE: usize = 4;
+    const DIPH_BYOFFSET: u32 = 1;
+    const DIPH_BYID: u32 = 2;
+    const DIERR_NOTFOUND: i32 = 0x8007_0002u32 as i32;
+
+    pub(super) fn init(count: usize) {
+        COUNT.store(count.clamp(1, MAX), Ordering::Relaxed);
+        if let Ok(spec) = std::env::var("WAL_DINPUT_PADS_BUTTONS") {
+            let buttons = spec
+                .split(',')
+                .map(|b| {
+                    let b = b.trim();
+                    if b.eq_ignore_ascii_case("none") {
+                        0
+                    } else {
+                        // `b1+start`: pressed with either
+                        b.split('+').fold(0, |mask, b| {
+                            mask | button::from_name(b.trim()).unwrap_or_else(|| {
+                                log!("dinput: unknown pad button {b:?}");
+                                0
+                            })
+                        })
+                    }
+                })
+                .collect();
+            let _ = BUTTONS.set(buttons);
+        }
+        log!("dinput: {} joysticks", COUNT.load(Ordering::Relaxed));
+    }
+
+    fn buttons() -> &'static [u32] {
+        BUTTONS.get().map_or(&DEFAULT_BUTTONS, |b| b.as_slice())
+    }
+
+    fn name(i: usize) -> String {
+        format!("WAL Joystick {}", i + 1)
+    }
+
+    /// The player of a device interface (its address in the A or W array).
+    fn player(this: P) -> usize {
+        let base = |objects: &'static [Object; MAX]| objects.as_ptr() as usize;
+        let size = std::mem::size_of::<Object>();
+        let a = this as usize;
+        for objects in [&PADS_A, &PADS_W] {
+            let b = base(objects);
+            if a >= b && a < b + MAX * size {
+                return (a - b) / size;
+            }
+        }
+        0
+    }
+
+    /// Copies `s` into a fixed string field of `len` characters, ANSI or UTF-16.
+    unsafe fn put_str(dst: *mut u8, len: usize, s: &str, wide: bool) {
+        unsafe {
+            if wide {
+                let dst = dst as *mut u16;
+                for (i, c) in s.encode_utf16().take(len - 1).chain(std::iter::once(0)).enumerate() {
+                    dst.add(i).write_unaligned(c);
+                }
+            } else {
+                for (i, c) in s.bytes().take(len - 1).chain(std::iter::once(0)).enumerate() {
+                    *dst.add(i) = c;
+                }
+            }
+        }
+    }
+
+    /// Fills a DIDEVICEINSTANCEA / W (`wide`) of joystick `i`, its dwSize included.
+    unsafe fn device_instance(out: *mut u8, i: usize, wide: bool) {
+        let chars = if wide { 2 } else { 1 };
+        let size = 4 + 36 + 2 * 260 * chars + 20;
+        let id = instance(i);
+        let product = guid(0x5741_4C57, 0, 0, *b"\0\0PIDVID");
+        unsafe {
+            std::ptr::write_bytes(out, 0, size);
+            (out as *mut u32).write_unaligned(size as u32);
+            std::ptr::copy_nonoverlapping(id.as_ptr(), out.add(4), 16);
+            std::ptr::copy_nonoverlapping(product.as_ptr(), out.add(20), 16);
+            (out.add(36) as *mut u32).write_unaligned(DEV_TYPE);
+            put_str(out.add(40), 260, &name(i), wide);
+            put_str(out.add(40 + 260 * chars), 260, &name(i), wide);
+            // HID usage page 1 (generic desktop), usage 4 (joystick)
+            let usage = out.add(40 + 2 * 260 * chars + 16);
+            (usage as *mut u16).write_unaligned(1);
+            (usage.add(2) as *mut u16).write_unaligned(4);
+        }
+    }
+
+    type EnumCallback = unsafe extern "system" fn(*const u8, P) -> i32;
+
+    /// Whether an `EnumDevices` type filter takes the joysticks: all devices, game controllers
+    /// (DI8DEVCLASS_GAMECTRL), joysticks (DIDEVTYPE_JOYSTICK, DI8DEVTYPE_JOYSTICK).
+    fn listed(filter: u32) -> bool {
+        matches!(filter & 0xFF, 0 | 4 | 0x14)
+    }
+
+    unsafe fn enum_devices(filter: u32, cb: EnumCallback, context: P, wide: bool) -> i32 {
+        if !listed(filter) {
+            return DI_OK;
+        }
+        let count = COUNT.load(Ordering::Relaxed);
+        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if !LOGGED.swap(true, Ordering::Relaxed) {
+            log!("dinput: EnumDevices(type {filter:#x}): {count} joysticks");
+        }
+        let mut item = [0u8; 0x44C];
+        for i in 0..count {
+            unsafe {
+                device_instance(item.as_mut_ptr(), i, wide);
+                if super::enum_callback(cb, item.as_ptr(), context) == 0 {
+                    break; // DIENUM_STOP
+                }
+            }
+        }
+        DI_OK
+    }
+    unsafe extern "system" fn enum_devices_a(_this: P, filter: u32, cb: EnumCallback, context: P, _flags: u32) -> i32 {
+        unsafe { enum_devices(filter, cb, context, false) }
+    }
+    unsafe extern "system" fn enum_devices_w(_this: P, filter: u32, cb: EnumCallback, context: P, _flags: u32) -> i32 {
+        unsafe { enum_devices(filter, cb, context, true) }
+    }
+
+    /// `CreateDevice(rguid, lplpDirectInputDevice, pUnkOuter)`: a joystick by its instance GUID.
+    unsafe fn create_device(guid: *const u8, out: *mut P, wide: bool) -> i32 {
+        if out.is_null() {
+            return DIERR_DEVICENOTREG;
+        }
+        let g = if guid.is_null() { None } else { Some(unsafe { std::slice::from_raw_parts(guid, 16) }) };
+        let pad = (0..COUNT.load(Ordering::Relaxed)).find(|&i| g == Some(instance(i).as_slice()));
+        log!("dinput: CreateDevice({})", pad.map_or("another device".to_string(), |i| name(i)));
+        let device: &Object = match (pad, wide) {
+            (Some(i), false) => &PADS_A[i],
+            (Some(i), true) => &PADS_W[i],
+            (None, _) => &super::DEVICE,
+        };
+        unsafe { *out = device as *const Object as P };
+        DI_OK
+    }
+    unsafe extern "system" fn create_device_a(_this: P, guid: *const u8, out: *mut P, _outer: P) -> i32 {
+        unsafe { create_device(guid, out, false) }
+    }
+    unsafe extern "system" fn create_device_w(_this: P, guid: *const u8, out: *mut P, _outer: P) -> i32 {
+        unsafe { create_device(guid, out, true) }
+    }
+
+    /// The fake IDirectInput8A / W with the joysticks.
+    pub(super) static DINPUT_A: Object = Object { vtable: DINPUT_A_VTABLE.0.as_ptr() };
+    pub(super) static DINPUT_W: Object = Object { vtable: DINPUT_W_VTABLE.0.as_ptr() };
+    static DINPUT_A_VTABLE: VTable<11> = dinput_vtable(create_device_a as *const (), enum_devices_a as *const ());
+    static DINPUT_W_VTABLE: VTable<11> = dinput_vtable(create_device_w as *const (), enum_devices_w as *const ());
+
+    const fn dinput_vtable(create: *const (), enumerate: *const ()) -> VTable<11> {
+        let mut v = super::DINPUT_VTABLE.0;
+        v[3] = create;
+        v[4] = enumerate;
+        VTable(v)
+    }
+
+    /// `GetCapabilities(lpDIDevCaps)`: DIDEVCAPS, attached, 2 axes, the buttons.
+    unsafe extern "system" fn get_capabilities(_this: P, caps: *mut u32) -> i32 {
+        if !caps.is_null() {
+            unsafe {
+                let size = (*caps).clamp(4, 44) as usize;
+                std::ptr::write_bytes(caps.add(1) as *mut u8, 0, size - 4);
+                // dwFlags (DIDC_ATTACHED), dwDevType, dwAxes, dwButtons, dwPOVs
+                for (i, v) in [1, DEV_TYPE, 2, buttons().len() as u32, 0].into_iter().enumerate() {
+                    if 4 * (i + 2) <= size {
+                        *caps.add(i + 1) = v;
+                    }
+                }
+            }
+        }
+        DI_OK
+    }
+
+    /// `EnumObjects(lpCallback, pvRef, dwFlags)`: X and Y, the buttons.
+    unsafe fn enum_objects(cb: EnumCallback, context: P, flags: u32, wide: bool) -> i32 {
+        let chars = if wide { 2 } else { 1 };
+        let size = 32 + 260 * chars + 24;
+        let mut object = [0u8; 0x240];
+        let axes = [(X_AXIS, "X Axis"), (Y_AXIS, "Y Axis")];
+        if flags == 0 || flags & 3 != 0 {
+            for (i, (g, label)) in axes.iter().enumerate() {
+                object.fill(0);
+                let o = object.as_mut_ptr();
+                unsafe {
+                    (o as *mut u32).write_unaligned(size as u32);
+                    std::ptr::copy_nonoverlapping(g.as_ptr(), o.add(4), 16);
+                    (o.add(20) as *mut u32).write_unaligned(4 * i as u32);
+                    (o.add(24) as *mut u32).write_unaligned(ABS_AXIS | (i as u32) << 8);
+                    put_str(o.add(32), 260, label, wide);
+                    if super::enum_callback(cb, o, context) == 0 {
+                        return DI_OK;
+                    }
+                }
+            }
+        }
+        if flags == 0 || flags & 0x0C != 0 {
+            for i in 0..buttons().len() {
+                object.fill(0);
+                let o = object.as_mut_ptr();
+                unsafe {
+                    (o as *mut u32).write_unaligned(size as u32);
+                    std::ptr::copy_nonoverlapping(BUTTON_GUID.as_ptr(), o.add(4), 16);
+                    (o.add(20) as *mut u32).write_unaligned(0x30 + i as u32);
+                    (o.add(24) as *mut u32).write_unaligned(4 | (i as u32) << 8);
+                    put_str(o.add(32), 260, &format!("Button {}", i + 1), wide);
+                    if super::enum_callback(cb, o, context) == 0 {
+                        return DI_OK;
+                    }
+                }
+            }
+        }
+        DI_OK
+    }
+    unsafe extern "system" fn enum_objects_a(_this: P, cb: EnumCallback, context: P, flags: u32) -> i32 {
+        unsafe { enum_objects(cb, context, flags, false) }
+    }
+    unsafe extern "system" fn enum_objects_w(_this: P, cb: EnumCallback, context: P, flags: u32) -> i32 {
+        unsafe { enum_objects(cb, context, flags, true) }
+    }
+
+    /// Each joystick's X and Y ranges (`DIPROP_RANGE`, default 0..65535).
+    static RANGES: [[(AtomicI32, AtomicI32); 2]; MAX] =
+        [const { [const { (AtomicI32::new(0), AtomicI32::new(65535)) }; 2] }; MAX];
+
+    /// The axis a DIPROPHEADER names (by its DIJOYSTATE offset or its object ID).
+    unsafe fn header_axis(header: *const u32) -> Option<usize> {
+        let (obj, how) = unsafe { (*header.add(2), *header.add(3)) };
+        let axis = match how {
+            DIPH_BYOFFSET => obj / 4,
+            DIPH_BYID if obj & ABS_AXIS != 0 => obj >> 8 & 0xFFFF,
+            _ => return None,
+        } as usize;
+        (axis < 2).then_some(axis)
+    }
+
+    /// `GetProperty(rguidProp, pdiph)`: the axis ranges.
+    unsafe extern "system" fn get_property(this: P, prop: usize, header: *mut u32) -> i32 {
+        // DIPROP_PHYSICALRANGE / DIPROP_LOGICALRANGE: the range too
+        if !matches!(prop, DIPROP_RANGE | 18 | 19) || header.is_null() {
+            return DI_OK;
+        }
+        let Some(axis) = (unsafe { header_axis(header) }) else { return DIERR_NOTFOUND };
+        let range = &RANGES[player(this)][axis];
+        unsafe {
+            *header.add(4) = range.0.load(Ordering::Relaxed) as u32;
+            *header.add(5) = range.1.load(Ordering::Relaxed) as u32;
+        }
+        DI_OK
+    }
+
+    /// `SetProperty(rguidProp, pdiph)`: the axis ranges (DIPH_DEVICE sets both).
+    unsafe extern "system" fn set_property(this: P, prop: usize, header: *const u32) -> i32 {
+        if prop != DIPROP_RANGE || header.is_null() {
+            return DI_OK;
+        }
+        let (min, max) = unsafe { (*header.add(4) as i32, *header.add(5) as i32) };
+        let axes = match unsafe { *header.add(3) } {
+            0 => 0..2,
+            _ => match unsafe { header_axis(header) } {
+                Some(a) => a..a + 1,
+                None => return DIERR_NOTFOUND,
+            },
+        };
+        let pad = player(this);
+        for a in axes {
+            log!("dinput: {} axis {a} range {min}..{max}", name(pad));
+            RANGES[pad][a].0.store(min, Ordering::Relaxed);
+            RANGES[pad][a].1.store(max, Ordering::Relaxed);
+        }
+        DI_OK
+    }
+
+    /// An object of the game's data format: what goes at which offset.
+    #[derive(Clone, Copy, Debug)]
+    enum Field {
+        Axis(usize),
+        Button(usize),
+        Pov,
+    }
+    /// Each joystick's `SetDataFormat` (none: DIJOYSTATE's layout).
+    static FORMATS: [Mutex<Option<Vec<(Field, usize)>>>; MAX] = [const { Mutex::new(None) }; MAX];
+
+    /// `SetDataFormat(lpdf)`: each object gets the axis (by GUID, else by instance or the next
+    /// one), button or POV it names, at its offset.
+    unsafe extern "system" fn set_data_format(this: P, format: *const u32) -> i32 {
+        if format.is_null() {
+            return DI_OK;
+        }
+        let (obj_size, count, objects) =
+            unsafe { (*format.add(1) as usize, *format.add(4) as usize, *format.add(5) as *const u8) };
+        let mut fields = Vec::new();
+        let (mut next_axis, mut next_button) = (0usize, 0usize);
+        for i in 0..count {
+            let o = unsafe { objects.add(i * obj_size.max(16)) };
+            let (guid, offset, ty) = unsafe {
+                (
+                    (o as *const usize).read_unaligned() as *const u8,
+                    (o.add(4) as *const u32).read_unaligned() as usize,
+                    (o.add(8) as *const u32).read_unaligned(),
+                )
+            };
+            let instance = (ty >> 8) & 0xFFFF;
+            let field = if ty & 3 != 0 {
+                let axis = if guid.is_null() {
+                    Some(if instance != 0xFFFF { instance as usize } else { next_axis })
+                } else {
+                    let g = unsafe { std::slice::from_raw_parts(guid, 16) };
+                    [X_AXIS, Y_AXIS].iter().position(|a| a.as_slice() == g)
+                };
+                match axis {
+                    Some(a) if a < 2 => {
+                        next_axis = a + 1;
+                        Some(Field::Axis(a))
+                    }
+                    _ => None, // Z, rotations, sliders: none
+                }
+            } else if ty & 0x0C != 0 {
+                let b = if instance != 0xFFFF { instance as usize } else { next_button };
+                next_button = b + 1;
+                Some(Field::Button(b))
+            } else if ty & 0x10 != 0 {
+                Some(Field::Pov)
+            } else {
+                None
+            };
+            if let Some(f) = field {
+                fields.push((f, offset));
+            }
+        }
+        let pad = player(this);
+        log!("dinput: {} data format: {} objects", name(pad), fields.len());
+        *FORMATS[pad].lock().unwrap() = Some(fields);
+        DI_OK
+    }
+
+    /// `GetDeviceState(cbData, lpvData)`: the player's stick (X / Y from the d-pad, else the
+    /// left stick) and buttons.
+    unsafe extern "system" fn get_device_state(this: P, size: u32, data: *mut u8) -> i32 {
+        if data.is_null() {
+            return DI_OK;
+        }
+        let pad = player(this);
+        let stick = crate::input(pad);
+        let axis = |a: usize| {
+            let (minus, plus, analog) = if a == 0 {
+                (button::LEFT, button::RIGHT, Axis::LeftX)
+            } else {
+                (button::UP, button::DOWN, Axis::LeftY)
+            };
+            let v = if stick.pressed(minus) {
+                0
+            } else if stick.pressed(plus) {
+                65535
+            } else {
+                stick.axis_u16(analog)
+            };
+            let (min, max) = (RANGES[pad][a].0.load(Ordering::Relaxed) as i64, RANGES[pad][a].1.load(Ordering::Relaxed) as i64);
+            (min + (max - min) * v as i64 / 65535) as i32
+        };
+        let pressed = |b: usize| buttons().get(b).is_some_and(|&m| m != 0 && stick.pressed(m));
+        {
+            // the presses each joystick reports, once per change
+            static LAST: [std::sync::atomic::AtomicU32; MAX] = [const { std::sync::atomic::AtomicU32::new(0) }; MAX];
+            if LAST[pad].swap(stick.buttons, Ordering::Relaxed) != stick.buttons && stick.buttons != 0 {
+                log!("dinput: {} reads buttons {:#x}", name(pad), stick.buttons);
+            }
+        }
+        let n = size as usize;
+        unsafe {
+            std::ptr::write_bytes(data, 0, n);
+            match FORMATS[pad].lock().unwrap().as_ref() {
+                Some(fields) => {
+                    for &(field, offset) in fields {
+                        match field {
+                            Field::Axis(a) if offset + 4 <= n => (data.add(offset) as *mut i32).write_unaligned(axis(a)),
+                            Field::Button(b) if offset < n => *data.add(offset) = if pressed(b) { 0x80 } else { 0 },
+                            Field::Pov if offset + 4 <= n => (data.add(offset) as *mut u32).write_unaligned(u32::MAX),
+                            _ => {}
+                        }
+                    }
+                }
+                None => {
+                    for a in 0..2 {
+                        if 4 * (a + 1) <= n {
+                            (data.add(4 * a) as *mut i32).write_unaligned(axis(a));
+                        }
+                    }
+                    // POV hats (DIJOYSTATE + 0x20) centered
+                    for i in 0..4 {
+                        if 0x20 + 4 * (i + 1) <= n {
+                            (data.add(0x20 + 4 * i) as *mut u32).write_unaligned(u32::MAX);
+                        }
+                    }
+                    for b in 0..buttons().len().min(32) {
+                        if 0x30 + b < n && pressed(b) {
+                            *data.add(0x30 + b) = 0x80;
+                        }
+                    }
+                }
+            }
+        }
+        DI_OK
+    }
+
+    /// `GetDeviceInfo(pdidi)`: DIDEVICEINSTANCEA or W, by its dwSize.
+    unsafe extern "system" fn get_device_info(this: P, info: *mut u8) -> i32 {
+        if info.is_null() {
+            return super::DIERR_UNSUPPORTED;
+        }
+        let wide = unsafe { (info as *const u32).read_unaligned() } == 0x44C;
+        unsafe { device_instance(info, player(this), wide) };
+        DI_OK
+    }
+
+    static PADS_A: [Object; MAX] = [const { Object { vtable: PAD_A_VTABLE.0.as_ptr() } }; MAX];
+    static PADS_W: [Object; MAX] = [const { Object { vtable: PAD_W_VTABLE.0.as_ptr() } }; MAX];
+    static PAD_A_VTABLE: VTable<32> = pad_vtable(enum_objects_a as *const ());
+    static PAD_W_VTABLE: VTable<32> = pad_vtable(enum_objects_w as *const ());
+
+    const fn pad_vtable(enum_objects: *const ()) -> VTable<32> {
+        let mut v = DEVICE_VTABLE.0;
+        v[3] = get_capabilities as *const ();
+        v[4] = enum_objects;
+        v[5] = get_property as *const ();
+        v[6] = set_property as *const ();
         v[9] = get_device_state as *const ();
         v[11] = set_data_format as *const ();
         v[15] = get_device_info as *const ();

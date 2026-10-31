@@ -25,6 +25,8 @@ pub mod mouse_stick;
 #[cfg(windows)]
 pub mod drive;
 #[cfg(windows)]
+pub mod ini;
+#[cfg(windows)]
 pub mod joystick;
 #[cfg(windows)]
 pub mod font;
@@ -140,6 +142,7 @@ pub fn start(name: &'static str) {
             codepage::init();
             d3dx::init();
             dinput::init();
+            ini::init();
             mouse_stick::init();
             joystick::init();
             wcase::init();

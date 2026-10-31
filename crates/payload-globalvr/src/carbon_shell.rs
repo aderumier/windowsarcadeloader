@@ -9,7 +9,8 @@
 //! a frame a second). Both read the USBIO board through `USBIOExtreme.dll`: the payload,
 //! installed next to them, feeds them the virtual sticks' coins. Loaded in the frontend, the
 //! payload starts them (`WAL_GLOBALVR_CARBON_MONITORS`: the monitors' folder, relative to the
-//! frontend's executable).
+//! frontend's executable). Justice League: Heroes United's `JLA.exe` takes its coins from the
+//! same coin monitor: started by the payload loaded in it the same way.
 //!
 //! The player's script compilations (its SpiderMonkey's `JS_CompileUC*` / `JS_EvaluateUC*`,
 //! called directly) get a copy of the script with these edits ([`EDITS`]):
@@ -235,12 +236,16 @@ fn hook_scripts() {
 
 pub(crate) fn init() {
     let Ok(dir) = std::env::var("WAL_GLOBALVR_CARBON_MONITORS") else { return };
-    if crate::frontend_fit::exe_name() != "amplayer.exe" {
+    let exe = crate::frontend_fit::exe_name();
+    // the monitors load the payload too (their USBIOExtreme.dll)
+    if MONITORS.iter().any(|m| m.eq_ignore_ascii_case(&exe)) {
         return;
     }
-    hook_scripts();
-    if let Ok(spec) = std::env::var("WAL_GLOBALVR_SHELL_PATCHES") {
-        wal_payload_common::patches::apply_list(&spec);
+    if exe == "amplayer.exe" {
+        hook_scripts();
+        if let Ok(spec) = std::env::var("WAL_GLOBALVR_SHELL_PATCHES") {
+            wal_payload_common::patches::apply_list(&spec);
+        }
     }
     let Some(exe_dir) = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())) else {
         return;
