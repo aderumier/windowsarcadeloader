@@ -66,27 +66,29 @@ struct RowClass {
     arrays: &'static [(usize, &'static str)],
 }
 
-/// A data set class: its CLSID, its tables' elements (getters from slot 88).
+/// A data set class: its CLSIDs (.NET's, from the assembly version: Championship Edition III's,
+/// II's), its tables' elements (getters from slot 88).
 struct DataSetClass {
     name: &'static str,
-    clsid: GUID,
+    clsids: &'static [GUID],
     tables: &'static [&'static str],
 }
 
 const DATA_SETS: &[DataSetClass] = &[
     DataSetClass {
         name: "PgaWeatherGame",
-        clsid: GUID::from_u128(0x77510b0d_8475_3b9d_9204_c07756aaa9a3),
+        clsids: &[GUID::from_u128(0x77510b0d_8475_3b9d_9204_c07756aaa9a3), GUID::from_u128(0x2e01771f_487a_3b42_9dd1_bd1e917f0b3e)],
         tables: &["WeatherGame", "FG", "RA"],
     },
     DataSetClass {
         name: "PgaPlayingCondition",
-        clsid: GUID::from_u128(0x02d3d800_7b02_3186_a9da_746735094f0a),
+        // II's has no hole wind infos (WI)
+        clsids: &[GUID::from_u128(0x02d3d800_7b02_3186_a9da_746735094f0a), GUID::from_u128(0x34d917de_e328_3bdb_8136_8b18430426c1)],
         tables: &["PC", "TH", "WI"],
     },
     DataSetClass {
         name: "XmlPgaWindSpeed",
-        clsid: GUID::from_u128(0x781934b4_9ada_303b_a998_c2f835bcc43f),
+        clsids: &[GUID::from_u128(0x781934b4_9ada_303b_a998_c2f835bcc43f), GUID::from_u128(0xf062658e_db14_3435_b5c7_cd68e24db72c)],
         tables: &["PgaWindSpeed", "WS"],
     },
 ];
@@ -377,7 +379,8 @@ static ORIG_CREATE: AtomicUsize = AtomicUsize::new(0);
 /// `CoCreateInstance`: the data sets made by the payload, the other classes by COM.
 unsafe extern "system" fn co_create_instance(clsid: *const GUID, outer: P, ctx: u32, iid: *const GUID, out: *mut P) -> HRESULT {
     let class = DATA_SETS.iter().find(|c| {
-        !clsid.is_null() && unsafe { (*clsid).data1 == c.clsid.data1 && (*clsid).data2 == c.clsid.data2 && (*clsid).data4 == c.clsid.data4 }
+        !clsid.is_null()
+            && c.clsids.iter().any(|k| unsafe { (*clsid).data1 == k.data1 && (*clsid).data2 == k.data2 && (*clsid).data4 == k.data4 })
     });
     if let Some(class) = class {
         log!("netds: new {}", class.name);
