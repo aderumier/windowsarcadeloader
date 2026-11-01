@@ -1,0 +1,98 @@
+# PGA TOUR Golf Championship Edition III (Global VR, 2.2.2.0) - template, override values in
+# userprofiles/globalvr/pga-tour-golf-championship-edition-iii.yaml.
+# The dump: the game's install CDs (PGA_TOUR_Champ_3_Game_2.2.2.0 D1 and D2) at the cabinet's
+# paths, their _Registry, fonts (Fonts) and system files (System Files) kept.
+# The cabinet's frontend UniverShell.exe (Internet Explorer showing the shell's HTML pages,
+# scripted through its ShellControl.ocx: attract, coins, player and course choice, operator menu)
+# starts the game, C:\pga_tour_golf\bin\pga_tour_golf.exe, for each play.
+system: globalvr
+name: PGA TOUR Golf Championship Edition III
+
+# the shell's start page
+args: ["c:\\TW2002_Shell\\Shell\\EABrand\\EABrand.html"]
+
+# The frontend runs with the payload (it hooks its pages and the game start), which is also the
+# GVRInputRaw.dll the shell control loads, and the libraries in front of the cabinet's database
+# (GvrNet*.dll: the shell control's, the game's) and the game's trackball board library.
+payload_loader: true
+payload_install:
+  - GVRInputRaw.dll
+  - GvrNetTournament.dll
+  - pga_tour_golf/bin/GvrNetTournament.dll
+  - pga_tour_golf/bin/GvrNetGameSession.dll
+  - pga_tour_golf/bin/GvrNetLeaderBoard.dll
+  - pga_tour_golf/bin/GvrNetCabinetConfiguration.dll
+  - pga_tour_golf/bin/GvrNetPlayerGameSummary.dll
+  # the game engine's trackball board library
+  - pga_tour_golf/bin/UsbTrackerDll.dll
+
+# The cabinet's paths.
+c_folders:
+  Orion: Orion
+  TW2002_Shell: TW2002_Shell
+  pga_tour_golf: pga_tour_golf
+  Tournament: Tournament
+  gvr.net: gvr.net
+  pga.net: pga.net
+
+registry: [systemprofiles/globalvr/files/pga-tour-golf-championship-edition-iii/cabinet.reg]
+
+# the cabinet's Windows\system files the frontend loads
+files:
+  Orion/msdxm.ocx: "{dump}/System Files/msdxm.ocx"
+
+# The game's MFC 4.2 library (the cabinet's Windows has it).
+tricks: [mfc42]
+
+fonts:
+  - Fonts/AUOC____.TTF
+  - Fonts/TT1027M_.TTF
+  - Fonts/TT1028M_.TTF
+  - Fonts/WINGDNG3.TTF
+
+graphics: wine
+
+# The cabinet's 800x600 screen, scaled to the real one with its aspect kept.
+gamescope:
+  enabled: true
+  width: 800
+  height: 600
+  args: [-S, fit, -f]
+
+input:
+  # the stick rolls the trackball, it must not press the d-pad
+  stick_as_dpad: false
+  # The mouse is the trackball: its position wraps (the trackball's counters) on the right
+  # stick axes, the gamepad's right stick left out of them.
+  guns_enabled: true
+  guns_mice: 1
+  mouse_screen: [65536, 65536]
+  mouse_wrap: true
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b1
+    BTN_RIGHT: b2
+    BTN_MIDDLE: none
+  gamepad:
+    rightx: none
+    righty: none
+  # Keyboard (player 1): arrows roll the trackball (the swing: down then up), 1 start,
+  # F2 operator menu. Mouse: the swing is the mouse pulled back, then pushed forward.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly
+      KEY_DOWN: ly
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Trackball left / right
+  ly: Trackball swing (back / forward)
+  rx: none
+  ry: none

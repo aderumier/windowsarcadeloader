@@ -11,12 +11,17 @@
 //!   touchpad: ELAN i2c touchpads have one, it never moves) is skipped, so a laptop's single
 //!   mouse is its TrackPoint.
 //!
+//! * With `input.mouse_wrap` (games reading a trackball): every mouse and touchpad (a finger's
+//!   motion) rolls one position of player 1 that wraps around the virtual screen, the
+//!   trackball's counters.
+//!
 //! Each device reports its position as the `x`/`y` sources (-32768 left/top..32767), its
 //! buttons as evdev key sources (`BTN_LEFT`...) and `offscreen` while a gun points off the
 //! screen. The devices are not grabbed: the game still gets them as X11 mice.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
+use std::sync::{Arc, Mutex};
 
 use evdev::{AbsoluteAxisCode, Device, EventSummary, KeyCode, RelativeAxisCode, SynchronizationCode};
 use wal_protocol::MAX_PLAYERS;
@@ -94,7 +99,10 @@ fn is_touchpad(path: &Path, dev: &Device) -> bool {
 
 /// Finds the guns, then the mice for the remaining players, and starts a reader thread for
 /// each one, sending its updates to `tx`.
-pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], tx: Sender<PointerEvent>) -> Vec<Pointer> {
+pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], wrap: bool, tx: Sender<PointerEvent>) -> Vec<Pointer> {
+    if wrap {
+        return start_trackball(mouse_screen, tx);
+    }
     let mut devices: Vec<(PathBuf, Device)> = evdev::enumerate().collect();
     devices.sort_by_key(|(p, _)| event_number(p));
     let touchpads: Vec<PathBuf> =
@@ -142,6 +150,11 @@ fn normalize(v: i32, min: i32, max: i32) -> (i32, bool) {
     let n = (v - min) as f64 / (max - min) as f64;
     let edge = n <= 0.0 || n >= 1.0;
     ((n.clamp(0.0, 1.0) * 65535.0).round() as i32 - 32768, edge)
+}
+
+/// `v` in `0..size` -> -32768..=32767 (`size` one past 32767: back to -32768).
+fn wrapped(v: i32, size: i32) -> i32 {
+    (v as i64 * 65536 / size as i64) as i32 - 32768
 }
 
 fn read_gun(index: usize, mut dev: Device, tx: Sender<PointerEvent>) {
@@ -218,6 +231,69 @@ fn read_mouse(index: usize, mut dev: Device, screen: [u32; 2], tx: Sender<Pointe
     eprintln!("input: mouse {} disconnected", index + 1);
 }
 
+/// `input.mouse_wrap`: the mice and touchpads roll one trackball, pointer 0 (player 1).
+fn start_trackball(screen: [u32; 2], tx: Sender<PointerEvent>) -> Vec<Pointer> {
+    let mut devices: Vec<(PathBuf, Device)> = evdev::enumerate().collect();
+    devices.sort_by_key(|(p, _)| event_number(p));
+    let touchpads: Vec<PathBuf> =
+        devices.iter().filter(|(p, d)| is_touchpad(p, d)).filter_map(|(p, _)| hid_device(p)).collect();
+    let size = screen.map(|s| s.max(1) as i32);
+    let position = Arc::new(Mutex::new(size.map(|s| s / 2)));
+    let mut names = Vec::new();
+    let mut first = None;
+    for (path, dev) in devices {
+        let touchpad = is_touchpad(&path, &dev);
+        // a touchpad's own mouse node never moves, a gun's raw node is no mouse
+        let mouse = is_mouse(&dev)
+            && udev_property(&path, "ID_INPUT_MOUSE").as_deref() != Some("0")
+            && !hid_device(&path).is_some_and(|h| touchpads.contains(&h));
+        if !touchpad && !mouse {
+            continue;
+        }
+        names.push(dev.name().unwrap_or("?").to_string());
+        first.get_or_insert(path);
+        let (position, tx) = (position.clone(), tx.clone());
+        std::thread::spawn(move || read_rolling(dev, touchpad, size, position, tx));
+    }
+    first.map(|path| Pointer { path, name: names.join(", "), is_gun: false, player: 0 }).into_iter().collect()
+}
+
+/// A mouse's motion, or a touchpad finger's, rolling the shared trackball `position`.
+fn read_rolling(mut dev: Device, touchpad: bool, size: [i32; 2], position: Arc<Mutex<[i32; 2]>>, tx: Sender<PointerEvent>) {
+    // the finger's last position (none until it touches)
+    let mut finger: [Option<i32>; 2] = [None; 2];
+    let roll = |axis: usize, motion: i32| {
+        let mut pos = position.lock().unwrap_or_else(|e| e.into_inner());
+        pos[axis] = (pos[axis] + motion).rem_euclid(size[axis]);
+        tx.send((0, RawKey::GunAxis(axis as u8), wrapped(pos[axis], size[axis])))
+    };
+    while let Ok(events) = dev.fetch_events() {
+        for ev in events {
+            let sent = match ev.destructure() {
+                EventSummary::RelativeAxis(_, RelativeAxisCode::REL_X, value) if !touchpad => roll(0, value),
+                EventSummary::RelativeAxis(_, RelativeAxisCode::REL_Y, value) if !touchpad => roll(1, value),
+                EventSummary::AbsoluteAxis(_, code @ (AbsoluteAxisCode::ABS_X | AbsoluteAxisCode::ABS_Y), value) if touchpad => {
+                    let axis = (code == AbsoluteAxisCode::ABS_Y) as usize;
+                    match finger[axis].replace(value) {
+                        Some(last) => roll(axis, value - last),
+                        None => continue,
+                    }
+                }
+                EventSummary::Key(_, KeyCode::BTN_TOUCH, _) => {
+                    finger = [None; 2];
+                    continue;
+                }
+                EventSummary::Key(_, code, value) if value != 2 => tx.send((0, RawKey::Key(code.code()), value)),
+                _ => continue,
+            };
+            if sent.is_err() {
+                return;
+            }
+        }
+    }
+    eprintln!("input: trackball device '{}' disconnected", dev.name().unwrap_or("?"));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,5 +305,12 @@ mod tests {
         assert_eq!(normalize(50, 0, 100), (0, false));
         assert_eq!(normalize(-5, 0, 100), (-32768, true));
         assert_eq!(normalize(5, 5, 5), (0, false));
+    }
+
+    #[test]
+    fn wraps() {
+        assert_eq!(wrapped(0, 65536), -32768);
+        assert_eq!(wrapped(65535, 65536), 32767);
+        assert_eq!(wrapped(960, 1920), 0);
     }
 }

@@ -354,6 +354,21 @@ fn fill(state: *mut u8) {
     }
 }
 
+/// The USBIO trackball driver.
+const DRIVER_TRACKBALL: u32 = 3;
+
+/// `GVRInputRawInit` of the 27-export library, loaded by ordinal (PGA TOUR's shell control, init
+/// for "ShellControl"): [`gvr_init`], and the driver at 0x30 the USBIO trackball (the control's
+/// `GetBoardStatus` then reports the board present, 1).
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn gvr_init_ordinal(hwnd: usize, state: *mut u8, game: *const u8) -> i32 {
+    let r = unsafe { gvr_init(hwnd, state, game) };
+    if !state.is_null() {
+        unsafe { put32(state, 0x30, DRIVER_TRACKBALL) };
+    }
+    r
+}
+
 /// `int GVRInputRawInit(HWND, state *, const char *game)`: 0 when a driver is ready.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn gvr_init(_hwnd: usize, state: *mut u8, game: *const u8) -> i32 {

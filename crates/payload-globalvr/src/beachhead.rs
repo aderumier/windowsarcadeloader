@@ -239,7 +239,7 @@ fn c_str(p: *const u8) -> String {
 }
 
 /// The payload's own path.
-fn payload_path() -> String {
+pub(crate) fn payload_path() -> String {
     let mut buf = [0u16; 260];
     let n = unsafe { GetModuleFileNameW(PAYLOAD.load(Ordering::Relaxed) as HINSTANCE, buf.as_mut_ptr(), 260) } as usize;
     String::from_utf16_lossy(&buf[..n])
@@ -247,10 +247,10 @@ fn payload_path() -> String {
 
 /// The game's command line through `wal-loader`, from the shell's `CreateProcessA(app, cmd)`:
 /// `None` for another program.
-fn loader_command(app: &str, cmd: &str, payload: &str) -> Option<String> {
+pub(crate) fn loader_command(app: &str, cmd: &str, payload: &str) -> Option<String> {
     let exe = if app.is_empty() { cmd.split_whitespace().next().unwrap_or("").trim_matches('"') } else { app };
     let lower = exe.to_ascii_lowercase();
-    if !["beach16.exe", "bh2.exe", "desertwar.exe", "sin.exe", "hgx.exe"].iter().any(|game| lower.ends_with(game)) {
+    if !["beach16.exe", "bh2.exe", "desertwar.exe", "sin.exe", "hgx.exe", "pga_tour_golf.exe"].iter().any(|game| lower.ends_with(game)) {
         return None;
     }
     // the arguments: the command line without the program when it starts with it
@@ -368,6 +368,7 @@ unsafe extern "system" fn ole_initialize(reserved: usize) -> i32 {
     let hr = unsafe { orig(reserved) };
     crate::beachhead_save::init();
     crate::amovie::register();
+    crate::gvrnet::register();
     let urlmon = unsafe { LoadLibraryW(wide("urlmon.dll").as_ptr()) } as usize;
     if urlmon != 0
         && let Some(o) = unsafe { iat::hook_module(urlmon, "kernel32.dll", "CreateFileW", create_file as *const () as usize) }
@@ -381,6 +382,7 @@ unsafe extern "system" fn ole_initialize(reserved: usize) -> i32 {
         return hr;
     }
     crate::beachhead_io::hook(control);
+    crate::pga::hook_control(control);
     if let Some(thunk) = license_thunk(control) {
         patch_jump(thunk, license as *const () as usize);
         log!("beachhead: multigame shell licenses (check at {thunk:#x})");

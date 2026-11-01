@@ -98,6 +98,8 @@ struct Mouse {
     device: usize,
     last: Option<std::time::Instant>,
     rest: [f32; 2],
+    /// PGA TOUR: the real mouse's counters (`pga_trackball::counter_motion`)
+    counters: Option<[i16; 2]>,
 }
 
 /// The system mouse devices (one per shell control: the operator menu's frames have several).
@@ -120,7 +122,10 @@ fn mouse_motion(device: P) -> Option<(i32, i32)> {
     mouse.last = Some(now);
     let stick = wal_payload_common::input(0);
     let [rx, ry] = &mut mouse.rest;
-    Some((motion(stick.axis(Axis::LeftX), seconds, rx), motion(stick.axis(Axis::LeftY), seconds, ry)))
+    let (x, y) = (motion(stick.axis(Axis::LeftX), seconds, rx), motion(stick.axis(Axis::LeftY), seconds, ry));
+    // PGA TOUR's trackball also rolls by the mouse (the other games' right stick is a stick)
+    let (mx, my) = if crate::pga::is_dump() { crate::pga_trackball::counter_motion(&stick, &mut mouse.counters) } else { (0, 0) };
+    Some((x + mx, y + my))
 }
 
 /// GUID_SysMouse's first field ({6F1D2B60-D5A0-11CF-BFC7-444553540000}).
@@ -129,11 +134,13 @@ const SYS_MOUSE: u32 = 0x6F1D_2B60;
 const CREATE_DEVICE: usize = 3;
 const GET_DEVICE_STATE: usize = 9;
 const GET_DEVICE_DATA: usize = 10;
+const SET_COOPERATIVE_LEVEL: usize = 13;
 
 static ORIG_CREATE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_DEVICE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_GET_STATE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_GET_DATA: AtomicUsize = AtomicUsize::new(0);
+static ORIG_SET_COOPERATIVE: AtomicUsize = AtomicUsize::new(0);
 
 
 /// Replaces a vtable slot, returns the previous function.
@@ -169,7 +176,7 @@ unsafe extern "system" fn create_device(this: P, guid: *const u32, out: *mut P, 
         let device = unsafe { *out };
         if !guid.is_null() && unsafe { *guid } == SYS_MOUSE {
             if let Ok(mut mice) = MICE.lock() {
-                mice.push(Mouse { device: device as usize, last: None, rest: [0.0; 2] });
+                mice.push(Mouse { device: device as usize, last: None, rest: [0.0; 2], counters: None });
             }
             log!("beachhead: the gun's motion on the system mouse");
         }
@@ -177,13 +184,17 @@ unsafe extern "system" fn create_device(this: P, guid: *const u32, out: *mut P, 
         if ORIG_GET_STATE.load(Ordering::Relaxed) == 0 {
             ORIG_GET_STATE.store(unsafe { patch_slot(device, GET_DEVICE_STATE, get_device_state as *const () as usize) }, Ordering::Relaxed);
             ORIG_GET_DATA.store(unsafe { patch_slot(device, GET_DEVICE_DATA, get_device_data as *const () as usize) }, Ordering::Relaxed);
+            ORIG_SET_COOPERATIVE
+                .store(unsafe { patch_slot(device, SET_COOPERATIVE_LEVEL, set_cooperative_level as *const () as usize) }, Ordering::Relaxed);
         }
     }
     hr
 }
 
 /// `GetDeviceState(this, size, data)`: the system mouse moves by the virtual stick (DIMOUSESTATE:
-/// X, Y, Z, buttons), the other devices see nothing.
+/// X, Y, Z, buttons), the other devices see nothing. Always a success: without the window's
+/// focus the real device is lost, and PGA TOUR's shell control then restarts its DirectInput
+/// and calls its input library's update function it just cleared (a crash).
 unsafe extern "system" fn get_device_state(this: P, size: u32, data: *mut u8) -> i32 {
     let f: unsafe extern "system" fn(P, u32, *mut u8) -> i32 = unsafe { std::mem::transmute(ORIG_GET_STATE.load(Ordering::Relaxed)) };
     let hr = unsafe { f(this, size, data) };
@@ -201,17 +212,27 @@ unsafe extern "system" fn get_device_state(this: P, size: u32, data: *mut u8) ->
         }
         return 0;
     }
-    hr
+    0
 }
 
-/// `GetDeviceData(this, size, data, count, flags)`: no buffered input.
+/// `SetCooperativeLevel(this, hwnd, flags)`: a success. PGA TOUR's shell control restarts its
+/// DirectInput after each game with its window handle no longer valid (E_HANDLE), then fails its
+/// restart and calls an input library function it cleared (a crash).
+unsafe extern "system" fn set_cooperative_level(this: P, hwnd: P, flags: u32) -> i32 {
+    let f: unsafe extern "system" fn(P, P, u32) -> i32 = unsafe { std::mem::transmute(ORIG_SET_COOPERATIVE.load(Ordering::Relaxed)) };
+    unsafe { f(this, hwnd, flags) };
+    0
+}
+
+/// `GetDeviceData(this, size, data, count, flags)`: no buffered input, a success as
+/// [`get_device_state`].
 unsafe extern "system" fn get_device_data(this: P, size: u32, data: P, count: *mut u32, flags: u32) -> i32 {
     let f: unsafe extern "system" fn(P, u32, P, *mut u32, u32) -> i32 = unsafe { std::mem::transmute(ORIG_GET_DATA.load(Ordering::Relaxed)) };
-    let hr = unsafe { f(this, size, data, count, flags) };
+    unsafe { f(this, size, data, count, flags) };
     if !count.is_null() {
         unsafe { *count = 0 };
     }
-    hr
+    0
 }
 
 static ORIG_PEEK: AtomicUsize = AtomicUsize::new(0);

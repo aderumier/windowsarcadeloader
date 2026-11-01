@@ -280,6 +280,9 @@ input:
   guns_mice: 0
   # Mouse motion: a virtual screen of this many pixels spans the whole axis.
   mouse_screen: [1920, 1080]
+  # The mouse position wraps around that virtual screen instead of stopping at its edges: a
+  # trackball's counters (x/y wrap from 32767 to -32768), for the games reading a trackball.
+  mouse_wrap: false
   # Gun/mouse -> virtual stick of its player. Sources: x y (position, -32768 left/top ..
   # 32767), offscreen (gun pointing off the screen), evdev buttons (BTN_LEFT...).
   # Lightgun buttons as batocera-wine-guns: BTN_LEFT trigger, BTN_RIGHT action, BTN_MIDDLE
