@@ -1,0 +1,864 @@
+Windows Registry Editor Version 5.00
+
+; PGA TOUR Golf Championship Edition II (Global VR): the cabinet's registry. The frontend's ActiveX
+; controls (C:\Orion\ShellControl.ocx and Diagnostics.ocx, their regsvr32 registration) and the
+; shell's and game's settings, from the game's install CD (its _Registry, copied to the dump:
+; GVRShell.reg, HKLM EaSports.reg, HKLM EA.reg, HKCU EaSports.reg, HKLM Fonts.reg, and the
+; gvr.net folder's Gvr_Net.reg), with free play (the shell's Pay4Play; its cabinet configuration,
+; payload gvrnet.rs, has free play too) and the installation's settings done (IntlSettingUpdate 0:
+; else the shell resets the cabinet configuration to its factory settings, pay to play, at each
+; start). The install CD's REG_EXPAND_SZ values (hex(2): the courses' files) are plain strings:
+; the game got them as UTF-16 text, its course file was not found and it waited on a "make sure
+; the disc is inserted" box it never showed. Imported at each launch.
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}]
+@="ShellControl Control"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Control]
+@=""
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Implemented Categories\{7DD95801-9882-11CF-9FA9-00AA006C42C4}]
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Implemented Categories\{7DD95802-9882-11CF-9FA9-00AA006C42C4}]
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\InprocServer32]
+@="C:\\Orion\\ShellControl.ocx"
+"ThreadingModel"="Apartment"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\MiscStatus]
+@="0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\MiscStatus\1]
+@="132241"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\ProgID]
+@="SHELLCONTROL.ShellControlCtrl.1"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C205-067B-11D6-B8E9-0040CAB4F670}\Version]
+@="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C206-067B-11D6-B8E9-0040CAB4F670}]
+@="ShellControl Property Page"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\CLSID\{1745C206-067B-11D6-B8E9-0040CAB4F670}\InprocServer32]
+@="C:\\Orion\\ShellControl.ocx"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}]
+@="_DShellControl"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}\ProxyStubClsid32]
+@="{00020420-0000-0000-C000-000000000046}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C203-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+"Version"="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}]
+@="_DShellControlEvents"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}\ProxyStubClsid32]
+@="{00020420-0000-0000-C000-000000000046}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\Interface\{1745C204-067B-11D6-B8E9-0040CAB4F670}\TypeLib]
+@="{1745C202-067B-11D6-B8E9-0040CAB4F670}"
+"Version"="1.0"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\SHELLCONTROL.ShellControlCtrl.1]
+@="ShellControl Control"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\SHELLCONTROL.ShellControlCtrl.1\CLSID]
+@="{1745C205-067B-11D6-B8E9-0040CAB4F670}"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0]
+@="ShellControl ActiveX Control module"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0\0\win32]
+@="C:\\Orion\\ShellControl.ocx"
+
+[HKEY_LOCAL_MACHINE\Software\Classes\TypeLib\{1745C202-067B-11D6-B8E9-0040CAB4F670}\1.0\FLAGS]
+@="0"
+
+; The shells' previous keys removed first (the Beach Head cabinets share them in the prefix: the
+; multigame shell would list the other cabinet's game and scores).
+[-HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell]
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}]
+@="Diagnostics Control"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}\Control]
+@=""
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}\InprocServer32]
+@="C:\\ORION\\DIAGNOSTICS.OCX"
+"ThreadingModel"="Apartment"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}\MiscStatus]
+@="0"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}\MiscStatus\1]
+@="197777"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}\ProgID]
+@="DIAGNOSTICS.DiagnosticsCtrl.1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}\ToolboxBitmap32]
+@="C:\\ORION\\DIAGNOSTICS.OCX, 1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}\TypeLib]
+@="{EB62F794-EB52-4AB5-8843-5DB418D9E9CC}"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{FF282C13-F785-4BC2-8526-87EC0247F6D4}\Version]
+@="1.0"
+
+[HKEY_CLASSES_ROOT\TypeLib\{335AD82C-AF94-48DF-A7F8-E1B0E0770CF8}\1.0\0\win32]
+@="C:\\orion\\Diagnostics.ocx"
+
+
+
+[-HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell]
+"CoinDrop"="c:/tw2002_shell/coin_drop.wav"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Debug]
+"AttractGoodCount"=dword:00000000
+"AttractPauseCount"=dword:00000000
+"AttractTimeoutCount"=dword:00000000
+"AttractStuckPosCount"=dword:00000000
+"Trace0"=dword:00000000
+"Trace1"=dword:00000000
+"Trace2"=dword:00000000
+"Trace3"=dword:00000000
+"Trace4"=dword:00000000
+"TraceStr0"=" "
+"TraceStr1"=" "
+"TraceStr2"=" "
+"TraceStr3"=" "
+"TraceStr4"=" "
+"UseDialer"=dword:00000001
+"IntlSettingUpdate"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator]
+"CurrentGame"="TW2002"
+"Volume"=dword:00000003
+"VolumeAnnouncer"=dword:00000003
+"AttractSound"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Buttons]
+"Operator"=dword:00000020
+"Accept"=dword:00000008
+"Back"=dword:00000004
+"AttractAdvance"=dword:00000001
+"AltCoin"=dword:00000001
+"TurnLeft"=dword:00000002
+"TurnRight"=dword:00000010
+"TurnDown"=dword:00000004
+"Enter"=dword:00000001
+"OpQuick1"=dword:00000002
+"OpQuick2"=dword:00000010
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\GameAudit]
+"RestartTest"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\GameMode]
+"SkillLevel"=dword:00000003
+"MaxSkillLevel"=dword:00000005
+"DelayTime"=dword:00000003
+"DelayTimeOn"=dword:00000001
+"MaxDelayTime"=dword:00000018
+"MinDelayTime"=dword:00000003
+"OpSkillLevel"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\TW2002]
+"Title"="PGA TOUR 2002"
+"Play"="c:/TW2002_Shell/Shell/EABrand/EABrand.html"
+"Exec"="C:/PGA_Tour_Golf/Bin/PGA_Tour_Golf.exe"
+"Menu"="C:/TW2002_Shell/v19_Operator/frame19.html"
+"NoDongle"="c:/TW2002_Shell/Shell/v19_NoDongle/NoDongle.html"
+"GenError"="c:/TW2002_Shell/Shell/GenError/GenError.html"
+"GvrSync"="C:/Tournament/GvrSync/GvrSync.exe"
+"MenuRoot"="C:/TW2002_Shell/v19_Operator/"
+"Code1"=hex:50,47,41,30,32,2E,30,31
+"PRECACHE"="/PRECACHE"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\TW2002\GameSpecific]
+"CurrentGame"="TW2002"
+"MaxCredits"=dword:00000032
+"Credits"=dword:0000000c
+"ContinueCredits"=dword:00000002
+"ShellVar"="1_9_1"
+"WatchVar"=""
+"ControlVar"=""
+"SoundOffVar"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\TW2002\GameSpecific\_Temp]
+"player_total"=dword:00000002
+"play_mode"=dword:00000001
+"golfers"=" /GIDX 0,7 /GIDX 1,0 /GIDX 2,2 /GIDX 3,11"
+"course"=dword:00000000
+"front"=dword:00000002
+"opHost"=dword:00000000
+"buyin"=dword:00000003
+"attract_course"=dword:00000000
+"attract_hole"=dword:00000000
+"CR_mode"=dword:00000000
+"LB_mode"=dword:00000000
+"gameExitStatus"=dword:00000000
+"attract_CR"=dword:00000000
+"RegCurrentPlayer"=dword:00000000
+"TournamentSelected"=dword:00000000
+"PracticeSelected"=dword:00000000
+"SkillSelected"=dword:00000000
+"attract_state"=dword:00000000
+"attract_tID"=dword:00000000
+"attract_courseT"=dword:00000000
+"attract_natlCab"=dword:00000000
+"attract_CRReplay"=dword:00000000
+"TournamentHoles"=dword:00000000
+"TournamentDay"=dword:00000000
+"SkillChallengeSelected"=dword:00000000
+"PlayerSkillLevel"=dword:00000000
+"showLocationSplitIncome"=dword:00000001
+"OpMenu"=dword:00000000
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Credits]
+"Pay4Play"=dword:00000000
+"CreditDisplay"=dword:00000001
+"cDisplayType"=dword:00000000
+"CoinPerMonUnit"=dword:00000003
+"COIN0"=dword:00000003
+"COIN2"=dword:00000008
+"COIN5"=dword:0000000c
+"COIN6"=dword:00000001
+"COIN1"=dword:00000006
+"COIN3"=dword:0000000b
+"COIN4"=dword:0000000c
+"COIN7"=dword:00000010
+"COIN8"=dword:00000014
+"COIN9"=dword:00000003
+"COIN7min"=dword:00000008
+"COIN8min"=dword:00000008
+"CreditsPhantom"=dword:00000000
+"CreditsPhantomMax"=dword:00000064
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Credits\CAN]
+"COIN0"=dword:00000003
+"COIN2"=dword:00000008
+"COIN5"=dword:0000000c
+"COIN6"=dword:00000001
+"COIN1"=dword:00000006
+"COIN3"=dword:0000000b
+"COIN4"=dword:0000000c
+"COIN7"=dword:0000000c
+"COIN8"=dword:00000014
+"COIN9"=dword:00000003
+"COIN7min"=dword:00000008
+"COIN8min"=dword:00000008
+"CoinPerMonUnit"=dword:00000003
+"SkillLevel"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Credits\UK]
+"COIN0"=dword:0000000a
+"COIN2"=dword:00000014
+"COIN5"=dword:00000028
+"COIN6"=dword:00000005
+"COIN1"=dword:00000014
+"COIN3"=dword:0000001e
+"COIN4"=dword:00000028
+"COIN7"=dword:0000001e
+"COIN8"=dword:00000032
+"COIN9"=dword:00000003
+"COIN7min"=dword:00000014
+"COIN8min"=dword:00000014
+"CoinPerMonUnit"=dword:00000009
+"SkillLevel"=dword:00000003
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Credits\USA]
+"COIN0"=dword:00000003
+"COIN2"=dword:00000008
+"COIN5"=dword:0000000c
+"COIN6"=dword:00000001
+"COIN1"=dword:00000006
+"COIN3"=dword:0000000b
+"COIN4"=dword:0000000c
+"COIN7"=dword:00000010
+"COIN8"=dword:00000014
+"COIN9"=dword:00000003
+"COIN7min"=dword:00000008
+"COIN8min"=dword:00000008
+"CoinPerMonUnit"=dword:00000003
+"SkillLevel"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\TW2002\GameSpecific\Debug]
+"LastSyncText"="---"
+"LastSyncText2"=" "
+"LastSyncType"=dword:00000000
+"LastSyncBadTime"=""
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\TW2002\GameSpecific\Factory]
+"Pay4Play"=dword:00000000
+"CreditDisplay"=dword:00000001
+"Volume"=dword:00000003
+"VolumeAnnouncer"=dword:00000003
+"AttractSound"=dword:00000002
+"DelayTime"=dword:00000003
+"DelayTimeOn"=dword:00000001
+"cDisplayType"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\TW2002\GameSpecific\Registration]
+"SyncHour"=dword:00000002
+"LastSyncHour"=dword:00000002
+"LastSyncStatus"=dword:00000000
+"TradeShowRegionID"=dword:00000000
+"TradeShowSyncHours"=dword:00000001
+"TradeShowSyncMinutesBase"=dword:0000000f
+"TradeShowSyncMultiplier"=dword:00000000
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\TW2002\GameSpecific\Tournament]
+"OnLine"=dword:00000001
+"TournamentVersion"=dword:00000001
+"TourChallengeEnabled"=dword:00000000
+"PlayerRegEnabled"=dword:00000001
+"TournamentLBEnabled"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\Operator\Games\TW2002\GameSpecific\Help]
+"HelpTitle"="MAC_"
+"HelpCheck"=dword:00000000
+
+
+; The game's course lists replaced (the shared prefix may hold Championship Edition III's, with
+; four more courses).
+[-HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses]
+[-HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002]
+"CourseManager"="C:\\pga_tour_golf\\Bin"
+"InstallDir"="C:\\pga_tour_golf"
+"SwapFiles"="C:\\pga_tour_golf\\SwapFiles"
+"Movies"="F:"
+"CourseDownload"="http://tiger2002.ea.com/"
+"Language"=dword:00000409
+"Uninstall"="C:\\Program Files\\InstallShield Installation Information\\{6C677A88-ACCE-41F6-ADFA-E48C30718CEB}"
+"Target"="C:\\"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\1.00.000]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Architect]
+"Power Catalog"="C:\\pga_tour_golf\\Data\\Architect\\Power Catalog"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses]
+"SwapFileSize"=hex:
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{130EFFAB-CC76-4D2D-BE04-53A40D000000}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\Scottsdale\\"
+"Name"="TPC of Scottsdale"
+"Text"="C:\\pga_tour_golf\\Courses\\Scottsdale\\Scottsdale.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\pga_tour_golf\\Courses\\Scottsdale\\Scottsdale.tcr"
+"Picture"="C:\\pga_tour_golf\\Courses\\Scottsdale\\Scottsdale.tga"
+"Music"="C:\\pga_tour_golf\\Courses\\Scottsdale\\Scottsdale.mp3"
+"Flag"="C:\\pga_tour_golf\\Courses\\Scottsdale\\flag.dds"
+"GVRID"=dword:0000000c
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{1E885AFC-AA3C-4ED6-97E6-A24C79E222D1}]
+"Name"="Scorpion Ridge Golf Course 2"
+"Filename"="C:\\pga_tour_golf\\Courses\\ScorpionRidge\\Scorpion_Ridge.tcr"
+"Picture"=""
+"Music"=""
+"AVI"=""
+"GVRID"=dword:00000007
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{20AF085F-58E5-4FA9-91FD-7ED425AA1FAF}]
+"Name"="Timber Hill Golf Course"
+"Filename"="C:\\pga_tour_golf\\Courses\\TimberHill\\TimberHill.tcr"
+"Picture"=""
+"Music"=""
+"AVI"=""
+"GVRID"=dword:00000005
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{367B38E5-287F-4082-B9A2-B07FDE275295}]
+"Name"="The Predator Golf Course"
+"Filename"="C:\\pga_tour_golf\\Courses\\Predator\\Predator.tcr"
+"Picture"=""
+"Music"=""
+"AVI"=""
+"GVRID"=dword:0000000e
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{7F7E32C2-7A25-4192-BA2E-78C0980E6CE0}]
+"Name"="The Highlands Golf Course"
+"Filename"="C:\\pga_tour_golf\\Courses\\Highlands\\Highlands.tcr"
+"Picture"=""
+"Music"=""
+"AVI"=""
+"GVRID"=dword:0000000d
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA SPORTS\Tiger Woods PGA TOUR 2002\Courses\{B973192A-A83B-4D5E-82CD-B21DE6A6F575}]
+"Name"="The Black Rock Cove Golf Course"
+"Filename"="C:\\pga_tour_golf\\courses\\blackrockcove\\BRC.tcr"
+"GVRID"=dword:0000000f
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{2B87C216-F322-49DF-8F85-401188900000}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\Bayhill\\"
+"Name"="Bay Hill Club & Lodge"
+"Text"="C:\\pga_tour_golf\\Courses\\BayHill\\BayHill.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\pga_tour_golf\\Courses\\BayHill\\BayHill.tcr"
+"Picture"="C:\\pga_tour_golf\\Courses\\BayHill\\BayHill.tga"
+"Music"="C:\\pga_tour_golf\\Courses\\BayHill\\BayHill.mp3"
+"Flag"="C:\\pga_tour_golf\\Courses\\BayHill\\flag.dds"
+"GVRID"=dword:00000008
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{3FCAE256-4BFE-40C9-BBCD-F6C91A700000}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\Colonial\\"
+"Name"="Colonial Country Club"
+"Text"="C:\\pga_tour_golf\\Courses\\Colonial\\Colonial.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\pga_tour_golf\\Courses\\Colonial\\Colonial.tcr"
+"Picture"="C:\\pga_tour_golf\\Courses\\Colonial\\Colonial.tga"
+"Music"="C:\\pga_tour_golf\\Courses\\Colonial\\Colonial.mp3"
+"Flag"="C:\\pga_tour_golf\\Courses\\Colonial\\flag.dds"
+"GVRID"=dword:00000010
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{836E3C35-F873-47CD-B68B-BB6A9762DACE}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\Sawgrass\\"
+"Name"="TPC at Sawgrass"
+"Text"="C:\\pga_tour_golf\\Courses\\Sawgrass\\Sawgrass.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\pga_tour_golf\\Courses\\Sawgrass\\Sawgrass.tcr"
+"Picture"="C:\\pga_tour_golf\\Courses\\Sawgrass\\Sawgrass.tga"
+"Music"="C:\\pga_tour_golf\\Courses\\Sawgrass\\Sawgrass.mp3"
+"Flag"="C:\\pga_tour_golf\\Courses\\Sawgrass\\flag.dds"
+"GVRID"=dword:00000006
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{C659960D-59F4-40E5-8728-13F621CB9FEE}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\Pebble\\"
+"Name"="Pebble Beach Golf Links"
+"Text"="C:\\pga_tour_golf\\Courses\\Pebble\\Pebble.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\pga_tour_golf\\Courses\\Pebble\\Pebble.tcr"
+"Picture"="C:\\pga_tour_golf\\Courses\\Pebble\\Pebble.tga"
+"Music"="C:\\pga_tour_golf\\Courses\\Pebble\\Pebble.mp3"
+"Flag"="C:\\pga_tour_golf\\Courses\\Pebble\\flag.dds"
+"GVRID"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{E1325FC4-AC08-44D1-8D96-0D2D0610AA1C}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\Sahalee\\"
+"Name"="Sahalee Country Club"
+"Text"="C:\\pga_tour_golf\\Courses\\Sahalee\\Sahalee.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\pga_tour_golf\\Courses\\Sahalee\\Sahalee.tcr"
+"Picture"="C:\\pga_tour_golf\\Courses\\Sahalee\\Sahalee.tga"
+"Music"="C:\\pga_tour_golf\\Courses\\Sahalee\\Sahalee.mp3"
+"Flag"="C:\\pga_tour_golf\\Courses\\Sahalee\\flag.dds"
+"GVRID"=dword:0000000b
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{F81AC867-02E1-4BB1-A756-64024CE9D063}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\STAndrews\\"
+"Filename"="C:\\pga_tour_golf\\Courses\\STAndrews\\standrews.tcr"
+"Flag"="C:\\pga_tour_golf\\Courses\\standrews\\flag.dds"
+"Music"="C:\\pga_tour_golf\\Courses\\StAndrews\\StAndrews.mp3"
+"Name"="St Andrews Golf Links"
+"Picture"="C:\\pga_tour_golf\\Courses\\StAndrews\\standrews.tga"
+"Text"="C:\\pga_tour_golf\\Courses\\StAndrews\\standrews.txt"
+"GVRID"=dword:00000009
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{F97D58E5-EB69-4D60-8353-E569CF2E52FF}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\Spyglass\\"
+"Name"="Spyglass Hill Golf Course"
+"Text"="C:\\pga_tour_golf\\Courses\\Spyglass\\Spyglass.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\pga_tour_golf\\Courses\\Spyglass\\Spyglass.tcr"
+"Picture"="C:\\pga_tour_golf\\Courses\\Spyglass\\Spyglass.tga"
+"Music"="C:\\pga_tour_golf\\Courses\\Spyglass\\Spyglass.mp3"
+"Flag"="C:\\pga_tour_golf\\Courses\\Spyglass\\flag.dds"
+"GVRID"=dword:00000003
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Interface]
+"Machine Settings"=hex:f3,5d,04,00,03,03,03,03,03,03,03,02,00,03,03,00,00,00,\
+  03,03,00,00,03,03,00,02,00,00,03,00,00,00,03,03,03,00,03,03,00,02,02,00,03,\
+  00,00,00,f4,00,0e,06,02,02,1e,02,01,f6,48,8d,1f,48,c0,c2,47,89,4d,2b,08,fc,\
+  0c,e8,d3,64,00,00,00,50,00,00,00,50,00,00,00,32,00,00,00,50,00,00,00,50,00,\
+  00,00,50,00,00,00,01,01,01,01
+"Renderer"=hex:00
+"Render Settings"=hex:7b,c0,07,00,0f,00,00,00,01,02,02,ff,ff,00,00,14,00,00,00,\
+  03,01,00,78,69,00,00,d0,02,00,00,10,0e,00,00,02,00,00,00,50,46,00,00,30,2a,\
+  00,00,00,01,01,01,19,00,00,00,00,00,03,00,00,00,01,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00
+"Hardware Info"=hex:03,00,00,00,ff,03,00,00,00,00,00,07,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,01,00,00,00,00,00,00,00,00,00,02,00,00,00,0a,00,20,00,\
+  00,00,0f,00,00,80,01,00,00,00,f0,be,1b,00,f2,0c,00,00,81,71,b7,00,ff,00,00,\
+  00,ff,1f,00,00,ff,1f,00,00,ff,00,00,00,08,42,08,00,87,ed,07,00,3f,07,03,03,\
+  3f,07,03,03,3f,07,03,01,1f,00,00,00,1f,00,00,00,1f,00,00,00,00,10,00,00,00,\
+  10,00,00,00,02,00,00,00,20,00,00,00,00,00,00,08,00,00,00,f9,02,15,50,20,bc,\
+  be,cc,20,bc,be,cc,20,bc,be,4c,20,bc,be,4c,00,00,00,00,ff,00,00,00,08,00,08,\
+  00,ff,ff,fe,03,08,00,00,00,04,00,00,00,bb,00,00,00,08,00,00,00,00,00,00,00,\
+  04,00,00,00,00,00,00,00,00,00,00,46,ff,ff,0f,00,ff,ff,0f,00,10,00,00,00,00,\
+  01,00,00,01,01,fe,ff,60,00,00,00,03,01,ff,ff,00,00,80,3f
+"HST Defaults"=hex:3b,c0,07,00,00,00,00,00,01,02,02,ff,ff,00,00,14,00,00,00,03,\
+  01,00,78,69,00,00,d0,02,00,00,d0,02,00,00,01,00,00,00,50,46,00,00,30,2a,00,\
+  00,00,01,01,00,19,00,00,00,01,00,03,00,00,00,01,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,00,00,00,00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{3B6069E7-B473-40CC-8D8B-DDD3B2BB4CEB}]
+"Audio"="C:\\pga_tour_golf\\Sounds\\Courses\\RBirkdale\\"
+"Name"="Royal Birkdale Golf Club"
+"Text"="C:\\pga_tour_golf\\Courses\\Birkdale\\Birkdale.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\pga_tour_golf\\Courses\\Birkdale\\Birkdale.tcr"
+"Picture"="C:\\pga_tour_golf\\Courses\\Birkdale\\Birkdale.tga"
+"Music"="C:\\pga_tour_golf\\Courses\\Birkdale\\Birkdale.mp3"
+"Flag"="C:\\pga_tour_golf\\Courses\\Birkdale\\flag.dds"
+"GVRID"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Courses\{CA6C3D1C-61D3-4164-8784-076BEC4C6FF9}]
+"Audio"="C:\\PGA_TOUR_GOLF\\Sounds\\Courses\\Poppy\\"
+"Name"="Poppy Hills Golf Course"
+"Text"="C:\\PGA_TOUR_GOLF\\Courses\\Poppy\\Poppy.txt"
+"Installed"=dword:00000001
+"Filename"="C:\\PGA_TOUR_GOLF\\Courses\\Poppy\\Poppy.tcr"
+"Picture"="C:\\PGA_TOUR_GOLF\\Courses\\Poppy\\Poppy.tga"
+"Music"="C:\\PGA_TOUR_GOLF\\Courses\\Poppy\\Poppy.mp3"
+"Flag"="C:\\PGA_TOUR_GOLF\\Courses\\Poppy\\flag.dds"
+"GVRID"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Language]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{0731E30B-7E70-4747-814E-DDEA67FAB360}]
+"Name"="The Highlands Golf Course"
+"Filename"="C:\\pga_tour_golf\\Courses\\Highlands\\Highlands.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{081EB9F0-D465-4863-A701-9680CF24E3BB}]
+"Name"="The Predator Golf Course"
+"Filename"="C:\\pga_tour_golf\\Courses\\Predator\\Predator.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{0C85CD06-1CE5-48C2-A5C9-BE68754E8B6C}]
+"Name"="TPC at Sawgrass 2003"
+"Filename"="C:\\pga_tour_golf\\Courses\\Sawgrass\\Sawgrass.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{130EFFAB-CC76-4D2D-BE04-53A40D8B92F0}]
+"Name"="TPC of Scottsdale 2003"
+"Filename"="C:\\pga_tour_golf\\Courses\\Scottsdale\\Scottsdale.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{6D00A1D6-4692-47EC-AF67-00DFFECD12D5}]
+"Filename"="C:\\pga_tour_golf\\Courses\\StAndrews\\StAndrews.tcl"
+"Name"="St Andrews Golf Links 2003"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{9446FE48-2C69-47D8-9581-EE4F599D7930}]
+"Name"="Spyglass Hill Golf Course 2003"
+"Filename"="C:\\pga_tour_golf\\Courses\\Spyglass\\Spyglass.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{A7CBDAC8-540C-4BD5-A080-97003321443A}]
+"Name"="Timber Hill Golf Course"
+"Filename"="C:\\pga_tour_golf\\Courses\\TimberHill\\TimberHill.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{B8CFD944-0AB4-478E-82B9-BB0FA621EFBC}]
+"Name"="Scorpion Ridge Golf Course 2"
+"Filename"="C:\\pga_tour_golf\\Courses\\ScorpionRidge\\Scorpion_Ridge.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA SPORTS\Tiger Woods PGA TOUR 2002\Libraries\{AAF6856B-574F-478E-9406-3C79FF272CB1}]
+"Name"="The Black Rock Cove Golf Course"
+"Filename"="C:\\pga_tour_golf\\courses\\blackrockcove\\BRC.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{D5E5986E-21DE-414A-9432-128D7B44AF20}]
+"Name"="Pebble Beach Golf Links 2003"
+"Filename"="C:\\pga_tour_golf\\Courses\\Pebble\\Pebble.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{F0EE4D17-CFEB-40FC-95D0-DE795A5F70BC}]
+"Name"="Sahalee Country Club 2003"
+"Filename"="C:\\pga_tour_golf\\Courses\\Sahalee\\Sahalee.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{3FCAE256-4BFE-40C9-BBCD-F6C91A77AE63}]
+"Name"="Colonial Country Club 2003"
+"Filename"="C:\\pga_tour_golf\\Courses\\Colonial\\Colonial.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{2B87C216-F322-49DF-8F85-401188948F1F}]
+"Name"="Bay Hill Club & Lodge 2003"
+"Filename"="C:\\pga_tour_golf\\Courses\\BayHill\\BayHill.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{6D8E00D2-79CA-4D32-8141-CB2E7B794049}]
+"Name"="Royal Birkdale Golf Club 2003"
+"Filename"="C:\\pga_tour_golf\\Courses\\Birkdale\\Birkdale.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Libraries\{04C88856-E357-4CCC-8494-13C729E7101E}]
+"Name"="Poppy Hills Golf Course 2003"
+"Filename"="C:\\PGA_TOUR_GOLF\\Courses\\Poppy\\Poppy.tcl"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Network]
+"GTSServer"="gts.ea.com"
+"GTSTarget"="gts/CollectorServlet"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Analyst]
+"FileName"="Analyst.stn"
+"InstallDir"="C:\\pga_tour_golf\\Sounds\\Analyst"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Animation]
+"FileName"="anim.stn"
+"InstallDir"="C:\\pga_tour_golf\\bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Announcer]
+"FileName"="Announcer.stn "
+"InstallDir"="C:\\pga_tour_golf\\Sounds\\Announcer"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\AutoCamera]
+"Filename"="d_camera.stn"
+"Installdir"="C:\\pga_tour_golf\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\BallCamera]
+"Filename"="b_camera.stn"
+"Installdir"="C:\\pga_tour_golf\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Basic]
+"FileName"="basic.stn"
+"InstallDir"="C:\\pga_tour_golf\\Sounds\\Basic"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\DynamicCamera]
+"Filename"="d_camera.stn"
+"Installdir"="C:\\pga_tour_golf\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\FixedCamera]
+"Filename"="f_camera.stn"
+"Installdir"="C:\\pga_tour_golf\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\FUser]
+"FileName"="FUser.stn"
+"InstallDir"="C:\\pga_tour_golf\\sounds\\cf2"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Gallery]
+"FileName"="Gallery.stn"
+"InstallDir"="C:\\pga_tour_golf\\Sounds\\Gallery"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Appleby]
+"FileName"="Appleby.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Begay]
+"FileName"="Begay.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Calcavecchia]
+"FileName"="Calcavecchia.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Cink]
+"FileName"="Cink.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Faxon]
+"FileName"="Faxon.stn"
+"InstallDir"="C:\\pga_tour_golf\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Feherty]
+"FileName"="Feherty.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Female1]
+"FileName"="Female1.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Female2]
+"FileName"="Female2.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Female3]
+"FileName"="Female3.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\James]
+"FileName"="James.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Janzen]
+"FileName"="Janzen.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Leonard]
+"FileName"="Leonard.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Macatee]
+"FileName"="Macatee.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Male1]
+"FileName"="Male1.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Montgomerie]
+"FileName"="Montgomerie.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Parnevik]
+"FileName"="Parnevik.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Singh]
+"FileName"="Singh.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Stricker]
+"FileName"="Stricker.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Tiger]
+"FileName"="tiger.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Golfer\Vance]
+"FileName"="Vance.stn"
+"InstallDir"="C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Interface]
+"FileName"=" "
+"InstallDir"="C:\\pga_tour_golf\\Sounds\\Interface"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\Music]
+"FileName"="music.stn"
+"InstallDir"="C:\\pga_tour_golf\\Sounds\\Music"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\SnapCamera]
+"Filename"="s_camera.stn"
+"InstallDir"="C:\\pga_tour_golf\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\Script\StaticCamera]
+"Filename"="s_camera.stn"
+"InstallDir"="C:\\pga_tour_golf\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EA Sports\Tiger Woods PGA TOUR 2002\xOverride]
+
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Electronic Arts]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Electronic Arts\EA Sports]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Electronic Arts\EA Sports\Tiger Woods PGA TOUR 2002]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Electronic Arts\EA Sports\Tiger Woods PGA TOUR 2002\ergc]
+@="1500721742211831970132"
+
+
+
+[HKEY_CURRENT_USER\Software\EA SPORTS]
+
+[HKEY_CURRENT_USER\Software\EA SPORTS\Tiger Woods PGA TOUR 2002]
+
+[HKEY_CURRENT_USER\Software\EA SPORTS\Tiger Woods PGA TOUR 2002\Interface]
+"Metric"=hex:00
+"IndicatorPos8"=hex:86,02,00,00,96,01,00,00
+"Indicator9"=hex:00
+"Indicator10"=hex:00
+"IndicatorPos10"=hex:1d,00,00,00,12,09,00,00
+"IndicatorPos4"=hex:09,00,00,00,07,00,00,00
+"IndicatorPos6"=hex:04,00,00,00,39,02,00,00
+"Indicator1"=hex:00
+"IndicatorPos1"=hex:c0,01,00,00,39,02,00,00
+"Indicator2"=hex:00
+"IndicatorPos2"=hex:c4,02,00,00,39,02,00,00
+"Indicator3"=hex:00
+"IndicatorPos3"=hex:6e,02,00,00,39,02,00,00
+"IndicatorPos7"=hex:23,00,00,00,39,02,00,00
+"IndicatorPos5"=hex:69,00,00,00,39,02,00,00
+"ScreenWidth"=hex:20,03,00,00
+"ScreenHeight"=hex:58,02,00,00
+"IndicatorPos9"=hex:1d,00,00,00,0d,01,00,00
+"Indicator7"=hex:01
+"Indicator11"=hex:00
+"IndicatorPos11"=hex:15,02,00,00,8f,01,00,00
+
+[HKEY_CURRENT_USER\Software\EA SPORTS\Tiger Woods PGA TOUR 2002\Interface\Camera]
+"1"=hex:00,00,00,00,00,00,70,41,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,07,00,07,00,00,00,00,00,00,00,c0,42,00,00,8a,c3
+"2"=hex:ab,aa,2a,3e,00,00,20,41,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,07,00,07,00,00,00,00,00,00,00,b4,43,00,00,07,c4
+"5"=hex:ab,aa,2a,3e,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,05,00,02,00,00,00,00,00,00,00,c0,41,00,00,f0,c2
+"4"=hex:55,55,55,3f,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,02,00,04,\
+  00,96,00,00,00,02,00,07,00,00,00,00,00,00,00,40,41,00,00,70,c2
+"3"=hex:00,00,00,3f,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,02,00,04,\
+  00,96,00,00,00,07,00,07,00,00,00,00,00,00,00,96,45,00,00,96,c5
+"6"=hex:00,00,00,3f,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,01,00,04,\
+  00,96,00,00,00,02,00,07,00,00,00,00,00,00,00,90,42,00,00,34,c3
+"7"=hex:00,00,00,3f,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,01,00,02,00,00,00,00,00,00,00,b4,43,00,00,70,c4
+"8"=hex:00,00,00,3f,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,03,00,04,\
+  00,96,00,00,00,02,00,02,00,00,00,16,44,00,00,b4,43,00,00,70,c4
+"0"=hex:00,00,00,3f,00,00,70,41,00,00,00,00,00,00,00,00,00,00,00,00,01,00,04,\
+  00,96,00,00,00,07,00,08,00,00,00,00,00,00,00,10,43,00,00,8a,c3
+
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts]
+"Aurora Condensed BT (TrueType)"="TT1027M_.TTF"
+"Aurora Bold Condensed BT (TrueType)"="TT1028M_.TTF"
+"AuroraOpti Condensed (TrueType)"="AUOC____.TTF"
+"Wingdings 3 (TrueType)"="WINGDNG3.TTF"
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Tournament]
+"GameID"=dword:00000001
+"GameVersionID"=dword:00000001
+"CabinetSchemaDirectoryPath"="C:/GVR.net/bin/"
+"PlayingConfigurationPath"="C:/Gvr.net/lib/XmlPlayingConfiguration.xsd"
+"CabinetGameResultSchemaPath"="C:/GVR.net/bin/SqlXmlCabinetGameResult.xsd"
+"CabinetConfigSchemaPath"="C:/GVR.net/lib/"
+"InstallationConfigurationPath"="C:/GVR.net/bin/InstallationConfiguration.enc"
+"TimeZones"=hex(7):47,00,4d,00,54,00,20,00,53,00,74,00,61,00,6e,00,64,00,61,00,\
+  72,00,64,00,20,00,54,00,69,00,6d,00,65,00,00,00,53,00,6f,00,75,00,74,00,68,\
+  00,20,00,41,00,66,00,72,00,69,00,63,00,61,00,20,00,53,00,74,00,61,00,6e,00,\
+  64,00,61,00,72,00,64,00,20,00,54,00,69,00,6d,00,65,00,00,00,4e,00,65,00,77,\
+  00,66,00,6f,00,75,00,6e,00,64,00,6c,00,61,00,6e,00,64,00,20,00,53,00,74,00,\
+  61,00,6e,00,64,00,61,00,72,00,64,00,20,00,54,00,69,00,6d,00,65,00,00,00,41,\
+  00,74,00,6c,00,61,00,6e,00,74,00,69,00,63,00,20,00,53,00,74,00,61,00,6e,00,\
+  64,00,61,00,72,00,64,00,20,00,54,00,69,00,6d,00,65,00,00,00,45,00,61,00,73,\
+  00,74,00,65,00,72,00,6e,00,20,00,53,00,74,00,61,00,6e,00,64,00,61,00,72,00,\
+  64,00,20,00,54,00,69,00,6d,00,65,00,00,00,55,00,53,00,20,00,45,00,61,00,73,\
+  00,74,00,65,00,72,00,6e,00,20,00,53,00,74,00,61,00,6e,00,64,00,61,00,72,00,\
+  64,00,20,00,54,00,69,00,6d,00,65,00,00,00,43,00,65,00,6e,00,74,00,72,00,61,\
+  00,6c,00,20,00,53,00,74,00,61,00,6e,00,64,00,61,00,72,00,64,00,20,00,54,00,\
+  69,00,6d,00,65,00,00,00,43,00,61,00,6e,00,61,00,64,00,61,00,20,00,43,00,65,\
+  00,6e,00,74,00,72,00,61,00,6c,00,20,00,53,00,74,00,61,00,6e,00,64,00,61,00,\
+  72,00,64,00,20,00,54,00,69,00,6d,00,65,00,00,00,55,00,53,00,20,00,4d,00,6f,\
+  00,75,00,6e,00,74,00,61,00,69,00,6e,00,20,00,53,00,74,00,61,00,6e,00,64,00,\
+  61,00,72,00,64,00,20,00,54,00,69,00,6d,00,65,00,00,00,4d,00,6f,00,75,00,6e,\
+  00,74,00,61,00,69,00,6e,00,20,00,53,00,74,00,61,00,6e,00,64,00,61,00,72,00,\
+  64,00,20,00,54,00,69,00,6d,00,65,00,00,00,50,00,61,00,63,00,69,00,66,00,69,\
+  00,63,00,20,00,53,00,74,00,61,00,6e,00,64,00,61,00,72,00,64,00,20,00,54,00,\
+  69,00,6d,00,65,00,00,00,41,00,6c,00,61,00,73,00,6b,00,61,00,6e,00,20,00,53,\
+  00,74,00,61,00,6e,00,64,00,61,00,72,00,64,00,20,00,54,00,69,00,6d,00,65,00,\
+  00,00,48,00,61,00,77,00,61,00,69,00,69,00,61,00,6e,00,20,00,53,00,74,00,61,\
+  00,6e,00,64,00,61,00,72,00,64,00,20,00,54,00,69,00,6d,00,65,00,00,00,00,00
+

@@ -8,13 +8,19 @@
 //! * the control: the dongle present (`HaspID` status 0), its country (`GetCountryCode`: the two
 //!   bytes after "CTRY", "US"), its expiry date (`CheckDate`: the day numbers after "DATE"; none:
 //!   no expiry);
-//! * the game: its code, the shell's `Operator\Games\TW2002\Code1` registry value ("PGA02.02"),
-//!   somewhere in the memory (else it quits with exit code 4, "dongle problem").
+//! * the game: its code, the shell's `Operator\Games\TW2002\Code1` registry value ("PGA02.02";
+//!   Championship Edition II: "PGA02.01"), somewhere in the memory (else it quits with exit code 4,
+//!   "dongle problem").
 //!
 //! The shell control starts the game with the payload, through `wal-loader` ([`create_process`]).
 //!
 //! The game shows its window seconds before its Direct3D device (loading the course): the
 //! window's white background was on the screen, painted black ([`black_window`]).
+//!
+//! Championship Edition II's `DXWrap.dll` rounds DirectDraw's video memory up to 16 MB with
+//! `(memory + 8 MB) & 0x0F000000`: from 256 MB on (Wine: up to 4 GB) it is 0, and the display
+//! mode fails ("not enough video memory"). The rounding is replaced by 240 MB
+//! ([`video_memory`]).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -39,10 +45,10 @@ const WRITE_BLOCK: i32 = 51;
 /// The port the dongle answers on when asked for any (0): the first USB key.
 const USB_PORT: i32 = 201;
 
-/// The dongle's memory: the game's code, the country.
+/// The dongle's memory: the games' codes (Championship Edition III, II), the country.
 const fn memory() -> [u8; 0x70] {
     let mut m = [0u8; 0x70];
-    let head = b"PGA02.02CTRYUS";
+    let head = b"PGA02.02PGA02.01CTRYUS";
     let mut i = 0;
     while i < head.len() {
         m[i] = head[i];
@@ -152,7 +158,33 @@ pub(crate) fn init() {
     let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
     hook(base, crate::exe_size(), "pga_tour_golf.exe");
     crate::netds::init(base);
+    video_memory();
     std::thread::spawn(black_window);
+}
+
+/// `add eax, 0x800000; and eax, 0x0F000000` (DXWrap's video memory rounding, Championship
+/// Edition II).
+const VIDEO_MEMORY_ROUNDING: &[u8] = &[0x05, 0x00, 0x00, 0x80, 0x00, 0x25, 0x00, 0x00, 0x00, 0x0F];
+
+/// DXWrap's video memory rounding replaced by `mov eax, 0x0F000000` (240 MB, the most it keeps).
+fn video_memory() {
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(c"DXWrap.dll".as_ptr().cast()) } as usize;
+    if base == 0 {
+        return;
+    }
+    let image = unsafe { std::slice::from_raw_parts(base as *const u8, image_size(base)) };
+    let Some(at) = image.windows(VIDEO_MEMORY_ROUNDING.len()).position(|w| w == VIDEO_MEMORY_ROUNDING) else {
+        return;
+    };
+    let code: [u8; 10] = [0xB8, 0x00, 0x00, 0x00, 0x0F, 0x90, 0x90, 0x90, 0x90, 0x90];
+    let target = base + at;
+    let mut old = 0;
+    unsafe {
+        VirtualProtect(target as *const c_void, code.len(), PAGE_EXECUTE_READWRITE, &mut old);
+        std::ptr::copy_nonoverlapping(code.as_ptr(), target as *mut u8, code.len());
+        VirtualProtect(target as *const c_void, code.len(), old, &mut old);
+    }
+    log!("pga: DXWrap.dll: video memory 240 MB (rounding at {target:#x})");
 }
 
 /// The game's window, once shown: its class background black, filled black.
@@ -241,8 +273,8 @@ mod tests {
     #[test]
     fn memory_layout() {
         let m = super::memory();
-        assert_eq!(&m[..8], b"PGA02.02");
-        assert_eq!(&m[8..14], b"CTRYUS");
+        assert_eq!(&m[..16], b"PGA02.02PGA02.01");
+        assert_eq!(&m[16..22], b"CTRYUS");
         assert!(!m.windows(4).any(|w| w == b"DATE"));
     }
 }
