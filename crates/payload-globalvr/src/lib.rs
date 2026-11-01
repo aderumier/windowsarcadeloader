@@ -35,6 +35,8 @@
 //! * `pga.rs`: PGA TOUR Golf Championship Edition III's dongle and game start; its cabinet
 //!   database faked by `gvrnet.rs` (the shell pages' .NET classes), `gvrnet_api.rs` (the GvrNet*.dll
 //!   copies) and `netds.rs` (the game's data sets); `pga_trackball.rs` its trackball board.
+//! * `ultrapin.rs`: UltraPin's frontend and tables' player (their HASP dongle, the tables started
+//!   with the payload), `ushock.rs` their uShock board.
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
 //! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
 //!   stage changes (`swarm_campaign.rs`: the game started again with the next map) and the
@@ -74,6 +76,11 @@ mod swarm;
 mod swarm_campaign;
 mod swarm_imports;
 mod turret;
+mod ultrapin;
+mod ultrapin_frontend;
+mod ultrapin_movie;
+mod ultrapin_screen;
+mod ushock;
 mod usbio;
 
 use std::ffi::c_void;
@@ -139,6 +146,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         blazing::init();
         madden::init();
         sin::init();
+        ultrapin::init();
         pga::init();
         log!("globalvr: initialized");
     }

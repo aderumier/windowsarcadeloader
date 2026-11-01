@@ -1,0 +1,103 @@
+# UltraPin (Global VR) - template, override values in userprofiles/globalvr/ultrapin.yaml.
+# Global VR's pinball cabinet (2006-2007): 12 tables in a custom Visual Pinball with VPinMAME.
+# The dump: the game disc's install (InstallShield, unpacked with unshield) at the cabinet's
+# path C:\UPin; the frontend (UPin\VisualPinball\data\exe\plfe.exe) starts VPinball.exe per
+# table.
+system: globalvr
+name: UltraPin
+
+payload_loader: true
+
+# The tables' scripts load their machine's scripts with ExecuteGlobal and set callbacks with
+# GetRef, stubs in the runner's VBScript: Microsoft's (Windows Script Host 5.7, in the shared
+# prefix; the other games keep wine's VBScript and JScript).
+tricks: [wsh57]
+
+c_folders:
+  UPin: UPin
+
+# The tables' player draws with DirectDraw / Direct3D 7, its static playfield prerendered
+# off screen: wine's ddraw and d7vk leave most of it black. dgVoodoo 2.76.1 (the dump's System
+# Files/dgVoodoo, from the Beach Head 2000 dump, its watermark off) next to it.
+graphics: dgvoodoo
+files:
+  UPin/VisualPinball/data/exe/DDraw.dll: "{dump}/System Files/dgVoodoo/DDraw.dll"
+  UPin/VisualPinball/data/exe/D3DImm.dll: "{dump}/System Files/dgVoodoo/D3DImm.dll"
+  UPin/VisualPinball/data/exe/dgVoodoo.conf: "{dump}/System Files/dgVoodoo/dgVoodoo.conf"
+
+# VPinMAME (the tables' ROM emulation, a COM server) registered, its DMD drawn through GDI.
+registry: [systemprofiles/globalvr/files/ultrapin/vpinmame.reg]
+
+env:
+  # The cabinet's control board, a DirectInput joystick (the frontend polls its buttons only
+  # when one is there), its buttons in the cabinet's order: coin 1, coin 2, test, service, bill
+  # acceptor, volume up, volume down, -, left flipper 1 / 2, right flipper 1 / 2, start,
+  # plunger, exit game. Its product name: the tables' player turns its accelerometer to the
+  # board's mounting and reads its analog plunger only from "UltraCade Pinball".
+  WAL_DINPUT_WHEEL: UltraCade Pinball
+  WAL_DINPUT_WHEEL_BUTTONS: coin,none,test,service,none,none,none,none,left+b5,b3,right+b6,b4,start,b1,b2
+  WAL_DINPUT_WHEEL_FFB: "0"
+  # X and Y are the nudge accelerometer, Z the analog plunger, all three calibrated in the
+  # operator menu (Game Configuration > Physics Engine Settings; the frontend hands the
+  # calibration to the tables' player): nudge on the right stick, plunger on the left stick
+  # pulled down (the accelerometer's axes are the turned monitor's: X from the stick's up /
+  # down, Y from its left / right, for the upright table)
+  WAL_DINPUT_WHEEL_AXIS: ry
+  WAL_DINPUT_WHEEL_Y_AXIS: rx
+  WAL_DINPUT_WHEEL_Z_AXIS: -ly
+  # the plunger rests near its end, as a spring plunger (the frontend's calibration takes one
+  # resting under 75 % of its travel as not calibrated)
+  WAL_DINPUT_WHEEL_Z_REST: "0.85"
+  # its axes reported as a live accelerometer's: the tables' player ends a table after 3 s
+  # without an axis event (board unplugged)
+  WAL_DINPUT_WHEEL_HEARTBEAT_MS: "500"
+  # the table shown upright, the DMD in the margin at its left (0: sideways, as on the
+  # cabinet's turned monitor, the DMD in the window's top left corner)
+  WAL_ULTRAPIN_ROTATE: "1"
+
+input:
+  # the keyboard's plunger pulled back over a second, as a hand pulls the real one
+  keyboard_ramp_ms: 1000
+  # Keyboard (player 1): Left / Right flippers (Z / X too, Space / Left Shift the second
+  # flippers), Down pulls the plunger back (released: it launches the ball; Left Ctrl is the
+  # plunger button), Up pushes it in, W / S nudge front / back, A / D nudge left / right (the
+  # operator menu's calibration: nudge both ways and push / pull the plunger), Left Alt exit
+  # game, 1 start, 5 coin, F2 operator menu.
+  keyboard:
+    p1:
+      KEY_DOWN: ly
+      KEY_UP: -ly
+      KEY_W: -ry
+      KEY_S: ry
+      KEY_A: -rx
+      KEY_D: rx
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: Left flipper
+  right: Right flipper
+  lx: none
+  ly: Plunger (pull back)
+  rx: Nudge left / right
+  ry: Nudge forward / back
+  b1: Plunger button
+  b2: Exit game
+  b3: Left flipper 2
+  b4: Right flipper 2
+  b5: Left flipper
+  b6: Right flipper
+  b7: none
+  b8: none
+
+options:
+  - title: Display
+    options:
+      - key: WAL_ULTRAPIN_ROTATE
+        label: Rotate the table
+        kind: bool
+        description: >-
+          The table upright on a landscape screen, the DMD at its left. Off: the table sideways,
+          as the cabinet draws it for its monitor turned on its side (for a screen turned the
+          same way), the DMD in its top left corner.

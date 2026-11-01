@@ -250,7 +250,7 @@ pub(crate) fn payload_path() -> String {
 pub(crate) fn loader_command(app: &str, cmd: &str, payload: &str) -> Option<String> {
     let exe = if app.is_empty() { cmd.split_whitespace().next().unwrap_or("").trim_matches('"') } else { app };
     let lower = exe.to_ascii_lowercase();
-    if !["beach16.exe", "bh2.exe", "desertwar.exe", "sin.exe", "hgx.exe", "pga_tour_golf.exe"].iter().any(|game| lower.ends_with(game)) {
+    if !["beach16.exe", "bh2.exe", "desertwar.exe", "sin.exe", "hgx.exe", "vpinball.exe", "pga_tour_golf.exe"].iter().any(|game| lower.ends_with(game)) {
         return None;
     }
     // the arguments: the command line without the program when it starts with it
