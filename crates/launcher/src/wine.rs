@@ -351,6 +351,19 @@ impl Wine {
         if !status.success() {
             bail!("wineboot failed: {status}");
         }
+        // mshtml left out of wineboot also misses its registration: the HTML MIME type and the
+        // .htm/.html extensions (Internet Explorer's file pages: "Could not find object for MIME
+        // text/html", the Global VR shells' blank window)
+        let status = self
+            .command("regsvr32")
+            .args(["/s", "mshtml.dll"])
+            .env("WINEDLLOVERRIDES", "winemenubuilder.exe=;mscoree=")
+            .status()
+            .context("registering mshtml")?;
+        self.wineserver("-w")?;
+        if !status.success() {
+            eprintln!("wine: registering mshtml failed: {status}");
+        }
         Ok(())
     }
 

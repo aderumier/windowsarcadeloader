@@ -32,6 +32,9 @@
 //! * `aliens.rs`: Aliens Extermination's guns and panel (`WAL_GLOBALVR_ALIENS=1`).
 //! * `sin.rs`: SiN's and Heavy Gear II's virtual reality pods (`ogsdll.dll`'s buttons, head
 //!   tracker, recoil, coins; the frontends' dongle).
+//! * `pga.rs`: PGA TOUR Golf Championship Edition III's dongle and game start; its cabinet
+//!   database faked by `gvrnet.rs` (the shell pages' .NET classes), `gvrnet_api.rs` (the GvrNet*.dll
+//!   copies) and `netds.rs` (the game's data sets); `pga_trackball.rs` its trackball board.
 //! * `keyboard.rs`: the game's own keyboard reduced to the operator keys (test menu).
 //! * `swarm.rs`: The Swarm's input adapter (shared memory), `WAL_GLOBALVR_SWARM=1`, and its
 //!   stage changes (`swarm_campaign.rs`: the game started again with the next map) and the
@@ -55,11 +58,16 @@ mod config;
 mod frontend_fit;
 mod gamelog;
 mod gvrinput;
+mod gvrnet;
+mod gvrnet_api;
 mod gvrio;
 mod hasp;
 mod keyboard;
 mod linking;
 mod netcomm;
+mod netds;
+mod pga;
+mod pga_trackball;
 mod sin;
 mod smartcard;
 mod swarm;
@@ -75,6 +83,8 @@ use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 
 pub use gvrinput::*;
+pub use gvrnet_api::*;
+pub use pga_trackball::*;
 pub use gvrio::*;
 pub use linking::*;
 pub use netcomm::*;
@@ -102,10 +112,10 @@ fn module_name(module: HINSTANCE) -> String {
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
-        // the copies installed as gvrNetComm.dll / GvrLinking.dll: their exports only (the
-        // GvrIO.dll copy initializes)
+        // the copies installed as gvrNetComm.dll / GvrLinking.dll and as PGA TOUR's GvrNet*.dll /
+        // UsbTrackerDll.dll: their exports only (the GvrIO.dll copy initializes)
         let name = module_name(module).to_ascii_lowercase();
-        if name == "gvrnetcomm.dll" || name == "gvrlinking.dll" {
+        if name.starts_with("gvrnet") || name == "gvrlinking.dll" || name == "usbtrackerdll.dll" {
             return TRUE;
         }
         wal_payload_common::start("globalvr");
@@ -129,6 +139,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         blazing::init();
         madden::init();
         sin::init();
+        pga::init();
         log!("globalvr: initialized");
     }
     TRUE

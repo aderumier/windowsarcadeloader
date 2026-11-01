@@ -130,7 +130,7 @@ impl<'a> Hub<'a> {
         let pointers = if config.input.guns_enabled {
             let m = mapping::compile(&config.input.gun, mapping::parse_gun_source).context("input.gun")?;
             let (tx, rx) = channel();
-            let found = guns::start(config.input.guns_mouse, config.input.guns_mice, config.input.mouse_screen, tx);
+            let found = guns::start(config.input.guns_mouse, config.input.guns_mice, config.input.mouse_screen, config.input.mouse_wrap, tx);
             if found.is_empty() {
                 eprintln!("input: no lightgun or mouse found");
             }

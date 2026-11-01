@@ -146,6 +146,10 @@ fn fill(rec: &mut [u8; RECORD_SIZE]) {
 /// `CUSBIO::CUSBIO()`
 #[unsafe(no_mangle)]
 pub unsafe extern "thiscall" fn cusbio_new(this: *mut u32) -> *mut u32 {
+    // PGA TOUR's trackball board (pga_trackball.rs): the engine's object, nothing to set
+    if crate::pga_trackball::active() {
+        return this;
+    }
     unsafe {
         *this = 0;
         *this.add(1) = 0;
@@ -160,6 +164,9 @@ pub unsafe extern "thiscall" fn cusbio_drop(_this: *mut u32) {}
 /// `int CUSBIO::CUSBIO_Init()`: number of boards found.
 #[unsafe(no_mangle)]
 pub unsafe extern "thiscall" fn cusbio_init(this: *mut u32) -> i32 {
+    if crate::pga_trackball::active() {
+        return unsafe { crate::pga_trackball::init(this.cast()) };
+    }
     let rec = records();
     unsafe {
         *this = DEVICES as u32;
