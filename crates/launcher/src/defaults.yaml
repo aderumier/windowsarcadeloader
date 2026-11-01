@@ -52,11 +52,11 @@ lib32_dirs: []
 lib64_dirs: []
 # winetricks verbs installed in the prefix for all the games (applied once, recorded in
 # <prefix>/.wal-tricks): every game's `tricks` (a test checks it). Their native DLLs serve
-# every game, except dsound's and directplay's: native only for the games listing them.
+# every game, except dsound's, directplay's and wsh57's: native only for the games listing them.
 prefix_tricks: [
   dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound,
   dswave, dsdmo, gmdls, d3dcompiler_42, d3dcompiler_43, d3dcompiler_47, d3dx9_31, d3dx9_33, d3dx9_37, d3dx9_42, d3dx9_43, xact, fakejapanese,
-  directplay, physx, vcrun2010, d3dx9_40, d3dx10_43, d3dx11_43, d3dx9_32,
+  directplay, physx, vcrun2010, d3dx9_40, d3dx10_43, d3dx11_43, d3dx9_32, wsh57,
 ]
 # winetricks verbs the game needs (installed when the prefix does not have them yet): the
 # record of each game's needs (its native DLLs), even when prefix_tricks already has them.
