@@ -25,6 +25,14 @@
 //! (`none` for an unused one, `b1+start` pressed by either; default: b1-b8, start, coin,
 //! service, test).
 //! `WAL_DINPUT_WHEEL_FFB=0`: no force feedback (`CreateEffect` unsupported).
+//! The wheel's buffered data (`GetDeviceData`) reports its objects' changes;
+//! `WAL_DINPUT_WHEEL_HEARTBEAT_MS=<ms>` re-reports every axis that often (Visual Pinball takes
+//! an axis silent for 3 s as its nudge board unplugged).
+//! `WAL_DINPUT_WHEEL_<X|Y|Z|RX|RY|RZ>_REST=<0..1>`: where the axis rests in its raw range (a
+//! spring plunger near its end), each half of the stick spanning one side. The wheel keeps the
+//! calibration a game sets (`DIPROP_CALIBRATION`, in the registry, for the other programs) and
+//! applies it, raw values in `DIPROP_CALIBRATIONMODE` raw; its names (`DIPROP_PRODUCTNAME` /
+//! `DIPROP_INSTANCENAME`) are its product name.
 //! `WAL_DINPUT_WHEEL_VIDPID=<vid>:<pid>` (hex): the USB ids in its product GUID (Blazing Angels
 //! picks its controls layout by the vendor id: the cabinet board's, 1ab7).
 //!
@@ -363,8 +371,8 @@ unsafe extern "system" fn enum_by_semantics(_this: P, _user: P, _format: P, cb: 
     DI_OK
 }
 
-/// IDirectInput8 (IDirectInputA/2/7 share the first 8 slots; IDirectInput7's CreateDeviceEx
-/// sits where FindDevice is, with one more argument: not used by these games).
+/// IDirectInput8 (IDirectInputA/2/7 share the first 9 slots; IDirectInput7's CreateDeviceEx
+/// sits where EnumDevicesBySemantics is: [`seven`]).
 static DINPUT_VTABLE: VTable<11> = VTable([
     query_interface as *const (),
     ref_count as *const (), // AddRef
@@ -380,8 +388,42 @@ static DINPUT_VTABLE: VTable<11> = VTable([
 ]);
 static DINPUT: Object = Object { vtable: DINPUT_VTABLE.0.as_ptr() };
 
+/// `IDirectInput7::CreateDeviceEx(rguid, riid, ppv, outer)` (the slot of IDirectInput8's
+/// EnumDevicesBySemantics): the interface's own `CreateDevice` (slot 3), the device interface
+/// asked for being the fake device's (a superset of the older ones).
+unsafe extern "system" fn create_device_ex(this: P, guid: *const u8, _iid: *const u8, out: *mut P, outer: P) -> i32 {
+    type CreateDevice = unsafe extern "system" fn(P, *const u8, *mut P, P) -> i32;
+    let create: CreateDevice = unsafe { std::mem::transmute(*(*(this as *const Object)).vtable.add(3)) };
+    unsafe { create(this, guid, out, outer) }
+}
+
+/// The IDirectInput7 of a fake IDirectInput8 (`dinput`): its vtable with CreateDeviceEx in
+/// slot 9 (Visual Pinball creates its devices that way), made once per interface.
+fn seven(dinput: &'static Object) -> &'static Object {
+    static MADE: std::sync::Mutex<Vec<(usize, usize)>> = std::sync::Mutex::new(Vec::new());
+    let mut made = MADE.lock().unwrap_or_else(|e| e.into_inner());
+    let key = dinput as *const Object as usize;
+    if let Some(&(_, object)) = made.iter().find(|(k, _)| *k == key) {
+        return unsafe { &*(object as *const Object) };
+    }
+    let mut slots = [std::ptr::null::<()>(); 11];
+    for (i, slot) in slots.iter_mut().enumerate() {
+        *slot = unsafe { *dinput.vtable.add(i) };
+    }
+    slots[9] = create_device_ex as *const ();
+    let vtable: &'static VTable<11> = Box::leak(Box::new(VTable(slots)));
+    let object: &'static Object = Box::leak(Box::new(Object { vtable: vtable.0.as_ptr() }));
+    made.push((key, object as *const Object as usize));
+    object
+}
+
 /// `wide`: the game asked for a Unicode interface (its EnumDevices / EnumObjects structures).
 fn fake(out: *mut P, wide: bool) -> i32 {
+    fake_version(out, wide, false)
+}
+
+/// `di7`: the game asked for IDirectInput7 (CreateDeviceEx in slot 9).
+fn fake_version(out: *mut P, wide: bool, di7: bool) -> i32 {
     if out.is_null() {
         return DIERR_DEVICENOTREG;
     }
@@ -399,6 +441,7 @@ fn fake(out: *mut P, wide: bool) -> i32 {
         (false, true, true) => &wheel::DINPUT_W,
         (false, false, _) => &DINPUT,
     };
+    let dinput = if di7 { seven(dinput) } else { dinput };
     unsafe { *out = dinput as *const Object as P };
     log!("dinput: game got the fake DirectInput{}", if wide { " (W)" } else { "" });
     DI_OK
@@ -419,7 +462,9 @@ unsafe extern "system" fn create_w(_instance: P, _version: u32, out: *mut P, _ou
 /// first field.
 unsafe extern "system" fn create_iid(_instance: P, _version: u32, iid: *const u32, out: *mut P, _outer: P) -> i32 {
     let wide = !iid.is_null() && matches!(unsafe { *iid }, 0xBF79_8031 | 0x9A4C_B685 | 0x5944_E663 | 0x8952_1361);
-    fake(out, wide)
+    // IID_IDirectInput7A / W
+    let di7 = !iid.is_null() && matches!(unsafe { *iid }, 0x9A4C_B684 | 0x9A4C_B685);
+    fake_version(out, wide, di7)
 }
 
 static ORIG_GET_PROC_ADDRESS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
@@ -520,6 +565,16 @@ mod wheel {
     ];
     /// (min, max) of the axes, set by the game.
     static RANGES: [(AtomicI32, AtomicI32); AXIS_COUNT] = [const { (AtomicI32::new(0), AtomicI32::new(65535)) }; AXIS_COUNT];
+    /// `WAL_DINPUT_WHEEL_<axis>_REST=<0..1>`: where an axis rests in its raw range (default the
+    /// middle): the stick's half on each side of it (a spring plunger rests near its end).
+    static REST: [AtomicI32; AXIS_COUNT] = [const { AtomicI32::new(-1) }; AXIS_COUNT];
+    /// DIPROP_CALIBRATIONMODE: raw values (the device's 0-65535), else cooked (calibrated, in
+    /// the game's range).
+    static RAW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    /// DIPROP_CALIBRATION of each axis (raw min, center, max), kept in the registry as Windows
+    /// keeps a joystick's: the program calibrating it (UltraPin's frontend) is not the one
+    /// reading it (its tables' player).
+    static CALIBRATION: std::sync::Mutex<[Option<[i32; 3]>; AXIS_COUNT]> = std::sync::Mutex::new([None; AXIS_COUNT]);
     /// The axes listed: X, Y, Z, plus the mapped rotation axes (Rx, Ry, Rz).
     static LISTED_AXES: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(3);
     /// `WAL_DINPUT_WHEEL_BUTTONS`: the virtual stick button of each DirectInput button (0: none).
@@ -549,6 +604,8 @@ mod wheel {
     /// DIDFT_ABSAXIS
     const ABS_AXIS: u32 = 2;
     const DIPROP_RANGE: usize = 4;
+    const DIPROP_CALIBRATIONMODE: usize = 10;
+    const DIPROP_CALIBRATION: usize = 11;
     const DIPH_BYOFFSET: u32 = 1;
     const DIPH_BYID: u32 = 2;
     const DIERR_NOTFOUND: i32 = 0x8007_0002u32 as i32;
@@ -604,6 +661,18 @@ mod wheel {
         }
         log!("dinput: wheel {name:?}");
         let _ = NAME.set(name);
+        for (i, axis) in ["X", "Y", "Z", "RX", "RY", "RZ"].into_iter().enumerate() {
+            if let Some(rest) = std::env::var(format!("WAL_DINPUT_WHEEL_{axis}_REST")).ok().and_then(|v| v.trim().parse::<f32>().ok()) {
+                REST[i].store((rest.clamp(0.0, 1.0) * 65535.0) as i32, Ordering::Relaxed);
+            }
+        }
+        let mut calibration = CALIBRATION.lock().unwrap_or_else(|e| e.into_inner());
+        for (i, slot) in calibration.iter_mut().enumerate() {
+            *slot = calibration_key::load(i);
+        }
+        if calibration.iter().any(Option::is_some) {
+            log!("dinput: wheel calibration {:?}", *calibration);
+        }
     }
 
     fn name() -> &'static str {
@@ -804,7 +873,7 @@ mod wheel {
         (axis < LISTED_AXES.load(Ordering::Relaxed)).then_some(axis)
     }
 
-    /// `GetProperty(rguidProp, pdiph)`: the axis ranges.
+    /// `GetProperty(rguidProp, pdiph)`: the axis ranges, the names.
     unsafe extern "system" fn get_property(_this: P, prop: usize, header: *mut u32) -> i32 {
         {
             static LOGGED: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
@@ -813,6 +882,28 @@ mod wheel {
                 logged.push(prop);
                 log!("dinput: wheel GetProperty({prop})");
             }
+        }
+        if prop == DIPROP_CALIBRATIONMODE && !header.is_null() {
+            unsafe { *header.add(4) = RAW.load(Ordering::Relaxed) as u32 };
+            return DI_OK;
+        }
+        if prop == DIPROP_CALIBRATION && !header.is_null() {
+            let Some(axis) = (unsafe { header_axis(header) }) else { return DIERR_NOTFOUND };
+            let values = CALIBRATION.lock().unwrap_or_else(|e| e.into_inner())[axis].unwrap_or([0, 32768, 65535]);
+            for (i, v) in values.into_iter().enumerate() {
+                unsafe { *header.add(4 + i) = v as u32 };
+            }
+            return DI_OK;
+        }
+        // DIPROP_INSTANCENAME / DIPROP_PRODUCTNAME (DIPROPSTRING: the header, WCHAR[260]): the
+        // wheel's name (Visual Pinball turns its accelerometer and reads its plunger only for the
+        // cabinet controller's)
+        if matches!(prop, 13 | 14) && !header.is_null() {
+            let text = header.wrapping_add(4) as *mut u16;
+            for (i, c) in name().encode_utf16().take(259).chain(std::iter::once(0)).enumerate() {
+                unsafe { text.add(i).write_unaligned(c) };
+            }
+            return DI_OK;
         }
         // DIPROP_PHYSICALRANGE / DIPROP_LOGICALRANGE: the range too
         if !matches!(prop, DIPROP_RANGE | 18 | 19) || header.is_null() {
@@ -830,6 +921,20 @@ mod wheel {
     unsafe extern "system" fn set_property(_this: P, prop: usize, header: *const u32) -> i32 {
         if prop != DIPROP_RANGE && !header.is_null() {
             log!("dinput: wheel SetProperty({prop}, value {:#x})", unsafe { *header.add(4) });
+        }
+        // DIPROP_CALIBRATIONMODE (DIPROPDWORD): 1 raw, 0 cooked
+        if prop == DIPROP_CALIBRATIONMODE && !header.is_null() {
+            RAW.store(unsafe { *header.add(4) } == 1, Ordering::Relaxed);
+            return DI_OK;
+        }
+        // DIPROP_CALIBRATION (DIPROPCAL): lMin, lCenter, lMax of an axis
+        if prop == DIPROP_CALIBRATION && !header.is_null() {
+            let Some(axis) = (unsafe { header_axis(header as *mut u32) }) else { return DIERR_NOTFOUND };
+            let values = unsafe { [*header.add(4) as i32, *header.add(5) as i32, *header.add(6) as i32] };
+            log!("dinput: wheel axis {axis} calibration {values:?}");
+            CALIBRATION.lock().unwrap_or_else(|e| e.into_inner())[axis] = Some(values);
+            calibration_key::save(axis, values);
+            return DI_OK;
         }
         if prop != DIPROP_RANGE || header.is_null() {
             return DI_OK;
@@ -850,9 +955,81 @@ mod wheel {
         DI_OK
     }
 
+    /// A stick value moved to the axis' rest (`REST`): each half of the stick spans the raw range
+    /// on its side of it.
+    fn rested(axis: usize, v: u16) -> u16 {
+        let rest = REST[axis].load(Ordering::Relaxed);
+        if rest < 0 {
+            return v;
+        }
+        let v = v as i32;
+        (if v >= 32768 { rest + (v - 32768) * (65535 - rest) / 32767 } else { v * rest / 32768 }) as u16
+    }
+
+    /// A raw value in the game's terms: itself in raw mode, else mapped to the axis' range
+    /// through its calibration (its center to the range's middle), else linearly.
     fn scaled(axis: usize, v: u16) -> i32 {
+        if RAW.load(Ordering::Relaxed) {
+            return v as i32;
+        }
         let (min, max) = (RANGES[axis].0.load(Ordering::Relaxed) as i64, RANGES[axis].1.load(Ordering::Relaxed) as i64);
+        let calibration = CALIBRATION.lock().unwrap_or_else(|e| e.into_inner())[axis];
+        if let Some([lo, center, hi]) = calibration.map(|c| c.map(i64::from)).filter(|[lo, c, hi]| lo < c && c < hi) {
+            let (v, mid) = (v as i64, (min + max) / 2);
+            let cooked = if v <= center {
+                mid - (mid - min) * (center - v.max(lo)) / (center - lo)
+            } else {
+                mid + (max - mid) * (v.min(hi) - center) / (hi - center)
+            };
+            return cooked as i32;
+        }
         (min + (max - min) * v as i64 / 65535) as i32
+    }
+
+    /// The wheel's calibration in the registry (`HKCU\\Software\\WindowsArcadeLoader\\DirectInput\\
+    /// <wheel name>`, a binary `CalibrationN` per axis: min, center, max).
+    mod calibration_key {
+        use windows_sys::Win32::System::Registry::{
+            HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_BINARY, REG_OPTION_NON_VOLATILE, RegCloseKey,
+            RegCreateKeyExW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
+        };
+
+        fn wide(s: &str) -> Vec<u16> {
+            s.encode_utf16().chain(std::iter::once(0)).collect()
+        }
+
+        fn path() -> Vec<u16> {
+            wide(&format!("Software\\WindowsArcadeLoader\\DirectInput\\{}", super::name()))
+        }
+
+        pub(super) fn load(axis: usize) -> Option<[i32; 3]> {
+            let mut key: HKEY = std::ptr::null_mut();
+            if unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, path().as_ptr(), 0, KEY_QUERY_VALUE, &mut key) } != 0 {
+                return None;
+            }
+            let mut data = [0i32; 3];
+            let mut size = 12u32;
+            let name = wide(&format!("Calibration{axis}"));
+            let found = unsafe { RegQueryValueExW(key, name.as_ptr(), std::ptr::null(), std::ptr::null_mut(), data.as_mut_ptr().cast(), &mut size) } == 0
+                && size == 12;
+            unsafe { RegCloseKey(key) };
+            found.then_some(data)
+        }
+
+        pub(super) fn save(axis: usize, values: [i32; 3]) {
+            let mut key: HKEY = std::ptr::null_mut();
+            let created = unsafe {
+                RegCreateKeyExW(HKEY_CURRENT_USER, path().as_ptr(), 0, std::ptr::null(), REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, std::ptr::null(), &mut key, std::ptr::null_mut())
+            };
+            if created != 0 {
+                return;
+            }
+            let name = wide(&format!("Calibration{axis}"));
+            unsafe {
+                RegSetValueExW(key, name.as_ptr(), 0, REG_BINARY, values.as_ptr().cast(), 12);
+                RegCloseKey(key);
+            }
+        }
     }
 
     /// An object of the game's data format: what goes at which offset.
@@ -935,7 +1112,7 @@ mod wheel {
             let mapped = INPUT_AXES[i].load(Ordering::Relaxed);
             let value = if mapped & 0x7f == 0x7f { 0 } else {
                 let value = stick.axis_u16(Axis::ALL[(mapped & 0x7f) as usize]);
-                if mapped & 0x80 != 0 { !value } else { value }
+                rested(i, if mapped & 0x80 != 0 { !value } else { value })
             };
             scaled(i, value)
         });
@@ -1006,6 +1183,86 @@ mod wheel {
                 }
             }
         }
+        DI_OK
+    }
+
+    /// The values `GetDeviceData` last reported (the state laid out as `GetDeviceState`
+    /// writes it), and when every axis was last reported.
+    static REPORTED: std::sync::Mutex<(Vec<u8>, u32)> = std::sync::Mutex::new((Vec::new(), 0));
+    static SEQUENCE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+    /// `WAL_DINPUT_WHEEL_HEARTBEAT_MS`: every axis also reported that often, changed or not
+    /// (a real accelerometer's noise: Visual Pinball takes 3 s without an axis event as its
+    /// nudge board unplugged and ends the table).
+    fn heartbeat_ms() -> u32 {
+        static MS: OnceLock<u32> = OnceLock::new();
+        *MS.get_or_init(|| std::env::var("WAL_DINPUT_WHEEL_HEARTBEAT_MS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0))
+    }
+
+    /// `GetDeviceData(cbObjectData, rgdod, pdwInOut, dwFlags)`: the buffered events, one
+    /// DIDEVICEOBJECTDATA (offset, value, time stamp, sequence, DirectInput 8's app data) per
+    /// object of the data format whose value changed since the previous call (DIGDD_PEEK: kept).
+    unsafe extern "system" fn get_device_data(this: P, obj_size: u32, data: *mut u8, count: *mut u32, flags: u32) -> i32 {
+        const DIGDD_PEEK: u32 = 1;
+        if count.is_null() {
+            return DI_OK;
+        }
+        // the objects (DIJOYSTATE's layout without a format) and the state they read
+        let fields: Vec<(Field, usize)> = FORMAT.lock().unwrap().clone().unwrap_or_else(|| {
+            let axes = (0..LISTED_AXES.load(Ordering::Relaxed)).map(|a| (Field::Axis(a), 4 * a));
+            axes.chain((0..32).map(|b| (Field::Button(b), 0x30 + b))).collect()
+        });
+        let len = fields.iter().map(|&(_, o)| o + 4).max().unwrap_or(0).max(0x50);
+        let mut state = vec![0u8; len];
+        unsafe { get_device_state(this, len as u32, state.as_mut_ptr()) };
+        let now = unsafe { windows_sys::Win32::System::SystemInformation::GetTickCount() };
+        let mut reported = REPORTED.lock().unwrap_or_else(|e| e.into_inner());
+        if reported.0.len() != len {
+            // the axes reported at once, the buttons only when they change (an event per
+            // released button would be a release never pressed: Visual Pinball toggles its
+            // joystick ball control on button 7's)
+            *reported = (vec![0xAA; len], now);
+            for &(field, offset) in &fields {
+                if let Field::Button(_) = field {
+                    reported.0[offset] = state[offset];
+                }
+            }
+        }
+        let heartbeat = heartbeat_ms() != 0 && now.wrapping_sub(reported.1) >= heartbeat_ms();
+        let mut events = Vec::new();
+        for &(field, offset) in &fields {
+            let (value, last, axis) = match field {
+                Field::Axis(_) => (u32::from_le_bytes(state[offset..offset + 4].try_into().unwrap()), u32::from_le_bytes(reported.0[offset..offset + 4].try_into().unwrap()), true),
+                Field::Button(_) => (state[offset] as u32, reported.0[offset] as u32, false),
+                Field::Pov => continue,
+            };
+            if value != last || (axis && heartbeat) {
+                events.push((offset, value, axis));
+            }
+        }
+        let capacity = unsafe { *count } as usize;
+        let n = events.len().min(capacity);
+        let size = (obj_size as usize).max(16);
+        for (i, &(offset, value, _)) in events.iter().take(n).enumerate() {
+            if !data.is_null() {
+                let sequence = if flags & DIGDD_PEEK == 0 { SEQUENCE.fetch_add(1, Ordering::Relaxed) } else { SEQUENCE.load(Ordering::Relaxed) };
+                unsafe {
+                    let e = data.add(i * size);
+                    std::ptr::write_bytes(e, 0, size);
+                    for (k, v) in [offset as u32, value, now, sequence].into_iter().enumerate() {
+                        (e.add(4 * k) as *mut u32).write_unaligned(v);
+                    }
+                }
+            }
+            if flags & DIGDD_PEEK == 0 {
+                let width = if events[i].2 { 4 } else { 1 };
+                reported.0[offset..offset + width].copy_from_slice(&state[offset..offset + width]);
+            }
+        }
+        if heartbeat && flags & DIGDD_PEEK == 0 && n == events.len() {
+            reported.1 = now;
+        }
+        unsafe { *count = n as u32 };
         DI_OK
     }
 
@@ -1176,6 +1433,7 @@ mod wheel {
         v[5] = get_property as *const ();
         v[6] = set_property as *const ();
         v[9] = get_device_state as *const ();
+        v[10] = get_device_data as *const ();
         v[11] = set_data_format as *const ();
         v[15] = get_device_info as *const ();
         // DirectInput 7/8 force feedback
