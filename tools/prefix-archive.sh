@@ -5,15 +5,17 @@
 # machine's launcher.yaml: use the same runner on the target.
 # OUT's version (OUT without .tar.gz, plus .version: a build timestamp) makes the launcher
 # replace prefixes unpacked from an older archive (saves and run directories kept).
-# Usage: tools/prefix-archive.sh [OUT]   (run ./build.sh first)
+# Usage: tools/prefix-archive.sh [OUT [GAME]]   (run ./build.sh first; GAME: a game of the
+# prefix, e.g. redline-rampage for wine-prefix/dotnet11.tar.gz)
 set -e
 cd "$(dirname "$0")/.."
 OUT=${1:-wine-prefix/full.tar.gz}
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-# any game of the shared prefix: prepare installs prefix_tricks
+# any game of the prefix (the shared one's by default): prepare installs prefix_tricks
+GAME=${2:-puzzle-bobble}
 printf 'prefix: %s\n' "$TMP/prefix" > "$TMP/layer.yaml"
-dist/arcade-launcher prepare puzzle-bobble --profile "$TMP/layer.yaml"
+dist/arcade-launcher prepare "$GAME" --profile "$TMP/layer.yaml"
 mkdir -p "$(dirname "$OUT")"
 tar czf "$OUT.tmp" -C "$TMP/prefix" .
 mv "$OUT.tmp" "$OUT"

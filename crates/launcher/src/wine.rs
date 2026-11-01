@@ -31,8 +31,9 @@ pub struct Wine {
 const D3D_DLLS: [&str; 5] = ["d3d8", "d3d9", "d3d10core", "d3d11", "dxgi"];
 
 /// Verbs whose native DLLs break other games: native only for the games listing them
-/// (native DirectPlay: kept away from the games that never needed it).
-const ISOLATED_TRICKS: [&str; 2] = ["dsound", "directplay"];
+/// (native DirectPlay: kept away from the games that never needed it; Microsoft's scripting
+/// (`wsh57`): the other games keep wine's).
+const ISOLATED_TRICKS: [&str; 3] = ["dsound", "directplay", "wsh57"];
 
 /// Registry settings applied right after a winetricks verb (`reg add` arguments), for verbs
 /// whose defaults would affect the other games of the shared prefix.
@@ -72,6 +73,7 @@ fn trick_dlls(verb: &str) -> Vec<String> {
         // registrations, sound bank, fonts: no DLL override
         "dsdmo" | "gmdls" | "fakejapanese" => vec![],
         "dotnet11" => dotnet11::DLLS.map(String::from).to_vec(),
+        "wsh57" => ["jscript", "scrrun", "vbscript", "cscript.exe", "wscript.exe"].map(String::from).to_vec(),
         _ => vec![verb.into()],
     }
 }
