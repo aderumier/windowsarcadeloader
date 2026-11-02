@@ -17,12 +17,15 @@ const MODE_TIME_ATTACK: u64 = 2;
 pub enum Game {
     Wm5,
     Wm5Dx,
+    Wm5DxPlus,
 }
 
 /// The field numbers that differ between the versions: the car record (`LoadCarResponse`),
 /// `Car`, `SaveGameResultRequest`.
 pub(crate) struct Schema {
     pub(crate) game: Game,
+    /// RankingType: the time attack courses.
+    pub(crate) ta_courses: u64,
     /// LoadCarResponse: its required counters (before the game's own), the setting, odometer,
     /// play count, custom color, the first versus / ghost battle / story counters, the owned
     /// items, the aura motif auto change.
@@ -61,6 +64,7 @@ pub(crate) struct Schema {
 
 const WM5: Schema = Schema {
     game: Game::Wm5,
+    ta_courses: 24,
     record_required: &[3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 46],
     setting: 8,
     odometer: 4,
@@ -91,6 +95,7 @@ const WM5: Schema = Schema {
 /// past cleared regions (56), screenshots (53).
 const WM5DX: Schema = Schema {
     game: Game::Wm5Dx,
+    ta_courses: 24,
     record_required: &[3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 29, 30, 34, 35, 36, 37, 38, 39, 40, 41, 51, 53, 56],
     setting: 10,
     odometer: 6,
@@ -117,10 +122,17 @@ const WM5DX: Schema = Schema {
     save_rg: 25,
 };
 
+/// 5DX+: 5DX's fields, a 25th time attack course.
+const WM5DXP: Schema = Schema { game: Game::Wm5DxPlus, ta_courses: 25, ..WM5DX };
+
 static SCHEMA: std::sync::OnceLock<&'static Schema> = std::sync::OnceLock::new();
 
 pub(crate) fn set_game(game: Game) {
-    let _ = SCHEMA.set(if game == Game::Wm5Dx { &WM5DX } else { &WM5 });
+    let _ = SCHEMA.set(match game {
+        Game::Wm5 => &WM5,
+        Game::Wm5Dx => &WM5DX,
+        Game::Wm5DxPlus => &WM5DXP,
+    });
 }
 
 pub(crate) fn schema() -> &'static Schema {
@@ -170,20 +182,27 @@ pub(crate) fn method(name: &str, body: &[u8]) -> Vec<u8> {
         // no friend, challenger or history (5: has_history 6; 5DX: stamp sheets 7)
         "load_ghost_battle_info" => match schema().game {
             Game::Wm5 => Writer::new().uint(1, ERR_SUCCESS).uint(6, 0),
-            Game::Wm5Dx => Writer::new().uint(1, ERR_SUCCESS).uint(7, 0),
+            Game::Wm5Dx | Game::Wm5DxPlus => Writer::new().uint(1, ERR_SUCCESS).uint(7, 0),
         },
         // no online champion match running
         "load_ghost_competition_info" => Writer::new().uint(1, ERR_SUCCESS).uint(3, 1),
         // terminal: maxi gold receivable, nothing transferred (5DX: no feature announce)
         "load_terminal_information" => {
             let w = Writer::new().uint(1, ERR_SUCCESS).uint(9, 1).message(14, transfer_notice());
-            if schema().game == Game::Wm5Dx { w.uint(16, 0) } else { w }
+            match schema().game {
+                Game::Wm5 => w,
+                Game::Wm5Dx => w.uint(16, 0),
+                // 5DX+: no prize waiting, the free scratch card used
+                Game::Wm5DxPlus => w.uint(16, 0).uint(17, 0).uint(18, 1),
+            }
         }
         "receive_maxi_gold" => receive_maxi_gold(&req),
         // no car campaign accepted
         "load_car_campaign_info" => Writer::new().uint(1, ERR_SUCCESS).uint(2, 1).uint(3, 0).uint(4, 0).uint(5, 0),
         // a card transfer from another server: the card's user (none: a new card)
         "start_transfer" => Writer::new().uint(1, ERR_SUCCESS).uint(2, 0),
+        // 5DX+ scratch cards (not offered): an empty sheet
+        "load_scratch_information" | "save_scratch_sheet" => Writer::new().uint(1, ERR_SUCCESS).uint(3, 0).uint(4, 0),
         "load_time_attack_record" => crate::records::load_time_attack_record(&req),
         "save_terminal_result" => save_terminal_result(&req),
         "rename_car" => rename_car(&req),
@@ -267,7 +286,7 @@ fn register_system_info(req: &Message) -> Writer {
         .string(3, &req.string(10).unwrap_or_else(|| "JPN0123".into()));
     match schema().game {
         Game::Wm5 => w.uint(4, 0).uint(5, 0).uint(6, i32::MAX as u64).uint(7, i32::MAX as u64).uint(8, 0).message(9, feature_version()),
-        Game::Wm5Dx => w.uint(6, i32::MAX as u64).uint(7, i32::MAX as u64).uint(8, 0).uint(9, 0).message(10, feature_version()),
+        Game::Wm5Dx | Game::Wm5DxPlus => w.uint(6, i32::MAX as u64).uint(7, i32::MAX as u64).uint(8, 0).uint(9, 0).message(10, feature_version()),
     }
 }
 
@@ -399,7 +418,7 @@ fn create_car(req: &Message) -> Writer {
         .uint(8, 0)
         .uint(9, 0)
         .uint(10, 0);
-    if s.game == Game::Wm5Dx {
+    if s.game != Game::Wm5 {
         setting = setting.uint(13, 0);
     }
     // the counters (versus, ghost battle, story...)
@@ -407,7 +426,7 @@ fn create_car(req: &Message) -> Writer {
     for &field in s.record_required {
         record = record.uint(field, 0);
     }
-    if s.game == Game::Wm5Dx {
+    if s.game != Game::Wm5 {
         record = record.uint(54, 1);
     }
     let mut record = Message::parse(&record.0).unwrap_or_default();
@@ -422,7 +441,7 @@ fn create_car(req: &Message) -> Writer {
     crate::log(&format!("wm5srv: user {user_id}: new car {car_id}"));
     let res = Writer::new().uint(1, ERR_SUCCESS).string(2, &user.string(3).unwrap_or_default()).uint(5, user_id).uint(6, car_id);
     // 5DX: the ghost battle stamp
-    if s.game == Game::Wm5Dx { res.uint(16, 1) } else { res }
+    if s.game != Game::Wm5 { res.uint(16, 1) } else { res }
 }
 
 /// LoadCarResponse: the car record as stored.
@@ -484,7 +503,7 @@ fn update_car(req: &Message) -> Writer {
     if let Some(v) = req.uint(10) {
         set(&mut record, schema().aura_auto, Value::Varint(v));
     }
-    if schema().game == Game::Wm5Dx {
+    if schema().game != Game::Wm5 {
         if let Some(v) = req.uint(12) {
             set(&mut record, 54, Value::Varint(v));
         }
@@ -605,7 +624,7 @@ pub(crate) fn resource(name: &str, query: &str) -> Vec<u8> {
                     areas.insert(11, 18);
                     areas
                 }
-                Game::Wm5Dx => (0..=13).chain([18]).collect(),
+                Game::Wm5Dx | Game::Wm5DxPlus => (0..=13).chain([18]).collect(),
             };
             let mut w = Writer::new();
             for area in areas {

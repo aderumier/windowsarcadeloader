@@ -8,8 +8,7 @@ use crate::store;
 
 const ERR_SUCCESS: u64 = 0;
 
-/// RankingType: the time attack courses 0..23, the versus stars, the trophies.
-const TA_COURSES: u64 = 24;
+/// RankingType: the versus stars, the trophies (after the time attack courses).
 const RANKING_VS_STAR: u64 = 100;
 const RANKING_TROPHY: u64 = 101;
 
@@ -92,7 +91,7 @@ pub(crate) fn load_game_history(req: &Message) -> Writer {
     // the ghost battle play and win counts follow the versus counters
     let rg = schema().vs + 10;
     w = w.uint(3, now()).uint(5, record.uint(rg).unwrap_or(0)).uint(6, record.uint(rg + 1).unwrap_or(0));
-    if schema().game == crate::Game::Wm5Dx {
+    if schema().game != crate::Game::Wm5 {
         w = w.uint(7, 0);
     }
     w
@@ -128,7 +127,7 @@ pub(crate) fn ranking() -> Vec<u8> {
     let cars = store::all("cars");
     let car = |id: u64| cars.iter().find(|(c, _)| *c == id).and_then(|(_, r)| r.message(2));
     let mut w = Writer::new();
-    for course in 0..TA_COURSES {
+    for course in 0..schema().ta_courses {
         let mut list = Writer::new().uint(1, course);
         for (_, r) in ta_records(Some(course)).iter().take(10) {
             let car_id = r.uint(1).unwrap_or(0);
