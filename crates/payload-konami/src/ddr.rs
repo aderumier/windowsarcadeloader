@@ -23,8 +23,12 @@
 //!
 //! SetupAPI answers the P3IO's two classes (and P4IO's) with one device, its description
 //! "Generic Monitor" (the HD cabinet; `WAL_KONAMI_DDR_SD=1`: "Generic Television", the SD
-//! one). The game's codecs (`k-clvsd.dll`, `xactengine2_10.dll` beside it) are registered
-//! (their `DllRegisterServer`), as the cabinet's setup does. The card readers' PIN: the numpad,
+//! one). The game's video codec (`k-clvsd.dll` beside it) is registered (its
+//! `DllRegisterServer`), as the cabinet's setup does. Its XACT engine (`xactengine2_10.dll`
+//! beside it, another build than the prefix's) is not: registered, it served every game of the
+//! shared prefix from this game's folder (XACTCreateEngine E_ACCESSDENIED for GTI Club when the
+//! folder is not mounted). The game's `CoCreateInstance` creates its classes from it instead, and
+//! a registration left by an older payload is set back to the prefix's. The card readers' PIN: the numpad,
 //! or the configured card's typed 10 s after the game reads the card (its PIN screen).
 //!
 //! Controls per player: start; the pad's arrows (the stick's up, down, left, right); the
@@ -945,12 +949,90 @@ unsafe extern "system" fn no_key(_key: i32) -> i16 {
 
 // ── Codecs ────────────────────────────────────────────────────────────────────────────────────
 
-/// Registers the game's codecs beside it (`DllRegisterServer`, regsvr32's work).
+/// The XACT engine beside the game (its `CoCreateInstance` serves its classes from it).
+static XACT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static ORIG_CO_CREATE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+const IID_ICLASSFACTORY: windows_sys::core::GUID = windows_sys::core::GUID::from_u128(0x00000001_0000_0000_c000_000000000046);
+/// XACT 2.10's engine (`CLSID_XACTEngine`).
+const XACT_ENGINE: &str = "{65d822a4-4799-42c6-9b18-d26cf66dd320}";
+
+type CoCreate = unsafe extern "system" fn(*const windows_sys::core::GUID, *mut c_void, u32, *const windows_sys::core::GUID, *mut *mut c_void) -> i32;
+
+/// The classes of the game's XACT engine from its DLL (`DllGetClassObject`), the others from COM.
+unsafe extern "system" fn co_create_instance(
+    clsid: *const windows_sys::core::GUID, outer: *mut c_void, context: u32, iid: *const windows_sys::core::GUID,
+    out: *mut *mut c_void,
+) -> i32 {
+    let xact = XACT.load(Ordering::Relaxed);
+    let get = (xact != 0 && !clsid.is_null())
+        .then(|| unsafe { windows_sys::Win32::System::LibraryLoader::GetProcAddress(xact as _, c"DllGetClassObject".as_ptr().cast()) })
+        .flatten();
+    if let Some(get) = get {
+        let get: unsafe extern "system" fn(*const windows_sys::core::GUID, *const windows_sys::core::GUID, *mut *mut c_void) -> i32 =
+            unsafe { std::mem::transmute(get) };
+        let mut factory: *mut c_void = std::ptr::null_mut();
+        if unsafe { get(clsid, &IID_ICLASSFACTORY, &mut factory) } >= 0 && !factory.is_null() {
+            // IClassFactory: Release (2), CreateInstance (3)
+            let vtable = unsafe { *(factory as *const *const usize) };
+            let create: unsafe extern "system" fn(*mut c_void, *mut c_void, *const windows_sys::core::GUID, *mut *mut c_void) -> i32 =
+                unsafe { std::mem::transmute(*vtable.add(3)) };
+            let release: unsafe extern "system" fn(*mut c_void) -> u32 = unsafe { std::mem::transmute(*vtable.add(2)) };
+            let hr = unsafe { create(factory, outer, iid, out) };
+            unsafe { release(factory) };
+            return hr;
+        }
+    }
+    let original: CoCreate = unsafe { std::mem::transmute(ORIG_CO_CREATE.load(Ordering::Relaxed)) };
+    unsafe { original(clsid, outer, context, iid, out) }
+}
+
+/// The prefix's XACT engine registration, if a game folder's copy took it (older payloads
+/// registered this game's), set back to the prefix's DLL.
+fn restore_xact_registration() {
+    use windows_sys::Win32::System::Registry::{HKEY, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, RegCloseKey, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW};
+    let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
+    let path = wide(&format!("Software\\Classes\\CLSID\\{XACT_ENGINE}\\InProcServer32"));
+    let mut key: HKEY = std::ptr::null_mut();
+    if unsafe { RegOpenKeyExW(HKEY_LOCAL_MACHINE, path.as_ptr(), 0, KEY_QUERY_VALUE | KEY_SET_VALUE, &mut key) } != 0 {
+        return;
+    }
+    let mut buf = [0u16; 520];
+    let mut size = (buf.len() * 2) as u32;
+    let current = if unsafe { RegQueryValueExW(key, std::ptr::null(), std::ptr::null(), std::ptr::null_mut(), buf.as_mut_ptr().cast(), &mut size) } == 0 {
+        String::from_utf16_lossy(&buf[..(size as usize / 2)]).trim_end_matches('\0').to_string()
+    } else {
+        String::new()
+    };
+    if current.to_ascii_lowercase().starts_with("c:\\wal\\") {
+        let system = wide("C:\\windows\\syswow64\\xactengine2_10.dll");
+        let hr = unsafe { RegSetValueExW(key, std::ptr::null(), 0, REG_SZ, system.as_ptr().cast(), (system.len() * 2) as u32) };
+        log!("ddr: XACT engine registration {current} set back to the prefix's ({hr})");
+    }
+    unsafe { RegCloseKey(key) };
+}
+
+/// Registers the game's video codec beside it (`DllRegisterServer`, regsvr32's work) and loads
+/// its XACT engine for its `CoCreateInstance` (module docs).
 fn register_codecs(game: usize) {
     let mut buf = [0u16; 520];
     let n = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(game as _, buf.as_mut_ptr(), buf.len() as u32) } as usize;
     let Some(dir) = std::path::PathBuf::from(String::from_utf16_lossy(&buf[..n])).parent().map(|d| d.to_path_buf()) else { return };
-    for name in ["k-clvsd.dll", "xactengine2_10.dll"] {
+    restore_xact_registration();
+    let xact = dir.join("xactengine2_10.dll");
+    if xact.exists() {
+        let w: Vec<u16> = xact.to_string_lossy().encode_utf16().chain([0]).collect();
+        let module = unsafe { windows_sys::Win32::System::LibraryLoader::LoadLibraryW(w.as_ptr()) };
+        match (!module.is_null()).then(|| unsafe { iat::hook_module(game, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) }).flatten() {
+            Some(original) => {
+                ORIG_CO_CREATE.store(original, Ordering::Relaxed);
+                XACT.store(module as usize, Ordering::Relaxed);
+                log!("ddr: XACT engine served from xactengine2_10.dll beside the game");
+            }
+            None => log!("ddr: XACT engine not loaded or no CoCreateInstance import, the prefix's used"),
+        }
+    }
+    for name in ["k-clvsd.dll"] {
         let path = dir.join(name);
         if !path.exists() {
             continue;
