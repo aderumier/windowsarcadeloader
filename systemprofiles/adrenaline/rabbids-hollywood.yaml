@@ -1,0 +1,32 @@
+# Rabbids Hollywood (Adrenaline Amusements, Unity 2017.2, Mono, 64-bit) - template, override
+# values in userprofiles/adrenaline/rabbids-hollywood.yaml.
+# Four guns: Sixense STEM electromagnetic trackers the payload poses to aim where each player's
+# gun points. The payload emulates the trackers' base, the cabinet's Kaboom Adrio board (coins,
+# start buttons, the operator's keypad, the ticket feeders) and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: Rabbids Hollywood
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+  # dumps with a Unity Doorstop (BepInEx) proxy winhttp.dll: Wine's own, no plugins
+  winhttp: "b"
+
+args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Select (operator)
+  start: Start
+  coin: Coin
+  test: Operator menu
+  service: Select (operator)
+  up: Previous (operator)
+  down: Next (operator)
