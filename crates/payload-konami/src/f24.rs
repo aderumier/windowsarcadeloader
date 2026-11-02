@@ -16,13 +16,22 @@
 //!   player's pointer (gun or mouse) and throw button, one hit per press, another every 150 ms
 //!   while held. The camera board reports booted (`bs2_get_status` 2, calibrated, no error).
 //!
+//! - backup data: AVS keeps the times of its `F:\` files (`/dev/nvram`) in `F:\info.bin` and
+//!   takes a file of other times for a corrupted one (OPTION SETTINGS / BOOKKEEPING BACKUP DATA
+//!   ERROR). A SquashFS image keeps whole seconds only: the times AVS reads are rounded down to
+//!   the second (`libavs-win32.dll`'s `GetFileInformationByHandle` and `FindFirstFileA`), so the
+//!   backup data written and the dump's survive the image. A dump whose backup data was saved
+//!   before (its times lost in the image) is repaired at once: on the error screen (system.dll's
+//!   boot check, state 6) its TEST press is answered, as the operator's would be.
+//!
 //! Native inputs for `native_map`: `test service coin start throw`.
 
 use std::ffi::{c_char, c_void};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use wal_payload_common::log;
+use wal_payload_common::{iat, log};
 use wal_payload_common::mapping::ButtonMap;
 use wal_protocol::{Axis, MAX_PLAYERS};
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
@@ -235,8 +244,34 @@ pub extern "C" fn f24_iob_button(button: i32) -> u8 {
     with_io(|io| io.buttons.get(button as usize).copied().unwrap_or(false) as u8)
 }
 
+/// system.dll's boot check state (6: the backup data error screen, TEST repairs), from its
+/// `mov [ebp-4], state` at rva 0x366e; 0 when the code differs.
+fn boot_check_state() -> usize {
+    static STATE: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *STATE.get_or_init(|| {
+        let system = unsafe { GetModuleHandleA(c"system.dll".as_ptr().cast()) } as usize;
+        if system == 0 {
+            return 0;
+        }
+        let code = unsafe { std::slice::from_raw_parts((system + 0x366e) as *const u8, 7) };
+        let poll = unsafe { std::slice::from_raw_parts((system + 0x38a4) as *const u8, 4) };
+        if code[..3] != [0xc7, 0x45, 0xfc] || poll != [0x6a, 0x04, 0xff, 0x15] {
+            log!("f24: boot check signature mismatch, backup data not repaired by itself");
+            return 0;
+        }
+        u32::from_le_bytes([code[3], code[4], code[5], code[6]]) as usize
+    })
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn f24_iob_button_trg(button: i32) -> u8 {
+    if button as usize == BUTTON_TEST {
+        let state = boot_check_state();
+        if state != 0 && unsafe { (state as *const u32).read_volatile() } == 6 {
+            log!("f24: backup data error, repaired (TEST)");
+            return 1;
+        }
+    }
     with_io(|io| {
         let b = button as usize;
         (b < BUTTONS && io.buttons[b] && !io.previous[b]) as u8
@@ -419,7 +454,61 @@ pub fn detected(module: windows_sys::Win32::Foundation::HINSTANCE) -> bool {
     crate::file_name(module).eq_ignore_ascii_case("iob.dll")
 }
 
+static ORIG_FILE_INFO: AtomicUsize = AtomicUsize::new(0);
+static ORIG_FIND_FIRST: AtomicUsize = AtomicUsize::new(0);
+
+/// The creation, last access and last write FILETIMEs (offsets 4, 12, 20 of both
+/// BY_HANDLE_FILE_INFORMATION and WIN32_FIND_DATAA) rounded down to the second.
+unsafe fn whole_seconds(info: *mut u8) {
+    for offset in [4, 12, 20] {
+        let time = unsafe { info.add(offset) }.cast::<u64>();
+        let t = unsafe { time.read_unaligned() };
+        unsafe { time.write_unaligned(t - t % 10_000_000) };
+    }
+}
+
+unsafe extern "system" fn get_file_information_by_handle(file: *mut c_void, info: *mut u8) -> i32 {
+    let original: unsafe extern "system" fn(*mut c_void, *mut u8) -> i32 =
+        unsafe { std::mem::transmute(ORIG_FILE_INFO.load(Ordering::Relaxed)) };
+    let ok = unsafe { original(file, info) };
+    if ok != 0 && !info.is_null() {
+        unsafe { whole_seconds(info) };
+    }
+    ok
+}
+
+unsafe extern "system" fn find_first_file(name: *const c_char, data: *mut u8) -> *mut c_void {
+    let original: unsafe extern "system" fn(*const c_char, *mut u8) -> *mut c_void =
+        unsafe { std::mem::transmute(ORIG_FIND_FIRST.load(Ordering::Relaxed)) };
+    let find = unsafe { original(name, data) };
+    // INVALID_HANDLE_VALUE
+    if find as isize != -1 && !data.is_null() {
+        unsafe { whole_seconds(data) };
+    }
+    find
+}
+
+/// AVS's file times rounded to the second (module docs: backup data).
+fn backup_times() {
+    let avs = unsafe { GetModuleHandleA(c"libavs-win32.dll".as_ptr().cast()) } as usize;
+    if avs == 0 {
+        log!("f24: libavs-win32.dll not loaded, backup data times left alone");
+        return;
+    }
+    let hooks: [(&str, usize, &AtomicUsize); 2] = [
+        ("GetFileInformationByHandle", get_file_information_by_handle as *const () as usize, &ORIG_FILE_INFO),
+        ("FindFirstFileA", find_first_file as *const () as usize, &ORIG_FIND_FIRST),
+    ];
+    for (name, replacement, original) in hooks {
+        match unsafe { iat::hook_module(avs, "kernel32.dll", name, replacement) } {
+            Some(o) => original.store(o, Ordering::Relaxed),
+            None => log!("f24: libavs-win32.dll imports no {name}"),
+        }
+    }
+}
+
 pub fn init() {
+    backup_times();
     // ballio.dll imports iob.dll: it is mapped when iob's DllMain runs
     let ballio = unsafe { GetModuleHandleA(c"ballio.dll".as_ptr().cast()) };
     if ballio.is_null() {
