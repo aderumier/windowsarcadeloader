@@ -1,0 +1,101 @@
+# Wangan Midnight Maximum Tune 6RR (Bandai Namco, 2022, Direct3D 11, 64-bit) - template,
+# override values in userprofiles/namcoes3/wangan-midnight-maximum-tune-6rr.yaml.
+system: namcoes3
+name: Wangan Midnight Maximum Tune 6RR
+
+# The payload is the game's HASP library (wmn6r.exe imports it): dongle, I/O board on COM3,
+# boot patches, the store's card terminal (emulated on the loopback), force feedback, the
+# cabinet's network authentication, the Banapass card reader (the game's bngrw.dll calls) and a
+# built-in game server (the players' cards, cars and progress, kept in the dump's F\wm5srv). The
+# card goes on the reader with the Banapass card control; it is made once (F\banapass.txt)
+# unless an access code is set.
+# The movies (WMV, Media Foundation) need the runner's mfreadwrite fix (GE patch 0104).
+payload_install: [hasp_windows_x64_30382.dll]
+
+# The cabinet's save drives: settings (setting.lua.gz), bookkeeping, error logs.
+drives:
+  f: F
+  g: G
+
+env:
+  # The game makes a windowed device: a borderless window the size of the screen (the
+  # picture is scaled to it).
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # The store terminal's settings: free play (0: coins)
+  WAL_NAMCOES3_FREEPLAY: "1"
+  # The Banapassport card's 20-digit access code (empty: a card made for this dump)
+  WAL_NAMCOES3_ACCESS_CODE: ""
+
+options:
+  - title: Gameplay
+    options:
+      - key: WAL_NAMCOES3_FREEPLAY
+        label: Free play
+        kind: bool
+        description: Play without coins (the store terminal's setting).
+  - title: Banapassport card
+    options:
+      - key: WAL_NAMCOES3_ACCESS_CODE
+        label: Access code
+        kind: text
+        description: >-
+          The card's 20-digit access code (a real card's, to keep its player on another
+          machine). Empty: a card made once for this dump (F\banapass.txt).
+
+input:
+  stick_as_dpad: false
+  # Keyboard steering and pedals reach full travel in half a second.
+  keyboard_ramp_ms: 500
+  # Wheel on the left stick, pedals on the triggers, R1 / L1 shift up / down (a 6-speed H
+  # pattern), the d-pad is the shift lever itself (and the test menu cursor).
+  gamepad:
+    leftx: lx
+    r2: accel
+    l2: brake
+    x: b1
+    b: b2
+    r1: b3
+    l1: b4
+    y: b7
+    guide: card
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_LEFTCTRL: b1
+      KEY_LEFTALT: b2
+      KEY_A: b3
+      KEY_Z: b4
+      KEY_PAGEUP: b5
+      KEY_PAGEDOWN: b6
+      KEY_ENTER: b7
+      KEY_1: start
+      KEY_5: coin
+      KEY_F1: service
+      KEY_F2: test
+      KEY_F4: card
+
+controls:
+  lx: Steering wheel
+  accel: Gas pedal
+  brake: Brake pedal
+  up: 'Shift lever up'
+  down: 'Shift lever down'
+  left: 'Shift lever left'
+  right: 'Shift lever right'
+  b1: View change
+  b2: Interrupt
+  b3: Shift up
+  b4: Shift down
+  b5: Menu up
+  b6: Menu down
+  b7: Enter
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: Banapass card

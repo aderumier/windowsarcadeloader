@@ -19,6 +19,8 @@ pub enum Game {
     Wm5Dx,
     Wm5DxPlus,
     Wm6,
+    Wm6R,
+    Wm6RR,
 }
 
 /// The field numbers that differ between the versions: the car record (`LoadCarResponse`),
@@ -146,6 +148,17 @@ const WM6: Schema = Schema {
     ..WM5DXP
 };
 
+/// 6R: 6's, the ghost battle's highway and 2-player versus counters (67..71), no transfer flag.
+const WM6R: Schema = Schema {
+    game: Game::Wm6R,
+    record_required: &[3, 6, 7, 8, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 28, 29, 34, 35, 36, 37, 38, 40, 41, 51, 53, 59, 63, 64, 67, 68, 69, 70, 71],
+    rg_map: &[(8, 22), (10, 28), (11, 29), (21, 59), (23, 27), (27, 24)],
+    ..WM6
+};
+
+/// 6RR: 6R's.
+const WM6RR: Schema = Schema { game: Game::Wm6RR, ..WM6R };
+
 static SCHEMA: std::sync::OnceLock<&'static Schema> = std::sync::OnceLock::new();
 
 pub(crate) fn set_game(game: Game) {
@@ -154,6 +167,8 @@ pub(crate) fn set_game(game: Game) {
         Game::Wm5Dx => &WM5DX,
         Game::Wm5DxPlus => &WM5DXP,
         Game::Wm6 => &WM6,
+        Game::Wm6R => &WM6R,
+        Game::Wm6RR => &WM6RR,
     });
 }
 
@@ -205,6 +220,8 @@ pub(crate) fn method(name: &str, body: &[u8]) -> Vec<u8> {
         "load_ghost_battle_info" => match schema().game {
             Game::Wm5 => Writer::new().uint(1, ERR_SUCCESS).uint(6, 0),
             Game::Wm5Dx | Game::Wm5DxPlus | Game::Wm6 => Writer::new().uint(1, ERR_SUCCESS).uint(7, 0),
+            // 6R: not promoted to buddy
+            Game::Wm6R | Game::Wm6RR => Writer::new().uint(1, ERR_SUCCESS).uint(7, 0).uint(13, 0),
         },
         // no online champion match running
         "load_ghost_competition_info" => Writer::new().uint(1, ERR_SUCCESS).uint(3, 1),
@@ -212,13 +229,13 @@ pub(crate) fn method(name: &str, body: &[u8]) -> Vec<u8> {
         "load_terminal_information" => {
             let w = Writer::new().uint(1, ERR_SUCCESS);
             // 6: no maxi gold
-            let w = if schema().game == Game::Wm6 { w } else { w.uint(9, 1) };
+            let w = if matches!(schema().game, Game::Wm6 | Game::Wm6R | Game::Wm6RR) { w } else { w.uint(9, 1) };
             let w = w.message(14, transfer_notice());
             match schema().game {
                 Game::Wm5 => w,
                 Game::Wm5Dx => w.uint(16, 0),
                 // 5DX+: no prize waiting, the free scratch card used
-                Game::Wm5DxPlus | Game::Wm6 => w.uint(16, 0).uint(17, 0).uint(18, 1),
+                Game::Wm5DxPlus | Game::Wm6 | Game::Wm6R | Game::Wm6RR => w.uint(16, 0).uint(17, 0).uint(18, 1),
             }
         }
         // 6: the player's session, client logs, bookmarked ghosts, items to receive (none)
@@ -230,6 +247,11 @@ pub(crate) fn method(name: &str, body: &[u8]) -> Vec<u8> {
         "start_transfer" => Writer::new().uint(1, ERR_SUCCESS).uint(2, 0),
         // 5DX+ scratch cards (not offered): an empty sheet
         "load_scratch_information" | "save_scratch_sheet" => Writer::new().uint(1, ERR_SUCCESS).uint(3, 0).uint(4, 0),
+        // 6RR: bingo (no item to receive), Ghost Koshien (closed), bingo targets (normal path)
+        "load_bingo_stats" => Writer::new().uint(1, ERR_SUCCESS).uint(5, 0).uint(6, 0),
+        "load_ghost_koshien_info" => Writer::new().uint(1, ERR_SUCCESS).uint(3, 1).uint(10, 0),
+        "load_ghost_bingo_targets" => Writer::new().uint(1, ERR_SUCCESS).uint(4, 4),
+        "bingo_receivable_items" | "merge_bingo_card" | "load_ghost_koshien_ranking" => Writer::new().uint(1, ERR_SUCCESS),
         "load_time_attack_record" => crate::records::load_time_attack_record(&req),
         "save_terminal_result" => save_terminal_result(&req),
         "rename_car" => rename_car(&req),
@@ -315,7 +337,7 @@ fn register_system_info(req: &Message) -> Writer {
         Game::Wm5 => w.uint(4, 0).uint(5, 0).uint(6, i32::MAX as u64).uint(7, i32::MAX as u64).uint(8, 0).message(9, feature_version()),
         Game::Wm5Dx | Game::Wm5DxPlus => w.uint(6, i32::MAX as u64).uint(7, i32::MAX as u64).uint(8, 0).uint(9, 0).message(10, feature_version()),
         // 6: no client log asked, the ghost selection's redo wait (Bayshore's 30..4000)
-        Game::Wm6 => w.message(10, feature_version()).uint(28, 30).uint(29, 4000),
+        Game::Wm6 | Game::Wm6R | Game::Wm6RR => w.message(10, feature_version()).uint(28, 30).uint(29, 4000),
     }
 }
 
@@ -361,7 +383,7 @@ fn load_user(req: &Message) -> Writer {
             .uint(21, 0)
             .uint(22, 0);
     };
-    if schema().game == Game::Wm6 {
+    if matches!(schema().game, Game::Wm6 | Game::Wm6R | Game::Wm6RR) {
         return load_user_6(req, id, &user);
     }
     let max = req.uint(8).unwrap_or(u64::MAX) as usize;
@@ -394,7 +416,7 @@ fn load_user(req: &Message) -> Writer {
         .uint(22, 0)
 }
 
-/// 6's LoadUserResponse: no maxi gold, coupons or 600 HP cards; the tutorials a list of flags
+/// 6's (and 6R's) LoadUserResponse: no maxi gold, coupons or 600 HP cards; the tutorials a list of flags
 /// (the ghost stamp ones, 20..24, set: the game locks up without, Bayshore's note); smartphone
 /// app not registered.
 fn load_user_6(req: &Message, id: u64, user: &Message) -> Writer {
@@ -413,7 +435,16 @@ fn load_user_6(req: &Message, id: u64, user: &Message) -> Writer {
     for i in 0..36 {
         res = res.uint(15, (bits >> i) & 1);
     }
-    res.uint(21, 0).uint(22, 0)
+    res = res.uint(21, 0).uint(22, 0);
+    if matches!(schema().game, Game::Wm6R | Game::Wm6RR) {
+        // no full tuned car ticket; ghost versus 2, 3 players and highway unlocked
+        res = res.uint(14, 0).uint(34, 0).uint(35, 0).uint(36, 0);
+    }
+    if schema().game == Game::Wm6RR {
+        // no bingo played, no item received
+        res = res.uint(38, 0).uint(42, 0).uint(44, 0);
+    }
+    res
 }
 
 fn create_user(req: &Message) -> Writer {
@@ -679,7 +710,7 @@ pub(crate) fn resource(name: &str, query: &str) -> Vec<u8> {
                 }
                 Game::Wm5Dx | Game::Wm5DxPlus => (0..=13).chain([18]).collect(),
                 // 6 (Bayshore_legacy master_6): 0..14 and 18
-                Game::Wm6 => (0..=14).chain([18]).collect(),
+                Game::Wm6 | Game::Wm6R | Game::Wm6RR => (0..=14).chain([18]).collect(),
             };
             let mut w = Writer::new();
             for area in areas {

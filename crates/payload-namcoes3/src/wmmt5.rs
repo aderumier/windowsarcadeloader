@@ -26,8 +26,9 @@ use crate::{GAME_BASE, module};
 /// A version of the game: its HASP library, cabinet identity and the addresses in its exe.
 pub(crate) struct Version {
     pub(crate) name: &'static str,
-    /// The game executable.
+    /// The game executable, its build (PE time stamp: 6 and 6R share the exe and HASP names).
     exe: &'static str,
+    timestamp: Option<u32>,
     hasp: &'static str,
     /// The cabinet serial (HASP memory 0xd00) and the store terminal's.
     pub(crate) serial: &'static str,
@@ -35,8 +36,11 @@ pub(crate) struct Version {
     /// ALL.Net game code and version (`AMCUS\AMConfig.ini`).
     pub(crate) game_cd: &'static str,
     pub(crate) game_ver: (i16, i16),
-    /// The cabinet's software revision (a global, sent by the store terminal).
+    /// The cabinet's software revision (a global, sent by the store terminal), and the
+    /// revision sent while it is not known yet (6R computes it after its update check, which
+    /// waits for the terminal; 0: wait).
     pub(crate) software_revision: usize,
+    pub(crate) default_revision: u32,
     /// The drive board's forces ([`ffb`]).
     forces: usize,
     /// The network traces' addresses (`WAL_NAMCOES3_NET_LOG`, `wmmt5_net.rs`).
@@ -45,6 +49,10 @@ pub(crate) struct Version {
     server: wal_wm5srv::Game,
     /// The Banapass reader: the game's `bngrw.dll` (6), else the serial reader on COM4.
     bngrw: bool,
+    /// The AMCUS auth daemon's newer IAuth (6R, `wmmt5_amcus.rs`).
+    amcus_new: bool,
+    /// The cabinet's USB memory key (6R, `nbamUsbFinder.dll`): its serial, else none.
+    usb_serial: Option<&'static str>,
     patches: &'static [Patch],
 }
 
@@ -55,16 +63,20 @@ type Patch = (&'static str, usize, &'static [u8], &'static [u8]);
 const WMMT5: Version = Version {
     name: "wmmt5",
     exe: "wmn5r.exe",
+    timestamp: None,
     hasp: "hasp_windows_x64_109906.dll",
     serial: "272213990002",
     terminal_serial: "272211990002",
     game_cd: "W5R1",
     game_ver: (3, 0),
     software_revision: 0x1948dbc,
+    default_revision: 0,
     forces: 0x196f188,
     traces: true,
     server: wal_wm5srv::Game::Wm5,
     bngrw: false,
+    amcus_new: false,
+    usb_serial: None,
     patches: &[
         // the serial check against the network's ("Dongle Mismatch"): match
         ("dongle match", 0x58c6cc, b"\x01", b"\x00"),
@@ -105,16 +117,20 @@ const WMMT5: Version = Version {
 const WMMT5DX: Version = Version {
     name: "wmmt5dx",
     exe: "wmn5r.exe",
+    timestamp: None,
     hasp: "hasp_windows_x64_98199.dll",
     serial: "276413292430",
     terminal_serial: "276411292430",
     game_cd: "W5X1",
     game_ver: (5, 0),
     software_revision: 0x1bd8a84,
+    default_revision: 0,
     forces: 0x1c02750,
     traces: false,
     server: wal_wm5srv::Game::Wm5Dx,
     bngrw: false,
+    amcus_new: false,
+    usb_serial: None,
     patches: &[
         ("dongle match", 0x61773e, b"\x01", b"\x00"),
         ("network state", 0x6185e1, b"\x76\x12", b"\xeb\x12"),
@@ -138,16 +154,20 @@ const WMMT5DX: Version = Version {
 const WMMT5DXP: Version = Version {
     name: "wmmt5dxp",
     exe: "wmn5r.exe",
+    timestamp: None,
     hasp: "hasp_windows_x64_106482.dll",
     serial: "278313042069",
     terminal_serial: "278311042069",
     game_cd: "W5P1",
     game_ver: (7, 0),
     software_revision: 0x1f7d28c,
+    default_revision: 0,
     forces: 0x1fa6f40,
     traces: false,
     server: wal_wm5srv::Game::Wm5DxPlus,
     bngrw: false,
+    amcus_new: false,
+    usb_serial: None,
     patches: &[
         ("dongle match", 0x706356, b"\x01", b"\x00"),
         ("network state", 0x7071d6, b"\x76\x12", b"\xeb\x12"),
@@ -173,16 +193,20 @@ const WMMT5DXP: Version = Version {
 const WMMT6: Version = Version {
     name: "wmmt6",
     exe: "wmn6r.exe",
+    timestamp: Some(0x5bac_b621),
     hasp: "hasp_windows_x64_28756.dll",
     serial: "280813990002",
     terminal_serial: "280811990002",
     game_cd: "WM61",
     game_ver: (9, 0),
     software_revision: 0x1e18114,
+    default_revision: 0,
     forces: 0x1e3c610,
     traces: false,
     server: wal_wm5srv::Game::Wm6,
     bngrw: true,
+    amcus_new: false,
+    usb_serial: None,
     patches: &[
         ("dongle match", 0x69e92a, b"\x01", b"\x00"),
         ("network error", 0x8d6cb0, b"\xe8\x5b\xd3\x98\xff", &[0x90; 5]),
@@ -199,9 +223,98 @@ const WMMT6: Version = Version {
     ],
 };
 
-/// The version whose HASP library is loaded.
+/// Wangan Midnight Maximum Tune 6R (2019): 6's code; its offline period checks are two
+/// predicates (the warning hour, the end), both false.
+const WMMT6R: Version = Version {
+    name: "wmmt6r",
+    exe: "wmn6r.exe",
+    timestamp: Some(0x5dee_006c),
+    hasp: "hasp_windows_x64_28756.dll",
+    serial: "280813401138",
+    terminal_serial: "280811401138",
+    game_cd: "W6R1",
+    game_ver: (11, 0),
+    software_revision: 0x20228ac,
+    // the build's revision (0x6a4960)
+    default_revision: 0x2ae4,
+    forces: 0x2047128,
+    traces: false,
+    server: wal_wm5srv::Game::Wm6R,
+    bngrw: true,
+    amcus_new: true,
+    // the USB memory key: "2842", the region (0..2), "1", "48" (or "99"), the game's checks
+    usb_serial: Some("284201481138"),
+    patches: &[
+        ("dongle match", 0x716bc6, b"\x01", b"\x00"),
+        ("network error", 0x9aa160, b"\xe8\xeb\xb7\x8b\xff", &[0x90; 5]),
+        ("network time", 0xb0eb4a, b"\x74", b"\xeb"),
+        ("movie start failure", 0xa7da92, b"\x79", b"\xeb"),
+        ("server certificate", 0xa8cd2b, b"\xba\x01\x00\x00\x00", b"\xba\x00\x00\x00\x00"),
+        ("network offline period warning", 0x706867, b"\x0f\x9d\xc0", b"\x30\xc0\x90"),
+        ("network offline period", 0x7068d1, b"\x0f\x9d\xc0", b"\x30\xc0\x90"),
+        ("link private address", 0xb12853, b"\x74\x31", b"\xeb\x31"),
+        ("terminal revision", 0x708708, b"\xb9\x07\x00\x00\x00", b"\xb9\x02\x00\x00\x00"),
+        ("terminal revision at boot", 0x718ec9, b"\x75\x4e", &[0x90; 2]),
+        ("link one node per address", 0xae92c9, b"\x0f\x84\x85\x00\x00\x00", &[0x90; 6]),
+        ("link one node per address 2", 0xae92d3, b"\x74\x5c", &[0x90; 2]),
+        ("link one node per address 3", 0xae92d9, b"\x75\x4b", &[0x90; 2]),
+    ],
+};
+
+/// Wangan Midnight Maximum Tune 6RR (2022): 6R's code; no USB memory key check, the dongle
+/// check left as is (the auth daemon reports the dongle's serial).
+const WMMT6RR: Version = Version {
+    name: "wmmt6rr",
+    exe: "wmn6r.exe",
+    timestamp: None,
+    hasp: "hasp_windows_x64_30382.dll",
+    // the game's serial checks: "2850" (else E1921), the region or 0, the cabinet type (1, 3,
+    // 4, 5), "50" or "99" (else E1923)
+    serial: "285003501138",
+    terminal_serial: "285001501138",
+    game_cd: "W6W1",
+    game_ver: (13, 0),
+    software_revision: 0x1f009b4,
+    // the build's revision (0x6c0650)
+    default_revision: 0x38c7,
+    forces: 0x1f25260,
+    traces: false,
+    server: wal_wm5srv::Game::Wm6RR,
+    bngrw: true,
+    amcus_new: true,
+    usb_serial: None,
+    patches: &[
+        ("network error", 0x9de680, b"\xe8\xdb\x3c\xd5\xff", &[0x90; 5]),
+        ("network time", 0xb41daa, b"\x74", b"\xeb"),
+        ("movie start failure", 0xab0be2, b"\x79", b"\xeb"),
+        ("server certificate", 0xac034b, b"\xba\x01\x00\x00\x00", b"\xba\x00\x00\x00\x00"),
+        ("network offline period warning", 0x7312c7, b"\x0f\x9d\xc0", b"\x30\xc0\x90"),
+        ("network offline period", 0x731331, b"\x0f\x9d\xc0", b"\x30\xc0\x90"),
+        ("link private address", 0xb45973, b"\x74\x31", b"\xeb\x31"),
+        ("terminal revision", 0x733198, b"\xb9\x07\x00\x00\x00", b"\xb9\x02\x00\x00\x00"),
+        ("terminal revision at boot", 0x74447b, b"\x75\x4d", &[0x90; 2]),
+        ("link one node per address", 0xb1c739, b"\x0f\x84\x85\x00\x00\x00", &[0x90; 6]),
+        ("link one node per address 2", 0xb1c743, b"\x74\x5c", &[0x90; 2]),
+        ("link one node per address 3", 0xb1c749, b"\x75\x4b", &[0x90; 2]),
+    ],
+};
+
+/// The version whose HASP library is loaded (and exe build, when one is given).
 pub(crate) fn version() -> Option<&'static Version> {
-    [&WMMT5, &WMMT5DX, &WMMT5DXP, &WMMT6].into_iter().find(|v| module(v.hasp) != 0)
+    let stamp = exe_timestamp();
+    [&WMMT5, &WMMT5DX, &WMMT5DXP, &WMMT6, &WMMT6R, &WMMT6RR].into_iter().find(|v| module(v.hasp) != 0 && v.timestamp.is_none_or(|t| Some(t) == stamp))
+}
+
+/// The PE time stamp of the process's executable.
+fn exe_timestamp() -> Option<u32> {
+    let base = crate::module_base();
+    if base == 0 {
+        return None;
+    }
+    unsafe {
+        let pe = base + *((base + 0x3c) as *const u32) as usize;
+        Some(*((pe + 8) as *const u32))
+    }
 }
 
 /// The loaded version (the payload runs in this game only).
@@ -239,6 +352,13 @@ pub(crate) fn attach(exe: &str, base: usize, version: &'static Version) {
             log!("wmmt5: {name} not hooked");
         }
     }
+    if std::env::var("WAL_NAMCOES3_GAME_LOG").is_ok_and(|v| v == "1") {
+        for (name, f) in [("OutputDebugStringA", debug_string_a as *const () as usize), ("OutputDebugStringW", debug_string_w as *const () as usize)] {
+            if unsafe { wal_payload_common::iat::hook_module(base, "kernel32.dll", name, f) }.is_none() {
+                log!("wmmt5: {name} not hooked");
+            }
+        }
+    }
     match unsafe { wal_payload_common::iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
         Some(o) => CO_CREATE_INSTANCE.store(o, Ordering::Relaxed),
         None => log!("wmmt5: CoCreateInstance not hooked"),
@@ -247,6 +367,9 @@ pub(crate) fn attach(exe: &str, base: usize, version: &'static Version) {
     // settings: their ports stay absent
     crate::jvs::init(&[base]);
     card_reader(base, version);
+    if let Some(serial) = version.usb_serial {
+        usb_finder(base, serial);
+    }
     // the game server (the ALL.Net answer's uri, wmmt5_amcus.rs)
     // and the store terminal's HTTPS proxy, where a drive cabinet sends its requests while the
     // terminal links (its address, port 50765: wmmt5_terminal.rs)
@@ -396,13 +519,48 @@ fn patches(base: usize, version: &Version) {
     }
 }
 
+/// The USB memory key's serial, NUL-terminated (`nbamUsbFinderGetSerialNumber`).
+static USB_SERIAL: std::sync::OnceLock<[u8; 13]> = std::sync::OnceLock::new();
+
+unsafe extern "system" fn usb_finder_ok() -> u16 {
+    0
+}
+
+/// `nbamUsbFinderGetSerialNumber(index, out)`: the device's serial (12 characters and a NUL);
+/// 0: found (the game's cabinet mode check: 2, absent, and a serial of another form are error
+/// E2501).
+unsafe extern "system" fn usb_finder_serial(_index: u32, out: *mut u8) -> u16 {
+    if let Some(serial) = USB_SERIAL.get().filter(|_| !out.is_null()) {
+        unsafe { std::ptr::copy_nonoverlapping(serial.as_ptr(), out, serial.len()) };
+    }
+    0
+}
+
+/// The cabinet's USB memory key (6R): the game's `nbamUsbFinder.dll` imports, `serial` (12
+/// characters).
+fn usb_finder(base: usize, serial: &str) {
+    let mut out = [0u8; 13];
+    out[..12].copy_from_slice(&serial.as_bytes()[..12]);
+    let _ = USB_SERIAL.set(out);
+    for (name, f) in [
+        ("nbamUsbFinderInitialize", usb_finder_ok as *const () as usize),
+        ("nbamUsbFinderGetSerialNumber", usb_finder_serial as *const () as usize),
+        ("nbamUsbFinderRelease", usb_finder_ok as *const () as usize),
+    ] {
+        if unsafe { wal_payload_common::iat::hook_module(base, "nbamUsbFinder.dll", name, f) }.is_none() {
+            log!("wmmt5: {name} not hooked");
+        }
+    }
+}
+
 static CO_CREATE_INSTANCE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// The cabinet's AMCUS auth daemon (`IAuth`), in-process (`wmmt5_amcus.rs`).
 unsafe extern "system" fn co_create_instance(clsid: *const u8, outer: *mut std::ffi::c_void, context: u32, iid: *const u8, out: *mut *mut std::ffi::c_void) -> i32 {
     if !clsid.is_null() && unsafe { std::slice::from_raw_parts(clsid, 16) } == crate::wmmt5_amcus::CLSID {
         if !out.is_null() {
-            unsafe { *out = (&crate::wmmt5_amcus::OBJECT as *const crate::wmmt5_amcus::Object).cast_mut().cast() };
+            let object = if current().amcus_new { &crate::wmmt5_amcus::OBJECT_NEW } else { &crate::wmmt5_amcus::OBJECT };
+            unsafe { *out = (object as *const crate::wmmt5_amcus::Object).cast_mut().cast() };
         }
         static LOGGED: std::sync::Once = std::sync::Once::new();
         LOGGED.call_once(|| log!("wmmt5: in-process AMCUS auth (IAuth)"));
@@ -411,6 +569,23 @@ unsafe extern "system" fn co_create_instance(clsid: *const u8, outer: *mut std::
     type F = unsafe extern "system" fn(*const u8, *mut std::ffi::c_void, u32, *const u8, *mut *mut std::ffi::c_void) -> i32;
     let real: F = unsafe { std::mem::transmute(CO_CREATE_INSTANCE.load(Ordering::Relaxed)) };
     unsafe { real(clsid, outer, context, iid, out) }
+}
+
+/// The game's debug messages (`WAL_NAMCOES3_GAME_LOG=1`): logged.
+unsafe extern "system" fn debug_string_a(text: *const u8) {
+    if !text.is_null() {
+        let len = (0..).take_while(|&i| unsafe { *text.add(i) } != 0).count();
+        let line = String::from_utf8_lossy(unsafe { std::slice::from_raw_parts(text, len) });
+        log!("game: {}", line.trim_end());
+    }
+}
+
+unsafe extern "system" fn debug_string_w(text: *const u16) {
+    if !text.is_null() {
+        let len = (0..).take_while(|&i| unsafe { *text.add(i) } != 0).count();
+        let line = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(text, len) });
+        log!("game: {}", line.trim_end());
+    }
 }
 
 /// The game's debug asserts (`_wassert`): logged, the game goes on.

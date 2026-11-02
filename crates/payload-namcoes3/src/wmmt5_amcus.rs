@@ -9,7 +9,7 @@
 //! The structure layouts follow bananatools' `amcus/iauth.c` (public domain), with Wangan
 //! Midnight Maximum Tune 5's identity (game SBWJ 3.00 / 5DX 5.00, PCB ABGN, its dongle serial). This game
 //! uses an older IAuth: bananatools' slots minus 5, a shorter state (`GetInfo`), cabinet config
-//! and MUCHA answer. The ALL.Net answer's `uri` is the game server
+//! and MUCHA answer; 6R the newer one, bananatools' own ([`OBJECT_NEW`]). The ALL.Net answer's `uri` is the game server
 //! (`https://` + `WAL_NAMCOES3_GAME_SERVER`, `host:port`, default `127.0.0.1:9002`).
 
 use std::ffi::c_void;
@@ -252,3 +252,134 @@ static VTABLE: Vtable = Vtable([
 ]);
 
 pub(crate) static OBJECT: Object = Object { vtable: VTABLE.0.as_ptr() };
+
+/// The newer IAuth's daemon state (bananatools' `amauthd_state`): `DL` (9), `INIT` (5) once
+/// initialized, then `AUTH_START` (6), `IDLE` (15), `DL` at the next state reads.
+static DAEMON_STATE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(9);
+
+/// `Initialize(mode)`, `Finalize()` (newer IAuth).
+unsafe extern "system" fn initialize_new(_this: P, _mode: u64) -> i32 {
+    DAEMON_STATE.store(5, std::sync::atomic::Ordering::Relaxed);
+    S_OK
+}
+
+/// `GetUpdaterState(amcus_state*)` (newer IAuth, slot 9), 200 bytes: ALL.Net idle (15) and
+/// authenticated, MUCHA downloading (9) with nothing to download (download step idle, LAN off,
+/// WAN complete, check complete), the clock set, ALL.Net authentication, standalone cabinet.
+unsafe extern "system" fn get_updater_state_new(_this: P, out: *mut u8) -> i32 {
+    if out.is_null() {
+        return S_OK;
+    }
+    use std::sync::atomic::Ordering::Relaxed;
+    let state = DAEMON_STATE.load(Relaxed);
+    let next = match state {
+        5 => 6,
+        6 => 15,
+        15 => 9,
+        s => s,
+    };
+    DAEMON_STATE.store(next, Relaxed);
+    unsafe {
+        std::ptr::write_bytes(out, 0, 200);
+        // allnet: state, error, auth state, auth count
+        put(out, 0, 15u32);
+        put(out, 8, 2i32);
+        put(out, 12, 1i32);
+        // mucha (+24): state, auth state, count, download exec / step / LAN / WAN, I/O
+        let m = 24;
+        put(out, m, 9u32);
+        put(out, m + 8, 2i32);
+        put(out, m + 12, 1i32);
+        put(out, m + 16, 27i32);
+        put(out, m + 20, 32i32);
+        put(out, m + 24, 43i32);
+        put(out, m + 28, 52i32);
+        put(out, m + 32, 59i32);
+        let (major, minor) = crate::wmmt5::current().game_ver;
+        put(out, m + 36, major);
+        put(out, m + 38, minor);
+        put(out, m + 40, major);
+        put(out, m + 42, minor);
+        put(out, m + 96, 1i32);
+        // clock status, auth type ALL.Net, standalone, daemon state
+        put(out, 168, 1i64);
+        put(out, 184, 1u32);
+        put(out, 188, 3u32);
+        put(out, 192, state);
+    }
+    S_OK
+}
+
+/// `GetCabinetConfig(amcus_network_state*)` (newer IAuth, slot 10), 168 bytes: the older
+/// config's fields, the cabinet's address, mask, gateway and DNS, the hop count (+144) and line
+/// type (+148, 1: FTTH).
+unsafe extern "system" fn get_cabinet_config_new(_this: P, out: *mut u8) -> i32 {
+    if out.is_null() {
+        return S_OK;
+    }
+    unsafe {
+        std::ptr::write_bytes(out, 0, 168);
+        put_str(out, 0x00, 16, "STANDALONE");
+        put_str(out, 0x10, 16, "ABGN6789012");
+        put_str(out, 0x20, 16, crate::wmmt5::current().serial);
+        for (i, ip) in ["127.0.0.1", "127.0.0.1", "127.0.0.1", "255.0.0.0", "127.0.0.1", "127.0.0.1"].iter().enumerate() {
+            put_str(out, 0x30 + 16 * i, 16, ip);
+        }
+        put(out, 144, 1i32);
+        put(out, 148, 1u32);
+    }
+    S_OK
+}
+
+/// `GetMuchaAuthResponse(mucha_boardauth_resp*)` (newer IAuth, slot 18), 3808 bytes: the older
+/// answer and no force boot (+3800).
+unsafe extern "system" fn get_mucha_auth_response_new(this: P, out: *mut u8) -> i32 {
+    if out.is_null() {
+        return S_OK;
+    }
+    unsafe {
+        get_mucha_auth_response(this, out);
+        put_str(out, 3800, 8, "0");
+    }
+    S_OK
+}
+
+/// The newer IAuth (6R): bananatools' slots.
+static VTABLE_NEW: Vtable = Vtable([
+    query as *const (),
+    refs as *const (),
+    refs as *const (),
+    initialize_new as *const (), // 3
+    finalize as *const (), // 4
+    set_mode as *const (), // 5
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    get_updater_state_new as *const (), // 9
+    get_cabinet_config_new as *const (), // 10
+    get_version_info as *const (), // 11
+    unused as *const (),
+    unused as *const (),
+    get_auth_server_resp as *const (), // 14
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    get_mucha_auth_response_new as *const (), // 18
+    get_mucha_updater_state as *const (), // 19
+    convert as *const (), // 20: RequestAuthMucha
+    convert as *const (), // 21: consume charge
+    unused as *const (),
+    set_mode as *const (), // 23: StartDownload(0)
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+]);
+
+pub(crate) static OBJECT_NEW: Object = Object { vtable: VTABLE_NEW.0.as_ptr() };

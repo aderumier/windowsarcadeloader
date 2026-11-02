@@ -109,6 +109,6 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
     TRUE
 }
 
-fn module_base() -> usize {
+pub(crate) fn module_base() -> usize {
     unsafe { GetModuleHandleW(std::ptr::null()) as usize }
 }
