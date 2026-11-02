@@ -33,7 +33,7 @@ input:
 # The second cabinet COM object (TsuNet) is the dump's real in-proc server, copied next to the
 # exe and registered in the prefix registry by the payload (docs/REVOLT-DEBUG.md).
 files:
-  tsunet.dll: games/misc/ReVolt/Tsunami/tsunet.dll
+  tsunet.dll: "{dump}/Tsunami/tsunet.dll"
 
 # Control names (the GUI's mapping rows).
 controls:

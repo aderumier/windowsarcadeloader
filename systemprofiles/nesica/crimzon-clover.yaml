@@ -20,9 +20,13 @@ env:
   # Wine emulates).
   WAL_D3D9_FULLSCREEN: "1"
   WAL_D3D9_FULLSCREEN_SIZE: 1280x800
-  # Its CreateFontA face names are Shift-JIS ("ＭＳ ゴシック", "FOT-キアロ Std B"): wine falls
-  # back to a host CJK font (Noto Sans CJK here) and the texts (boot warning, version) are far
-  # too big. Tuned by eye for that fallback font.
+  # Its CreateFontA face names are Shift-JIS ("ＭＳ ゴシック", "FOT-キアロ Std B"): decoded as
+  # such, the second under its English name (wine knows the Japanese one under a Japanese
+  # locale only), else wine falls back to another font (the shared prefix's changed it: texts
+  # far too small). The texts (boot warning, version) still far too big at the game's heights:
+  # tuned by eye.
+  WAL_FONT_CODEPAGE: "932"
+  WAL_FONT_REPLACE: "FOT-キアロ Std B=FOT-Chiaro Std B"
   WAL_FONT_SCALE: "0.28"
 
 # Control names (the GUI's mapping rows).
