@@ -1,0 +1,42 @@
+# Polar Wars (Maiqiang "JiDiDaZhan", Unity 5.6, Mono, 32-bit) - template, override values in
+# userprofiles/arcadepc/polar-wars.yaml.
+# Two ball cannons. The payload is the cabinet's UnrealIO USB board (UnrealHid.dll: coins, keys,
+# the cannons' triggers and aim, tickets) (docs §6.3i).
+system: arcadepc
+name: Polar Wars
+
+# the board's DLL, the game's DllImport: the payload, loaded at the executable's entry point
+payload_install: [UnrealGame/JiDiDaZhan/JiDiDaZhan_Data/Plugins/UnrealHid.dll]
+payload_loader: true
+
+# each cannon's calibration: 11 points at 10 %..90 % of the screen, a linear map of the payload's
+# aim (the dump's are a real cabinet's)
+files:
+  # the dump's settings with the potentiometer gun version (硬件版本=0: a shot while the
+  # trigger is held, each player's cursor shown); the dump's is the ball machine (1: real balls
+  # shot at the screen, no cursor). Settings changed in the operator menu last until the next
+  # launch.
+  UnrealGame/JiDiDaZhan/Settings/GameSetting.ini: systemprofiles/arcadepc/files/polar-wars/GameSetting.ini
+  UnrealGame/JiDiDaZhan/Save/CorrectionData0P.txt: systemprofiles/arcadepc/files/polar-wars/CorrectionData.txt
+  UnrealGame/JiDiDaZhan/Save/CorrectionData1P.txt: systemprofiles/arcadepc/files/polar-wars/CorrectionData.txt
+
+env:
+  WAL_ARCADEPC_BOARD: unrealio
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots (held: the cannon keeps firing)
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Cannon aim (x)
+  ly: Cannon aim (y)
+  b1: Fire
+  start: Start
+  coin: Coin
+  test: "Setting (menu: down)"
+  down: Down
+  up: Up
+  left: Left
+  right: Right
+  service: Ticket (right)

@@ -3000,7 +3000,7 @@ envelope stubs at 0x0313xxxx). The entry point is the game's ATL `WinMain` (the 
 start-up had run when it was dumped). The game imports no DLL the payload could replace: the
 profile installs it as `inpout32.dll` and starts the game through wal-loader
 (`payload_loader: true`, a launcher option: wal-loader with the profile's first
-`payload_install` path); the game loads `inpout32` itself later (`LoadLibraryA`), the same
+`payload_install` path, from the game root when it has a folder, as the install); the game loads `inpout32` itself later (`LoadLibraryA`), the same
 module. `coopers9.rs`, before the game's code runs:
 
 - **Imports.** A real import directory is written where the header points (descriptors, lookup
@@ -3857,6 +3857,47 @@ stub, `_Frenzy Express GameFiles/` the repacker's leftovers.
   `winedmo-parser-rewind-after-eos` (§5.3).
 - **Not done.** Lamps and vibration (accepted, ignored).
 
+#### Polar Wars
+
+Maiqiang's "JiDiDaZhan" (Unity 5.6, Mono `mono.dll`, 32-bit, `UnrealGame/JiDiDaZhan/` below the
+dump root: `polar-wars.windowsloader`), a two-player ball cannon cabinet on the "UnrealIO"
+board (`CommSetting.ini`: 32-bit protocol over USB).
+
+- **Board (`unrealio.rs`, `WAL_ARCADEPC_BOARD=unrealio`).** `UnrealIO32.CommLogicMain` talks
+  to it through `UnrealHid.dll` (cdecl `CreateInstance`, `Open`, `Close`, `Read`, `Write`,
+  `SetReadTimeout`, `Release`): the payload, installed as
+  `UnrealGame/JiDiDaZhan/JiDiDaZhan_Data/Plugins/UnrealHid.dll` and loaded by `wal-loader`,
+  answers them through Mono's `GetProcAddress` (`mono_imports.rs`, that module only). One
+  exchange = a 32-byte `Write` (PC `F5`: lamps, motors, tickets, sum) then a 32-byte `Read`
+  (0 = done; board `FA`, sum): byte 1 the operator keys (setting / menu down, left, ticket /
+  right, up), 2 a coin per player per answer, 3 / 5 a ticket / capsule paid, 7..22 sixteen
+  ADC bytes (each gun's x, y as 16-bit big endian), 23..26 the 32 key bits (start 0-1, triggers
+  2-3; the ball sensors, motor faults, water level 0). Tickets asked (PC byte 8 nibbles,
+  capsules byte 12) are paid one every 10 exchanges.
+- **Aim.** 0..4080 over the picture (y from the top). The game maps each gun through 11
+  calibration points (`Save/CorrectionData<n>P.txt`, at 10/30/50/70/90 % of the screen): the
+  profile's files put them at those fractions of 4080, a linear map (the dump's are a real
+  cabinet's).
+- **Gun version (profile `Settings/GameSetting.ini`).** The dump's `硬件版本=1` is the ball
+  machine (real balls shot at the screen, a shot when the ball sensor fires after the trigger,
+  no cursor); the profile's file is the dump's with `硬件版本=0`, the potentiometer gun: shots
+  while the trigger is held, each player's cursor drawn by the game. Operator menu changes last
+  until the next launch.
+- **Last stage unlocked (`unrealio.rs`).** The scenario select (`PS_Selete.StateStart`)
+  locks the fifth stage (`level[4].Lock(true)`: chains, played last). At the board's first
+  call (a managed thread, before that method is compiled) the payload patches its IL
+  (`Mono::il_code`, `mono_method_get_header`): `Lock(false)`, and `PS_SeleteLevel.Lock` (only
+  called there) skips its colliders part, so a stage already played stays closed (`Init`). The
+  bytes are checked first: another build stays locked (logged).
+- **Boot updater.** The scene before the title flashes the board's firmware
+  (`IOUpdate_Data`) with 64-byte bootloader frames: those reads fail, it gives up in about 3 s
+  ("Cancel the update").
+- **Inputs.** Real keyboard and mouse filtered (`input_filter` on the executable's messages:
+  the game also reads keys, F9-F12, the mouse buttons as triggers and debug keys such as Space,
+  PageUp autoplay). Two coins a credit; at the scenario select every player with credits joins.
+- **Not done.** Outputs (start lamps, vibration, ball motors, water spray). A static "ERROR: IO
+  Exception!!" label in the operator menu (no script toggles it).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -4436,6 +4477,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | user 100%, 1 gun | UDC's portrait game (Unity 2019.4, 64-bit, encrypted IL decrypted by its runtime, §6.3i): no board left in the dump: the payload plays its keyboard and mouse mode with the gun (`post_mouse`, `GetCursorPos`); 1080x1920 desktop, `Screen.SetResolution` full screen on it (UI effects at 1080-wide pixels), bezel, crosshair |
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | Uniana (OpenGL, 32-bit, §6.3i): the payload is its `xio.dll` (`XIO` class, exported input bytes); pedals pushed by turns from one button or the accelerator; needs the runner's `winedmo-parser-rewind-after-eos` (music loop hang) |
+| `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |

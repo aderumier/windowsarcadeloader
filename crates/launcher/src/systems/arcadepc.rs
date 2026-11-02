@@ -12,6 +12,8 @@
 //! Games with one of the DemulShooter BepInEx plugins (Quick Shot Arcade): the profile's
 //! `WAL_DEMUL_PORT` makes the payload the plugin's TCP client (the guns) and the poster of its
 //! keyboard keys; natives `trigger reload action change offscreen key_<name>` (docs §6.3i).
+//! Polar Wars (32-bit, `WAL_ARCADEPC_BOARD=unrealio`): the payload is its UnrealIO board's
+//! `UnrealHid.dll`; natives `trigger start coin` and the operator's `setting left right up`.
 
 use super::{Payload, System};
 

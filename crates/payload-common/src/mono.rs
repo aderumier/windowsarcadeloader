@@ -1,6 +1,7 @@
 //! Mono's embedding API (`mono-2.0-bdwgc.dll`'s exports, or the older Unity's `mono.dll`), for
 //! the Unity games: classes, fields and methods of the game's managed code, looked up by name;
-//! [`Mono::replace`] puts a native function in place of a method's compiled code.
+//! [`Mono::replace`] puts a native function in place of a method's compiled code;
+//! [`Mono::il_code`] gives a method's IL, patched before its first call (compiled from it then).
 //!
 //! Mono's garbage collector (Boehm) does not move objects: an object's address stays valid
 //! while it is referenced (a static field, a GC handle, a pointer on an attached thread's
@@ -40,6 +41,8 @@ pub struct Mono {
     compile_method: unsafe extern "C" fn(P) -> P,
     reflection_type_from_name: unsafe extern "C" fn(*mut c_char, P) -> P,
     class_from_mono_type: unsafe extern "C" fn(P) -> P,
+    method_get_header: unsafe extern "C" fn(P) -> P,
+    method_header_get_code: unsafe extern "C" fn(P, *mut u32, *mut u32) -> *mut u8,
 }
 
 /// Mono, once the game has loaded it.
@@ -85,6 +88,8 @@ pub fn mono() -> Option<&'static Mono> {
             compile_method: std::mem::transmute(get("mono_compile_method")?),
             reflection_type_from_name: std::mem::transmute(get("mono_reflection_type_from_name")?),
             class_from_mono_type: std::mem::transmute(get("mono_class_from_mono_type")?),
+            method_get_header: std::mem::transmute(get("mono_method_get_header")?),
+            method_header_get_code: std::mem::transmute(get("mono_method_header_get_code")?),
         }
     };
     Some(MONO.get_or_init(|| m))
@@ -152,6 +157,29 @@ impl Mono {
             return class;
         }
         unsafe { (self.class_get_method_from_name)(class, c(name).as_ptr(), args) }
+    }
+
+    /// `method`'s IL code, in the loaded image (writable: Mono compiles a method from it at its
+    /// first call, so a patch must come before).
+    pub fn il_code(&self, method: P) -> Option<&'static mut [u8]> {
+        if method.is_null() {
+            return None;
+        }
+        let header = unsafe { (self.method_get_header)(method) };
+        if header.is_null() {
+            return None;
+        }
+        let (mut size, mut stack) = (0u32, 0u32);
+        let code = unsafe { (self.method_header_get_code)(header, &mut size, &mut stack) };
+        if code.is_null() || size == 0 {
+            return None;
+        }
+        use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+        let mut old = 0;
+        if unsafe { VirtualProtect(code.cast(), size as usize, PAGE_EXECUTE_READWRITE, &mut old) } == 0 {
+            return None;
+        }
+        Some(unsafe { std::slice::from_raw_parts_mut(code, size as usize) })
     }
 
     /// A field's offset in its object (from the object's start, header included), or in the

@@ -35,6 +35,9 @@
 //! Zombie Crisis (`WAL_ARCADEPC_BOARD=zombiecrisis`): `zombiecrisis.rs` is its `GamePort.dll`
 //! (`GetInstance`'s object).
 //!
+//! Polar Wars (`WAL_ARCADEPC_BOARD=unrealio`, x86 build): `unrealio.rs` is its `UnrealHid.dll`
+//! (the UnrealIO USB board's frames: keys, coins, the guns' aim, tickets).
+//!
 //! Frenzy Express (`WAL_ARCADEPC_BOARD=xio`, x86 build): `xio.rs` is its `xio.dll` (the
 //! handlebar, brake, pedals and keys).
 //!
@@ -54,6 +57,7 @@ mod jxboard;
 mod pads;
 mod topgun;
 mod uaf;
+mod unrealio;
 #[cfg(target_arch = "x86")]
 mod xio;
 mod zombiecrisis;
@@ -127,6 +131,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "bullseye" => {
                 pads::disconnect();
                 bullseye::init(unity);
+            }
+            _ if board.trim() == "unrealio" => {
+                pads::disconnect();
+                // Unity 5.6: the player is the executable
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                unrealio::init();
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();
