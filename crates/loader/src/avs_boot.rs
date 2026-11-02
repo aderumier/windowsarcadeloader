@@ -9,7 +9,7 @@
 //! 1. AVS (`libavs-win32.dll`) booted with `prop/avs-config.xml`: file systems (`/dev/nvram`,
 //!    `/dev/raw`), threads, the log.
 //! 2. `libavs-win32-ea3.dll` and the game DLL loaded (its `libacio.dll` import: the payload;
-//!    loaded after it when it has none).
+//!    Dance Dance Revolution's `mdxja_*.dll` has none: loaded after it).
 //! 3. The e-Amusement identity of `prop/eamuse-config.xml` (`ea3-config.xml` when there is one)
 //!    set in the AVS environment (`/env/profile/...`: security code, PCB id, soft id code).
 //! 4. `dll_entry_init(<model><dest><spec><rev><ext>, prop/app-config.xml's /param)`.
@@ -454,8 +454,13 @@ fn main() {
     let ea3_boot: unsafe extern "C" fn(*mut c_void) = unsafe { std::mem::transmute(proc(ea3_dll, names.ea3, names.ea3_boot)) };
     let ea3_shutdown: unsafe extern "C" fn() = unsafe { std::mem::transmute(proc(ea3_dll, names.ea3, names.ea3_shutdown)) };
     let game_dll = load(&game);
-    // the payload (`libacio.dll` beside the game) loaded when the game DLL does not import it
-    // (Dance Dance Revolution's `mdxja_945.dll`: its I/O board is a USB device)
+    // the payload (`libacio.dll` beside the game) loaded after Dance Dance Revolution's
+    // `mdxja_945.dll`, which does not import it (its I/O board is a USB device). Only there: other
+    // games' DLLs load the one importing it later (Metal Gear Arcade's launch.dll, system.dll),
+    // and the payload, loaded before it, would not know the game
+    let ddr = std::path::Path::new(&game)
+        .file_name()
+        .is_some_and(|n| n.to_string_lossy().to_ascii_lowercase().starts_with("mdxja_"));
     let payload = {
         let mut buf = [0u8; 520];
         let n = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleFileNameA(game_dll, buf.as_mut_ptr(), buf.len() as u32) } as usize;
@@ -465,7 +470,8 @@ fn main() {
             None => "libacio.dll".to_string(),
         }
     };
-    if unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(c"libacio.dll".as_ptr().cast()) }.is_null()
+    if ddr
+        && unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(c"libacio.dll".as_ptr().cast()) }.is_null()
         && exists(&payload)
     {
         let _ = load(&payload);
