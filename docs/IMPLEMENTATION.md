@@ -3833,10 +3833,10 @@ plugins, launcher, logs and the root copies of the plugins; the camera tracker's
 ### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
 
 Adrenaline's PC-based arcade games. System `adrenaline` (Batocera's ES `adrenaline`), payload
-`wal_adrenaline.dll` (32-bit) installed as `xinput1_3.dll`: no pads, the real keyboard and mouse
-filtered (the game's own `C` coin and `O` operator keys), the common crosshair option (d3d9).
-The Unity games' `DllImport`s are resolved through Mono's `GetProcAddress`
-(`payload-common`'s `mono_imports.rs`).
+`wal_adrenaline.dll` (32-bit) or `wal_adrenaline64.dll` (64-bit games) installed as
+`xinput1_3.dll`: no pads, the real keyboard and mouse filtered (the games' own coin, operator
+and quit keys). The Unity games' `DllImport`s are resolved through Mono's `GetProcAddress`
+(`payload-common`'s `mono_imports.rs`). Both games have the Matrix dongle (`matrix.rs`).
 
 #### Skylanders Cloud Patrol
 
@@ -3867,7 +3867,48 @@ loads it at the entry point, so the crosshair overlay hooks the device.
 - **Dongle.** `matrix32.dll` (stdcall, the online device id only): `Init_MatrixAPI`,
   `Dongle_Count` 1, `Dongle_ReadSerNr` a serial, `Release_MatrixAPI`.
 - **Play.** 4 coins a game (operator setting), then touches: element and character select,
-  shooting. Natives `touch coin` (each player), `operator`.
+  shooting. Natives `touch coin` (each player), `operator`. The common crosshair option (d3d9).
+
+#### Rabbids Hollywood
+
+Unity 2017.2 (Mono, Direct3D 11, 64-bit), four guns: Sixense STEM packs (electromagnetic
+trackers, position and rotation) around a STEM base. `rabbids-hollywood.windowsloader` points at
+`Game.exe`. Some dumps carry a Unity Doorstop proxy `winhttp.dll` loading BepInEx and a mouse
+plugin: the profile sets Wine's own `winhttp` (no plugins, the hardware emulated instead). The
+game draws its own crosshairs.
+
+- **Trackers (`sixense.rs`).** `sxCore.dll` (cdecl): device 0 the base (`device_type` 14),
+  devices 1-4 the guns (`device_type` 4, `device_type_extended` = the gun's number).
+  `GunDetection` waits for the enabled guns plus the base
+  (`sxCoreGetNumConnectedTrackedDevices`), flashes devices whose firmware differs (base MCU
+  01.10, packs MCU CA.18 / DSP DA.17: reported as such), waits for the guns' auto-sync
+  (`tracker_id` 7), maps them to the players. `sxCoreGetData` every frame: status, buttons
+  (`START`: the trigger), position (mm, Unity flips z), rotation quaternion (Unity flips z and w).
+- **Aim.** `InputCollisionMesh` casts a ray from the gun plus the receiver's place
+  (`m_ReceiverOffsetY - m_SizeY / 2`, `m_ReceiverOffsetZ`) along the gun's forward axis onto the
+  screen plane (`m_SizeX` x `m_SizeY` m, `ControllerBaseConfig.json`), to the viewport. Each gun
+  stays at the receiver (position 0: independent of the scene's tracker scale, never "docked")
+  and turns towards the point where the player's gun aims.
+- **Gun mode.** `NewInputManager.ChooseInput` (its first frame) takes the guns only if
+  "GunReady" came first, else the mouse for good; the dump's assembly sets "gun not found" in
+  its `Awake` (mouse at once). A second after `GunDetection`'s setup (`sxCoreSoftReset`), from
+  `sxCoreGetData` (main thread), the payload clears `m_GunNotFound`, sets `m_GunReady` and calls
+  `ChooseInput` (Mono's embedding API) while `m_InputMode` is the mouse.
+- **Kaboom Adrio board (`adrio.rs`).** `KaboomAdrioFxPlusFourFeeders64.dll` (cdecl,
+  `KABOOM_DLL_ERROR`): `InitLib(port 2..19, keypad, coin, ticket, player button, spinner
+  callbacks)`, `GetTargetVersion` 9 / revision 1102 (another revision: error popup), feeders'
+  counts 0 after the reset. Callbacks: keypad `un16AllKeys` (operator 1, down 2, select 4, up
+  8), coins (16-byte structure by value: its address; four doors of two counters, running
+  totals), player buttons (`un16AllButton`: P n's start at bit 2n, button 2 at 2n + 1). They are
+  called from `GetTicketFeederCountAdrio5`, which the game's board thread polls after every
+  frame (a managed thread). Tickets: `SetTicketFeederCountToFeedAdrio5({ feeder, count })`
+  targets, a ticket fed every 100 ms, never empty.
+- **Dongle.** `matrix64.dll`: found as above; the save files' AES key is
+  `Dongle_DecryptData` of fixed blocks (the dongle's key) checked against an MD5. Our XTEA
+  fails the check: the game picks a random key each run, saves are not read back (operator
+  settings at their defaults: 4 credits a game, four guns).
+- **Play.** Coins, start, the guns shoot the posters (level choice) and the Rabbids. Natives
+  `trigger start coin` (each player), `operator up down select`.
 
 ### 6.4 Batocera integration
 
@@ -4257,6 +4298,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
+| `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 

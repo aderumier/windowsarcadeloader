@@ -1,5 +1,4 @@
-//! The "Kaboom" I/O board (`KaboomComDll.dll`, its serial board) and the Matrix dongle
-//! (`matrix32.dll`) of Skylanders Cloud Patrol.
+//! The "Kaboom" I/O board (`KaboomComDll.dll`, its serial board) of Skylanders Cloud Patrol.
 //!
 //! - **Board.** `KaboomMgr` opens the first port `InitLib(n)` (n 0..9) answering
 //!   `GetCurrentCoinCount`, then polls (every 0.25 s) the two coin counters (more than the last
@@ -11,8 +10,6 @@
 //!   feed" count (`SetTicketFeederTicketToFeedCount`), then poll the fed count
 //!   (`GetTicketFeederCount`: fed, empty) until it reaches it and reset both
 //!   (`ResetTicketFeeder`). The dispenser feeds a ticket every 100 ms, never empty.
-//! - **Dongle.** `Matrix.GetUserId` (the online services' device id): `Init_MatrixAPI`,
-//!   `Dongle_Count`, `Dongle_ReadSerNr`, `Release_MatrixAPI` (stdcall): one dongle, its serial.
 
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::time::Duration;
@@ -22,8 +19,6 @@ use wal_payload_common::log;
 use crate::{Native, PLAYERS, held};
 
 const NO_ERROR: u8 = 0;
-/// The Matrix dongle's serial number.
-const DONGLE_SERIAL: i32 = 0x0057_414C;
 
 /// The board's two coin counters.
 static COINS: [AtomicU16; 2] = [const { AtomicU16::new(0) }; 2];
@@ -139,25 +134,7 @@ extern "C" fn reset_empty_ticket_feeder(count: *mut u16) -> u8 {
     NO_ERROR
 }
 
-// The Matrix dongle (stdcall)
-
-extern "system" fn init_matrix_api() -> i16 {
-    0
-}
-
-extern "system" fn release_matrix_api() -> i16 {
-    0
-}
-
-extern "system" fn dongle_count(_port: i16) -> i16 {
-    1
-}
-
-extern "system" fn dongle_read_ser_nr(_user_code: i32, _dongle: i16, _port: i16) -> i32 {
-    DONGLE_SERIAL
-}
-
-/// The board's and the dongle's functions.
+/// The board's functions.
 pub fn resolve(name: &str) -> Option<usize> {
     let f = match name {
         "InitLib" => init_lib as *const () as usize,
@@ -171,10 +148,6 @@ pub fn resolve(name: &str) -> Option<usize> {
         "GetTicketFeederCount" => get_ticket_feeder_count as *const () as usize,
         "ResetTicketFeeder" => reset_ticket_feeder as *const () as usize,
         "ResetEmptyTicketFeeder" => reset_empty_ticket_feeder as *const () as usize,
-        "Init_MatrixAPI" => init_matrix_api as *const () as usize,
-        "Release_MatrixAPI" => release_matrix_api as *const () as usize,
-        "Dongle_Count" => dongle_count as *const () as usize,
-        "Dongle_ReadSerNr" => dongle_read_ser_nr as *const () as usize,
         _ => return None,
     };
     Some(f)
@@ -182,5 +155,5 @@ pub fn resolve(name: &str) -> Option<usize> {
 
 pub fn init() {
     std::thread::spawn(board_thread);
-    log!("kaboom: Kaboom board, Matrix dongle");
+    log!("kaboom: Kaboom board");
 }
