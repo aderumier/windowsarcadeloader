@@ -420,6 +420,20 @@ GE-Proton11-7 list (previous default runner):
   until it is flushed: a seek deadlocked. SNK Heroines (its own renderer, looping movies)
   hung right after START. The downstream BeginFlush now comes first (as Windows and Wine's
   other parsers). Found with the hang watchdog (`crash.rs`, §6.1).
+* `winedmo-parser-rewind-after-eos` (2026-11-02, GE-Proton11-10 `winedmo.dll`, i386 only,
+  previous file `hotfix-backups/i386-windows/winedmo.dll.pre-0109`): GE patch 0009 (Arcania)
+  made `dmo_seeking_SetPositions` take an absolute position equal to `seek.llCurrent` as
+  unchanged (recorded, no flush, no seek); but that is the position the streams were last
+  sought to, not where they are. Frenzy Express loops its MP3 music with `SetPositions(0)` on
+  `EC_COMPLETE`: the parser had sent its EndOfStream, skipped the seek, never delivered again,
+  and the graph's next state change waited forever for the DirectSound renderer (the game's
+  window thread hung in `xshow.dll`'s window procedure, ~10 s after START). The position is now
+  unchanged only while no active pin delivered a sample or EndOfStream since the last seek or
+  start. GE patch `0109` on `~/code/protonge` branch `winedmo-parser-rewind-after-eos` (worktree
+  `~/code/protonge-wt-parser-rewind`, pushed to the fork for a PR). Built from the
+  `~/code/wal-wine-build/build` objects with the parser of the upstream chain (0080, 0091, 0100
+  applied: that tree's parser predates them) plus 0109, linked out of tree, stripped. Found with
+  the hang watchdog (`crash::heartbeat` called from the payload's `XIO::update`).
 * Backups of replaced runner files go to `<runner>/hotfix-backups/<dll dir>/`, never next to
   the runner's DLLs: the prefix update (`wineboot -u`) copies everything in
   `lib/wine/*-windows/` into `system32`/`syswow64` and registers it, and the old
@@ -3741,6 +3755,44 @@ patched back into the file at its body (all 4369 bodies, the headers unchanged).
 - **Dump.** Rebuilt without the repack's launchers (portrait bezel, cursor), its injected
   helpers (`BullseyeTrace`, `BullseyeOutputs`, Harmony, MonoMod) and the runtime's archive.
 
+#### Frenzy Express
+
+Uniana's scooter game (2001, `xwin.exe`, OpenGL, 32-bit): a handlebar, a brake lever and two
+pedals the player pushes by turns. The dump is a community repack whose `xio.dll` (the I/O
+library, rebuilt with VC140) reads the keyboard with `GetAsyncKeyState`; its `boot.exe` is a DOS
+stub, `_Frenzy Express GameFiles/` the repacker's leftovers.
+
+- **Payload = `xio.dll` (`xio.rs`, `WAL_ARCADEPC_BOARD=xio`, `payload_install`, x86 build).**
+  `xwin.exe` imports a C++ class `XIO` (thiscall methods by their MSVC names: the x86 build adds
+  `xio.def` to the xinput exports) and reads exported bytes after each `update` (once per
+  16 ms tick, then its game logic): `g_bKeyImm` keys held and `g_bKeyExc` keys pressed since
+  the last update (bit 0 start, 1 service, 2 test, 3 coin, 4 left, 5 right), `g_bHandle` the
+  handlebar (0 left, 0x80 center, 0xFE right), `g_bBrake` (0x80 half, 0xFF full), per pedal its
+  position change (`g_bLAccelDif`), whether it grows (`g_bLAccel`) and its position
+  (`g_bLAccelEnd`). The game drives with the change of the pedal it expects next and switches
+  pedal when the other one moves; its demo writes these bytes (exported data, writable).
+  The game never reads the `XIO` object (16 bytes it allocates).
+- **Inputs.** The pedals behave as the repack's keys: held, a pedal goes down 2 per update (to
+  0xFE), released it comes back 2. `pedal` (b1, or `accel` past a quarter) presses them by turns
+  (6 updates each, 18 at a light `accel`); `pedal_left` / `pedal_right` (b3 / b4) one each.
+  The left stick steers (absolute), the d-pad moves the handlebar 0x20 per update (back to the
+  center released) and is the left / right selection keys, as is the stick past half way.
+  `brake` (b2) full, `brake_half` (b5), the `brake` axis analog. Real keyboard and mouse
+  filtered (`input_filter` on the executable's messages).
+- **Boot calibration (profile `WAL_PATCHES`, applied by the payload).** Every boot calibrates
+  the handlebar (center, RIGHT, LEFT, release) then the brake (untouched, pulled fully,
+  release): each prompt lasts 300 frames (5 s) and the value is read when it ends; "ERROR THE
+  STEERING WHEEL" then "DEFAULT SETTING" unless left < right. The readings are patched to the
+  payload's full range (handlebar 0xFE right, 0x00 left; brake 0x00, 0xFF) and the prompts to
+  30 frames: no error, the title in about 22 s instead of 45.
+- **Flow (headless):** calibration, hardware check, title, 2 coins a credit, START: how to
+  play, player select (the handlebar), START, costume select, pedal select, intro, the race
+  (about 54 km/h with `pedal`); test: the operator's menu (left / right, START).
+- **Music.** `xshow.dll` plays `show/*.mp3` through DirectShow graphs and loops them with
+  `SetPositions(0)`: hung on GE's winedmo parser until the runner hotfix
+  `winedmo-parser-rewind-after-eos` (§5.3).
+- **Not done.** Lamps and vibration (accepted, ignored).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -4201,6 +4253,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns | SpiderZSoft (Unreal Engine 4.25, 64-bit, §6.3i): rebuilt dump; the payload is its `GamePort.dll` (`GetInstance`'s object); calibration identity in the dump's `uiback.sav` |
 | `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | user 100%, 1 gun | UDC's portrait game (Unity 2019.4, 64-bit, encrypted IL decrypted by its runtime, §6.3i): no board left in the dump: the payload plays its keyboard and mouse mode with the gun (`post_mouse`, `GetCursorPos`); 1080x1920 desktop, `Screen.SetResolution` full screen on it (UI effects at 1080-wide pixels), bezel, crosshair |
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
+| `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | Uniana (OpenGL, 32-bit, §6.3i): the payload is its `xio.dll` (`XIO` class, exported input bytes); pedals pushed by turns from one button or the accelerator; needs the runner's `winedmo-parser-rewind-after-eos` (music loop hang) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
