@@ -21,6 +21,10 @@
 //! The engine loads the payload's copy as `UsbTrackerDll.dll`, a module of its own (exports only,
 //! no launcher connection): its calls go on to the main payload's (`GVRInputRaw.dll`) exports.
 //!
+//! PGA TOUR Golf Team Challenge's engine reads the same report through USBIOExtreme's `CUSBIO`
+//! (`usbio.rs`): its object points to the report record, `CUSBIO_Update(device)` fills it
+//! ([`fill_report`]); its board memory takes a device too ([`team_challenge_read_spi`]).
+//!
 //! Championship Edition's (1.2) library has no `CUSBIO_Update`: its board thread kept the object
 //! up to date, its game (`TW2002.exe`) and shell control only read it. The object is filled every
 //! 5 ms from its init on, whatever the version ([`updates`]).
@@ -119,6 +123,17 @@ pub(crate) fn buttons(stick: &wal_protocol::StickState) -> u8 {
 #[link(name = "winmm")]
 unsafe extern "system" {
     fn timeGetTime() -> u32;
+}
+
+/// The game is PGA TOUR Golf Team Challenge's (USBIOExtreme's records hold the report).
+pub(crate) fn team_challenge() -> bool {
+    static TC: OnceLock<bool> = OnceLock::new();
+    *TC.get_or_init(|| crate::frontend_fit::exe_name() == "pga_tour_golf_2006.exe")
+}
+
+/// Team Challenge's report record (`usbio.rs`'s, at least 0x20 bytes) filled.
+pub(crate) unsafe fn fill_report(record: *mut u8) {
+    unsafe { fill(record) }
 }
 
 unsafe fn fill(this: *mut u8) {
@@ -225,6 +240,26 @@ pub unsafe extern "thiscall" fn pga_trackball_read_spi(this: usize, address: u8,
     if !out.is_null() {
         let value = SPI.lock().unwrap_or_else(|e| e.into_inner())[address as usize];
         unsafe { std::ptr::copy_nonoverlapping(value.as_ptr(), out, 4) };
+    }
+}
+
+/// Team Challenge's `void CUSBIO::ReadSPIMemory(int device, unsigned char address, unsigned
+/// char *four)` (USBIOExtreme's).
+#[unsafe(no_mangle)]
+pub unsafe extern "thiscall" fn team_challenge_read_spi(_this: usize, _device: i32, address: u8, out: *mut u8) {
+    if !out.is_null() {
+        let value = SPI.lock().unwrap_or_else(|e| e.into_inner())[address as usize];
+        unsafe { std::ptr::copy_nonoverlapping(value.as_ptr(), out, 4) };
+    }
+}
+
+/// Team Challenge's `void CUSBIO::WriteSPIMemory(int device, unsigned char address, unsigned
+/// char *four)`.
+#[unsafe(no_mangle)]
+pub unsafe extern "thiscall" fn team_challenge_write_spi(_this: usize, _device: i32, address: u8, data: *const u8) {
+    if !data.is_null() {
+        let mut spi = SPI.lock().unwrap_or_else(|e| e.into_inner());
+        unsafe { std::ptr::copy_nonoverlapping(data, spi[address as usize].as_mut_ptr(), 4) };
     }
 }
 

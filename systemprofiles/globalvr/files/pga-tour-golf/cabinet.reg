@@ -1,6 +1,6 @@
 Windows Registry Editor Version 5.00
 
-; PGA TOUR Golf Championship Edition (Global VR, 1.2): the cabinet's registry. The frontend's
+; PGA TOUR Golf (Global VR, 1.2): the cabinet's registry. The frontend's
 ; ActiveX control (C:\Orion\ShellControl.ocx, its registration) and the shell's and game's
 ; settings, from the game's install CD (its _Registry, copied to the dump: ShellControl.reg,
 ; GVRShell.reg, HKLM EaSports.reg, HKLM EA.reg, HKLM Courses.reg, HKCU EaSports.reg, HKLM

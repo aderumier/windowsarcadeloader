@@ -1,6 +1,7 @@
-//! The cabinet frontend of Need for Speed Carbon and NASCAR Team Racing (the same Anark player
-//! `AMPlayer.exe` running `shell.am`): the cabinet's monitor programs it talks to, started with
-//! it, and its scripts' cabinet-only parts.
+//! The cabinet frontend of Need for Speed Carbon, NASCAR Team Racing and PGA TOUR Golf Team
+//! Challenge (the same Anark player `AMPlayer.exe` running `shell.am`): the cabinet's monitor
+//! programs it talks to, started with it (unless already running: Team Challenge's game loads
+//! the payload too), and its scripts' cabinet-only parts.
 //!
 //! On the cabinet `GVRBoot.exe` starts the Hercules monitors with the frontend. Its
 //! `HerculesPlugIn.dll` needs the coin monitor (`GVRCoinMonitor.exe`: coins and credits, shared
@@ -83,6 +84,16 @@ const BUILDS: &[Build] = &[
         evaluate_script: 0x1d0350,
         evaluate_script_calls: [0x1d1f40, 0x1d1f85, 0x1d29dd],
         render_get_message: None,
+    },
+    Build {
+        name: "Anark Client 3.0 (PGA TOUR Golf Team Challenge)",
+        compile_script: 0x1cce80,
+        compile_script_calls: [0x1cd3b6, 0x1cec9b, 0x1cece0, 0x1cf858, 0x1d41bf, 0x1dd136, 0x20d49f],
+        compile_function: 0x1cd050,
+        compile_function_calls: [0x1ced9a, 0x1cedef, 0x1cf9c7],
+        evaluate_script: 0x1cd390,
+        evaluate_script_calls: [0x1cef80, 0x1cefc5, 0x1cfa1d],
+        render_get_message: Some(0x21490),
     },
 ];
 /// The scripts' edits: text, replacement (a leading 0 would make the number octal).
@@ -313,6 +324,14 @@ pub(crate) fn init() {
 }
 
 fn start(dir: &std::path::Path) {
+    // already running (started with the frontend, which starts the game: PGA TOUR Golf Team
+    // Challenge's engine loads the payload too)
+    let map = unsafe { windows_sys::Win32::System::Memory::OpenFileMappingA(windows_sys::Win32::System::Memory::FILE_MAP_READ, 0, c"GVRCoinMonitor_map".as_ptr().cast()) };
+    if !map.is_null() {
+        unsafe { CloseHandle(map) };
+        log!("carbon shell: the coin monitor is running");
+        return;
+    }
     for name in MONITORS {
         let path = dir.join(name);
         let mut cmd: Vec<u16> = format!("\"{}\"", path.display()).encode_utf16().chain(Some(0)).collect();
