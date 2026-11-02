@@ -1,0 +1,62 @@
+REGEDIT4
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Tsunami\Apps\ReVolt]
+"cmdline"="c:\\games\\ReVolt\\ReVolt.exe -coinop"
+"path"="c:\\games\\ReVolt"
+"name"="ReVolt"
+"launchGame"="c:\\games\\ReVolt\\ReVolt.exe -launchgame"
+"launchAttract"="c:\\games\\ReVolt\\ReVolt.exe -launchattract"
+"launchBitmap"="c:\\games\\ReVolt\\launch.bmp"
+"launchMarquee"="c:\\games\\ReVolt\\ReVolt.tga"
+"launchMovie"="c:\\games\\ReVolt\\ReVolt.avi"
+"sample"="c:\\games\\ReVolt\\volume.wav"
+"bitDepth"=dword:00000010
+"linkable"=dword:00000008
+"volume"="1.0"
+"type"="Game"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Tsunami\Apps\ReVolt\Options]
+@="ContinueTimeout;ClearScores"
+"ContestDaysRemaining"=dword:00000000
+"Difficulty"=-
+"MotionFilter"=-
+"WheelMid"=-
+"WheelMax"=-
+"Language"=-
+
+[-HKEY_LOCAL_MACHINE\Software\Tsunami\Apps\ReVolt\Options\Language]
+
+[HKEY_LOCAL_MACHINE\Software\Tsunami\Apps\ReVolt\Options\ContinueTimeout]
+@="int"
+"min"=dword:00000000
+"max"=dword:0000001e
+"step"=dword:00000005
+"default"=dword:0000000f
+"name"="Continue Timer Length"
+
+[HKEY_LOCAL_MACHINE\Software\Tsunami\Apps\ReVolt\Options\ContestDaysRemaining]
+@="int"
+"min"=dword:00000000
+"max"=dword:0000016d
+"step"=dword:00000001
+"default"=dword:00000000
+"name"="Remaining Contest Days"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Tsunami\Apps\ReVolt\Options\ClearScores]
+@="delRegKey"
+"path"="Software\\Tsunami\\Apps\\ReVolt\\HighScores"
+"name"="Clear High Scores"
+
+[-HKEY_LOCAL_MACHINE\Software\Tsunami\Apps\ReVolt\Options\Difficulty]
+
+[-HKEY_LOCAL_MACHINE\SOFTWARE\Tsunami\Apps\Revolt\Options\MotionFilter]
+
+[-HKEY_LOCAL_MACHINE\Software\Tsunami\Apps\ReVolt\Options\WheelMid]
+
+[-HKEY_LOCAL_MACHINE\Software\Tsunami\Apps\ReVolt\Options\WheelMax]
+
+[-HKEY_LOCAL_MACHINE\SOFTWARE\Tsunami\Apps\ReVolt\Options\Steering]
+
+[-HKEY_LOCAL_MACHINE\SOFTWARE\Tsunami\Apps\ReVolt\Options\Force]
+
+[-HKEY_LOCAL_MACHINE\SOFTWARE\Tsunami\Apps\ReVolt\Options\Lab]

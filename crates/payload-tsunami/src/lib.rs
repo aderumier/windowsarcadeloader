@@ -9,6 +9,9 @@
 //! * `tsuinput.rs`: the TsuInput COM object (wheel, pedals, cabinet buttons, credits).
 //! * `tsumotion.rs`: the TsuMotion COM object (motion seat), an idle seat.
 //! * `tsunet.rs`: registers the dump's `tsunet.dll` (the second cabinet COM object) with Wine.
+//! * `tvtopcon.rs`: the cabinet's software (its shell, operator console and game launcher), when
+//!   the dump starts it: the game registered for it, the programs it starts loaded with this
+//!   payload.
 //!
 //! The payload is itself an in-proc COM server (`DllGetClassObject`): the TsuInput object is
 //! registered under this DLL, so the game gets it through Wine's COM even if the
@@ -20,6 +23,7 @@ mod dinput;
 mod tsuinput;
 mod tsumotion;
 mod tsunet;
+mod tvtopcon;
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -52,7 +56,12 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         tsunet::init();
         tsumotion::init();
         tsuinput::init();
+        if let Some(program) = tvtopcon::cabinet_program() {
+            tvtopcon::init(program);
+        }
         log!("tsunami: initialized");
+    } else if reason == windows_sys::Win32::System::SystemServices::DLL_PROCESS_DETACH {
+        tvtopcon::restore_display();
     }
     TRUE
 }

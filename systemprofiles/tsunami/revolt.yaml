@@ -34,6 +34,10 @@ input:
 # exe and registered in the prefix registry by the payload (docs/REVOLT-DEBUG.md).
 files:
   tsunet.dll: "{dump}/Tsunami/tsunet.dll"
+  # the game's cabinet registration (Software\Tsunami\Apps\ReVolt, the cabinet's installer's
+  # launch.reg): the payload writes it for the cabinet's shell and console, its paths the run
+  # directory's
+  launch.reg: systemprofiles/tsunami/files/revolt/launch.reg
 
 # Control names (the GUI's mapping rows).
 controls:

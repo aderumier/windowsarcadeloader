@@ -112,7 +112,13 @@ pub fn init() {
         Some(i) => &path[..i],
         None => return,
     };
-    let dll = format!("{dir}\\tsunet.dll");
+    // next to the game (the profile's copy), else the cabinet software's (`Tsunami\`, a game
+    // started by the cabinet's shell from the dump root)
+    let candidates = [format!("{dir}\\tsunet.dll"), format!("{dir}\\Tsunami\\tsunet.dll")];
+    let Some(dll) = candidates.into_iter().find(|f| std::path::Path::new(f).exists()) else {
+        log!("tsunet: no tsunet.dll next to the game or in its Tsunami folder, not registered");
+        return;
+    };
     patch_dll(&dll);
     register_inproc(CLSID, "TsuNet Class", &dll);
 }
