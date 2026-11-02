@@ -210,8 +210,8 @@ impl Wine {
     pub fn map_c_folders(&self, folders: &std::collections::BTreeMap<String, PathBuf>, run_dir: &Path) -> Result<()> {
         for (name, directory) in folders {
             let plain = |p: &Path| !p.as_os_str().is_empty() && p.components().all(|c| matches!(c, std::path::Component::Normal(_)));
-            if !plain(Path::new(name)) || Path::new(name).components().count() != 1 {
-                bail!("invalid C: folder {name:?}: a folder name of C:\\");
+            if !plain(Path::new(name)) {
+                bail!("invalid C: folder {name:?}: a folder path of C:\\");
             }
             // "." is the dump root itself (NASCAR's C:\NASCAR holds its Game and Shell folders)
             if !plain(directory) && directory != Path::new(".") {
@@ -220,16 +220,29 @@ impl Wine {
             let target = run_dir.join(directory);
             eprintln!("wine: C:\\{name} -> {}", target.display());
             if self.dry_run { continue; }
+            // a nested folder: its parents, existing ones in any case (C:\Program Files)
+            let mut parent = self.prefix.join("drive_c");
+            let mut parts: Vec<String> = Path::new(name).components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+            let leaf = parts.pop().unwrap_or_default();
+            for part in parts {
+                let existing = fs::read_dir(&parent)?.flatten().find(|e| e.file_name().to_string_lossy().eq_ignore_ascii_case(&part));
+                parent = match existing {
+                    Some(entry) => entry.path(),
+                    None => {
+                        fs::create_dir(parent.join(&part))?;
+                        parent.join(&part)
+                    }
+                };
+            }
             // Wine finds C:\gvr in drive_c/Gvr: an entry of another case would hide it
-            let drive_c = self.prefix.join("drive_c");
-            for entry in fs::read_dir(&drive_c)?.flatten() {
-                if entry.file_name().to_string_lossy().eq_ignore_ascii_case(name) {
+            for entry in fs::read_dir(&parent)?.flatten() {
+                if entry.file_name().to_string_lossy().eq_ignore_ascii_case(&leaf) {
                     let link = entry.path();
                     if !link.is_symlink() { bail!("C:\\{name} exists in the prefix and is not a link: {}", link.display()); }
                     fs::remove_file(&link)?;
                 }
             }
-            std::os::unix::fs::symlink(&target, drive_c.join(name)).with_context(|| format!("linking C:\\{name}"))?;
+            std::os::unix::fs::symlink(&target, parent.join(&leaf)).with_context(|| format!("linking C:\\{name}"))?;
         }
         Ok(())
     }

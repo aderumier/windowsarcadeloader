@@ -2,15 +2,15 @@
 //! and of the game (`pga_tour_golf.exe`).
 //!
 //! Both link the HASP4 API (the `hasp(service, seed, port, pw1, pw2, &p1, &p2, &p3, &p4)` stub,
-//! cdecl, found by its code) and read the dongle's 112-byte memory with the passwords
-//! 0x293D / 0x4B28 (else 0x4A4F / 0x5DD7):
+//! cdecl, found by its code) and read the dongle's 112-byte memory (by blocks; the first
+//! edition's game: by words) with the passwords 0x293D / 0x4B28 (else 0x4A4F / 0x5DD7):
 //!
 //! * the control: the dongle present (`HaspID` status 0), its country (`GetCountryCode`: the two
 //!   bytes after "CTRY", "US"), its expiry date (`CheckDate`: the day numbers after "DATE"; none:
 //!   no expiry);
 //! * the game: its code, the shell's `Operator\Games\TW2002\Code1` registry value ("PGA02.02";
-//!   Championship Edition II: "PGA02.01"), somewhere in the memory (else it quits with exit code 4,
-//!   "dongle problem").
+//!   Championship Edition II: "PGA02.01", the first: "PGATOUR1"), somewhere in the memory (the
+//!   first: in its first 8 bytes; else it quits with exit code 4, "dongle problem").
 //!
 //! The shell control starts the game with the payload, through `wal-loader` ([`create_process`]).
 //!
@@ -37,6 +37,8 @@ const STUB: [u8; 29] = [
 ];
 
 const IS_HASP: i32 = 1;
+const READ_WORD: i32 = 3;
+const WRITE_WORD: i32 = 4;
 const HASP_STATUS: i32 = 5;
 const HASP_ID: i32 = 6;
 const READ_BLOCK: i32 = 50;
@@ -45,10 +47,11 @@ const WRITE_BLOCK: i32 = 51;
 /// The port the dongle answers on when asked for any (0): the first USB key.
 const USB_PORT: i32 = 201;
 
-/// The dongle's memory: the games' codes (Championship Edition III, II), the country.
+/// The dongle's memory: the games' codes (the first edition, which reads only the first 8 bytes,
+/// Championship Edition III, II), the country.
 const fn memory() -> [u8; 0x70] {
     let mut m = [0u8; 0x70];
-    let head = b"PGA02.02PGA02.01CTRYUS";
+    let head = b"PGATOUR1PGA02.02PGA02.01CTRYUS";
     let mut i = 0;
     while i < head.len() {
         m[i] = head[i];
@@ -86,10 +89,17 @@ fn image_size(base: usize) -> usize {
     }
 }
 
-/// The dump is PGA TOUR's (its cabinet database folder, `C:\gvr.net`).
+/// The dump is PGA TOUR's (its cabinet database folder, `C:\gvr.net`), or [`is_first_edition`].
 pub(crate) fn is_dump() -> bool {
     static DUMP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *DUMP.get_or_init(|| std::path::Path::new("C:\\gvr.net\\Country").exists())
+    *DUMP.get_or_init(|| std::path::Path::new("C:\\gvr.net\\Country").exists() || is_first_edition())
+}
+
+/// The dump is the first Championship Edition's (1.2: no database, its operator menu in
+/// `C:\TW2002_Shell\Operator`).
+pub(crate) fn is_first_edition() -> bool {
+    static FIRST: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *FIRST.get_or_init(|| std::path::Path::new("C:\\TW2002_Shell\\Operator\\frame.html").exists())
 }
 
 /// The shell control's dongle, its module loaded at `base`, and its game start.
@@ -98,12 +108,41 @@ pub(crate) fn hook_control(base: usize) {
         return;
     }
     hook(base, image_size(base), "ShellControl.ocx");
+    if is_first_edition() {
+        watchdog_archives();
+    }
     // the control starts the game with the C library's `_spawnl` (`CreateProcessW` in Wine's)
     let msvcrt = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(wide("msvcrt.dll").as_ptr()) } as usize;
     if msvcrt != 0
         && let Some(o) = unsafe { iat::hook_module(msvcrt, "kernel32.dll", "CreateProcessW", create_process as *const () as usize) }
     {
         ORIG_CREATE_PROCESS.store(o, Ordering::Relaxed);
+    }
+}
+
+/// The first edition's game archives, which the cabinet's watchdog (`WatchDog.exe`, started with
+/// Windows) keeps in memory for the game: the files mapped by the shell under the names the
+/// game opens (`GVR_Resources.dll`: `OpenFileMappingA("WATCHDOG_PLAYERS.GVR")`, else `fopen` of
+/// that name, and a crash without it).
+fn watchdog_archives() {
+    use std::os::windows::io::IntoRawHandle;
+    use windows_sys::Win32::System::Memory::{CreateFileMappingA, PAGE_READONLY};
+
+    const BIN: &str = "C:\\Program Files\\EA SPORTS\\Tiger Woods PGA TOUR 2002\\Bin";
+    for (file, name) in [("golfers.gvr", "WATCHDOG_GOLFERS.GVR"), ("players.gvr", "WATCHDOG_PLAYERS.GVR"), ("test.gvr", "WATCHDOG_TEST.GVR")] {
+        let Ok(archive) = std::fs::File::open(format!("{BIN}\\{file}")) else {
+            log!("pga: no {BIN}\\{file}");
+            continue;
+        };
+        // the file and its mapping kept open for the shell's life, like the watchdog's
+        let handle = archive.into_raw_handle();
+        let name_z = format!("{name}\0");
+        let mapping = unsafe { CreateFileMappingA(handle, std::ptr::null(), PAGE_READONLY, 0, 0, name_z.as_ptr()) };
+        if mapping.is_null() {
+            log!("pga: {file} not mapped (error {})", unsafe { windows_sys::Win32::Foundation::GetLastError() });
+        } else {
+            log!("pga: {file} mapped as {name}");
+        }
     }
 }
 
@@ -152,14 +191,124 @@ unsafe extern "system" fn create_process(
 
 /// The game's dongle, in the game.
 pub(crate) fn init() {
-    if crate::frontend_fit::exe_name() != "pga_tour_golf.exe" {
+    let exe = crate::frontend_fit::exe_name();
+    if exe != "pga_tour_golf.exe" && exe != "tw2002.exe" {
         return;
     }
     let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
-    hook(base, crate::exe_size(), "pga_tour_golf.exe");
+    hook(base, crate::exe_size(), &exe);
     crate::netds::init(base);
     video_memory();
+    archives_dated();
+    ripple_edge();
     std::thread::spawn(black_window);
+}
+
+/// `and ecx, 0xFFFF; cmp ecx, 2003` (`GVR_Resources.dll`'s date check: the year of
+/// `GetSystemTime`).
+const ARCHIVE_YEAR: [u8; 12] = [0x81, 0xE1, 0xFF, 0xFF, 0x00, 0x00, 0x81, 0xF9, 0xD3, 0x07, 0x00, 0x00];
+
+/// The first edition's archives (`GVR_Resources`) opened only in January and February 2003
+/// (else none, and the game crashes on its device): the date check answers true, and the
+/// archives built before the payload (static objects of `GVR_Resources.dll` and `Engine.dll`,
+/// `push "WATCHDOG_..."; mov ecx, object; call constructor`) are opened again
+/// (`GVR_Resources::Initialize`).
+fn archives_dated() {
+    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
+
+    let res = unsafe { GetModuleHandleA(c"GVR_Resources.dll".as_ptr().cast()) } as usize;
+    if res == 0 {
+        return;
+    }
+    let image = unsafe { std::slice::from_raw_parts(res as *const u8, image_size(res)) };
+    let Some(at) = image.windows(ARCHIVE_YEAR.len()).position(|w| w == ARCHIVE_YEAR) else {
+        return;
+    };
+    // the check's start (`push ebp; mov ebp, esp`): `mov al, 1; ret`
+    let Some(start) = (at.saturating_sub(0x40)..at).rev().find(|&i| image[i..i + 3] == [0x55, 0x8B, 0xEC]) else {
+        return;
+    };
+    let code: [u8; 3] = [0xB0, 0x01, 0xC3];
+    let target = res + start;
+    let mut old = 0;
+    unsafe {
+        VirtualProtect(target as *const c_void, code.len(), PAGE_EXECUTE_READWRITE, &mut old);
+        std::ptr::copy_nonoverlapping(code.as_ptr(), target as *mut u8, code.len());
+        VirtualProtect(target as *const c_void, code.len(), old, &mut old);
+    }
+    log!("pga: GVR_Resources.dll: archive date check at {target:#x} answered");
+
+    let Some(initialize) = (unsafe { GetProcAddress(res as _, c"?Initialize@GVR_Resources@@QAE_NPBD@Z".as_ptr().cast()) }) else {
+        return;
+    };
+    let initialize: unsafe extern "thiscall" fn(usize, *const u8) -> bool = unsafe { std::mem::transmute(initialize) };
+    for module in [c"GVR_Resources.dll", c"Engine.dll"] {
+        let base = unsafe { GetModuleHandleA(module.as_ptr().cast()) } as usize;
+        if base == 0 {
+            continue;
+        }
+        let size = image_size(base);
+        let image = unsafe { std::slice::from_raw_parts(base as *const u8, size) };
+        let inside = |p: usize| (base..base + size - 16).contains(&p);
+        for i in 0..size.saturating_sub(11) {
+            if image[i] != 0x68 || image[i + 5] != 0xB9 || image[i + 10] != 0xE8 {
+                continue;
+            }
+            let name = u32::from_le_bytes(image[i + 1..i + 5].try_into().unwrap()) as usize;
+            let object = u32::from_le_bytes(image[i + 6..i + 10].try_into().unwrap()) as usize;
+            if !inside(name) || !inside(object) || !image[name - base..].starts_with(b"WATCHDOG_") {
+                continue;
+            }
+            // the archive (+0x10c) not opened
+            if unsafe { *((object + 0x10c) as *const usize) } != 0 {
+                continue;
+            }
+            let ok = unsafe { initialize(object, name as *const u8) };
+            let name = String::from_utf8_lossy(&image[name - base..].split(|&b| b == 0).next().unwrap_or_default()).into_owned();
+            log!("pga: {}: archive {name} opened ({ok})", module.to_string_lossy());
+        }
+    }
+}
+
+/// `mov eax, [ebp-0x78]; sub eax, [ebp-0x14]; xor ecx, ecx; mov cl, [eax]` (`Engine.dll`'s
+/// water ripple map from `Courses\dudv2.dds`: the pixel above).
+const RIPPLE_ABOVE: [u8; 10] = [0x8B, 0x45, 0x88, 0x2B, 0x45, 0xEC, 0x33, 0xC9, 0x8A, 0x08];
+
+/// The address of the first edition's ripple map read of the pixel above (0: none).
+static RIPPLE_READ: AtomicUsize = AtomicUsize::new(0);
+
+/// The first edition's ripple map (du/dv from the locked `Courses\dudv2.dds` texture) reads the
+/// row above its first row: memory the Windows driver had before the texture, none in Wine's
+/// (an access violation loading the course). That read faulting reads the pixel itself.
+fn ripple_edge() {
+    use windows_sys::Win32::System::Diagnostics::Debug::AddVectoredExceptionHandler;
+
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(c"Engine.dll".as_ptr().cast()) } as usize;
+    if base == 0 {
+        return;
+    }
+    let image = unsafe { std::slice::from_raw_parts(base as *const u8, image_size(base)) };
+    let Some(at) = image.windows(RIPPLE_ABOVE.len()).position(|w| w == RIPPLE_ABOVE) else {
+        return;
+    };
+    RIPPLE_READ.store(base + at + 8, Ordering::Relaxed);
+    unsafe { AddVectoredExceptionHandler(1, Some(ripple_fault)) };
+    log!("pga: Engine.dll: ripple map edge at {:#x}", base + at + 8);
+}
+
+unsafe extern "system" fn ripple_fault(info: *mut windows_sys::Win32::System::Diagnostics::Debug::EXCEPTION_POINTERS) -> i32 {
+    const EXCEPTION_ACCESS_VIOLATION: i32 = 0xC000_0005_u32 as i32;
+    const EXCEPTION_CONTINUE_EXECUTION: i32 = -1;
+    const EXCEPTION_CONTINUE_SEARCH: i32 = 0;
+    let (record, context) = unsafe { (&*(*info).ExceptionRecord, &mut *(*info).ContextRecord) };
+    if record.ExceptionCode != EXCEPTION_ACCESS_VIOLATION || context.Eip as usize != RIPPLE_READ.load(Ordering::Relaxed) {
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+    // `mov cl, [eax]` with the pixel ([ebp-0x78])
+    let pixel = unsafe { *((context.Ebp as usize - 0x78) as *const *const u8) };
+    context.Ecx = u32::from(unsafe { *pixel });
+    context.Eip += 2;
+    EXCEPTION_CONTINUE_EXECUTION
 }
 
 /// `add eax, 0x800000; and eax, 0x0F000000` (DXWrap's video memory rounding, Championship
@@ -244,6 +393,20 @@ unsafe extern "C" fn hasp(
         HASP_STATUS => [1, 1, port, 0],
         // id low / high, status 0
         HASP_ID => [0x4c57, 0x4741, 0, 0],
+        // p1 word address, p2 the word (the first edition's game)
+        READ_WORD | WRITE_WORD => {
+            let mut memory = MEMORY.lock().unwrap_or_else(|e| e.into_inner());
+            let at = a1 as usize * 2;
+            match memory.get_mut(at..at + 2) {
+                Some(word) if service == READ_WORD => [a1, i32::from(u16::from_le_bytes([word[0], word[1]])), 0, a4],
+                Some(word) => {
+                    word.copy_from_slice(&(a2 as u16).to_le_bytes());
+                    [a1, a2, 0, a4]
+                }
+                // address out of the memory
+                None => [a1, a2, -6, a4],
+            }
+        }
         READ_BLOCK | WRITE_BLOCK => {
             // p1 start word, p2 words, p4 buffer
             let (start, len, buf) = (a1 as usize * 2, a2 as usize * 2, a4 as usize as *mut u8);
@@ -263,7 +426,10 @@ unsafe extern "C" fn hasp(
         _ => [0, 0, 0, 0],
     };
     unsafe { [*p1, *p2, *p3, *p4] = out };
-    if service != READ_BLOCK {
+    if service == READ_WORD {
+        static LOGGED: std::sync::Once = std::sync::Once::new();
+        LOGGED.call_once(|| log!("pga: hasp memory read by words"));
+    } else if service != READ_BLOCK {
         log!("pga: hasp service {service} port {port} -> {out:?}");
     }
 }
@@ -273,8 +439,8 @@ mod tests {
     #[test]
     fn memory_layout() {
         let m = super::memory();
-        assert_eq!(&m[..16], b"PGA02.02PGA02.01");
-        assert_eq!(&m[16..22], b"CTRYUS");
+        assert_eq!(&m[..24], b"PGATOUR1PGA02.02PGA02.01");
+        assert_eq!(&m[24..30], b"CTRYUS");
         assert!(!m.windows(4).any(|w| w == b"DATE"));
     }
 }

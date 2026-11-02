@@ -58,7 +58,12 @@ static LAST_BUTTONS: AtomicU32 = AtomicU32::new(u32::MAX);
 fn buttons() -> u32 {
     let stick = wal_payload_common::input(0);
     let mut bits = 0;
-    MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP)).for_each_pressed(&stick, |Native(b)| bits |= b);
+    if crate::pga::is_dump() {
+        // PGA TOUR's shell: the trackball board's buttons (its Operator\Buttons bits)
+        bits = crate::pga_trackball::buttons(&stick) as u32;
+    } else {
+        MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP)).for_each_pressed(&stick, |Native(b)| bits |= b);
+    }
     if LAST_BUTTONS.swap(bits, Ordering::Relaxed) != bits {
         log!("beachhead: buttons {bits:#x}");
     }

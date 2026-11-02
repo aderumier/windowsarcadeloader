@@ -8,8 +8,9 @@
 //! | offset | content |
 //! |---|---|
 //! | 0x00 / 0x02 | u16 trackball X / Y counters (wrapping) |
-//! | 0x18 | buttons |
-//! | 0x1c | `timeGetTime` of the update (the engine's swing speed: counts over milliseconds) |
+//! | 0x18 | buttons (the first Championship Edition's library: 0x14) |
+//! | 0x1c | `timeGetTime` of the update (the engine's swing speed: counts over milliseconds; none in
+//! the first edition's, another variable follows its buttons) |
 //!
 //! The engine's swing is the ball rolled toward the screen (Y counter going up) after the
 //! backswing. The ball rolls at the virtual stick's tilt (`WAL_PGA_TRACKBALL_SPEED` counts per
@@ -19,6 +20,10 @@
 //!
 //! The engine loads the payload's copy as `UsbTrackerDll.dll`, a module of its own (exports only,
 //! no launcher connection): its calls go on to the main payload's (`GVRInputRaw.dll`) exports.
+//!
+//! Championship Edition's (1.2) library has no `CUSBIO_Update`: its board thread kept the object
+//! up to date, its game (`TW2002.exe`) and shell control only read it. The object is filled every
+//! 5 ms from its init on, whatever the version ([`updates`]).
 
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -55,7 +60,26 @@ fn map() -> &'static ButtonMap<Native> {
 /// The game is PGA TOUR's (this board, not USBIOExtreme's).
 pub(crate) fn active() -> bool {
     static ACTIVE: OnceLock<bool> = OnceLock::new();
-    *ACTIVE.get_or_init(|| crate::frontend_fit::exe_name() == "pga_tour_golf.exe")
+    *ACTIVE.get_or_init(|| {
+        let exe = crate::frontend_fit::exe_name();
+        exe == "pga_tour_golf.exe" || exe == "tw2002.exe" || own_module_name() == "usbtrackerdll.dll"
+    })
+}
+
+/// This payload module's file name, lower case (the copy installed as `UsbTrackerDll.dll`).
+fn own_module_name() -> String {
+    let mut own = std::ptr::null_mut();
+    unsafe {
+        GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            own_module_name as *const () as *const u16,
+            &mut own,
+        )
+    };
+    let mut buf = [0u16; 260];
+    let n = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(own, buf.as_mut_ptr(), 260) } as usize;
+    let path = String::from_utf16_lossy(&buf[..n]);
+    path.rsplit('\\').next().unwrap_or(&path).to_ascii_lowercase()
 }
 
 /// Counts per second at full tilt.
@@ -84,6 +108,14 @@ pub(crate) fn counter_motion(stick: &wal_protocol::StickState, last: &mut Option
 }
 static LAST_BUTTONS: AtomicU32 = AtomicU32::new(u32::MAX);
 
+/// The board's buttons pressed on the virtual stick (also the shell control's joystick buttons:
+/// the shell's `Operator\Buttons` bits).
+pub(crate) fn buttons(stick: &wal_protocol::StickState) -> u8 {
+    let mut buttons = 0u8;
+    map().for_each_pressed(stick, |Native(bit)| buttons |= bit);
+    buttons
+}
+
 #[link(name = "winmm")]
 unsafe extern "system" {
     fn timeGetTime() -> u32;
@@ -102,13 +134,16 @@ unsafe fn fill(this: *mut u8) {
         ball.y -= stick.axis(Axis::LeftY) as f32 / 32767.0 * speed() * seconds + my as f32;
         (ball.x as i64 as u16, ball.y as i64 as u16)
     };
-    let mut buttons = 0u8;
-    map().for_each_pressed(&stick, |Native(bit)| buttons |= bit);
+    let buttons = buttons(&stick);
     unsafe {
         (this as *mut u16).write_unaligned(x);
         (this.add(2) as *mut u16).write_unaligned(y);
-        *this.add(0x18) = buttons;
-        (this.add(0x1c) as *mut u32).write_unaligned(timeGetTime());
+        if crate::pga::is_first_edition() {
+            *this.add(0x14) = buttons;
+        } else {
+            *this.add(0x18) = buttons;
+            (this.add(0x1c) as *mut u32).write_unaligned(timeGetTime());
+        }
     }
     if LAST_BUTTONS.swap(buttons as u32, Ordering::Relaxed) != buttons as u32 {
         log!("pga: trackball buttons {buttons:#x}");
@@ -142,12 +177,29 @@ macro_rules! forward {
 
 /// `CUSBIO_Init()`: the board found.
 pub(crate) unsafe fn init(this: *mut u8) -> i32 {
-    if let Some(init) = forward!(c"?CUSBIO_Init@CUSBIO@@QAEHXZ", unsafe extern "thiscall" fn(*mut u8) -> i32) {
+    if let Some(init) = forward!(c"pga_trackball_init", unsafe extern "thiscall" fn(*mut u8) -> i32) {
         return unsafe { init(this) };
     }
+    unsafe { pga_trackball_init(this) }
+}
+
+/// The main payload's `CUSBIO_Init()` for the `UsbTrackerDll.dll` copy (whatever the executable):
+/// the object filled now and kept up to date.
+#[unsafe(no_mangle)]
+pub unsafe extern "thiscall" fn pga_trackball_init(this: *mut u8) -> i32 {
     unsafe { fill(this) };
+    let object = this as usize;
+    std::thread::spawn(move || updates(object));
     log!("pga: trackball board ready");
     1
+}
+
+/// The object at `object` filled every 5 ms (the board thread of the 1.2 library).
+fn updates(object: usize) {
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        unsafe { fill(object as *mut u8) };
+    }
 }
 
 /// `void CUSBIO::CUSBIO_Update()`

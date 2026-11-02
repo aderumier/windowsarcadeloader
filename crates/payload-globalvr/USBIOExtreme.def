@@ -8,6 +8,7 @@ EXPORTS
     "?CUSBIO_Close@CUSBIO@@QAEXXZ" = cusbio_close
 ; UsbTrackerDll.dll (PGA TOUR's trackball board, pga_trackball.rs): its update and memory
     "?CUSBIO_Update@CUSBIO@@QAEXXZ" = pga_trackball_update
+    pga_trackball_init
     "?ReadSPIMemory@CUSBIO@@QAEXEPAE@Z" = pga_trackball_read_spi
     "?WriteSPIMemory@CUSBIO@@QAEXEPAE@Z" = pga_trackball_write_spi
 ; the cabinet monitors (Need for Speed Carbon's GVRCoinMonitor.exe, GVRVolumeMonitor.exe)

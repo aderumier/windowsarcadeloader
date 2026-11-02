@@ -60,6 +60,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `heavy-gear-ii` | Heavy Gear II | globalvr | works (user: 100%) | pass | 2026-11-01 |
 | `pga-tour-golf-championship-edition-iii` | PGA TOUR Golf Championship Edition III | globalvr | works (user: 100%) | pass | 2026-11-02 |
 | `pga-tour-golf-championship-edition-ii` | PGA TOUR Golf Championship Edition II | globalvr | works (user: 100%) | not in the test |  |
+| `pga-tour-golf-championship-edition` | PGA TOUR Golf Championship Edition | globalvr | works (user: 100%), trackball: the mouse or touchpad (or stick) | not in the test |  |
 | `ultrapin` | UltraPin | globalvr | works (user: 100%) | not in the test |  |
 | `akai-katana-shin` | Akai Katana Shin | nesica | in game (GAME_START) | pass | 2026-11-01 |
 | `aquapazza` | Aquapazza: Aquaplus Dream Match | nesica | works (user: 100%) | pass | 2026-11-01 |
