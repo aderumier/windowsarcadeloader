@@ -167,8 +167,11 @@ pub(crate) fn init(base: usize) {
         None => log!("net: WSASendTo not hooked"),
     }
     if std::env::var("WAL_NAMCOES3_NET_LOG").is_ok_and(|v| v == "1") {
-        trace_errors(base);
-        trace_states(base);
+        // the error and state traces' addresses: 5 only
+        if crate::wmmt5::current().traces {
+            trace_errors(base);
+            trace_states(base);
+        }
         match unsafe { iat::hook_module(base, "ws2_32.dll", "WSASend", wsa_send as *const () as usize) } {
             Some(o) => WSA_SEND.store(o, Ordering::Relaxed),
             None => log!("net: WSASend not hooked"),

@@ -7,7 +7,7 @@
 //! standalone cabinet that passed ALL.Net and MUCHA authentication.
 //!
 //! The structure layouts follow bananatools' `amcus/iauth.c` (public domain), with Wangan
-//! Midnight Maximum Tune 5's identity (game SBWJ 3.00, PCB ABGN, its dongle serial). This game
+//! Midnight Maximum Tune 5's identity (game SBWJ 3.00 / 5DX 5.00, PCB ABGN, its dongle serial). This game
 //! uses an older IAuth: bananatools' slots minus 5, a shorter state (`GetInfo`), cabinet config
 //! and MUCHA answer. The ALL.Net answer's `uri` is the game server
 //! (`https://` + `WAL_NAMCOES3_GAME_SERVER`, `host:port`, default `127.0.0.1:9002`).
@@ -23,10 +23,6 @@ pub(crate) const CLSID: [u8; 16] = [
 const S_OK: i32 = 0;
 
 const GAME_ID: &str = "SBWJ";
-const GAME_CD: &str = "W5R1";
-const GAME_VER: &str = "3.00";
-const CACFG_VER: (i16, i16) = (3, 0);
-const CACFG_VER_STR: &str = "3.00";
 
 
 #[repr(C)]
@@ -86,10 +82,11 @@ unsafe extern "system" fn get_info(_this: P, out: *mut u8) -> i32 {
         put(out, 0x18, 14u32);
         put(out, 0x20, 2i32);
         put(out, 0x24, 1i32);
-        put(out, 0x3c, CACFG_VER.0);
-        put(out, 0x3e, CACFG_VER.1);
-        put(out, 0x40, CACFG_VER.0);
-        put(out, 0x42, CACFG_VER.1);
+        let (major, minor) = crate::wmmt5::current().game_ver;
+        put(out, 0x3c, major);
+        put(out, 0x3e, minor);
+        put(out, 0x40, major);
+        put(out, 0x42, minor);
     }
     S_OK
 }
@@ -105,7 +102,7 @@ unsafe extern "system" fn get_cabinet_config(_this: P, out: *mut u8) -> i32 {
         std::ptr::write_bytes(out, 0, 88);
         put_str(out, 0x00, 16, "STANDALONE");
         put_str(out, 0x10, 16, "ABGN6789012");
-        put_str(out, 0x20, 16, crate::wmmt5::SERIAL_STR);
+        put_str(out, 0x20, 16, crate::wmmt5::current().serial);
         put_str(out, 0x30, 16, "127.0.0.1");
         put_str(out, 0x40, 16, "127.0.0.1");
         put(out, 0x50, 1u16);
@@ -124,9 +121,11 @@ unsafe extern "system" fn get_version_info(_this: P, out: *mut u8) -> i32 {
         put_str(out, 0, 4, "1");
         put_str(out, 4, 16, "ALL.NET");
         put_str(out, 20, 8, GAME_ID);
-        put_str(out, 28, 8, GAME_VER);
-        put_str(out, 36, 8, GAME_CD);
-        put_str(out, 44, 8, CACFG_VER_STR);
+        let version = crate::wmmt5::current();
+        let ver = format!("{}.{:02}", version.game_ver.0, version.game_ver.1);
+        put_str(out, 28, 8, &ver);
+        put_str(out, 36, 8, version.game_cd);
+        put_str(out, 44, 8, &ver);
         put_str(out, 52, 4, "0");
         put_str(out, 56, 4, "PCB");
         put_str(out, 60, 256, "localhost");

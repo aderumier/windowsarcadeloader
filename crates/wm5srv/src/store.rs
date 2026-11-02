@@ -1,5 +1,6 @@
 //! The players' data, in the server's data directory: `users/<user id>` (a user record) and
-//! `cars/<car id>` (a car record), protocol buffers messages of this server.
+//! `cars/<car id>` (a car record), `ta/<id>` (a time attack record), protocol buffers messages
+//! of this server.
 //!
 //! User record: 1 user id, 2 card chip id, 3 access code, 4 maxi gold, 5 confirmed tutorials
 //! (bits), 6 600 HP cards, 7 car ids (the player's order), 8 shop grade, 9 total maxi gold.
@@ -7,6 +8,9 @@
 //! Car record: the fields of `LoadCarResponse` but its error (2 the car, 3 tuning points,
 //! 4 odometer, 5 play count, 8 the car's settings, the story / versus / ghost battle
 //! counters...): `load_car` answers it as stored, the game's updates are merged into it.
+//!
+//! Time attack record (a car's best on a course): 1 car id, 2 model, 3 course, 4 time,
+//! 5..11 the section times, 12 tune power, 13 tune handling.
 
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -19,7 +23,7 @@ static LOCK: Mutex<()> = Mutex::new(());
 
 pub(crate) fn init(dir: &str) {
     let dir = PathBuf::from(dir);
-    for sub in ["users", "cars"] {
+    for sub in ["users", "cars", "ta"] {
         if let Err(e) = std::fs::create_dir_all(dir.join(sub)) {
             crate::log(&format!("wm5srv: {}: {e}", dir.join(sub).display()));
         }
@@ -52,6 +56,11 @@ pub(crate) fn save(kind: &str, id: u64, record: &Message) {
     if let Err(e) = std::fs::write(path(kind, id), record.encode()) {
         crate::log(&format!("wm5srv: {kind}/{id}: {e}"));
     }
+}
+
+/// Every record of `kind`.
+pub(crate) fn all(kind: &str) -> Vec<(u64, Message)> {
+    ids(kind).into_iter().filter_map(|id| Some((id, load(kind, id)?))).collect()
 }
 
 /// A new id of `kind` (1 + the largest).

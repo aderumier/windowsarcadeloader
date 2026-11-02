@@ -1,4 +1,4 @@
-//! A Wangan Midnight Maximum Tune 5 game server: the cabinet's `https://<server>` (the ALL.Net
+//! A Wangan Midnight Maximum Tune 5 / 5DX game server: the cabinet's `https://<server>` (the ALL.Net
 //! answer's uri, `127.0.0.1:9002`), run in the game process by its payload.
 //!
 //! The game posts `/method/<rpc>` (a `wm5.protobuf.<Rpc>Request`, `Content-Type:
@@ -7,10 +7,13 @@
 //! self-signed certificate made at start: the game's certificate check is patched out.
 //!
 //! The answers follow Bayshore (Project Asakura's server, its WMMT5 fork Bayshore_5,
-//! https://github.com/shadany7824/Bayshore_5): `rpc.rs`. The players' data is kept in a
+//! https://github.com/shadany7824/Bayshore_5; 5DX: Bayshore_WM5DX-PLUS,
+//! https://github.com/kritbualad/Bayshore_WM5DX-PLUS): `rpc.rs`. The players' data is kept in a
 //! directory (`store.rs`).
 
 pub mod pb;
+pub use rpc::Game;
+mod records;
 mod rpc;
 mod store;
 
@@ -31,9 +34,11 @@ pub(crate) fn verbose() -> bool {
     VERBOSE.get().copied().unwrap_or(false)
 }
 
-/// Starts the server on `addrs` (the ALL.Net uri's `127.0.0.1:9002`, the store terminal's
-/// proxy), the players' data in `data_dir`. `verbose`: every request and answer in the log.
-pub fn start(addrs: &[String], data_dir: &str, logger: fn(&str), verbose: bool) {
+/// Starts the server of `game` on `addrs` (the ALL.Net uri's `127.0.0.1:9002`, the store
+/// terminal's proxy), the players' data in `data_dir`. `verbose`: every request and answer in
+/// the log.
+pub fn start(game: Game, addrs: &[String], data_dir: &str, logger: fn(&str), verbose: bool) {
+    rpc::set_game(game);
     let _ = LOGGER.set(logger);
     let _ = VERBOSE.set(verbose);
     store::init(data_dir);
