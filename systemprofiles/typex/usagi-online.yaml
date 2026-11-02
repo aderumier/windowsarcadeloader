@@ -1,0 +1,100 @@
+# Usagi: Yasei no Toupai Online (Warashi / Taito, Taito Type X, 2005): an online mahjong game,
+# Direct3D 9, JVS I/O on COM2. Offline here: in-store battles and story mode, no cards.
+# Override values in userprofiles/typex/usagi-online.yaml.
+system: typex
+name: Usagi - Yasei no Toupai Online
+
+# The cabinet's game.exe (it needs a launch.conf the dump lacks) starts the game, mjc.exe, with
+# the local message relay (bin/lmrd.exe) and lobby (bin/llb.exe) daemons, which the game connects
+# to on TCP 52001 at boot: its network check screen never ends without them. mjc.exe is started
+# directly, the daemons by the payload, as game.exe does (WAL_TYPEX_SERVERS). The lobby reads the
+# cabinet settings on D: (master or slave): D: is a Wine drive, for them too.
+drives:
+  d: WindowsLoader
+
+files:
+  # The relay asks NESYS (nesys.taito.co.jp, gone) for its world relay host: a local one
+  # instead (nothing answers, as NESYS: the game goes on offline), no request to the Internet.
+  etc/lmrd.conf: systemprofiles/typex/files/usagi-online/lmrd.conf
+
+initial_files:
+  # The game's default settings with FACTORYSETTING FALSE: a first boot otherwise starts with
+  # the clock setting screen (TEST to leave; the game's years end in 2020). The game keeps its
+  # settings in it afterwards (test menu).
+  WindowsLoader/config/gameconf.txt: systemprofiles/typex/files/usagi-online/gameconf.txt
+
+env:
+  WAL_TYPEX_SERVERS: "bin/lmrd.exe --no_daemon;bin/llb.exe --no_daemon"
+  # Japanese text
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+  # Its network check waits 10800 frames (3 minutes) for the world relay (WMR) before going on
+  # offline: 60 frames.
+  WAL_PATCHES: "0xD2866:3C000000"
+  # The touch screen is the JVS screen position input (25): the raw values at the picture's
+  # top left, top right, bottom left and bottom right corners with the game's default
+  # calibration (gameconf.txt CENTERX/Y 3332/2748, CHANGEX/Y 1923/1939, no skew: x =
+  # (raw - 3332) * 0.1923 + 640, y = (raw - 2748) * 0.1939 + 512 on its 1280x1024 picture).
+  WAL_TYPEX_JVS_TOUCH: 4,108,6660,108,4,5388,6660,5388
+  # third switch byte: 0x08 the panel's line (on: a touch with 0x08 but not 0x04 is the
+  # release), 0x04 touching
+  WAL_TYPEX_JVS_HELD: btn13
+  # the touch pointer: a small red dot where the mouse or gun points
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_AXES: right-stick
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
+  WAL_HIDE_CURSOR: "1"
+
+# The test menu's ENTER / SELECT switches are byte 2 bits 0x08 / 0x04 (buttons 7 / 8); the
+# touch is byte 3 bit 0x04 (button 14).
+native_map:
+  b4: btn14
+  b1: btn7
+  b2: btn8
+  b3: none
+  b5: none
+  b6: none
+
+input:
+  # the mouse (or a gun) is the touch screen
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b4
+
+options:
+  - title: Game
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun points (the touch position).
+      - key: WAL_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: Enter (test menu)
+  b2: Select (test menu)
+  b4: Touch the screen
+  rx: Touch position (x)
+  ry: Touch position (y)
+  start: none
+  coin: Coin
+  service: Service
+  test: Test

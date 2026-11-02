@@ -1,0 +1,10 @@
+# Touch screen games (Usagi Online): two coins (2 coins a credit) then a touch in the middle of
+# the screen (player 1's right stick and b4, the profile's touch), so the game starts.
+# `<seconds since launch> p<player> <inputs...>`, `-` releases.
+30.0 p1 coin
+30.3 p1 -
+31.0 p1 coin
+31.3 p1 -
+34.0 p1 rx=0 ry=0.1
+34.2 p1 rx=0 ry=0.1 b4
+34.4 p1 rx=0 ry=0.1

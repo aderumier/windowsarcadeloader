@@ -1222,6 +1222,34 @@ touch screen baseball card game (offline here: the 12 teams, no cards nor saves;
   game started again. Its on-screen buttons (↑ ↓ MENU ENTER) are touched; SWITCH TEST: ENTER =
   switch byte 2 0x08 (button 7), SELECT 0x04 (button 8).
 
+
+Usagi - Yasei no Toupai Online (2005, `mjc.exe`; the cabinet's `game.exe` starts it from a
+`launch.conf` missing in the dump), an online mahjong game on a touch screen (offline here:
+in-store battles and story mode against the computer, no cards; 2 coins):
+* Boot: the game reads `etc/mjcconf.txt` (missing: defaults) and `d:/config/gameconf.txt`
+  (missing: written with the defaults; its write thread waits forever when `d:/config` does not
+  exist, a black screen). The profile installs it once (`initial_files`) with `FACTORYSETTING
+  FALSE`: otherwise the first boot starts with the clock setting screen (years up to 2020).
+* Network check (CABINET NO.01 (MASTER): ETHERNET, MASTER, LLB, NESYS, WMR, WLB, PDB, CDB, RKM,
+  EVM): the game connects on TCP 52001 to the local message relay `bin/lmrd.exe`, which the lobby
+  `bin/llb.exe` also joins (the master flag from `d:/config/gameconf.txt`); `game.exe` starts
+  both with `--no_daemon`. Without them it retries forever (MASTER/LLB ERROR). The payload
+  starts them (`servers.rs`, `WAL_TYPEX_SERVERS`, in their folder, in a job ending them with the
+  game); they run without the payload, D: is a Wine drive (`drives`). The relay's `MRN0 = NESYS`
+  asks `nesys.taito.co.jp` (`/server/certify.php?gid=400`) for its world relay host: the
+  profile's `etc/lmrd.conf` names a local one (nothing answers, no Internet request; NESYS stays
+  ERROR -1029 on the screen). The check's state 9 then waits 10800 frames (+0xD2866, 3 minutes)
+  for the world relay before marking WMR..EVM ERROR and going on offline: 60 frames.
+* Switches (`20 01 03`, packed big endian with the system byte at +0x9EB5C8): test system 0x80,
+  service byte 1 0x40, ENTER / SELECT byte 2 0x08 / 0x04 (buttons 7 / 8), touch byte 3: 0x08 the
+  panel's line, 0x04 touching (+0x45A580: the position read while both are on, a release when
+  0x08 stays on without 0x04: `WAL_TYPEX_JVS_HELD=btn13`, the touch `b4: btn14`).
+* Touch position: the JVS screen position input (`25 01`), raw x, y mapped by +0x45A6A0 with
+  `gameconf.txt` CENTERX/Y (3332/2748), CHANGEX/Y (1923/1939) and the TX1/TY1 skew (stored - 5000,
+  0 by default): x = (raw - CENTERX) x 100 x CHANGEX / 10^6 + 640, y likewise + 512, on the
+  1280x1024 picture; the profile's corners are that mapping's raw values at the picture's
+  corners. The game makes a mouse of it (+0x41DC80: position, held, click on the first frame)
+  for its 128 touch areas.
 Attraction doors (`doors.rs`, `WAL_TYPEX_DOORS=<folder>`): the cabinet is an elevator whose two
 physical doors close in front of the screen between stages and shake during some scenes. The
 game drives them through `doors(left, right, speed)` (+0xC4B10; 0.0 open .. 1.0 closed, travel
@@ -3985,6 +4013,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `spica-adventure` | Spica Adventure | typex | works (user: 100%) | wal-loader, JVS |
 | `new-super-mario-bros-wii-coin-world` | New Super Mario Bros. Wii Coin World | typex | works (user: 100%), 4 satellites, medals, hoppers, satellite test menu | wal-loader, backup SRAM (`TxedLap.dll` answered), JVS watchdog, medal I/O board on COM1 (`WAL_TYPEX_MEDAL_PORT`); XAudio2 2.7 32-bit registration (shared prefix; crashed after the device creation without it), windowed 1920x1080 device in a screen-sized popup window, 16:9 kept (its fullscreen 1920x1080 was refused on a 1600x1200 screen) |
 | `taisen-hot-gimmick-5` | Taisen Hot Gimmick 5: Mirai Eigou | typex | works (user: 100%) | wal-loader, JVS (coins, service/test), mahjong panel read as a keyboard (`WAL_TYPEX_MAHJONG`: tiles A-N on keys A-N, start and calls from player 1), hide the dump's dinput8.dll (another loader's input hack: window not responding) |
+| `usagi-online` | Usagi - Yasei no Toupai Online | typex | works (user: 100%), offline mode, no cards (Taito G-Net cards: TODO), touch = mouse or gun with a pointer dot | wal-loader, JVS (touch on the screen position input, `WAL_TYPEX_JVS_HELD`), the cabinet's lobby daemons beside the game (`WAL_TYPEX_SERVERS`), D: drive, network check timeout patch 0xD2866 |
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 | `super-street-fighter-iv-ae` | Super Street Fighter IV Arcade Edition (export, standalone) | typex | works (user: 100%), intro video plays | wal-loader, JVS, 1280x720 game: windowed 1280x720 device scaled to the screen, 16:9 |

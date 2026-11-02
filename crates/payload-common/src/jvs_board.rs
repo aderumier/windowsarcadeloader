@@ -33,6 +33,9 @@
 //! (`screenshot::to_picture`: letterboxed, or the game desktop fitted), between the corners; the touch switch is a `native_map`
 //! entry (Harikiri Professional Baseball: `b4: btn12`).
 //!
+//! `WAL_TYPEX_JVS_HELD=btn<n>,...`: player 1 switches always on (buttons 1-16): Usagi Online's
+//! touch panel line, without which the game never sees the touch released.
+//!
 //! `WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`: Battle Gear 4's key reader (Taito
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
 //! presence makes the game use the wide monitor & clutch mode) and the H shifter (see
@@ -174,6 +177,8 @@ struct Board {
     /// `WAL_TYPEX_JVS_TOUCH`: the touch panel's raw corners (top left, top right, bottom left,
     /// bottom right: x, y each).
     touch: Option<[f32; 8]>,
+    /// `WAL_TYPEX_JVS_HELD`: player 1's (switch byte 1, 2, 3) bits always on.
+    held: (u8, u8, u8),
     /// `WAL_TYPEX_JVS_OUTPUTS=<n>`: general purpose outputs declared in the features (0: none).
     outputs: u8,
     /// `WAL_TYPEX_JVS_IDENTIFIER`: the identification string (default [`IDENTIFIER`]).
@@ -316,6 +321,7 @@ pub fn init(default_port: &str) {
             }
             c
         }),
+        held: std::env::var("WAL_TYPEX_JVS_HELD").map(|v| held(&v)).unwrap_or_default(),
         outputs: std::env::var("WAL_TYPEX_JVS_OUTPUTS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0),
         identifier: std::env::var("WAL_TYPEX_JVS_IDENTIFIER")
             .map(|v| [v.trim().as_bytes(), b"\0"].concat())
@@ -492,6 +498,21 @@ fn touch(c: &[f32; 8], stick: &StickState) -> (u16, u16) {
     (at(0).round().clamp(0.0, 65535.0) as u16, at(1).round().clamp(0.0, 65535.0) as u16)
 }
 
+/// `WAL_TYPEX_JVS_HELD`'s buttons as (switch byte 1, 2, 3) bits.
+fn held(v: &str) -> (u8, u8, u8) {
+    let mut bits = (0u8, 0u8, 0u8);
+    for name in v.split(',').map(str::trim).filter(|n| !n.is_empty()) {
+        match name.strip_prefix("btn").and_then(|n| n.parse::<u8>().ok()) {
+            Some(1) => bits.0 |= 0x02,
+            Some(2) => bits.0 |= 0x01,
+            Some(n @ 3..=8) => bits.1 |= 0x80 >> (n - 3),
+            Some(n @ 9..=16) => bits.2 |= 0x80 >> (n - 9),
+            _ => log!("jvs: bad WAL_TYPEX_JVS_HELD switch {name:?} (btn1-btn16)"),
+        }
+    }
+    bits
+}
+
 /// (switch byte 1, switch byte 2, test, coin, switch byte 3) of a player, and its
 /// [`Native::P2`] bits.
 fn player(map: &ButtonMap<Native>, stick: &StickState) -> ((u8, u8, bool, bool, u8), (u8, u8)) {
@@ -556,6 +577,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
         }
         board.coin_held[n] = p.3;
     }
+    players[0].0 |= board.held.0;
+    players[0].1 |= board.held.1;
+    players[0].4 |= board.held.2;
     if board.happy_playground {
         players[0].4 |= 0x40;
     }

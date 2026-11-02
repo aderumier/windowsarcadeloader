@@ -136,6 +136,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | pass | 2026-11-01 |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | pass | 2026-11-01 |
 | `harikiri-professional-baseball` | Harikiri Professional Baseball | typex | works (headless tests: coins, touch screen, player registration, test menu and back), offline mode, touch = mouse or gun with a pointer dot | not in the test |  |
+| `usagi-online` | Usagi - Yasei no Toupai Online | typex | works (user: 100%), offline mode, no cards (Taito G-Net cards: TODO), touch = mouse or gun with a pointer dot | pass | 2026-11-02 |
 | `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test, sound) | pass | 2026-11-01 |
 | `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video fixed with `WAL_D3D9_POW2`) | pass | 2026-11-01 |
 | `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: perfect, in gamescope, guns) | pass | 2026-11-01 |

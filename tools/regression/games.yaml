@@ -69,6 +69,7 @@
 "typex/Mobile Suit Gundam Spirits of Zeon - Memory of Soldiers/gundam-spirits-of-zeon.windowsloader": {}
 "typex/New Super Mario Bros Wii Coin World/new-super-mario-bros-wii-coin-world.windowsloader": {script: tools/regression/medals.txt}
 "typex/Raiden III (2.01J) (Portrait)/raiden-3-typex.windowsloader": {}
+"typex/Usagi - Yasei no Toupai Online/usagi-online.windowsloader": {script: tools/regression/touch-start.txt}
 "typex/Raiden IV (1.00J) (Portrait)/raiden-4-typex.windowsloader": {}
 "typex/Shikigami no Shiro III (Landscape, Bezel)/shikigami-no-shiro-3.windowsloader": {}
 "typex/Shikigami no Shiro III (Portrait)/shikigami-no-shiro-3.windowsloader": {}
