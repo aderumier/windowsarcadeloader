@@ -1,0 +1,28 @@
+FACTORYSETTING FALSE  
+MASTER 0              
+CREDIT 1              
+COIN 2                
+CONTON 1              
+CONTCOIN 1            
+CLOSEON 0             
+CLOSETIME 2345        
+CENTERX 3332          
+CENTERY 2748          
+TOUCHX 00005988       
+TOUCHY 00004620       
+TX1 5000              
+TY1 5000              
+CHANGEX 00001923      
+CHANGEY 00001939      
+MAINVOL 050           
+ATTRVOL 100           
+BGMVOL 100            
+SEVOL 100             
+DIFFICULTY 1          
+DEMOCOLOR 0           
+STORY 2               
+                      
+                      
+                      
+                      
+                      

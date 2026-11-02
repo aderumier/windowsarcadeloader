@@ -19,6 +19,7 @@
 //!   `doors.rs`).
 //! * Sonic Blast Heroes' punching pad from a gamepad trigger (`WAL_TYPEX_PUNCH`, `punch.rs`).
 //! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`).
+//! * Servers the cabinet starts beside the game (`WAL_TYPEX_SERVERS`, `servers.rs`).
 //! * The cabinet's program switcher (`WAL_TYPEX_SWITCHER`, `switcher.rs`): game <-> test menu
 //!   through the launcher.
 
@@ -31,6 +32,7 @@ mod immersion;
 mod mahjong;
 mod medal;
 mod punch;
+mod servers;
 mod sram;
 mod switcher;
 mod touch;
@@ -67,6 +69,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         touch::init();
         punch::init();
         sram::init();
+        servers::init();
         wal_payload_common::vfw::init();
         // Taito crypto service (KOF XIII Climax): only for a profile naming its key
         if wal_payload_common::crypto::key_configured() {
