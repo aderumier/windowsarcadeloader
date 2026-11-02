@@ -3959,6 +3959,22 @@ repository) runs `arcade-launcher run <rom> --root <emulator dir> --profile <es 
   ES are written to the `--profile` layer (merged last), so a game's own value stays otherwise.
 * Hotkey exit runs `pkill -TERM -x arcade-launcher` (the launcher stops the game on SIGTERM).
 
+#### Rampage
+
+Unity 2017.2 (Mono, Direct3D 11, 64-bit): three players, a joystick and an attack button each.
+`rampage.windowsloader` points at `Game.exe`. The dump's `sxCore.dll` is unused (no Sixense
+calls).
+
+- **Board.** The same `KaboomAdrioFxPlusFourFeeders64.dll` as Rabbids Hollywood (`adrio.rs`,
+  version 9 / revision 1102, callbacks), but its board thread calls no function every frame:
+  the callbacks come from a payload thread started at `InitLib` (Mono loaded) attached to the
+  game's Mono domain, every 10 ms. Player n's joystick is on the player buttons' bits 4n (down
+  1, up 2, left 4, right 8); the attack buttons are the keypad's lines (P1 down, P2 select, P3
+  up; operator 1), the operator menu's keys too. Coins: doors 1-3.
+- **Play.** Coins, attack to join, then the monsters. Natives `stick_up stick_down stick_left
+  stick_right attack coin` (each player), `operator`; the profile maps them (`native_map`: no
+  start nor select, they would be another player's attack).
+
 ### 6.5 Common crosshair option (`WAL_CROSSHAIR`)
 
 One option for every game able to show the players' crosshairs: `env.WAL_CROSSHAIR` (`1`/`0`).
@@ -4362,3 +4378,4 @@ TODO, roughly by priority:
 * Settings the batocera script has and the launcher does not: fonts, redistributable installs,
   save-file linking, virtual desktop, FSR, NVAPI, hidraw.
 * More systems (Type X JVS, ...).
+| `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | Adrenaline's 3-player monster game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Kaboom Adrio board (joysticks, attack buttons on the keypad, callbacks from a Mono-attached thread) and Matrix dongle |

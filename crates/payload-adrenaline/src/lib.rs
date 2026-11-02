@@ -9,6 +9,8 @@
 //!   where the players' guns point), `adrio.rs` its Kaboom Adrio board
 //!   (`KaboomAdrioFxPlusFourFeeders64.dll`: coins, start buttons, the operator's keypad, the
 //!   ticket feeders).
+//! - Rampage (Unity 2017.2, Mono, 64-bit): three players, a joystick and an attack button
+//!   each, on the same Adrio board (`adrio.rs`).
 //! - Spider-Man Homecoming (Unity 5.5, Mono, 32-bit): two players, one button each.
 //!   `adrio2.rs` is its Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
 //!   coins, the players' buttons on the operator's keypad, the ticket feeders).
@@ -52,6 +54,12 @@ enum Native {
     Start,
     /// The player's button (Spider-Man Homecoming: its only control).
     Button,
+    /// The player's joystick and attack button (Rampage).
+    StickUp,
+    StickDown,
+    StickLeft,
+    StickRight,
+    Attack,
     Coin,
     /// The operator's keypad: the operator key (Skylanders: any key opens and closes the
     /// operator menu), up, down and select (Rabbids Hollywood's menus).
@@ -66,6 +74,11 @@ const NATIVES: &[(&str, Native)] = &[
     ("trigger", Native::Trigger),
     ("start", Native::Start),
     ("button", Native::Button),
+    ("stick_up", Native::StickUp),
+    ("stick_down", Native::StickDown),
+    ("stick_left", Native::StickLeft),
+    ("stick_right", Native::StickRight),
+    ("attack", Native::Attack),
     ("coin", Native::Coin),
     ("operator", Native::Operator),
     ("up", Native::Up),
