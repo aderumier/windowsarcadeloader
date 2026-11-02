@@ -14,6 +14,8 @@ pub mod memdiff;
 pub mod crypto;
 #[cfg(windows)]
 pub mod bezel;
+#[cfg(windows)]
+pub mod crosshair;
 pub mod d3dx;
 pub mod desktop;
 #[cfg(windows)]

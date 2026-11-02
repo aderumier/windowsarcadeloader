@@ -26,6 +26,13 @@
 //! `ms` then off as long: Let's Go Safari's wheel, a rotary encoder on 2 switches (each pulse
 //! turns it a step; toggled on each switch read, it does not turn).
 //!
+//! `WAL_TYPEX_JVS_TOUCH=<x>,<y>,...`: a touch screen on the screen position input (`25`), the
+//! panel's raw values at the picture's top left, top right, bottom left and bottom right corners
+//! (4 x, y pairs: the game's default calibration). The touch is player 1's right stick position
+//! over the screen (the profile's mouse or gun drives `rx`/`ry`), mapped into the picture
+//! (`screenshot::to_picture`: letterboxed, or the game desktop fitted), between the corners; the touch switch is a `native_map`
+//! entry (Harikiri Professional Baseball: `b4: btn12`).
+//!
 //! `WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`: Battle Gear 4's key reader (Taito
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
 //! presence makes the game use the wide monitor & clutch mode) and the H shifter (see
@@ -164,6 +171,9 @@ struct Board {
     /// `axis*0.73@89C0`: around that center (hex), the game's default sensor calibration
     /// (Sonic & Sega All-Stars Racing: steering 0x2C80-0xE700).
     analog_inputs: Vec<Option<(usize, AnalogInput, f32, u16)>>,
+    /// `WAL_TYPEX_JVS_TOUCH`: the touch panel's raw corners (top left, top right, bottom left,
+    /// bottom right: x, y each).
+    touch: Option<[f32; 8]>,
     /// `WAL_TYPEX_JVS_OUTPUTS=<n>`: general purpose outputs declared in the features (0: none).
     outputs: u8,
     /// `WAL_TYPEX_JVS_IDENTIFIER`: the identification string (default [`IDENTIFIER`]).
@@ -297,6 +307,15 @@ pub fn init(default_port: &str) {
         happy_playground: layout == "happy-playground",
         analog_fixed,
         analog_inputs,
+        touch: std::env::var("WAL_TYPEX_JVS_TOUCH").ok().and_then(|v| {
+            let c: Vec<f32> = v.split(',').filter_map(|c| c.trim().parse().ok()).collect();
+            let c = <[f32; 8]>::try_from(c).ok();
+            match c {
+                Some(c) => log!("jvs: touch screen, raw corners {c:?}"),
+                None => log!("jvs: bad WAL_TYPEX_JVS_TOUCH {v:?} (8 numbers)"),
+            }
+            c
+        }),
         outputs: std::env::var("WAL_TYPEX_JVS_OUTPUTS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0),
         identifier: std::env::var("WAL_TYPEX_JVS_IDENTIFIER")
             .map(|v| [v.trim().as_bytes(), b"\0"].concat())
@@ -461,6 +480,16 @@ fn analog(board: &Board, sticks: &[StickState; 4], channel: usize) -> u16 {
         (center as f32 + (value as f32 - 32768.0) * scale).clamp(0.0, 65535.0) as u16
     };
     value & 0xFFC0
+}
+
+/// The touch panel's raw position (x, y) of player 1's pointer: its place in the picture,
+/// bilinear between the panel's raw corners.
+fn touch(c: &[f32; 8], stick: &StickState) -> (u16, u16) {
+    let frac = |v: i16| (v as f32 + 32768.0) / 65535.0;
+    let (u, v) = crate::screenshot::to_picture(frac(stick.axis(Axis::RightX)), frac(stick.axis(Axis::RightY)));
+    let lerp = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let at = |k: usize| lerp(lerp(c[k], c[k + 2], u), lerp(c[k + 4], c[k + 6], u), v);
+    (at(0).round().clamp(0.0, 65535.0) as u16, at(1).round().clamp(0.0, 65535.0) as u16)
 }
 
 /// (switch byte 1, switch byte 2, test, coin, switch byte 3) of a player, and its
@@ -713,7 +742,14 @@ fn process(packet: &[u8]) -> Vec<u8> {
             // Screen position: each requested channel is a pair of 16-bit coordinates.
             // Cyber Diver's XIO parser consumes report+4 bytes even without a touch device;
             // omitting them rejects the complete combined switch/coin/analog report.
-            0x25 => (2, vec![0; arg(1) as usize * 4]),
+            0x25 => {
+                let mut v = vec![0; arg(1) as usize * 4];
+                if let (Some(c), true) = (board.touch, v.len() >= 4) {
+                    let (x, y) = touch(&c, &sticks[0]);
+                    v[..4].copy_from_slice(&[(x >> 8) as u8, x as u8, (y >> 8) as u8, y as u8]);
+                }
+                (2, v)
+            }
             0x65 => (2, vec![0xA0]),
             // Battle Gear key reader (these replies carry their own report byte)
             0x6F if board.battle_gear.is_some() => (1, vec![0x01]),

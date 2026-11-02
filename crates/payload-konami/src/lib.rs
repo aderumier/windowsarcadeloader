@@ -95,8 +95,6 @@ mod contra;
 #[cfg(target_arch = "x86")]
 mod coopers9;
 #[cfg(target_arch = "x86")]
-mod crosshair;
-#[cfg(target_arch = "x86")]
 mod eamuse;
 #[cfg(target_arch = "x86")]
 mod ddr;
@@ -303,7 +301,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if file_name(module).eq_ignore_ascii_case("libbms.dll") {
             ig2::init();
-            crosshair::init();
+            wal_payload_common::crosshair::init();
             return TRUE;
         }
         if deka::detected() {

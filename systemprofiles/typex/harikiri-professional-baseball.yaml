@@ -1,0 +1,102 @@
+# Harikiri Professional Baseball (Taito, Taito Type X, 2005): an online baseball card game on
+# a touch screen, Direct3D 9, JVS I/O on COM2. Offline here: the 12 teams, against the computer
+# or in-store matches, no cards nor saves.
+# Override values in userprofiles/typex/harikiri-professional-baseball.yaml.
+system: typex
+name: Harikiri Professional Baseball
+
+# The dump's game is launcher.exe (the cabinet's game.exe), started without arguments (with -s,
+# switch.exe's start, it waits for the switcher's go: a black screen). Game <-> test menu
+# through switch.exe (the test switch: switch.exe test.exe -s, back: switch.exe game.exe -s),
+# each program started again by the launcher (WAL_TYPEX_SWITCHER): game.exe is a copy.
+files:
+  game.exe: "{dump}/launcher.exe"
+
+env:
+  # Japanese text (the news ticker) and font names in Shift-JIS
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+  # A 1024x768 game: it makes its window and fullscreen back buffer the desktop's size (the
+  # picture drawn in a corner of a bigger one) and scales the touch to it. A 1024x768 desktop,
+  # its window fitted onto the screen (4:3 kept), the back buffer windowed at that size.
+  WAL_DESKTOP_SIZE: 1024x768
+  # its window's client area in desktop units too (the test menu sizes its back buffer and
+  # window from it; the touch position is made relative to the window's origin)
+  WAL_DESKTOP_CLIENT: "1"
+  WAL_D3D9_WINDOWED_SIZE: 1024x768
+  WAL_HIDE_CURSOR: "1"
+  # Its window procedure moves the Direct3D cursor to the mouse on each mouse message
+  # (IDirect3DDevice9::SetCursorPosition): in its window fitted onto the screen that moves the
+  # mouse again, endless messages, the game frozen. The call removed (its 4 arguments popped:
+  # call [eax+0x2c] -> add esp, 0x10); the cursor is hidden, the touch comes from the JVS board.
+  WAL_PATCHES: "0x99E07:83C410"
+  WAL_PATCHES_EXE: launcher.exe,game.exe
+  WAL_TYPEX_SWITCHER: switch.exe
+  # Its DirectInput mouse (exclusive: Wine confines and warps the cursor in the fitted window,
+  # endless mouse moves, the same freeze) and keyboard (a developer fallback without the JVS
+  # board): fake DirectInput without devices.
+  WAL_DINPUT_DISABLE: "1"
+  # The touch screen is the JVS screen position input (25): the raw values at the picture's
+  # top left, top right, bottom left and bottom right corners with the game's default
+  # calibration (no [Caliblation] in d:/game.ini; its own values are the test menu's inset
+  # calibration marks): fitted from the positions the game computed for a 5x5 grid of raw
+  # points (within 5 pixels; the outermost ~20 pixels left and top would need negative values).
+  WAL_TYPEX_JVS_TOUCH: -155,-165,6972,-115,-99,5625,7031,5513
+  # the touch pointer: a small red dot where the mouse or gun points
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_AXES: right-stick
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
+
+# The touch switch is switch byte 3 bit 0x10; the test menu's ENTER / SELECT switches are
+# byte 2 bits 0x08 / 0x04 (buttons 7 / 8).
+native_map:
+  b4: btn12
+  b1: btn7
+  b2: btn8
+  b3: none
+  b5: none
+  b6: none
+
+input:
+  # the mouse (or a gun) is the touch screen
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b4
+
+options:
+  - title: Game
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun points (the touch position).
+      - key: WAL_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  b1: Enter (test menu)
+  b2: Select (test menu)
+  b4: Touch the screen
+  rx: Touch position (x)
+  ry: Touch position (y)
+  start: none
+  coin: Coin
+  service: Service
+  test: Test

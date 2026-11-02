@@ -2,9 +2,10 @@
 //! `image base + rva` of the game executable, e.g. `0xFF0A0:B801000000C3` (return true).
 //! Keeps game-specific fixes out of the payload code.
 //!
-//! `WAL_PATCHES_EXE=<file name>` limits them to that executable: the payload is also loaded by
-//! the other programs of the game directory (Tottemo E Mahjong's TestMode.exe was corrupted by
-//! the patches of game2.exe).
+//! `WAL_PATCHES_EXE=<file name>,...` limits them to those executables (the same program under
+//! two names: Harikiri Professional Baseball's launcher.exe, started again as game.exe): the
+//! payload is also loaded by the other programs of the game directory (Tottemo E Mahjong's
+//! TestMode.exe was corrupted by the patches of game2.exe).
 //!
 //! `<module>!<rva>:<hex bytes>` patches a DLL the game loads later (an Unreal plugin's
 //! library): applied by a thread as soon as the module is loaded (checked every 50 ms, 10 min).
@@ -18,7 +19,7 @@ pub fn apply() {
     let Ok(spec) = std::env::var("WAL_PATCHES") else { return };
     if let Ok(target) = std::env::var("WAL_PATCHES_EXE") {
         let exe = exe_name();
-        if !exe.eq_ignore_ascii_case(target.trim()) {
+        if !target.split(',').any(|t| exe.eq_ignore_ascii_case(t.trim())) {
             log!("patches: not applied to {exe} (WAL_PATCHES_EXE={target})");
             return;
         }

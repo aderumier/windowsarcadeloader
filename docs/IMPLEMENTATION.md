@@ -1196,6 +1196,32 @@ button 0x01; byte 1 SELECT 0x08, ENTER 0x04): both players' switches merged, eac
 button 1 its own gun button. Master volume = JVS analog input (the cabinet's volume knob, 0:
 silent).
 
+Harikiri Professional Baseball (2005, `launcher.exe` = the cabinet's `game.exe`, `-s`), a
+touch screen baseball card game (offline here: the 12 teams, no cards nor saves; 2 coins):
+* Touch screen on the JVS screen position input (`25 01`, `WAL_TYPEX_JVS_TOUCH`): x, y big
+  endian raw values (reply parser +0x87BBA: `0x8EE006` / `0x8EE008`), the touch switch is switch
+  byte 3 bit 0x10 (`native_map` `b4: btn12`). The touch object (`0x8EDE90`) maps the raw point
+  through a 4-corner calibration (d:/game.ini `[Caliblation]`, defaults when missing: the test
+  menu's inset marks at 280,320 .. 6580,5060, center 3460,2720) onto the display mode
+  (`IDirect3DDevice9::GetDisplayMode`, +0x23F3) minus `ClientToScreen` of its window. The
+  profile's corners (the picture's corners) were fitted from the positions the game computed for
+  a 5x5 grid of raw points (within 5 pixels). The pointer is player 1's `rx`/`ry` (mouse or gun)
+  mapped into the picture (`screenshot::to_picture`), drawn as a red dot (common crosshair).
+* A 1024x768 game making its back buffer the display mode: `WAL_DESKTOP_SIZE=1024x768` with
+  `WAL_DESKTOP_CLIENT=1` (display mode, window and client rectangles, `ClientToScreen` in desktop
+  units: the test menu sizes its back buffer and window from them) and `WAL_D3D9_WINDOWED_SIZE`.
+* In its window fitted on the screen two mouse loops froze it (endless `WM_MOUSEMOVE`): its window
+  procedure moves the Direct3D cursor to the mouse on each mouse message
+  (`SetCursorPosition`, call at +0x99E07 removed) and its exclusive DirectInput mouse (Wine
+  confines and warps the cursor; `WAL_DINPUT_DISABLE=1`).
+* Test menu (`switcher.rs`, `WAL_TYPEX_SWITCHER=switch.exe`): the test switch runs
+  `switch.exe test.exe -s`, which closes the game window, starts `test.exe -s` and exits (back:
+  `switch.exe game.exe -s`). The program asking asks the launcher to start the next one when it
+  exits (`exe=test.exe -s`) and starts the switcher with the payload, whose own start of the next
+  program is answered as done. The test menu's EXIT restarts the cabinet (`ExitWindowsEx`): the
+  game started again. Its on-screen buttons (↑ ↓ MENU ENTER) are touched; SWITCH TEST: ENTER =
+  switch byte 2 0x08 (button 7), SELECT 0x04 (button 8).
+
 Attraction doors (`doors.rs`, `WAL_TYPEX_DOORS=<folder>`): the cabinet is an elevator whose two
 physical doors close in front of the screen between stages and shake during some scenes. The
 game drives them through `doors(left, right, speed)` (+0xC4B10; 0.0 open .. 1.0 closed, travel
@@ -2100,9 +2126,12 @@ profile installs the payload as `libbms.dll` (`payload_install`).
 - **Crosshairs (`crosshair.rs`).** Nothing shows where a throw lands (the real balls did):
   `WAL_CROSSHAIR=1` draws each player's aim before `Present` (payload-common's d3d9
   overlay: alpha-blended quads, the game's states in a state block, its render target and depth
-  buffer restored), a built-in shape (`WAL_KONAMI_CROSSHAIR_STYLE`) or the player's PNG
-  (`WAL_KONAMI_CROSSHAIR_P1`..`_P4`), in the player's color, `WAL_KONAMI_CROSSHAIR_SIZE` % of
-  the screen height.
+  buffer restored), a built-in shape (`WAL_CROSSHAIR_STYLE`) or the player's PNG
+  (`WAL_CROSSHAIR_P1`..`_P4`), in the player's color, `WAL_CROSSHAIR_SIZE` % of
+  the screen height. The module is payload-common's (`crosshair.rs`, options `WAL_CROSSHAIR_*`,
+  formerly `WAL_KONAMI_CROSSHAIR_*`): the Type X touch screen pointer uses it too; an aim spanning
+  the screen is placed in the picture when it is letterboxed (`WAL_D3D9_ASPECT`) or the game's
+  desktop is fitted (`WAL_DESKTOP_SIZE`).
 
 #### Castlevania: The Arcade (HCV)
 
@@ -2996,7 +3025,7 @@ detected by `libpenteltp.dll`).
 - **Camera.** `libcamera.dll` (DirectShow, none here): its imports answered, one 640x480 RGB24
   camera, blank pictures (no card under it).
 - **Touch pointer.** `WAL_CROSSHAIR` (on by default): a small red dot where the mouse
-  points (`crosshair.rs`, `WAL_KONAMI_CROSSHAIR_AXES=right-stick`).
+  points (`crosshair.rs`, `WAL_CROSSHAIR_AXES=right-stick`).
 - Headless: the attract, coins, mode select, Speed Duel's tutorial (a card dispensed, the duel).
 - **Status.** User: 100%. Limits: no card scanning (the camera's pictures are blank: modes
   needing scanned cards untested); the dump lacks `data/sem0` (a few common sound effects fail
@@ -3132,7 +3161,7 @@ payload starts then, with gamekgg.dll as the game module (arkkgg's own lookups, 
   and y at 16 and 18 (spice2x's factory calibration: offsets -1500 / 3100, both axes flipped). A
   serial streaming device in libtouchpanel3m.dll (serial.rs now hooks each install's modules):
   player 1's `start` at the pointer `accel` / `brake` (the profile's mouse or gun). Without it:
-  I/O ERROR 5-1551-2399 (touch panel). The pointer is shown as a small red dot (crosshair.rs: `WAL_KONAMI_CROSSHAIR_AXES=pedals`,
+  I/O ERROR 5-1551-2399 (touch panel). The pointer is shown as a small red dot (crosshair.rs: `WAL_CROSSHAIR_AXES=pedals`,
   style `disc`, `_COLOR`, `_HIDE=0`; GUI "Touch pointer" and its size).
 - **LCD monitor** on COM1: Winning Eleven 2012's handler.
 - **Test menu settings** (`dev/nvram/testmode-v.xml`, a CRC-32 in `testmode-v.crc`): the payload
