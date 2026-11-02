@@ -18,6 +18,7 @@ pub enum Game {
     Wm5,
     Wm5Dx,
     Wm5DxPlus,
+    Wm6,
 }
 
 /// The field numbers that differ between the versions: the car record (`LoadCarResponse`),
@@ -60,6 +61,10 @@ pub(crate) struct Schema {
     pub(crate) save_st: u32,
     pub(crate) save_vs: u32,
     pub(crate) save_rg: u32,
+    /// LoadCarResponse: the ghost battle stamp (1 for a new car, as Bayshore's).
+    pub(crate) rg_stamp: Option<u32>,
+    /// TutorialType: ids (6, the user's tutorials a list of flags), else bits.
+    pub(crate) tutorial_ids: bool,
 }
 
 const WM5: Schema = Schema {
@@ -89,6 +94,8 @@ const WM5: Schema = Schema {
     save_st: 19,
     save_vs: 21,
     save_rg: 22,
+    rg_stamp: None,
+    tutorial_ids: false,
 };
 
 /// 5DX: shop points and grade per car (4, 5), the ghost battle stamp (54, 1 as Bayshore's),
@@ -120,10 +127,24 @@ const WM5DX: Schema = Schema {
     save_st: 22,
     save_vs: 24,
     save_rg: 25,
+    rg_stamp: Some(54),
+    tutorial_ids: false,
 };
 
 /// 5DX+: 5DX's fields, a 25th time attack course.
 const WM5DXP: Schema = Schema { game: Game::Wm5DxPlus, ta_courses: 25, ..WM5DX };
+
+/// 6: 5DX+'s field numbers, many fields gone: no maxi gold, shop or maxi coins (24: the ghost
+/// battle trophies), the ghost battle score, regions and dress-up level instead.
+const WM6: Schema = Schema {
+    game: Game::Wm6,
+    record_required: &[3, 6, 7, 8, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 28, 29, 34, 35, 36, 37, 38, 40, 41, 51, 53, 59, 60, 63, 64],
+    rg_map: &[(8, 22), (10, 28), (11, 29), (21, 59), (23, 27)],
+    car_required: &[9, 10, 11, 12, 13, 14, 16, 24, 25, 26, 27, 28, 31, 32, 34],
+    rg_stamp: Some(27),
+    tutorial_ids: true,
+    ..WM5DXP
+};
 
 static SCHEMA: std::sync::OnceLock<&'static Schema> = std::sync::OnceLock::new();
 
@@ -132,6 +153,7 @@ pub(crate) fn set_game(game: Game) {
         Game::Wm5 => &WM5,
         Game::Wm5Dx => &WM5DX,
         Game::Wm5DxPlus => &WM5DXP,
+        Game::Wm6 => &WM6,
     });
 }
 
@@ -182,20 +204,25 @@ pub(crate) fn method(name: &str, body: &[u8]) -> Vec<u8> {
         // no friend, challenger or history (5: has_history 6; 5DX: stamp sheets 7)
         "load_ghost_battle_info" => match schema().game {
             Game::Wm5 => Writer::new().uint(1, ERR_SUCCESS).uint(6, 0),
-            Game::Wm5Dx | Game::Wm5DxPlus => Writer::new().uint(1, ERR_SUCCESS).uint(7, 0),
+            Game::Wm5Dx | Game::Wm5DxPlus | Game::Wm6 => Writer::new().uint(1, ERR_SUCCESS).uint(7, 0),
         },
         // no online champion match running
         "load_ghost_competition_info" => Writer::new().uint(1, ERR_SUCCESS).uint(3, 1),
         // terminal: maxi gold receivable, nothing transferred (5DX: no feature announce)
         "load_terminal_information" => {
-            let w = Writer::new().uint(1, ERR_SUCCESS).uint(9, 1).message(14, transfer_notice());
+            let w = Writer::new().uint(1, ERR_SUCCESS);
+            // 6: no maxi gold
+            let w = if schema().game == Game::Wm6 { w } else { w.uint(9, 1) };
+            let w = w.message(14, transfer_notice());
             match schema().game {
                 Game::Wm5 => w,
                 Game::Wm5Dx => w.uint(16, 0),
                 // 5DX+: no prize waiting, the free scratch card used
-                Game::Wm5DxPlus => w.uint(16, 0).uint(17, 0).uint(18, 1),
+                Game::Wm5DxPlus | Game::Wm6 => w.uint(16, 0).uint(17, 0).uint(18, 1),
             }
         }
+        // 6: the player's session, client logs, bookmarked ghosts, items to receive (none)
+        "update_user_session" | "submit_client_log" | "save_bookmarks" | "load_bookmarks" | "load_unreceived_user_items" => Writer::new().uint(1, ERR_SUCCESS),
         "receive_maxi_gold" => receive_maxi_gold(&req),
         // no car campaign accepted
         "load_car_campaign_info" => Writer::new().uint(1, ERR_SUCCESS).uint(2, 1).uint(3, 0).uint(4, 0).uint(5, 0),
@@ -287,6 +314,8 @@ fn register_system_info(req: &Message) -> Writer {
     match schema().game {
         Game::Wm5 => w.uint(4, 0).uint(5, 0).uint(6, i32::MAX as u64).uint(7, i32::MAX as u64).uint(8, 0).message(9, feature_version()),
         Game::Wm5Dx | Game::Wm5DxPlus => w.uint(6, i32::MAX as u64).uint(7, i32::MAX as u64).uint(8, 0).uint(9, 0).message(10, feature_version()),
+        // 6: no client log asked, the ghost selection's redo wait (Bayshore's 30..4000)
+        Game::Wm6 => w.message(10, feature_version()).uint(28, 30).uint(29, 4000),
     }
 }
 
@@ -332,6 +361,9 @@ fn load_user(req: &Message) -> Writer {
             .uint(21, 0)
             .uint(22, 0);
     };
+    if schema().game == Game::Wm6 {
+        return load_user_6(req, id, &user);
+    }
     let max = req.uint(8).unwrap_or(u64::MAX) as usize;
     let car_ids = user.uints(7);
     let mut res = Writer::new()
@@ -360,6 +392,28 @@ fn load_user(req: &Message) -> Writer {
         .uint(15, user.uint(5).unwrap_or(0))
         .uint(21, 0)
         .uint(22, 0)
+}
+
+/// 6's LoadUserResponse: no maxi gold, coupons or 600 HP cards; the tutorials a list of flags
+/// (the ghost stamp ones, 20..24, set: the game locks up without, Bayshore's note); smartphone
+/// app not registered.
+fn load_user_6(req: &Message, id: u64, user: &Message) -> Writer {
+    let max = req.uint(8).unwrap_or(u64::MAX) as usize;
+    let car_ids = user.uints(7);
+    let mut res = Writer::new().uint(1, ERR_SUCCESS).string(3, &user.string(3).unwrap_or_default()).uint(4, 1).uint(6, id).uint(10, car_ids.len() as u64);
+    let cars: Vec<Message> = car_ids.iter().take(max).filter_map(|c| store::load("cars", *c)).collect();
+    for car in &cars {
+        res = res.bytes(11, car.bytes(2).unwrap_or_default());
+    }
+    for _ in &cars {
+        // no opponent ghost, not deleted, no event, not transferred
+        res = res.message(12, Writer::new().uint(1, 0).uint(4, 0).uint(5, 0).uint(6, 0));
+    }
+    let bits = user.uint(5).unwrap_or(0) | (0b11111 << 20);
+    for i in 0..36 {
+        res = res.uint(15, (bits >> i) & 1);
+    }
+    res.uint(21, 0).uint(22, 0)
 }
 
 fn create_user(req: &Message) -> Writer {
@@ -426,8 +480,8 @@ fn create_car(req: &Message) -> Writer {
     for &field in s.record_required {
         record = record.uint(field, 0);
     }
-    if s.game != Game::Wm5 {
-        record = record.uint(54, 1);
+    if let Some(stamp) = s.rg_stamp {
+        record = record.uint(stamp, 1);
     }
     let mut record = Message::parse(&record.0).unwrap_or_default();
     record.0.sort_by_key(|(f, _)| *f);
@@ -441,7 +495,7 @@ fn create_car(req: &Message) -> Writer {
     crate::log(&format!("wm5srv: user {user_id}: new car {car_id}"));
     let res = Writer::new().uint(1, ERR_SUCCESS).string(2, &user.string(3).unwrap_or_default()).uint(5, user_id).uint(6, car_id);
     // 5DX: the ghost battle stamp
-    if s.game != Game::Wm5 { res.uint(16, 1) } else { res }
+    if matches!(s.game, Game::Wm5Dx | Game::Wm5DxPlus) { res.uint(16, 1) } else { res }
 }
 
 /// LoadCarResponse: the car record as stored.
@@ -474,7 +528,8 @@ fn update_user(user: &mut Message, req: &Message, fields: [Option<u32>; 4]) {
         set(user, 6, Value::Varint(v));
     }
     if let Some(f) = tutorials {
-        let bits = req.uints(f).into_iter().fold(user.uint(5).unwrap_or(0), |b, t| b | t);
+        let flag = |t: u64| if schema().tutorial_ids { 1u64.checked_shl(t as u32).unwrap_or(0) } else { t };
+        let bits = req.uints(f).into_iter().fold(user.uint(5).unwrap_or(0), |b, t| b | flag(t));
         set(user, 5, Value::Varint(bits));
     }
     if let Some(v) = grade.and_then(|f| req.uint(f)) {
@@ -503,10 +558,8 @@ fn update_car(req: &Message) -> Writer {
     if let Some(v) = req.uint(10) {
         set(&mut record, schema().aura_auto, Value::Varint(v));
     }
-    if schema().game != Game::Wm5 {
-        if let Some(v) = req.uint(12) {
-            set(&mut record, 54, Value::Varint(v));
-        }
+    if let Some((stamp, v)) = schema().rg_stamp.zip(req.uint(12)) {
+        set(&mut record, stamp, Value::Varint(v));
     }
     if let Some((user_id, mut user)) = car_user(&record) {
         update_user(&mut user, req, [Some(8), Some(3), None, None]);
@@ -625,6 +678,8 @@ pub(crate) fn resource(name: &str, query: &str) -> Vec<u8> {
                     areas
                 }
                 Game::Wm5Dx | Game::Wm5DxPlus => (0..=13).chain([18]).collect(),
+                // 6 (Bayshore_legacy master_6): 0..14 and 18
+                Game::Wm6 => (0..=14).chain([18]).collect(),
             };
             let mut w = Writer::new();
             for area in areas {
