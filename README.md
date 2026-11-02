@@ -255,6 +255,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | not in the test |  |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | not in the test |  |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | pass | 2026-11-01 |
+| `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | not in the test |  |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | not in the test |  |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | not in the test |  |
 <!-- GAMELIST END -->

@@ -3762,6 +3762,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-payload-adrenaline"
+version = "0.1.0"
+dependencies = [
+ "wal-payload-common",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "wal-payload-arcadepc"
 version = "0.1.0"
 dependencies = [

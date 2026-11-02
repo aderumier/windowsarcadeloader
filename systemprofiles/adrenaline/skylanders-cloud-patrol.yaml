@@ -1,0 +1,34 @@
+# Skylanders Cloud Patrol (Adrenaline Amusements, Unity 4.2, Mono, 32-bit) - template, override
+# values in userprofiles/adrenaline/skylanders-cloud-patrol.yaml.
+# A touch screen game played with the gun: the trigger touches the screen where it points.
+# The payload emulates the cabinet's PQ Labs touch frame, its Kaboom I/O board (coins, the
+# operator's keypad, the ticket dispenser) and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: Skylanders Cloud Patrol
+
+# Unity 4.2 loads xinput1_3.dll at start: the payload
+dll_overrides:
+  xinput1_3: "n,b"
+
+# loaded at the executable's entry point: Unity loads xinput1_3.dll after its Direct3D 9 device,
+# which the crosshair overlay hooks
+payload_loader: true
+
+args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
+
+env:
+  # the game draws no gun cursor: the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+
+input:
+  # each player's gun (or mouse) aims, its trigger touches
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (touch)
+  coin: Coin
+  test: Operator menu
+  service: Operator menu
