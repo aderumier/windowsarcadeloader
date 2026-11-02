@@ -492,7 +492,9 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             // wal-loader <payload> <game> [args]: payload loaded before the game entry point
             Some(payload) => {
                 let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));
-                cmd.arg(wine.windows_path(&run_exe_dir.join(payload))).arg(&game_exe);
+                // a payload path from the game root ("dir/file.dll"), else next to the executable
+                let at = if payload.contains(['/', '\\']) { run_dir.join(payload) } else { run_exe_dir.join(payload) };
+                cmd.arg(wine.windows_path(&at)).arg(&game_exe);
                 cmd
             }
             None => match dll_host.filter(|_| exe.is_none()) {
