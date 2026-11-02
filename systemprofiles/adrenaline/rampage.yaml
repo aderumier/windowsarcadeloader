@@ -1,0 +1,38 @@
+# Rampage (Adrenaline Amusements, Unity 2017.2, Mono, 64-bit) - template, override values in
+# userprofiles/adrenaline/rampage.yaml.
+# Three players, a joystick and an attack button each. The payload emulates the cabinet's
+# Kaboom Adrio board (coins, the joysticks, the attack buttons on the operator's keypad, the
+# ticket feeders) and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: Rampage
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+
+args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
+
+# The attack buttons are the keypad's down (P1), select (P2) and up (P3) lines, the operator
+# menu's keys too: no start nor select of their own (they would be another player's attack).
+native_map:
+  up: stick_up
+  down: stick_down
+  left: stick_left
+  right: stick_right
+  b1: attack
+  b2: none
+  start: none
+  test: operator
+  service: operator
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Attack (and operator menu keys)
+  b2: none
+  start: none
+  coin: Coin
+  test: Operator menu
+  service: Operator menu

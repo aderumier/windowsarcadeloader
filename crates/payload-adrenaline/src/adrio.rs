@@ -1,5 +1,5 @@
-//! The "Kaboom" Adrio I/O board of Rabbids Hollywood (`KaboomAdrioFxPlusFourFeeders64.dll`) and
-//! Spider-Man Homecoming (`KaboomAdrioFxPlusFourFeeders.dll`, 32-bit): its serial board's
+//! The "Kaboom" Adrio I/O board of Rabbids Hollywood and Rampage
+//! (`KaboomAdrioFxPlusFourFeeders64.dll`) and Spider-Man Homecoming (`KaboomAdrioFxPlusFourFeeders.dll`, 32-bit): its serial board's
 //! library, replaced (cdecl, every function a `KABOOM_DLL_ERROR` byte, 0 no error).
 //!
 //! - **Board.** `KaboomAdrioFxPlusFourFeeders` opens the first port `InitLib(n, callbacks)` (n
@@ -9,9 +9,12 @@
 //!   8), the coin counters (a structure by value: its address; four doors of two counters,
 //!   running totals: the game credits their increase) and the player buttons (`un16AllButton`:
 //!   player n's button 1 (start) at bit 2n, button 2 at 2n + 1).
-//! - **Callbacks.** The game's board thread polls `GetTicketFeederCountAdrio5` after every
-//!   Unity frame: the payload samples the inputs and calls the callbacks there, from the
-//!   game's managed thread.
+//! - **Callbacks.** Rabbids' board thread polls `GetTicketFeederCountAdrio5` after every Unity
+//!   frame: the payload samples the inputs and calls the callbacks there, from the game's
+//!   managed thread. Rampage's calls nothing every frame: a payload thread (started at
+//!   `InitLib`, Mono loaded) attached to the game's Mono domain samples them every 10 ms too.
+//! - **Rampage.** Player n's joystick on the player buttons' bits 4n (down 1, up 2, left 4,
+//!   right 8); the attack buttons on the keypad: player 1 down, 2 select, 3 up (operator 1).
 //! - **Tickets.** `SetTicketFeederCountToFeedAdrio5` sets a feeder's target count (`{ feeder,
 //!   count }` by value), `GetTicketFeederCountAdrio5` reports the fed counts (a ticket every
 //!   100 ms up to it, the feeders never empty); `ResetTicketFeederAdrio5` (a feeder mask)
@@ -23,7 +26,7 @@
 //!   two players' buttons are the keypad's up (player 1) and down (player 2).
 
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Instant;
 
 use wal_payload_common::log;
@@ -69,6 +72,7 @@ type PlayerButtonEvent = unsafe extern "C" fn(buttons: u16);
 static KEYBOARD: AtomicUsize = AtomicUsize::new(0);
 static COIN: AtomicUsize = AtomicUsize::new(0);
 static PLAYER_BUTTON: AtomicUsize = AtomicUsize::new(0);
+static STARTED: AtomicBool = AtomicBool::new(false);
 
 struct Board {
     /// The coin doors' totals.
@@ -99,12 +103,35 @@ fn keys() -> u16 {
         .filter(|(n, _)| held(0, *n))
         .fold(0, |k, (_, bit)| k | bit);
     let players = [(0, KEY_UP), (1, KEY_DOWN)].iter().filter(|(p, _)| held(*p, Native::Button)).fold(0, |k, (_, bit)| k | bit);
-    operator | players
+    // Rampage's attack buttons
+    let attacks = [(0, KEY_DOWN), (1, KEY_SELECT), (2, KEY_UP)].iter().filter(|(p, _)| held(*p, Native::Attack)).fold(0, |k, (_, bit)| k | bit);
+    operator | players | attacks
 }
 
-/// The players' start buttons held (button 1).
+/// The player buttons held: start (button 1, bit 2n), Rampage's joysticks (bits 4n).
 fn buttons() -> u16 {
-    (0..PLAYERS).filter(|&p| held(p, Native::Start)).fold(0, |b, p| b | 1 << (2 * p))
+    let start = (0..PLAYERS).filter(|&p| held(p, Native::Start)).fold(0, |b, p| b | 1 << (2 * p));
+    let mut sticks = 0;
+    for p in 0..3 {
+        for (native, bit) in [(Native::StickDown, 1), (Native::StickUp, 2), (Native::StickLeft, 4), (Native::StickRight, 8)] {
+            if held(p, native) {
+                sticks |= bit << (4 * p);
+            }
+        }
+    }
+    start | sticks
+}
+
+/// Samples the inputs every 10 ms from a thread attached to Mono (Rampage).
+fn board_thread() {
+    if !wal_payload_common::mono::mono().is_some_and(|m| m.attach()) {
+        log!("adrio: cannot attach to Mono: inputs from the game's calls only");
+        return;
+    }
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        poll();
+    }
 }
 
 /// Samples the inputs: the callbacks of their changes (the game's managed thread).
@@ -191,6 +218,9 @@ extern "C" fn init_lib(port: i32, keyboard: usize, coin: usize, _ticket: usize, 
     KEYBOARD.store(keyboard, Ordering::Relaxed);
     COIN.store(coin, Ordering::Relaxed);
     PLAYER_BUTTON.store(player_button, Ordering::Relaxed);
+    if (keyboard | coin | player_button) != 0 && !STARTED.swap(true, Ordering::Relaxed) {
+        std::thread::spawn(board_thread);
+    }
     NO_ERROR
 }
 
