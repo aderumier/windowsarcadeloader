@@ -97,7 +97,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `persona-4-arena` | Persona 4 The Ultimate in Mayonaka Arena | nesica | works (user: perfect) | pass | 2026-11-01 |
 | `persona-4-ultimax` | Persona 4 The Ultimax Ultra Suplex Hold | nesica | works (user) | pass | 2026-11-01 |
 | `psychic-force-2012` | Psychic Force 2012 | nesica | works (user) | pass | 2026-11-01 |
-| `puzzle-bobble` | Puzzle Bobble | nesica | works (user) | pass | 2026-11-01 |
+| `puzzle-bobble` | Puzzle Bobble | nesica | works (user) | pass | 2026-11-02 |
 | `raiden-3` | Raiden III | nesica | in game (user); intro movie black | pass | 2026-11-01 |
 | `raiden-4` | Raiden IV | nesica | in game (user), intro movie (with GE-Proton's winedmo MPEG sequence header fix, after 11-7) | pass | 2026-11-01 |
 | `rastan-saga` | Rastan Saga | nesica | works (user) | pass | 2026-11-01 |
@@ -212,7 +212,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) | pass | 2026-11-01 |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | pass | 2026-11-01 |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | pass | 2026-11-02 |
-| `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user-confirmed): `-launchGame`, coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
+| `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user: 100%): the cabinet's shell `Tsunami\TVTSHELL.EXE` (dump `games/arcadepc/revolt`), its console then `ReVolt.exe -coinop`; coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | pass | 2026-11-01 |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | pass | 2026-11-01 |
 | `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | pass | 2026-11-01 |
@@ -224,7 +224,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | pass | 2026-11-01 |
 | `otomedius` | Otomedius | konami | works (user: 100%) | pass | 2026-11-01 |
 | `winning-eleven-2008` | Winning Eleven 2008 | konami | works (user: 100%), e-Amusement cards (loader's server) | pass | 2026-11-01 |
-| `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | fail: picture, audio | 2026-11-02 |
+| `gti-club-supermini-festa` | GTI Club: Supermini Festa! | konami | works (user: 100%) | pass | 2026-11-02 |
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%); e-Amusement cards (login, new player, match; save at a game's end not verified yet) | pass | 2026-11-01 |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) | pass | 2026-11-01 |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%) | pass | 2026-11-01 |

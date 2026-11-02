@@ -1,7 +1,16 @@
 # Re-Volt (Tsunami cabinet) — debug notes
 
+Status (2026-11-02): **user 100%** as on the cabinet, from the dump `games/arcadepc/revolt`
+(the cabinet's whole `Tsunami\` software): its `.windowsloader` starts the shell
+`Tsunami\TVTSHELL.EXE`, which runs the console `tvtopcon.exe` (boot screen, game selection and
+display; the test menu with Test/Enter during its boot screen) then the selected game's
+`cmdline`, `ReVolt.exe -coinop`. The cabinet software is handled by `tvtopcon.rs` (module
+docs: registration from the profile's `launch.reg`, `HardwareVersion`, `mdi_null.dll` motion
+driver, adapter walk / license / boot waits patched, display modes, programs through
+`wal-loader`).
+
 Status (2026-10-06): **WORKS** (user-confirmed) with `args: [-launchGame]`:
-coin, then the gas pedal starts a race; wheel and pedals work.
+coin, then the gas pedal starts a race; wheel and pedals work (a dump starting `ReVolt.exe`).
 
 * `-launchAttract` is the demo only: a paid gas press makes it exit 1 (back to the operator,
   whose `tvtopcon` relaunches `-launchGame`).

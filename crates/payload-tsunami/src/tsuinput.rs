@@ -425,6 +425,52 @@ unsafe extern "system" fn m40(_this: P, ms: u32) -> HRESULT {
     S_OK
 }
 
+// --- The operator console's slots (tvtopcon.exe; arg counts from its call sites, names
+// unknown: the cabinet's switches and calibration pages) ---
+
+/// [31] (this, dw): the console sets 0 / 1 (its menu entered / left).
+#[allow(non_snake_case)]
+unsafe extern "system" fn m31(_this: P, value: u32) -> HRESULT {
+    log_call(31, value, "console mode");
+    S_OK
+}
+
+/// [32] (this, index, value, out): a per-index value read back: 0.
+#[allow(non_snake_case)]
+unsafe extern "system" fn m32(_this: P, index: u32, _value: u32, out: *mut u32) -> HRESULT {
+    if !out.is_null() {
+        unsafe { *out = 0 };
+    }
+    log_call(32, index, "console query");
+    S_OK
+}
+
+/// [33] (this, axis, out min, out max, out centre): an axis calibration: the full range.
+#[allow(non_snake_case)]
+unsafe extern "system" fn m33(_this: P, axis: u32, min: *mut i32, max: *mut i32, centre: *mut i32) -> HRESULT {
+    for (out, v) in [(min, 0), (max, 255), (centre, 128)] {
+        if !out.is_null() {
+            unsafe { *out = v };
+        }
+    }
+    log_call(33, axis, "console axis calibration");
+    S_OK
+}
+
+/// [34] (this, axis, a, b, c): an axis calibration set (kept by the cabinet): accepted.
+#[allow(non_snake_case)]
+unsafe extern "system" fn m34(_this: P, axis: u32, _a: u32, _b: u32, _c: u32) -> HRESULT {
+    log_call(34, axis, "console axis calibration set");
+    S_OK
+}
+
+/// [35] (this): accepted.
+#[allow(non_snake_case)]
+unsafe extern "system" fn m35(_this: P) -> HRESULT {
+    log_call(35, 0, "console call");
+    S_OK
+}
+
 type CoCreateFn = unsafe extern "system" fn(*const GUID, P, u32, *const GUID, *mut P) -> HRESULT;
 
 unsafe extern "system" fn co_create_instance(clsid: *const GUID, outer: P, ctx: u32, iid: *const GUID, out: *mut P) -> HRESULT {
@@ -530,7 +576,7 @@ pub unsafe extern "system" fn dll_get_class_object(rclsid: *const GUID, riid: *c
 
 pub fn init() {
     // (index, function address); everything not listed is E_NOTIMPL.
-    let known: [(u32, usize); 26] = [
+    let known: [(u32, usize); 31] = [
         (0, QueryInterface as *const () as usize),
         (1, AddRef as *const () as usize),
         (2, Release as *const () as usize),
@@ -553,6 +599,11 @@ pub fn init() {
         (24, m24 as *const () as usize),
         (25, m25 as *const () as usize),
         (28, m28 as *const () as usize),
+        (31, m31 as *const () as usize),
+        (32, m32 as *const () as usize),
+        (33, m33 as *const () as usize),
+        (34, m34 as *const () as usize),
+        (35, m35 as *const () as usize),
         (37, m37 as *const () as usize),
         (38, m38 as *const () as usize),
         (39, m39 as *const () as usize),
