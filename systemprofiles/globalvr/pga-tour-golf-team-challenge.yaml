@@ -1,0 +1,183 @@
+# PGA TOUR Golf Team Challenge (Global VR, 4.0.0) - template, override values in
+# userprofiles/globalvr/pga-tour-golf-team-challenge.yaml.
+# The dump: the game's install CDs (PGA_TOUR_Team_Challenge_4.0.0_Game D1, D2, D3) at the
+# cabinet's paths, their _Registry, _Setup, fonts (Fonts) and system files (System Files) kept.
+# The cabinet's frontend, C:\PGA_TOUR_GOLF_2006\Shell\Bin\AMPlayer.exe (Anark player showing the
+# shell's .am scenes, with Global VR's plug-ins: attract, coins, player and course choice,
+# operator menu), started by the cabinet's supervisor (C:\hercules), starts the game,
+# C:\PGA_TOUR_GOLF_2006\Bin\PGA_TOUR_GOLF_2006.exe, for each play.
+system: globalvr
+name: PGA TOUR Golf Team Challenge
+
+# the supervisor's command line of the frontend (HerculesSetup.reg, Prog04)
+args: ["c:\\PGA_TOUR_GOLF_2006\\Shell\\shell.am", "-v", "FULL", "-cabinet", "-minvol", "-1500"]
+
+# Its prefix: .NET 1.1 (the frontend's plug-ins and the game's Engine.dll are mixed-mode CLR 1.1
+# code), shared with Need for Speed Underground and Carbon.
+prefix: wine-prefix/dotnet11
+prefix_tricks: [dotnet11]
+
+# The frontend's GvrIO.dll (the cabinet's message library: I/O board, buttons, trackball, the
+# dongle it checks; its I/O plug-in links the debug build, GvrIOd.dll) next to its player, the
+# coin monitor's USBIOExtreme.dll, the game's (its engine's USB board library).
+payload_install:
+  - PGA_TOUR_GOLF_2006/Shell/Bin/GvrIO.dll
+  - PGA_TOUR_GOLF_2006/Shell/Bin/GvrIOd.dll
+  - hercules/USBIOExtreme.dll
+  - PGA_TOUR_GOLF_2006/Bin/USBIOExtreme.dll
+
+dll_overrides:
+  mscoree: n
+  mscorwks: n
+  fusion: n
+  # the native C++ runtime of the mixed-mode .NET code (Wine's has no __CxxCallUnwindDtor)
+  msvcr71: n,b
+  msvcp71: n,b
+
+# The cabinet's paths.
+c_folders:
+  PGA_TOUR_GOLF_2006: PGA_TOUR_GOLF_2006
+  hercules: hercules
+  Tournament: Tournament
+  GvrPlus: GvrPlus
+
+registry: [systemprofiles/globalvr/files/pga-tour-golf-team-challenge/cabinet.reg]
+
+# the cabinet's Windows\system32 libraries the frontend and the game load
+files:
+  PGA_TOUR_GOLF_2006/Shell/Bin/msvcr71.dll: "{dump}/System Files/msvcr71.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/msvcp71.dll: "{dump}/System Files/msvcp71.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/MFC71.dll: "{dump}/System Files/MFC71.dll"
+  # The data engine on SQLite (the dump's Plus folder): PLUSDE.dll with its SQL Server client
+  # swapped for GvrSqlite.dll, next to the player (found before the system folder's).
+  PGA_TOUR_GOLF_2006/Shell/Bin/PLUSDE.dll: "{dump}/Plus/PLUSDE.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/GvrSqlite.dll: "{dump}/Plus/GvrSqlite.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/sqlite3.dll: "{dump}/Plus/sqlite3.dll"
+  # the GvrPlus engine's libraries (C:\GvrPlus\4\lib)
+  PGA_TOUR_GOLF_2006/Shell/Bin/C1.C1Zip.dll: "{dump}/GvrPlus/4/lib/C1.C1Zip.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/GvrPlusLib.dll: "{dump}/GvrPlus/4/lib/GvrPlusLib.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/GvrPeEngine.dll: "{dump}/GvrPlus/4/lib/GvrPeEngine.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/GvrPeClient.dll: "{dump}/GvrPlus/4/lib/GvrPeClient.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/GvrPeUtil.dll: "{dump}/GvrPlus/4/lib/GvrPeUtil.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/GvrPeSchemaUtil.dll: "{dump}/GvrPlus/4/lib/GvrPeSchemaUtil.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/GvrPeDialer.dll: "{dump}/GvrPlus/4/lib/GvrPeDialer.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/ICSharpCode.SharpZipLib.dll: "{dump}/GvrPlus/4/lib/ICSharpCode.SharpZipLib.dll"
+  # the cabinet's system libraries the plug-ins load
+  PGA_TOUR_GOLF_2006/Shell/Bin/GVRStorageDevice.dll: "{dump}/System Files/GVRStorageDevice.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/DongleStorageDevice.dll: "{dump}/System Files/DongleStorageDevice.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/GVR_Resources.dll: "{dump}/System Files/GVR_Resources.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/Resources.dll: "{dump}/System Files/Resources.dll"
+  # the debug C runtime of PGAPlugIn.dll
+  PGA_TOUR_GOLF_2006/Shell/Bin/msvcp71d.dll: "{dump}/System Files/msvcp71d.dll"
+  PGA_TOUR_GOLF_2006/Shell/Bin/msvcr71d.dll: "{dump}/System Files/msvcr71d.dll"
+  PGA_TOUR_GOLF_2006/Bin/msvcr71.dll: "{dump}/System Files/msvcr71.dll"
+  PGA_TOUR_GOLF_2006/Bin/msvcp71.dll: "{dump}/System Files/msvcp71.dll"
+  PGA_TOUR_GOLF_2006/Bin/MFC71.dll: "{dump}/System Files/MFC71.dll"
+  PGA_TOUR_GOLF_2006/Bin/GVR_Resources.dll: "{dump}/System Files/GVR_Resources.dll"
+  PGA_TOUR_GOLF_2006/Bin/Resources.dll: "{dump}/System Files/Resources.dll"
+  # the game's engine reads the cabinet's database too
+  PGA_TOUR_GOLF_2006/Bin/PLUSDE.dll: "{dump}/Plus/PLUSDE.dll"
+  PGA_TOUR_GOLF_2006/Bin/GvrSqlite.dll: "{dump}/Plus/GvrSqlite.dll"
+  PGA_TOUR_GOLF_2006/Bin/sqlite3.dll: "{dump}/Plus/sqlite3.dll"
+  PGA_TOUR_GOLF_2006/Bin/C1.C1Zip.dll: "{dump}/GvrPlus/4/lib/C1.C1Zip.dll"
+  PGA_TOUR_GOLF_2006/Bin/GVRStorageDevice.dll: "{dump}/System Files/GVRStorageDevice.dll"
+
+# The cabinet's database, built from the engine's schema (GvrPlus\4\schema, decrypted), kept
+# in the run directory (credits, statistics, records).
+initial_files:
+  PGAPlus/game.db: "{dump}/Plus/game.db"
+
+# The frontend's cabinet gamma tool (NVIDIA control panel).
+hide: [GammaSet.exe]
+
+env:
+  # the cabinet's C:\PGA_TOUR_GOLF_2006\Shell\Bin on the PATH (the player loads GvrParseXml.dll
+  # from there)
+  WINEPATH: 'C:\wal\globalvr\pga-tour-golf-team-challenge\PGA_TOUR_GOLF_2006\Shell\Bin'
+  # the coin monitor, relative to the player
+  WAL_GLOBALVR_CARBON_MONITORS: '..\..\..\hercules'
+  # the dongle the frontend checks (game, version, region)
+  WAL_GLOBALVR_DONGLE: "PGA,4.0,US"
+  # the I/O board firmware the frontend wants (1.4 or later)
+  WAL_GLOBALVR_BOARD_VERSION: "3.3"
+  # The frontend's PGAPlugIn.dll startup checks: the dongle's country compared with the
+  # cabinet's (managed code, never matching here) answered matching (0xd919: mov al, 1); no CD
+  # check on D:\ (0x361ac).
+  WAL_GLOBALVR_SHELL_PATCHES: "PGAPlugIn.dll!0xd919:b001909090,PGAPlugIn.dll!0x361ac:3F"
+  # the menus: the trackball's moves as their direction events
+  WAL_GLOBALVR_TRACKBALL_EVENTS: "1"
+  GVRSQLITE_DB: 'C:\wal\globalvr\pga-tour-golf-team-challenge\PGAPlus\game.db'
+
+fonts:
+  - Fonts/EASDisplayItalic.ttf
+  - Fonts/EASDisplayNormal.ttf
+  - Fonts/TT1027M_.TTF
+  - Fonts/TT1028M_.TTF
+  - Fonts/WINGDNG3.TTF
+  - Fonts/verdanaz.ttf
+
+graphics: wine
+# The game's Direct3D 9 through Wine's wined3d: the golfers' faces (drawn by the game into a
+# render target each frame, then read back) stayed white with DXVK.
+dxvk: false
+
+# The cabinet's 800x600 screen, scaled to the real one with its aspect kept.
+gamescope:
+  enabled: true
+  width: 800
+  height: 600
+  args: [-S, fit, -f]
+
+# The cabinet's panel (its GvrIO.xml): Start, the aim's Left / Right turns, Fly-over, Shot type;
+# the menus' Back (a keyboard key on the cabinet).
+native_map:
+  start: start
+  b1: left
+  b2: right
+  b3: flyover
+  b4: shottype
+  b5: back
+  test: operator
+
+input:
+  # the stick rolls the trackball, it must not press the d-pad
+  stick_as_dpad: false
+  # The mouse is the trackball: its position wraps (the trackball's counters) on the right
+  # stick axes, the gamepad's right stick left out of them.
+  guns_enabled: true
+  guns_mice: 1
+  mouse_screen: [65536, 65536]
+  mouse_wrap: true
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b1
+    BTN_RIGHT: b2
+    BTN_MIDDLE: none
+  gamepad:
+    rightx: none
+    righty: none
+  # Keyboard (player 1): arrows roll the trackball (the swing: down then up). Mouse: the swing
+  # is the mouse pulled back, then pushed forward.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly
+      KEY_DOWN: ly
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: none
+  down: none
+  left: none
+  right: none
+  lx: Trackball left / right
+  ly: Trackball swing (back / forward)
+  rx: none
+  ry: none
+  b1: Aim left
+  b2: Aim right
+  b3: Fly-over
+  b4: Shot type
+  b5: Back

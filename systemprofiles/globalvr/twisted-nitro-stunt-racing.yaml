@@ -92,8 +92,9 @@ env:
   GVRSQLITE_DB: 'C:\wal\globalvr\twisted-nitro-stunt-racing\NitroPlus\nitro.db'
   # the coin and volume monitors, relative to the player
   WAL_GLOBALVR_CARBON_MONITORS: '..\..\Hercules'
-  # the dongle the frontend checks (game, version, region)
-  WAL_GLOBALVR_DONGLE: "NITRO,1.0,XX"
+  # the dongle the frontend checks (game: the dongle's 6 characters, space padded; version,
+  # region)
+  WAL_GLOBALVR_DONGLE: "NITRO ,1.0,XX"
   # The race's dongle API (HASP, linked into the executable), answered: present (0x4137d0),
   # valid (0x413880), game "NITRO " (0x413910), version "1.0" (0x413960), region "US"
   # (0x4138c0), cabinet "0" (0x413aa0: a standard cabinet, 3 and 5 are the motion seat's),

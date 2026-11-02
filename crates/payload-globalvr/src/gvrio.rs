@@ -113,14 +113,15 @@ static DONGLE_ID: u32 = 0x5741_4c00;
 const DEFAULT_DONGLE: &str = "CARBON,1.0,XX";
 
 /// The dongle's game, version and region, as C strings.
-fn dongle_fields() -> &'static [std::ffi::CString; 3] {
+pub(crate) fn dongle_fields() -> &'static [std::ffi::CString; 3] {
     static FIELDS: OnceLock<[std::ffi::CString; 3]> = OnceLock::new();
     FIELDS.get_or_init(|| {
         let spec = std::env::var("WAL_GLOBALVR_DONGLE").unwrap_or_else(|_| DEFAULT_DONGLE.into());
-        let mut parts = spec.split(',').map(|p| std::ffi::CString::new(p.trim()).unwrap_or_default());
-        let mut next = |default: &str| parts.next().unwrap_or_else(|| std::ffi::CString::new(default).unwrap());
-        // the game name is the dongle's 6 characters, space padded (Twisted's "NITRO ")
-        let game = std::ffi::CString::new(format!("{:<6}", next("CARBON").to_string_lossy())).unwrap();
+        let mut parts = spec.split(',');
+        // the game name as written, its trailing spaces kept: the frontends compare it whole
+        // (Twisted's "NITRO ", the dongle's 6 characters; PGA TOUR Golf Team Challenge's "PGA")
+        let game = std::ffi::CString::new(parts.next().unwrap_or("CARBON").trim_start()).unwrap_or_default();
+        let mut next = |default: &str| std::ffi::CString::new(parts.next().unwrap_or(default).trim()).unwrap_or_default();
         let fields = [game, next("1.0"), next("XX")];
         log!("gvrio: dongle {:?}", fields);
         fields
@@ -144,6 +145,12 @@ const FIRE: u32 = 0x200;
 const DROP: u32 = 0x400;
 const NOS1: u32 = 0x800;
 const NOS2: u32 = 0x1000;
+// PGA TOUR Golf Team Challenge's panel: the aim turns, fly-over, shot type; the menus' back
+const BACK: u32 = 0x2000;
+const TURN_LEFT: u32 = 0x4000;
+const TURN_RIGHT: u32 = 0x8000;
+const FLYOVER: u32 = 0x1_0000;
+const SHOT_TYPE: u32 = 0x2_0000;
 
 const NATIVES: &[(&str, Native)] = &[
     ("start", Native(START)),
@@ -159,6 +166,11 @@ const NATIVES: &[(&str, Native)] = &[
     ("drop", Native(DROP)),
     ("nos1", Native(NOS1)),
     ("nos2", Native(NOS2)),
+    ("back", Native(BACK)),
+    ("left", Native(TURN_LEFT)),
+    ("right", Native(TURN_RIGHT)),
+    ("flyover", Native(FLYOVER)),
+    ("shottype", Native(SHOT_TYPE)),
 ];
 
 /// Virtual stick -> cabinet, overridden by the profile `native_map`.
@@ -188,6 +200,27 @@ const EVENTS: &[(u32, &str)] = &[
     (DROP, "Drop"),
     (NOS1, "Nos1"),
     (NOS2, "Nos2"),
+    (BACK, "Back"),
+    (TURN_LEFT, "Left"),
+    (TURN_RIGHT, "Right"),
+    (FLYOVER, "FlyOver"),
+    (SHOT_TYPE, "ShotType"),
+];
+
+/// Buttons whose frontend event has no `Pressed` (PGA TOUR Golf Team Challenge's GvrIO.xml).
+const BARE_EVENTS: &[(u32, &str)] = &[(FLYOVER, "onGvrFlyOver"), (SHOT_TYPE, "onGvrShotType")];
+
+/// The trackball's directions, the frontend's events (`WAL_GLOBALVR_TRACKBALL_EVENTS=1`: PGA TOUR
+/// Golf Team Challenge's menus): (x, y) -> name.
+const TRACKBALL_EVENTS: &[((i32, i32), &str)] = &[
+    ((0, -1), "onGvrTrackballUp"),
+    ((0, 1), "onGvrTrackballDown"),
+    ((-1, 0), "onGvrTrackballLeft"),
+    ((1, 0), "onGvrTrackballRight"),
+    ((-1, -1), "onGvrTrackballUpLeft"),
+    ((1, -1), "onGvrTrackballUpRight"),
+    ((-1, 1), "onGvrTrackballDownLeft"),
+    ((1, 1), "onGvrTrackballDownRight"),
 ];
 
 /// The frontend's menu selection: an index the wheel steps (0x0F / 0x10 read X / Y, 0x11 /
@@ -344,10 +377,73 @@ fn update() {
             if down {
                 let event = format!("onGvr{name}Pressed\0");
                 post(ID_EVENT, CStr::from_bytes_with_nul(event.as_bytes()).ok());
+                if let Some(&(_, bare)) = BARE_EVENTS.iter().find(|&&(b, _)| b == bit) {
+                    let event = std::ffi::CString::new(bare).unwrap();
+                    post(ID_EVENT, Some(&event));
+                }
             }
         }
     }
-    select(axis(0));
+    if trackball_events() {
+        trackball(&stick);
+    } else {
+        select(axis(0));
+    }
+}
+
+fn trackball_events() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_GLOBALVR_TRACKBALL_EVENTS").is_ok_and(|v| v == "1"))
+}
+
+/// The trackball's moves for the frontend's menus (its scenes turn the trackball's motion into
+/// these events themselves, from motion on both axes only: a straight one, the keyboard's, did
+/// nothing): the stick past half sends its direction once, then every 150 ms while held (after
+/// 400 ms); the mouse (the trackball's counters, `mouse_wrap`) its direction each 3000 counts.
+fn trackball(stick: &StickState) {
+    static DIR: std::sync::Mutex<((i32, i32), i32)> = std::sync::Mutex::new(((0, 0), 0));
+    static MOUSE: std::sync::Mutex<(Option<[i16; 2]>, i32, i32)> = std::sync::Mutex::new((None, 0, 0));
+    const MOUSE_STEP: i32 = 3000;
+    let half = |v: i16| if v < -16384 { -1 } else if v > 16384 { 1 } else { 0 };
+    let dir = (half(stick.axis(Axis::LeftX)), half(stick.axis(Axis::LeftY)));
+    let send = {
+        let mut held = DIR.lock().unwrap_or_else(|e| e.into_inner());
+        let send = if dir == (0, 0) {
+            false
+        } else if dir != held.0 {
+            held.1 = 24;
+            true
+        } else {
+            held.1 -= 1;
+            if held.1 <= 0 {
+                held.1 = 9;
+            }
+            held.1 == 9
+        };
+        held.0 = dir;
+        send.then_some(dir)
+    };
+    let mouse = {
+        let mut m = MOUSE.lock().unwrap_or_else(|e| e.into_inner());
+        let (dx, dy) = crate::pga_trackball::counter_motion(stick, &mut m.0);
+        m.1 += dx;
+        m.2 += dy;
+        if m.1.abs().max(m.2.abs()) >= MOUSE_STEP {
+            let unit = |v: i32| if v.abs() * 2 >= MOUSE_STEP { v.signum() } else { 0 };
+            let dir = (unit(m.1), unit(m.2));
+            (m.1, m.2) = (0, 0);
+            Some(dir)
+        } else {
+            None
+        }
+    };
+    for dir in [send, mouse].into_iter().flatten() {
+        if let Some(&(_, name)) = TRACKBALL_EVENTS.iter().find(|&&(d, _)| d == dir) {
+            log!("gvrio: {name}");
+            let event = std::ffi::CString::new(name).unwrap();
+            post(ID_EVENT, Some(&event));
+        }
+    }
 }
 
 /// The menu selection follows the wheel's position (`WAL_GLOBALVR_SELECTION=position`: NASCAR's
@@ -415,6 +511,10 @@ fn declare_events() {
         names.push(format!("onGvr{name}Pressed"));
         names.push(format!("onGvr{name}ButtonDown"));
         names.push(format!("onGvr{name}ButtonUp"));
+    }
+    names.extend(BARE_EVENTS.iter().map(|&(_, n)| n.to_string()));
+    if trackball_events() {
+        names.extend(TRACKBALL_EVENTS.iter().map(|&(_, n)| n.to_string()));
     }
     for name in names {
         let event = std::ffi::CString::new(name).unwrap();

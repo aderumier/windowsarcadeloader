@@ -11,6 +11,9 @@ EXPORTS
     pga_trackball_init
     "?ReadSPIMemory@CUSBIO@@QAEXEPAE@Z" = pga_trackball_read_spi
     "?WriteSPIMemory@CUSBIO@@QAEXEPAE@Z" = pga_trackball_write_spi
+; PGA TOUR Golf Team Challenge's engine: USBIOExtreme's board memory (a device argument)
+    "?ReadSPIMemory@CUSBIO@@QAEXHEPAE@Z" = team_challenge_read_spi
+    "?WriteSPIMemory@CUSBIO@@QAEXHEPAE@Z" = team_challenge_write_spi
 ; the cabinet monitors (Need for Speed Carbon's GVRCoinMonitor.exe, GVRVolumeMonitor.exe)
     "?SetEncoderThreadState@CUSBIO@@QAEXH@Z" = cusbio_encoder_thread
     "?SetOutputValue@CUSBIO@@QAEXHEEE@Z" = cusbio_output

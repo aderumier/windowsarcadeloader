@@ -1,0 +1,766 @@
+Windows Registry Editor Version 5.00
+
+; PGA TOUR Golf Team Challenge (Global VR, 4.0.0): the cabinet's registry, from the game's install
+; CD (its _Registry, copied to the dump): the frontend's settings (Shell.reg: Anark player,
+; GVRShell\PGA40, GvrPlus paths), the cabinet's supervisor (HerculesSetup.reg), the game's
+; (HKEY_LOCAL_EASPORTS.reg, HKCU_EASPORTS.reg, HKEY_CURRENT_USER_EA.reg, HKEY_LOCAL_EACom.reg,
+; HKEY_LOCAL_ElArts.reg), its courses (one file each) and fonts (HKLM Fonts.reg). Imported at
+; each launch. The data engine's schema path (the GvrPlus installer's, PGA.msi).
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\gvr\Plus\1.1\Cabinet]
+"PlusSchemaPath"="C:\\GvrPlus\\4\\schema\\pgacabinetXml.enc"
+
+; Shell.reg
+
+[HKEY_CURRENT_USER\Software\Anark\Client\3.0\Preferences]
+"InstallReturnCode"=dword:00000000
+"Initialized"=dword:00000001
+"UpdateInterval"=dword:00000007
+"LastUpdateCheck"=dword:00000122
+"EnableScriptDebugger"=dword:00000001
+"DebugMode"=dword:00000000
+"DisableGL"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Plus\2.0]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Plus\2.0\Cabinet]
+"GameRoot"="c:\\PGA_TOUR_GOLF_2006\\Shell\\"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GVRShell\PGA40]
+"Path"="c:\\PGA_TOUR_GOLF_2006\\Shell\\"
+"LearnToPlayCourse" = "17"
+"RestartGame"="0"
+"TrackballThreshold"="25"
+"TrackballMinThreshold"="10"
+"TrackballDeltaTime"="0.5"
+"UpdateTimer"="10"
+"AttractAudioCounter"="0"
+"VolumeLevel0" = "0"
+"VolumeLevel1" = "37"
+"VolumeLevel2" = "47"
+"VolumeLevel3" = "57"
+"VolumeLevel4" = "68"
+"VolumeLevel5" = "83"
+"VolumeLevel6" = "100"
+"MovieVolumeLevel0" = "0"
+"MovieVolumeLevel1" = "73"
+"MovieVolumeLevel2" = "75"
+"MovieVolumeLevel3" = "79"
+"MovieVolumeLevel4" = "84"
+"MovieVolumeLevel5" = "90"
+"MovieVolumeLevel6" = "100"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\gvr\Plus\1.1\Cabinet]
+"ExecutablePath"="c:\\pga_tour_golf_2006\\bin\\pga_tour_golf_2006.exe"
+"PromotionPath"="C:\\GvrPlus\\4\\promotions"
+; HerculesSetup.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCacheWarmer]
+"NumResources"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor]
+"NumApps"=dword:00000007
+"SleepDelay"=dword:00000064
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog00]
+"cmdargs"=""
+"delay"=dword:00000000
+"enabled"=dword:00000003
+"path"="c:\\hercules"
+"program"="GVRDongleMonitor.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog01]
+"cmdargs"=" "
+"delay"=dword:00000000
+"enabled"=dword:00000001
+"path"="c:\\hercules"
+"program"="GVRCoinMonitor.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog02]
+"cmdargs"=""
+"delay"=dword:00000000
+"enabled"=dword:00000001
+"path"="c:\\hercules"
+"program"="GVRStallMonitor.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog03]
+"cmdargs"=""
+"delay"=dword:00000000
+"enabled"=dword:00000001
+"path"="c:\\hercules"
+"program"="PGAPreLoad.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog04]
+"cmdargs"="-minvol -1500"
+"delay"=dword:000000c8
+"enabled"=dword:00000001
+"path"="c:\\PGA_TOUR_GOLF_2006\\Shell\\bin"
+"program"="AMPlayer.exe c:\\PGA_TOUR_GOLF_2006\\Shell\\shell.am -v FULL -cabinet"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCrashMonitor\Prog05]
+"cmdargs"=""
+"delay"=dword:000000c8
+"enabled"=dword:00000001
+"path"="c:\\hercules"
+"program"="GvrCoinSound.exe"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCacheWarmer]
+"GamePath"="c:\\pga_tour_golf_2006\\bin"
+"GVR_ResourcePath"="c:\\pga_tour_golf_2006\\data\\gvr"
+"NumResources"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCacheWarmer\Res000]
+"NumDatFiles"=dword:00000000
+"ResName"="textures.gvr"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCacheWarmer\Res001]
+"NumDatFiles"=dword:00000000
+"ResName"="gameface.gvr"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\hercules\GVRCoinSound\Sound]
+"SoundPath"="c:\\hercules\\coin_drop.wav"
+
+; HKEY_LOCAL_EASPORTS.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006]
+"Target"="C:\\PGA_TOUR_GOLF_2006"
+"CourseManager"="C:\\PGA_TOUR_GOLF_2006\\Bin"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006"
+"SwapFiles"="C:\\PGA_TOUR_GOLF_2006\\SwapFiles"
+"Movies"="D:\\"
+"CourseDownload"="http://tiger2005.ea.com/"
+"Uninstall"="C:\\Program Files\\InstallShield Installation Information\\{2FDD9D12-46C9-4156-A4A0-55297B9498CA}"
+"Language"=dword:00000409
+"Locale"="en_US"
+"InstallCompleted"="1"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\1.00.000]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Architect]
+"Power Catalog"="C:\\PGA_TOUR_GOLF_2006\\Data\\Architect\\Power Catalog"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Gvr\Plus\1.1\Cabinet]
+"ScreenCapturePath"="C:\\pga_tour_golf_2006\\bin\\"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses]
+"SwapFileSize"=hex:
+"Installed"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{36159A69-9C26-4266-AD1C-EE17B1925051}]
+"Name"="St Andrews Links - The Old Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\STA\\sta.tcr"
+"GVRID"=dword:00000009
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{757E8475-7264-4D67-B62E-B7D9D1097979}]
+"Name"="TPC at Sawgrass"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\SAW\\saw.tcr"
+"GVRID"=dword:00000006
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{98FEEEFD-79FC-4622-8F45-6A2A4F41507C}]
+"Name"="Harbour Town Golf Links"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\HAR\\har.tcr"
+"GVRID"=dword:00000019
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{D63F28C7-96E6-4871-BED3-B00A4BC3FF14}]
+"Name"="Edgewood Tahoe Golf Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\EDW\\edw.tcr"
+"GVRID"=dword:00000017
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{FF76E5F5-E28A-4F6E-A3AA-E418E97CF5D0}]
+"Name"="Troon North Golf Club - Monument Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\MON\\mon.tcr"
+"GVRID"=dword:0000001d
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{B973192A-A83B-4D5E-82CD-B21DE6A6F575}]
+"Name"="Black Rock Cove"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\BRC\\brc.tcr"
+"GVRID"=dword:0000000f
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{9F0EE934-4032-450A-B653-3F90E779323C}]
+"Name"="The Great White North"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\GWN\\GWN.TCR"
+"GVRID"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{5741D8A3-5BB2-4942-8AFD-E66D826BD589}]
+"Name"="Emerald Dragon"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\EDR\\EDR.TCR"
+"GVRID"=dword:00000013
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{87D7E735-32D9-4431-BF79-9A7041E88201}]
+"Name"="The Highlands II"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\HIG\\hig.tcr"
+"GVRID"=dword:0000000d
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{929E7B64-D1A8-4A27-AAC8-4BD1665D5759}]
+"Name"="Red Mountain Creek"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\RMC\\RMC.TCR"
+"GVRID"=dword:00000014
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Interface]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Language]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{245696AD-F16A-4BC8-AD8C-3A7B8A2A644A}]
+"Name"="Edgewood Tahoe Golf Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\EDW\\edw.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{4def35b2-b695-4b33-9162-8631deaa42a4}]
+"Name"="Troon North Golf Club - Monument Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\MON\\mon.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{587f5455-f501-40df-8ea5-22662965daec}]
+"Name"="Harbour Town Golf Links"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\HAR\\har.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{84F6EEC2-2968-4E4C-B9C2-9A183F92CF0C}]
+"Name"="TPC at Sawgrass"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\SAW\\saw.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{969B0657-F63B-4C34-8853-2AA1E6598223}]
+"Name"="St Andrews Links - The Old Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\STA\\sta.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{AAF6856B-574F-478E-9406-3C79FF272CB1}]
+"Name"="Black Rock Cove"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\BRC\\brc.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{A80343D7-D4D7-462E-B8BD-CE033C59FC10}]
+"Name"="The Great White North"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\GWN\\GWN.TCL"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{CD82EEBF-B0EC-4E01-8E96-784AFBA196E5}]
+"Name"="Emerald Dragon"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\EDR\\EDR.TCL"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{1F2FDED4-E9E8-4843-AEC2-8B5E48941118}]
+"Name"="The Highlands II"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\HIG\\hig.tcl"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{8CD9E1E4-0680-41D8-91BA-EAC276EAB7A0}]
+"Name"="Red Mountain Creek"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\RMC\\RMC.TCL"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Network]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Analyst]
+"Filename"="analyst.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Sounds\\Commentary"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Animation]
+"FileName"="anim.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Announcer]
+"Filename"="Announcer.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Sounds\\Commentary"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\GvrCamera]
+"Filename"="gvr_camera.stn"
+"Installdir"="c:\\PGA_TOUR_GOLF_2006\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\AutoCamera]
+"Filename"="d_camera.stn"
+"Installdir"="C:\\PGA_TOUR_GOLF_2006\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\BallCamera]
+"Filename"="b_camera.stn"
+"Installdir"="C:\\PGA_TOUR_GOLF_2006\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Basic]
+"Filename"="basic.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\sounds\\basic"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\FixedCamera]
+"Filename"="f_camera.stn"
+"Installdir"="C:\\PGA_TOUR_GOLF_2006\\Bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\FUser]
+"FileName"="FUser.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\sounds\\cf2"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Gallery]
+"Filename"="gallery.stn"
+"Installdir"="C:\\PGA_TOUR_GOLF_2006\\Sounds\\gallery"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Appleby]
+"FileName"="Appleby.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Begay]
+"FileName"="Begay.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Calcavecchia]
+"FileName"="Calcavecchia.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Cink]
+"FileName"="Cink.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Faxon]
+"FileName"="Faxon.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Feherty]
+"FileName"="Feherty.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Furyk]
+"FileName"="Furyk.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\GenericFemale]
+"FileName"="GenericFemale.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\GenericMale]
+"FileName"="GenericMale.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Howell]
+"FileName"="Howell.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Leonard]
+"FileName"="Leonard.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Macatee]
+"FileName"="Macatee.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Montgomerie]
+"FileName"="Montgomerie.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Omeara]
+"FileName"="Omeara.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Parnevik]
+"FileName"="Parnevik.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Singh]
+"FileName"="Singh.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Stricker]
+"FileName"="Stricker.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Tiger]
+"FileName"="tiger.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Tryon]
+"FileName"="tryon.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Golfer\Vance]
+"FileName"="Vance.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Data\\golfers"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Interface]
+"Filename"=""
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Sounds\\Interface"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Music]
+"FileName"="music.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Sounds\\Music"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\Replay]
+"FileName"="Replay.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\bin"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Script\SnapCamera]
+"Filename"="s_camera.stn"
+"InstallDir"="C:\\PGA_TOUR_GOLF_2006\\Bin"
+
+; HKCU_EASPORTS.reg
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006]
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\Courses]
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\Courses\{33A41381-7CA6-47C0-89AA-B6F25946CF87}]
+"Filename"="E:\\\\PGA TOUR 2006\\Courses\\{33A41381-7CA6-47C0-89AA-B6F25946CF87}.tcc"
+"Name"="E3 Demo TP Course"
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\Courses\{42F48F2B-90A5-4204-837F-118021F186F6}]
+"Filename"="E:\\\\PGA TOUR 2006\\Courses\\{42F48F2B-90A5-4204-837F-118021F186F6}.tcc"
+"Name"="E3 Demo Course"
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\Courses\{5ABFE13E-71AD-47E8-B901-59C8F7D5E7F5}]
+"Filename"="E:\\\\PGA TOUR 2006\\Courses\\{5ABFE13E-71AD-47E8-B901-59C8F7D5E7F5}.tcc"
+"Name"="TPd Emerald Dragon"
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\Interface]
+"Metric"=hex:00
+"CRAPULID"=dword:00000000
+"CurrentProfile"="Tiger Woods"
+"IndicatorPos8"=hex:90,02,00,00,a9,01,00,00
+"Machine Settings"=hex:f0,5d,04,00,03,03,03,03,03,03,03,02,00,03,03,00,00,00,\
+  03,03,03,00,03,03,00,02,03,00,03,00,00,00,03,03,03,00,03,03,00,02,02,00,03,\
+  00,00,00,f4,00,0e,06,02,02,1e,02,01,5b,59,4c,65,7a,17,2e,43,87,c1,c2,18,b9,\
+  95,b1,f9,64,00,00,00,50,00,00,00,50,00,00,00,2d,00,00,00,22,00,00,00,50,00,\
+  00,00,50,00,00,00,01,01,01,01
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\Interface\Camera]
+"1"=hex:00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,07,00,07,00,00,00,00,00,00,00,10,42,00,00,1c,c3,00,00,00,00,\
+  00,00,10,42,00,00,00,00,00,01
+"2"=hex:ab,aa,2a,3e,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,07,00,07,00,00,00,00,00,00,00,b4,43,00,00,07,c4,00,00,00,00,\
+  00,00,90,42,00,00,00,00,00,01
+"3"=hex:ab,aa,2a,3e,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,02,00,04,\
+  00,96,00,00,00,07,00,07,00,00,00,00,00,00,c0,73,45,00,00,16,c5,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,01
+"4"=hex:55,55,55,3f,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,02,00,04,\
+  00,96,00,00,00,02,00,07,00,00,00,00,00,00,00,40,41,00,00,70,c2,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,01
+"5"=hex:ab,aa,2a,3e,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,05,00,02,00,00,00,00,00,00,00,c0,41,00,00,f0,c2,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,01
+"6"=hex:00,00,00,3f,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,01,00,04,\
+  00,96,00,00,00,02,00,07,00,00,00,00,00,00,00,90,42,00,00,34,c3,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,01
+"7"=hex:00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,01,00,05,00,00,00,00,00,00,00,b4,43,00,00,70,c4,00,00,00,00,\
+  00,00,00,00,00,00,00,00,01,01
+"8"=hex:00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,03,00,04,\
+  00,96,00,00,00,02,00,05,00,00,00,16,44,00,00,b4,43,00,00,70,c4,00,00,00,00,\
+  00,00,00,00,00,00,00,00,01,01
+"9"=hex:00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,04,\
+  00,96,00,00,00,07,00,09,00,00,00,00,00,00,00,40,42,00,00,70,c3,00,00,00,00,\
+  00,00,00,00,00,00,00,00,00,01
+"0"=hex:00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,01,00,04,\
+  00,96,00,00,00,07,00,06,00,00,00,00,00,00,00,10,43,00,00,8a,c3,00,00,00,00,\
+  00,00,10,42,00,00,00,00,01,01
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\RenderSettings]
+"Render Settings"=hex:8f,e3,7e,07,10,00,00,00,04,0d,00,00,00,04,c8,af,00,00,50,\
+  46,00,00,1c,02,00,00,08,07,00,00,40,38,00,00,02,28,23,00,00,e0,10,00,00,30,\
+  2a,00,00,50,19,00,00,00,00,00,00,00,03,03,01,00,64,64,04,04,e0,2e,64,02,00,\
+  00,00,3f,00,00,00,3f,00,00,00,3f,00,00,00,3f,03,00,00,00,01,00,00,00,00,00,\
+  00,00
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\RenderSettings\{36159A69-9C26-4266-AD1C-EE17B1925051}]
+"SettingsLevel0"=hex:00
+"SettingsLevel1"=hex:00
+"SettingsLevel2"=hex:00
+"SettingsLevel3"=hex:00
+"SettingsLevel4"=hex:00
+"SettingsLevel5"=hex:00
+"SettingsLevel6"=hex:00
+"SettingsLevel7"=hex:00
+"SettingsLevel8"=hex:00
+"SettingsLevel9"=hex:00
+"SettingsLevel10"=hex:00
+"SettingsLevel11"=hex:00
+"SettingsLevel12"=hex:00
+"SettingsLevel13"=hex:00
+"SettingsLevel14"=hex:00
+"SettingsLevel15"=hex:00
+"SettingsLevel16"=hex:00
+"SettingsLevel17"=hex:00
+"SettingsLevel18"=hex:00
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\RenderSettings\{366C2847-A73C-4EB4-BF6A-70C952B8C3D5}]
+"SettingsLevel0"=hex:00
+"SettingsLevel1"=hex:00
+"SettingsLevel2"=hex:00
+"SettingsLevel3"=hex:00
+"SettingsLevel4"=hex:00
+"SettingsLevel5"=hex:00
+"SettingsLevel6"=hex:00
+"SettingsLevel7"=hex:00
+"SettingsLevel8"=hex:00
+"SettingsLevel9"=hex:00
+"SettingsLevel10"=hex:00
+"SettingsLevel11"=hex:00
+"SettingsLevel12"=hex:00
+"SettingsLevel13"=hex:18
+"SettingsLevel14"=hex:00
+"SettingsLevel15"=hex:0e
+"SettingsLevel16"=hex:0e
+"SettingsLevel17"=hex:1d
+"SettingsLevel18"=hex:0a
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\RenderSettings\{9F0EE934-4032-450A-B653-3F90E779323C}]
+"SettingsLevel0"=hex:00
+"SettingsLevel1"=hex:00
+"SettingsLevel2"=hex:00
+"SettingsLevel3"=hex:00
+"SettingsLevel4"=hex:00
+"SettingsLevel5"=hex:00
+"SettingsLevel6"=hex:00
+"SettingsLevel7"=hex:00
+"SettingsLevel8"=hex:00
+"SettingsLevel9"=hex:00
+"SettingsLevel10"=hex:00
+"SettingsLevel11"=hex:00
+"SettingsLevel12"=hex:00
+"SettingsLevel13"=hex:00
+"SettingsLevel14"=hex:00
+"SettingsLevel15"=hex:00
+"SettingsLevel16"=hex:00
+"SettingsLevel17"=hex:00
+"SettingsLevel18"=hex:00
+
+; HKEY_CURRENT_USER_EA.reg
+
+[HKEY_CURRENT_USER\Software\GlobalVR]
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006]
+
+[HKEY_CURRENT_USER\Software\GlobalVR\PGA TOUR 2006\Interface]
+"Metric"=hex:00
+"CRAPULID"=dword:00000000
+
+; HKEY_LOCAL_EACom.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EACom]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\EACom\AuthAuth]
+"AuthLoginServer"="www.ea.com"
+"AuthLoginBaseService"="AuthLogin"
+"SSLRetry"=dword:00000000
+
+; HKEY_LOCAL_ElArts.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Electronic Arts]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Electronic Arts\EA Sports]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Electronic Arts\EA Sports\Tiger Woods PGA TOUR 2005]
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Electronic Arts\EA Sports\Tiger Woods PGA TOUR 2005\ergc]
+@="2JEEZ4468LZQZLCXX7VV"
+
+; BAY.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{2B87C216-F322-49DF-8F85-111111111111}]
+"Name"="Bay Hill Club & Lodge"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\BAY\\BAY.tcr"
+"GVRID"=dword:00000008
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{2B87C216-F322-49DF-8F85-222222222222}]
+"Name"="Bay Hill Club & Lodge"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\BAY\\BAY.tcl"
+
+; BG1.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{41288A74-F765-4F5B-9EF2-0A33A468EE27}]
+"Name"="Kapalua - Plantation Course (Tutorial)"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\BG1\\BG1.tcr"
+"GVRID"=dword:00000029
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{3339EAEE-AFAC-4E5B-A0F7-74317264EA55}]
+"Name"="Kapalua - Plantation Course (Tutorial)"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\BG1\\BG1.tcl"
+
+; BPB.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{63ADBF15-0C95-4DA9-8DC6-F7B553345F7B}]
+"Name"="Bethpage - The Black Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\BPB\\BPB.tcr"
+"GVRID"=dword:00000015
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{43623DB5-25FC-48B1-8D70-BD1364E7D7CB}]
+"Name"="Bethpage - The Black Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\BPB\\BPB.tcl"
+
+; CDA.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{D0C7AB62-AF22-4C10-8DC8-65070E18CA4F}]
+"Name"="The Coeur d'Alene Resort Golf Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\CDA\\CDA.tcr"
+"GVRID"=dword:00000012
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{740D23E8-FF81-4E16-AF39-D449C5B439FD}]
+"Name"="The Coeur d'Alene Resort Golf Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\CDA\\CDA.tcl"
+
+; COG.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{2A2F90C4-40F0-4fb1-8A82-3F2546C69150}]
+"Name"="Cog Hill Country Club - Dubsdread Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\COG\\COG.tcr"
+"GVRID"=dword:00000016
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{B5001CF6-5D4C-4fba-B69E-EAE6420BA626}]
+"Name"="Cog Hill Country Club - Dubsdread Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\COG\\COG.tcl"
+
+; COL.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{3FCAE256-4BFE-40C9-BBCD-555555555555}]
+"Name"="Colonial Country Club"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\COL\\COL.tcr"
+"GVRID"=dword:00000010
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{3FCAE256-4BFE-40C9-BBCD-666666666666}]
+"Name"="Colonial Country Club"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\COL\\COL.tcl"
+
+; FD1.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{A3AB09B7-F14A-429D-96A2-970B02D927EE}]
+"Name"="Fantasy Dream 18 - Front 9"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\FD1\\FD1.tcr"
+"GVRID"=dword:00000021
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{4D71E209-C0F5-4851-86AD-F70477565C9F}]
+"Name"="Fantasy Dream 18 - Front 9"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\FD1\\FD1.tcl"
+
+; FD2.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{4912FFF5-840A-4316-89E4-A446874AC0A9}]
+"Name"="Fantasy Dream 18 - Back 9"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\FD2\\FD2.tcr"
+"GVRID"=dword:0000002E
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{1F33869F-C9C4-42AE-BDBE-498415B4DBE6}]
+"Name"="Fantasy Dream 18 - Back 9"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\FD2\\FD2.tcl"
+
+; GRE.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{2174F2E2-BB13-4405-AB6C-80A52258DB69}]
+"Name"="The Greek Isles"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\GRE\\GRE.tcr"
+"GVRID"=dword:00000026
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{2F1B1ABC-5EDE-40E4-A430-2B6186980420}]
+"Name"="The Greek Isles"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\GRE\\GRE.tcl"
+
+; KAP.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{C799993F-2662-43F5-8214-B1B0BE802397}]
+"Name"="Kapalua - Plantation Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\KAP\\Kap.tcr"
+"GVRID"=dword:00000011
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{A74A2141-D3CC-4E0C-948B-D84D257E40DB}]
+"Name"="Kapalua - Plantation Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\KAP\\Kap.tcl"
+; PR1.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{23E8C21F-B6D6-4706-A7E5-DC34C6317DDF}]
+"Name"="The Range"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\PR1\\PR1.tcr"
+"GVRID"=dword:0000002A
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{990B2CFD-8DD3-4026-929E-FD5669CEAC15}]
+"Name"="The Range"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\PR1\\PR1.tcl"
+
+; prd.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{26B4AEEC-3723-497F-AB2A-B6DBBBCA4EDE}]
+"Name"="The Predator II"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\PRD\\PRD.TCR"
+"GVRID"=dword:0000000e
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{DB96832A-BB03-45A6-B34C-6950F559AEC1}]
+"Name"="The Predator II"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\PRD\\PRD.TCL"
+
+; PRG.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{3E086952-1284-4851-A5F9-696A0DD25F18}]
+"Name"="Pumkpin Ridge Golf Club - Witch Hollow"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\PRG\\PRG.tcr"
+"GVRID"=dword:00000023
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{CF6629AE-1473-4923-8E39-32C89EB722BB}]
+"Name"="Pumkpin Ridge Golf Club - Witch Hollow"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\PRG\\PRG.tcl"
+
+; PTO.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{0E83584A-91A8-4e5b-9D79-4EB81AD5EB76}]
+"Name"="Pasatiempo Golf Club"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\PTO\\PTO.tcr"
+"GVRID"=dword:00000025
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{D81458FE-6F79-42a2-80CC-1912F606C5F5}]
+"Name"="Pasatiempo Golf Club"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\PTO\\PTO.tcl"
+
+; REF.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{EABD103C-3712-4d1a-82BC-34B41341C441}]
+"Name"="Reflection Bay Golf Club"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\REF\\REF.tcr"
+"GVRID"=dword:00000022
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{FD82D3C1-9EEA-45a3-901F-89838F9F0B95}]
+"Name"="Reflection Bay Golf Club"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\REF\\REF.tcl"
+
+; SCT.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{130EFFAB-CC76-4D2D-BE04-CCCCCCCCCCCC}]
+"Name"="TPC of Scottsdale"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\SCT\\SCT.tcr"
+"GVRID"=dword:0000000C
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{130EFFAB-CC76-4D2D-BE04-DDDDDDDDDDDD}]
+"Name"="TPC of Scottsdale"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\SCT\\SCT.tcl"
+; SLE.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{E1325FC4-AC08-44D1-8D96-444444444444}]
+"Name"="Sahalee Country Club"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\SLE\\SLE.tcr"
+"GVRID"=dword:0000000B
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{F0EE4D17-CFEB-40FC-95D0-444444444444}]
+"Name"="Sahalee Country Club"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\SLE\\SLE.tcl"
+; TPC.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{D5590F2F-BE1A-49EC-9D75-CA062C67C171}]
+"Name"="Troon North Golf Club - Pinnacle Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\TPC\\TPC.tcr"
+"GVRID"=dword:00000024
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{49F82D0D-ED72-4898-B382-08DD053D50A9}]
+"Name"="Troon North Golf Club - Pinnacle Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\TPC\\TPC.tcl"
+
+; TUR.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Courses\{AF2E2192-D025-4CD6-8E70-6244CD455178}]
+"Name"="Turnberry Golf Club - Ailsa Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\TUR\\TUR.tcr"
+"GVRID"=dword:0000001E
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\GlobalVR\PGA TOUR 2006\Libraries\{3975628A-4038-437C-8F4A-47DDAE8D7037}]
+"Name"="Turnberry Golf Club - Ailsa Course"
+"Filename"="C:\\PGA_TOUR_GOLF_2006\\Courses\\TUR\\TUR.tcl"
+
+; HKLM Fonts.reg
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts]
+"Aurora Condensed BT (TrueType)"="TT1027M_.TTF"
+"Aurora Bold Condensed BT (TrueType)"="TT1028M_.TTF"
+"AuroraOpti Condensed (TrueType)"="AUOC____.TTF"
+"Wingdings 3 (TrueType)"="WINGDNG3.TTF"

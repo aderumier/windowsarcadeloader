@@ -1,13 +1,13 @@
-# PGA TOUR Golf Championship Edition (Global VR, 1.2) - template, override values in
-# userprofiles/globalvr/pga-tour-golf-championship-edition.yaml.
+# PGA TOUR Golf (Global VR, 1.2) - template, override values in
+# userprofiles/globalvr/pga-tour-golf.yaml.
 # The dump: the game's install CDs (pga tour v1.2 disc 1 and 2) at the cabinet's paths (the game
 # in C:\Program Files\EA SPORTS\Tiger Woods PGA TOUR 2002), their _Registry, fonts (Fonts) and
-# system files (System Files) kept. The first Championship Edition: the UniverShell frontend
-# (Internet Explorer showing the shell's HTML pages, scripted through its ShellControl.ocx)
-# starts the game, TW2002.exe, for each play; no cabinet database yet (Championship Edition II
-# and III's .NET classes).
+# system files (System Files) kept. The first edition, before Championship Edition II and III:
+# the UniverShell frontend (Internet Explorer showing the shell's HTML pages, scripted through
+# its ShellControl.ocx) starts the game, TW2002.exe, for each play; no cabinet database yet
+# (Championship Edition II and III's .NET classes).
 system: globalvr
-name: PGA TOUR Golf Championship Edition
+name: PGA TOUR Golf
 
 # the shell's start page
 args: ["c:\\TW2002_Shell\\Shell\\EABrand\\EABrand.html"]
@@ -27,7 +27,7 @@ c_folders:
   Tournament: Tournament
   Program Files/EA SPORTS: Program Files/EA SPORTS
 
-registry: [systemprofiles/globalvr/files/pga-tour-golf-championship-edition/cabinet.reg]
+registry: [systemprofiles/globalvr/files/pga-tour-golf/cabinet.reg]
 
 # The cabinet's Windows\system files the frontend loads. Its movies are Indeo 5: the native
 # codec (ir50_32.dll, copied to the dump's System Files, from Beach Head's) next to the frontend.

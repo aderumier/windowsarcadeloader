@@ -17,6 +17,13 @@
 //!   at the Career login, a card not linked yet asks a career number (and a name for a new
 //!   career), linked to the card in the cabinet's database; the card logs it in from then on;
 //! * its 8 KB memory reads zeros, written in memory only.
+//!
+//! PGA TOUR Golf Team Challenge's frontend also reads the dongle through it (its plug-in's
+//! startup checks: the region, `PGA_DONGLE_COUNTRY_MATCHES`): `LoadLibraryA
+//! ("DongleStorageDevice.dll")`, the HASP dongle's module, gets this DLL too, whose next
+//! `CreateGVRStorageDeviceImp` answers a dongle ([`DONGLE_VTABLE`]): always present, its memory
+//! the data engine's dongle header (`pgacabinetXml.enc`'s smart schema: game name, version,
+//! region at 0, 6, 13) from `WAL_GLOBALVR_DONGLE` (the dongle `gvrio.rs` answers too).
 
 use std::ffi::{CStr, c_void};
 use std::sync::Mutex;
@@ -39,6 +46,8 @@ static ORIG_PLAYER_LOAD_EX: AtomicUsize = AtomicUsize::new(0);
 static ORIG_PLUSDE_LOAD: AtomicUsize = AtomicUsize::new(0);
 static ORIG_WRAPPER_LOAD: AtomicUsize = AtomicUsize::new(0);
 static INSERTED: AtomicBool = AtomicBool::new(false);
+/// The wrapper's last module load was the dongle's: its next device is the dongle.
+static NEXT_IS_DONGLE: AtomicBool = AtomicBool::new(false);
 static MEMORY: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 /// When the frontend read the inserted card's id.
 static READ_AT: Mutex<Option<Instant>> = Mutex::new(None);
@@ -47,10 +56,11 @@ const EJECT_AFTER_READ: Duration = Duration::from_millis(1500);
 type LoadLibraryA = unsafe extern "system" fn(*const u8) -> usize;
 type LoadLibraryExA = unsafe extern "system" fn(*const u8, usize, u32) -> usize;
 
-/// In the frontend: its plug-in loads (`LoadLibraryA` / `LoadLibraryExA`) watched for the
-/// reader's wrapper.
+/// In the frontend (and PGA TOUR Golf Team Challenge's game): its plug-in loads (`LoadLibraryA` /
+/// `LoadLibraryExA`) watched for the reader's wrapper.
 pub(crate) fn init() {
-    if crate::frontend_fit::exe_name() != "amplayer.exe" {
+    // the frontend; PGA TOUR Golf Team Challenge's game (its engine reads the dongle's region)
+    if !matches!(crate::frontend_fit::exe_name().as_str(), "amplayer.exe" | "pga_tour_golf_2006.exe") {
         return;
     }
     if let Some(o) = unsafe { iat::hook("kernel32.dll", "LoadLibraryA", player_load as *const () as usize) } {
@@ -59,7 +69,46 @@ pub(crate) fn init() {
     if let Some(o) = unsafe { iat::hook("kernel32.dll", "LoadLibraryExA", player_load_ex as *const () as usize) } {
         ORIG_PLAYER_LOAD_EX.store(o, Ordering::Relaxed);
     }
+    watch_wrapper_load();
     hook_wrapper();
+}
+
+/// The wrapper hooked as soon as it loads, whoever loads it (the game's .NET runtime loads it
+/// for its data engine, not through a hooked `LoadLibraryA`): `LdrRegisterDllNotification`.
+fn watch_wrapper_load() {
+    #[repr(C)]
+    struct UnicodeString {
+        length: u16,
+        maximum: u16,
+        buffer: *const u16,
+    }
+    #[repr(C)]
+    struct Loaded {
+        flags: u32,
+        full_name: *const UnicodeString,
+        base_name: *const UnicodeString,
+    }
+    type Callback = unsafe extern "system" fn(u32, *const Loaded, *mut c_void);
+    type Register = unsafe extern "system" fn(u32, Callback, *mut c_void, *mut *mut c_void) -> i32;
+    const LOADED: u32 = 1;
+
+    unsafe extern "system" fn notified(reason: u32, data: *const Loaded, _context: *mut c_void) {
+        let Some(name) = (unsafe { data.as_ref() }).filter(|_| reason == LOADED).and_then(|d| unsafe { d.base_name.as_ref() }) else {
+            return;
+        };
+        let name = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name.buffer, usize::from(name.length / 2)) });
+        if name.eq_ignore_ascii_case("GVRStorageDevice.dll") {
+            hook_wrapper();
+        }
+    }
+
+    let ntdll = unsafe { GetModuleHandleA(c"ntdll.dll".as_ptr().cast()) };
+    let Some(register) = (unsafe { windows_sys::Win32::System::LibraryLoader::GetProcAddress(ntdll, c"LdrRegisterDllNotification".as_ptr().cast()) }) else {
+        return;
+    };
+    let register: Register = unsafe { std::mem::transmute(register) };
+    let mut cookie = std::ptr::null_mut();
+    unsafe { register(0, notified, std::ptr::null_mut(), &mut cookie) };
 }
 
 /// The frontend's `LoadLibraryA`.
@@ -126,8 +175,11 @@ fn hook_wrapper() {
 unsafe extern "system" fn wrapper_load(name: *const u8) -> usize {
     if !name.is_null() {
         let n = unsafe { CStr::from_ptr(name.cast()) }.to_string_lossy().to_ascii_lowercase();
-        if n.rsplit(['/', '\\']).next() == Some("gvrscr28.dll") {
-            log!("smartcard: LoadLibraryA({n:?}): the payload's reader");
+        let file = n.rsplit(['/', '\\']).next();
+        if matches!(file, Some("gvrscr28.dll" | "donglestoragedevice.dll")) {
+            let dongle = file == Some("donglestoragedevice.dll");
+            NEXT_IS_DONGLE.store(dongle, Ordering::Relaxed);
+            log!("smartcard: LoadLibraryA({n:?}): the payload's {}", if dongle { "dongle" } else { "reader" });
             // a reference the wrapper's FreeLibrary drops (after each presence check)
             let mut module = std::ptr::null_mut();
             unsafe { GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, wrapper_load as *const () as *const u16, &mut module) };
@@ -224,6 +276,10 @@ static VTABLE: Vtable = Vtable {
 /// `GVRStorageDeviceImp *CreateGVRStorageDeviceImp()`.
 #[unsafe(no_mangle)]
 pub extern "C" fn smartcard_create() -> *mut c_void {
+    if NEXT_IS_DONGLE.swap(false, Ordering::Relaxed) {
+        log!("smartcard: dongle created");
+        return Box::into_raw(Box::new(Device { vtable: &DONGLE_VTABLE, last_error: [0; 1024] })).cast();
+    }
     static THREAD: std::sync::Once = std::sync::Once::new();
     THREAD.call_once(|| {
         std::thread::spawn(watch_card);
@@ -348,9 +404,118 @@ unsafe extern "thiscall" fn swipe_stop(_this: This) -> i32 {
     OK
 }
 
+/// The dongle's memory size (its schema's last field ends at 105).
+const DONGLE_SIZE: usize = 0x200;
+const DONGLE_TYPE: u8 = 2;
+
+/// The dongle's memory: the data engine's dongle header (game name, zero padded: the game
+/// compares the whole field; version, region label and region, cabinet label), from
+/// `WAL_GLOBALVR_DONGLE`.
+fn dongle_memory(game: &[u8], version: &[u8], region: &[u8]) -> Vec<u8> {
+    let mut m = vec![0u8; DONGLE_SIZE];
+    let mut put = |at: usize, len: usize, value: &[u8]| {
+        let n = value.len().min(len);
+        m[at..at + n].copy_from_slice(&value[..n]);
+    };
+    put(0, 6, game);
+    put(6, 3, version);
+    put(9, 4, b"RGN:");
+    put(13, 3, region);
+    put(16, 3, b"CAB");
+    put(19, 1, b"1");
+    m
+}
+
+fn dongle_bytes() -> &'static [u8] {
+    static MEMORY: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+    MEMORY.get_or_init(|| {
+        let [game, version, region] = crate::gvrio::dongle_fields();
+        dongle_memory(game.to_bytes().trim_ascii_end(), version.to_bytes(), region.to_bytes())
+    })
+}
+
+static DONGLE_VTABLE: Vtable = Vtable {
+    initialize: dongle_ok,
+    shutdown: dongle_ok_0,
+    is_present,
+    get_status: dongle_status,
+    connect: dongle_ok_0,
+    disconnect: dongle_ok_0,
+    get_id: dongle_id,
+    get_type: dongle_type,
+    get_size: dongle_size,
+    get_manufacturer_info,
+    format: dongle_format,
+    set_access_indicator,
+    read: dongle_read,
+    write: dongle_write,
+    read_mag_stripe,
+    swipe_start,
+    swipe_detected,
+    swipe_stop,
+};
+
+unsafe extern "thiscall" fn dongle_ok(_this: This, _signature: i64) -> i32 {
+    OK
+}
+
+unsafe extern "thiscall" fn dongle_ok_0(_this: This) -> i32 {
+    OK
+}
+
+unsafe extern "thiscall" fn dongle_status(_this: This, status: *mut i32) -> i32 {
+    if let Some(status) = unsafe { status.as_mut() } {
+        *status = STATUS_INSERTED;
+    }
+    OK
+}
+
+unsafe extern "thiscall" fn dongle_id(_this: This, id: *mut i64) -> i32 {
+    if let Some(id) = unsafe { id.as_mut() } {
+        *id = 0x5741_4c00;
+    }
+    OK
+}
+
+unsafe extern "thiscall" fn dongle_type(_this: This) -> u8 {
+    DONGLE_TYPE
+}
+
+unsafe extern "thiscall" fn dongle_size(_this: This) -> i32 {
+    DONGLE_SIZE as i32
+}
+
+unsafe extern "thiscall" fn dongle_format(_this: This, _buffer: *mut u8, _is_player: i32, _id: i64) -> i32 {
+    OK
+}
+
+unsafe extern "thiscall" fn dongle_read(_this: This, index: i32, size: i32, buffer: *mut u8) -> i32 {
+    let (Some(r), false) = (dongle_range(index, size), buffer.is_null()) else { return ERROR };
+    let data = &dongle_bytes()[r];
+    unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), buffer, data.len()) };
+    OK
+}
+
+/// Writes (the cabinet's registration) accepted, not kept.
+unsafe extern "thiscall" fn dongle_write(_this: This, index: i32, size: i32, buffer: *const u8) -> i32 {
+    if dongle_range(index, size).is_none() || buffer.is_null() { ERROR } else { OK }
+}
+
+fn dongle_range(index: i32, size: i32) -> Option<std::ops::Range<usize>> {
+    let start = usize::try_from(index).ok()?;
+    let end = start.checked_add(usize::try_from(size).ok()?)?;
+    (end <= DONGLE_SIZE).then_some(start..end)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dongle_header() {
+        let m = dongle_memory(b"PGA", b"4.0", b"US");
+        assert_eq!(&m[..20], b"PGA\0\0\04.0RGN:US\0CAB1");
+    }
 
     #[test]
     fn card_memory_range() {

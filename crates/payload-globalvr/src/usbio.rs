@@ -183,7 +183,13 @@ pub unsafe extern "thiscall" fn cusbio_update(this: *mut u32, device: i32) {
         return;
     }
     let rec = unsafe { *this.add(1) } as *mut [u8; RECORD_SIZE];
-    if !rec.is_null() {
+    if rec.is_null() {
+        return;
+    }
+    // PGA TOUR Golf Team Challenge: the record is its trackball report
+    if crate::pga_trackball::team_challenge() {
+        unsafe { crate::pga_trackball::fill_report(rec.cast()) };
+    } else {
         fill(unsafe { &mut *rec });
     }
 }
