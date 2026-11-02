@@ -315,10 +315,16 @@ unsafe fn draw(dev: P, window: P) -> Option<P> {
         let (format, bw, bh) = (desc[0], desc[6], desc[7]);
         let (fw, fh) = (w as f32, h as f32);
         // the bezel's screen, the picture in its middle (the doors' width, its height)
+        // (`WAL_KEEP_ASPECT_RATIO=0`: the whole screen, stretched)
         let (sw, sh) = (pack.size.0 as f32, pack.size.1 as f32);
-        let (scr_x, scr_y, scr_w, scr_h) = fit(fw, fh, sw, sh);
-        let k = scr_h / sh;
-        let pic_w = if pack.bezel.is_some() { 2.0 * pack.left.w as f32 * k } else { scr_h * bw as f32 / bh as f32 };
+        let (scr_x, scr_y, scr_w, scr_h) = if keep_aspect() { fit(fw, fh, sw, sh) } else { (0.0, 0.0, fw, fh) };
+        let pic_w = if pack.bezel.is_some() {
+            2.0 * pack.left.w as f32 * scr_w / sw
+        } else if keep_aspect() {
+            scr_h * bw as f32 / bh as f32
+        } else {
+            fw
+        };
         let (pic_x, pic_y, pic_h) = ((fw - pic_w) / 2.0, scr_y, scr_h);
         let picture = [pic_x.round() as i32, pic_y.round() as i32, (pic_x + pic_w).round() as i32, (pic_y + pic_h).round() as i32];
         guns::set_picture(pic_x / fw, (pic_x + pic_w) / fw, pic_y / fh, (pic_y + pic_h) / fh);
@@ -360,6 +366,7 @@ unsafe fn draw(dev: P, window: P) -> Option<P> {
             // ours despite topmost)
             if hr >= 0 {
                 hide_window(window);
+                windows_sys::Win32::UI::WindowsAndMessaging::SetForegroundWindow(res.window);
             }
         }
         if res.states.is_null() {
@@ -445,6 +452,13 @@ unsafe fn draw(dev: P, window: P) -> Option<P> {
     }
 }
 
+/// The composed screen's aspect kept (black bars), unless `WAL_KEEP_ASPECT_RATIO=0` (Batocera
+/// ES's KEEP ASPECT RATIO off): stretched to the whole screen.
+fn keep_aspect() -> bool {
+    static KEEP: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *KEEP.get_or_init(|| !std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0"))
+}
+
 /// Screen rectangle of the game window's client area, its width and height.
 fn screen_rect(window: P) -> Option<([i32; 4], u32, u32)> {
     use windows_sys::Win32::Foundation::{POINT, RECT};
@@ -470,12 +484,12 @@ unsafe extern "system" fn overlay_proc(hwnd: P, msg: u32, wparam: usize, lparam:
     }
 }
 
-/// The window showing the composed screen over the game's: topmost, never activated, not in
-/// the taskbar, transparent to the mouse.
+/// The window showing the composed screen over the game's: topmost, not in the taskbar,
+/// transparent to the mouse. It can be activated: the game's window hidden, it is the game's
+/// window to the front (on Batocera, after a video mode change, EmulationStation keeps the
+/// focus and its fullscreen window covers a window that cannot take it: black screen).
 fn overlay_window() -> P {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, RegisterClassW, WNDCLASSW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
-    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{CreateWindowExW, RegisterClassW, WNDCLASSW, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP};
     let class: Vec<u16> = "WalScreenOverlay\0".encode_utf16().collect();
     let instance = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) };
     let wc = WNDCLASSW {
@@ -493,7 +507,7 @@ fn overlay_window() -> P {
     unsafe { RegisterClassW(&wc) };
     let hwnd = unsafe {
         CreateWindowExW(
-            WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+            WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
             class.as_ptr(),
             class.as_ptr(),
             WS_POPUP,
