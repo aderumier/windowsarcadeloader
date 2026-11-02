@@ -16,6 +16,8 @@ pub mod crypto;
 pub mod bezel;
 #[cfg(windows)]
 pub mod crosshair;
+#[cfg(windows)]
+pub mod d3d9_quads;
 pub mod d3dx;
 pub mod desktop;
 #[cfg(windows)]

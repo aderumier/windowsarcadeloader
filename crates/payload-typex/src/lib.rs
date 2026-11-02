@@ -17,6 +17,8 @@
 //! * Mahjong panel read as a keyboard (`WAL_TYPEX_MAHJONG`, `mahjong.rs`).
 //! * Elevator Action Death Parade's attraction doors drawn over the picture (`WAL_TYPEX_DOORS`,
 //!   `doors.rs`).
+//! * K-On! After School Rhythm Selection's card scanner: a virtual card picked on an overlay
+//!   (`WAL_TYPEX_KON_CARDS`, `kon_cards.rs`).
 //! * Sonic Blast Heroes' punching pad from a gamepad trigger (`WAL_TYPEX_PUNCH`, `punch.rs`).
 //! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`).
 //! * Servers the cabinet starts beside the game (`WAL_TYPEX_SERVERS`, `servers.rs`).
@@ -29,6 +31,7 @@ mod doors;
 mod ffb;
 mod guns;
 mod immersion;
+mod kon_cards;
 mod mahjong;
 mod medal;
 mod punch;
@@ -68,6 +71,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         ffb::init();
         touch::init();
         punch::init();
+        kon_cards::init();
         sram::init();
         servers::init();
         wal_payload_common::vfw::init();

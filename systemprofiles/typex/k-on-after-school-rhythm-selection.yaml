@@ -5,13 +5,56 @@ name: K-On! After School Rhythm Selection
 
 # Direct3D 9 game (DXVK, through its d3dx9_31.dll), JVS I/O on COM2.
 
+# Its boot and error texts use the font "ＭＳ Ｐゴシック" (D3DXCreateFontW): aliased to Source Han
+# Sans (otherwise a fallback font without Japanese glyphs: garbled text).
+tricks: [fakejapanese]
+
+# The cabinet sells collectible cards (100 yen each, from its card dispenser) and the player
+# scans up to 3 of them before a game (members, bonuses); the scan is optional (any colored
+# button ends it). The card scanner is a barcode reader typing the card's code: a virtual card,
+# chosen on an overlay showing the game's own picture of each card. b1 / b2 browse the cards,
+# b3 / b4 by 10, card scans the selected one.
+
 env:
-  # Its messages are Shift-JIS, drawn with the dump's d3dx9_31 DrawTextA: Japanese code page.
+  # Its messages are Shift-JIS, drawn with D3DX's DrawTextA: a Japanese Windows (code page 932
+  # for the whole process, Wine's d3dx9_31 too; mojibake boot and error screens otherwise).
+  LC_ALL: ja_JP.UTF-8
+  LANGUAGE: ja_JP
   WAL_ANSI_CODEPAGE: "932"
   # It runs in a 640x480 window: a borderless window the size of the screen, Direct3D
   # stretches the picture to it.
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
+  # Card dispenser on the JVS board (ready line, dispense output): without it error 0002
+  # DISPENSER_ERROR at boot.
+  WAL_TYPEX_JVS_LAYOUT: k-on
+  # Card scanner: the virtual card and its picker.
+  WAL_TYPEX_KON_CARDS: "1"
+
+# The game reads the 3 colored buttons (up/down/left); b1-b4 drive the card picker only.
+native_map:
+  b1: none
+  b2: none
+  b3: none
+  b4: none
+
+# The Xbox face colors match the cabinet's buttons: X blue, A green, B red; the card picker on
+# Y (scan) and the shoulders. Keyboard: Z / X / C blue, green, red (the arrows too).
+input:
+  gamepad:
+    x: left
+    a: down
+    b: up
+    y: card
+    l1: b1
+    r1: b2
+    l2: b3
+    r2: b4
+  keyboard:
+    p1:
+      KEY_Z: left
+      KEY_X: down
+      KEY_C: up
 
 # Control names (the GUI's mapping rows).
 controls:
@@ -19,3 +62,8 @@ controls:
   down: Green
   left: Blue
   right: none
+  b1: Previous card
+  b2: Next card
+  b3: 10 cards back
+  b4: 10 cards forward
+  card: Scan card
