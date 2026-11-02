@@ -1,0 +1,36 @@
+# Frenzy Express (xwin.exe, OpenGL, 32-bit) - template, override values in
+# userprofiles/arcadepc/frenzy-express.yaml.
+# A scooter with a handlebar, a brake and two pedals pushed by turns. The payload is the
+# cabinet's I/O library (xio.dll's XIO class: keys, handlebar, brake, pedals) (docs §6.3i).
+system: arcadepc
+name: Frenzy Express
+
+# the game imports xio.dll: the payload in its place (the dump's reads the keyboard)
+payload_install: [xio.dll]
+
+env:
+  WAL_ARCADEPC_BOARD: xio
+  # The boot calibrates the handlebar and the brake: each prompt lasts 300 frames (5 s) and the
+  # value is read when it ends (right, left; brake released, pulled), "ERROR THE STEERING WHEEL"
+  # unless left < right. The readings are the payload's full range (handlebar 0xFE right, 0x00
+  # left; brake 0x00, 0xFF) and the prompts last 30 frames.
+  WAL_PATCHES: "0x25D00:B0FE,0x25DE8:B100,0x26158:B200,0x261FB:B0FF,0x25CB6:3D1E000000,0x25CEA:3D1E000000,0x25DCD:3D1E000000,0x25F8B:3D1E000000,0x2613D:3D1E000000,0x261E0:3D1E000000,0x26287:3D1E000000"
+
+input:
+  stick_as_dpad: false
+
+controls:
+  lx: Handlebar
+  accel: Pedal (pedals by turns)
+  brake: Brake
+  b1: Pedal (pedals by turns)
+  b2: Brake
+  b3: Left pedal
+  b4: Right pedal
+  b5: Half brake
+  left: Left
+  right: Right
+  start: Start
+  coin: Coin
+  test: Test menu
+  service: Service

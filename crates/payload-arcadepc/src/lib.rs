@@ -35,6 +35,9 @@
 //! Zombie Crisis (`WAL_ARCADEPC_BOARD=zombiecrisis`): `zombiecrisis.rs` is its `GamePort.dll`
 //! (`GetInstance`'s object).
 //!
+//! Frenzy Express (`WAL_ARCADEPC_BOARD=xio`, x86 build): `xio.rs` is its `xio.dll` (the
+//! handlebar, brake, pedals and keys).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -51,6 +54,8 @@ mod jxboard;
 mod pads;
 mod topgun;
 mod uaf;
+#[cfg(target_arch = "x86")]
+mod xio;
 mod zombiecrisis;
 
 use std::ffi::c_void;
@@ -110,6 +115,14 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 pads::disconnect();
                 wal_payload_common::input_filter::init(unity, |_| false);
                 uaf::init();
+            }
+            _ if board.trim() == "xio" => {
+                pads::disconnect();
+                // the profile's code patches (the boot's handlebar and brake calibration)
+                wal_payload_common::patches::apply();
+                // the game's window messages: the executable's
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
             }
             _ if board.trim() == "bullseye" => {
                 pads::disconnect();
