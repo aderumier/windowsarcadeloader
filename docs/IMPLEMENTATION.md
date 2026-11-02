@@ -3910,6 +3910,33 @@ game draws its own crosshairs.
 - **Play.** Coins, start, the guns shoot the posters (level choice) and the Rabbids. Natives
   `trigger start coin` (each player), `operator up down select`.
 
+#### Spider-Man Homecoming
+
+Unity 5.5 (Mono `mono.dll`, Direct3D 11, 32-bit), a portrait cabinet: two players, one button
+each (the Spider-Sense reflex game). `spider-man-homecoming.windowsloader` points at `Game.exe`.
+
+- **Portrait screen.** `ApplicationManager.Start` sets `Screen.SetResolution(1080, 1920, true)`:
+  Unity 5.5 changes the display mode (`ChangeDisplaySettingsA`) to 1080x1920, none of a
+  landscape screen's (a black screen from the start on NVIDIA's drivers, native Windows too).
+  `WAL_DESKTOP_SIZE: 1080x1920` (`desktop.rs`): a mode change to the desktop's size is done
+  without changing anything, `GetDeviceCaps` gives its size, the window is fitted onto the
+  screen. Unity reads the screen's size before it loads `xinput1_3.dll`: `payload_loader: true`;
+  `-screen-width 1080 -screen-height 1920` (else Unity's size saved in the registry).
+- **Kaboom Adrio two-feeder board (`adrio2.rs`).** `KaboomAdrioFxPlusTwoFeeders.dll` (cdecl):
+  `InitLib(port 2..19, keyboard, coin, object detected, object not detected, wheel spinner)`.
+  The keyboard callback gets the keys held (operator 1, down 2, up 4, select 8), the coin
+  callback the two counters' running totals. No game call comes every frame: the callbacks
+  come from a payload thread started at `InitLib` (Mono loaded) attached to the game's Mono
+  domain. The players' buttons are the keypad's up (P1) and down (P2), which also move in the
+  operator menu; coins: P1 on counter 1, P2 on counter 2. Tickets:
+  `SetTicketFeederTicketToFeedCount(1, 2)`, `GetTicketFeederCount` fed / empty (a ticket every
+  100 ms, never empty), `ResetTicketFeeder`.
+- **Older four-feeder library (`adrio.rs`).** The game's `KaboomAdrioFxPlusFourFeeders` (not
+  its scene's board) polls `GetReadInputAdrio5` (active low; coins at bit 4 + 2 * door) and
+  reads a door's counter on a coin press, adding one: emulated too.
+- **Play.** 4 coins a player, the player's button to join, then the button during the
+  Spider-Sense. Natives `button coin` (each player), `operator select`.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -4299,6 +4326,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
+| `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 

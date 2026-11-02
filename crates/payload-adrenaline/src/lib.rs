@@ -9,8 +9,11 @@
 //!   where the players' guns point), `adrio.rs` its Kaboom Adrio board
 //!   (`KaboomAdrioFxPlusFourFeeders64.dll`: coins, start buttons, the operator's keypad, the
 //!   ticket feeders).
+//! - Spider-Man Homecoming (Unity 5.5, Mono, 32-bit): two players, one button each.
+//!   `adrio2.rs` is its Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
+//!   coins, the players' buttons on the operator's keypad, the ticket feeders).
 //!
-//! Both have the Matrix dongle (`matrix.rs`: `matrix32.dll`, `matrix64.dll`), all through
+//! All have the Matrix dongle (`matrix.rs`: `matrix32.dll`, `matrix64.dll`), all through
 //! Mono's `DllImport`s (`payload-common`'s `mono_imports.rs`).
 //!
 //! The payload is `xinput1_3.dll`, which Unity loads at start: no pads (the game's input comes
@@ -18,6 +21,8 @@
 //! `input_filter`: the games' own coin, operator and quit keys).
 
 mod adrio;
+#[cfg(target_pointer_width = "32")]
+mod adrio2;
 #[cfg(target_pointer_width = "32")]
 mod kaboom;
 mod matrix;
@@ -45,6 +50,8 @@ enum Native {
     Trigger,
     /// The player's start button (Rabbids Hollywood).
     Start,
+    /// The player's button (Spider-Man Homecoming: its only control).
+    Button,
     Coin,
     /// The operator's keypad: the operator key (Skylanders: any key opens and closes the
     /// operator menu), up, down and select (Rabbids Hollywood's menus).
@@ -58,6 +65,7 @@ const NATIVES: &[(&str, Native)] = &[
     ("touch", Native::Touch),
     ("trigger", Native::Trigger),
     ("start", Native::Start),
+    ("button", Native::Button),
     ("coin", Native::Coin),
     ("operator", Native::Operator),
     ("up", Native::Up),
@@ -65,9 +73,9 @@ const NATIVES: &[(&str, Native)] = &[
     ("select", Native::Select),
 ];
 
-/// Skylanders Cloud Patrol (32-bit).
+/// Skylanders Cloud Patrol, Spider-Man Homecoming (32-bit).
 #[cfg(target_pointer_width = "32")]
-const DEFAULTS: &[(&str, &str)] = &[("b1", "touch"), ("coin", "coin"), ("test", "operator"), ("service", "operator")];
+const DEFAULTS: &[(&str, &str)] = &[("b1", "touch+button"), ("coin", "coin"), ("test", "operator"), ("service", "operator"), ("b2", "select")];
 
 /// Rabbids Hollywood (64-bit).
 #[cfg(target_pointer_width = "64")]
@@ -90,11 +98,18 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
     match module {
         #[cfg(target_pointer_width = "32")]
         "kaboomcomdll.dll" => kaboom::resolve(name),
-        "kaboomadriofxplusfourfeeders64.dll" => adrio::resolve(name),
+        "kaboomadriofxplusfourfeeders.dll" | "kaboomadriofxplusfourfeeders64.dll" => adrio::resolve(name),
+        #[cfg(target_pointer_width = "32")]
+        "kaboomadriofxplustwofeeders.dll" => adrio2::resolve(name),
         "matrix32.dll" | "matrix64.dll" => matrix::resolve(name),
         #[cfg(target_pointer_width = "32")]
         "pqmtclient.dll" => pqmt::resolve(name),
         "sxcore.dll" => sixense::resolve(name),
+        // another board's library: the real one (logged)
+        m if m.starts_with("kaboom") => {
+            wal_payload_common::log!("adrenaline: {m}!{name} not emulated");
+            None
+        }
         _ => None,
     }
 }

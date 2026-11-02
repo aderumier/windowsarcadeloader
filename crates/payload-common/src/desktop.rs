@@ -10,6 +10,10 @@
 //! back buffer itself (`ResizeTarget`: `MoveWindow`): its imports are hooked too. The windows'
 //! size limits (`WM_GETMINMAXINFO`, Wine's X size hints) are fitted too. The d3d9 shim reports
 //! the desktop as the display mode (`GetAdapterDisplayMode`, the device's `GetDisplayMode`).
+//! A mode change to the desktop's size (`ChangeDisplaySettings*`: Unity 5's full screen) is done
+//! without changing anything: a portrait mode is none of a landscape screen's (Spider-Man
+//! Homecoming, 1080x1920: a black screen on NVIDIA's drivers); `GetDeviceCaps` gives the
+//! desktop's size.
 //!
 //! `WAL_DESKTOP_CLIENT=1`: the top-level windows' client areas answer in desktop units too
 //! (`GetClientRect`: the fitted window's client size unscaled, `GetWindowRect`, `ClientToScreen`:
@@ -48,6 +52,11 @@ static ORIG_ENUM_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_ENUM_W: AtomicUsize = AtomicUsize::new(0);
 static ORIG_ENUM_EX_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_ENUM_EX_W: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CHANGE_A: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CHANGE_W: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CHANGE_EX_A: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CHANGE_EX_W: AtomicUsize = AtomicUsize::new(0);
+static ORIG_DEVICE_CAPS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_W: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SET_POS: AtomicUsize = AtomicUsize::new(0);
@@ -380,6 +389,66 @@ unsafe extern "system" fn enum_ex_w(device: *const u16, mode: u32, dm: *mut DEVM
     r
 }
 
+/// A mode change to the desktop's own size (a portrait game's full screen: no mode of the real
+/// screen, NVIDIA's drivers give a black screen): done, nothing changed. Others: the real call.
+const DISP_CHANGE_SUCCESSFUL: i32 = 0;
+const DM_PELSWIDTH: u32 = 0x0008_0000;
+const DM_PELSHEIGHT: u32 = 0x0010_0000;
+
+fn desktop_mode(fields: u32, w: u32, h: u32) -> bool {
+    let Some((dw, dh)) = size() else { return false };
+    (fields & DM_PELSWIDTH == 0 || w == dw as u32) && (fields & DM_PELSHEIGHT == 0 || h == dh as u32)
+}
+
+unsafe extern "system" fn change_a(dm: *const DEVMODEA, flags: u32) -> i32 {
+    if dm.is_null() || unsafe { desktop_mode((*dm).dmFields, (*dm).dmPelsWidth, (*dm).dmPelsHeight) } {
+        return DISP_CHANGE_SUCCESSFUL;
+    }
+    let orig: unsafe extern "system" fn(*const DEVMODEA, u32) -> i32 = unsafe { std::mem::transmute(ORIG_CHANGE_A.load(Ordering::Relaxed)) };
+    unsafe { orig(dm, flags) }
+}
+
+unsafe extern "system" fn change_w(dm: *const DEVMODEW, flags: u32) -> i32 {
+    if dm.is_null() || unsafe { desktop_mode((*dm).dmFields, (*dm).dmPelsWidth, (*dm).dmPelsHeight) } {
+        return DISP_CHANGE_SUCCESSFUL;
+    }
+    let orig: unsafe extern "system" fn(*const DEVMODEW, u32) -> i32 = unsafe { std::mem::transmute(ORIG_CHANGE_W.load(Ordering::Relaxed)) };
+    unsafe { orig(dm, flags) }
+}
+
+unsafe extern "system" fn change_ex_a(device: *const u8, dm: *const DEVMODEA, hwnd: P, flags: u32, param: P) -> i32 {
+    if dm.is_null() || unsafe { desktop_mode((*dm).dmFields, (*dm).dmPelsWidth, (*dm).dmPelsHeight) } {
+        return DISP_CHANGE_SUCCESSFUL;
+    }
+    let orig: unsafe extern "system" fn(*const u8, *const DEVMODEA, P, u32, P) -> i32 = unsafe { std::mem::transmute(ORIG_CHANGE_EX_A.load(Ordering::Relaxed)) };
+    unsafe { orig(device, dm, hwnd, flags, param) }
+}
+
+unsafe extern "system" fn change_ex_w(device: *const u16, dm: *const DEVMODEW, hwnd: P, flags: u32, param: P) -> i32 {
+    if dm.is_null() || unsafe { desktop_mode((*dm).dmFields, (*dm).dmPelsWidth, (*dm).dmPelsHeight) } {
+        return DISP_CHANGE_SUCCESSFUL;
+    }
+    let orig: unsafe extern "system" fn(*const u16, *const DEVMODEW, P, u32, P) -> i32 = unsafe { std::mem::transmute(ORIG_CHANGE_EX_W.load(Ordering::Relaxed)) };
+    unsafe { orig(device, dm, hwnd, flags, param) }
+}
+
+/// `GetDeviceCaps`: the screen's size in pixels, the desktop's.
+unsafe extern "system" fn device_caps(dc: P, index: i32) -> i32 {
+    const HORZRES: i32 = 8;
+    const VERTRES: i32 = 10;
+    const DESKTOPVERTRES: i32 = 117;
+    const DESKTOPHORZRES: i32 = 118;
+    if let Some((w, h)) = size() {
+        match index {
+            HORZRES | DESKTOPHORZRES => return w,
+            VERTRES | DESKTOPVERTRES => return h,
+            _ => {}
+        }
+    }
+    let orig: unsafe extern "system" fn(P, i32) -> i32 = unsafe { std::mem::transmute(ORIG_DEVICE_CAPS.load(Ordering::Relaxed)) };
+    unsafe { orig(dc, index) }
+}
+
 pub fn init() {
     let Some((w, h)) = std::env::var("WAL_DESKTOP_SIZE").ok().and_then(|v| {
         let (w, h) = v.trim().split_once('x')?;
@@ -402,7 +471,7 @@ pub fn init() {
         }
     }
     let client = std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1");
-    let hooks: [(&str, usize, &AtomicUsize); 16] = [
+    let hooks: [(&str, usize, &AtomicUsize); 20] = [
         ("GetWindowRect", if client { window_rect as *const () as usize } else { 0 }, &ORIG_WINDOW_RECT),
         ("ClientToScreen", if client { client_to_screen as *const () as usize } else { 0 }, &ORIG_CLIENT_TO_SCREEN),
         ("GetClientRect", if client { client_rect as *const () as usize } else { 0 }, &ORIG_CLIENT_RECT),
@@ -419,6 +488,10 @@ pub fn init() {
         ("EnumDisplaySettingsW", enum_w as *const () as usize, &ORIG_ENUM_W),
         ("EnumDisplaySettingsExA", enum_ex_a as *const () as usize, &ORIG_ENUM_EX_A),
         ("EnumDisplaySettingsExW", enum_ex_w as *const () as usize, &ORIG_ENUM_EX_W),
+        ("ChangeDisplaySettingsA", change_a as *const () as usize, &ORIG_CHANGE_A),
+        ("ChangeDisplaySettingsW", change_w as *const () as usize, &ORIG_CHANGE_W),
+        ("ChangeDisplaySettingsExA", change_ex_a as *const () as usize, &ORIG_CHANGE_EX_A),
+        ("ChangeDisplaySettingsExW", change_ex_w as *const () as usize, &ORIG_CHANGE_EX_W),
     ];
     let user32 = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(windows_sys::w!("user32.dll")) };
     for (name, f, orig) in hooks.iter().filter(|h| h.1 != 0) {
@@ -435,6 +508,20 @@ pub fn init() {
             if let Some(p) = unsafe { windows_sys::Win32::System::LibraryLoader::GetProcAddress(user32, cname.as_ptr()) } {
                 orig.store(p as usize, Ordering::Relaxed);
             }
+        }
+    }
+    // gdi32's screen size (Unity 5's player)
+    for &base in &modules {
+        if let Some(o) = unsafe { iat::hook_module(base, "gdi32.dll", "GetDeviceCaps", device_caps as *const () as usize) } {
+            if o != device_caps as *const () as usize {
+                ORIG_DEVICE_CAPS.store(o, Ordering::Relaxed);
+            }
+        }
+    }
+    if ORIG_DEVICE_CAPS.load(Ordering::Relaxed) == 0 {
+        let gdi32 = unsafe { windows_sys::Win32::System::LibraryLoader::LoadLibraryW(windows_sys::w!("gdi32.dll")) };
+        if let Some(p) = unsafe { windows_sys::Win32::System::LibraryLoader::GetProcAddress(gdi32, c"GetDeviceCaps".as_ptr().cast()) } {
+            ORIG_DEVICE_CAPS.store(p as usize, Ordering::Relaxed);
         }
     }
     subclass_existing();
