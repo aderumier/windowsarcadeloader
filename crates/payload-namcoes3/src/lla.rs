@@ -219,20 +219,26 @@ unsafe extern "system" fn set_window_pos(hwnd: usize, after: isize, x: i32, y: i
     r
 }
 
+/// Hooks the window calls of the launcher at `base` for its status window (see
+/// [`create_window`]); Time Crisis 5's launcher has the same one.
+pub(crate) fn status_window(base: usize) {
+    for (name, f, slot) in [
+        ("CreateWindowExW", create_window as *const () as usize, &CREATE_WINDOW),
+        ("SetWindowPos", set_window_pos as *const () as usize, &SET_WINDOW_POS),
+    ] {
+        match unsafe { wal_payload_common::iat::hook_module(base, "user32.dll", name, f) } {
+            Some(o) => slot.store(o, Ordering::Relaxed),
+            None => log!("lla: {name} not hooked"),
+        }
+    }
+}
+
 pub(crate) fn attach(exe: &str, base: usize) {
     if exe.eq_ignore_ascii_case(LAUNCHER) {
         let libs: Vec<usize> = [base, module("wajvio.dll")].into_iter().filter(|m| *m != 0).collect();
         crate::jvs::init(&libs);
         crate::bpreader::init("COM4", &libs);
-        for (name, f, slot) in [
-            ("CreateWindowExW", create_window as *const () as usize, &CREATE_WINDOW),
-            ("SetWindowPos", set_window_pos as *const () as usize, &SET_WINDOW_POS),
-        ] {
-            match unsafe { wal_payload_common::iat::hook_module(base, "user32.dll", name, f) } {
-                Some(o) => slot.store(o, Ordering::Relaxed),
-                None => log!("lla: {name} not hooked"),
-            }
-        }
+        status_window(base);
         crate::projector::init("COM1", &libs);
         // [0x341084] = operator language 1..8 -> "-Language=JPN..THA", else English
         patches::language(base, 0x2c28e, b"\x8b\x05\xf0\x4d\x31\x00");

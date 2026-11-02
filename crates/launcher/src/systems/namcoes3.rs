@@ -2,7 +2,8 @@
 //! puts the same 32-bit payload in place of its `bnusio.dll` (profile `payload_install`).
 //! Mach Storm (32-bit) loads the same payload at its executable's entry point (no import).
 //! Lost Land Adventure (64-bit) installs the 64-bit payload as its own launcher's and game's
-//! `hasp_windows_x64_106993.dll` (profile `payload_install`).
+//! `hasp_windows_x64_106993.dll` (profile `payload_install`), Time Crisis 5 (64-bit) as its
+//! `hasp_windows_x64_105293.dll`.
 //!
 //! The dump's executable is the cabinet launcher `Launcher\RSLauncher.exe`, which starts
 //! `Binaries\Win64\SWArcGame-Win64-Shipping.exe`. Both import the HASP HL dongle library

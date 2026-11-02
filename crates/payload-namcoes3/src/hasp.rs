@@ -88,7 +88,9 @@ pub unsafe extern "C" fn hasp_read(_h: u32, file: u32, offset: u32, len: u32, bu
     let out = unsafe { std::slice::from_raw_parts_mut(buf, len as usize) };
     out.fill(0);
     let mut mem = *memory();
-    if crate::lla::is_lla() {
+    if crate::tc5::is_tc5() {
+        mem[0xD00..0xD0C].copy_from_slice(crate::tc5::HASP_SERIAL);
+    } else if crate::lla::is_lla() {
         mem[0xD00..0xD0C].copy_from_slice(crate::lla::SERIAL);
     } else if let Some(version) = crate::wmmt5::version() {
         mem[0xD00..0xD0C].copy_from_slice(version.serial.as_bytes());

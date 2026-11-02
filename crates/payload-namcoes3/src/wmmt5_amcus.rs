@@ -24,6 +24,31 @@ const S_OK: i32 = 0;
 
 const GAME_ID: &str = "SBWJ";
 
+/// The game the daemon answers for (Wangan Midnight Maximum Tune 5's version table otherwise).
+#[derive(Clone, Copy)]
+pub(crate) struct Identity {
+    pub(crate) game_id: &'static str,
+    pub(crate) game_cd: &'static str,
+    pub(crate) game_ver: (i16, i16),
+    pub(crate) serial: &'static str,
+    /// Put before the server in the ALL.Net answer's uri (Time Crisis 5's launcher adds
+    /// `https://` itself).
+    pub(crate) scheme: &'static str,
+}
+
+static IDENTITY: std::sync::OnceLock<Identity> = std::sync::OnceLock::new();
+
+pub(crate) fn set_identity(identity: Identity) {
+    let _ = IDENTITY.set(identity);
+}
+
+fn identity() -> Identity {
+    IDENTITY.get().copied().unwrap_or_else(|| {
+        let v = crate::wmmt5::current();
+        Identity { game_id: GAME_ID, game_cd: v.game_cd, game_ver: v.game_ver, serial: v.serial, scheme: "https://" }
+    })
+}
+
 
 #[repr(C)]
 pub(crate) struct Object {
@@ -82,7 +107,7 @@ unsafe extern "system" fn get_info(_this: P, out: *mut u8) -> i32 {
         put(out, 0x18, 14u32);
         put(out, 0x20, 2i32);
         put(out, 0x24, 1i32);
-        let (major, minor) = crate::wmmt5::current().game_ver;
+        let (major, minor) = identity().game_ver;
         put(out, 0x3c, major);
         put(out, 0x3e, minor);
         put(out, 0x40, major);
@@ -102,7 +127,7 @@ unsafe extern "system" fn get_cabinet_config(_this: P, out: *mut u8) -> i32 {
         std::ptr::write_bytes(out, 0, 88);
         put_str(out, 0x00, 16, "STANDALONE");
         put_str(out, 0x10, 16, "ABGN6789012");
-        put_str(out, 0x20, 16, crate::wmmt5::current().serial);
+        put_str(out, 0x20, 16, identity().serial);
         put_str(out, 0x30, 16, "127.0.0.1");
         put_str(out, 0x40, 16, "127.0.0.1");
         put(out, 0x50, 1u16);
@@ -120,8 +145,8 @@ unsafe extern "system" fn get_version_info(_this: P, out: *mut u8) -> i32 {
         std::ptr::write_bytes(out, 0, 316);
         put_str(out, 0, 4, "1");
         put_str(out, 4, 16, "ALL.NET");
-        put_str(out, 20, 8, GAME_ID);
-        let version = crate::wmmt5::current();
+        let version = identity();
+        put_str(out, 20, 8, version.game_id);
         let ver = format!("{}.{:02}", version.game_ver.0, version.game_ver.1);
         put_str(out, 28, 8, &ver);
         put_str(out, 36, 8, version.game_cd);
@@ -146,7 +171,7 @@ unsafe extern "system" fn get_auth_server_resp(_this: P, out: *mut u8) -> i32 {
     unsafe {
         std::ptr::write_bytes(out, 0, 2210);
         let server = game_server();
-        put_str(out, 0, 257, &format!("https://{server}"));
+        put_str(out, 0, 257, &format!("{}{server}", identity().scheme));
         put_str(out, 257, 257, &server);
         put_str(out, 514, 256, "Arcade");
         put_str(out, 770, 256, "Arcade");
@@ -295,7 +320,7 @@ unsafe extern "system" fn get_updater_state_new(_this: P, out: *mut u8) -> i32 {
         put(out, m + 24, 43i32);
         put(out, m + 28, 52i32);
         put(out, m + 32, 59i32);
-        let (major, minor) = crate::wmmt5::current().game_ver;
+        let (major, minor) = identity().game_ver;
         put(out, m + 36, major);
         put(out, m + 38, minor);
         put(out, m + 40, major);
@@ -321,7 +346,7 @@ unsafe extern "system" fn get_cabinet_config_new(_this: P, out: *mut u8) -> i32 
         std::ptr::write_bytes(out, 0, 168);
         put_str(out, 0x00, 16, "STANDALONE");
         put_str(out, 0x10, 16, "ABGN6789012");
-        put_str(out, 0x20, 16, crate::wmmt5::current().serial);
+        put_str(out, 0x20, 16, identity().serial);
         for (i, ip) in ["127.0.0.1", "127.0.0.1", "127.0.0.1", "255.0.0.0", "127.0.0.1", "127.0.0.1"].iter().enumerate() {
             put_str(out, 0x30 + 16 * i, 16, ip);
         }
@@ -383,3 +408,37 @@ static VTABLE_NEW: Vtable = Vtable([
 ]);
 
 pub(crate) static OBJECT_NEW: Object = Object { vtable: VTABLE_NEW.0.as_ptr() };
+
+/// The object a traced daemon forwards to (`WAL_NAMCOES3_AMCUS_TRACE=1`).
+static TRACED: std::sync::atomic::AtomicPtr<Object> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());
+
+/// Slot `N` of the traced daemon: logs the call (once per slot), then the real object's slot.
+unsafe extern "system" fn traced<const N: usize>(_this: P, a: usize, b: usize, c: usize, d: usize) -> i32 {
+    static SEEN: std::sync::Mutex<u64> = std::sync::Mutex::new(0);
+    {
+        let mut seen = SEEN.lock().unwrap();
+        if *seen & (1 << N) == 0 {
+            *seen |= 1 << N;
+            wal_payload_common::log!("amcus: slot {N} ({a:#x}, {b:#x})");
+        }
+    }
+    let object = TRACED.load(std::sync::atomic::Ordering::Relaxed);
+    let f: unsafe extern "system" fn(P, usize, usize, usize, usize) -> i32 = unsafe { std::mem::transmute(*(*object).vtable.add(N)) };
+    unsafe { f(object.cast(), a, b, c, d) }
+}
+
+macro_rules! traced_vtable {
+    ($($n:literal)*) => { Vtable([$(traced::<$n> as *const (),)*]) };
+}
+
+static VTABLE_TRACED: Vtable = traced_vtable!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33);
+static OBJECT_TRACED: Object = Object { vtable: VTABLE_TRACED.0.as_ptr() };
+
+/// `object`, or with `WAL_NAMCOES3_AMCUS_TRACE=1` a wrapper logging each slot's first call.
+pub(crate) fn daemon(object: &'static Object) -> &'static Object {
+    if std::env::var("WAL_NAMCOES3_AMCUS_TRACE").is_ok_and(|v| v == "1") {
+        TRACED.store((object as *const Object).cast_mut(), std::sync::atomic::Ordering::Relaxed);
+        return &OBJECT_TRACED;
+    }
+    object
+}

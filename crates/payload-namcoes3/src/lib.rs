@@ -1,4 +1,5 @@
-//! Namco ES3 payload (64-bit): Star Wars Battle Pod: The Force Awakens, Lost Land Adventure.
+//! Namco ES3 payload (64-bit): Star Wars Battle Pod: The Force Awakens, Lost Land Adventure,
+//! Wangan Midnight Maximum Tune 5..6RR, Time Crisis 5.
 //!
 //! It takes the place of the HASP HL library both the cabinet launcher `RSLauncher.exe` and
 //! the game it starts import: loaded in both processes without injector. The library's name
@@ -7,7 +8,8 @@
 //! Adventure (`RSLauncher.exe`, `LLA\Binaries\Win64\DomeShooterGame-Win64-Shipping.exe`,
 //! `lla.rs`), `hasp_windows_x64_109906.dll` Wangan Midnight Maximum Tune 5,
 //! `hasp_windows_x64_98199.dll` 5DX and `hasp_windows_x64_106482.dll` 5DX+ (`wmn5r.exe`,
-//! `wmmt5.rs`).
+//! `wmmt5.rs`), `hasp_windows_x64_105293.dll` Time Crisis 5 (`RSLauncher.exe`,
+//! `TC5\Binaries\Win64\TimeCrisisGame-Win64-Shipping.exe`, `tc5.rs`, USIO board `usio.rs`).
 //!
 //! * `hasp.rs`: the HASP HL dongle API.
 //! * `jvs.rs`: the JVS I/O board, on the serial calls of the launcher and of the game's I/O
@@ -29,6 +31,8 @@ mod jvs;
 mod lla;
 mod patches;
 mod projector;
+mod tc5;
+mod usio;
 mod wmmt5;
 mod wmmt5_amcus;
 mod wmmt5_net;
@@ -71,6 +75,19 @@ unsafe extern "system" fn xinput_set_state(_index: u32, _vibration: *mut c_void)
     0
 }
 
+/// The game's own XInput and DirectInput pads (developer controls): neutral XInput pads, no
+/// DirectInput controller (`WAL_NAMCOES3_GAME_XINPUT=1` keeps them).
+pub(crate) fn game_pads_hidden(base: usize) {
+    if std::env::var("WAL_NAMCOES3_GAME_XINPUT").is_ok_and(|v| v == "1") {
+        return;
+    }
+    unsafe {
+        iat::hook_ordinal(base, "xinput1_3.dll", 2, xinput_get_state as *const () as usize);
+        iat::hook_ordinal(base, "xinput1_3.dll", 3, xinput_set_state as *const () as usize);
+    }
+    dinput::init();
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
@@ -78,7 +95,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let exe = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()));
         let exe = exe.unwrap_or_default();
         let base = module_base();
-        if lla::is_lla() {
+        if tc5::is_tc5() {
+            tc5::attach(&exe, base);
+        } else if lla::is_lla() {
             lla::attach(&exe, base);
         } else if let Some(version) = wmmt5::version() {
             wmmt5::attach(&exe, base, version);
@@ -93,13 +112,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 log!("namcoes3: wajvio.dll not loaded, no I/O board");
             }
             jvs::init(&libs);
-            if std::env::var("WAL_NAMCOES3_GAME_XINPUT").map_or(true, |v| v != "1") {
-                unsafe {
-                    iat::hook_ordinal(base, "xinput1_3.dll", 2, xinput_get_state as *const () as usize);
-                    iat::hook_ordinal(base, "xinput1_3.dll", 3, xinput_set_state as *const () as usize);
-                }
-                dinput::init();
-            }
+            game_pads_hidden(base);
             patches::game(base);
         } else {
             log!("namcoes3: loaded in {exe}, nothing to do");

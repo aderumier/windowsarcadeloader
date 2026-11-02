@@ -13,6 +13,7 @@
 //! directory (`store.rs`).
 
 pub mod pb;
+pub mod spp;
 pub use rpc::Game;
 mod records;
 mod rpc;
@@ -67,7 +68,7 @@ pub fn start(game: Game, addrs: &[String], data_dir: &str, logger: fn(&str), ver
                 }
                 let config = config.clone();
                 std::thread::spawn(move || {
-                    if let Err(e) = serve(stream, config) {
+                    if let Err(e) = serve(stream, config, wm5_route, "application/x-protobuf; revision=1290") {
                         if verbose {
                             log(&format!("wm5srv: connection: {e}"));
                         }
@@ -78,7 +79,7 @@ pub fn start(game: Game, addrs: &[String], data_dir: &str, logger: fn(&str), ver
     }
 }
 
-fn tls_config() -> Result<rustls::ServerConfig, String> {
+pub(crate) fn tls_config() -> Result<rustls::ServerConfig, String> {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).map_err(|e| e.to_string())?;
     let key = rustls::pki_types::PrivateKeyDer::Pkcs8(cert.key_pair.serialize_der().into());
     let provider = Arc::new(rustls::crypto::ring::default_provider());
@@ -90,8 +91,24 @@ fn tls_config() -> Result<rustls::ServerConfig, String> {
         .map_err(|e| e.to_string())
 }
 
-/// One connection: HTTP/1.1 requests until it closes.
-fn serve(mut tcp: TcpStream, config: Arc<rustls::ServerConfig>) -> Result<(), String> {
+/// The game's requests: `POST /method/<rpc>`, `GET /resource/<name>?<query>`.
+fn wm5_route(method: &str, target: &str, body: &[u8]) -> Option<Vec<u8>> {
+    if method == "POST" {
+        target.strip_prefix("/method/").map(|rpc| rpc::method(rpc, body))
+    } else {
+        target.strip_prefix("/resource/").map(|res| {
+            let (name, query) = res.split_once('?').unwrap_or((res, ""));
+            rpc::resource(name, query)
+        })
+    }
+}
+
+/// A server's answer to a request (method, target, body), `None`: not found.
+pub(crate) type Route = fn(&str, &str, &[u8]) -> Option<Vec<u8>>;
+
+/// One connection: HTTP/1.1 requests until it closes, answered by `route` (HTTP 200,
+/// `content_type`, with a `Content-Length`).
+pub(crate) fn serve(mut tcp: TcpStream, config: Arc<rustls::ServerConfig>, route: Route, content_type: &str) -> Result<(), String> {
     let mut conn = rustls::ServerConnection::new(config).map_err(|e| e.to_string())?;
     let tls = rustls::Stream::new(&mut conn, &mut tcp);
     let mut reader = BufReader::new(tls);
@@ -123,18 +140,10 @@ fn serve(mut tcp: TcpStream, config: Arc<rustls::ServerConfig>) -> Result<(), St
         }
         let mut body = vec![0u8; length];
         reader.read_exact(&mut body).map_err(|e| e.to_string())?;
-        let answer = if method == "POST" {
-            target.strip_prefix("/method/").map(|rpc| rpc::method(rpc, &body))
-        } else {
-            target.strip_prefix("/resource/").map(|res| {
-                let (name, query) = res.split_once('?').unwrap_or((res, ""));
-                rpc::resource(name, query)
-            })
-        };
-        let response = match answer {
+        let response = match route(&method, &target, &body) {
             Some(body) => {
                 let mut r = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/x-protobuf; revision=1290\r\nContent-Length: {}\r\nCache-Control: no-cache\r\n\r\n",
+                    "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nCache-Control: no-cache\r\n\r\n",
                     body.len()
                 )
                 .into_bytes();
