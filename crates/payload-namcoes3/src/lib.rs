@@ -21,6 +21,7 @@
 #![allow(non_snake_case)]
 
 mod banapass;
+mod bngrw;
 mod bpreader;
 mod dinput;
 mod hasp;

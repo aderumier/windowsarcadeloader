@@ -23,11 +23,11 @@ use wal_protocol::output;
 use crate::patches::patch;
 use crate::{GAME_BASE, module};
 
-const GAME: &str = "wmn5r.exe";
-
 /// A version of the game: its HASP library, cabinet identity and the addresses in its exe.
 pub(crate) struct Version {
     pub(crate) name: &'static str,
+    /// The game executable.
+    exe: &'static str,
     hasp: &'static str,
     /// The cabinet serial (HASP memory 0xd00) and the store terminal's.
     pub(crate) serial: &'static str,
@@ -43,6 +43,8 @@ pub(crate) struct Version {
     pub(crate) traces: bool,
     /// The built-in game server's schema.
     server: wal_wm5srv::Game,
+    /// The Banapass reader: the game's `bngrw.dll` (6), else the serial reader on COM4.
+    bngrw: bool,
     patches: &'static [Patch],
 }
 
@@ -52,6 +54,7 @@ type Patch = (&'static str, usize, &'static [u8], &'static [u8]);
 /// Wangan Midnight Maximum Tune 5.
 const WMMT5: Version = Version {
     name: "wmmt5",
+    exe: "wmn5r.exe",
     hasp: "hasp_windows_x64_109906.dll",
     serial: "272213990002",
     terminal_serial: "272211990002",
@@ -61,6 +64,7 @@ const WMMT5: Version = Version {
     forces: 0x196f188,
     traces: true,
     server: wal_wm5srv::Game::Wm5,
+    bngrw: false,
     patches: &[
         // the serial check against the network's ("Dongle Mismatch"): match
         ("dongle match", 0x58c6cc, b"\x01", b"\x00"),
@@ -100,6 +104,7 @@ const WMMT5: Version = Version {
 /// test is inverted: its branch to the next step made unconditional).
 const WMMT5DX: Version = Version {
     name: "wmmt5dx",
+    exe: "wmn5r.exe",
     hasp: "hasp_windows_x64_98199.dll",
     serial: "276413292430",
     terminal_serial: "276411292430",
@@ -109,6 +114,7 @@ const WMMT5DX: Version = Version {
     forces: 0x1c02750,
     traces: false,
     server: wal_wm5srv::Game::Wm5Dx,
+    bngrw: false,
     patches: &[
         ("dongle match", 0x61773e, b"\x01", b"\x00"),
         ("network state", 0x6185e1, b"\x76\x12", b"\xeb\x12"),
@@ -131,6 +137,7 @@ const WMMT5DX: Version = Version {
 /// Wangan Midnight Maximum Tune 5DX+: 5DX's code, other addresses.
 const WMMT5DXP: Version = Version {
     name: "wmmt5dxp",
+    exe: "wmn5r.exe",
     hasp: "hasp_windows_x64_106482.dll",
     serial: "278313042069",
     terminal_serial: "278311042069",
@@ -140,6 +147,7 @@ const WMMT5DXP: Version = Version {
     forces: 0x1fa6f40,
     traces: false,
     server: wal_wm5srv::Game::Wm5DxPlus,
+    bngrw: false,
     patches: &[
         ("dongle match", 0x706356, b"\x01", b"\x00"),
         ("network state", 0x7071d6, b"\x76\x12", b"\xeb\x12"),
@@ -159,9 +167,41 @@ const WMMT5DXP: Version = Version {
     ],
 };
 
+/// Wangan Midnight Maximum Tune 6 (2018, `wmn6r.exe`): 5's code reworked, the same cabinet.
+/// Its boot's network state test and two of the race clock's checks are gone; the terminal
+/// revision mismatch is error 7.
+const WMMT6: Version = Version {
+    name: "wmmt6",
+    exe: "wmn6r.exe",
+    hasp: "hasp_windows_x64_28756.dll",
+    serial: "280813990002",
+    terminal_serial: "280811990002",
+    game_cd: "WM61",
+    game_ver: (9, 0),
+    software_revision: 0x1e18114,
+    forces: 0x1e3c610,
+    traces: false,
+    server: wal_wm5srv::Game::Wm6,
+    bngrw: true,
+    patches: &[
+        ("dongle match", 0x69e92a, b"\x01", b"\x00"),
+        ("network error", 0x8d6cb0, b"\xe8\x5b\xd3\x98\xff", &[0x90; 5]),
+        ("network time", 0xa36caa, b"\x74", b"\xeb"),
+        ("movie start failure", 0x9a8062, b"\x79", b"\xeb"),
+        ("server certificate", 0x9b848b, b"\xba\x01\x00\x00\x00", b"\xba\x00\x00\x00\x00"),
+        ("network offline period", 0x6916bd, b"\x7c\x41", b"\xeb\x41"),
+        ("link private address", 0xa3a863, b"\x74\x31", b"\xeb\x31"),
+        ("terminal revision", 0x690ad8, b"\xb9\x07\x00\x00\x00", b"\xb9\x02\x00\x00\x00"),
+        ("terminal revision at boot", 0x6a0bb0, b"\x75\x4d", &[0x90; 2]),
+        ("link one node per address", 0xa131a9, b"\x0f\x84\x85\x00\x00\x00", &[0x90; 6]),
+        ("link one node per address 2", 0xa131b3, b"\x74\x5c", &[0x90; 2]),
+        ("link one node per address 3", 0xa131b9, b"\x75\x4b", &[0x90; 2]),
+    ],
+};
+
 /// The version whose HASP library is loaded.
 pub(crate) fn version() -> Option<&'static Version> {
-    [&WMMT5, &WMMT5DX, &WMMT5DXP].into_iter().find(|v| module(v.hasp) != 0)
+    [&WMMT5, &WMMT5DX, &WMMT5DXP, &WMMT6].into_iter().find(|v| module(v.hasp) != 0)
 }
 
 /// The loaded version (the payload runs in this game only).
@@ -182,7 +222,7 @@ pub(crate) fn serial_check(serial: &str) -> [u8; 2] {
 static FFB_LOG: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn attach(exe: &str, base: usize, version: &'static Version) {
-    if !exe.eq_ignore_ascii_case(GAME) {
+    if !exe.eq_ignore_ascii_case(version.exe) {
         log!("{}: loaded in {exe}, nothing to do", version.name);
         return;
     }
@@ -206,7 +246,7 @@ pub(crate) fn attach(exe: &str, base: usize, version: &'static Version) {
     // the other cabinet devices (IC card reader, touch panel, drive board) are off in the
     // settings: their ports stay absent
     crate::jvs::init(&[base]);
-    card_reader(base);
+    card_reader(base, version);
     // the game server (the ALL.Net answer's uri, wmmt5_amcus.rs)
     // and the store terminal's HTTPS proxy, where a drive cabinet sends its requests while the
     // terminal links (its address, port 50765: wmmt5_terminal.rs)
@@ -311,11 +351,16 @@ fn gzip_stored(data: &[u8]) -> Vec<u8> {
     out
 }
 
-/// The Banapass reader (COM4, `bpreader.rs`) and the player's card: `WAL_NAMCOES3_ACCESS_CODE`
+/// The Banapass reader (COM4, `bpreader.rs`; 6: `bngrw.rs`) and the player's card: `WAL_NAMCOES3_ACCESS_CODE`
 /// (20 digits), else a card made once and kept in `F:\banapass.txt`. The `card` button puts it
 /// on the reader (while held, and 3 seconds after).
-fn card_reader(base: usize) {
-    crate::bpreader::init("COM4", &[base]);
+fn card_reader(base: usize, version: &Version) {
+    if version.bngrw {
+        crate::bngrw::init(base);
+    } else {
+        crate::bpreader::init("COM4", &[base]);
+    }
+    let bngrw = version.bngrw;
     const SAVED: &str = "F:\\banapass.txt";
     let configured = std::env::var("WAL_NAMCOES3_ACCESS_CODE").ok().filter(|c| !c.trim().is_empty());
     let saved = std::fs::read_to_string(SAVED).ok();
@@ -334,7 +379,11 @@ fn card_reader(base: usize) {
     let card: &'static crate::banapass::Card = Box::leak(Box::new(card));
     std::thread::spawn(move || loop {
         if wal_payload_common::input(0).pressed(wal_protocol::button::CARD) {
-            crate::bpreader::insert(card, Duration::from_secs(3));
+            if bngrw {
+                crate::bngrw::insert(card, Duration::from_secs(3));
+            } else {
+                crate::bpreader::insert(card, Duration::from_secs(3));
+            }
         }
         std::thread::sleep(Duration::from_millis(50));
     });
