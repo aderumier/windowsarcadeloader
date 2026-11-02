@@ -50,6 +50,9 @@ env:
   # centered 9:16 rectangle.
   WAL_D3D9_WINDOWED_SIZE: 720x1280
   WAL_D3D9_ASPECT: "9:16"
+  # the composed screen (or the picture) with its aspect kept, black bars ("0": stretched to
+  # the whole screen; Batocera ES: KEEP ASPECT RATIO)
+  WAL_KEEP_ASPECT_RATIO: "1"
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
 
@@ -63,3 +66,14 @@ controls:
   start: Enter (test menu)
   up: Elevator up button
   down: Elevator down button
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The cabinet's screen (doors and bezel, 16:9, or the 9:16 picture without them) with
+          its aspect kept, black bars on other screens. Off: stretched to the whole screen.
