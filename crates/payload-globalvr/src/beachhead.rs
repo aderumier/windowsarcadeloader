@@ -51,11 +51,13 @@ fn wide_str(p: *const u16) -> String {
 
 /// The page as Internet Explorer built it: its `<body ...>` tag right after `</head>`, followed
 /// by the `<object>` elements of its head and what came between the head and the body; `None`
-/// when nothing precedes the body tag but its head without objects.
+/// when nothing precedes the body tag but its head without objects. The body tag is searched
+/// after `</head>` (PGA TOUR's first Game Length page has a `// <body ...>` comment in its head's
+/// script).
 fn fix_body(page: &[u8]) -> Option<Vec<u8>> {
     let lower = page.to_ascii_lowercase();
     let find = |from: usize, what: &[u8]| lower[from..].windows(what.len()).position(|w| w == what).map(|p| p + from);
-    let body = find(0, b"<body")?;
+    let body = find(find(0, b"</head>").unwrap_or(0), b"<body")?;
     let body_end = find(body, b">")? + 1;
     let head_end = find(0, b"</head>").filter(|&h| h < body);
     let head_stop = head_end.unwrap_or(body);
@@ -186,11 +188,74 @@ fn keep_movie(page: &[u8]) -> Option<Vec<u8>> {
     (!out.is_empty()).then(|| [out.as_slice(), rest].concat())
 }
 
-/// The page fixed for Wine's browser: [`fix_body`], [`rename_name`], [`replace_text`],
-/// [`keep_movie`].
-fn fix_page(page: &[u8]) -> Option<Vec<u8>> {
+/// A statement ending without its semicolon before a line starting with `++` / `--` (PGA TOUR's
+/// first `custommenu.js`: `x = y` then `++n;`): JavaScript inserts the semicolon there, Wine's
+/// script engine fails to parse the whole file. The semicolon added to the previous code line
+/// (blank and `//` comment lines skipped).
+fn restricted_increments(page: &[u8]) -> Option<Vec<u8>> {
+    let mut lines: Vec<Vec<u8>> = page.split_inclusive(|&c| c == b'\n').map(<[u8]>::to_vec).collect();
+    let trim = |l: &[u8]| -> Vec<u8> {
+        let l = l.iter().copied().skip_while(|c| c.is_ascii_whitespace()).collect::<Vec<u8>>();
+        let end = l.iter().rposition(|c| !c.is_ascii_whitespace()).map_or(0, |e| e + 1);
+        l[..end].to_vec()
+    };
+    let mut changed = false;
+    for i in 1..lines.len() {
+        let line = trim(&lines[i]);
+        if !(line.starts_with(b"++") || line.starts_with(b"--")) {
+            continue;
+        }
+        let Some(prev) = (0..i).rev().find(|&j| {
+            let t = trim(&lines[j]);
+            !t.is_empty() && !t.starts_with(b"//")
+        }) else {
+            continue;
+        };
+        let code = trim(&lines[prev]);
+        if code.last().is_some_and(|c| b";{}(,:".contains(c)) {
+            continue;
+        }
+        // the semicolon before the line's end (and its \r)
+        let at = lines[prev].iter().rposition(|c| !c.is_ascii_whitespace()).map_or(0, |e| e + 1);
+        lines[prev].insert(at, b';');
+        changed = true;
+    }
+    changed.then(|| lines.concat())
+}
+
+/// The pages' sounds, `<EMBED SRC="x.wav" NAME="sound_button">` played with
+/// `document.sound_button.play();`: Internet Explorer's media plug-in, none in Wine's browser (the
+/// call throws, PGA TOUR's first menus stopped their update before reading the buttons). The calls
+/// made `try { document.x.play(); } catch (e) {}` (no sound).
+fn guard_sounds(page: &[u8]) -> Option<Vec<u8>> {
+    const START: &[u8] = b"document.";
+    const END: &[u8] = b".play();";
+    let mut out = Vec::with_capacity(page.len());
+    let mut rest = page;
+    let mut changed = false;
+    while let Some(at) = rest.windows(START.len()).position(|w| w == START) {
+        let name_len = rest[at + START.len()..].iter().take_while(|c| c.is_ascii_alphanumeric() || **c == b'_').count();
+        let after = at + START.len() + name_len;
+        if name_len > 0 && rest[after..].starts_with(END) {
+            out.extend_from_slice(&rest[..at]);
+            out.extend_from_slice(b"try { ");
+            out.extend_from_slice(&rest[at..after + END.len()]);
+            out.extend_from_slice(b" } catch (e) {}");
+            rest = &rest[after + END.len()..];
+            changed = true;
+        } else {
+            out.extend_from_slice(&rest[..at + START.len()]);
+            rest = &rest[at + START.len()..];
+        }
+    }
+    out.extend_from_slice(rest);
+    changed.then_some(out)
+}
+
+/// A script fixed for Wine's browser: [`keep_movie`], [`restricted_increments`], [`guard_sounds`].
+fn fix_script(page: &[u8]) -> Option<Vec<u8>> {
     let mut fixed: Option<Vec<u8>> = None;
-    for fix in [fix_body, rename_name, replace_text, keep_movie] {
+    for fix in [keep_movie, restricted_increments, guard_sounds] {
         if let Some(f) = fix(fixed.as_deref().unwrap_or(page)) {
             fixed = Some(f);
         }
@@ -198,7 +263,19 @@ fn fix_page(page: &[u8]) -> Option<Vec<u8>> {
     fixed
 }
 
-/// urlmon's `CreateFileW`: a shell page [`fix_page`] changes, or script [`keep_movie`] changes, is
+/// The page fixed for Wine's browser: [`fix_body`], [`rename_name`], [`replace_text`],
+/// [`keep_movie`], [`restricted_increments`], [`guard_sounds`].
+fn fix_page(page: &[u8]) -> Option<Vec<u8>> {
+    let mut fixed: Option<Vec<u8>> = None;
+    for fix in [fix_body, rename_name, replace_text, keep_movie, restricted_increments, guard_sounds] {
+        if let Some(f) = fix(fixed.as_deref().unwrap_or(page)) {
+            fixed = Some(f);
+        }
+    }
+    fixed
+}
+
+/// urlmon's `CreateFileW`: a shell page [`fix_page`] changes, or script [`fix_script`] changes, is
 /// served from a fixed copy.
 unsafe extern "system" fn create_file(name: *const u16, access: u32, share: u32, sa: usize, disposition: u32, flags: u32, template: usize) -> usize {
     let orig: CreateFileW = unsafe { std::mem::transmute(ORIG_CREATE_FILE.load(Ordering::Relaxed)) };
@@ -207,7 +284,7 @@ unsafe extern "system" fn create_file(name: *const u16, access: u32, share: u32,
     let fix: Option<fn(&[u8]) -> Option<Vec<u8>>> = if lower.ends_with(".html") || lower.ends_with(".htm") {
         Some(fix_page)
     } else if lower.ends_with(".js") {
-        Some(keep_movie)
+        Some(fix_script)
     } else {
         None
     };
@@ -250,7 +327,7 @@ pub(crate) fn payload_path() -> String {
 pub(crate) fn loader_command(app: &str, cmd: &str, payload: &str) -> Option<String> {
     let exe = if app.is_empty() { cmd.split_whitespace().next().unwrap_or("").trim_matches('"') } else { app };
     let lower = exe.to_ascii_lowercase();
-    if !["beach16.exe", "bh2.exe", "desertwar.exe", "sin.exe", "hgx.exe", "vpinball.exe", "pga_tour_golf.exe"].iter().any(|game| lower.ends_with(game)) {
+    if !["beach16.exe", "bh2.exe", "desertwar.exe", "sin.exe", "hgx.exe", "vpinball.exe", "pga_tour_golf.exe", "tw2002.exe"].iter().any(|game| lower.ends_with(game)) {
         return None;
     }
     // the arguments: the command line without the program when it starts with it
@@ -285,8 +362,8 @@ unsafe extern "system" fn create_process(
     let Some(mut command) = loader_command(&app_s, &cmd_s, &payload_path()) else {
         return unsafe { orig(app, cmd, pa, ta, inherit, flags, env, dir, si, pi) };
     };
-    // the VR pods' games: the loader (a console program) without a console window over the
-    // frontend; SiN with its renderer's library
+    // the VR pods' games and PGA TOUR's first edition: the loader (a console program) without a
+    // console window over the frontend; SiN with its renderer's library
     let flags = match crate::sin::pod_game(&app_s, &cmd_s) {
         Some(game) => {
             if game == "sin.exe" {
@@ -294,6 +371,7 @@ unsafe extern "system" fn create_process(
             }
             flags | windows_sys::Win32::System::Threading::CREATE_NO_WINDOW
         }
+        None if command.to_ascii_lowercase().contains("tw2002.exe") => flags | windows_sys::Win32::System::Threading::CREATE_NO_WINDOW,
         None => flags,
     };
     let exe = if app_s.is_empty() { cmd_s.split_whitespace().next().unwrap_or("").trim_matches('"').to_string() } else { app_s };
@@ -449,6 +527,13 @@ mod tests {
     }
 
     #[test]
+    fn body_after_head() {
+        let page = b"<head><script>// <body onload='x()'>\n</script><object id=a></object></head><style></style><body onload='y()'>z";
+        let fixed = String::from_utf8(fix_body(page).unwrap()).unwrap();
+        assert_eq!(fixed, "<head><script>// <body onload='x()'>\n</script></head><body onload='y()'><object id=a></object><style></style>z");
+    }
+
+    #[test]
     fn body_start_fixed() {
         let fix_page = fix_body;
         let page = b"<html><head><object id=a><param></object>\n<script>x</script></head>\n<style>s</style>\n-->\n<body onload='f()'>text</body>";
@@ -462,6 +547,11 @@ mod tests {
 
     #[test]
     fn movie_kept() {
+        let fixed = restricted_increments(b"\tx = y\r\n\t// c\r\n\r\n\t++n;\r\n\ta = b;\r\n\t++m;\r\n").unwrap();
+        assert_eq!(fixed, b"\tx = y;\r\n\t// c\r\n\r\n\t++n;\r\n\ta = b;\r\n\t++m;\r\n");
+        assert!(restricted_increments(b"i = 0;\n++i;\n").is_none());
+        let fixed = guard_sounds(b"if(document.sound_button)\r\n\t\tdocument.sound_button.play();\r\n").unwrap();
+        assert_eq!(fixed, b"if(document.sound_button)\r\n\t\ttry { document.sound_button.play(); } catch (e) {}\r\n");
         let fixed = keep_movie(b"delete movieElem;\r\n\tif(x)\r\n\t\tdelete movieElem;").unwrap();
         assert_eq!(fixed, b"movieElem;\r\n\tif(x)\r\n\t\tmovieElem;");
         assert!(keep_movie(b"movieElem.Stop();").is_none());

@@ -3,7 +3,8 @@
 //! movies with it. Wine has none: the payload registers it for the frontend ([`register`]).
 //!
 //! What the pages use: the `<object>` parameters (`FileName`, relative to the page, `AutoStart`,
-//! `PlayCount`, `Volume`), the methods `Run`, `Pause`, `Stop` and the properties `CurrentState`
+//! `PlayCount`, `Volume`, `SelectionStart` / `SelectionEnd`: the part played, PGA TOUR's first
+//! attract), the methods `Run`, `Pause`, `Stop` and the properties `CurrentState`
 //! (0 stopped, 1 paused, 2 running: a page leaves for the next one when its movie stopped),
 //! `CurrentPosition`, `Duration`, `Volume`, `PlayCount`, `FileName`.
 //!
@@ -353,6 +354,8 @@ struct Movie {
     play_count: Cell<i32>,
     /// Plays done of `play_count`.
     plays: Cell<i32>,
+    /// The part played (`SelectionStart` / `SelectionEnd`, seconds, -1: the movie's start, end).
+    selection: Cell<(f64, f64)>,
     state: Cell<i32>,
     graph: RefCell<Option<Graph>>,
 }
@@ -512,13 +515,13 @@ impl Movie {
     fn current_state(&self) -> i32 {
         if self.state.get() == RUNNING
             && let Some(g) = self.graph.borrow().as_ref()
-            && g.completed()
+            && (g.completed() || (self.selection.get().1 >= 0.0 && g.position() >= self.selection.get().1))
         {
             let plays = self.plays.get() + 1;
             self.plays.set(plays);
             let count = self.play_count.get();
             if count <= 0 || plays < count {
-                g.seek(0.0);
+                g.seek(self.selection.get().0.max(0.0));
                 g.control(CONTROL_RUN);
             } else {
                 g.control(CONTROL_STOP);
@@ -559,6 +562,8 @@ impl Movie {
                 }
             }
             ID_PLAY_COUNT => self.play_count.set(v.as_i32().unwrap_or(1)),
+            ID_SELECTION_START => self.selection.set((v.as_f64().unwrap_or(-1.0), self.selection.get().1)),
+            ID_SELECTION_END => self.selection.set((self.selection.get().0, v.as_f64().unwrap_or(-1.0))),
             ID_CURRENT_POSITION => {
                 if let (Some(g), Some(t)) = (self.graph.borrow().as_ref(), v.as_f64()) {
                     g.seek(t);
@@ -574,6 +579,8 @@ impl Movie {
             ID_AUTO_START => Variant::boolean(self.auto_start.get()),
             ID_VOLUME => Variant::i4(self.volume.get()),
             ID_PLAY_COUNT => Variant::i4(self.play_count.get()),
+            ID_SELECTION_START => Variant::r8(self.selection.get().0),
+            ID_SELECTION_END => Variant::r8(self.selection.get().1),
             ID_CURRENT_STATE => Variant::i4(self.current_state()),
             ID_CURRENT_POSITION => Variant::r8(self.graph.borrow().as_ref().map_or(0.0, Graph::position)),
             ID_DURATION => Variant::r8(self.graph.borrow().as_ref().map_or(0.0, Graph::duration)),
@@ -597,6 +604,8 @@ const ID_STOP: i32 = 9;
 const ID_PAUSE: i32 = 10;
 /// The properties the control accepts and ignores (the other `<object>` parameters).
 const ID_IGNORED: i32 = 11;
+const ID_SELECTION_START: i32 = 12;
+const ID_SELECTION_END: i32 = 13;
 const ID_READY_STATE: i32 = -525;
 const ID_ENABLED: i32 = -514;
 
@@ -605,6 +614,8 @@ const NAMES: &[(&str, i32)] = &[
     ("AutoStart", ID_AUTO_START),
     ("Volume", ID_VOLUME),
     ("PlayCount", ID_PLAY_COUNT),
+    ("SelectionStart", ID_SELECTION_START),
+    ("SelectionEnd", ID_SELECTION_END),
     ("CurrentState", ID_CURRENT_STATE),
     ("CurrentPosition", ID_CURRENT_POSITION),
     ("Duration", ID_DURATION),
@@ -1098,6 +1109,7 @@ unsafe extern "system" fn f_create(_this: P, outer: P, iid: *const GUID, out: *m
         volume: Cell::new(0),
         play_count: Cell::new(1),
         plays: Cell::new(0),
+        selection: Cell::new((-1.0, -1.0)),
         state: Cell::new(STOPPED),
         graph: RefCell::new(None),
     }));
