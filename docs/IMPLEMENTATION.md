@@ -3910,6 +3910,55 @@ game draws its own crosshairs.
 - **Play.** Coins, start, the guns shoot the posters (level choice) and the Rabbids. Natives
   `trigger start coin` (each player), `operator up down select`.
 
+#### Rampage
+
+Unity 2017.2 (Mono, Direct3D 11, 64-bit): three players, a joystick and an attack button each.
+`rampage.windowsloader` points at `Game.exe`. The dump's `sxCore.dll` is unused (no Sixense
+calls).
+
+- **Board.** The same `KaboomAdrioFxPlusFourFeeders64.dll` as Rabbids Hollywood (`adrio.rs`,
+  version 9 / revision 1102, callbacks), but its board thread calls no function every frame:
+  the callbacks come from a payload thread started at `InitLib` (Mono loaded) attached to the
+  game's Mono domain, every 10 ms. Player n's joystick is on the player buttons' bits 4n (down
+  1, up 2, left 4, right 8); the attack buttons are the keypad's lines (P1 down, P2 select, P3
+  up; operator 1), the operator menu's keys too. Coins: doors 1-3.
+- **Play.** Coins, attack to join, then the monsters. Natives `stick_up stick_down stick_left
+  stick_right attack coin` (each player), `operator`; the profile maps them (`native_map`: no
+  start nor select, they would be another player's attack).
+
+#### Hot Wheels: Kings of the Road
+
+Unity 2018.3 (Mono, Direct3D 11, 64-bit): six seats, a steering wheel (with its motor), a gas
+pedal and a coin door each. `hot-wheels-kings-of-the-road.windowsloader` points at `Game.exe`.
+Some dumps carry a Unity Doorstop proxy `winhttp.dll` (a third-party controls patch for
+another board emulation): the profile sets Wine's own `winhttp`. The game photographs its
+players with a camera (none here: a grey disc).
+
+- **Boards (`hotwheels.rs`).** `KaboomAdrioHotWheels64.dll` (cdecl, the board's id first):
+  three boards, two players each. `InitLib(board, port, keyboard, coin, ticket, steering)` on
+  the first port whose `GetTargetVersion` is 9 (revision 1143, else a firmware update) and
+  whose `GetPlayerId` is under 8 (its first player's global id: 2 * board). The callbacks are
+  static and shared, each with a global player id: keypad `(player, 0, keys)` (operator 1,
+  down 2, select 4, up 8, accel 16), coins `(first player, 0, total 1, total 2)` (running
+  totals), steering both players' `(player, init in progress, init completed, calibrated (as
+  BOOLs), max left, centre, max right, wheel, pedal)`. No game call comes every frame: a
+  payload thread (started at the first `InitLib`) attached to the game's Mono domain calls
+  them every 10 ms. `GetSteeringStatus` reports a calibrated wheel.
+- **Wheel and pedal.** Wheel 0..254 around 127. The pedal reads high released, low pressed
+  (the game's default calibration 131 to 55; under 110 pressed, 25 and under a stuck pedal):
+  140 released to 50 full, from `accel` (or the `gas` native). The launcher's four players are
+  seats 1-4; the operator's keypad is player 1's.
+- **Play.** Coins, the pedal to accept, a double press to boost. Natives `gas coin` (each
+  player, the wheel on `lx` and the pedal on `accel`), `operator up down select`.
+- **Force feedback.** The wheel's motor is a position servo (`SetSteeringParameters(board,
+  wheel, target, power 0..100)`, `DisengageSteeringWheel`): the game rests it at the centre
+  (power 69), shakes it between both ends for bumps (walls, hazards, coins, cars) and sways it
+  in attract mode. On the player's wheel: a centre target as the centring spring, any other as
+  a constant force towards it (the distance from the wheel times 4, at most the power);
+  `WAL_HOTWHEELS_FFB` scales it (percent). The bumps' power is their own times the online remote
+  settings' `steeringBumpMultipler`, 0 offline (no bumps): the payload sets the game's default
+  0.9 then (Mono's embedding API). FFBArcadePlugin has no module for the game.
+
 #### Spider-Man Homecoming
 
 Unity 5.5 (Mono `mono.dll`, Direct3D 11, 32-bit), a portrait cabinet: two players, one button
@@ -3958,22 +4007,6 @@ repository) runs `arcade-launcher run <rom> --root <emulator dir> --profile <es 
   Only the options set in
   ES are written to the `--profile` layer (merged last), so a game's own value stays otherwise.
 * Hotkey exit runs `pkill -TERM -x arcade-launcher` (the launcher stops the game on SIGTERM).
-
-#### Rampage
-
-Unity 2017.2 (Mono, Direct3D 11, 64-bit): three players, a joystick and an attack button each.
-`rampage.windowsloader` points at `Game.exe`. The dump's `sxCore.dll` is unused (no Sixense
-calls).
-
-- **Board.** The same `KaboomAdrioFxPlusFourFeeders64.dll` as Rabbids Hollywood (`adrio.rs`,
-  version 9 / revision 1102, callbacks), but its board thread calls no function every frame:
-  the callbacks come from a payload thread started at `InitLib` (Mono loaded) attached to the
-  game's Mono domain, every 10 ms. Player n's joystick is on the player buttons' bits 4n (down
-  1, up 2, left 4, right 8); the attack buttons are the keypad's lines (P1 down, P2 select, P3
-  up; operator 1), the operator menu's keys too. Coins: doors 1-3.
-- **Play.** Coins, attack to join, then the monsters. Natives `stick_up stick_down stick_left
-  stick_right attack coin` (each player), `operator`; the profile maps them (`native_map`: no
-  start nor select, they would be another player's attack).
 
 ### 6.5 Common crosshair option (`WAL_CROSSHAIR`)
 
@@ -4342,6 +4375,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
+| `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | Adrenaline's 3-player monster game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Kaboom Adrio board (joysticks, attack buttons on the keypad, callbacks from a Mono-attached thread) and Matrix dongle |
+| `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | Adrenaline's six-seat driving game (Unity 2018.3, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its three Kaboom Adrio Hot Wheels boards (wheels, pedals, coins, callbacks from a Mono-attached thread) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
@@ -4378,4 +4413,3 @@ TODO, roughly by priority:
 * Settings the batocera script has and the launcher does not: fonts, redistributable installs,
   save-file linking, virtual desktop, FSR, NVAPI, hidraw.
 * More systems (Type X JVS, ...).
-| `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | Adrenaline's 3-player monster game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Kaboom Adrio board (joysticks, attack buttons on the keypad, callbacks from a Mono-attached thread) and Matrix dongle |

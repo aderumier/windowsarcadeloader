@@ -11,6 +11,9 @@
 //!   ticket feeders).
 //! - Rampage (Unity 2017.2, Mono, 64-bit): three players, a joystick and an attack button
 //!   each, on the same Adrio board (`adrio.rs`).
+//! - Hot Wheels: Kings of the Road (Unity 2018.3, Mono, 64-bit): a six-seat driving game.
+//!   `hotwheels.rs` is its three Kaboom Adrio "Hot Wheels" boards
+//!   (`KaboomAdrioHotWheels64.dll`: two steering wheels, pedals, keypads and coin doors each).
 //! - Spider-Man Homecoming (Unity 5.5, Mono, 32-bit): two players, one button each.
 //!   `adrio2.rs` is its Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
 //!   coins, the players' buttons on the operator's keypad, the ticket feeders).
@@ -25,6 +28,7 @@
 mod adrio;
 #[cfg(target_pointer_width = "32")]
 mod adrio2;
+mod hotwheels;
 #[cfg(target_pointer_width = "32")]
 mod kaboom;
 mod matrix;
@@ -54,6 +58,8 @@ enum Native {
     Start,
     /// The player's button (Spider-Man Homecoming: its only control).
     Button,
+    /// Full gas, whatever the pedal (Hot Wheels: Kings of the Road).
+    Gas,
     /// The player's joystick and attack button (Rampage).
     StickUp,
     StickDown,
@@ -79,6 +85,7 @@ const NATIVES: &[(&str, Native)] = &[
     ("stick_left", Native::StickLeft),
     ("stick_right", Native::StickRight),
     ("attack", Native::Attack),
+    ("gas", Native::Gas),
     ("coin", Native::Coin),
     ("operator", Native::Operator),
     ("up", Native::Up),
@@ -114,6 +121,7 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         "kaboomadriofxplusfourfeeders.dll" | "kaboomadriofxplusfourfeeders64.dll" => adrio::resolve(name),
         #[cfg(target_pointer_width = "32")]
         "kaboomadriofxplustwofeeders.dll" => adrio2::resolve(name),
+        "kaboomadriohotwheels64.dll" => hotwheels::resolve(name),
         "matrix32.dll" | "matrix64.dll" => matrix::resolve(name),
         #[cfg(target_pointer_width = "32")]
         "pqmtclient.dll" => pqmt::resolve(name),

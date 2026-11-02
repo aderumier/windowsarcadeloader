@@ -1,0 +1,78 @@
+# Hot Wheels: Kings of the Road (Adrenaline Amusements, Unity 2018.3, Mono, 64-bit) - template,
+# override values in userprofiles/adrenaline/hot-wheels-kings-of-the-road.yaml.
+# Six seats on three Kaboom Adrio "Hot Wheels" boards (a steering wheel, a pedal, a coin door
+# each; the launcher's four players are the first four). The payload emulates the boards and
+# the Matrix dongle (docs §6.3k).
+system: adrenaline
+name: "Hot Wheels: Kings of the Road"
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+  # dumps with a Unity Doorstop proxy winhttp.dll (a third-party controls patch): Wine's own
+  winhttp: "b"
+
+args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
+
+env:
+  # the wheel's force feedback strength, percent (0: off)
+  WAL_HOTWHEELS_FFB: "100"
+
+# Each seat: a steering wheel (lx) and a gas pedal (accel; b1 full gas). The operator's keypad
+# on player 1 (up / down / select).
+native_map:
+  b1: gas
+  b2: select
+  start: none
+  test: operator
+  service: select
+  up: up
+  down: down
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+  # keyboard steering and gas: full in 0.3 s
+  keyboard_ramp_ms: 300
+  # Keyboard: player 1 Left / Right wheel, Up gas, Page Up / Page Down operator up / down;
+  # player 2 D / G wheel, R gas.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: none
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+    p2:
+      KEY_D: -lx
+      KEY_G: lx
+      KEY_R: accel
+      KEY_F: none
+
+controls:
+  up: Operator up
+  down: Operator down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  b1: Full gas
+  b2: Operator select
+  start: none
+  coin: Coin
+  test: Operator menu
+  service: Operator select
+
+options:
+  - title: Game
+    options:
+      - key: WAL_HOTWHEELS_FFB
+        label: Force feedback strength
+        kind: number
+        min: 0
+        max: 200
+        description: >-
+          The wheel's force feedback, in percent of the game's (0: off).
