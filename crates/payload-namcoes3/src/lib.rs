@@ -5,8 +5,9 @@
 //! tells the game: `hasp_windows_x64_100610.dll` Battle Pod (`Launcher\RSLauncher.exe`,
 //! `Binaries\Win64\SWArcGame-Win64-Shipping.exe`), `hasp_windows_x64_106993.dll` Lost Land
 //! Adventure (`RSLauncher.exe`, `LLA\Binaries\Win64\DomeShooterGame-Win64-Shipping.exe`,
-//! `lla.rs`), `hasp_windows_x64_109906.dll` Wangan Midnight Maximum Tune 5 and
-//! `hasp_windows_x64_98199.dll` 5DX (`wmn5r.exe`, `wmmt5.rs`).
+//! `lla.rs`), `hasp_windows_x64_109906.dll` Wangan Midnight Maximum Tune 5,
+//! `hasp_windows_x64_98199.dll` 5DX and `hasp_windows_x64_106482.dll` 5DX+ (`wmn5r.exe`,
+//! `wmmt5.rs`).
 //!
 //! * `hasp.rs`: the HASP HL dongle API.
 //! * `jvs.rs`: the JVS I/O board, on the serial calls of the launcher and of the game's I/O

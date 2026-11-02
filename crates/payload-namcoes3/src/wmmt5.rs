@@ -1,6 +1,7 @@
-//! Wangan Midnight Maximum Tune 5 (2014) and 5DX (2015) (64-bit `wmn5r.exe`, Direct3D 11): the
-//! payload is the game's HASP library, `hasp_windows_x64_109906.dll` (5) or
-//! `hasp_windows_x64_98199.dll` (5DX), its import: it tells the [`Version`].
+//! Wangan Midnight Maximum Tune 5 (2014), 5DX (2015) and 5DX+ (2016) (64-bit `wmn5r.exe`,
+//! Direct3D 11): the payload is the game's HASP library, `hasp_windows_x64_109906.dll` (5),
+//! `hasp_windows_x64_98199.dll` (5DX) or `hasp_windows_x64_106482.dll` (5DX+), its import: it
+//! tells the [`Version`].
 //!
 //! * Dongle: the HASP memory with the version's cabinet serial (`hasp.rs`).
 //! * I/O board: the game's own JVS code on COM3 (`jvs.rs`): wheel, pedals, shift lever,
@@ -127,9 +128,40 @@ const WMMT5DX: Version = Version {
     ],
 };
 
+/// Wangan Midnight Maximum Tune 5DX+: 5DX's code, other addresses.
+const WMMT5DXP: Version = Version {
+    name: "wmmt5dxp",
+    hasp: "hasp_windows_x64_106482.dll",
+    serial: "278313042069",
+    terminal_serial: "278311042069",
+    game_cd: "W5P1",
+    game_ver: (7, 0),
+    software_revision: 0x1f7d28c,
+    forces: 0x1fa6f40,
+    traces: false,
+    server: wal_wm5srv::Game::Wm5DxPlus,
+    patches: &[
+        ("dongle match", 0x706356, b"\x01", b"\x00"),
+        ("network state", 0x7071d6, b"\x76\x12", b"\xeb\x12"),
+        ("network error", 0x8b8d00, b"\xe8\x6b\x82\x97\xff", &[0x90; 5]),
+        ("network time", 0xa16842, b"\x74", b"\xeb"),
+        ("network time 2", 0xa16861, b"\x72\x25", &[0x90; 2]),
+        ("network time 3", 0xa16872, b"\x77\x14", &[0x90; 2]),
+        ("movie start failure", 0x984522, b"\x79", b"\xeb"),
+        ("server certificate", 0x9958bb, b"\xba\x01\x00\x00\x00", b"\xba\x00\x00\x00\x00"),
+        ("network offline period", 0x6f7d6e, b"\x7c\x3e", b"\xeb\x3e"),
+        ("link private address", 0xa1a2b3, b"\x74\x31", b"\xeb\x31"),
+        ("terminal revision", 0x6f724e, b"\xb9\x08\x00\x00\x00", b"\xb9\x02\x00\x00\x00"),
+        ("terminal revision at boot", 0x708605, b"\x75\x55", &[0x90; 2]),
+        ("link one node per address", 0x9f2ba3, b"\x0f\x84\x8b\x00\x00\x00", &[0x90; 6]),
+        ("link one node per address 2", 0x9f2bb3, b"\x74\x5c", &[0x90; 2]),
+        ("link one node per address 3", 0x9f2bb9, b"\x75\x4b", &[0x90; 2]),
+    ],
+};
+
 /// The version whose HASP library is loaded.
 pub(crate) fn version() -> Option<&'static Version> {
-    [&WMMT5, &WMMT5DX].into_iter().find(|v| module(v.hasp) != 0)
+    [&WMMT5, &WMMT5DX, &WMMT5DXP].into_iter().find(|v| module(v.hasp) != 0)
 }
 
 /// The loaded version (the payload runs in this game only).
