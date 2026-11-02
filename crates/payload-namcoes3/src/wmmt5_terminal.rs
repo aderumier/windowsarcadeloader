@@ -30,11 +30,8 @@ const LINK_GROUP: u8 = 1;
 const ADDRESS: Ipv4Addr = Ipv4Addr::LOCALHOST;
 pub(crate) const PROXY: &str = "127.0.0.1:50765";
 const TERMINAL_NODE: u8 = 4;
-const TERMINAL_SERIAL: &str = "272211990002";
 /// The heartbeat's server communication state: 1 with the game server (online), 0 without.
 pub(crate) static SERVER_COMM: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
-/// The cabinet's software revision (a global of the game).
-const SOFTWARE_REVISION: usize = 0x1948dbc;
 
 /// Protocol buffer fields.
 struct Message(Vec<u8>);
@@ -97,7 +94,7 @@ fn packet(frame: u32, settings: bool, free_play: bool, revision: u32) -> Vec<u8>
     let mut m = Message::new()
         .message(2, car)
         .message(3, course)
-        .message(5, Message::new().int(1, frame as u64).bytes(2, TERMINAL_SERIAL.as_bytes()).int(3, SERVER_COMM.load(std::sync::atomic::Ordering::Relaxed) as u64));
+        .message(5, Message::new().int(1, frame as u64).bytes(2, crate::wmmt5::current().terminal_serial.as_bytes()).int(3, SERVER_COMM.load(std::sync::atomic::Ordering::Relaxed) as u64));
     if free_play {
         // batch_setting_state
         m = m.int(6, 3);
@@ -149,7 +146,7 @@ pub(crate) fn start(base: usize) {
         loop {
             frame = frame.wrapping_add(1);
             // the cabinet's software revision (its batch settings must carry the same)
-            let revision = unsafe { *((base + SOFTWARE_REVISION) as *const u32) };
+            let revision = unsafe { *((base + crate::wmmt5::current().software_revision) as *const u32) };
             if revision == 0 {
                 // not computed yet: the cabinet keeps the first settings it gets
                 std::thread::sleep(Duration::from_millis(100));

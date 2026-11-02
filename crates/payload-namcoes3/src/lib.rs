@@ -5,8 +5,8 @@
 //! tells the game: `hasp_windows_x64_100610.dll` Battle Pod (`Launcher\RSLauncher.exe`,
 //! `Binaries\Win64\SWArcGame-Win64-Shipping.exe`), `hasp_windows_x64_106993.dll` Lost Land
 //! Adventure (`RSLauncher.exe`, `LLA\Binaries\Win64\DomeShooterGame-Win64-Shipping.exe`,
-//! `lla.rs`), `hasp_windows_x64_109906.dll` Wangan Midnight Maximum Tune 5 (`wmn5r.exe`,
-//! `wmmt5.rs`).
+//! `lla.rs`), `hasp_windows_x64_109906.dll` Wangan Midnight Maximum Tune 5 and
+//! `hasp_windows_x64_98199.dll` 5DX (`wmn5r.exe`, `wmmt5.rs`).
 //!
 //! * `hasp.rs`: the HASP HL dongle API.
 //! * `jvs.rs`: the JVS I/O board, on the serial calls of the launcher and of the game's I/O
@@ -78,8 +78,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let base = module_base();
         if lla::is_lla() {
             lla::attach(&exe, base);
-        } else if wmmt5::is_wmmt5() {
-            wmmt5::attach(&exe, base);
+        } else if let Some(version) = wmmt5::version() {
+            wmmt5::attach(&exe, base, version);
         } else if exe.eq_ignore_ascii_case(LAUNCHER) {
             jvs::init(&[base]);
             patches::launcher(base);
