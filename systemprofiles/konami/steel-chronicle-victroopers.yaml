@@ -21,11 +21,11 @@ env:
   WAL_KONAMI_CARD_AUTO: "1"
   # the touch pointer (the mouse or gun) shown as a small red dot
   WAL_CROSSHAIR: "1"
-  WAL_KONAMI_CROSSHAIR_AXES: pedals
-  WAL_KONAMI_CROSSHAIR_STYLE: disc
-  WAL_KONAMI_CROSSHAIR_SIZE: "1"
-  WAL_KONAMI_CROSSHAIR_COLOR: FF2020
-  WAL_KONAMI_CROSSHAIR_HIDE: "0"
+  WAL_CROSSHAIR_AXES: pedals
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
   # free play (the test menu's COIN OPTIONS, set at each start; "0": coins)
   WAL_KONAMI_FREEPLAY: "1"
   WAL_WINDOW_POPUP: "1"
@@ -66,7 +66,7 @@ options:
         kind: bool
         description: >-
           A small red dot where the mouse or gun points (the touch position).
-      - key: WAL_KONAMI_CROSSHAIR_SIZE
+      - key: WAL_CROSSHAIR_SIZE
         label: Touch pointer size
         kind: number
         min: 1

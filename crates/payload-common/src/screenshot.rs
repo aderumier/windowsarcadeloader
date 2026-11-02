@@ -80,8 +80,10 @@ type P = *mut c_void;
 
 const D3D_GET_ADAPTER_MODE_COUNT: usize = 6;
 const D3D_ENUM_ADAPTER_MODES: usize = 7;
+const D3D_GET_ADAPTER_DISPLAY_MODE: usize = 8;
 const D3D_CREATE_DEVICE: usize = 16;
 const D3D_CREATE_DEVICE_EX: usize = 20;
+const DEV_GET_DISPLAY_MODE: usize = 8;
 const DEV_RESET: usize = 16;
 const DEV_PRESENT: usize = 17;
 const DEV_PRESENT_EX: usize = 121;
@@ -141,6 +143,8 @@ static ORIG_QUERY_GET_DATA: AtomicUsize = AtomicUsize::new(0);
 static ORIG_D3D_CAPS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_MODE_COUNT: AtomicUsize = AtomicUsize::new(0);
 static ORIG_ENUM_MODES: AtomicUsize = AtomicUsize::new(0);
+static ORIG_DISPLAY_MODE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_DEV_DISPLAY_MODE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_DEV_CAPS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_TEXTURE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SET_VIEWPORT: AtomicUsize = AtomicUsize::new(0);
@@ -369,6 +373,9 @@ unsafe fn wrap_device(dev: P) {
         }
         if QUERY_FIX.load(Ordering::Relaxed) {
             patch(dev, DEV_CREATE_QUERY, create_query as *const () as usize, &ORIG_CREATE_QUERY);
+        }
+        if crate::desktop::size().is_some() {
+            patch(dev, DEV_GET_DISPLAY_MODE, dev_display_mode as *const () as usize, &ORIG_DEV_DISPLAY_MODE);
         }
     }
 }
@@ -786,13 +793,54 @@ unsafe extern "system" fn enum_adapter_modes(d3d: P, adapter: u32, format: u32, 
     }
 }
 
-/// The adapter's display modes list the windowed size (see `WAL_D3D9_WINDOWED_SIZE`).
+/// `GetAdapterDisplayMode` with a desktop of another size (`WAL_DESKTOP_SIZE`): the primary
+/// adapter's current mode is the game's desktop. Harikiri Professional Baseball sizes its back
+/// buffer to it.
+unsafe extern "system" fn adapter_display_mode(d3d: P, adapter: u32, mode: *mut DisplayMode) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, u32, *mut DisplayMode) -> HRESULT = unsafe { std::mem::transmute(ORIG_DISPLAY_MODE.load(Ordering::Relaxed)) };
+    let hr = unsafe { orig(d3d, adapter, mode) };
+    if hr >= 0 && adapter == 0 {
+        unsafe { desktop_mode(mode) };
+    }
+    hr
+}
+
+/// `IDirect3DDevice9::GetDisplayMode` with `WAL_DESKTOP_SIZE`: the game's desktop too (the
+/// same game scales its touch screen to the device's display mode).
+unsafe extern "system" fn dev_display_mode(dev: P, swap_chain: u32, mode: *mut DisplayMode) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, u32, *mut DisplayMode) -> HRESULT = unsafe { std::mem::transmute(ORIG_DEV_DISPLAY_MODE.load(Ordering::Relaxed)) };
+    let hr = unsafe { orig(dev, swap_chain, mode) };
+    if hr >= 0 {
+        unsafe { desktop_mode(mode) };
+    }
+    hr
+}
+
+/// A display mode just read made the game's desktop (`WAL_DESKTOP_SIZE`; logged the first time).
+unsafe fn desktop_mode(mode: *mut DisplayMode) {
+    static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    let Some((w, h)) = crate::desktop::size() else { return };
+    if mode.is_null() {
+        return;
+    }
+    let m = unsafe { &mut *mode };
+    if !LOGGED.swap(true, Ordering::Relaxed) {
+        log!("d3d9: display mode {}x{} -> {w}x{h} (the game's desktop)", m.width, m.height);
+    }
+    (m.width, m.height) = (w as u32, h as u32);
+}
+
+/// The adapter's display modes list the windowed size (see `WAL_D3D9_WINDOWED_SIZE`); its
+/// current mode is the game's desktop (`WAL_DESKTOP_SIZE`).
 unsafe fn patch_modes(d3d: P) {
     if WINDOWED_SIZE.lock().unwrap().is_some() {
         unsafe {
             patch(d3d, D3D_GET_ADAPTER_MODE_COUNT, adapter_mode_count as *const () as usize, &ORIG_MODE_COUNT);
             patch(d3d, D3D_ENUM_ADAPTER_MODES, enum_adapter_modes as *const () as usize, &ORIG_ENUM_MODES);
         }
+    }
+    if crate::desktop::size().is_some() {
+        unsafe { patch(d3d, D3D_GET_ADAPTER_DISPLAY_MODE, adapter_display_mode as *const () as usize, &ORIG_DISPLAY_MODE) };
     }
 }
 
@@ -967,6 +1015,29 @@ pub fn d3d9_aspect() -> Option<(u32, u32)> {
     let v = std::env::var("WAL_D3D9_ASPECT").ok()?;
     let (w, h) = v.split_once(':')?;
     Some((w.trim().parse().ok()?, h.trim().parse().ok()?)).filter(|&(w, h)| w > 0 && h > 0)
+}
+
+/// The picture's place on the screen (fractions: x, y, width, height) with [`d3d9_aspect`], the
+/// window being the screen, or the game's desktop fitted onto the screen (`WAL_DESKTOP_SIZE`);
+/// else the whole screen. A pointer spanning the screen (mouse, gun) is mapped into the picture
+/// with [`to_picture`].
+pub fn picture_rect() -> [f32; 4] {
+    // the real screen (the desktop module answers the game's own calls with its desktop)
+    let (sw, sh) = crate::desktop::screen_size();
+    let (sw, sh) = (sw as f32, sh as f32);
+    let aspect = d3d9_aspect().or(crate::desktop::size().map(|(w, h)| (w as u32, h as u32)));
+    let Some((aw, ah)) = aspect.map(|(w, h)| (w as f32, h as f32)).filter(|&(w, h)| w > 0.0 && h > 0.0 && sw > 0.0 && sh > 0.0) else {
+        return [0.0, 0.0, 1.0, 1.0];
+    };
+    // the largest centered rectangle of that aspect (as `fit`)
+    let (w, h) = if sw * ah > sh * aw { (sh * aw / ah / sw, 1.0) } else { (1.0, sw * ah / aw / sh) };
+    [(1.0 - w) / 2.0, (1.0 - h) / 2.0, w, h]
+}
+
+/// A point of the screen (fractions) -> its place in the picture (fractions, held at its edges).
+pub fn to_picture(x: f32, y: f32) -> (f32, f32) {
+    let [px, py, w, h] = picture_rect();
+    (((x - px) / w).clamp(0.0, 1.0), ((y - py) / h).clamp(0.0, 1.0))
 }
 
 /// `WAL_D3D9_ASPECT`: destination `rect` centered in the presentation window's client area

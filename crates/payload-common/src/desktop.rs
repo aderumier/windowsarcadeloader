@@ -8,7 +8,14 @@
 //! fitted onto the real screen (aspect kept, centered). Direct3D stretches the back buffer the
 //! game renders at its own size to that smaller window. DXGI (DXVK) resizes the window to the
 //! back buffer itself (`ResizeTarget`: `MoveWindow`): its imports are hooked too. The windows'
-//! size limits (`WM_GETMINMAXINFO`, Wine's X size hints) are fitted too.
+//! size limits (`WM_GETMINMAXINFO`, Wine's X size hints) are fitted too. The d3d9 shim reports
+//! the desktop as the display mode (`GetAdapterDisplayMode`, the device's `GetDisplayMode`).
+//!
+//! `WAL_DESKTOP_CLIENT=1`: the top-level windows' client areas answer in desktop units too
+//! (`GetClientRect`: the fitted window's client size unscaled, `GetWindowRect`, `ClientToScreen`:
+//! places on the desktop). Harikiri Professional Baseball's test menu makes its back buffer and then its window
+//! the client size it reads (scaled again on each turn otherwise), its game subtracts its
+//! window's origin from its touch position, already in desktop coordinates.
 
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
@@ -45,9 +52,17 @@ static ORIG_CREATE_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_W: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SET_POS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_MOVE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CLIENT_TO_SCREEN: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CLIENT_RECT: AtomicUsize = AtomicUsize::new(0);
+static ORIG_WINDOW_RECT: AtomicUsize = AtomicUsize::new(0);
 
 fn screen() -> (i32, i32) {
     unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) }
+}
+
+/// The real screen's size (the payload's own calls are not hooked).
+pub fn screen_size() -> (i32, i32) {
+    screen()
 }
 
 /// The game's desktop on the real screen: scale, left and top offsets.
@@ -133,6 +148,46 @@ unsafe extern "system" fn move_window(hwnd: P, x: i32, y: i32, cx: i32, cy: i32,
         return unsafe { orig(hwnd, nx, ny, nw, nh, repaint) };
     }
     unsafe { orig(hwnd, x, y, cx, cy, repaint) }
+}
+
+/// `ClientToScreen` (`WAL_DESKTOP_CLIENT`): a point of the game's desktop (its fitted window's
+/// client origin is the desktop's top left).
+unsafe extern "system" fn client_to_screen(hwnd: P, point: *mut windows_sys::Win32::Foundation::POINT) -> i32 {
+    let orig: unsafe extern "system" fn(P, *mut windows_sys::Win32::Foundation::POINT) -> i32 =
+        unsafe { std::mem::transmute(ORIG_CLIENT_TO_SCREEN.load(Ordering::Relaxed)) };
+    let ok = unsafe { orig(hwnd, point) };
+    if ok != 0 && !point.is_null() {
+        let p = unsafe { &mut *point };
+        let (x, y) = from_screen(p.x as f64, p.y as f64);
+        (p.x, p.y) = (x.round() as i32, y.round() as i32);
+    }
+    ok
+}
+
+/// `GetClientRect` (`WAL_DESKTOP_CLIENT`): a top-level window's client size in desktop units.
+unsafe extern "system" fn client_rect(hwnd: P, rect: *mut RECT) -> i32 {
+    let orig: unsafe extern "system" fn(P, *mut RECT) -> i32 = unsafe { std::mem::transmute(ORIG_CLIENT_RECT.load(Ordering::Relaxed)) };
+    let ok = unsafe { orig(hwnd, rect) };
+    if ok != 0 && !rect.is_null() && is_top_level(hwnd) {
+        let (s, _, _) = fit();
+        let r = unsafe { &mut *rect };
+        r.right = r.left + (f64::from(r.right - r.left) / s).round() as i32;
+        r.bottom = r.top + (f64::from(r.bottom - r.top) / s).round() as i32;
+    }
+    ok
+}
+
+/// `GetWindowRect` (`WAL_DESKTOP_CLIENT`): a top-level window's place on the desktop.
+unsafe extern "system" fn window_rect(hwnd: P, rect: *mut RECT) -> i32 {
+    let orig: unsafe extern "system" fn(P, *mut RECT) -> i32 = unsafe { std::mem::transmute(ORIG_WINDOW_RECT.load(Ordering::Relaxed)) };
+    let ok = unsafe { orig(hwnd, rect) };
+    if ok != 0 && !rect.is_null() && is_top_level(hwnd) {
+        let r = unsafe { &mut *rect };
+        let (left, top) = from_screen(r.left as f64, r.top as f64);
+        let (right, bottom) = from_screen(r.right as f64, r.bottom as f64);
+        (r.left, r.top, r.right, r.bottom) = (left.round() as i32, top.round() as i32, right.round() as i32, bottom.round() as i32);
+    }
+    ok
 }
 
 unsafe extern "system" fn metrics(index: i32) -> i32 {
@@ -346,7 +401,11 @@ pub fn init() {
             modules.push(base);
         }
     }
-    let hooks: [(&str, usize, &AtomicUsize); 13] = [
+    let client = std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1");
+    let hooks: [(&str, usize, &AtomicUsize); 16] = [
+        ("GetWindowRect", if client { window_rect as *const () as usize } else { 0 }, &ORIG_WINDOW_RECT),
+        ("ClientToScreen", if client { client_to_screen as *const () as usize } else { 0 }, &ORIG_CLIENT_TO_SCREEN),
+        ("GetClientRect", if client { client_rect as *const () as usize } else { 0 }, &ORIG_CLIENT_RECT),
         ("SetWindowPos", set_window_pos as *const () as usize, &ORIG_SET_POS),
         ("MoveWindow", move_window as *const () as usize, &ORIG_MOVE),
         ("CreateWindowExA", create_a as *const () as usize, &ORIG_CREATE_A),
@@ -362,7 +421,7 @@ pub fn init() {
         ("EnumDisplaySettingsExW", enum_ex_w as *const () as usize, &ORIG_ENUM_EX_W),
     ];
     let user32 = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(windows_sys::w!("user32.dll")) };
-    for (name, f, orig) in &hooks {
+    for (name, f, orig) in hooks.iter().filter(|h| h.1 != 0) {
         for &base in &modules {
             if let Some(o) = unsafe { iat::hook_module(base, "user32.dll", name, *f) } {
                 if o != *f {

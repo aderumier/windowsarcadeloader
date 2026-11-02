@@ -68,7 +68,7 @@ pub fn init(module: *mut c_void) {
     }
     touch_init();
     // the touch pointer shown (WAL_CROSSHAIR)
-    crate::crosshair::init();
+    wal_payload_common::crosshair::init();
     controller_select_init();
     network_on_init();
     pin_keypad_init();

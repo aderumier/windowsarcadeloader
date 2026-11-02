@@ -163,7 +163,7 @@ unsafe fn present(hdc: *mut c_void) {
         (gl.bind_framebuffer)(READ_FRAMEBUFFER, fbo);
         (gl.blit_framebuffer)(0, 0, w, h, x, wh - y - sh, x + sw, wh - y, COLOR_BUFFER_BIT, LINEAR);
         if CROSSHAIRS.load(Ordering::Relaxed) {
-            crate::crosshair::draw_gl(ww, wh);
+            wal_payload_common::crosshair::draw_gl(ww, wh);
         }
 
         (gl.bind_framebuffer)(READ_FRAMEBUFFER, read as u32);
@@ -189,7 +189,7 @@ unsafe extern "system" fn swap_buffers(hdc: *mut c_void) -> i32 {
 }
 
 pub fn init() {
-    CROSSHAIRS.store(crate::crosshair::init_gl(), Ordering::Relaxed);
+    CROSSHAIRS.store(wal_payload_common::crosshair::init_gl(), Ordering::Relaxed);
     STRETCH.store(std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v == "0"), Ordering::Relaxed);
     let util = unsafe { GetModuleHandleA(c"util.dll".as_ptr().cast()) };
     match (!util.is_null()).then(|| unsafe { GetProcAddress(util, c"?sfgl_get_double_screen_mode@@YAHXZ".as_ptr().cast()) }).flatten() {

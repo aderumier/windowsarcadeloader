@@ -1,25 +1,27 @@
 //! `WAL_CROSSHAIR=1` (the common crosshair option): each player's aim drawn over the picture
 //! (Gashaaaan Refill! and Gashaaaan: the cabinet's players see where their real balls go, here nothing shows where a
-//! throw lands).
+//! throw lands; the touch screens: where the mouse or gun touches). Payloads turn it on with
+//! [`init`] (Konami games, Harikiri Professional Baseball's touch screen on Type X).
 //!
-//! - `WAL_KONAMI_CROSSHAIR_STYLE`: the built-in shape, `ring-cross` (default), `cross`, `ring`,
+//! - `WAL_CROSSHAIR_STYLE`: the built-in shape, `ring-cross` (default), `cross`, `ring`,
 //!   `dot`, `disc` (a filled circle of the crosshair's size), white with a black outline, in the player's color (P1 blue, P2 red, P3 green, P4
 //!   yellow).
-//! - `WAL_KONAMI_CROSSHAIR_P1` ... `_P4`: a PNG of the player's own instead (a Linux path, or a
+//! - `WAL_CROSSHAIR_P1` ... `_P4`: a PNG of the player's own instead (a Linux path, or a
 //!   Windows one). A dark icon (a silhouette, as icon sites ship them) is drawn in the player's
-//!   color, a colored one with the player's color applied (`WAL_KONAMI_CROSSHAIR_TINT=0`: as is).
-//! - `WAL_KONAMI_CROSSHAIR_SIZE`: its size in percent of the screen height (6).
-//! - `WAL_KONAMI_CROSSHAIR_COLOR`: `RRGGBB`, every player's color instead of theirs.
-//! - `WAL_KONAMI_CROSSHAIR_AXES`: what it follows, `stick` (the left stick, the guns' aim:
+//!   color, a colored one with the player's color applied (`WAL_CROSSHAIR_TINT=0`: as is).
+//! - `WAL_CROSSHAIR_SIZE`: its size in percent of the screen height (6).
+//! - `WAL_CROSSHAIR_COLOR`: `RRGGBB`, every player's color instead of theirs.
+//! - `WAL_CROSSHAIR_AXES`: what it follows, `stick` (the left stick, the guns' aim:
 //!   default), `pedals` (`accel` / `brake`, 0..32767 across the screen: the touch pointer of
 //!   Steel Chronicle Victroopers, whose sticks steer) or `right-stick` (`rx` / `ry`: the touch
 //!   pointer of the other touch screens, Yu-Gi-Oh! Duel Terminal 6).
-//! - `WAL_KONAMI_CROSSHAIR_HIDE`: seconds without moving before it hides (5; 0: never).
+//! - `WAL_CROSSHAIR_HIDE`: seconds without moving before it hides (5; 0: never).
 //!
 //! Before each `Present` (payload-common's Direct3D 9 overlay) the crosshairs are drawn into the
 //! game's back buffer as alpha-blended quads, the game's render states, render target and depth
 //! buffer saved around them, while that player's gun moved in the last seconds. The aim spans the
-//! whole back buffer, as the throws do.
+//! screen: the whole back buffer, as the throws do, or the picture presented letterboxed with
+//! `WAL_D3D9_ASPECT` or the game desktop fitted onto the screen (`screenshot::to_picture`).
 //!
 //! Gashaaaan (OpenGL) draws them itself before its swaps ([`draw_gl`]: textured quads of the
 //! fixed-function pipeline, the game's attributes and matrices pushed around them).
@@ -28,22 +30,22 @@ use std::ffi::c_void;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use wal_payload_common::{log, screenshot};
+use crate::{log, screenshot};
 use wal_protocol::{Axis, MAX_PLAYERS};
 
 type P = *mut c_void;
 
-/// A crosshair is hidden when its gun did not move for this long (`WAL_KONAMI_CROSSHAIR_HIDE`;
+/// A crosshair is hidden when its gun did not move for this long (`WAL_CROSSHAIR_HIDE`;
 /// `None`: never).
 fn idle() -> Option<Duration> {
     static IDLE: std::sync::OnceLock<Option<Duration>> = std::sync::OnceLock::new();
     *IDLE.get_or_init(|| {
-        let secs = std::env::var("WAL_KONAMI_CROSSHAIR_HIDE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(5.0);
+        let secs = std::env::var("WAL_CROSSHAIR_HIDE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(5.0);
         (secs > 0.0).then(|| Duration::from_secs_f32(secs))
     })
 }
 
-/// What the aim follows (`WAL_KONAMI_CROSSHAIR_AXES`).
+/// What the aim follows (`WAL_CROSSHAIR_AXES`).
 #[derive(Clone, Copy, PartialEq)]
 enum Axes {
     LeftStick,
@@ -53,16 +55,16 @@ enum Axes {
 
 fn axes() -> Axes {
     static AXES: std::sync::OnceLock<Axes> = std::sync::OnceLock::new();
-    *AXES.get_or_init(|| match std::env::var("WAL_KONAMI_CROSSHAIR_AXES").as_deref().map(str::trim) {
+    *AXES.get_or_init(|| match std::env::var("WAL_CROSSHAIR_AXES").as_deref().map(str::trim) {
         Ok("pedals") => Axes::Pedals,
         Ok("right-stick") => Axes::RightStick,
         _ => Axes::LeftStick,
     })
 }
 
-/// `WAL_KONAMI_CROSSHAIR_COLOR` (`RRGGBB`) as B, G, R.
+/// `WAL_CROSSHAIR_COLOR` (`RRGGBB`) as B, G, R.
 fn color_override() -> Option<[u8; 3]> {
-    let v = std::env::var("WAL_KONAMI_CROSSHAIR_COLOR").ok()?;
+    let v = std::env::var("WAL_CROSSHAIR_COLOR").ok()?;
     let v = v.trim().trim_start_matches('#');
     let n = u32::from_str_radix(v, 16).ok().filter(|_| v.len() == 6)?;
     Some([n as u8, (n >> 8) as u8, (n >> 16) as u8])
@@ -145,17 +147,17 @@ pub fn init_gl() -> bool {
 
 /// The options read, the players' pictures made. Whether the crosshairs are on.
 fn load() -> bool {
-    if !wal_payload_common::crosshairs(false) {
+    if !crate::crosshairs(false) {
         return false;
     }
-    let style = std::env::var("WAL_KONAMI_CROSSHAIR_STYLE").unwrap_or_default();
-    let tint = !std::env::var("WAL_KONAMI_CROSSHAIR_TINT").is_ok_and(|v| v == "0");
-    let size = std::env::var("WAL_KONAMI_CROSSHAIR_SIZE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(6.0);
+    let style = std::env::var("WAL_CROSSHAIR_STYLE").unwrap_or_default();
+    let tint = !std::env::var("WAL_CROSSHAIR_TINT").is_ok_and(|v| v == "0");
+    let size = std::env::var("WAL_CROSSHAIR_SIZE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(6.0);
     let custom_color = color_override();
     let images = (0..MAX_PLAYERS)
         .map(|player| {
             let color = custom_color.unwrap_or(COLORS[player]);
-            let custom = std::env::var(format!("WAL_KONAMI_CROSSHAIR_P{}", player + 1)).ok().filter(|p| !p.trim().is_empty());
+            let custom = std::env::var(format!("WAL_CROSSHAIR_P{}", player + 1)).ok().filter(|p| !p.trim().is_empty());
             let image = custom.and_then(|path| match read_png(&windows_path(path.trim())) {
                 Ok(image) => {
                     log!("crosshair: P{} {path}", player + 1);
@@ -389,7 +391,7 @@ fn aims(state: &mut State) -> [Option<(i16, i16)>; MAX_PLAYERS] {
     let now = Instant::now();
     let mut shown = [None; MAX_PLAYERS];
     for (player, (last, moved)) in state.aims.iter_mut().enumerate() {
-        let stick = wal_payload_common::input(player);
+        let stick = crate::input(player);
         let aim = match axes() {
             Axes::Pedals => {
                 // 0..32767 to the sticks' -32768..32767
@@ -480,8 +482,10 @@ unsafe fn draw(dev: P, _window: P) -> Option<P> {
             }
             let image = &state.images[player];
             let cw = ch * image.w as f32 / image.h as f32;
-            let x = (aim.0 as f32 + 32768.0) / 65535.0 * w as f32;
-            let y = (aim.1 as f32 + 32768.0) / 65535.0 * h as f32;
+            // the aim spans the screen: its place in the back buffer, presented letterboxed
+            // with `WAL_D3D9_ASPECT`
+            let (ax, ay) = screenshot::to_picture((aim.0 as f32 + 32768.0) / 65535.0, (aim.1 as f32 + 32768.0) / 65535.0);
+            let (x, y) = (ax * w as f32, ay * h as f32);
             quad(dev, tex, (x - cw / 2.0, y - ch / 2.0, cw, ch));
         }
         end(dev);

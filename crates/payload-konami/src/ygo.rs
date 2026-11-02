@@ -54,7 +54,7 @@ pub fn init() {
     let panel = unsafe { GetModuleHandleW(name.as_ptr()) } as usize;
     serial::install_streaming_in("COM1", panel_command, panel_stream, &[panel]);
     // the touch pointer shown (WAL_CROSSHAIR)
-    crate::crosshair::init();
+    wal_payload_common::crosshair::init();
     restore_edges(panel);
     default_calibration();
     for (name, f) in [

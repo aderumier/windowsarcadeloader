@@ -139,7 +139,7 @@ fn loaded(name: &str, base: usize) {
         wal_payload_common::start("konami");
         crate::ark::split_font_collections(base);
         // the touch pointer shown (WAL_CROSSHAIR)
-        crate::crosshair::init();
+        wal_payload_common::crosshair::init();
         let touch = module("libtouchpanel3m.dll");
         if touch != 0 {
             wal_payload_common::serial::install_streaming_in("TwTouchDriver", touch_write, touch_report, &[touch]);

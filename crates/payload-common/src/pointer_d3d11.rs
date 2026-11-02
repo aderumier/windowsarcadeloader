@@ -1,6 +1,6 @@
 //! A touch screen's pointer drawn over a Direct3D 11 game's picture: a dot (a disc with a black
-//! outline) where the mouse or gun touches, the Direct3D 11 counterpart of the Konami payload's
-//! crosshairs (`WAL_KONAMI_CROSSHAIR_STYLE=disc`); or a gun's crosshair (a ring, four arms and
+//! outline) where the mouse or gun touches, the Direct3D 11 counterpart of the common
+//! crosshairs (`WAL_CROSSHAIR_STYLE=disc`); or a gun's crosshair (a ring, four arms and
 //! a center dot, outlined in black).
 //!
 //! `IDXGISwapChain::Present` / `Present1` are replaced in the swap chains' vtable (found on a

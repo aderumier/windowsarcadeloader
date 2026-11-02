@@ -13,11 +13,11 @@ env:
   WAL_GAME_DRIVE: E
   # the touch pointer: a small red dot where the mouse or gun points
   WAL_CROSSHAIR: "1"
-  WAL_KONAMI_CROSSHAIR_AXES: right-stick
-  WAL_KONAMI_CROSSHAIR_STYLE: disc
-  WAL_KONAMI_CROSSHAIR_SIZE: "1"
-  WAL_KONAMI_CROSSHAIR_COLOR: FF2020
-  WAL_KONAMI_CROSSHAIR_HIDE: "0"
+  WAL_CROSSHAIR_AXES: right-stick
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
 
 options:
   - title: Game
@@ -27,7 +27,7 @@ options:
         kind: bool
         description: >-
           A small red dot where the mouse or gun points (the touch position).
-      - key: WAL_KONAMI_CROSSHAIR_SIZE
+      - key: WAL_CROSSHAIR_SIZE
         label: Touch pointer size
         kind: number
         min: 1
