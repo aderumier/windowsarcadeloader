@@ -126,6 +126,8 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         #[cfg(target_pointer_width = "32")]
         "pqmtclient.dll" => pqmt::resolve(name),
         "sxcore.dll" => sixense::resolve(name),
+        // Mono's registry (`Win32RegistryApi`, CharSet Unicode)
+        "advapi32.dll" if name == "RegOpenKeyExW" => Some(reg_open_key_ex_w as *const () as usize),
         // another board's library: the real one (logged)
         m if m.starts_with("kaboom") => {
             wal_payload_common::log!("adrenaline: {m}!{name} not emulated");
@@ -133,6 +135,29 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         }
         _ => None,
     }
+}
+
+/// The machine's serial ports hidden (`SerialPort.GetPortNames` reads them from this key):
+/// Spider-Man Homecoming's LED controller library (`LedControllerLib.dll`) opens each port
+/// listed and waits for its controller's answer; Wine lists the machine's own ports (Batocera:
+/// COM1 = /dev/ttyS0, where nothing answers: the game hung before its first frame, a white
+/// window). No port, as on a PC without serial ports: no LED controller.
+unsafe extern "system" fn reg_open_key_ex_w(key: *mut c_void, sub: *const u16, options: u32, access: u32, result: *mut *mut c_void) -> i32 {
+    type F = unsafe extern "system" fn(*mut c_void, *const u16, u32, u32, *mut *mut c_void) -> i32;
+    static ORIG: OnceLock<usize> = OnceLock::new();
+    if !sub.is_null() {
+        let len = (0..).take_while(|&i| unsafe { *sub.add(i) } != 0).count();
+        let name = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(sub, len) });
+        if name.trim_matches('\\').eq_ignore_ascii_case("HARDWARE\\DEVICEMAP\\SERIALCOMM") {
+            wal_payload_common::log!("adrenaline: serial port list hidden");
+            return 2; // ERROR_FILE_NOT_FOUND
+        }
+    }
+    let orig = *ORIG.get_or_init(|| unsafe {
+        let advapi32 = windows_sys::Win32::System::LibraryLoader::LoadLibraryW(windows_sys::w!("advapi32.dll"));
+        windows_sys::Win32::System::LibraryLoader::GetProcAddress(advapi32, c"RegOpenKeyExW".as_ptr().cast()).map_or(0, |f| f as usize)
+    });
+    unsafe { std::mem::transmute::<usize, F>(orig)(key, sub, options, access, result) }
 }
 
 #[unsafe(no_mangle)]
