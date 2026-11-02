@@ -3749,6 +3749,45 @@ plugins, launcher, logs and the root copies of the plugins; the camera tracker's
   domain's and the game compiles its own.
 - **Play.** A coin joins its player (bullets), no start key.
 
+### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
+
+Adrenaline's PC-based arcade games. System `adrenaline` (Batocera's ES `adrenaline`), payload
+`wal_adrenaline.dll` (32-bit) installed as `xinput1_3.dll`: no pads, the real keyboard and mouse
+filtered (the game's own `C` coin and `O` operator keys), the common crosshair option (d3d9).
+The Unity games' `DllImport`s are resolved through Mono's `GetProcAddress`
+(`payload-common`'s `mono_imports.rs`).
+
+#### Skylanders Cloud Patrol
+
+Unity 4.2 (Mono `mono.dll`, Direct3D 9, 32-bit), a touch screen game (the mobile game's arcade
+port). The dump is the cabinet's `DataPC` folder (`Skylanders.bat` updates it with
+`Skylanders.jar`, then runs `Skylanders.exe`): `skylanders-cloud-patrol.windowsloader` points at
+`Skylanders.exe`. Unity loads `xinput1_3.dll` after its Direct3D device: `payload_loader: true`
+loads it at the entry point, so the crosshair overlay hooks the device.
+
+- **Touch frame (`pqmt.rs`).** `PqmtScreenGestures` is the client of a PQ Labs frame's server
+  (`PQMTClient.dll`, TCP 127.0.0.1:21555): `ConnectServer`, `SendRequest`,
+  `GetServerResolution` (callback), the point frame callback (`SetOnReceivePointFrame`, cdecl:
+  `TouchPoint { point_event 0 down / 1 move / 2 up, id, x, y, dx, dy }`; a finger missing from a
+  frame is lifted). Each player's finger (id = player) is down where its gun points while
+  `touch` (the trigger) is held, frames every 16 ms. The game maps a point to Unity's screen as
+  (`x`, `resolution.y - y`) times desktop / resolution in integers: the resolution reported is
+  0.6 times the screen's (the factor 1), the points in client pixels. The callbacks come from a
+  payload thread attached to the game's Mono domain (`mono_thread_attach`; unattached, Unity 4's
+  Mono crashes in the callback's wrapper), started at the game's first
+  `SetOnReceivePointFrame`: a thread started before `mono.dll` loads has no slot in its static
+  TLS (crash in `mono_thread_attach`).
+- **Kaboom board (`kaboom.rs`).** `KaboomComDll.dll` (cdecl, `KABOOM_DLL_ERROR` byte 0 = no
+  error): `InitLib(port)` on the first port, two coin counters (`GetCurrentCoinCount`, reset by
+  `ResetCoinCount` after crediting: P1 on counter 1, the others on 2), the keypad's four press
+  counters (`GetKeypadCount`: any change toggles the operator menu: our `operator`), the ticket
+  dispenser (`Set/GetTicketFeederTicketToFeedCount`, `GetTicketFeederCount` fed / empty,
+  `ResetTicketFeeder`): a ticket fed every 100 ms, never empty.
+- **Dongle.** `matrix32.dll` (stdcall, the online device id only): `Init_MatrixAPI`,
+  `Dongle_Count` 1, `Dongle_ReadSerNr` a serial, `Release_MatrixAPI`.
+- **Play.** 4 coins a game (operator setting), then touches: element and character select,
+  shooting. Natives `touch coin` (each player), `operator`.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -4134,6 +4173,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
+| `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 

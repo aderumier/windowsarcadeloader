@@ -1,0 +1,19 @@
+[package]
+name = "wal-payload-adrenaline"
+description = "Adrenaline Amusements payload: replacement xinput1_3.dll (the cabinet's touch frame, Kaboom I/O board and dongle)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_adrenaline"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-payload-common = { path = "../payload-common" }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemServices",
+    "Win32_UI_WindowsAndMessaging",
+] }

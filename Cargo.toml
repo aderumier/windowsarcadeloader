@@ -18,6 +18,7 @@ members = [
     "crates/payload-konami",
     "crates/payload-arcadepc",
     "crates/payload-unis",
+    "crates/payload-adrenaline",
     "crates/loader",
     "crates/easrv",
     "crates/wm5srv",

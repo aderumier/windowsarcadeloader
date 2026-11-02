@@ -1,6 +1,7 @@
 //! Emulated arcade systems: what each one needs on the Linux side. The in-game part is the
 //! matching `payload-<system>` crate; both only share the common protocol.
 
+mod adrenaline;
 mod arcadepc;
 mod europar;
 mod globalvr;
@@ -75,7 +76,8 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
         "konami" => Box::new(konami::Konami),
         "arcadepc" => Box::new(arcadepc::ArcadePc),
         "unis" => Box::new(unis::Unis),
+        "adrenaline" => Box::new(adrenaline::Adrenaline),
         "europar" | "europa-r" | "segaeuropar" | "segaeuropa-r" => Box::new(europar::EuropaR),
-        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, konami, europar, arcadepc, unis)"),
+        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, konami, europar, arcadepc, unis, adrenaline)"),
     })
 }
