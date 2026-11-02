@@ -1,6 +1,6 @@
-//! The "Kaboom" Adrio I/O board of Rabbids Hollywood: `KaboomAdrioFxPlusFourFeeders64.dll`,
-//! its serial board's library, replaced (cdecl, every function a `KABOOM_DLL_ERROR` byte, 0
-//! no error).
+//! The "Kaboom" Adrio I/O board of Rabbids Hollywood (`KaboomAdrioFxPlusFourFeeders64.dll`) and
+//! Spider-Man Homecoming (`KaboomAdrioFxPlusFourFeeders.dll`, 32-bit): its serial board's
+//! library, replaced (cdecl, every function a `KABOOM_DLL_ERROR` byte, 0 no error).
 //!
 //! - **Board.** `KaboomAdrioFxPlusFourFeeders` opens the first port `InitLib(n, callbacks)` (n
 //!   2..19) whose `GetTargetVersion` is 9 or more and whose feeders' counts are 0 after a reset;
@@ -16,6 +16,11 @@
 //!   count }` by value), `GetTicketFeederCountAdrio5` reports the fed counts (a ticket every
 //!   100 ms up to it, the feeders never empty); `ResetTicketFeederAdrio5` (a feeder mask)
 //!   zeroes both.
+//! - **Polled (Spider-Man).** The older library takes no callbacks: the game polls
+//!   `GetReadInputAdrio5` (`{ buttons, optos and coins, keypad }`, active low: a cleared bit is
+//!   pressed; coins: door n's coin 1 at bit 4 + 2n) every frame and on a coin's press reads the
+//!   door's counter (`GetCurrentCoinCountAdrio5`) plus one: the counter before that coin. The
+//!   two players' buttons are the keypad's up (player 1) and down (player 2).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -87,12 +92,14 @@ static BOARD: Mutex<Board> = Mutex::new(Board {
     last_feed: None,
 });
 
-/// The keypad's keys held.
+/// The keypad's keys held (Spider-Man: the players' buttons on up and down).
 fn keys() -> u16 {
-    [(Native::Operator, KEY_OPERATOR), (Native::Down, KEY_DOWN), (Native::Select, KEY_SELECT), (Native::Up, KEY_UP)]
+    let operator = [(Native::Operator, KEY_OPERATOR), (Native::Down, KEY_DOWN), (Native::Select, KEY_SELECT), (Native::Up, KEY_UP)]
         .iter()
         .filter(|(n, _)| held(0, *n))
-        .fold(0, |k, (_, bit)| k | bit)
+        .fold(0, |k, (_, bit)| k | bit);
+    let players = [(0, KEY_UP), (1, KEY_DOWN)].iter().filter(|(p, _)| held(*p, Native::Button)).fold(0, |k, (_, bit)| k | bit);
+    operator | players
 }
 
 /// The players' start buttons held (button 1).
@@ -236,8 +243,11 @@ extern "C" fn reset_ticket_feeder(mask: u16) -> u8 {
     NO_ERROR
 }
 
+/// A door's counter; while its coin is held, before that coin (the polling game adds it).
 extern "C" fn get_current_coin_count(door: u16, out: *mut CoinCounters) -> u8 {
-    let count = BOARD.lock().unwrap().coins.get(door as usize).copied().unwrap_or(0);
+    let b = BOARD.lock().unwrap();
+    let door = door as usize;
+    let count = b.coins.get(door).map_or(0, |&c| c.wrapping_sub(b.coin_held[door] as u16));
     unsafe { write(out, CoinCounters { input1: count, input2: 0 }) };
     NO_ERROR
 }
@@ -253,10 +263,12 @@ extern "C" fn reset_coin_count(mask: u16) -> u8 {
     NO_ERROR
 }
 
-/// `GetReadInputAdrio5`: buttons, tickets and coins, keypad.
+/// `GetReadInputAdrio5`: buttons, optos and coins, keypad; active low.
 extern "C" fn get_read_input(out: *mut [u16; 3]) -> u8 {
+    poll();
     let b = BOARD.lock().unwrap();
-    unsafe { write(out, [b.buttons, 0, b.keys]) };
+    let coins = (0..PLAYERS).filter(|&p| b.coin_held[p]).fold(0u16, |c, p| c | 1 << (4 + 2 * p));
+    unsafe { write(out, [!b.buttons, !coins, !b.keys]) };
     NO_ERROR
 }
 
