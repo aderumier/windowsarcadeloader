@@ -24,7 +24,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use wal_payload_common::log;
 
 const PORT: u16 = 50765;
-const LINK_GROUP: u8 = 1;
+/// The store link group: the cabinet's (the first byte of its link packets, `wmmt5_net.rs`;
+/// 1 in 5 to 6R, 0 in 6RR).
+pub(crate) static LINK_GROUP: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(1);
 /// The terminal's address (its packets' source) and its HTTPS proxy, the game server for the
 /// drive cabinets of its store.
 const ADDRESS: Ipv4Addr = Ipv4Addr::LOCALHOST;
@@ -122,7 +124,7 @@ fn packet(frame: u32, settings: bool, free_play: bool, revision: u32) -> Vec<u8>
     m = m.message(10, Message::new().int(1, 100).int(2, 2014).int(3, 5).int(4, 0).int(5, 0));
 
     let len = (4 + m.0.len()) as u16;
-    let mut out = vec![LINK_GROUP, TERMINAL_NODE];
+    let mut out = vec![LINK_GROUP.load(std::sync::atomic::Ordering::Relaxed), TERMINAL_NODE];
     out.extend_from_slice(&len.to_le_bytes());
     out.extend_from_slice(&m.0);
     let crc = crc32_mpeg2(&out);
@@ -143,10 +145,16 @@ pub(crate) fn start(base: usize) {
         log!("wmmt5 terminal: sending to {}:{PORT} (free play {free_play})", Ipv4Addr::LOCALHOST);
         let mut frame = 0u32;
         let mut last_revision = u32::MAX;
+        let started = std::time::Instant::now();
+        let version = crate::wmmt5::current();
         loop {
             frame = frame.wrapping_add(1);
-            // the cabinet's software revision (its batch settings must carry the same)
-            let revision = unsafe { *((base + crate::wmmt5::current().software_revision) as *const u32) };
+            // the cabinet's software revision (its batch settings must carry the same), the
+            // version's default while it is not known after 3 seconds
+            let mut revision = unsafe { *((base + version.software_revision) as *const u32) };
+            if revision == 0 && version.default_revision != 0 && started.elapsed() > Duration::from_secs(3) {
+                revision = version.default_revision;
+            }
             if revision == 0 {
                 // not computed yet: the cabinet keeps the first settings it gets
                 std::thread::sleep(Duration::from_millis(100));

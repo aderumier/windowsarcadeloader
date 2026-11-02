@@ -1,4 +1,4 @@
-//! A Wangan Midnight Maximum Tune 5 / 5DX / 5DX+ game server: the cabinet's `https://<server>` (the ALL.Net
+//! A Wangan Midnight Maximum Tune 5 / 5DX / 5DX+ / 6 / 6R / 6RR game server: the cabinet's `https://<server>` (the ALL.Net
 //! answer's uri, `127.0.0.1:9002`), run in the game process by its payload.
 //!
 //! The game posts `/method/<rpc>` (a `wm5.protobuf.<Rpc>Request`, `Content-Type:
@@ -7,9 +7,10 @@
 //! self-signed certificate made at start: the game's certificate check is patched out.
 //!
 //! The answers follow Bayshore (Project Asakura's server, its WMMT5 fork Bayshore_5,
-//! https://github.com/shadany7824/Bayshore_5; 5DX, 5DX+: Bayshore_legacy's master_5dx and
-//! master_5dxp branches, https://github.com/shiroikitsu8/Bayshore_legacy): `rpc.rs`. The players'
-//! data is kept in a directory (`store.rs`).
+//! https://github.com/shadany7824/Bayshore_5; 5DX to 6R: Bayshore_legacy's branches,
+//! https://github.com/shiroikitsu8/Bayshore_legacy; 6R: https://github.com/anthonyng43/Bayshore_6r;
+//! 6RR: https://github.com/JoeKoh27/Bayshore_6RR): `rpc.rs`. The players' data is kept in a
+//! directory (`store.rs`).
 
 pub mod pb;
 pub use rpc::Game;

@@ -138,6 +138,10 @@ unsafe extern "system" fn wsa_send_to(
             dest = local.as_ptr();
         }
         let head: Vec<u8> = if !bufs.is_null() && count > 0 { unsafe { std::slice::from_raw_parts((*bufs).buf, ((*bufs).len as usize).min(2)) }.to_vec() } else { Vec::new() };
+        if link && let Some(&group) = head.first() {
+            // the terminal joins the cabinet's link group
+            crate::wmmt5_terminal::LINK_GROUP.store(group, Ordering::Relaxed);
+        }
         let key = format!("{}.{}.{}.{}:{} {head:02X?}", addr[4], addr[5], addr[6], addr[7], u16::from_be_bytes([addr[2], addr[3]]));
         log_new(format!("out {key}"), format!("net: WSASendTo {key}{}", if link { " -> loopback" } else { "" }));
     }
