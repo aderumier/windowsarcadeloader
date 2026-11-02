@@ -336,7 +336,9 @@ old common prefix did: many games rely on one they do not list (Chaos Code's d3d
 dsound is the exception, native only for the games listing it (wine's builtin for the others,
 in their WINEDLLOVERRIDES): it crashes the CRI audio games (Gaia Attack 4, Haunted Museum,
 Street Fighter IV...). Native DirectPlay (`directplay`, Chase H.Q. 2) is kept the same way,
-for the games listing it only. `physx` (PhysX system software, legacy 2.x runtimes) serves the
+for the games listing it only, and Microsoft's Windows Script Host 5.7 (`wsh57`: VBScript,
+JScript, scrrun, UltraPin's tables need its `ExecuteGlobal` / `GetRef`): the other games keep
+wine's (its DLLs are `trick_dlls` in `wine.rs`, the isolated verbs `ISOLATED_TRICKS`). `physx` (PhysX system software, legacy 2.x runtimes) serves the
 PhysX 2.8.1 games whose `PhysXLoader.dll` looks the runtime up in the registry (Elevator Action
 Death Parade: no PhysX scene without it, crash at the first stage). `d3dx9_42`: Million Arthur
 Arcana Blood imports it. `dll_overrides` (`<dll>: n | b | ...`) has the last word. The overrides
@@ -2312,6 +2314,12 @@ exports under their MSVC names in `libacio.def`).
   the fixed-function pipeline (`crosshair::draw_gl`: the game's attributes, matrices, texture
   units and program saved around them).
 - A fresh `F/` shows OPTION SETTINGS / BOOKKEEPING BACKUP DATA ERROR: TEST repairs them.
+  AVS keeps the times of the `F:\` files in `F:\info.bin`, and takes a file of other times for
+  a corrupted one: a SquashFS image keeps whole seconds only, so the times AVS reads are
+  rounded down to the second (`f24.rs`, `libavs-win32.dll`'s `GetFileInformationByHandle` /
+  `FindFirstFileA`); backup data repaired with it stays valid in an image. Backup data saved
+  before (an image's: its times lost) is repaired at once: on the error screen (system.dll's
+  boot check, state 6) `iob_f24_button_trg(TEST)` answers the press.
   The attract says local mode (e-Amusement offline), nothing patched for it.
 
 #### Otomedius
@@ -3868,7 +3876,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chaos-breaker` | Chaos Breaker | nesica | in fight, music | d3d8 1280x800, DirectMusic tricks (native dsound) |
 | `chaos-code-103` | Chaos Code: New Sign of Catastrophe 1.03 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
 | `chaos-code-211` | Chaos Code: New Sign of Catastrophe 2.11 | nesica | in fight (user) | CRT D: redirection (`fopen("D:/ChaosCode/...")`), `WAL_D3D9_FULLSCREEN` |
-| `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user; 1280x800: pillarboxed on a 16:9 screen) | native dsound (wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
+| `crimzon-clover` | Crimzon Clover | nesica | works fullscreen (user: 100%; 1280x800: pillarboxed on a 16:9 screen) | native dsound (wine dsound caps made DxLib compute a 5-million-pixel window / overrun its mixer), ranking NULL-check patches, `WAL_D3D9_FULLSCREEN` (9Ex display mode), `WAL_FONT_SCALE: 0.28` |
 | `daemon-bride` | Daemon Bride: Additional Gain | nesica | in fight | key bbcp |
 | `dariusburst-another-chronicle` | Dariusburst Another Chronicle (1.05) | nesica | works (user: 100%) | as EX (previous version): NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, `WAL_FASTIO_ANALOG1: FF`, `WAL_ANSI_CODEPAGE: 932`, EX init.ini with JVS on (`files:`), right-screen un-flip patch (1.05 addresses) |
 | `dariusburst-another-chronicle-ex` | Dariusburst Another Chronicle EX | nesica | works (user: 100%), 4 players, sound, test menu in Japanese | NESiCA I/O despite the typex2 folder; key darius, `WAL_FASTIO_COIN: counter`, `WAL_FASTIO_BOARDS: 2`, master volume knob at maximum (`WAL_FASTIO_ANALOG1: FF`, silent at 0), `WAL_ANSI_CODEPAGE: 932`, init.ini with JVS on (`files:`), 1.16 right-screen un-flip patch (same addresses); 2720x768 back buffer, fine with GE-Proton without gamescope |
@@ -3896,7 +3904,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `rastan-saga` | Rastan Saga | nesica | works (user) | 1280x800, hide ReShade |
 | `senko-no-ronde-duo` | Senko no Ronde DUO: Dis-United Order | nesica | works, sound effects (user) | hide XAudio2_6.dll + manifests (wine's xaudio2) |
 | `skullgirls-2nd-encore` | Skullgirls 2nd Encore | nesica | works (user) | - |
-| `space-invaders` | Space Invaders | nesica | works (user) | - |
+| `space-invaders` | Space Invaders | nesica | works (user: 100%) | - |
 | `strania` | Strania: The Stella Machina | nesica | works (user), music and sound effects | wine's XAudio2 2.6 / XACT 3.6 (`dll_overrides`: silent with the native ones); the sound effects' XAudio2 comes from the dump's manifests (registration-free COM, as Senko no Ronde DUO): manifests and `XAudio2_6.dll` hidden |
 | `street-fighter-3-3rd-strike` | Street Fighter III 3rd Strike: Fight for the Future | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `street-fighter-zero-3` | Street Fighter Zero 3 | nesica | works fullscreen (user) | dump lacks config.ini: Vampire Savior's installed with `files` |
