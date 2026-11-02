@@ -1,0 +1,58 @@
+# Time Crisis 5 (Bandai Namco, 2015, Unreal Engine 3, 64-bit) - template, override values in
+# userprofiles/namcoes3/time-crisis-5.yaml.
+system: namcoes3
+name: Time Crisis 5
+
+# The cabinet launcher RSLauncher.exe (card reader, projector, test menu) and the game it
+# starts both import the HASP library: the payload replaces both copies. One player per PC
+# (a cabinet side).
+payload_install: [hasp_windows_x64_105293.dll, TC5/Binaries/Win64/hasp_windows_x64_105293.dll]
+
+# The cabinet's save drives: test menu settings, bookkeeping, credits, rankings.
+drives:
+  f: F
+  g: G
+
+env:
+  # Banapass cards (the launcher's network and a built-in game server): off, work in progress
+  WAL_NAMCOES3_BANAPASS: "0"
+
+options:
+  - title: Network
+    options:
+      - key: WAL_NAMCOES3_BANAPASS
+        label: Banapass cards (experimental)
+        kind: bool
+        description: >-
+          The cabinet online with a built-in server and the Banapassport card on the reader
+          (card button, F4). Not finished: the card is read but the game does not load its
+          player yet. Off: offline play (network errors in the operator menu).
+
+input:
+  # the gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    offscreen: b6
+    # right click: the (left) pedal, middle click: the gun button
+    BTN_RIGHT: b3
+    BTN_MIDDLE: b2
+
+# No start button on the cabinet: step on a pedal. Keyboard C / V: left / right pedal.
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Gun button (weapon)
+  b3: Left pedal
+  b4: Right pedal
+  b5: Operator menu enter
+  b6: Gun off screen
+  b7: Left pedal
+  b8: Right pedal
+  up: Operator menu up
+  down: Operator menu down
+  start: Left pedal (start)
+  coin: Coin
+  service: Service
+  test: Test (operator menu)

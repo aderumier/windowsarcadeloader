@@ -1781,6 +1781,70 @@ menu) starts `LLA\Binaries\Win64\DomeShooterGame-Win64-Shipping.exe`; they share
   (byte 0, 0x01) on. Inside gamescope (headless test runs) the menu is not seen.
 - **Not done.** Gun outputs (recoil), Banapass cards.
 
+#### Time Crisis 5
+
+64-bit (`tc5.rs`, `usio.rs`): Unreal Engine 3, 2015, one player per PC (a cabinet side).
+`RSLauncher.exe` (Lost Land Adventure's launcher: card reader, projector, credits, test menu)
+starts `TC5\Binaries\Win64\TimeCrisisGame-Win64-Shipping.exe` (`-NOINI -Language=JPN
+-voicelanguage=English(US)`, English texts). Both import `hasp_windows_x64_105293.dll`: the
+profile's `payload_install` puts `wal_namcoes3.dll` in both places, that name selects the
+Time Crisis 5 code. Unlike Lost Land Adventure the game, not the launcher, owns the I/O.
+
+- **Dongle.** The dongle type (`[0x1861958]`) selects the HASP (0xd00 read as Lost Land
+  Adventure's, template 0x16f4360 `2737212499**`: serial `273721249900`) or the USB key (the
+  enumeration at 0x20b0, id 0x0c10, template 0x16f4350 `27371*2400**` or the script's at
+  0x16f4330). Both are answered.
+- **Launcher.** Banapass reader on COM4 (`bpreader.rs`; absent: 07-01 / 07-02) and NEC
+  projector on COM1 (`projector.rs`). Its error page is a full-screen topmost window; behind it
+  the game window was minimized, and UE3 saved that size (160x31, clamped to 160x120) as
+  `ResX` / `ResY` in `My Games\UnrealEngine3\TimeCrisisGame\Config\TimeCrisisSystemSettings.ini`,
+  read back at every boot (`-NOINI` does not apply to it): a 160x120 game. The status overlay
+  is handled as Lost Land Adventure's. Network errors 05-20 / 05-34 (ALL.Net auth) stay on
+  the test menu; the game plays.
+- **Window.** The game's own window is 960x540 with a caption (`Fullscreen=false`). The
+  launcher payload sets `WAL_WINDOW_POPUP=1` and `WAL_WINDOW_SIZE=screen` in its environment
+  after its own window setup: the game it starts inherits them (a borderless window the size of
+  the screen, minimize requests dropped), the launcher's windows keep their sizes.
+- **I/O board: USIO on USB (`usio.rs`).** The game links the USIO library statically
+  (0x140001c00-0x140003800): SetupDi enumeration of the interface
+  {E54BF304-66A3-476F-A456-C6DDAB8C7078} (bananatools' `usio_guid`), `CreateFileW`, WinUSB (one
+  bulk IN, one bulk OUT pipe). The board's memory is read with `10 00 addr16 len16` then `len`
+  bytes, written with `90 xx addr16 len16`, the data, a 1-byte answer. The library's thread
+  reads 0x0000 (0x100 bytes: +0x02 status, 0 = no error, else backup / firmware `IRM1` /
+  memory errors, the last two hang; +0x28 the game's `81 73` marker), 0x1080 (switches dword,
+  0x1090 / 0x1092 coin and service counters, 14 bits), 0x1800 once, and writes the outputs at
+  0x1420, `99 99` at 0x0008 (watchdog), 0x220 bytes at 0x2000 at boot. The payload answers
+  these calls on the executable's imports. Switches (the operator menu's switch test): test
+  0x80, enter 0x200, right pedal 0x400, left pedal 0x800, down 0x1000, up 0x2000, service
+  0x4000, gun button 0x800000. No start button: a pedal starts.
+- **Gun board.** A serial device the game looks for on COM1, COM2, COM15..COM3 (38400 bauds,
+  0x140a54c30), one command byte, a fixed-size answer whose last byte is the complement of the
+  sum of the others (table 0x16f2f80): `08` 10 bytes (x, y, two more 16-bit values big endian,
+  flags: 0x20 trigger, 0x80 out of screen, 0x10), polled every frame; `1C` 10-bit x / y; `14`,
+  `18`, `0C`, `04` one byte; `10` a 31-byte version string starting with `R`. The payload
+  answers on COM1. With the default calibration (`testmode.xml`'s `varGunAdjust...`) the gun
+  test puts raw (x, y) / 1023 (y up) on the screen at `1.148 x - 0.080`, `1.163 - 1.268 y`
+  (measured, residuals under 2%); the payload inverts it.
+- **Input filter.** XInput / DirectInput pads, keyboard and mouse hidden from the game (the PC
+  build's mouse binds `Fire`).
+- **Saved resolution.** UE3 keeps the window's last size as `ResX` / `ResY` in the prefix's
+  `My Games\UnrealEngine3\TimeCrisisGame\Config\TimeCrisisSystemSettings.ini`: the game
+  payload sets them to the screen size at each start (a minimized window saved 160x31).
+- **Banapass (`WAL_NAMCOES3_BANAPASS=1`, the Options tab, off by default: not finished).** The
+  launcher's AMCUS `IAuth` is answered in-process (`wmmt5_amcus.rs`, the older layout: slots 6,
+  4, 5, 14, 9, 13; identity SBVE / TC51 1.00, the HASP serial). The launcher puts `https://`
+  before the ALL.Net uri itself (the answer has none). Its game server is `spp.net` (protocol
+  buffers schemas in the launcher, `wm5srv/src/spp.rs`, run in the launcher process): `POST`
+  of a raw `spp.net.Request`, the answer's body by its `Content-Length`; any certificate is
+  accepted. REGISTER_PCB must answer the status INITIALIZED (0) or REPAIR: with NORMAL the
+  launcher ends in its "PCB invalid" state (22-02, 05-20, 05-56). Online, the card manager
+  polls the reader (game card mode `+0x4f0` 1, the touch sets 2) and reads the card (access
+  code, type 0x101). The game's script then never calls `TCArcadeLoadTouchedPlayerData` (mode
+  5, the launcher's LOAD_USER): the touch only shows an empty message. To find in the script
+  (LZO-compressed `TimeCrisisGame.u`). Off: offline, 05-20 / 05-34 on the test menu.
+- **Not done.** Outputs (gun recoil, LEDs at 0x1420), Banapass cards (above), the cabinet link
+  (2-player co-op: two PCs).
+
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 
 RingEdge games (Virtua Tennis 4; RingEdge 2: Guilty Gear XX Accent Core Plus R) link Sega's amLib statically and import no driver DLL: the
@@ -4156,6 +4220,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns | `PBX100-2-NA-MPR0-A63.exe` (Unity 5.1, Mono, §6.3c): `Plugins/bnusio.dll` replaced (USIO switches and coins, gun board), loaded by wal-loader at the entry point; profile `Setting.ini` (`CONTROLLER 0`); real keyboard/mouse filtered; cabinet serial in the registry; the game's own crosshairs shown; BepInEx (`winhttp.dll`) hidden |
 | `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) | `ACE7_WIN_10.exe` (Direct3D 9, 32-bit): `bngrw.dll` payload loaded by wal-loader at the entry point, selected by the build; JVS on COM3 (flight layout: control lever, throttle lever, machine gun, missile, third button), device errors and extra serial device checks patched, dome lookup texture replaced by a flat screen map, saves next to the executable, borderless window fitted on the screen, XInput and real keyboard/mouse filtered |
 | `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_106993.dll` (dongle serial for both checks), JVS on COM3, Banapass reader on COM4 (no card), NEC projector on COM1, the gun camera on COM2 with the crosshair mapping inverted, the dumps' flat screen patch, English patch through JPN, F:/G: save drives |
+| `time-crisis-5` | Time Crisis 5 | namcoes3 | works (headless tests: coins, pedals, aim and shots, tutorial, operator menu), 1 gun | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_105293.dll` (HASP and USB key serials), Banapass reader on COM4 (no card), NEC projector on COM1, the USIO board on USB (WinUSB), the gun board on COM1 with the calibration inverted, borderless full-screen game window, F:/G: save drives |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | dump built from the game's install disc (unshield), original executable: HASP4 dongle answered in memory (`hasp.rs`), W: drive, USBIO board and gun watchdog patches (`WAL_PATCHES`), operator keys only (`keyboard.rs`); the game's own `msvcr71` / `msvcp71` (Wine's clamps the level dependency CRCs: missing models, statue enemies), initial `systemcfg.lua` |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |

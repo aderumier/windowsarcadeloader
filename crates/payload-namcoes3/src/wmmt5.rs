@@ -484,22 +484,7 @@ fn card_reader(base: usize, version: &Version) {
         crate::bpreader::init("COM4", &[base]);
     }
     let bngrw = version.bngrw;
-    const SAVED: &str = "F:\\banapass.txt";
-    let configured = std::env::var("WAL_NAMCOES3_ACCESS_CODE").ok().filter(|c| !c.trim().is_empty());
-    let saved = std::fs::read_to_string(SAVED).ok();
-    let card = configured
-        .or(saved)
-        .and_then(|c| crate::banapass::Card::from_access_code(c.trim()))
-        .unwrap_or_else(|| {
-            let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64);
-            let card = crate::banapass::Card::generate(seed);
-            if let Err(e) = std::fs::write(SAVED, &card.access_code) {
-                log!("wmmt5: {SAVED}: {e}");
-            }
-            card
-        });
-    log!("wmmt5: Banapass card {}", card.access_code);
-    let card: &'static crate::banapass::Card = Box::leak(Box::new(card));
+    let card = crate::bpreader::player_card();
     std::thread::spawn(move || loop {
         if wal_payload_common::input(0).pressed(wal_protocol::button::CARD) {
             if bngrw {
