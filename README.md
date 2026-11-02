@@ -141,7 +141,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video fixed with `WAL_D3D9_POW2`) | pass | 2026-11-01 |
 | `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: perfect, in gamescope, guns) | pass | 2026-11-01 |
 | `haunted-museum-2` | Haunted Museum II | typex | works (user: guns, inputs, sound, video) | pass | 2026-11-01 |
-| `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | not in the test |  |
+| `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | works (headless tests: boot, card purchase, 3 virtual cards scanned, song select, rhythm game) | not in the test |  |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | pass | 2026-11-01 |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | pass | 2026-11-01 |
 | `elevator-action-death-parade` | Elevator Action Death Parade | typex | works (user: 100%, perfect), 2 guns, attraction doors and bezel, crosshairs option | pass | 2026-11-01 |

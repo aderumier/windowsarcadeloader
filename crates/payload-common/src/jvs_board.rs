@@ -36,6 +36,9 @@
 //! `WAL_TYPEX_JVS_HELD=btn<n>,...`: player 1 switches always on (buttons 1-16): Usagi Online's
 //! touch panel line, without which the game never sees the touch released.
 //!
+//! `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 and the
+//! general purpose outputs (see [`Dispenser`]).
+//!
 //! `WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`: Battle Gear 4's key reader (Taito
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
 //! presence makes the game use the wide monitor & clutch mode) and the H shifter (see
@@ -163,6 +166,9 @@ struct Board {
     cyber_diver: bool,
     /// Pleasant Goat: the dispenser-ready signal is switch byte 3 bit 0x40.
     happy_playground: bool,
+    /// `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 (ready
+    /// 0x80, jam 0x40, empty 0x20) and output byte 1 (dispense pulse 0x08): see [`Dispenser`].
+    dispenser: Option<Dispenser>,
     /// `WAL_TYPEX_JVS_ANALOG=v0,v1,...` (hex): fixed analog channel values (default 0).
     analog_fixed: Vec<u16>,
     /// `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...`: player 1's virtual axis read on each
@@ -199,6 +205,35 @@ enum AnalogInput {
     Axis(Axis),
     Inverted(Axis),
     Positive(Axis),
+}
+
+/// K-On!'s card dispenser (`WAL_TYPEX_JVS_LAYOUT=k-on`): the ready line (a card waits at the
+/// exit) is player 1's switch byte 2 bit 0x80; the game pulses general purpose output byte 1
+/// bit 0x08 to dispense one card, then waits for the line to drop (the card leaving, within 5 s)
+/// and to come back (the next card, after 2 s at least, before 60 s: DISPENSER_JAM otherwise).
+/// Without the line at boot: error 0002 DISPENSER_ERROR. Never empty, never jammed.
+#[derive(Default)]
+struct Dispenser {
+    /// Output byte 1 of the last `32` write.
+    output: u8,
+    /// When the last card was dispensed.
+    dispensed: Option<std::time::Instant>,
+}
+
+impl Dispenser {
+    const OUT: std::time::Duration = std::time::Duration::from_millis(1000);
+
+    fn output(&mut self, byte: u8) {
+        if byte & 0x08 != 0 && self.output & 0x08 == 0 {
+            log!("jvs: card dispensed");
+            self.dispensed = Some(std::time::Instant::now());
+        }
+        self.output = byte;
+    }
+
+    fn ready(&self) -> bool {
+        self.dispensed.is_none_or(|t| t.elapsed() >= Self::OUT)
+    }
 }
 
 /// Battle Gear 4 (`WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`).
@@ -310,6 +345,7 @@ pub fn init(default_port: &str) {
         elevator_action,
         cyber_diver: std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v == "cyber-diver"),
         happy_playground: layout == "happy-playground",
+        dispenser: (layout.trim() == "k-on").then(Dispenser::default),
         analog_fixed,
         analog_inputs,
         touch: std::env::var("WAL_TYPEX_JVS_TOUCH").ok().and_then(|v| {
@@ -583,6 +619,10 @@ fn process(packet: &[u8]) -> Vec<u8> {
     if board.happy_playground {
         players[0].4 |= 0x40;
     }
+    if let Some(d) = &board.dispenser {
+        // the dispenser's lines replace buttons 3-5 (a held button would read as a jam)
+        players[0].1 = (players[0].1 & !0xE0) | if d.ready() { 0x80 } else { 0 };
+    }
     let test = players.iter().any(|p| p.2);
     if let Some((masks, half)) = board.pulse {
         static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
@@ -750,7 +790,12 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 }
                 (4, vec![])
             }
-            0x32 => (arg(1) as usize + 2, vec![]),
+            0x32 => {
+                if let Some(d) = &mut board.dispenser {
+                    d.output(arg(2));
+                }
+                (arg(1) as usize + 2, vec![])
+            }
             0x33 => (arg(1) as usize * 2 + 2, vec![]),
             0x34 => (arg(1) as usize + 2, vec![]),
             0x36 => (4, vec![]),

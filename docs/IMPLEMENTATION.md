@@ -1279,6 +1279,27 @@ game's own `GetKgf` (+0x31890, thiscall on a scratch pad; its float conversion o
 0x80000000 for the shortest times: counted as beyond any force). Its two buttons are XIO
 system bits 0x100000 (Confirm, JVS down) and 0x200000 (Selection, JVS up).
 
+K-On! After School Rhythm Selection sells collectible cards (a card dispenser) and scans up
+to 3 of them before a game (a barcode reader). The dispenser is wired to the JVS board
+(`WAL_TYPEX_JVS_LAYOUT=k-on`, `jvs_board.rs`): the card-ready line is player 1's switch byte 2
+bit 0x80 (jam 0x40, empty 0x20; the game reads the `20 01 03` reply as one dword: system, then
+the 3 switch bytes), the dispense pulse general purpose output byte 1 bit 0x08 (`32 03`). At
+boot the game wants one of the 3 lines on (else error 0002 DISPENSER_ERROR), the empty and jam
+lines off; after a dispense pulse the ready line must drop within 5 s (the card leaving) and
+come back after 2 s to 60 s (the next card, else DISPENSER_JAM): it drops for 1 s. The
+emulated dispenser is never empty. The game's card reader "connected" check returns true in this
+build. The scanner is a keyboard (`kon_cards.rs`, `WAL_TYPEX_KON_CARDS=1`): the window
+procedure feeds each `WM_KEYDOWN` to the reader (+0xCE70), which takes 13 digit keys less than
+a second apart, then Enter, Ctrl, J; the 13-digit JAN code is looked up in the card table
+(+0xBCC4C, 304 entries of 24 bytes; 0x62, 0x67 and 0x6A-0x99 refused: 254 cards). The payload
+reads the codes from the table, draws a picker over the game (the game's own
+`data\common\card_<n>.tga` pictures: the selected card, its neighbours smaller; drawn with the
+common Direct3D 9 quads, `d3d9_quads.rs`, shared with the crosshair), browsed with player 1's
+b1/b2 (b3/b4 by 10; `native_map` keeps them off the JVS board) and scans with `card`: the
+keys posted to the game window, through the common key filter (`input_filter.rs`, the
+executable's `PeekMessageW`: the real keyboard hidden). Selection kept in
+`WindowsLoader\kon-card.txt`.
+
 Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the game's
 `SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), for Type X2 games (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
 `WAL_VFW_CODECS=vidc.wmv3=WMV9VCM.dll` (`vfw.rs`): registers Video for Windows codecs in
@@ -3998,7 +4019,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video fixed with `WAL_D3D9_POW2`) | wal-loader, JVS, guns in its JVS data (`WAL_TYPEX_GUNS`), known patches (`WAL_PATCHES`), popup 640x480 window, work area fix, power-of-two texture caps |
 | `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: perfect, in gamescope, guns) | as `gundam-spirits-of-zeon`, 2 player patch, 1280x480 in `gamescope` |
 | `haunted-museum-2` | Haunted Museum II | typex | works (user: guns, inputs, sound, video) | wal-loader, JVS (`haunted-museum` layout, volume knob on analog 0), guns in the gun board record (`COM1,!COM3`), `exe_fixed_base` (rebuilt exe: absolute addresses not relocated, imports without lookup table), known patch restoring its JVSENABLE/GUNENABLE reads (hex-edited to run without boards), both guns pre-calibrated (`initial_files` HM20/HM21.CFG + CRC32), `dxvk: false` (Indeo videos: RADV GPU fault with DXVK), popup 1280x720 window |
-| `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | BLOCKED: error 0002 DISPENSER_ERROR (card dispenser) | wal-loader, JVS (re-init after bus reset), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA); TODO: dispenser (reference "Skip Boot Check") |
+| `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | works (headless tests: boot, card purchase, 3 virtual cards scanned, song select, rhythm game) | wal-loader, JVS (re-init after bus reset, card dispenser `k-on` layout), virtual card scanner with a card picker overlay (`WAL_TYPEX_KON_CARDS`, kon_cards.rs), window mode in a screen-sized popup, `WAL_ANSI_CODEPAGE: 932` (d3dx9 DrawTextA) |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie | wal-loader, JVS, `dxvk: false`, hide the dump's Wine DLLs, patch 0x447C, runner ddraw overlay emulation (docs/KOF-MIRA-INTRO-VIDEO-DEBUG.md) |
 | `king-of-fighters-xii` | The King of Fighters XII | typex | in game, intro video | wal-loader, JVS, 1280x800, A/B/C/D button map, runner quartz fix (#823) |
 | `elevator-action-death-parade` | Elevator Action Death Parade | typex | works (user: 100%, perfect), 2 guns, attraction doors and bezel, crosshairs option | wal-loader, JVS (`7D` acknowledged, cabinet switch layout `elevator-action`, volume knob on analog), guns in the gun board record (`WAL_TYPEX_GUNS`, aim relative to the picture), attraction doors and bezel drawn from the dump's pictures in a screen composed over the game's window (`WAL_TYPEX_DOORS`, `doors.rs`; crosshairs `WAL_CROSSHAIR`), PhysX 2.8.1 system runtime (`tricks: [physx]`), portrait 720x1280 windowed device, 60 fps, known patches (door board error, door checks) |
