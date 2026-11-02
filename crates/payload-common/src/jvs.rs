@@ -90,9 +90,19 @@ pub fn parse(packet: &[u8]) -> Option<Request> {
     if packet.len() < 4 {
         return None;
     }
+    let raw = unescape(packet);
+    if raw.len() < 2 {
+        return None;
+    }
+    let end = (2 + (raw[1] as usize).saturating_sub(1)).min(raw.len());
+    Some(Request { node: raw[0], commands: raw[2..end].to_vec() })
+}
+
+/// The packet's bytes after the sync byte, escapes removed.
+fn unescape(packet: &[u8]) -> Vec<u8> {
     let mut raw = Vec::with_capacity(packet.len());
     let mut escaped = false;
-    for &b in &packet[1..] {
+    for &b in packet.iter().skip(1) {
         if b == MARK && !escaped {
             escaped = true;
         } else {
@@ -100,11 +110,19 @@ pub fn parse(packet: &[u8]) -> Option<Request> {
             escaped = false;
         }
     }
-    if raw.len() < 2 {
-        return None;
+    raw
+}
+
+/// Whether the packet's checksum (the sum of node, size and data) is wrong (Won!Tertainment
+/// Music Channel's corrupted packets).
+pub fn bad_checksum(packet: &[u8]) -> bool {
+    let raw = unescape(packet);
+    let Some(&size) = raw.get(1) else { return false };
+    let end = 1 + size as usize;
+    match raw.get(end) {
+        Some(&sum) => raw[..end].iter().fold(0u8, |a, b| a.wrapping_add(*b)) != sum,
+        None => true,
     }
-    let end = (2 + (raw[1] as usize).saturating_sub(1)).min(raw.len());
-    Some(Request { node: raw[0], commands: raw[2..end].to_vec() })
 }
 
 #[cfg(test)]

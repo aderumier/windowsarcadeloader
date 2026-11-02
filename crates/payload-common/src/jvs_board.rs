@@ -36,6 +36,9 @@
 //! `WAL_TYPEX_JVS_HELD=btn<n>,...`: player 1 switches always on (buttons 1-16): Usagi Online's
 //! touch panel line, without which the game never sees the touch released.
 //!
+//! `WAL_TYPEX_JVS_LAYOUT=wontertainment`: Won!Tertainment Music Channel's cabinet switches
+//! (see `Board::wontertainment`).
+//!
 //! `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 and the
 //! general purpose outputs (see [`Dispenser`]).
 //!
@@ -169,6 +172,18 @@ struct Board {
     /// `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 (ready
     /// 0x80, jam 0x40, empty 0x20) and output byte 1 (dispense pulse 0x08): see [`Dispenser`].
     dispenser: Option<Dispenser>,
+    /// `WAL_TYPEX_JVS_LAYOUT=wontertainment`: Won!Tertainment Music Channel's cabinet for
+    /// `20 02 02` (found with its I/O test): system byte SELECT 0x80; player 1's first byte
+    /// ENTER 0x40, door 0x20, the card dispenser's ENABLE 0x10 (on: without it error 100,
+    /// "cannot dispense cards"), JAM 0x08, EMPTY 0x04; its second byte the LEFT / RIGHT
+    /// buttons 0x80 / 0x40, SERVICE 0x08, CARD OUT 0x04, TEST 0x01. LEFT / RIGHT are buttons
+    /// 1 / 2, SELECT / ENTER (operator buttons, the test menu) buttons 5 / 6. After the
+    /// dispenser's motor starts (output byte 1 bit 0x10), the gate sensor (ENABLE) goes off
+    /// while the card leaves, then CARD OUT is on while it lies in the tray.
+    wontertainment: bool,
+    /// Its output byte 1 at the last `32` and when the dispenser last dispensed.
+    won_output: u8,
+    won_dispensed: Option<std::time::Instant>,
     /// `WAL_TYPEX_JVS_ANALOG=v0,v1,...` (hex): fixed analog channel values (default 0).
     analog_fixed: Vec<u16>,
     /// `WAL_TYPEX_JVS_ANALOG_INPUTS=<axis>,...`: player 1's virtual axis read on each
@@ -346,6 +361,9 @@ pub fn init(default_port: &str) {
         cyber_diver: std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v == "cyber-diver"),
         happy_playground: layout == "happy-playground",
         dispenser: (layout.trim() == "k-on").then(Dispenser::default),
+        wontertainment: layout.trim() == "wontertainment",
+        won_output: 0,
+        won_dispensed: None,
         analog_fixed,
         analog_inputs,
         touch: std::env::var("WAL_TYPEX_JVS_TOUCH").ok().and_then(|v| {
@@ -597,6 +615,16 @@ fn process(packet: &[u8]) -> Vec<u8> {
     if req.node == 0x02 {
         return node2(board, cmds);
     }
+    // Won!Tertainment Music Channel's two I/O threads sometimes write its input poll's header
+    // over its output packet (`13 32 02 a b 33 06 ...`): a checksum error, which a board
+    // reports (status 3) and the game resends the same bytes, then stops (error 903, "JVS
+    // error"). The packet is answered as it parses; its outputs a b, still before `33 06`, hold
+    // the card dispenser's motor.
+    if board.wontertainment && crate::jvs::bad_checksum(packet) {
+        if let Some(p) = packet.windows(2).skip(5).position(|w| w == [0x33, 0x06]).map(|p| p + 5) {
+            won_output(board, packet[p - 2]);
+        }
+    }
 
     // input state (coins counted on release)
     let sticks = [0, 1, 2, 3].map(crate::input);
@@ -675,6 +703,22 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 (1, f)
             }
             0x15 => (cmds[i..].iter().position(|b| *b == 0).map_or(cmds.len() - i, |p| p + 1), vec![0x01, 0x01, 0x05]),
+            0x20 if board.wontertainment => {
+                let p1 = players[0];
+                let (left, right) = (p1.0 & 0x02 != 0, p1.0 & 0x01 != 0);
+                let (select, enter) = (p1.1 & 0x20 != 0, p1.1 & 0x10 != 0);
+                let system = if select { 0x80 } else { 0 };
+                // after the motor starts (dispense): the card leaves the gate (its sensor off
+                // for 1.5 s, the next card fed back; the game checks it 0.5 s after the start and
+                // polls slowly), lies in the exit tray (CARD OUT 0.6-2.5 s) and is taken
+                let since = board.won_dispensed.map(|t| t.elapsed().as_millis());
+                let gate = !since.is_some_and(|ms| ms < 1500);
+                let out = since.is_some_and(|ms| (600..2500).contains(&ms));
+                let b1 = if gate { 0x10 } else { 0 } | if enter { 0x40 } else { 0 };
+                let b2 = if left { 0x80 } else { 0 } | if right { 0x40 } else { 0 } | if p1.0 & 0x40 != 0 { 0x08 } else { 0 } | if out { 0x04 } else { 0 } | if test { 0x01 } else { 0 };
+                let bytes = [b1, b2, 0, 0];
+                (3, std::iter::once(system).chain((0..arg(1) as usize * arg(2) as usize).map(|k| bytes.get(k).copied().unwrap_or(0))).collect())
+            }
             0x20 if (arg(1), arg(2)) == (2, 2) || arg(1) == 0 => {
                 // Taito stick: system byte + 2 bytes per player for both players
                 let p1 = players[0];
@@ -794,6 +838,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 if let Some(d) = &mut board.dispenser {
                     d.output(arg(2));
                 }
+                if board.wontertainment {
+                    won_output(board, arg(2));
+                }
                 (arg(1) as usize + 2, vec![])
             }
             0x33 => (arg(1) as usize * 2 + 2, vec![]),
@@ -855,6 +902,15 @@ fn process(packet: &[u8]) -> Vec<u8> {
         multi = true;
     }
     out.finish()
+}
+
+/// Won!Tertainment Music Channel's output byte 1: the card dispenser's motor (bit 0x10) starts.
+fn won_output(board: &mut Board, out: u8) {
+    if out & 0x10 != 0 && board.won_output & 0x10 == 0 {
+        log!("jvs: card dispensed");
+        board.won_dispensed = Some(std::time::Instant::now());
+    }
+    board.won_output = out;
 }
 
 /// Battle Gear 4's professional cabinet board (node 2): no inputs but the H shifter lanes and
