@@ -19,6 +19,8 @@
 //!   `doors.rs`).
 //! * K-On! After School Rhythm Selection's card scanner: a virtual card picked on an overlay
 //!   (`WAL_TYPEX_KON_CARDS`, `kon_cards.rs`).
+//! * Won!Tertainment Music Channel's Idol Puppy toy, barcode card scanner (a virtual card picked
+//!   on an overlay) and touch screen (`WAL_TYPEX_WONTERTAINMENT`, `wontertainment.rs`).
 //! * Sonic Blast Heroes' punching pad from a gamepad trigger (`WAL_TYPEX_PUNCH`, `punch.rs`).
 //! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`).
 //! * Servers the cabinet starts beside the game (`WAL_TYPEX_SERVERS`, `servers.rs`).
@@ -40,6 +42,8 @@ mod sram;
 mod switcher;
 mod touch;
 mod wheel;
+mod wontertainment;
+mod wontertainment_cards;
 
 use std::ffi::c_void;
 
@@ -72,6 +76,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         touch::init();
         punch::init();
         kon_cards::init();
+        wontertainment::init();
         sram::init();
         servers::init();
         wal_payload_common::vfw::init();

@@ -1,0 +1,87 @@
+# Won!Tertainment Music Channel (Capcom, Taito Type X, 2009, version 4) - template, override
+# values in userprofiles/typex/wontertainment-music-channel.yaml.
+system: typex
+name: Won!Tertainment Music Channel
+
+# A kids' rhythm game on a touch screen with a robot dog toy (the Idol Puppy, infrared on COM1),
+# a card dispenser (JVS) and a barcode card scanner (COM3). Direct3D 9, 640x480, JVS on COM2.
+# The touch is the mouse (or a gun) with b3 (the left mouse button); LEFT / RIGHT the cabinet's
+# two buttons. The cards (Puppy, Outfit, Accessory, Miracle Power: the game's ~650 cards) are
+# chosen on an overlay: up / down browse, left / right change the family, card scans.
+
+# the card picker's Japanese names: MS Gothic aliased to Source Han Sans
+tricks: [fakejapanese]
+
+env:
+  WAL_TYPEX_WONTERTAINMENT: "1"
+  # its switch wiring and the card dispenser (without its gate sensor: error 100)
+  WAL_TYPEX_JVS_LAYOUT: wontertainment
+  # Japanese text and font names in Shift-JIS
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_FONT_CODEPAGE: "932"
+  # a fullscreen 640x480 device: windowed instead, its window (which the game sizes 640x480)
+  # borderless over the whole screen, the 4:3 picture letterboxed
+  WAL_D3D9_WINDOWED_SIZE: 640x480
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  # the touch pointer: a small red dot where the mouse or gun points
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
+  # The dispenser's motor runs 0.5 s, then the game wants the card gone from the gate (its
+  # sensor off, else error 100), but it polls the switches irregularly (up to a second apart):
+  # the emulated sensor's drop may arrive after that check. The check's jump removed (the card
+  # always left); the later phases (the next card back at the gate) still read the sensor.
+  WAL_PATCHES: "0x3F552:9090"
+
+# LEFT / RIGHT buttons 1 / 2, the operator's SELECT / ENTER (test menu) buttons 5 / 6; b3 is
+# the touch (the payload's mouse), b4 unused
+options:
+  - title: Game
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun points (the touch position).
+      - key: WAL_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
+
+native_map:
+  b3: none
+  b4: none
+
+input:
+  # the mouse (or a gun) is the touch screen
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: b3
+
+controls:
+  up: Previous card
+  down: Next card
+  left: Previous card family
+  right: Next card family
+  card: Scan card
+  lx: Touch position (x)
+  ly: Touch position (y)
+  b1: Left button
+  b2: Right button
+  b3: Touch the screen
+  b4: none
+  b5: Select (test menu)
+  b6: Enter (test menu)
+  start: none
+  coin: Coin
+  service: Service
+  test: Test

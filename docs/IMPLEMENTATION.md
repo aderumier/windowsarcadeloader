@@ -1300,6 +1300,35 @@ keys posted to the game window, through the common key filter (`input_filter.rs`
 executable's `PeekMessageW`: the real keyboard hidden). Selection kept in
 `WindowsLoader\kon-card.txt`.
 
+Won!Tertainment Music Channel (Capcom, 2009, version 4) is a kids' rhythm game on a touch
+screen with a robot dog toy, a card dispenser and a card scanner (`WAL_TYPEX_WONTERTAINMENT=1`,
+`wontertainment.rs`). Its JVS switches (`WAL_TYPEX_JVS_LAYOUT=wontertainment`, `20 02 02`, found
+with its I/O test): system byte SELECT 0x80; player 1's first byte ENTER 0x40, door 0x20, the
+dispenser's gate sensor 0x10 (labelled ENABLE: a card waits at the gate; off at boot: error
+100), JAM 0x08, EMPTY 0x04; its second byte the LEFT / RIGHT buttons 0x80 / 0x40, SERVICE 0x08,
+CARD OUT 0x04 (the card in the exit tray), TEST 0x01. A dispense (a phase machine polled every
+100 ms, 0x43F480): motor on (output byte 1 bit 0x10) for 0.5 s, then the card must be gone from
+the gate, which comes back on with the next card; CARD OUT's release is the card taken. The game
+polls its switches irregularly (an input poll for ~10 output packets, gaps up to a second), so
+the emulated gate's drop can arrive after the 0.5 s check: that check's jump is patched out
+(0x3F552), the later phases still read the gate. Its two I/O threads sometimes write the input
+poll's header over the output packet (`06 20 02 a b 33 06 ...`, a bad checksum): a checksum error
+reply made it resend the same bytes then stop (error 903), so the packet is answered as it
+parses, and the motor bit is read from the outputs before `33 06`.
+COM1 is the infrared link to the Idol Puppy toy: frames `FD 02 ~(code+seq) code seq [data]`, a
+reply's size from its code; the presence query `7E` wants the toy's `7E` frame (two equal state
+bytes, then 0xAA), error 700 otherwise; its other frames get the toy's `AA` ack. COM3 is a
+barcode scanner sending 12 digits + CR LF, read as a 48-bit hex value whose low byte of the high
+word is the card's family; error 600 without the port. The cards come from the game's tables
+(`wontertainment_cards.rs`): Puppy 0x11 (110), Outfit 0x21 (315), Accessory 0x22 (190),
+Miracle Power 0x31 (30), the code at +8, the Shift-JIS name at +0x18 (the operators' version
+cards 0x23 left out); a picker overlay (the names drawn with GDI into a Direct3D 9 texture,
+`d3d9_quads.rs`): up/down browse, left/right the family, `card` scans (pushed on COM3), kept in
+`WindowsLoader\won-cards.txt`. The touch screen is the mouse on the cabinet (a touch panel
+driver): the window procedure reads `WM_MOUSEMOVE` (`GetCursorPos` over the client size) and the
+left button; the gun's place in the letterboxed picture is posted as the mouse
+(`input_filter::post_mouse`, `own_mouse`), the touch on b3.
+
 Common payload options used by Type X2 games: `WAL_PIN_CWD=1` (`drive.rs`): the game's
 `SetCurrentDirectory` stays in its own directory (`.\sh`, `.\data\sh` -> those folders), for Type X2 games (Gaia Attack 4 steps up with `..\`: SOUND ERROR).
 `WAL_VFW_CODECS=vidc.wmv3=WMV9VCM.dll` (`vfw.rs`): registers Video for Windows codecs in
@@ -4074,6 +4103,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `new-super-mario-bros-wii-coin-world` | New Super Mario Bros. Wii Coin World | typex | works (user: 100%), 4 satellites, medals, hoppers, satellite test menu | wal-loader, backup SRAM (`TxedLap.dll` answered), JVS watchdog, medal I/O board on COM1 (`WAL_TYPEX_MEDAL_PORT`); XAudio2 2.7 32-bit registration (shared prefix; crashed after the device creation without it), windowed 1920x1080 device in a screen-sized popup window, 16:9 kept (its fullscreen 1920x1080 was refused on a 1600x1200 screen) |
 | `taisen-hot-gimmick-5` | Taisen Hot Gimmick 5: Mirai Eigou | typex | works (user: 100%) | wal-loader, JVS (coins, service/test), mahjong panel read as a keyboard (`WAL_TYPEX_MAHJONG`: tiles A-N on keys A-N, start and calls from player 1), hide the dump's dinput8.dll (another loader's input hack: window not responding) |
 | `usagi-online` | Usagi - Yasei no Toupai Online | typex | works (user: 100%), offline mode, no cards (Taito G-Net cards: TODO), touch = mouse or gun with a pointer dot | wal-loader, JVS (touch on the screen position input, `WAL_TYPEX_JVS_HELD`), the cabinet's lobby daemons beside the game (`WAL_TYPEX_SERVERS`), D: drive, network check timeout patch 0xD2866 |
+| `wontertainment-music-channel` | Won!Tertainment Music Channel | typex | works (user: 100%), touch = mouse or gun with a pointer dot, virtual cards on an overlay | wal-loader, JVS (`wontertainment` switch layout, card dispenser, corrupted output packets read), barcode card scanner on COM3 and Idol Puppy toy on COM1 (`WAL_TYPEX_WONTERTAINMENT`, wontertainment.rs), card picker overlay (wontertainment_cards.rs), touch = posted mouse messages, windowed 640x480 letterboxed 4:3, dispenser check patch 0x3F552 |
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | wal-loader, JVS, OpenGL, `WAL_WINDOW_POPUP` (overlapped window: empty frame), save folder patch, picture height 448 -> 480 (white bars) |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | wal-loader, JVS, native 1920x1080 (no back buffer override), hide MS dinput8 |
 | `super-street-fighter-iv-ae` | Super Street Fighter IV Arcade Edition (export, standalone) | typex | works (user: 100%), intro video plays | wal-loader, JVS, 1280x720 game: windowed 1280x720 device scaled to the screen, 16:9 |

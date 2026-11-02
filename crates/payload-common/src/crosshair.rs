@@ -103,6 +103,22 @@ pub fn init() {
     }
 }
 
+/// Direct3D 9 games whose payload has its own overlay (`screenshot::set_overlay` takes one):
+/// the crosshairs drawn from it with [`draw_d3d9`] / [`reset_d3d9`]. Whether they are on.
+pub fn init_chained() -> bool {
+    load()
+}
+
+/// Draws the crosshairs over the back buffer (an overlay's draw, after [`init_chained`]).
+pub unsafe fn draw_d3d9(dev: P, window: P) {
+    unsafe { draw(dev, window) };
+}
+
+/// Releases the crosshairs' device resources (an overlay's reset).
+pub unsafe fn reset_d3d9(dev: P) {
+    unsafe { reset(dev) };
+}
+
 /// Gashaaaan (OpenGL): the crosshairs drawn by [`draw_gl`]. Whether they are on.
 pub fn init_gl() -> bool {
     load()
