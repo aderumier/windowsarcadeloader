@@ -89,6 +89,8 @@ pub(crate) fn init() {
                     last[player] = Some(std::time::Instant::now());
                     let total = COINS[player].fetch_add(1, Ordering::Relaxed) + 1;
                     log!("usbio: coin {} ({total})", player + 1);
+                    // Far Cry Paradise Lost: its coins are keyboard encoder presses
+                    crate::keyboard::coin(player);
                 }
             }
             std::thread::sleep(std::time::Duration::from_millis(5));
