@@ -384,6 +384,25 @@ fn bink_no_device(base: usize) {
     });
 }
 
+static GET_DRIVE_TYPE_A: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The launcher keeps its settings, credits and bookkeeping on the cabinet drives F: and G:
+/// only when they are removable or fixed disks (0x54450): a dump on a network share (the
+/// Batocera roms folder over NFS) made them remote drives, nothing was saved (the operator
+/// menu's changes lost). They are fixed disks.
+unsafe extern "system" fn get_drive_type_a(root: *const u8) -> u32 {
+    const DRIVE_FIXED: u32 = 3;
+    if !root.is_null() {
+        let letter = unsafe { *root }.to_ascii_uppercase();
+        if matches!(letter, b'F' | b'G') && unsafe { *root.add(1) } == b':' {
+            return DRIVE_FIXED;
+        }
+    }
+    type F = unsafe extern "system" fn(*const u8) -> u32;
+    let real: F = unsafe { std::mem::transmute(GET_DRIVE_TYPE_A.load(Ordering::Relaxed)) };
+    unsafe { real(root) }
+}
+
 static FOPEN_S: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// The operator menu's FREE PLAY is only shown by an offline build: the launcher reads its
@@ -425,6 +444,10 @@ pub(crate) fn attach(exe: &str, base: usize) {
     if exe.eq_ignore_ascii_case(LAUNCHER) {
         let _ = std::fs::remove_file(test_switch_file());
         crate::lla::status_window(base);
+        match unsafe { wal_payload_common::iat::hook_module(base, "kernel32.dll", "GetDriveTypeA", get_drive_type_a as *const () as usize) } {
+            Some(o) => GET_DRIVE_TYPE_A.store(o, Ordering::Relaxed),
+            None => log!("tc5: GetDriveTypeA not hooked"),
+        }
         // the operator menu is this process' window (the game hides its own and hands it its
         // switches): the PC keyboard reached it too, two moves per arrow press. Its message loops
         // (mfc100u.dll's and its own) get no keyboard or mouse messages.
