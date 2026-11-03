@@ -15,7 +15,9 @@
 //! 2. `InitializeCore(CCoreBootInfo*)`: the core (log, configuration file, script engine).
 //! 3. A `CPranaEngine` in the engine's global `PE`, `Init(CPranaEngineBootInfo*)` (window,
 //!    renderer, input, scenes, plug-in manager) with the program's instance and the
-//!    configuration's window position and size.
+//!    configuration's window position and size. Then the sound, also the program's job:
+//!    `CFMOD::Create()` (FMOD's event system) and `CFMOD::LoadProject("Audio/GasGuzzlers.fev")`
+//!    (the music and effects; without them the race is silent).
 //! 4. The plug-in manager searches the program's folder (`AddSearchPath`, relative to the
 //!    project's data folder `Data/GasGuzzlers/`; `LoadPlugins`: the plug-ins register their
 //!    types).
@@ -257,12 +259,21 @@ fn main() {
         if r != 0 {
             fail("engine initialization failed");
         }
+        // the sound: the engine's FMOD (event system) and the game's event project (music,
+        // effects), which the program creates (the engine and the game only use them)
+        let create_fmod: unsafe extern "C" fn() -> *mut c_void = std::mem::transmute(export("Engine.dll", "?Create@CFMOD@@SAPAV1@XZ"));
+        let fmod = create_fmod();
+        let project = block(STRING_SIZE);
+        let string: MethodPtr = std::mem::transmute(export("Core.dll", "??0CPranaString@@QAE@PBD@Z"));
+        string(project, c"Audio/GasGuzzlers.fev".as_ptr().cast());
+        let load_project: unsafe extern "C" fn(*const c_void) -> u32 =
+            std::mem::transmute(export("Engine.dll", "?LoadProject@CFMOD@@SA_NABVCPranaString@@@Z"));
+        log(&format!("CFMOD: {fmod:?}, project loaded {}", load_project(project) & 0xff));
 
         // 4. the plug-ins, from the program's folder
         let get_plugins: Method = std::mem::transmute(export("Engine.dll", "?GetPluginManager@CPranaEngine@@QBEPAVCPluginManager@@XZ"));
         let plugins = get_plugins(engine) as *mut c_void;
         let path = block(STRING_SIZE);
-        let string: MethodPtr = std::mem::transmute(export("Core.dll", "??0CPranaString@@QAE@PBD@Z"));
         string(path, c"../../Bin32".as_ptr().cast());
         let add_path: MethodPtr = std::mem::transmute(export("Engine.dll", "?AddSearchPath@CPluginManager@@QAE_NABVCPranaString@@@Z"));
         let r = add_path(plugins, path) & 0xff;
