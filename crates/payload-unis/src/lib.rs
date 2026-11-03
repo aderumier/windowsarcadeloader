@@ -4,6 +4,9 @@
 //! `shunxiang.rs` emulates its COM3 I/O board, the guns' camera tracker (`LC64.dll`) and its
 //! dongles, through Mono's `DllImport`s (`payload-common`'s `mono_imports.rs`).
 //!
+//! Night Hunter: After Dark Chapter II (Unity 5.5, Mono, 64-bit; `WAL_UNIS_BOARD=qumo`):
+//! `qumo.rs` emulates its USB HID gun board and its dongle, through Mono's `DllImport`s.
+//!
 //! After Dark (Virtools 3.5, 32-bit; `WAL_UNIS_BOARD=afterdark`): `afterdark.rs` emulates its
 //! serial gun board and its HID board's device object (the dongle).
 //!
@@ -14,6 +17,7 @@
 
 mod afterdark;
 mod afterdark_stage4;
+mod qumo;
 mod shunxiang;
 
 use std::ffi::c_void;
@@ -49,6 +53,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         match board.trim() {
             "" | "shunxiang" => shunxiang::init(),
             "afterdark" => afterdark::init(),
+            "qumo" => qumo::init(),
             other => wal_payload_common::log!("unis: unknown board {other}"),
         }
     }

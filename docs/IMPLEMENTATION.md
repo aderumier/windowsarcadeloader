@@ -4070,6 +4070,41 @@ profile, another `main.vmo`): a Virtools 3.5 player linked into
   game has no free play (its coin setting 0 does not give one): `WAL_UNIS_FREEPLAY` (default
   on, a profile option) makes a start press a coin, then the start.
 
+#### Night Hunter: After Dark Chapter II
+
+The "qumo" gun cabinet (Unity 5.5, Mono `mono.dll`, 64-bit, `qumo2_en.exe`;
+`WAL_UNIS_BOARD=qumo`), two guns. Dino Invasion's code base: its LC64 camera and COM board are
+unused, `gun_manage_qumo` reads everything from a USB HID board (`hid_for_qumo_recv`). Some dumps
+carry a mod loader (`winhttp.dll`, BepInEx and a plugin putting the game on the mouse): the
+profile takes Wine's `winhttp`, the game unmodified.
+
+- **Board (`qumo.rs`).** STMicroelectronics 0483:5750, version 0200, opened by `USB_HID.dll`
+  (Mono): `SetupDiGetClassDevs` / `SetupDiEnumDeviceInterfaces` /
+  `SetupDiGetDeviceInterfaceDetail` (the path, UTF-16), `CreateFile` (ANSI) and
+  `HidD_GetAttributes`, then a read handle and a write handle, overlapped `ReadFile` /
+  `WriteFile` on its threads (`GetOverlappedResult`, the `OVERLAPPED`'s event set). Those
+  `DllImport`s are the payload's: one interface, its path's handles the payload's
+  (`0x5A12xxxx`), every other handle the real functions'. The game writes a report each
+  update (10 ms at most: recoil, lights; accepted), the payload answers each with an input
+  report (else every 50 ms): its event manager hands the game one report a frame, a faster
+  board would queue them.
+- **Input report.** 16 bytes after the report id 0: `AA`; byte 1 the operator's buttons (bit 2
+  test, 1 service, 0 reset); byte 2 each gun's buttons (P1 / P2 bits: 7 / 6 coin, 5 / 4 big
+  button, 3 / 2 trigger, also the start, 1 / 0 emergency stop); byte 3 bits 7 / 6 the change
+  of weapon (the pump); per gun three bytes (P1 5..7, P2 8..10): x's low byte, y's low byte,
+  x's high nibble (bits 4..7) and y's (bits 0..3). The game counts a coin on each press.
+- **Guns.** 12 bits, 0..4095 from the picture's bottom left (y up), mapped by the game through
+  its calibration `Assets/config/game/excel_data/jiaoqiang.csv` (the dump's: a cabinet's
+  guns): the profile's file, every corner at 0 / 4095, the aim unchanged. The game draws its
+  gun marks (the crosshair option off).
+- **Dongle.** `Sense4` (`dog_hardware_sense_4`, verified at start): every call succeeds
+  (Dino Invasion's functions).
+- **Operator menu.** Test opens it, reset moves (held: repeats), service selects
+  (`config_cehua_houtai`: move `FIX_BUTTON`, OK `SERVER_BUTTON`).
+- **Play.** The dump is set to free play; the trigger starts a game, the other gun's trigger
+  joins. Natives `trigger big change coin stop` (each gun), `test service reset` (the
+  operator's).
+
 ### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
 
 Adrenaline's PC-based arcade games. System `adrenaline` (Batocera's ES `adrenaline`), payload
@@ -4699,6 +4734,9 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
+| `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | `GamePlayer.exe` (Virtools 3.5, 32-bit, §6.3j) started by wal-loader with the payload: COM1 gun board (guns, triggers, start, coins, operator keys), the HID board's device object replaced (dongle), `GameConfig` (composition, folders, 1920x1080 full screen), fake DirectInput (COM-created) |
+| `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns | as `after-dark` (the same executable and profile), Microsoft's `d3dx9_41` (not in the dump) |
+| `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns | UNIS's qumo guns (Unity 5.5, 64-bit, §6.3j): the payload (`xinput1_3.dll`) emulates the USB HID board (`SetupDi`, `HidD_GetAttributes`, overlapped reads and writes: Mono `DllImport`s) and the Sense4 dongle; identity gun calibration file; Wine's `winhttp` (no BepInEx) |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): Rabbids Hollywood's Sixense trackers, Kaboom Adrio board and Matrix dongle; the trigger on the board's player button 2, the tracker's button reloads; Wine's `winhttp` |
@@ -4737,8 +4775,6 @@ TODO, roughly by priority:
 * Lightgun backend: port `batocera-wine-guns` (evdev `ID_INPUT_GUN` guns, mouse fallback); needs
   gun axes in the virtual stick or a separate gun state in the protocol (protocol version bump).
 * Outputs: payload → launcher (lamps, force feedback, recoil) with system-defined ids.
-| `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | `GamePlayer.exe` (Virtools 3.5, 32-bit, §6.3j) started by wal-loader with the payload: COM1 gun board (guns, triggers, start, coins, operator keys), the HID board's device object replaced (dongle), `GameConfig` (composition, folders, 1920x1080 full screen), fake DirectInput (COM-created) |
-| `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns | as `after-dark` (the same executable and profile), Microsoft's `d3dx9_41` (not in the dump) |
 * NESiCA: verify card insertion/NESYS card data in a real play session; per-game patches.
 * Settings the batocera script has and the launcher does not: fonts, redistributable installs,
   save-file linking, virtual desktop, FSR, NVAPI, hidraw.

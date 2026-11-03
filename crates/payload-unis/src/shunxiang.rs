@@ -178,6 +178,14 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
             "LCGetContrast" => f(lc_contrast as *const () as usize),
             _ => f(lc_none as *const () as usize),
         },
+        _ => dongles(name, module),
+    }
+}
+
+/// The dongles' functions (`DllBindFunc`, `Sense4`): shared with Night Hunter's `qumo.rs`.
+pub(crate) fn dongles(name: &str, module: &str) -> Option<usize> {
+    let f = |f: usize| Some(f);
+    match module {
         "dllbindfunc.dll" => match name {
             "BIND_IsDongleVerify" => f(bind_verify as *const () as usize),
             "BIND_GetDongleVerifyLic" => f(bind_licence as *const () as usize),
