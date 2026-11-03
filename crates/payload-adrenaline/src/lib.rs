@@ -16,6 +16,9 @@
 //! - Hot Wheels: Kings of the Road (Unity 2018.3, Mono, 64-bit): a six-seat driving game.
 //!   `hotwheels.rs` is its three Kaboom Adrio "Hot Wheels" boards
 //!   (`KaboomAdrioHotWheels64.dll`: two steering wheels, pedals, keypads and coin doors each).
+//! - Infinity Blade FX (Unreal Engine 3, 32-bit): a touch screen sword game, swiped. The
+//!   executable imports the PQ Labs client (`pqmt.rs`) and the Matrix dongle, and has the
+//!   Kaboom board's library built in (`kaboom.rs`: its serial port).
 //! - Spider-Man Homecoming (Unity 5.5, Mono, 32-bit): two players, one button each.
 //!   `adrio2.rs` is its Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
 //!   coins, the players' buttons on the operator's keypad, the ticket feeders).
@@ -69,6 +72,11 @@ const PLAYERS: usize = 4;
 enum Native {
     /// The player's finger on the screen, where the gun points.
     Touch,
+    /// A finger held on the shield (Infinity Blade FX: its block zone), wherever the gun points.
+    Shield,
+    /// A finger on the left / right dodge arrow (Infinity Blade FX).
+    DodgeLeft,
+    DodgeRight,
     /// The gun's trigger (Rabbids Hollywood, Tomb Raider).
     Trigger,
     /// The gun's reload button (Tomb Raider: the tracker's button).
@@ -99,6 +107,9 @@ enum Native {
 
 const NATIVES: &[(&str, Native)] = &[
     ("touch", Native::Touch),
+    ("shield", Native::Shield),
+    ("dodge_left", Native::DodgeLeft),
+    ("dodge_right", Native::DodgeRight),
     ("trigger", Native::Trigger),
     ("reload", Native::Reload),
     ("start", Native::Start),
@@ -222,7 +233,20 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             unity = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
         }
         wal_payload_common::input_filter::init(unity, |_| false);
-        mono_imports::hook(resolve);
+        // Infinity Blade FX (Unreal Engine 3): the touch frame's client and the dongle imported
+        // by the executable, the board on a serial port; no Mono
+        #[cfg(target_pointer_width = "32")]
+        let native = pqmt::hook_imports();
+        #[cfg(target_pointer_width = "64")]
+        let native = false;
+        #[cfg(target_pointer_width = "32")]
+        if native {
+            matrix::hook_ordinals();
+            kaboom::init_serial();
+        }
+        if !native {
+            mono_imports::hook(resolve);
+        }
         if steering::enabled() {
             steering::init();
         }

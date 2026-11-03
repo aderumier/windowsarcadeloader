@@ -4160,6 +4160,40 @@ loads it at the entry point, so the crosshair overlay hooks the device.
 - **Play.** 4 coins a game (operator setting), then touches: element and character select,
   shooting. Natives `touch coin` (each player), `operator`. The common crosshair option (d3d9).
 
+#### Infinity Blade FX
+
+Unreal Engine 3 (Direct3D 9 / 10, 32-bit, a mixed-mode executable run by Wine Mono), the
+touch screen sword game: swipes swing the sword, taps block and dodge. The dump's root holds
+`infinity-blade-fx.windowsloader` (`Binaries\Win32\SwordGame.exe`), which imports the payload
+(`xinput1_3.dll`): no Mono `DllImport`s, the hardware is hooked in the executable's imports.
+
+- **Touch frame.** `PQMTClient.dll` imported (`ConnectServer`, `SendRequest`, `SendThreshold`,
+  `SetOnReceivePointFrame`, `SetOnGetDeviceInfo`, `DisconnectServer`): `pqmt.rs`'s client
+  through IAT hooks, the callback called from the payload's thread without a Mono attach, the
+  points in client pixels (the game never asks the resolution). One player: P1's mouse or gun.
+- **Gun swipes.** `WAL_GUN_SWIPE=<gain>` (profile option, default 1): while the trigger is held
+  the finger moves `gain` times as far as the gun from where it was pulled. The game's swipe
+  zones need 200 px at 900 px/s (`SwordGame.ini`): at gain 5 a flick of 6% of the screen's
+  width hits (headless: the boss from 180 to 100 health), at gain 1 the same flicks do nothing.
+- **Shield and dodges.** Fixed fingers, wherever the gun points (`pqmt.rs` `FIXED`, ids the
+  player + 4 / 8 / 12): native `shield` (profile: `b2`, right click / the gun's second button)
+  held on the block zone (`SwordShieldBlock`, x 0.41-0.59, y 0.8-1.0: the shield stays up, its
+  count drops per blocked hit), `dodge_left` / `dodge_right` (`left` / `right`: the arrow keys,
+  the gun's d-pad) on the dodge arrows (`SwordDodgeLeft` / `Right`, the bottom corners).
+- **Kaboom board (`kaboom.rs`).** The board's library is built into the executable
+  (`CKaboomCom`, `\\.\COMn`): packets `F10E` request / `B00F` reply, a 16-bit sum of the
+  length, command and data bytes, u16 length and command; commands 6 keypad (18 bytes, the
+  menu key's count at byte 14), 8 / 9 tickets to feed, 10 fed + empty, 11 feeder reset, 12 / 13
+  the coin counters. Answered on any COM port (`serial.rs` `COM*`).
+- **Dongle.** `matrix32.dll` imported by ordinal (#40 `Init_MatrixAPI`, #55 `Dongle_Count`,
+  #61 `Dongle_ReadSerNr`): `matrix.rs`. The dump's `matrix32.dll` and `dinput8.dll` are a
+  third-party loader shim (it asks for another loader's DLL): Wine's `dinput8`, our imports.
+- **Engine settings.** The profile's `SwordEngine.ini` (`files`): `AllowJoystickInput=0` (with
+  no pad the engine's joystick loop writes through a null device at the title: crash at
+  `SwordGame.exe+0x18e488b`) and `AllowD3D10=False` (Direct3D 9: the crosshair, screenshots).
+  Full screen from `-ResX= -ResY= -fullscreen` (the Resolution option).
+- **Play (headless).** 4 coins a credit, touch: title, single player, the fight.
+
 #### Rabbids Hollywood
 
 Unity 2017.2 (Mono, Direct3D 11, 64-bit), four guns: Sixense STEM packs (electromagnetic
@@ -4810,6 +4844,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | Adrenaline's 3-player monster game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Kaboom Adrio board (joysticks, attack buttons on the keypad, callbacks from a Mono-attached thread) and Matrix dongle |
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | Adrenaline's six-seat driving game (Unity 2018.3, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its three Kaboom Adrio Hot Wheels boards (wheels, pedals, coins, callbacks from a Mono-attached thread) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `need-for-speed-heat-takedown` | Need for Speed Heat Takedown | adrenaline | user 100% (2026-11-03), 1 wheel, force feedback | Sarbakan's driving game (Unity 2021.2, Mono, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its steering board on COM3 (Mono's `SerialPort`: the port listed in the registry, the wheel, pedals, nitro, keypad, coins; the car info played as force feedback) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
+| `infinity-blade-fx` | Infinity Blade FX | adrenaline | works headless (2026-11-03: coins, start, fight, gun swipes, shield, dodges), 1 player | Adrenaline's touch screen sword game (Unreal Engine 3, 32-bit, §6.3k): the payload (`xinput1_3.dll`, imported by the game) hooks its PQ Labs client and Matrix dongle imports, answers its built-in Kaboom board on the serial port; gun swipe gain option; engine ini without joysticks, Direct3D 9 |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |

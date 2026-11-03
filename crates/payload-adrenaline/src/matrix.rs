@@ -12,6 +12,8 @@
 //!   `Dongle_DecryptData` (the game's key thread, before its check) the payload writes the MD5s
 //!   of our decryption of `KEY` and `IV` into those hashes: the check passes with a key of its
 //!   own, the same every run, and the saves (operator settings, free play) are read back.
+//! - Infinity Blade FX (native): the executable imports `Init_MatrixAPI` (#40),
+//!   `Dongle_Count` (#55) and `Dongle_ReadSerNr` (#61) by ordinal ([`hook_ordinals`]).
 
 const DONGLE_SERIAL: i32 = 0x0057_414C;
 const KEY: [u32; 4] = [0x5741_4C20, 0x4D61_7472, 0x6978_2044, 0x6F6E_676C];
@@ -129,4 +131,19 @@ pub fn resolve(name: &str) -> Option<usize> {
         _ => return None,
     };
     Some(f)
+}
+
+/// A native game's ordinal imports of `matrix32.dll` pointed at ours.
+#[cfg(target_pointer_width = "32")]
+pub fn hook_ordinals() {
+    let exe = wal_payload_common::iat::game_module();
+    let mut hooked = 0;
+    for (ordinal, name) in [(40, "Init_MatrixAPI"), (41, "Release_MatrixAPI"), (55, "Dongle_Count"), (56, "Dongle_ReadData"), (61, "Dongle_ReadSerNr")] {
+        if let Some(f) = resolve(name)
+            && unsafe { wal_payload_common::iat::hook_ordinal(exe, "matrix32.dll", ordinal, f) }.is_some()
+        {
+            hooked += 1;
+        }
+    }
+    wal_payload_common::log!("matrix: {hooked} ordinal imports hooked");
 }

@@ -14,6 +14,16 @@
 //! (`x`, `height - y`) scaled by the desktop's size divided by the frame's resolution, in
 //! integers: the reported resolution is 0.6 times the screen's (the scale 1 for a desktop
 //! between 0.6 and 1.2 times the screen), the points in the game window's client pixels.
+//!
+//! Infinity Blade FX (Unreal Engine 3, no Mono): the game imports the client
+//! ([`hook_imports`]), never asks the resolution; the points are the game window's client
+//! pixels. Its sword is swung by swipes: `WAL_GUN_SWIPE=<gain>` (the profile's "Gun swipes"
+//! option) moves the finger `gain` times as far as the gun from where the trigger was pulled,
+//! so a short flick of a gun held on the screen is a full swipe, in the gun's direction.
+//! Fixed fingers, wherever the gun points (ids: the player + 4, 8, 12): `shield` (the profile's
+//! right click / gun's second button) on the block zone (`SwordShieldBlock`: x 0.41-0.59,
+//! y 0.80-1.0), `dodge_left` / `dodge_right` (left / right: the arrow keys, the gun's d-pad) on
+//! the dodge arrows (`SwordDodgeLeft` / `Right`: the bottom corners, 0.11 x 0.12).
 
 use std::ffi::{CStr, c_void};
 use std::sync::{Mutex, Once};
@@ -55,6 +65,15 @@ static DOMAIN: AtomicUsize = AtomicUsize::new(0);
 static CONNECTED: AtomicBool = AtomicBool::new(false);
 /// The other callbacks' (server break, errors, device info, gestures), returned when replaced.
 static OTHERS: Mutex<[usize; 4]> = Mutex::new([0; 4]);
+/// A native game (the executable imports the client): no Mono, client pixel points.
+static NATIVE: AtomicBool = AtomicBool::new(false);
+
+/// `WAL_GUN_SWIPE`: how many times the gun's moves since the trigger the finger moves (1: as
+/// far, where the gun points).
+fn swipe_gain() -> f32 {
+    static GAIN: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *GAIN.get_or_init(|| std::env::var("WAL_GUN_SWIPE").ok().and_then(|v| v.trim().parse().ok()).filter(|g: &f32| *g >= 1.0).unwrap_or(1.0))
+}
 
 /// The reported resolution: 0.6 times the screen's.
 fn resolution() -> (i32, i32) {
@@ -134,12 +153,27 @@ extern "C" fn get_gesture_name(_gesture: P) -> *const u8 {
     c"".as_ptr().cast()
 }
 
-/// Where `player`'s finger is: its gun's place in the game window, frame coordinates.
-fn finger(player: usize) -> Option<(i32, i32)> {
-    let (fx, fy) = gun::gun_of_player_in_picture(player)?;
+/// Where `player`'s finger is: its place in the game window (`at`, fractions from the top left),
+/// frame coordinates.
+fn finger((fx, fy): (f32, f32)) -> Option<(i32, i32)> {
     let (_, _, w, h) = gun::client_area(gun::find_window())?;
+    if NATIVE.load(Ordering::Relaxed) {
+        return Some(((fx * w) as i32, (fy * h) as i32));
+    }
     let (_, rh) = resolution();
     Some(((fx * w) as i32, rh - ((1.0 - fy) * h) as i32))
+}
+
+/// The fixed fingers: their native and place (the zone's centre, fractions of the picture).
+const FIXED: [(Native, (f32, f32)); 3] = [(Native::Shield, (0.5, 0.9)), (Native::DodgeLeft, (0.055, 0.94)), (Native::DodgeRight, (0.945, 0.94))];
+/// Fingers: each player's, then each fixed finger of each player.
+const FINGERS: usize = PLAYERS * (1 + FIXED.len());
+
+/// The finger's place for a gun at `gun` pulled at `anchor`: its moves since times the swipe
+/// gain, on the picture.
+fn swiped(gun: (f32, f32), anchor: (f32, f32), gain: f32) -> (f32, f32) {
+    let at = |g: f32, a: f32| (a + (g - a) * gain).clamp(0.0, 0.999);
+    (at(gun.0, anchor.0), at(gun.1, anchor.1))
 }
 
 /// Attaches the calling thread to the game's Mono domain: Unity 4's Mono needs it for the
@@ -147,6 +181,9 @@ fn finger(player: usize) -> Option<(i32, i32)> {
 /// thread must start after Mono's load: an earlier one has no slot in its static TLS (a crash in
 /// `mono_thread_attach`).
 fn attach() -> bool {
+    if NATIVE.load(Ordering::Relaxed) {
+        return true;
+    }
     let domain = DOMAIN.load(Ordering::Relaxed);
     let Some(f) = mono_export(c"mono_thread_attach").filter(|_| domain != 0) else {
         return false;
@@ -155,18 +192,34 @@ fn attach() -> bool {
     !unsafe { thread_attach(domain as P) }.is_null()
 }
 
+/// Finger `id`'s point for this frame, at `at` (`None`: lifted): down, moved or up, none if it
+/// stays lifted.
+fn touch_point(id: usize, at: Option<(i32, i32)>, down: &mut [bool], last: &mut [(i32, i32)]) -> Option<TouchPoint> {
+    let (event, (x, y)) = match (at, down[id]) {
+        (Some(at), false) => (TP_DOWN, at),
+        (Some(at), true) => (TP_MOVE, at),
+        (None, true) => (TP_UP, last[id]),
+        (None, false) => return None,
+    };
+    down[id] = event != TP_UP;
+    last[id] = (x, y);
+    Some(TouchPoint { point_event: event, id: id as u16, x, y, dx: 16, dy: 16 })
+}
+
 /// Sends the players' fingers to the game.
 fn touch_thread() {
     let mut attached = false;
-    let mut down = [false; PLAYERS];
-    let mut last = [(0, 0); PLAYERS];
+    let mut down = [false; FINGERS];
+    let mut last = [(0, 0); FINGERS];
+    let mut anchor = [(0.0, 0.0); PLAYERS];
+    let gain = swipe_gain();
     let mut frame_id = 0i32;
     let mut sent = false;
     loop {
         std::thread::sleep(Duration::from_millis(16));
         let callback = POINT_FRAME.load(Ordering::Relaxed);
         if callback == 0 || !CONNECTED.load(Ordering::Relaxed) {
-            down = [false; PLAYERS];
+            down = [false; FINGERS];
             continue;
         }
         if !attached {
@@ -177,17 +230,30 @@ fn touch_thread() {
             log!("pqmt: touch thread attached to the game's domain");
         }
         let mut points = Vec::new();
-        for player in 0..PLAYERS {
-            let at = if held(player, Native::Touch) { finger(player) } else { None };
-            let (event, (x, y)) = match (at, down[player]) {
-                (Some(at), false) => (TP_DOWN, at),
-                (Some(at), true) => (TP_MOVE, at),
-                (None, true) => (TP_UP, last[player]),
-                (None, false) => continue,
-            };
-            down[player] = event != TP_UP;
-            last[player] = (x, y);
-            points.push(TouchPoint { point_event: event, id: player as u16, x, y, dx: 16, dy: 16 });
+        for id in 0..FINGERS {
+            let player = id % PLAYERS;
+            if id >= PLAYERS {
+                let (native, place) = FIXED[id / PLAYERS - 1];
+                let at = if held(player, native) { finger(place) } else { None };
+                if let Some(point) = touch_point(id, at, &mut down, &mut last) {
+                    points.push(point);
+                }
+                continue;
+            }
+            let gun = if held(player, Native::Touch) { gun::gun_of_player_in_picture(player) } else { None };
+            if let Some(gun) = gun
+                && !down[player]
+            {
+                anchor[player] = gun;
+            }
+            let at = gun.and_then(|gun| finger(swiped(gun, anchor[player], gain)));
+            if held(player, Native::Touch) && at.is_none() {
+                static ONCE: Once = Once::new();
+                ONCE.call_once(|| log!("pqmt: P{} touch held off the picture (gun {gun:?}, window {:?})", player + 1, gun::client_area(gun::find_window())));
+            }
+            if let Some(point) = touch_point(id, at, &mut down, &mut last) {
+                points.push(point);
+            }
         }
         if points.is_empty() {
             continue;
@@ -225,4 +291,35 @@ pub fn resolve(name: &str) -> Option<usize> {
 
 pub fn init() {
     log!("pqmt: PQ Labs touch frame");
+}
+
+/// A native game's imports of the client pointed at ours: whether the executable imports it.
+pub fn hook_imports() -> bool {
+    const NAMES: [&str; 12] = [
+        "ConnectServer",
+        "DisconnectServer",
+        "SendRequest",
+        "SendThreshold",
+        "SetRawDataResolution",
+        "GetServerResolution",
+        "SetOnReceivePointFrame",
+        "SetOnServerBreak",
+        "SetOnReceiveError",
+        "SetOnGetDeviceInfo",
+        "SetOnReceiveGesture",
+        "GetGestureName",
+    ];
+    let mut hooked = 0;
+    for name in NAMES {
+        if let Some(f) = resolve(name)
+            && unsafe { wal_payload_common::iat::hook("PQMTClient.dll", name, f) }.is_some()
+        {
+            hooked += 1;
+        }
+    }
+    if hooked > 0 {
+        NATIVE.store(true, Ordering::Relaxed);
+        log!("pqmt: the executable's {hooked} client imports hooked (native game), swipe gain {}", swipe_gain());
+    }
+    hooked > 0
 }

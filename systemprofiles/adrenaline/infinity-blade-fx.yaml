@@ -1,0 +1,78 @@
+# Infinity Blade FX (Adrenaline Amusements / Chair Entertainment, Unreal Engine 3, 32-bit) -
+# template, override values in userprofiles/adrenaline/infinity-blade-fx.yaml.
+# A touch screen sword game: the sword swings with swipes, taps block and dodge. The mouse (or
+# a gun) touches the screen where it points while its button is held. The payload emulates the
+# cabinet's PQ Labs touch frame, its Kaboom I/O board (on its serial port: coins, the
+# operator's keypad, the ticket dispenser) and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: Infinity Blade FX
+
+dll_overrides:
+  # SwordGame.exe imports xinput1_3.dll: the payload
+  xinput1_3: "n,b"
+  # the dump's dinput8.dll is a third-party hook loader: Wine's own
+  dinput8: "b"
+
+# The cabinet's engine settings: no joysticks (with none plugged, the engine's joystick loop
+# crashes at the title), Direct3D 9 (the crosshair; the dump's default is Direct3D 10).
+files:
+  SwordGame/Config/SwordEngine.ini: systemprofiles/adrenaline/files/infinity-blade-fx/SwordEngine.ini
+
+# the full screen mode: the Resolution option (GUI's Options tab)
+args: ["-ResX={WAL_RESOLUTION.width}", "-ResY={WAL_RESOLUTION.height}", -fullscreen]
+
+env:
+  WAL_RESOLUTION: 1920x1080
+  # gun swipes off: the finger follows the mouse or gun
+  WAL_GUN_SWIPE: "1"
+  # the game's DirectInput sees no device: its input is the touch frame's
+  WAL_DINPUT_DISABLE: "1"
+  # the game draws no gun cursor: the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_RESOLUTION
+        label: Resolution
+        kind: choice
+        choices: [1280x720, 1600x900, 1920x1080]
+        description: The game's full screen mode. 1920x1080 is the cabinet's.
+  - title: Controls
+    options:
+      - key: WAL_GUN_SWIPE
+        label: Gun swipes
+        kind: choice
+        choices: ["1", "3", "5", "8"]
+        description: >-
+          For light guns: while the trigger is held, the finger moves this many times as far as
+          the gun from where the trigger was pulled, in the same direction. A short flick of
+          the gun is a full sword swipe, without leaving the screen. 1 (the default): the
+          finger stays where the gun or mouse points, for the mouse.
+
+input:
+  # each player's gun (or mouse) aims, its trigger touches
+  guns_enabled: true
+  stick_as_dpad: false
+
+# right click / the gun's second button: the shield held up (a finger on its block zone);
+# left / right (the arrow keys, the gun's d-pad): a dodge (a finger on its arrow)
+native_map:
+  b1: touch
+  b2: shield
+  left: dodge_left
+  right: dodge_right
+  coin: coin
+  test: operator
+  service: operator
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (touch, swipe)
+  b2: Shield (hold)
+  left: Dodge left
+  right: Dodge right
+  coin: Coin
+  test: Operator menu
+  service: Operator menu

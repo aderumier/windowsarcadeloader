@@ -10,6 +10,13 @@
 //!   feed" count (`SetTicketFeederTicketToFeedCount`), then poll the fed count
 //!   (`GetTicketFeederCount`: fed, empty) until it reaches it and reset both
 //!   (`ResetTicketFeeder`). The dispenser feeds a ticket every 100 ms, never empty.
+//! - **Serial (Infinity Blade FX).** The board library compiled into the game (`CKaboomCom`):
+//!   the same functions as packets on the board's port (`\\.\COMn`, the first answering): a
+//!   request `F10E`, checksum, length, command, data; the reply `B00F`, checksum (16-bit sum of
+//!   the length, command and data bytes), length, the command, its data (u16 little-endian
+//!   fields). The game's commands: 6 keypad (18 bytes: the four press counts at 12..16),
+//!   8 / 9 get / set the tickets to feed, 10 the fed count and the empty flag, 11 reset the
+//!   feeder, 12 / 13 the coin counters (and reset them).
 
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::time::Duration;
@@ -156,4 +163,59 @@ pub fn resolve(name: &str) -> Option<usize> {
 pub fn init() {
     std::thread::spawn(board_thread);
     log!("kaboom: Kaboom board");
+}
+
+/// The board on its serial port (any COM port the game tries): the game's own copy of the
+/// library.
+pub fn init_serial() {
+    wal_payload_common::serial::install("COM*", serial_packet);
+    log!("kaboom: Kaboom board on the serial port");
+}
+
+const REQUEST: u16 = 0xF10E;
+const REPLY: u16 = 0xB00F;
+
+/// Answers a request packet.
+fn serial_packet(request: &[u8]) -> Vec<u8> {
+    let u16_at = |i: usize| request.get(i..i + 2).map_or(0, |b| u16::from_le_bytes([b[0], b[1]]));
+    if request.len() < 8 || u16_at(0) != REQUEST {
+        log!("kaboom: not a request: {request:02X?}");
+        return Vec::new();
+    }
+    let command = u16_at(6);
+    let data = |v: &[u16]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
+    let body = match command {
+        // the keypad: the menu key's press count (byte 14) toggles the operator menu
+        6 => {
+            let mut d = vec![0; 18];
+            d[14] = MENU.load(Ordering::Relaxed) as u8;
+            d
+        }
+        8 => data(&[TO_FEED.load(Ordering::Relaxed)]),
+        9 => {
+            set_ticket_to_feed(u16_at(8));
+            Vec::new()
+        }
+        10 => data(&[FED.load(Ordering::Relaxed), 0]),
+        11 => {
+            reset_ticket_feeder();
+            Vec::new()
+        }
+        12 => data(&[COINS[0].load(Ordering::Relaxed), COINS[1].load(Ordering::Relaxed)]),
+        13 => data(&[COINS[0].swap(0, Ordering::Relaxed), COINS[1].swap(0, Ordering::Relaxed)]),
+        // the library's others (unused by the game): the request's data echoed
+        _ => {
+            log!("kaboom: serial command {command}");
+            request[8..].to_vec()
+        }
+    };
+    let mut reply = Vec::with_capacity(8 + body.len());
+    reply.extend(REPLY.to_le_bytes());
+    reply.extend([0, 0]);
+    reply.extend((body.len() as u16).to_le_bytes());
+    reply.extend(command.to_le_bytes());
+    reply.extend(&body);
+    let sum = reply[4..].iter().fold(0u16, |s, &b| s.wrapping_add(b as u16));
+    reply[2..4].copy_from_slice(&sum.to_le_bytes());
+    reply
 }
