@@ -21,6 +21,8 @@ env:
   # the game (its full screen at the desktop's size, no mode change), its window fitted onto the
   # real screen (aspect kept, centered).
   WAL_DESKTOP_SIZE: 1080x1920
+  # the cabinet art around the picture (added to the dump)
+  WAL_BEZEL: bezel.png
 
 # the start size too (else Unity's last one, saved in the registry)
 args: [-screen-fullscreen, "1", -screen-width, "1080", -screen-height, "1920"]
