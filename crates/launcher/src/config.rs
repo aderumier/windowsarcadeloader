@@ -340,6 +340,7 @@ impl Profile {
         profile.root = root.to_path_buf();
         profile.id = id.to_string();
         profile.sources = sources;
+        profile.args = profile.args.iter().map(|a| expand_env(a, &profile.env)).collect();
         profile.add_common_options();
         Ok(profile)
     }
@@ -486,9 +487,48 @@ pub fn game_ids(root: &Path) -> Result<Vec<String>> {
     Ok(ids)
 }
 
+/// A game argument with the profile's environment (its options) in it: `{NAME}` the value of
+/// `NAME`, `{NAME.width}` and `{NAME.height}` the two sides of a `WIDTHxHEIGHT` value (a
+/// resolution option: Unity's `-screen-width {WAL_RESOLUTION.width}`). Unknown names stay as
+/// they are.
+pub fn expand_env(arg: &str, env: &BTreeMap<String, String>) -> String {
+    let mut out = String::new();
+    let mut rest = arg;
+    while let Some(start) = rest.find('{') {
+        let Some(len) = rest[start..].find('}') else { break };
+        let name = &rest[start + 1..start + len];
+        let (key, part) = match name.rsplit_once('.') {
+            Some((k, p @ ("width" | "height"))) => (k, Some(p)),
+            _ => (name, None),
+        };
+        let value = env.get(key).and_then(|v| match part {
+            None => Some(v.clone()),
+            Some(p) => v.split_once(['x', 'X']).map(|(w, h)| if p == "width" { w } else { h }.trim().to_string()),
+        });
+        out.push_str(&rest[..start]);
+        match value {
+            Some(v) => out.push_str(&v),
+            None => out.push_str(&rest[start..=start + len]),
+        }
+        rest = &rest[start + len + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn args_expand_env() {
+        let env: BTreeMap<String, String> = [("WAL_RESOLUTION".to_string(), "1280x720".to_string())].into();
+        assert_eq!(expand_env("{WAL_RESOLUTION.width}", &env), "1280");
+        assert_eq!(expand_env("{WAL_RESOLUTION.height}", &env), "720");
+        assert_eq!(expand_env("-res={WAL_RESOLUTION}", &env), "-res=1280x720");
+        assert_eq!(expand_env("{OTHER}", &env), "{OTHER}");
+        assert_eq!(expand_env("-screen-width", &env), "-screen-width");
+    }
 
     fn tmp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("wal-profile-{name}-{}", std::process::id()));

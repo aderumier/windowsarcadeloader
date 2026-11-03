@@ -1,4 +1,4 @@
-//! The Sixense STEM trackers of Rabbids Hollywood: `sxCore.dll`, the STEM base's driver,
+//! The Sixense STEM trackers of Rabbids Hollywood and Tomb Raider: `sxCore.dll`, the STEM base's driver,
 //! replaced. Each player's gun is a STEM pack (an electromagnetic tracker: position and
 //! rotation) the base tracks.
 //!
@@ -9,7 +9,8 @@
 //!   reported, no flashing), waits for each gun to be auto-synced (`tracker_id` 7) and maps
 //!   `device_type_extended` to the players.
 //! - **Data.** `sxCoreGetData` (every frame) and `sxCoreGetDataPrevious` (history 1): status
-//!   (enabled, wired), buttons (`START`, bit 0: the trigger), position in millimetres (Unity
+//!   (enabled, wired), buttons (`START`, bit 0: Rabbids' trigger, besides the board's player
+//!   button 2; Tomb Raider's reload, its trigger on the board only), position in millimetres (Unity
 //!   flips z), rotation quaternion (Unity flips z and w).
 //! - **Aim.** `InputCollisionMesh.GetViewportPosition` casts a ray from the gun (plus the
 //!   receiver's place: `m_ReceiverOffsetY - m_SizeY / 2` below the screen's centre,
@@ -22,7 +23,8 @@
 //!   starts it with "gun not found" set (mouse at once, the guns never read). A second after
 //!   `GunDetection` has set the guns up (`sxCoreSoftReset`), the payload clears it, sets "gun
 //!   ready" and calls its `ChooseInput` (Mono's embedding API, from `sxCoreGetData`: the main
-//!   thread), on any new instance still on the mouse.
+//!   thread), on any new instance still on the mouse. Tomb Raider's `InputManager` starts
+//!   without it and takes the guns at "gun ready".
 //!
 use std::ffi::c_char;
 use std::sync::OnceLock;
@@ -156,6 +158,13 @@ const INPUT_MODE_MOUSE: i32 = 0;
 
 /// `NewInputManager` on the guns, if it chose the mouse (the main thread).
 fn gun_mode() {
+    // Tomb Raider's `InputManager` takes the guns at "gun ready" by itself
+    if !trigger_on_start() {
+        if let Some(m) = mono() {
+            crate::tombraider::frame(m);
+        }
+        return;
+    }
     let Some(set_up) = *SET_UP.lock().unwrap() else { return };
     if set_up.elapsed().as_secs_f32() < 1.0 {
         return;
@@ -188,6 +197,22 @@ fn gun_mode() {
     }
     let gun = m.invoke(choose, obj.cast(), &mut []).is_some();
     log!("sixense: NewInputManager on the guns ({})", if gun { "ok" } else { "ChooseInput threw" });
+}
+
+/// Whether the tracker's button is the trigger (Rabbids Hollywood: `NewInputManager`); Tomb
+/// Raider's reloads (its trigger is the board's player button 2 only).
+fn trigger_on_start() -> bool {
+    static RABBIDS: OnceLock<bool> = OnceLock::new();
+    if let Some(&rabbids) = RABBIDS.get() {
+        return rabbids;
+    }
+    // known once the game's assembly is loaded (Rabbids until then)
+    let Some(m) = mono() else { return true };
+    let image = m.image("Assembly-CSharp");
+    if image.is_null() {
+        return true;
+    }
+    *RABBIDS.get_or_init(|| !m.class(image, "", "NewInputManager").is_null())
 }
 
 /// The tracker's rotation quaternion turning the forward axis (Unity's +z) from the receiver
@@ -245,7 +270,7 @@ fn data(index: u32) -> TrackedDeviceData {
         gun_mode();
     }
     d.device_type = STEM_PACK;
-    if held(player, Native::Trigger) {
+    if held(player, Native::Reload) || (held(player, Native::Trigger) && trigger_on_start()) {
         d.buttons = BUTTON_START;
         d.trigger = 1.0;
     }

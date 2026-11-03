@@ -1,5 +1,5 @@
 //! Adrenaline Amusements: Adrenaline's PC-based arcade games (Skylanders Cloud Patrol, Rabbids
-//! Hollywood).
+//! Hollywood, Tomb Raider, Rampage, Hot Wheels, Spider-Man Homecoming).
 //!
 //! Skylanders Cloud Patrol (Unity 4.2, Mono, 32-bit): a touch screen game (a PQ Labs
 //! multi-touch frame) on the "Kaboom" I/O board (coins, the operator's keypad, the ticket
@@ -10,7 +10,7 @@
 //! board and the Matrix dongle are emulated, the real keyboard and mouse filtered (docs
 //! §6.3k).
 //!
-//! Native inputs for `native_map`: `touch trigger start coin` (every player) and the
+//! Native inputs for `native_map`: `touch trigger reload start coin` (every player) and the
 //! operator's `operator up down select`.
 
 use super::{Payload, System};

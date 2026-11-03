@@ -4128,6 +4128,38 @@ game draws its own crosshairs.
 - **Play.** Coins, start, the guns shoot the posters (level choice) and the Rabbids. Natives
   `trigger start coin` (each player), `operator up down select`.
 
+#### Tomb Raider
+
+Unity 2017.2 (Mono, Direct3D 11, 64-bit), Rabbids Hollywood's hardware: four Sixense STEM guns
+(`sixense.rs`, the same aim), the `KaboomAdrioFxPlusFourFeeders64.dll` board (`adrio.rs`,
+version 9 / revision 1102) and the Matrix dongle. `tomb-raider.windowsloader` points at
+`Game.exe`. The dump carries a Unity Doorstop proxy `winhttp.dll`: Wine's own in the profile.
+
+- **Trigger and reload.** The trigger is the board's player button 2 (`un16AllButton` bit
+  2n + 1, `InputManager.OnKeyEvent`); the tracker's `START` button reloads. Rabbids reads
+  either for its trigger: the `trigger` native sets both there, only button 2 here (the payload
+  tells the games apart by Rabbids' `NewInputManager` class); the new `reload` native sets
+  `START`.
+- **Gun mode.** `InputManager` starts with neither "gun not found" nor "gun ready" and takes
+  the guns at `GunDetection`'s "gun ready" by itself (no `sxCoreSoftReset` in this game, no
+  Mono patch).
+- **Display options.** Resolution (`WAL_RESOLUTION`, default 1920x1080) goes into Unity's
+  `-screen-width`/`-screen-height` through the profile's `{WAL_RESOLUTION.width}` and
+  `{WAL_RESOLUTION.height}` arguments (any profile argument can use `{NAME}` of its
+  environment, `.width`/`.height` the sides of a `WxH` value). The game is GPU-bound on an
+  integrated Radeon 860M: 35-42 fps at 1920x1080, 47-57 at 1280x720 (it aims at 60).
+  `WAL_TOMBRAIDER_POSTPROCESS=0` (the default; `tombraider.rs`) calls the game's own
+  `GameplayCamera.EnablePostProcess(false)` every second (cinematics turn it on again): no
+  post-processing stack nor volumetric fog, 40-47 fps at 1920x1080.
+- **Saves.** The operator settings (free play...) are AES files whose key is the dongle's
+  decryption of `SBK.Encryption.DataTransform.KEY` / `IV`, checked against the MD5s
+  `m_KeyHash` / `m_VIHash` (a mismatch: a random key each run, the saves never read back, as
+  Rabbids Hollywood). At the first `Dongle_DecryptData` (`matrix.rs`, the game's key thread)
+  the payload sets those hashes to the MD5s of our decryption: the same key every run.
+- **Play.** Coins, start (the game mode and chapter are chosen by timeout or a shot), then
+  shots; an empty clip shows RELOAD. Natives `trigger reload start coin` (each player),
+  `operator up down select`; the game draws its own crosshairs.
+
 #### Rampage
 
 Unity 2017.2 (Mono, Direct3D 11, 64-bit): three players, a joystick and an attack button each.
@@ -4598,6 +4630,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
+| `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): Rabbids Hollywood's Sixense trackers, Kaboom Adrio board and Matrix dongle; the trigger on the board's player button 2, the tracker's button reloads; Wine's `winhttp` |
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | Adrenaline's 3-player monster game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Kaboom Adrio board (joysticks, attack buttons on the keypad, callbacks from a Mono-attached thread) and Matrix dongle |
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | Adrenaline's six-seat driving game (Unity 2018.3, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its three Kaboom Adrio Hot Wheels boards (wheels, pedals, coins, callbacks from a Mono-attached thread) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |

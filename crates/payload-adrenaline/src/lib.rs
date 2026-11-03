@@ -9,6 +9,8 @@
 //!   where the players' guns point), `adrio.rs` its Kaboom Adrio board
 //!   (`KaboomAdrioFxPlusFourFeeders64.dll`: coins, start buttons, the operator's keypad, the
 //!   ticket feeders).
+//! - Tomb Raider Arcade (Unity 2017.2, Mono, 64-bit): the same guns and board as Rabbids
+//!   Hollywood; the trigger is the board's player button 2, the tracker's button reloads.
 //! - Rampage (Unity 2017.2, Mono, 64-bit): three players, a joystick and an attack button
 //!   each, on the same Adrio board (`adrio.rs`).
 //! - Hot Wheels: Kings of the Road (Unity 2018.3, Mono, 64-bit): a six-seat driving game.
@@ -35,6 +37,7 @@ mod matrix;
 #[cfg(target_pointer_width = "32")]
 mod pqmt;
 mod sixense;
+mod tombraider;
 
 use std::ffi::c_void;
 use std::sync::OnceLock;
@@ -52,8 +55,10 @@ const PLAYERS: usize = 4;
 enum Native {
     /// The player's finger on the screen, where the gun points.
     Touch,
-    /// The gun's trigger (Rabbids Hollywood).
+    /// The gun's trigger (Rabbids Hollywood, Tomb Raider).
     Trigger,
+    /// The gun's reload button (Tomb Raider: the tracker's button).
+    Reload,
     /// The player's start button (Rabbids Hollywood).
     Start,
     /// The player's button (Spider-Man Homecoming: its only control).
@@ -78,6 +83,7 @@ enum Native {
 const NATIVES: &[(&str, Native)] = &[
     ("touch", Native::Touch),
     ("trigger", Native::Trigger),
+    ("reload", Native::Reload),
     ("start", Native::Start),
     ("button", Native::Button),
     ("stick_up", Native::StickUp),

@@ -260,6 +260,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | not in the test |  |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | not in the test |  |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | not in the test |  |
+| `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved | not in the test |  |
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | not in the test |  |
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | not in the test |  |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait; NVIDIA not yet verified | not in the test |  |
