@@ -4016,6 +4016,36 @@ plugins, launcher, logs and the root copies of the plugins; the camera tracker's
   domain's and the game compiles its own.
 - **Play.** A coin joins its player (bullets), no start key.
 
+#### After Dark
+
+UNIS's After Dark (1.1; 2.3 has the same `GamePlayer.exe`): a Virtools 3.5 player linked into
+`GamePlayer.exe` (32-bit, MFC 9.0: `vcrun2008`), the game in `main.vmo` and `Module/*.nmo`;
+`WAL_UNIS_BOARD=afterdark`, two guns. The executable imports none of the payload's names:
+`wal-loader` starts it with the payload (`xinput1_3.dll`, native first).
+
+- **Player settings.** `GameConfig` (an ini, `[Settings]`, absent from the dumps; the profile's
+  `files`): `FileName=main.vmo` (default `NtmGame.vmo`), `TexturePath=Textures`,
+  `SoundPath=Sounds`, the window 1920x1080 (default 800x600, the 16:9 picture letterboxed in
+  it), made full screen by `WAL_D3D9_FULLSCREEN`.
+- **DirectInput.** The input manager creates it with `CoCreateInstance(CLSID_DirectInput)` and
+  `Initialize(GetModuleHandle("ck2.dll"), 0x700)`: the player linked in, no `ck2.dll`, Wine
+  refuses the null instance ("Initalization Error"). `WAL_DINPUT_DISABLE`'s fake DirectInput
+  also answers `CoCreateInstance` (`dinput.rs`).
+- **Serial gun board (COM1, 19200 bauds).** The executable's building blocks (Gun Status,
+  Internal Coins) read 26-byte frames `40 80`, gun A's and gun B's buttons (bytes 2, 3: 0x01
+  start, 0x02 trigger, 0x04 the motion seat's button, 0x08 the operator menu, 0x10 / 0x20 its
+  + / -, 0x80 a coin, counted once per 100 ms held), X and Y of each gun (bytes 7..14, big
+  endian, 0..4095 across the screen from the top left), `0D`, the XOR of the 25 bytes before.
+  The game maps them through `coin.ini`'s calibration (`Gun1xMin` ... `Gun2yMax`, the operator
+  menu's gun settings). The PC's frames (`40 80 ..` outputs, `50 90 0D`) are ignored.
+- **HID board (`HID\Vid_0471&Pid_485e`).** The dongle and the guns' vibration, behind an
+  encrypted feature-report protocol (the executable's driver: session key, MAC). The payload
+  replaces the driver's device object instead: the boards' init (`0x415CA0`, "Init Dongle
+  Failed !") puts ours in the board table (`0x8983B0`). The dongle block writes 8 bytes
+  (command 0x42) and reads them back (command 0x30, sub-command 1); the I/O thread's polls
+  (sub-command 2, the vibration) get 16 zero bytes.
+- **Play.** Coins, start; the game draws its own gun cursors (the crosshair option off).
+
 ### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
 
 Adrenaline's PC-based arcade games. System `adrenaline` (Batocera's ES `adrenaline`), payload
@@ -4583,6 +4613,7 @@ NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance s
 `NxLMMF_*`, `\\.\pipe\NxLPipe*`) and starts the real game (`game2.exe launcher`,
 `game_liong.exe -s`): the profiles run that stub, the child loads our iDmacDrv32.dll from the
 run directory.
+| `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | `GamePlayer.exe` (Virtools 3.5, 32-bit, §6.3j) started by wal-loader with the payload: COM1 gun board (guns, triggers, start, coins, operator keys), the HID board's device object replaced (dongle), `GameConfig` (composition, folders, 1920x1080 full screen), fake DirectInput (COM-created) |
 
 winmm joysticks are hidden from every game (`WAL_JOYSTICK_DISABLE=0` shows them): a cabinet has
 none, and games that read them next to their board (Ge-Sen Love Plus Pengo, Phantom Breaker)

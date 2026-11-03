@@ -52,6 +52,9 @@
 //! needs the keyboard device to work: `GetDeviceInfo` answered). `EnumDevicesBySemantics` lists
 //! it then, its action map accepted (Need for Speed Underground: DirectInput 8 action mapping).
 //!
+//! Games creating DirectInput as a COM object (`CoCreateInstance(CLSID_DirectInput)`, then
+//! `Initialize`: the Virtools player's input manager, After Dark) get the same fake one.
+//!
 //! `WAL_KEYBOARD_STATE_DISABLE=1`: the game's `user32!GetKeyboardState` reports no key pressed
 //! (Wacky Races reads START on the PC keyboard's Enter and VIEW on Right Shift that way, next
 //! to its JVS switches).
@@ -468,6 +471,27 @@ unsafe extern "system" fn create_iid(_instance: P, _version: u32, iid: *const u3
 }
 
 static ORIG_GET_PROC_ADDRESS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static ORIG_CO_CREATE_INSTANCE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// `CLSID_DirectInput` / `CLSID_DirectInput8` (`25E609E0` / `25E609E1-B259-11CF-BFC7-444553540000`).
+fn is_dinput_clsid(clsid: *const u8) -> bool {
+    const TAIL: [u8; 12] = [0x59, 0xB2, 0xCF, 0x11, 0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00];
+    if clsid.is_null() {
+        return false;
+    }
+    let c = unsafe { std::slice::from_raw_parts(clsid, 16) };
+    matches!(c[..4], [0xE0 | 0xE1, 0x09, 0xE6, 0x25]) && c[4..] == TAIL
+}
+
+/// `CoCreateInstance(clsid, outer, context, riid, out)`: DirectInput is the fake one.
+unsafe extern "system" fn co_create_instance(clsid: *const u8, outer: P, context: u32, iid: *const u32, out: *mut P) -> i32 {
+    if is_dinput_clsid(clsid) {
+        return unsafe { create_iid(std::ptr::null_mut(), 0, iid, out, outer) };
+    }
+    let orig: unsafe extern "system" fn(*const u8, P, u32, *const u32, *mut P) -> i32 =
+        unsafe { std::mem::transmute(ORIG_CO_CREATE_INSTANCE.load(std::sync::atomic::Ordering::Relaxed)) };
+    unsafe { orig(clsid, outer, context, iid, out) }
+}
 
 /// The DirectInput creation functions resolved at run time are the fake ones.
 unsafe extern "system" fn get_proc_address(module: P, name: *const u8) -> usize {
@@ -513,6 +537,11 @@ pub fn init() {
             iat::hook_module(module, "dinput.dll", "DirectInputCreateW", create_w as *const () as usize);
             iat::hook_module(module, "dinput.dll", "DirectInputCreateEx", create_iid as *const () as usize);
             iat::hook_module(module, "dinput8.dll", "DirectInput8Create", create_iid as *const () as usize);
+            if let Some(o) = iat::hook_module(module, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) {
+                if o != co_create_instance as *const () as usize {
+                    ORIG_CO_CREATE_INSTANCE.store(o, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
         }
         // games loading DirectInput at run time (Ford Racing: LoadLibrary("dinput8.dll"))
         // init runs once per hooked module set (Mario Kart: twice): a second hook returns our
