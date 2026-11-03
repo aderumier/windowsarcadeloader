@@ -4044,7 +4044,9 @@ UNIS's After Dark (1.1; 2.3 has the same `GamePlayer.exe`): a Virtools 3.5 playe
   Failed !") puts ours in the board table (`0x8983B0`). The dongle block writes 8 bytes
   (command 0x42) and reads them back (command 0x30, sub-command 1); the I/O thread's polls
   (sub-command 2, the vibration) get 16 zero bytes.
-- **Play.** Coins, start; the game draws its own gun cursors (the crosshair option off).
+- **Play.** Coins, start; the game draws its own gun cursors (the crosshair option off). The
+  game has no free play (its coin setting 0 does not give one): `WAL_UNIS_FREEPLAY` (default
+  on, a profile option) makes a start press a coin, then the start.
 
 ### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
 

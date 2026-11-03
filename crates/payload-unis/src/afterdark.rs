@@ -18,6 +18,9 @@
 //!   0x42) and reads them back (command 0x30, sub-command 1); the I/O block's polls (sub-command
 //!   2: the vibration) get 16 zero bytes.
 //!
+//! `WAL_UNIS_FREEPLAY` (default on; `0`: coins): the game has no free play, a start press is
+//! a coin and then the start.
+//!
 //! Natives: `start trigger platform test plus minus coin` (each gun).
 
 use std::ffi::c_void;
@@ -41,13 +44,13 @@ enum Native {
 }
 
 const NATIVES: &[(&str, Native)] = &[
-    ("start", Native::Button(0x01)),
+    ("start", Native::Button(START)),
     ("trigger", Native::Button(0x02)),
     ("platform", Native::Button(0x04)),
     ("test", Native::Button(0x08)),
     ("plus", Native::Button(0x10)),
     ("minus", Native::Button(0x20)),
-    ("coin", Native::Button(0x80)),
+    ("coin", Native::Button(COIN)),
 ];
 
 const DEFAULTS: &[(&str, &str)] = &[
@@ -68,6 +71,47 @@ fn map() -> &'static ButtonMap<Native> {
 /// The last frame's time.
 static LAST: Mutex<Option<Instant>> = Mutex::new(None);
 static FRAMES: AtomicU64 = AtomicU64::new(0);
+
+const START: u8 = 0x01;
+const COIN: u8 = 0x80;
+
+/// Free play (`WAL_UNIS_FREEPLAY`, default on): each gun's start key held, and when it was
+/// pressed.
+struct FreePlay {
+    held: [bool; GUNS],
+    pressed: [Option<Instant>; GUNS],
+}
+
+static FREE_PLAY: Mutex<FreePlay> = Mutex::new(FreePlay { held: [false; GUNS], pressed: [None; GUNS] });
+
+fn free_play_on() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_UNIS_FREEPLAY").map_or(true, |v| v.trim() != "0"))
+}
+
+/// Free play: a start press is a coin (its first 120 ms: the board counts one per 100 ms
+/// held), then the start (from 250 ms to 400 ms, held longer while the key is), the game
+/// having no free play of its own.
+fn free_play(g: usize, buttons: u8) -> u8 {
+    let mut fp = FREE_PLAY.lock().unwrap();
+    let held = buttons & START != 0;
+    if held && !fp.held[g] {
+        fp.pressed[g] = Some(Instant::now());
+    }
+    fp.held[g] = held;
+    let mut out = buttons & !START;
+    if let Some(t) = fp.pressed[g] {
+        let ms = t.elapsed().as_millis();
+        match ms {
+            0..120 => out |= COIN,
+            250..400 => out |= START,
+            400.. if held => out |= START,
+            400.. => fp.pressed[g] = None,
+            _ => {}
+        }
+    }
+    out
+}
 
 /// A board frame: `40 80 data[22] 0D xor`.
 fn frame(data: &[u8; 22]) -> Vec<u8> {
@@ -90,6 +134,9 @@ fn idle() -> Vec<u8> {
     let mut data = [0u8; 22];
     for g in 0..GUNS {
         map().for_each_pressed(&input(g), |Native::Button(bit)| data[g] |= bit);
+        if free_play_on() {
+            data[g] = free_play(g, data[g]);
+        }
         // the game full screen: the gun's place on the screen
         let screen = gun::screen_size();
         let (sx, sy) = gun::on_screen(&input(g), screen);

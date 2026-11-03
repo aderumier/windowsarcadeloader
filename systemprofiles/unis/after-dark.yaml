@@ -27,6 +27,17 @@ env:
   WAL_D3D9_FULLSCREEN: "1"
   # the game draws its own gun cursors: the common crosshair option off by default
   WAL_CROSSHAIR: "0"
+  # free play (the game has none: a start press inserts a coin first); "0": coins
+  WAL_UNIS_FREEPLAY: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_UNIS_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Free play: each start press inserts a coin first. Off: coins buy credits.
 
 input:
   # each player's gun (or mouse) aims, its trigger shoots
