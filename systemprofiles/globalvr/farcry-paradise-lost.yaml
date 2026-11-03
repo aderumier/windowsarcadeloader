@@ -31,8 +31,16 @@ env:
   # A gun whose data has not changed for 60 s raises arcade error 0x800 / 0x1000 (a real gun
   # always jitters, the virtual ones hold still): jbe -> jmp at 0x5c5e56 and 0x5c7f27.
   WAL_PATCHES: "0x1C89:EB,0x3AF9A1:909090909090909090909090909090909090,0x3AF4B6:9090,0x1C5E56:EB,0x1C7F27:EB"
-  # systemcfg.lua asks a 1920x1080 window (r_Fullscreen = "0"): fullscreen device instead.
-  WAL_D3D9_FULLSCREEN: "1"
+  # The game draws 1280x720. Its fullscreen device kept the aspect on any screen (Wine's mode
+  # scaling: black bars on 1600x1200 Xorg, whatever KEEP ASPECT RATIO): a windowed 1280x720
+  # back buffer in a borderless screen-sized window instead, stretched to the whole screen;
+  # WAL_KEEP_ASPECT_RATIO "1" (Batocera ES: KEEP ASPECT RATIO): presented to a centered 16:9
+  # rectangle, black bars, the guns' aim mapped onto it (payload usbio.rs).
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_D3D9_WINDOWED_SIZE: 1280x720
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_KEEP_ASPECT_RATIO: "0"
 
 input:
   # lightguns first, then mice
@@ -52,6 +60,17 @@ files:
 # not had the controller(s) calibrated". The game completes the file and keeps it in the dump.
 initial_files:
   systemcfg.lua: systemprofiles/globalvr/files/farcry-paradise-lost/systemcfg.lua
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The game's 16:9 picture with its aspect kept, black bars on a 4:3 or 16:10 screen.
+          Off: stretched to the whole screen.
 
 # Control names (the GUI's mapping rows).
 controls:
