@@ -20,6 +20,8 @@
 //!   the aim unchanged). The game draws its own gun marks.
 //! - **Dongle.** `Sense4`: every call succeeds (Dino Invasion's, `shunxiang.rs`).
 //!
+//! - **Free play.** `WAL_UNIS_FREEPLAY`: the operator's setting in the game's saved settings.
+//!
 //! Natives: `trigger big change coin stop` (each gun), `test service reset` (the operator's).
 
 use std::ffi::c_char;
@@ -316,8 +318,40 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
     }
 }
 
+/// The operator's free play setting (`WAL_UNIS_FREEPLAY`: "1" on, "0" off, unset: the game's),
+/// set in its saved settings (`Free_Play` in `Assets/config/game/excel_data/data_info.csv`, the
+/// bookkeeping kept) before the game reads them.
+fn free_play() {
+    let Some(on) = std::env::var("WAL_UNIS_FREEPLAY").ok().map(|v| v.trim() != "0") else { return };
+    let Some(path) = std::env::current_exe().ok().map(|e| e.with_file_name("Assets/config/game/excel_data/data_info.csv")) else { return };
+    let Ok(data) = std::fs::read_to_string(&path) else { return };
+    let Some(updated) = with_free_play(&data, on) else { return };
+    if updated != data && std::fs::write(&path, updated).is_ok() {
+        log!("qumo: free play {}", if on { "on" } else { "off" });
+    }
+}
+
+/// The settings with `Free_Play` set, or None (no such line).
+fn with_free_play(data: &str, on: bool) -> Option<String> {
+    let mut found = false;
+    let lines: Vec<String> = data
+        .split('\n')
+        .map(|l| match l.strip_prefix("Free_Play,") {
+            Some(rest) => {
+                found = true;
+                let cr = if rest.ends_with('\r') { "\r" } else { "" };
+                format!("Free_Play,{}{cr}", on as u8)
+            }
+            None => l.to_string(),
+        })
+        .collect();
+    found.then(|| lines.join("\n"))
+}
+
 pub fn init() {
+    free_play();
     mono_imports::hook(resolve);
+    crate::nighthunter_mission4::init();
     log!("qumo: HID board {VENDOR:04x}:{PRODUCT:04x}, dongle");
 }
 
@@ -329,6 +363,13 @@ mod tests {
     fn path_is_ours() {
         assert!(PATH.contains("wal-qumo"));
         assert!(ours(HANDLE_BASE) && !ours(0x100));
+    }
+
+    #[test]
+    fn free_play_line() {
+        assert_eq!(with_free_play("Difficulty,2\nFree_Play,0\nVolume,8", true).as_deref(), Some("Difficulty,2\nFree_Play,1\nVolume,8"));
+        assert_eq!(with_free_play("Free_Play,1\r\n", false).as_deref(), Some("Free_Play,0\r\n"));
+        assert!(with_free_play("Volume,8", true).is_none());
     }
 
     #[test]

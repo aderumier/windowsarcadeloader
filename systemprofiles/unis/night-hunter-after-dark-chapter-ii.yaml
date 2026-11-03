@@ -20,6 +20,18 @@ env:
   WAL_UNIS_BOARD: qumo
   # the game draws its own gun marks
   WAL_CROSSHAIR: "0"
+  # free play (the operator menu's setting, set at each start); "0": coins
+  WAL_UNIS_FREEPLAY: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_UNIS_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Free play: the trigger starts a game. Off: coins buy credits (the operator
+          menu's coin settings).
 
 input:
   # each player's gun (or mouse) aims, its trigger shoots

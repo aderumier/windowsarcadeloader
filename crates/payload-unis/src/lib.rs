@@ -17,6 +17,7 @@
 
 mod afterdark;
 mod afterdark_stage4;
+mod nighthunter_mission4;
 mod qumo;
 mod shunxiang;
 
