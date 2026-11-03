@@ -15,6 +15,13 @@
 //! Homecoming, 1080x1920: a black screen on NVIDIA's drivers); `GetDeviceCaps` gives the
 //! desktop's size.
 //!
+//! `WAL_DESKTOP_ACTIVE=1`: the top-level windows never see their deactivation. A window the
+//! window manager does not manage (Wine's X11 `Managed=N`: a panel pushed the full-height window
+//! down otherwise) may never get the focus: Unity minimized its full screen window (Shooty
+//! Skies, Flappy Tickets); shown, a window is told it is active and has the focus (Unity
+//! ignored the keys posted to it otherwise). The game's input is the launcher's, not the
+//! window's focus.
+//!
 //! `WAL_DESKTOP_CLIENT=1`: the top-level windows' client areas answer in desktop units too
 //! (`GetClientRect`: the fitted window's client size unscaled, `GetWindowRect`, `ClientToScreen`:
 //! places on the desktop). Harikiri Professional Baseball's test menu makes its back buffer and then its window
@@ -48,6 +55,8 @@ static ORIG_SPI_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SPI_W: AtomicUsize = AtomicUsize::new(0);
 static ORIG_MONITOR_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_MONITOR_W: AtomicUsize = AtomicUsize::new(0);
+/// `WAL_DESKTOP_ACTIVE=1`.
+static ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static ORIG_ENUM_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_ENUM_W: AtomicUsize = AtomicUsize::new(0);
 static ORIG_ENUM_EX_A: AtomicUsize = AtomicUsize::new(0);
@@ -121,6 +130,7 @@ unsafe extern "system" fn create_a(
     let hwnd = unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) };
     if !hwnd.is_null() && top_level(parent, style) {
         subclass(hwnd);
+        managed_again();
     }
     hwnd
 }
@@ -133,6 +143,7 @@ unsafe extern "system" fn create_w(
     let hwnd = unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) };
     if !hwnd.is_null() && top_level(parent, style) {
         subclass(hwnd);
+        managed_again();
     }
     hwnd
 }
@@ -288,6 +299,26 @@ unsafe extern "system" fn window_proc(hwnd: P, msg: u32, wparam: usize, lparam: 
     let Some(orig) = PROCS.lock().unwrap().iter().find(|(h, _)| *h == hwnd as usize).map(|(_, o)| *o) else {
         return 0;
     };
+    // `WAL_DESKTOP_ACTIVE`: the window's deactivation not seen (WM_ACTIVATEAPP false, WM_ACTIVATE
+    // inactive, WM_KILLFOCUS)
+    const WM_ACTIVATE: u32 = 0x0006;
+    const WM_KILLFOCUS: u32 = 0x0008;
+    const WM_ACTIVATEAPP: u32 = 0x001C;
+    if ACTIVE.load(Ordering::Relaxed) && ((msg == WM_ACTIVATEAPP && wparam == 0) || (msg == WM_ACTIVATE && wparam & 0xFFFF == 0) || msg == WM_KILLFOCUS) {
+        return 0;
+    }
+    // shown: told it is active and has the focus (an unmanaged window never gets them: Unity
+    // then ignored its keys, Shooty Skies' joysticks)
+    const WM_SETFOCUS: u32 = 0x0007;
+    const WM_SHOWWINDOW: u32 = 0x0018;
+    if ACTIVE.load(Ordering::Relaxed) && msg == WM_SHOWWINDOW && wparam != 0 {
+        use windows_sys::Win32::UI::WindowsAndMessaging::PostMessageW;
+        unsafe {
+            PostMessageW(hwnd, WM_ACTIVATEAPP, 1, 0);
+            PostMessageW(hwnd, WM_ACTIVATE, 1, 0);
+            PostMessageW(hwnd, WM_SETFOCUS, 0, 0);
+        }
+    }
     let r = unsafe { CallWindowProcW(Some(std::mem::transmute::<usize, _>(orig)), hwnd, msg, wparam, lparam) };
     // Unity's procedure puts its own size back (WM_WINDOWPOSCHANGING): fitted again
     if msg == windows_sys::Win32::UI::WindowsAndMessaging::WM_WINDOWPOSCHANGING && lparam != 0 {
@@ -449,6 +480,73 @@ unsafe extern "system" fn device_caps(dc: P, index: i32) -> i32 {
     unsafe { orig(dc, index) }
 }
 
+/// `WAL_DESKTOP_UNMANAGED=1`: the game's windows not managed by the window manager (Wine's X11
+/// `Managed=N`): placed by the payload at the top of the screen (GNOME's top bar pushed the
+/// full-height portrait window down, the picture cut at the bottom). Wine reads the option once,
+/// when its X11 driver starts in the process, from `AppDefaults\<exe name>`: the payload sets it
+/// for its own executable's name before (first thing at its start: a game run by `wal-loader`),
+/// and removes it after, at the game's first window (or 15 s): another game with the same name
+/// (`game.exe`) is managed. Use it with `WAL_DESKTOP_ACTIVE` (an unmanaged window never gets the
+/// focus).
+pub fn unmanaged() {
+    use windows_sys::Win32::System::Registry::{RegCloseKey, RegSetValueExW, REG_SZ};
+    if !std::env::var("WAL_DESKTOP_UNMANAGED").is_ok_and(|v| v.trim() == "1") {
+        return;
+    }
+    let mut path = [0u16; 260];
+    let n = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(std::ptr::null_mut(), path.as_mut_ptr(), path.len() as u32) } as usize;
+    let exe = String::from_utf16_lossy(&path[..n]);
+    let exe = exe.rsplit(['\\', '/']).next().unwrap_or("").to_string();
+    let _ = UNMANAGED_EXE.set(exe.clone());
+    let Some(key) = managed_key() else {
+        log!("desktop: cannot set {exe}'s X11 Managed option");
+        return;
+    };
+    let value = wide("N");
+    unsafe {
+        RegSetValueExW(key, wide("Managed").as_ptr(), 0, REG_SZ, value.as_ptr().cast(), (value.len() * 2) as u32);
+        RegCloseKey(key);
+    }
+    log!("desktop: {exe}'s windows not managed by the window manager");
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_secs(15));
+        managed_again();
+    });
+}
+
+/// `WAL_DESKTOP_UNMANAGED`'s executable name.
+static UNMANAGED_EXE: OnceLock<String> = OnceLock::new();
+
+fn wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain([0]).collect()
+}
+
+/// The executable's `AppDefaults\<exe>\X11 Driver` key, for setting values.
+fn managed_key() -> Option<windows_sys::Win32::System::Registry::HKEY> {
+    use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, RegCreateKeyExW};
+    let path = wide(&format!("Software\\Wine\\AppDefaults\\{}\\X11 Driver", UNMANAGED_EXE.get()?));
+    let mut key = std::ptr::null_mut();
+    let r = unsafe { RegCreateKeyExW(HKEY_CURRENT_USER, path.as_ptr(), 0, std::ptr::null(), REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, std::ptr::null(), &mut key, std::ptr::null_mut()) };
+    (r == 0).then_some(key)
+}
+
+/// The option removed, once (the X11 driver has read it).
+fn managed_again() {
+    use windows_sys::Win32::System::Registry::{RegCloseKey, RegDeleteValueW};
+    static DONE: std::sync::Once = std::sync::Once::new();
+    if UNMANAGED_EXE.get().is_none() {
+        return;
+    }
+    DONE.call_once(|| match managed_key() {
+        Some(key) => {
+            let r = unsafe { RegDeleteValueW(key, wide("Managed").as_ptr()) };
+            unsafe { RegCloseKey(key) };
+            log!("desktop: X11 Managed option removed ({r})");
+        }
+        None => log!("desktop: X11 Managed option not removed"),
+    });
+}
+
 pub fn init() {
     let Some((w, h)) = std::env::var("WAL_DESKTOP_SIZE").ok().and_then(|v| {
         let (w, h) = v.trim().split_once('x')?;
@@ -471,6 +569,7 @@ pub fn init() {
         }
     }
     let client = std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1");
+    ACTIVE.store(std::env::var("WAL_DESKTOP_ACTIVE").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
     let hooks: [(&str, usize, &AtomicUsize); 20] = [
         ("GetWindowRect", if client { window_rect as *const () as usize } else { 0 }, &ORIG_WINDOW_RECT),
         ("ClientToScreen", if client { client_to_screen as *const () as usize } else { 0 }, &ORIG_CLIENT_TO_SCREEN),
