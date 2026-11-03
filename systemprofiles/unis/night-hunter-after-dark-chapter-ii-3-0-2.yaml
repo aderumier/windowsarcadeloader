@@ -1,0 +1,61 @@
+# Night Hunter: After Dark Chapter II 3.0.2 (UNIS "qumo" guns, Unity 5.5, Mono, 64-bit; the 2.0.6
+# profile, night-hunter-after-dark-chapter-ii.yaml, with its version name: four missions, Lost
+# Trails among them) - template, override values in
+# userprofiles/unis/night-hunter-after-dark-chapter-ii-3-0-2.yaml.
+# Two guns. The payload emulates the cabinet's USB HID board (guns, triggers, big buttons,
+# coins, the operator's buttons) and its dongle (docs §6.3j).
+system: unis
+name: "Night Hunter: After Dark Chapter II (3.0.2)"
+
+dll_overrides:
+  # Unity 5.5 loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+  # a mod loader in some dumps (winhttp.dll, BepInEx): Wine's own, the game unmodified
+  winhttp: "b"
+
+# The guns' calibration: the payload's aim is the picture's 0..4095, unchanged (the dump's is
+# a cabinet's guns')
+files:
+  Assets/config/game/excel_data/jiaoqiang.csv: systemprofiles/unis/files/night-hunter-after-dark-chapter-ii-3-0-2/jiaoqiang.csv
+  # the dump's, the mission select at each game's start (the game's default: the first mission
+  # played without it, the select after it), the fourth mission open from the start (the
+  # game's: after the other three)
+  config/config_game_run_type.txt: systemprofiles/unis/files/night-hunter-after-dark-chapter-ii-3-0-2/config_game_run_type.txt
+
+env:
+  WAL_UNIS_BOARD: qumo
+  # the fourth mission's island on the mission select (the game's select shows three; the
+  # config above opens the fourth from the start)
+  WAL_UNIS_NIGHTHUNTER_MISSION4: "1"
+  # the game draws its own gun marks
+  WAL_CROSSHAIR: "0"
+  # free play (the operator menu's setting, set at each start); "0": coins
+  WAL_UNIS_FREEPLAY: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_UNIS_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Free play: the trigger starts a game. Off: coins buy credits (the operator
+          menu's coin settings).
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  start: Start (trigger)
+  b2: Big button
+  b3: Change weapon
+  coin: Coin
+  test: Operator menu
+  service: Menu select
+  down: Menu move
+  up: Menu move

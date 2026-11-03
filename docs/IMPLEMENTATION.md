@@ -4101,9 +4101,25 @@ profile takes Wine's `winhttp`, the game unmodified.
   (Dino Invasion's functions).
 - **Operator menu.** Test opens it, reset moves (held: repeats), service selects
   (`config_cehua_houtai`: move `FIX_BUTTON`, OK `SERVER_BUTTON`).
-- **Play.** The dump is set to free play; the trigger starts a game, the other gun's trigger
-  joins. Natives `trigger big change coin stop` (each gun), `test service reset` (the
-  operator's).
+- **Free play.** The operator's setting (`Free_Play` in
+  `Assets/config/game/excel_data/data_info.csv`, beside the bookkeeping): set at start from
+  `WAL_UNIS_FREEPLAY` (default on, a profile option), the rest of the file kept.
+- **Play.** The trigger starts a game, the other gun's trigger joins. Natives `trigger big
+  change coin stop` (each gun), `test service reset` (the operator's).
+- **3.0.2** (`night-hunter-after-dark-chapter-ii-3-0-2`). The same executable and board code,
+  four missions (scenes 1, 3, 5, 6: Ice Castle, Misty Swamp, Lost Trails, Mission 4; 2.0.6
+  has two: its scenes 2 and 4 are unfinished, no level data). The game plays the first
+  mission without the select (`RUN_FIRST_LEVEL_NO_SELECT`, default on) and the fourth last,
+  once the others are cleared (`MUST_PASS_LEVEL_4 = NO`): the profile's
+  `config/config_game_run_type.txt` (the dump's) sets `RUN_FIRST_LEVEL_NO_SELECT = NO` and
+  `MUST_PASS_LEVEL_4 = YES`. Its select scene (`level0`, `Panel_head/select`) shows three
+  islands: the fourth's (`image_level4`, `show4`, `label4`) is inactive, over the third.
+  `nighthunter_mission4.rs` (`WAL_UNIS_NIGHTHUNTER_MISSION4=1`, the profile's) gives the
+  player's `CreateFileW` of `level0` a copy beside the executable: those objects active
+  (a `GameObject`'s `m_IsActive` its last byte), the island at the map's bottom right (a
+  `RectTransform`'s `m_AnchoredPosition` / `m_SizeDelta` at bytes 84 / 92), each original
+  value checked first. After a mission the game picks the next one at random: the fourth,
+  it starts it without the select.
 
 ### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
 
@@ -4737,6 +4753,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | `GamePlayer.exe` (Virtools 3.5, 32-bit, §6.3j) started by wal-loader with the payload: COM1 gun board (guns, triggers, start, coins, operator keys), the HID board's device object replaced (dongle), `GameConfig` (composition, folders, 1920x1080 full screen), fake DirectInput (COM-created) |
 | `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns | as `after-dark` (the same executable and profile), Microsoft's `d3dx9_41` (not in the dump) |
 | `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns | UNIS's qumo guns (Unity 5.5, 64-bit, §6.3j): the payload (`xinput1_3.dll`) emulates the USB HID board (`SetupDi`, `HidD_GetAttributes`, overlapped reads and writes: Mono `DllImport`s) and the Sense4 dongle; identity gun calibration file; Wine's `winhttp` (no BepInEx) |
+| `night-hunter-after-dark-chapter-ii-3-0-2` | Night Hunter: After Dark Chapter II (3.0.2) | unis | user 100% (2026-11-03), 2 guns | as `night-hunter-after-dark-chapter-ii` (the same board code), four missions: the mission select at the start and the fourth open (profile config), the fourth island on the select (patched `level0` copy) |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): Rabbids Hollywood's Sixense trackers, Kaboom Adrio board and Matrix dongle; the trigger on the board's player button 2, the tracker's button reloads; Wine's `winhttp` |
