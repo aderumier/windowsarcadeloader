@@ -24,10 +24,10 @@ env:
   # its parts stretched to the screen's edges (no black bars)
   WAL_BEZEL: bezel.png
   WAL_BEZEL_FIT: stretch
-
-# the window not managed: placed by the payload at the top of the screen (a window manager's
-# panel pushed it down)
-registry: [systemprofiles/adrenaline/files/disney-crossy-road/window.reg]
+  # the window not managed: placed by the payload at the top of the screen (a window
+  # manager's panel pushed it down); never deactivated (Unity minimized it without the focus)
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
 
 # the start size too (else Unity's last one, saved in the registry)
 args: [-screen-fullscreen, "1", -screen-width, "1080", -screen-height, "1920"]

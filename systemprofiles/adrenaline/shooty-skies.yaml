@@ -1,0 +1,57 @@
+# Shooty Skies (Adrenaline Amusements, Unity 5.3, Mono, 64-bit) - template, override values in
+# userprofiles/adrenaline/shooty-skies.yaml.
+# Two players, a joystick and a button each. The payload emulates the cabinet's Kaboom Adrio
+# two-feeder board (coins, the players' buttons on the operator's keypad, the ticket feeders),
+# its Matrix dongle (docs §6.3k) and its joysticks (the game's keys, WAL_ADRENALINE_STICK_KEYS).
+system: adrenaline
+name: Shooty Skies
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+
+# loaded at the executable's entry point (wal-loader64): Unity reads the screen's size before
+# it loads xinput1_3.dll (the 1080x1920 desktop must be there first)
+payload_loader: true
+
+env:
+  # The cabinet's portrait monitor: a 1080x1920 desktop for the game, its window fitted onto
+  # the real screen (aspect kept, centered)
+  WAL_DESKTOP_SIZE: 1080x1920
+  # the cabinet art around the picture (in the dump), its opening fitted to the game's window,
+  # its parts stretched to the screen's edges (no black bars)
+  WAL_BEZEL: bezel.png
+  WAL_BEZEL_FIT: stretch
+  # the window not managed: placed by the payload at the top of the screen (a window
+  # manager's panel pushed it down); never deactivated (Unity minimized it without the focus)
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+  # the players' joysticks: the game's keys (player 1 W A S D, player 2 the arrows)
+  WAL_ADRENALINE_STICK_KEYS: "1"
+
+# the start size too (else Unity's last one, saved in the registry)
+args: [-screen-fullscreen, "1", -screen-width, "1080", -screen-height, "1920"]
+
+# the 64-bit payload's defaults are the gun games': the joystick and the player's button
+native_map:
+  up: stick_up
+  down: stick_down
+  left: stick_left
+  right: stick_right
+  b1: button
+  b2: select
+  start: none
+  coin: coin
+  test: operator
+  service: operator
+
+controls:
+  up: Joystick
+  down: Joystick
+  left: Joystick
+  right: Joystick
+  b1: The player's button
+  b2: Select (operator)
+  coin: Coin
+  test: Operator menu
+  service: Operator menu

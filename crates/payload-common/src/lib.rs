@@ -135,6 +135,8 @@ pub fn start(name: &'static str) {
         #[cfg(windows)]
         {
             crash::init();
+            // before the X11 driver starts (its first window or screen query)
+            desktop::unmanaged();
             crash::dump_threads_at();
             #[cfg(target_arch = "x86")]
             crash::trace_exit();

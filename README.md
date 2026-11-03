@@ -271,6 +271,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait; NVIDIA not yet verified | not in the test |  |
 | `crossy-road` | Crossy Road | adrenaline | user 100% (2026-11-03), 2 buttons, portrait (1080x1920 desktop fitted to the screen) | not in the test |  |
 | `disney-crossy-road` | Disney Crossy Road | adrenaline | user 100% (2026-11-03), 2 buttons, portrait (64-bit, wal-loader64), stretched bezel | not in the test |  |
+| `flappy-tickets` | Flappy Tickets | adrenaline | user 100% (2026-11-03), 2 buttons, portrait, stretched bezel | not in the test |  |
+| `shooty-skies` | Shooty Skies | adrenaline | user 100% (2026-11-03), 2 joysticks (the game's keys) + buttons, portrait (64-bit), stretched bezel | not in the test |  |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | not in the test |  |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | not in the test |  |
 <!-- GAMELIST END -->

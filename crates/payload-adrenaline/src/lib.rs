@@ -24,6 +24,9 @@
 //!   `adrio2.rs` is their Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
 //!   coins, the players' buttons on the operator's keypad, the ticket feeders).
 //!
+//! - Shooty Skies (Unity 5.3, 64-bit) and Flappy Tickets (Unity 4.6, 32-bit): the same board;
+//!   Shooty Skies' joysticks are its keyboard keys (`stick_keys.rs`).
+//!
 //! - Need for Speed Heat Takedown (Unity 2021, Mono, 64-bit): a driving game. `steering.rs`
 //!   is its steering board on a serial port (the wheel and its motor, the pedals, the nitro
 //!   button, the operator's keypad, the coin door); `hdrp.rs` its render scale (HDRP's dynamic
@@ -54,6 +57,7 @@ mod matrix;
 mod pqmt;
 mod sixense;
 mod steering;
+mod stick_keys;
 mod tombraider;
 
 use std::ffi::c_void;
@@ -231,7 +235,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         if unity == 0 {
             unity = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
         }
-        wal_payload_common::input_filter::init(unity, |_| false);
+        // Shooty Skies' joysticks: the keys the payload posts
+        wal_payload_common::input_filter::init(unity, stick_keys::key_held);
+        stick_keys::init();
         // Infinity Blade FX (Unreal Engine 3): the touch frame's client and the dongle imported
         // by the executable, the board on a serial port; no Mono
         #[cfg(target_pointer_width = "32")]
@@ -244,8 +250,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             kaboom::init_serial();
         }
         if !native {
-            // Disney Crossy Road (64-bit): the dump's board and dongle libraries are 32-bit
-            #[cfg(target_pointer_width = "64")]
+            // Disney Crossy Road (64-bit): the dump's board and dongle libraries are 32-bit;
+            // Flappy Tickets: no dongle library in the dump
             mono_imports::stand_in(&["kaboomadriofxplustwofeeders.dll", "matrix32.dll"]);
             mono_imports::hook(resolve);
         }
