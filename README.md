@@ -257,6 +257,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | not in the test |  |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | not in the test |  |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | pass | 2026-11-01 |
+| `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | not in the test |  |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | not in the test |  |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | not in the test |  |
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | not in the test |  |

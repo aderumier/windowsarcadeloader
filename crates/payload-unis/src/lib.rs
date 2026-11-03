@@ -4,10 +4,15 @@
 //! `shunxiang.rs` emulates its COM3 I/O board, the guns' camera tracker (`LC64.dll`) and its
 //! dongles, through Mono's `DllImport`s (`payload-common`'s `mono_imports.rs`).
 //!
-//! The payload is `xinput1_3.dll`, which Unity loads at start: no pads (the game's input comes
-//! from the emulated hardware), the real keyboard and mouse filtered (`payload-common`'s
-//! `input_filter`), the common crosshair option over the Direct3D 11 picture.
+//! After Dark (Virtools 3.5, 32-bit; `WAL_UNIS_BOARD=afterdark`): `afterdark.rs` emulates its
+//! serial gun board and its HID board's device object (the dongle).
+//!
+//! The payload is `xinput1_3.dll`, which Unity loads at start (After Dark: started with it by
+//! `wal-loader`): no pads (the game's input comes from the emulated hardware), the real keyboard
+//! and mouse filtered (`payload-common`'s `input_filter`), the common crosshair option over the
+//! picture (Direct3D 11, After Dark's Direct3D 9).
 
+mod afterdark;
 mod shunxiang;
 
 use std::ffi::c_void;
@@ -20,8 +25,13 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("unis");
-        // the common crosshair option: player 1's gun on the picture (Direct3D 11)
-        if wal_payload_common::crosshairs(false) {
+        let board = std::env::var("WAL_UNIS_BOARD").unwrap_or_default();
+        let afterdark = board.trim() == "afterdark";
+        // the common crosshair option: Direct3D 9 (After Dark, every gun), else player 1's gun
+        // on the Direct3D 11 picture
+        if afterdark {
+            wal_payload_common::crosshair::init();
+        } else if wal_payload_common::crosshairs(false) {
             wal_payload_common::pointer_d3d11::init(wal_payload_common::pointer_d3d11::Dot {
                 color: [1.0, 0.15, 0.15],
                 size: 0.06,
@@ -29,14 +39,15 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 crosshair: true,
             });
         }
-        // Unity 5.4: the player is the executable (no UnityPlayer.dll)
+        // Unity 5.4 (and Virtools): the player is the executable (no UnityPlayer.dll)
         let mut unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) } as usize;
         if unity == 0 {
             unity = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
         }
         wal_payload_common::input_filter::init(unity, |_| false);
-        match std::env::var("WAL_UNIS_BOARD").unwrap_or_default().trim() {
+        match board.trim() {
             "" | "shunxiang" => shunxiang::init(),
+            "afterdark" => afterdark::init(),
             other => wal_payload_common::log!("unis: unknown board {other}"),
         }
     }
