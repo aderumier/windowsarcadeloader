@@ -14,7 +14,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 
 use crate::{desktop, input, log};
 
-/// The game's window: a visible top-level Unity or Unreal window of this process (0: none yet).
+/// The game's window: a visible top-level Unity or Unreal window of this process, else its
+/// largest visible top-level window (an older Unreal Engine 3's own class: Infinity Blade FX)
+/// (0: none yet).
 static WINDOW: AtomicUsize = AtomicUsize::new(0);
 
 pub fn find_window() -> HWND {
@@ -39,7 +41,39 @@ pub fn find_window() -> HWND {
             }
         }
     }
-    std::ptr::null_mut()
+    let hwnd = largest_window(pid);
+    if !hwnd.is_null() {
+        log!("gun: game window {hwnd:?} (largest of the process)");
+        WINDOW.store(hwnd as usize, Ordering::Relaxed);
+    }
+    hwnd
+}
+
+/// This process's largest visible top-level window (client area).
+fn largest_window(pid: u32) -> HWND {
+    use windows_sys::Win32::UI::WindowsAndMessaging::EnumWindows;
+    struct Search {
+        pid: u32,
+        best: HWND,
+        area: f32,
+    }
+    unsafe extern "system" fn each(hwnd: HWND, search: isize) -> i32 {
+        let search = unsafe { &mut *(search as *mut Search) };
+        let mut owner = 0;
+        unsafe { GetWindowThreadProcessId(hwnd, &mut owner) };
+        if owner == search.pid
+            && unsafe { IsWindowVisible(hwnd) } != 0
+            && let Some((_, _, w, h)) = client_area(hwnd)
+            && w * h > search.area
+        {
+            search.best = hwnd;
+            search.area = w * h;
+        }
+        1
+    }
+    let mut search = Search { pid, best: std::ptr::null_mut(), area: 0.0 };
+    unsafe { EnumWindows(Some(each), &mut search as *mut Search as isize) };
+    search.best
 }
 
 /// The game window's client area on the screen: left, top, width, height.

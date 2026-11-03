@@ -1,5 +1,6 @@
 //! Adrenaline Amusements: Adrenaline's PC-based arcade games (Skylanders Cloud Patrol, Rabbids
-//! Hollywood, Tomb Raider, Rampage, Hot Wheels, Spider-Man Homecoming, Drakon: Realm Keepers).
+//! Hollywood, Tomb Raider, Rampage, Hot Wheels, Spider-Man Homecoming, Drakon: Realm Keepers,
+//! Infinity Blade FX).
 //!
 //! Skylanders Cloud Patrol (Unity 4.2, Mono, 32-bit): a touch screen game (a PQ Labs
 //! multi-touch frame) on the "Kaboom" I/O board (coins, the operator's keypad, the ticket
