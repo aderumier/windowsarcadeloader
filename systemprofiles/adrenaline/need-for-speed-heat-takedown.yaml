@@ -1,0 +1,87 @@
+# Need for Speed Heat Takedown (Adrenaline Amusements / Sarbakan, Unity 2021.2, Mono, 64-bit) -
+# template, override values in userprofiles/adrenaline/need-for-speed-heat-takedown.yaml.
+# One seat: a steering wheel with force feedback, gas and brake pedals, a nitro button. The
+# payload emulates the cabinet's steering board on a serial port (the wheel's motor, the pedals,
+# the operator's keypad, the coin door) and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: Need for Speed Heat Takedown
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+  # dumps with a Unity Doorstop proxy winhttp.dll (a third-party controls patch): Wine's own
+  winhttp: "b"
+
+args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
+
+env:
+  # the steering board (its presence) and its force feedback strength, percent (0: off)
+  WAL_NFS_FFB: "100"
+  # the 3D picture's resolution in the screen's (HDRP's dynamic resolution, FSR upscaling)
+  WAL_HDRP_RENDER_SCALE: "0.67"
+
+# The wheel (lx), the gas (accel) and brake pedals; b1 nitro. The game starts on the gas
+# pedal (no start button). The operator's keypad: up / down / select.
+native_map:
+  b1: nitro
+  b2: select
+  start: none
+  test: operator
+  service: select
+  up: up
+  down: down
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+    l2: brake
+  # keyboard steering and pedals: full in 0.3 s
+  keyboard_ramp_ms: 300
+  # Keyboard: Left / Right wheel, Up gas, Down brake, Page Up / Page Down operator up / down.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+controls:
+  up: Operator up
+  down: Operator down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Nitro
+  b2: Operator select
+  start: none
+  coin: Coin
+  test: Operator menu
+  service: Operator select
+
+options:
+  - title: Display
+    options:
+      - key: WAL_HDRP_RENDER_SCALE
+        label: Render scale
+        kind: choice
+        choices: ["1", "0.8", "0.67", "0.5"]
+        description: >-
+          The 3D picture's resolution in the screen's, upscaled with AMD FSR (the menus and HUD
+          stay sharp). 1 is the game's own; 0.67 (the default) is lighter on small GPUs (Radeon
+          860M at 1920x1080 in a race: 27 frames per second at 1, 38-48 at 0.8, about 50 at
+          0.67; the game aims at 60).
+  - title: Game
+    options:
+      - key: WAL_NFS_FFB
+        label: Force feedback strength
+        kind: number
+        min: 0
+        max: 200
+        description: >-
+          The wheel's force feedback, in percent (0: off).

@@ -4282,6 +4282,55 @@ players with a camera (none here: a grey disc).
   settings' `steeringBumpMultipler`, 0 offline (no bumps): the payload sets the game's default
   0.9 then (Mono's embedding API). FFBArcadePlugin has no module for the game.
 
+#### Need for Speed Heat Takedown
+
+Unity 2021.2 (Mono, Direct3D 11, 64-bit, Sarbakan): one seat, a steering wheel with its motor,
+gas and brake pedals, a nitro button. `need-for-speed-heat-takedown.windowsloader` points at
+`Game.exe`. Some dumps carry a Unity Doorstop proxy `winhttp.dll` (a third-party controls
+patch): the profile sets Wine's own `winhttp`. No Kaboom board: the game's `ControllersManager`
+waits for the steering board, the LED strips and spotlight boards (none here: their managers
+give up and retry every few seconds) and, on a motion cabinet (machine name `*MOTION*`), the
+pneumatic seat.
+
+- **Port (`steering.rs`).** `SteeringManager` lists the ports (`SerialPort.GetPortNames`: the
+  registry's `HARDWARE\DEVICEMAP\SERIALCOMM`, Mono's `RegOpenKeyExW`, `RegQueryInfoKeyW`,
+  `RegEnumValueW`, `RegQueryValueExW` `DllImport`s: a fake key listing COM3 only), skips COM1
+  and opens each with `SerialPort` (115200 bauds; `WinSerialStream`'s kernel32 `DllImport`s,
+  ANSI `CreateFile`, are `serial.rs`'s) until one answers `GET_TARGET_INFO` with product 1;
+  firmware 5.35 (else `PicProgrammer.exe` flashes it). The LED strips and spotlight managers
+  then try COM3 too: refused (access denied) while it is open, as a real port's exclusive open,
+  else their probes would read the board's stream.
+- **Frames.** `FE src cmd len(u16) payload.. sum`, the xor of `FE` and every byte after it 0;
+  the board escapes a `FE` byte as `FE FE`, the PC only its sum. Board to PC: every poll (the
+  game's thread, 15 ms) `EVENT_STEERING_POSITION` (14: wheel -1..=1 positive right, gas and
+  brake 0..=1, buttons 1 nitro 2 brake), on a change `EVENT_BUTTON` (10: card 0, keys operator
+  1, down 2, select 4, up 8) and `EVENT_COIN` (11: player 0, the coin counter; the game credits
+  its increase); `GET_INIT_STATUS` (30) no error. The PC's other commands are acknowledged.
+- **Play.** Coins, the gas pedal to join (no start button: the lobby waits for the cabinets
+  linked, then the race with AI cars). Natives `gas brake nitro coin operator up down select`;
+  the wheel on `lx`, the pedals on `accel` and `brake`. The operator menu (test) is driven by
+  the wheel (previous / next) and the gas pedal (select).
+- **Force feedback.** The board's firmware makes the forces: the game sends `SET_FORCE_FACTOR`
+  (20: 1, out of track 0.5, hit obstacle 0.5, differential 1) at the race's start,
+  `GET_CAR_INFO` (19, each physics step: speed 0..=1, hit props (destructables, landings: ±11),
+  side hit (the car's lateral velocity change, -50..=50), vibration frequency 30 and intensity
+  (drift, off road: up to 0.22), off road, vibration on) and turns the motor on and off
+  (`ENABLE_WHEEL` 16, `DISABLE_WHEEL` 17). Played on player 1's wheel: a centring spring of
+  25% plus 50% times the speed (times the force factor), the side hit / 20 as a constant force
+  (held, fading in 120 ms; positive pushes right), the vibration intensity times 4 and the
+  props' hits (|props| / 11, fading in 250 ms) as a vibration; `WAL_NFS_FFB` scales them
+  (percent; its presence enables the board). The forces are traced in the payload's log (a
+  line a second at most).
+- **Render scale (`hdrp.rs`).** GPU-bound on small GPUs (HDRP, Radeon 860M at 1920x1080: 27
+  frames per second in a race). `WAL_HDRP_RENDER_SCALE` (default 0.67) forces HDRP's dynamic
+  resolution: the pipeline asset's `m_RenderPipelineSettings.dynamicResolutionSettings` (found
+  from `RenderPipelineManager.s_currentPipeline`'s `m_Asset`, a Mono-attached payload thread,
+  again whenever its values come back) set enabled, software, forced at the scale, the FSR 1
+  upscaler (`EdgeAdaptiveScalingUpres`); the game's cameras do not allow dynamic resolution:
+  `DynamicResolutionHandler.SetCurrentCameraRequest`'s IL patched to store true, at the game's
+  first `DllImport` (before HDRP's first frame compiles it). The HUD stays at full resolution.
+  0.8: 38-48 frames per second, 0.67: about 50.
+
 #### Spider-Man Homecoming
 
 Unity 5.5 (Mono `mono.dll`, Direct3D 11, 32-bit), a portrait cabinet: two players, one button
@@ -4760,6 +4809,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `drakon-realm-keepers` | Drakon: Realm Keepers | adrenaline | user 100% (2026-11-03), 2 turrets | Sarbakan's turret game (Unity 2021.3 IL2CPP, 64-bit, §6.3k): `InputsManager.Update` and Unity's key functions replaced through IL2CPP's API (the guns, the cabinet's keys), Matrix dongle, no serial port, WiFi stubbed |
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | Adrenaline's 3-player monster game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Kaboom Adrio board (joysticks, attack buttons on the keypad, callbacks from a Mono-attached thread) and Matrix dongle |
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | Adrenaline's six-seat driving game (Unity 2018.3, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its three Kaboom Adrio Hot Wheels boards (wheels, pedals, coins, callbacks from a Mono-attached thread) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
+| `need-for-speed-heat-takedown` | Need for Speed Heat Takedown | adrenaline | user 100% (2026-11-03), 1 wheel, force feedback | Sarbakan's driving game (Unity 2021.2, Mono, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its steering board on COM3 (Mono's `SerialPort`: the port listed in the registry, the wheel, pedals, nitro, keypad, coins; the car info played as force feedback) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |

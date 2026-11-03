@@ -20,6 +20,11 @@
 //!   `adrio2.rs` is its Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
 //!   coins, the players' buttons on the operator's keypad, the ticket feeders).
 //!
+//! - Need for Speed Heat Takedown (Unity 2021, Mono, 64-bit): a driving game. `steering.rs`
+//!   is its steering board on a serial port (the wheel and its motor, the pedals, the nitro
+//!   button, the operator's keypad, the coin door); `hdrp.rs` its render scale (HDRP's dynamic
+//!   resolution, FSR upscaling).
+//!
 //! - Drakon: Realm Keepers (Unity 2021.3, IL2CPP, 64-bit): two turrets. `drakon.rs` replaces
 //!   its input code (the turrets' aim and triggers, the cabinet's keyboard keys) through
 //!   IL2CPP's API; no serial port.
@@ -36,6 +41,8 @@ mod adrio;
 mod adrio2;
 #[cfg(target_pointer_width = "64")]
 mod drakon;
+#[cfg(target_pointer_width = "64")]
+mod hdrp;
 mod hotwheels;
 #[cfg(target_pointer_width = "32")]
 mod kaboom;
@@ -43,6 +50,7 @@ mod matrix;
 #[cfg(target_pointer_width = "32")]
 mod pqmt;
 mod sixense;
+mod steering;
 mod tombraider;
 
 use std::ffi::c_void;
@@ -69,8 +77,11 @@ enum Native {
     Start,
     /// The player's button (Spider-Man Homecoming: its only control).
     Button,
-    /// Full gas, whatever the pedal (Hot Wheels: Kings of the Road).
+    /// Full gas, whatever the pedal (Hot Wheels: Kings of the Road, Need for Speed).
     Gas,
+    /// Full brake, the nitro button (Need for Speed Heat Takedown).
+    Brake,
+    Nitro,
     /// The player's joystick and attack button (Rampage).
     StickUp,
     StickDown,
@@ -98,6 +109,8 @@ const NATIVES: &[(&str, Native)] = &[
     ("stick_right", Native::StickRight),
     ("attack", Native::Attack),
     ("gas", Native::Gas),
+    ("brake", Native::Brake),
+    ("nitro", Native::Nitro),
     ("coin", Native::Coin),
     ("operator", Native::Operator),
     ("up", Native::Up),
@@ -127,6 +140,9 @@ fn held(player: usize, native: Native) -> bool {
 
 /// The emulated hardware's functions.
 fn resolve(name: &str, module: &str) -> Option<usize> {
+    // Need for Speed Heat Takedown (HDRP): its render scale, before its first frame
+    #[cfg(target_pointer_width = "64")]
+    hdrp::init();
     // Drakon: Realm Keepers (IL2CPP): its methods replaced at its dongle's start
     #[cfg(target_pointer_width = "64")]
     if module == "matrix64.dll" {
@@ -149,6 +165,9 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         "wlanapi.dll" => drakon::resolve_wlan(name),
         // Mono's registry (`Win32RegistryApi`, CharSet Unicode)
         "advapi32.dll" if name == "RegOpenKeyExW" => Some(reg_open_key_ex_w as *const () as usize),
+        // Need for Speed's steering board: its port listed, Mono's `SerialPort` on it
+        "advapi32.dll" if steering::enabled() => steering::resolve_advapi32(name),
+        "kernel32.dll" if steering::enabled() => steering::resolve_kernel32(name),
         // another board's library: the real one (logged)
         m if m.starts_with("kaboom") => {
             wal_payload_common::log!("adrenaline: {m}!{name} not emulated");
@@ -162,7 +181,8 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
 /// Spider-Man Homecoming's LED controller library (`LedControllerLib.dll`) opens each port
 /// listed and waits for its controller's answer; Wine lists the machine's own ports (Batocera:
 /// COM1 = /dev/ttyS0, where nothing answers: the game hung before its first frame, a white
-/// window). No port, as on a PC without serial ports: no LED controller.
+/// window). No port, as on a PC without serial ports: no LED controller. Need for Speed Heat
+/// Takedown: its steering board's port only.
 unsafe extern "system" fn reg_open_key_ex_w(key: *mut c_void, sub: *const u16, options: u32, access: u32, result: *mut *mut c_void) -> i32 {
     type F = unsafe extern "system" fn(*mut c_void, *const u16, u32, u32, *mut *mut c_void) -> i32;
     static ORIG: OnceLock<usize> = OnceLock::new();
@@ -170,6 +190,17 @@ unsafe extern "system" fn reg_open_key_ex_w(key: *mut c_void, sub: *const u16, o
         let len = (0..).take_while(|&i| unsafe { *sub.add(i) } != 0).count();
         let name = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(sub, len) });
         if name.trim_matches('\\').eq_ignore_ascii_case("HARDWARE\\DEVICEMAP\\SERIALCOMM") {
+            if steering::enabled() {
+                if !result.is_null() {
+                    unsafe { *result = steering::PORTS_KEY as *mut c_void };
+                }
+                // listed again at each of the LED strips and spotlight managers' retries
+                static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                    wal_payload_common::log!("adrenaline: serial port list: the steering board's");
+                }
+                return 0;
+            }
             wal_payload_common::log!("adrenaline: serial port list hidden");
             return 2; // ERROR_FILE_NOT_FOUND
         }
@@ -192,6 +223,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         }
         wal_payload_common::input_filter::init(unity, |_| false);
         mono_imports::hook(resolve);
+        if steering::enabled() {
+            steering::init();
+        }
         // Skylanders Cloud Patrol: the common crosshair option (Direct3D 9; Rabbids Hollywood
         // draws its own), the board's and the touch frame's threads
         #[cfg(target_pointer_width = "32")]
