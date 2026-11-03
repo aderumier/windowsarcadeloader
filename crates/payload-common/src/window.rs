@@ -12,7 +12,9 @@
 //! device fullscreen on it: the window manager showed an empty frame, desktop behind.
 //! Their menu bars are removed too (the window class's or `CreateWindowEx`'s, and the game's
 //! later `SetMenu`): Thrill Drive 4's DirectX sample framework window showed its File menu
-//! (Go/stop, Single step, Change device, Exit) above the picture.
+//! (Go/stop, Single step, Change device, Exit) above the picture. Their later style changes
+//! (`SetWindowLong(Ptr)A/W`) keep them popups: Time Crisis 5 (UE3) sets its captioned window
+//! style back on its window, a frame around a smaller picture.
 //!
 //! `WAL_HIDE_CURSOR=1`: no mouse cursor over the game (a cabinet has none; Battle Gear 4 shows
 //! the arrow of its window class): `LoadCursorA/W` return no cursor and `SetCursor` sets none.
@@ -28,7 +30,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use crate::{iat, log};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetDesktopWindow, GetMenu, GetParent, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SWP_NOMOVE, SWP_NOSIZE, SetMenu,
+    GetDesktopWindow, GetMenu, GetParent, GetWindowLongW, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SWP_NOMOVE, SWP_NOSIZE, SetMenu,
 };
 
 type HWND = *mut c_void;
@@ -42,6 +44,8 @@ static ORIG_CREATE_WINDOW_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_WINDOW_W: AtomicUsize = AtomicUsize::new(0);
 static POPUP: AtomicBool = AtomicBool::new(false);
 static ORIG_SET_MENU: AtomicUsize = AtomicUsize::new(0);
+/// `SetWindowLongA`, `SetWindowLongW`, `SetWindowLongPtrA`, `SetWindowLongPtrW`.
+static ORIG_SET_WINDOW_LONG: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
 
 pub fn init() {
     keep_unminimized();
@@ -54,6 +58,17 @@ pub fn init() {
         unsafe {
             if let Some(o) = iat::hook("user32.dll", "SetMenu", set_menu as *const () as usize) {
                 ORIG_SET_MENU.store(o, Ordering::Relaxed);
+            }
+            let hooks: [(&str, usize); 4] = [
+                ("SetWindowLongA", set_window_long::<0> as *const () as usize),
+                ("SetWindowLongW", set_window_long::<1> as *const () as usize),
+                ("SetWindowLongPtrA", set_window_long_ptr::<2> as *const () as usize),
+                ("SetWindowLongPtrW", set_window_long_ptr::<3> as *const () as usize),
+            ];
+            for (i, (name, f)) in hooks.into_iter().enumerate() {
+                if let Some(o) = iat::hook("user32.dll", name, f) {
+                    ORIG_SET_WINDOW_LONG[i].store(o, Ordering::Relaxed);
+                }
             }
         }
         log!("window: top-level windows created as popups");
@@ -129,6 +144,10 @@ pub(crate) fn forced(hwnd: HWND, x: i32, y: i32, cx: i32, cy: i32) -> Option<(i3
     let (w, h) = (WIDTH.load(Ordering::Relaxed) as i32, HEIGHT.load(Ordering::Relaxed) as i32);
     if w == 0 || h == 0 {
         return None; // no WAL_WINDOW_SIZE
+    }
+    if cx == 0 && cy == 0 {
+        // collapsed on purpose (Time Crisis 5 entering its operator menu): left so
+        return None;
     }
     if (x, y, cx, cy) != (0, 0, w, h) {
         log!("window: {hwnd:?} {cx}x{cy} at {x},{y} -> {w}x{h} at 0,0");
@@ -226,6 +245,43 @@ unsafe extern "system" fn set_menu(hwnd: HWND, menu: P) -> i32 {
         return 1;
     }
     unsafe { orig(hwnd, menu) }
+}
+
+const GWL_STYLE: i32 = -16;
+const GWL_EXSTYLE: i32 = -20;
+
+/// A style or extended style set on a top-level popup, its decorations removed (the windows
+/// [`created`] left as they were stay so).
+fn kept_popup(hwnd: HWND, index: i32, value: isize) -> isize {
+    if !matches!(index, GWL_STYLE | GWL_EXSTYLE) || !unsafe { GetParent(hwnd) }.is_null() {
+        return value;
+    }
+    if unsafe { GetWindowLongW(hwnd, GWL_STYLE) } as u32 & WS_POPUP == 0 {
+        return value;
+    }
+    let v = value as u32;
+    let kept = if index == GWL_STYLE {
+        if v & WS_CHILD != 0 {
+            return value;
+        }
+        (v & !WS_DECORATIONS) | WS_POPUP
+    } else {
+        v & !WS_EX_DECORATIONS
+    };
+    if kept != v {
+        log!("window: {hwnd:?} {} {v:#x} -> {kept:#x}", if index == GWL_STYLE { "style" } else { "ex style" });
+    }
+    kept as i32 as isize
+}
+
+unsafe extern "system" fn set_window_long<const I: usize>(hwnd: HWND, index: i32, value: i32) -> i32 {
+    let orig: unsafe extern "system" fn(HWND, i32, i32) -> i32 = unsafe { std::mem::transmute(ORIG_SET_WINDOW_LONG[I].load(Ordering::Relaxed)) };
+    unsafe { orig(hwnd, index, kept_popup(hwnd, index, value as isize) as i32) }
+}
+
+unsafe extern "system" fn set_window_long_ptr<const I: usize>(hwnd: HWND, index: i32, value: isize) -> isize {
+    let orig: unsafe extern "system" fn(HWND, i32, isize) -> isize = unsafe { std::mem::transmute(ORIG_SET_WINDOW_LONG[I].load(Ordering::Relaxed)) };
+    unsafe { orig(hwnd, index, kept_popup(hwnd, index, value)) }
 }
 
 /// A new top-level popup's menu bar (its class's or the one passed) removed.
