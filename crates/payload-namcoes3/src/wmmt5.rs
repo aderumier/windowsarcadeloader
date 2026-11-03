@@ -46,7 +46,7 @@ pub(crate) struct Version {
     /// The network traces' addresses (`WAL_NAMCOES3_NET_LOG`, `wmmt5_net.rs`).
     pub(crate) traces: bool,
     /// The built-in game server's schema.
-    server: wal_wm5srv::Game,
+    server: wal_namcoes3srv::wmmt5::Game,
     /// The Banapass reader: the game's `bngrw.dll` (6), else the serial reader on COM4.
     bngrw: bool,
     /// The AMCUS auth daemon's newer IAuth (6R, `amcus.rs`).
@@ -73,7 +73,7 @@ const WMMT5: Version = Version {
     default_revision: 0,
     forces: 0x196f188,
     traces: true,
-    server: wal_wm5srv::Game::Wm5,
+    server: wal_namcoes3srv::wmmt5::Game::Wm5,
     bngrw: false,
     amcus_new: false,
     usb_serial: None,
@@ -127,7 +127,7 @@ const WMMT5DX: Version = Version {
     default_revision: 0,
     forces: 0x1c02750,
     traces: false,
-    server: wal_wm5srv::Game::Wm5Dx,
+    server: wal_namcoes3srv::wmmt5::Game::Wm5Dx,
     bngrw: false,
     amcus_new: false,
     usb_serial: None,
@@ -164,7 +164,7 @@ const WMMT5DXP: Version = Version {
     default_revision: 0,
     forces: 0x1fa6f40,
     traces: false,
-    server: wal_wm5srv::Game::Wm5DxPlus,
+    server: wal_namcoes3srv::wmmt5::Game::Wm5DxPlus,
     bngrw: false,
     amcus_new: false,
     usb_serial: None,
@@ -203,7 +203,7 @@ const WMMT6: Version = Version {
     default_revision: 0,
     forces: 0x1e3c610,
     traces: false,
-    server: wal_wm5srv::Game::Wm6,
+    server: wal_namcoes3srv::wmmt5::Game::Wm6,
     bngrw: true,
     amcus_new: false,
     usb_serial: None,
@@ -239,7 +239,7 @@ const WMMT6R: Version = Version {
     default_revision: 0x2ae4,
     forces: 0x2047128,
     traces: false,
-    server: wal_wm5srv::Game::Wm6R,
+    server: wal_namcoes3srv::wmmt5::Game::Wm6R,
     bngrw: true,
     amcus_new: true,
     // the USB memory key: "2842", the region (0..2), "1", "48" (or "99"), the game's checks
@@ -279,7 +279,7 @@ const WMMT6RR: Version = Version {
     default_revision: 0x38c7,
     forces: 0x1f25260,
     traces: false,
-    server: wal_wm5srv::Game::Wm6RR,
+    server: wal_namcoes3srv::wmmt5::Game::Wm6RR,
     bngrw: true,
     amcus_new: true,
     usb_serial: None,
@@ -367,7 +367,7 @@ pub(crate) fn attach(exe: &str, base: usize, version: &'static Version) {
     // the game server (the ALL.Net answer's uri, amcus.rs)
     // and the store terminal's HTTPS proxy, where a drive cabinet sends its requests while the
     // terminal links (its address, port 50765: wmmt5_terminal.rs)
-    wal_wm5srv::start(
+    wal_namcoes3srv::wmmt5::start(
         version.server,
         &[crate::amcus::game_server(), crate::wmmt5_terminal::PROXY.to_string()],
         "F:\\wm5srv",

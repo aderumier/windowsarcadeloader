@@ -11,6 +11,9 @@
 //!
 //! The players: one record per card in `<data>/users/<bp_amid>` ([`User`]): the card, the
 //! name, the last fighter, each fighter's rank, points and record (`SaveChar`).
+//!
+//! Pokkén Tournament's server is the same framework (`jackal.protobuf`, `jackal.rs`): the
+//! answers are chosen by the schema's package.
 
 use std::collections::BTreeMap;
 use std::net::TcpListener;
@@ -46,6 +49,8 @@ struct Field {
 pub struct Schema {
     messages: BTreeMap<String, Vec<Field>>,
     types: BTreeMap<u64, String>,
+    /// The protocol's package (`graphene.protobuf`, `jackal.protobuf`).
+    pub(crate) package: String,
 }
 
 impl Schema {
@@ -61,6 +66,7 @@ impl Schema {
         }
         let package = fields.iter().find(|(f, _)| *f == 2).map(|(_, v)| String::from_utf8_lossy(v).into_owned()).unwrap_or_default();
         let prefix = format!(".{package}.");
+        schema.package = package.clone();
         for (field, value) in &fields {
             match field {
                 4 => schema.message(value, "", &prefix),
@@ -129,7 +135,7 @@ impl Schema {
 
     /// `values` encoded as `message`, by field name; the required fields it lacks at their
     /// defaults, the others absent.
-    fn encode(&self, message: &str, values: &Obj) -> Vec<u8> {
+    pub(crate) fn encode(&self, message: &str, values: &Obj) -> Vec<u8> {
         let mut w = Writer::new();
         for field in self.fields(message) {
             let value = values.iter().find(|(n, _)| *n == field.name).map(|(_, v)| v);
@@ -140,6 +146,16 @@ impl Schema {
                     }
                 }
                 (Some(V::M(obj)), Kind::Message(m)) => w = w.bytes(field.number, &self.encode(m, obj)),
+                (Some(V::Ints(items)), Kind::Int) => {
+                    for v in items {
+                        w = w.uint(field.number, *v);
+                    }
+                }
+                (Some(V::Ints(items)), Kind::SInt) => {
+                    for v in items {
+                        w = w.sint(field.number, *v as i64);
+                    }
+                }
                 (Some(V::U(v)), Kind::Int) => w = w.uint(field.number, *v),
                 (Some(V::I(v)), Kind::Int) => w = w.uint(field.number, *v as u64),
                 (Some(V::I(v)), Kind::SInt) => w = w.sint(field.number, *v),
@@ -161,7 +177,7 @@ impl Schema {
     }
 
     /// `data` as `message`, by field name (repeated fields: lists, nested messages decoded).
-    fn decode(&self, message: &str, data: &[u8]) -> Obj {
+    pub(crate) fn decode(&self, message: &str, data: &[u8]) -> Obj {
         let Some(m) = Message::parse(data) else { return Vec::new() };
         let mut out: Obj = Vec::new();
         for field in self.fields(message) {
@@ -176,7 +192,14 @@ impl Schema {
                 (_, Value::Varint(x)) => V::U(*x),
                 _ => V::U(0),
             };
-            if field.repeated {
+            if field.repeated && !matches!(field.kind, Kind::Message(_)) {
+                let items = values.iter().map(|v| match one(v) {
+                    V::U(x) => x,
+                    V::I(x) => x as u64,
+                    _ => 0,
+                });
+                out.push((leak(&field.name), V::Ints(items.collect())));
+            } else if field.repeated {
                 let items = values.iter().filter_map(|v| match one(v) {
                     V::M(obj) => Some(obj),
                     _ => None,
@@ -191,7 +214,7 @@ impl Schema {
 }
 
 /// The schema's field names live as long as the server.
-fn leak(s: &str) -> &'static str {
+pub(crate) fn leak(s: &str) -> &'static str {
     static NAMES: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
     let mut names = NAMES.lock().unwrap();
     if let Some(n) = names.iter().find(|n| **n == s) {
@@ -245,16 +268,18 @@ pub enum V {
     S(String),
     M(Obj),
     List(Vec<Obj>),
+    /// A repeated number field.
+    Ints(Vec<u64>),
 }
 
 /// A message's fields by name.
 pub type Obj = Vec<(&'static str, V)>;
 
-fn get<'a>(obj: &'a Obj, name: &str) -> Option<&'a V> {
+pub(crate) fn get<'a>(obj: &'a Obj, name: &str) -> Option<&'a V> {
     obj.iter().find(|(n, _)| *n == name).map(|(_, v)| v)
 }
 
-fn uint(obj: &Obj, name: &str) -> u64 {
+pub(crate) fn uint(obj: &Obj, name: &str) -> u64 {
     match get(obj, name) {
         Some(V::U(v)) => *v,
         Some(V::I(v)) => *v as u64,
@@ -262,7 +287,7 @@ fn uint(obj: &Obj, name: &str) -> u64 {
     }
 }
 
-fn int(obj: &Obj, name: &str) -> i64 {
+pub(crate) fn int(obj: &Obj, name: &str) -> i64 {
     match get(obj, name) {
         Some(V::I(v)) => *v,
         Some(V::U(v)) => *v as i64,
@@ -270,7 +295,7 @@ fn int(obj: &Obj, name: &str) -> i64 {
     }
 }
 
-fn string(obj: &Obj, name: &str) -> String {
+pub(crate) fn string(obj: &Obj, name: &str) -> String {
     match get(obj, name) {
         Some(V::S(s)) => s.clone(),
         _ => String::new(),
@@ -389,6 +414,8 @@ struct Server {
     dir: PathBuf,
     /// The players' name (`WAL_NAMCOES3_PROFILE_NAME`).
     name: String,
+    /// The server's `host:port`.
+    addr: String,
     lock: Mutex<()>,
 }
 
@@ -434,7 +461,7 @@ fn find_or_create(access_code: &str, chip_id: &str, name: &str) -> (User, bool) 
     (user, true)
 }
 
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
@@ -452,6 +479,9 @@ const OK: u64 = 1;
 /// The answer to one request: (result, the answer's fields).
 fn answer(server: &Server, kind: &str, req: &Obj) -> (u64, Obj) {
     let _guard = server.lock.lock().unwrap_or_else(|e| e.into_inner());
+    if server.schema.package == "jackal.protobuf" {
+        return crate::jackal::answer(&server.schema, &server.dir, &server.name, &server.addr, kind, req);
+    }
     match kind {
         "REGISTER_PCB" => (
             OK,
@@ -599,8 +629,12 @@ fn find_by_chip(chip: &str) -> Option<User> {
     std::fs::read_dir(dir).ok()?.flatten().filter_map(|e| User::decode(&std::fs::read(e.path()).ok()?)).find(|u| !chip.is_empty() && u.chip_id == chip)
 }
 
-fn route(_method: &str, _target: &str, body: &[u8]) -> Option<Vec<u8>> {
+fn route(_method: &str, target: &str, body: &[u8]) -> Option<Vec<u8>> {
     let server = SERVER.get()?;
+    // Pokkén Tournament's matching server (JSON)
+    if server.schema.package == "jackal.protobuf" && target.contains("matching") {
+        return Some(crate::jackal::matching(body));
+    }
     let request = Message::parse(body)?;
     let ty = request.uint(1).unwrap_or(0);
     let kind = server.schema.types.get(&ty).cloned().unwrap_or_else(|| format!("type {ty}"));
@@ -633,7 +667,10 @@ pub fn start(addr: &str, descriptor: &[u8], data_dir: &str, name: &str, logger: 
     if let Err(e) = std::fs::create_dir_all(dir.join("users")) {
         log(&format!("graphene: {}: {e}", dir.display()));
     }
-    let _ = SERVER.set(Server { schema, dir, name: name.to_string(), lock: Mutex::new(()) });
+    if schema.package == "jackal.protobuf" {
+        let _ = crate::WEBSOCKET.set(crate::jackal::admission);
+    }
+    let _ = SERVER.set(Server { schema, dir, name: name.to_string(), addr: addr.to_string(), lock: Mutex::new(()) });
     let config = match crate::tls_config() {
         Ok(c) => Arc::new(c),
         Err(e) => {
@@ -691,6 +728,19 @@ mod tests {
         let back = schema.decode("Ping", &data);
         assert_eq!(uint(&back, "a"), 5);
         assert_eq!(string(&back, "b"), "");
+    }
+
+    #[test]
+    fn repeated_numbers_round_trip() {
+        // `Flags { repeated uint32 f = 1; }`
+        let field = Writer::new().string(1, "f").uint(3, 1).uint(4, 3).uint(5, 13);
+        let flags = Writer::new().string(1, "Flags").message(2, field);
+        let schema = Schema::parse(&Writer::new().string(1, "x.proto").string(2, "x").message(4, flags).0);
+        let data = schema.encode("Flags", &vec![("f", V::Ints(vec![3, 0, 7]))]);
+        match get(&schema.decode("Flags", &data), "f") {
+            Some(V::Ints(v)) => assert_eq!(v, &vec![3, 0, 7]),
+            other => panic!("{other:?}"),
+        }
     }
 
     #[test]

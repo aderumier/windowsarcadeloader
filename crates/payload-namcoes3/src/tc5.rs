@@ -431,13 +431,13 @@ unsafe extern "C" fn fopen_s(file: *mut *mut c_void, name: *const u8, mode: *con
 fn network(base: usize) {
     let card = crate::bpreader::player_card();
     crate::bpreader::card_button(card);
-    crate::amcus::set_identity(crate::amcus::Identity { game_id: "SBVE", game_cd: "TC51", game_ver: (1, 0), serial: HASP_SERIAL_STR, scheme: "" });
+    crate::amcus::set_identity(crate::amcus::Identity { game_id: "SBVE", game_cd: "TC51", game_ver: (1, 0), serial: HASP_SERIAL_STR, scheme: "", path: "" });
     match unsafe { wal_payload_common::iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
         Some(o) => CO_CREATE_INSTANCE.store(o, Ordering::Relaxed),
         None => log!("tc5: CoCreateInstance not hooked"),
     }
     let verbose = std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1");
-    wal_wm5srv::spp::start(&crate::amcus::game_server(), "F:\\tc5srv", &card.access_code, |line| log!("{line}"), verbose);
+    wal_namcoes3srv::spp::start(&crate::amcus::game_server(), "F:\\tc5srv", &card.access_code, |line| log!("{line}"), verbose);
 }
 
 pub(crate) fn attach(exe: &str, base: usize) {

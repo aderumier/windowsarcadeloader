@@ -160,7 +160,7 @@ fn network(base: usize, build: &Build) {
         crate::bpreader::card_on_start(card);
     }
     crate::bpreader::init("COM4", &[base]);
-    crate::amcus::set_identity(crate::amcus::Identity { game_id: GAME_ID, game_cd: build.game_cd, game_ver: build.game_ver, serial: SERIAL, scheme: "https://" });
+    crate::amcus::set_identity(crate::amcus::Identity { game_id: GAME_ID, game_cd: build.game_cd, game_ver: build.game_ver, serial: SERIAL, scheme: "https://", path: "" });
     match unsafe { wal_payload_common::iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
         Some(o) => CO_CREATE_INSTANCE.store(o, Ordering::Relaxed),
         None => log!("tekken7: CoCreateInstance not hooked"),
@@ -175,7 +175,7 @@ fn network(base: usize, build: &Build) {
     let verbose = std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1");
     let name = std::env::var("WAL_NAMCOES3_PROFILE_NAME").ok().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "PLAYER".into());
     match descriptor(base) {
-        Some(d) => wal_wm5srv::graphene::start(&crate::amcus::game_server(), d, SERVER_DIR, &name, |line| log!("{line}"), verbose),
+        Some(d) => wal_namcoes3srv::graphene::start(&crate::amcus::game_server(), d, SERVER_DIR, &name, |line| log!("{line}"), verbose),
         None => log!("tekken7: graphene.proto descriptor not found, no game server"),
     }
 }

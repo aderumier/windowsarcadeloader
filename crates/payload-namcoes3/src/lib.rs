@@ -1,5 +1,5 @@
 //! Namco ES3 payload (64-bit): Star Wars Battle Pod: The Force Awakens, Lost Land Adventure,
-//! Wangan Midnight Maximum Tune 5..6RR, Time Crisis 5, Tekken 7.
+//! Wangan Midnight Maximum Tune 5..6RR, Time Crisis 5, Tekken 7, Pokkén Tournament.
 //!
 //! It takes the place of the HASP HL library both the cabinet launcher `RSLauncher.exe` and
 //! the game it starts import: loaded in both processes without injector. The library's name
@@ -10,7 +10,8 @@
 //! `hasp_windows_x64_98199.dll` 5DX and `hasp_windows_x64_106482.dll` 5DX+ (`wmn5r.exe`,
 //! `wmmt5.rs`), `hasp_windows_x64_105293.dll` Time Crisis 5 (`RSLauncher.exe`,
 //! `TC5\Binaries\Win64\TimeCrisisGame-Win64-Shipping.exe`, `tc5.rs`, USIO board `usio.rs`).
-//! Tekken 7 imports no cabinet library: the payload is its `xinput1_3.dll` (`tekken7.rs`).
+//! Tekken 7 and Pokkén Tournament import no cabinet library: the payload is their
+//! `xinput1_3.dll` (`tekken7.rs`, `pokken.rs`).
 //!
 //! * `hasp.rs`: the HASP HL dongle API.
 //! * `jvs.rs`: the JVS I/O board, on the serial calls of the launcher and of the game's I/O
@@ -32,6 +33,7 @@ mod hasp;
 mod jvs;
 mod lla;
 mod patches;
+mod pokken;
 mod projector;
 mod tc5;
 mod tekken7;
@@ -97,7 +99,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let exe = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()));
         let exe = exe.unwrap_or_default();
         let base = module_base();
-        if tekken7::is_tekken7(&exe) {
+        if exe.eq_ignore_ascii_case(pokken::GAME) {
+            pokken::attach(base);
+        } else if tekken7::is_tekken7(&exe) {
             tekken7::attach(&exe, base);
         } else if tc5::is_tc5() {
             tc5::attach(&exe, base);

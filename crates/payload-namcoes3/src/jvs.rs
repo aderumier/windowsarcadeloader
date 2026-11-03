@@ -22,6 +22,10 @@
 //! byte 1 button 3 (left kick) 0x40, button 4 (right kick) 0x20 (0x80 is no switch of the
 //! operator menu's switch test). Both players' coins in slot 1.
 //!
+//! Pokkén Tournament (`pokken`): the controls are the game's XInput pad (`pokken.rs`); the board
+//! has start, service and the coins, as Battle Pod's. Its test menu: up / down (or service)
+//! choose, enter (0x02) enters: start while the test switch is on.
+//!
 //! The cabinet's test switch latches: `test` toggles it (`WAL_NAMCOES3_TEST_TOGGLE=0`: held).
 //! While it is on, up / down also move the test menu cursor. The stick and throttle follow
 //! the analog axes; the d-pad and the `accelerate` / `brake` buttons move them gradually.
@@ -162,6 +166,9 @@ const TEKKEN7_MAP: &[(&str, &str)] = &[
     ("b4", "btn4"),
 ];
 
+/// Pokkén Tournament: the operator buttons and start (the controls are its pad's).
+const POKKEN_MAP: &[(&str, &str)] = &[("test", "test"), ("service", "service"), ("coin", "coin"), ("start", "start")];
+
 /// Tekken 7's switches of each player: native input, byte, bit.
 const TEKKEN7_SWITCHES: &[(Native, usize, u8)] = &[
     (Native::Start, 0, 0x80),
@@ -203,6 +210,7 @@ enum Game {
     Lla,
     Wmmt5,
     Tekken7,
+    Pokken,
 }
 
 /// Per poll, how far the d-pad and the throttle buttons move the axes.
@@ -237,7 +245,9 @@ static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 /// Installs the board on the serial calls of `modules`.
 pub(crate) fn init(modules: &[usize]) {
     let flag = |name: &str, default: bool| std::env::var(name).map_or(default, |v| v != "0");
-    let game = if crate::tekken7::is_loaded() {
+    let game = if crate::pokken::is_loaded() {
+        Game::Pokken
+    } else if crate::tekken7::is_loaded() {
         Game::Tekken7
     } else if crate::lla::is_lla() {
         Game::Lla
@@ -250,6 +260,7 @@ pub(crate) fn init(modules: &[usize]) {
         Game::Lla => LLA_MAP,
         Game::Wmmt5 => WMMT5_MAP,
         Game::Tekken7 => TEKKEN7_MAP,
+        Game::Pokken => POKKEN_MAP,
         Game::BattlePod => DEFAULT_MAP,
     };
     *BOARD.lock().unwrap() = Some(Board {
@@ -338,7 +349,9 @@ fn poll(board: &mut Board) -> Inputs {
     let mut sw = [0u8; 3];
     // Lost Land Adventure: the starts are in byte 1
     let start = on(Native::Start) && board.game != Game::Lla;
-    for (bit, pressed) in [(0x80, start), (0x40, on(Native::Service)), (0x20, menu_up), (0x10, menu_down), (0x02, on(Native::Enter))] {
+    // Pokkén Tournament's test menu: enter on start
+    let menu_enter = board.game == Game::Pokken && board.test_on && on(Native::Start);
+    for (bit, pressed) in [(0x80, start), (0x40, on(Native::Service)), (0x20, menu_up), (0x10, menu_down), (0x02, on(Native::Enter) || menu_enter)] {
         if pressed {
             sw[0] |= bit;
         }

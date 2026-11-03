@@ -1,0 +1,10 @@
+[package]
+name = "wal-pokken-text"
+description = "Pokken Tournament text archives (Win32/text/master/*.drp): export the strings, rebuild them translated"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = "1"
+flate2 = "1"

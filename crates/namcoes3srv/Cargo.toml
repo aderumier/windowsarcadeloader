@@ -1,10 +1,11 @@
 [package]
-name = "wal-wm5srv"
-description = "A Wangan Midnight Maximum Tune 5 game server (Bandai Namco's network): cards, players, cars"
+name = "wal-namcoes3srv"
+description = "Bandai Namco ES3 game servers (WMMT5-6RR, Tekken 7, Pokken Tournament, Time Crisis 5): cards, players"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [dependencies]
 rustls = { version = "0.23", default-features = false, features = ["ring", "tls12", "std"] }
+ring = "0.17"
 rcgen = { version = "0.13", default-features = false, features = ["ring"] }

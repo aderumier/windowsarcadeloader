@@ -91,7 +91,7 @@ pub(crate) fn load_game_history(req: &Message) -> Writer {
     // the ghost battle play and win counts follow the versus counters
     let rg = schema().vs + 10;
     w = w.uint(3, now()).uint(5, record.uint(rg).unwrap_or(0)).uint(6, record.uint(rg + 1).unwrap_or(0));
-    if schema().game != crate::Game::Wm5 {
+    if schema().game != crate::rpc::Game::Wm5 {
         w = w.uint(7, 0);
     }
     w

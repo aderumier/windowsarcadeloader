@@ -64,14 +64,50 @@ pub(crate) fn card_button(card: &'static Card) {
 /// Puts `card` on the reader a second after player 1 presses `start`, for 8 seconds (the game
 /// asks for the card once the credit is started).
 pub(crate) fn card_on_start(card: &'static Card) {
+    card_on_start_for(card, Duration::from_secs(8));
+}
+
+/// [`card_on_start`], the card staying `time` on the reader.
+pub(crate) fn card_on_start_for(card: &'static Card, time: Duration) {
+    card_on_button(card, wal_protocol::button::START, time);
+}
+
+/// Puts `card` on the reader a second after player 1 presses `button`, for `time` (Pokkén
+/// Tournament reads the card between the coin and start).
+pub(crate) fn card_on_button(card: &'static Card, button: u32, time: Duration) {
     std::thread::spawn(move || {
         let mut held = false;
         loop {
-            let pressed = wal_payload_common::input(0).pressed(wal_protocol::button::START);
+            let pressed = wal_payload_common::input(0).pressed(button);
             if pressed && !held {
                 std::thread::sleep(Duration::from_secs(1));
-                insert(card, Duration::from_secs(8));
+                insert(card, time);
                 log!("bpreader: card inserted automatically");
+            }
+            held = pressed;
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    });
+}
+
+/// The card [`card_on_poll_after`] puts on the reader at the game's polls, until it is read.
+static ARMED: Mutex<Option<&'static Card>> = Mutex::new(None);
+
+/// When [`card_on_poll_after`]'s card was last read: the button does not put it back for a
+/// game's length (start also dismisses the game's messages after the card is read).
+static READ_AT: Mutex<Option<Instant>> = Mutex::new(None);
+const REARM_AFTER: Duration = Duration::from_secs(180);
+
+/// After player 1 presses `button`, puts `card` on the reader (3 seconds) whenever the game looks
+/// for a card, until the game reads it (Pokkén Tournament: start, its card question answered
+/// yes, the card prompt).
+pub(crate) fn card_on_poll_after(card: &'static Card, button: u32) {
+    std::thread::spawn(move || {
+        let mut held = false;
+        loop {
+            let pressed = wal_payload_common::input(0).pressed(button);
+            if pressed && !held && READ_AT.lock().unwrap().is_none_or(|t| t.elapsed() >= REARM_AFTER) {
+                *ARMED.lock().unwrap() = Some(card);
             }
             held = pressed;
             std::thread::sleep(Duration::from_millis(50));
@@ -111,7 +147,14 @@ fn process(data: &[u8]) -> Vec<u8> {
         // WriteGPIO (lamp, beep), SetParameters, reset, RFConfiguration
         0x0E | 0x12 | 0x18 | 0x32 => frame(cmd + 1, &[]),
         // InListPassiveTarget: the Mifare poll (baud rate 00) finds the card, else none
-        0x4A => match (data.get(8), card()) {
+        0x4A => match (data.get(8), {
+            if let Some(armed) = *ARMED.lock().unwrap()
+                && card().is_none()
+            {
+                insert(armed, Duration::from_secs(3));
+            }
+            card()
+        }) {
             (Some(0x00), Some(c)) => {
                 let mut target = vec![0x01, 0x01, 0x00, 0x04, 0x08, 0x04];
                 target.extend_from_slice(&c.uid());
@@ -125,6 +168,10 @@ fn process(data: &[u8]) -> Vec<u8> {
             (Some(0x60), ..) => frame(0x41, &[0x01]),
             (Some(0x61), ..) => frame(0x41, &[0x00]),
             (Some(0x30), Some(&n), Some(c)) => {
+                if ARMED.lock().unwrap().take().is_some() {
+                    *READ_AT.lock().unwrap() = Some(Instant::now());
+                    log!("bpreader: card read (inserted automatically)");
+                }
                 let mut out = vec![0x00];
                 out.extend_from_slice(&c.block(n as usize));
                 frame(0x41, &out)

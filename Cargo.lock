@@ -3762,6 +3762,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-namcoes3srv"
+version = "0.1.0"
+dependencies = [
+ "rcgen",
+ "ring",
+ "rustls",
+]
+
+[[package]]
 name = "wal-payload-adrenaline"
 version = "0.1.0"
 dependencies = [
@@ -3822,9 +3831,9 @@ dependencies = [
 name = "wal-payload-namcoes3"
 version = "0.1.0"
 dependencies = [
+ "wal-namcoes3srv",
  "wal-payload-common",
  "wal-protocol",
- "wal-wm5srv",
  "windows-sys 0.61.2",
 ]
 
@@ -3911,16 +3920,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "wal-protocol"
-version = "0.1.0"
-
-[[package]]
-name = "wal-wm5srv"
+name = "wal-pokken-text"
 version = "0.1.0"
 dependencies = [
- "rcgen",
- "rustls",
+ "anyhow",
+ "flate2",
 ]
+
+[[package]]
+name = "wal-protocol"
+version = "0.1.0"
 
 [[package]]
 name = "walkdir"
