@@ -282,7 +282,7 @@ fn string(obj: &Obj, name: &str) -> String {
 /// Record (protocol buffers of this server): 1 bp_amid, 2 access code, 3 chip id, 4 name,
 /// 5 last fighter, 6 last side, 7 fight money, 8 play count, 9 fighters (1 id, 2 rank, 3 rank
 /// points, 4 wins, 5 losses, 6 proper rank wins - losses, 7 counter a, 8 counter b, 9 highest
-/// rank), 10 treasure gauge.
+/// rank), 10 treasure gauge, 11 boost end, 12 free boost day, 13 insignias.
 #[derive(Clone, Default, Debug)]
 struct User {
     bp_amid: u32,
@@ -294,6 +294,11 @@ struct User {
     fight_money: u32,
     plays: u32,
     treasure_gauge: u32,
+    /// Fated Retribution: the insignia rate boost's end (Unix time), the day its free one was used
+    /// (days since 1970), the insignias.
+    boost_end: u32,
+    free_boost_day: u32,
+    kenkyu: u32,
     fighters: BTreeMap<u32, Fighter>,
 }
 
@@ -320,7 +325,10 @@ impl User {
             .uint(6, self.last_side as u64)
             .uint(7, self.fight_money as u64)
             .uint(8, self.plays as u64)
-            .uint(10, self.treasure_gauge as u64);
+            .uint(10, self.treasure_gauge as u64)
+            .uint(11, self.boost_end as u64)
+            .uint(12, self.free_boost_day as u64)
+            .uint(13, self.kenkyu as u64);
         for (id, f) in &self.fighters {
             let fw = Writer::new()
                 .uint(1, *id as u64)
@@ -349,6 +357,9 @@ impl User {
             fight_money: m.uint(7).unwrap_or(0) as u32,
             plays: m.uint(8).unwrap_or(0) as u32,
             treasure_gauge: m.uint(10).unwrap_or(0) as u32,
+            boost_end: m.uint(11).unwrap_or(0) as u32,
+            free_boost_day: m.uint(12).unwrap_or(0) as u32,
+            kenkyu: m.uint(13).unwrap_or(0) as u32,
             fighters: BTreeMap::new(),
         };
         for v in m.all(9) {
@@ -427,6 +438,14 @@ fn now() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
+/// Today, in days since 1970 (the free insignia rate boost: one a day).
+fn today() -> u32 {
+    (now() / 86400) as u32
+}
+
+/// The insignia rate boost's length.
+const BOOST_SECS: u32 = 3600;
+
 /// A request's result: done (the game retries others).
 const OK: u64 = 1;
 
@@ -467,6 +486,7 @@ fn answer(server: &Server, kind: &str, req: &Obj) -> (u64, Obj) {
                     ]
                 })
                 .collect();
+            let insignias = server.schema.fields("Request").iter().any(|f| f.name == "set_kenkyu_boost");
             let highest = user.fighters.values().map(|f| f.highest.max(f.rank)).max().unwrap_or(0);
             (
                 OK,
@@ -483,6 +503,10 @@ fn answer(server: &Server, kind: &str, req: &Obj) -> (u64, Obj) {
                     ("fightmoney_per_person", V::U(user.fight_money as u64)),
                     ("treasure_gauge", V::U(user.treasure_gauge as u64)),
                     ("fighter_info", V::List(fighters)),
+                    // the builds with insignias: a member (the insignia rate boost offered)
+                    ("user_status", V::U(insignias as u64)),
+                    ("kenkyu_boost_end_time", V::U(user.boost_end as u64)),
+                    ("kenkyu_boost_free_count", V::U((user.free_boost_day != today()) as u64)),
                 ],
             )
         }
@@ -522,6 +546,42 @@ fn answer(server: &Server, kind: &str, req: &Obj) -> (u64, Obj) {
                 save_user(&user);
             }
             (OK, Vec::new())
+        }
+        // Fated Retribution: the insignias (kenkyu) and their rate boost, the event running a
+        // year from now
+        "LOAD_CLIENT_SETTINGS" => (
+            OK,
+            vec![
+                ("kenkyu_boost_0", V::U(1)),
+                ("kenkyu_boost_1", V::U(1)),
+                ("kenkyu_boost_2", V::U(1)),
+                ("kenkyu_3", V::U(3)),
+                ("kenkyu_7", V::U(7)),
+                ("kenkyu_last_time", V::U(now() + 365 * 24 * 3600)),
+            ],
+        ),
+        // the insignia rate boost, the day's first one free
+        "SET_KENKYU_BOOST" | "OS_BNCOIN_CONSUME" => {
+            let mut end = 0;
+            if let Some(mut user) = load_user(uint(req, "bp_amid") as u32) {
+                if kind == "SET_KENKYU_BOOST" {
+                    user.free_boost_day = today();
+                }
+                user.boost_end = now() as u32 + BOOST_SECS;
+                end = user.boost_end;
+                save_user(&user);
+            }
+            (OK, vec![("kenkyu_boost_end_time", V::U(end as u64))])
+        }
+        // the insignias won in a fight
+        "GET_KENKYU" => {
+            let mut total = 0;
+            if let Some(mut user) = load_user(uint(req, "bp_amid") as u32) {
+                user.kenkyu = user.kenkyu.saturating_add(uint(req, "give_kenkyu_num") as u32);
+                total = user.kenkyu;
+                save_user(&user);
+            }
+            (OK, vec![("total_kenkyu_num", V::U(total as u64))])
         }
         "SAVE_MRESULT" => {
             if let Some(mut user) = load_user(uint(req, "bp_amid") as u32) {

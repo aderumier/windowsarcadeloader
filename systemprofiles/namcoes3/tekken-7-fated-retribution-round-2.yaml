@@ -1,0 +1,82 @@
+# Tekken 7 Fated Retribution Round 2 (Bandai Namco, 2019, Unreal Engine 4, Direct3D 11, 64-bit) -
+# template, override values in userprofiles/namcoes3/tekken-7-fated-retribution-round-2.yaml.
+system: namcoes3
+name: Tekken 7 Fated Retribution Round 2
+
+# The dump's TekkenGame-Win64-Shipping.exe.orig (the .windowsloader; its .exe is a patched copy
+# loading another I/O emulator). The game imports no cabinet
+# library: the payload is its xinput1_3.dll (JVS I/O board on COM3, boot patches), as Tekken 7's.
+payload_install: [TekkenGame/Binaries/Win64/xinput1_3.dll]
+dll_overrides:
+  xinput1_3: "n,b"
+
+# The game keeps its settings, credits and bookkeeping (*_75.bin) in Tekken 7's developers'
+# folder (C:\perforce\tk7\master\ue4\TekkenGame\Saved\Savedatas): the dump's Saved folder.
+c_folders:
+  perforce/tk7/master/ue4/TekkenGame/Saved: Saved
+
+env:
+  # Online: the Banapassport card on the reader (card button, F4), the cabinet authentication
+  # and a game server built into the payload, the players in the dump's Saved\graphene.
+  WAL_NAMCOES3_BANAPASS: "1"
+  # The name of a new card's player
+  WAL_NAMCOES3_PROFILE_NAME: "PLAYER"
+  # The card's 20-digit access code (empty: a card made once, the dump's Saved\banapass.txt)
+  WAL_NAMCOES3_ACCESS_CODE: ""
+  # The card goes in by itself after start
+  WAL_NAMCOES3_AUTO_CARD: "1"
+
+options:
+  - title: Banapassport card
+    options:
+      - key: WAL_NAMCOES3_BANAPASS
+        label: Online with cards
+        kind: bool
+        description: >-
+          The Banapassport card (card button, F4 on the keyboard) keeps the player's ranks,
+          fight money and records, on a game server built into the loader. Online battles are
+          against the CPU (one cabinet). Off: offline, no card.
+      - key: WAL_NAMCOES3_AUTO_CARD
+        label: Insert the card automatically
+        kind: bool
+        description: >-
+          The card is inserted by itself a second after start is pressed. Off: insert it
+          with the card button.
+      - key: WAL_NAMCOES3_PROFILE_NAME
+        label: Player name
+        kind: text
+        description: The name of a new card's player.
+      - key: WAL_NAMCOES3_ACCESS_CODE
+        label: Access code
+        kind: text
+        description: >-
+          The card's 20-digit access code. Empty: a card made once for this dump
+          (Saved\banapass.txt).
+
+input:
+  # Punches on X / Y, kicks on A / B, the card on the guide button.
+  gamepad:
+    x: b1
+    y: b2
+    a: b3
+    b: b4
+    start: start
+    back: coin
+    l3: service
+    r3: test
+    guide: card
+    dpup: up
+    dpdown: down
+    dpleft: left
+    dpright: right
+    leftx: lx
+    lefty: ly
+
+# Punches and kicks = b1-b4 (default mapping). One player per cabinet (versus: two linked
+# cabinets).
+controls:
+  b1: Left Punch
+  b2: Right Punch
+  b3: Left Kick
+  b4: Right Kick
+  card: Banapass card

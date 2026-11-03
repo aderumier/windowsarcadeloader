@@ -886,7 +886,8 @@ income mode 0x20, and (Million Arthur) HTTP posts 0x1B; later 0x4 game start, 0x
   an uncaught C++ exception; the crash log names it (`crash: C++ exception .?AV_com_error@@` =
   a COM/MSXML smart-pointer call, HRESULT 0x80004003 = a NULL node) with the return addresses
   of the thrower; the XPath strings next to the call give the node the game wants
-  (`/root/match_conf`).
+  (`/root/match_conf`). 64-bit games too (Tekken 7 Round 2:
+  `.?AVConnectionRefusedException@Net@Poco@@`, a server on the wrong port).
 * An unanswered request logs `nesys: unhandled command 0x..` and the game waits: the command
   ids (requests 0x1-0x2B, replies and notices 0x101-0x12A) are listed in `nesys.rs` (`cmd`).
 * HTTP posts: dump them (`WAL_NESYS_HTTP_DUMP=1`), the form's `type` says what is read; reply
@@ -1908,6 +1909,22 @@ the same code (`tekken7.rs`'s build table: online check 0x204af0, error list 0x2
 0x268e00), the same board and switches, 1920x1080 from its own settings. It saves in Tekken
 7's folder (`C:\perforce\tk7\master\ue4\TekkenGame\Saved\Savedatas`, `*_75.bin`): the same
 `c_folders` entry, to its own dump's `Saved`.
+
+Tekken 7 Fated Retribution Round 2 (2019, PE time stamp 0x5CDB8E5A): the dump's
+`TekkenGame-Win64-Shipping.exe` is a patched copy (a jump at the end of `.text` loading another
+I/O emulator), its `.windowsloader` runs the untouched `TekkenGame-Win64-Shipping.exe.orig`.
+The same code again (online check 0x1ed080, error list 0x244e31 / 0x24d8c0, game log
+0x32d470), ALL.Net game code `TR21` 1.00, the newer IAuth. Its game client keeps only the
+ALL.Net uri's host (HTTPS on port 443, Poco `ConnectionRefusedException` every 3 s
+otherwise): the payload's `connect` (ws2_32 #4) sends the game server host's port 443 to the
+server's port. Saves `*_V2.bin` in the same folder, to its dump's `Saved`.
+Insignias (Fated Retribution and Round 2, "kenkyu"): the mode select's INSIGNIA RATE BOOST
+is offered only to a member, LoadUser's `user_status` non-zero (the menu's set-up copies it
+from the answer, 0: the panel greyed out); the server sends it to the builds whose protocol has
+SetKenkyuBoost. LoadClientSettings sets the insignia event (`kenkyu_*`, its end a year ahead),
+LoadUser the boost's end and the day's free boost (`kenkyu_boost_free_count`, "First try is
+free"), SetKenkyuBoost / OsBncoinConsume start a one-hour boost, GetKenkyu adds the insignias
+won.
 
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 
@@ -4328,6 +4345,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `time-crisis-5` | Time Crisis 5 | namcoes3 | works (headless tests: coins, pedals, aim and shots, tutorial, operator menu), 1 gun | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_105293.dll` (HASP and USB key serials), Banapass reader on COM4 (no card), NEC projector on COM1, the USIO board on USB (WinUSB), the gun board on COM1 with the calibration inverted, borderless full-screen game window, F:/G: save drives |
 | `tekken-7` | Tekken 7 | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | UE4 v1.12 (64-bit, §6.3c): the payload as the game's `xinput1_3.dll`, boot patches, the Namco JVS board on COM3, in-process AMCUS, Banapass reader on COM4, built-in graphene game server, saves in the dump's `Saved`, 1920x1080; no cabinet link |
 | `tekken-7-fated-retribution` | Tekken 7 Fated Retribution | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | as `tekken-7` (§6.3c): `xinput1_3.dll` payload, the Fated Retribution boot patches, Namco JVS on COM3, newer IAuth, Banapass, graphene server, saves in the dump's `Saved` |
+| `tekken-7-fated-retribution-round-2` | Tekken 7 Fated Retribution Round 2 | namcoes3 | works (user: 100%, online with Banapass cards, insignia rate boost), 1 player per cabinet | as `tekken-7-fated-retribution` (§6.3c): runs the dump's `.exe.orig`, Round 2 boot patches, game server port redirect, insignias |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | dump built from the game's install disc (unshield), original executable: HASP4 dongle answered in memory (`hasp.rs`), W: drive, USBIO board and gun watchdog patches (`WAL_PATCHES`), operator keys only (`keyboard.rs`); the game's own `msvcr71` / `msvcp71` (Wine's clamps the level dependency CRCs: missing models, statue enemies), initial `systemcfg.lua` |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |

@@ -1,6 +1,7 @@
 //! Tekken 7 (2015, Unreal Engine 4, 64-bit): v1.12 (`TekkenGame-Win64-Shipping_612.exe`, PE
-//! time stamp 0x566C3FBD) and Tekken 7 Fated Retribution (2016,
-//! `TekkenGame-Win64-Shipping.exe`, 0x573CBE0E). The game imports no cabinet library: the payload is installed as
+//! time stamp 0x566C3FBD), Tekken 7 Fated Retribution (2016,
+//! `TekkenGame-Win64-Shipping.exe`, 0x573CBE0E) and Fated Retribution Round 2 (2019, 0x5CDB8E5A).
+//! The game imports no cabinet library: the payload is installed as
 //! the `xinput1_3.dll` beside it, whose ordinals 2 / 3 the game imports (neutral pads, see
 //! [`crate::game_pads_hidden`]).
 //!
@@ -8,7 +9,7 @@
 //!   of 16 switches (the stick, punches and kicks on buttons 1-4).
 //! - network: the cabinet authentication (AMCUS, ALL.Net) is not there; the game's online check
 //!   answers offline and the error list it fills at boot (no network, no server) stays empty
-//!   (the same code in both builds, at other addresses: [`BUILDS`]).
+//!   (the same code in every build, at other addresses: [`BUILDS`]).
 //! - the game's keyboard and raw input (developer controls): from the launcher only.
 //! - the engine's usage reports (`wininet`, `etsource.epicgames.com`): no connection.
 
@@ -40,6 +41,7 @@ struct Build {
 const BUILDS: &[Build] = &[
     Build { name: "v1.12", timestamp: 0x566C3FBD, online: 0x147380, errors: [0x16bc41, 0x179050], game_cd: "TE76", game_ver: (1, 0), gamelog: 0x223aa0, amcus: &crate::amcus::OBJECT_TEKKEN },
     Build { name: "Fated Retribution", timestamp: 0x573CBE0E, online: 0x204af0, errors: [0x25e791, 0x268e00], game_cd: "TER1", game_ver: (1, 50), gamelog: 0x3319f0, amcus: &crate::amcus::OBJECT_NEW },
+    Build { name: "Fated Retribution Round 2", timestamp: 0x5CDB8E5A, online: 0x1ed080, errors: [0x244e31, 0x24d8c0], game_cd: "TR21", game_ver: (1, 0), gamelog: 0x32d470, amcus: &crate::amcus::OBJECT_NEW },
 ];
 
 /// The ALL.Net game id of both builds.
@@ -125,6 +127,29 @@ unsafe extern "system" fn co_create_instance(clsid: *const u8, outer: *mut c_voi
     unsafe { real(clsid, outer, context, iid, out) }
 }
 
+static CONNECT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// The game server's address (`host:port`), connections to its host on 443 sent to its port.
+static SERVER: std::sync::OnceLock<std::net::SocketAddrV4> = std::sync::OnceLock::new();
+
+/// `connect` (ws2_32 #4): Round 2's game client drops the ALL.Net uri's port (HTTPS on 443).
+unsafe extern "system" fn connect(socket: usize, addr: *const u8, len: i32) -> i32 {
+    type F = unsafe extern "system" fn(usize, *const u8, i32) -> i32;
+    let real: F = unsafe { std::mem::transmute(CONNECT.load(Ordering::Relaxed)) };
+    if let Some(server) = SERVER.get()
+        && !addr.is_null()
+        && len >= 16
+    {
+        let mut sin = [0u8; 16];
+        unsafe { std::ptr::copy_nonoverlapping(addr, sin.as_mut_ptr(), 16) };
+        // AF_INET, port 443, the server's host
+        if sin[..4] == [2, 0, 0x01, 0xBB] && sin[4..8] == server.ip().octets() {
+            sin[2..4].copy_from_slice(&server.port().to_be_bytes());
+            return unsafe { real(socket, sin.as_ptr(), len) };
+        }
+    }
+    unsafe { real(socket, addr, len) }
+}
+
 /// `WAL_NAMCOES3_BANAPASS=1`: online, the Banapass reader on COM4 (the player's card with the
 /// `card` button), the AMCUS auth daemon in-process.
 fn network(base: usize, build: &Build) {
@@ -139,6 +164,13 @@ fn network(base: usize, build: &Build) {
     match unsafe { wal_payload_common::iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
         Some(o) => CO_CREATE_INSTANCE.store(o, Ordering::Relaxed),
         None => log!("tekken7: CoCreateInstance not hooked"),
+    }
+    if let Ok(server) = crate::amcus::game_server().parse() {
+        let _ = SERVER.set(server);
+        match unsafe { wal_payload_common::iat::hook_ordinal(base, "ws2_32.dll", 4, connect as *const () as usize) } {
+            Some(o) => CONNECT.store(o, Ordering::Relaxed),
+            None => log!("tekken7: connect not hooked"),
+        }
     }
     let verbose = std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1");
     let name = std::env::var("WAL_NAMCOES3_PROFILE_NAME").ok().filter(|n| !n.trim().is_empty()).unwrap_or_else(|| "PLAYER".into());
