@@ -98,7 +98,8 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
 }
 
 /// C++ exception thrown by the game (an uncaught one ends in "Runtime Error! ... terminate it in
-/// an unusual way"): the thrown type (32-bit ThrowInfo: absolute pointers) and, for
+/// an unusual way"): the thrown type (32-bit ThrowInfo: absolute pointers, 64-bit: module
+/// offsets) and, for
 /// `std::exception`, its message (`{vfptr, const char* what, ...}`).
 fn log_cpp_exception(record: &windows_sys::Win32::System::Diagnostics::Debug::EXCEPTION_RECORD) {
     let (object, throw_info) = (record.ExceptionInformation[1], record.ExceptionInformation[2]);
@@ -144,6 +145,31 @@ fn log_cpp_exception(record: &windows_sys::Win32::System::Diagnostics::Debug::EX
         }
         if !runs.is_empty() {
             log!("crash: C++ exception text: {}", runs.join(" | "));
+        }
+    }
+    // 64-bit ThrowInfo: 32-bit offsets from the throwing module (ExceptionInformation[3])
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        let module = record.ExceptionInformation[3];
+        let rva = |a: usize| if readable(a, 4) { Some(module + std::ptr::read_volatile(a as *const u32) as usize) } else { None };
+        if module != 0
+            && let Some(types) = rva(throw_info + 0xC)
+            && let Some(first) = rva(types + 4)
+            && let Some(desc) = rva(first + 4)
+            && readable(desc + 16, 64)
+        {
+            name = (0..64).map(|i| std::ptr::read_volatile((desc + 16 + i) as *const u8)).take_while(|b| *b != 0).map(|b| b as char).collect();
+        }
+        if readable(object + 8, 8) {
+            let what = std::ptr::read_volatile((object + 8) as *const usize);
+            if readable(what, 1) {
+                let text: String = (0..160)
+                    .map(|i| if readable(what + i, 1) { std::ptr::read_volatile((what + i) as *const u8) } else { 0 })
+                    .take_while(|b| *b != 0)
+                    .map(|b| if (0x20..0x7f).contains(&b) { b as char } else { '.' })
+                    .collect();
+                log!("crash: C++ exception what: {text}");
+            }
         }
     }
     log!("crash: C++ exception {name} (object {object:#x}, throw info {throw_info:#x}) at {:#x}", record.ExceptionAddress as usize);
