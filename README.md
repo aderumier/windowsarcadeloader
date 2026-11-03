@@ -259,6 +259,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | pass | 2026-11-01 |
 | `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | not in the test |  |
 | `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns; operator menu items not selectable | not in the test |  |
+| `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns | not in the test |  |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | not in the test |  |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | not in the test |  |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved | not in the test |  |
