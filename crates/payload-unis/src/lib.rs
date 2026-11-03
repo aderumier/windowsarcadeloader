@@ -13,6 +13,7 @@
 //! picture (Direct3D 11, After Dark's Direct3D 9).
 
 mod afterdark;
+mod afterdark_stage4;
 mod shunxiang;
 
 use std::ffi::c_void;
