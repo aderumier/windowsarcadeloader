@@ -1,4 +1,4 @@
-# After Dark (UNIS, Virtools 3.5, 32-bit; 1.1 and 2.3) - template, override values in
+# After Dark 1.1 (UNIS, Virtools 3.5, 32-bit; 2.3: after-dark-2-3.yaml) - template, override values in
 # userprofiles/unis/after-dark.yaml.
 # Two guns. The payload emulates the cabinet's serial gun board (guns, triggers, coins) and its
 # HID board (the dongle) (docs §6.3j).
@@ -11,7 +11,8 @@ dll_overrides:
   xinput1_3: "n,b"
 
 # The player's settings (GameConfig, not in the dumps): the composition to play and the
-# dump's texture and sound folders, the window's size
+# dump's texture and sound folders, the window's size, running without the focus (the videos'
+# devices take it to the desktop window: the game paused, its operator menu "hung")
 files:
   GameConfig: systemprofiles/unis/files/after-dark/GameConfig
 

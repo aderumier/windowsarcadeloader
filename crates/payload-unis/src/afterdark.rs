@@ -6,10 +6,10 @@
 //! executable's own building blocks that the scripts (`main.vmo`) use:
 //!
 //! - **Serial board.** 26-byte frames `40 80`, gun A's and gun B's buttons (bytes 2, 3: 0x01
-//!   the start, 0x02 the trigger, 0x04 the motion seat's button, 0x08 the operator menu, 0x10 / 0x20 its + / -,
-//!   0x80 a coin, counted once per 100 ms held), their X and Y (bytes 7..14, big
-//!   endian, 12 bits: 0..4095 across the screen from its top left, which the game maps through
-//!   its calibration, `coin.ini`'s `Gun1xMin` ... `Gun2yMax`, set in the operator menu's gun
+//!   the start, 0x02 the trigger, 0x04 the motion seat's button, 0x08 the operator menu,
+//!   0x10 / 0x20 its + / -, 0x80 a coin, counted once per 100 ms held), their X and Y (bytes
+//!   7..14, big endian, 12 bits: 0..4095 across the screen from its bottom left, which the
+//!   game maps through its calibration, `coin.ini`'s `Gun1xMin` ... `Gun2yMax`, set in the operator menu's gun
 //!   settings), `0D` and the XOR of the 25 bytes before. The PC's frames (vibration)
 //!   are ignored.
 //! - **HID board.** Its driver (in the executable) speaks an encrypted protocol to the board;
@@ -142,7 +142,8 @@ fn idle() -> Vec<u8> {
         let (sx, sy) = gun::on_screen(&input(g), screen);
         let (fx, fy) = ((sx / screen.0).clamp(0.0, 1.0), (sy / screen.1).clamp(0.0, 1.0));
         let raw = |f: f32| (f * RAW_MAX).round() as u16;
-        let (x, y) = (raw(fx), raw(fy));
+        // y from the bottom (the calibration's yMin the bottom edge)
+        let (x, y) = (raw(fx), raw(1.0 - fy));
         data[5 + 4 * g..9 + 4 * g].copy_from_slice(&[(x >> 8) as u8, x as u8, (y >> 8) as u8, y as u8]);
     }
     if FRAMES.fetch_add(1, Ordering::Relaxed) == 0 {
@@ -272,6 +273,9 @@ fn replace_board_init() -> bool {
 }
 
 pub fn init() {
+    // the MFC message loop's keyboard and mouse filtered too: the PC keyboard's F1 was MFC's
+    // help (WinHelp, the game hung)
+    wal_payload_common::input_filter::messages(unsafe { GetModuleHandleW(windows_sys::w!("mfc90.dll")) } as usize);
     serial::install_streaming(PORT, handler, idle);
     let hid = replace_board_init();
     log!("afterdark: board on {PORT}, HID board {}", if hid { "emulated" } else { "not found (unknown executable)" });
@@ -288,3 +292,4 @@ mod tests {
         assert_eq!(f[..25].iter().fold(0, |a, b| a ^ b), f[25]);
     }
 }
+
