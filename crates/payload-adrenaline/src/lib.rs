@@ -19,8 +19,9 @@
 //! - Infinity Blade FX (Unreal Engine 3, 32-bit): a touch screen sword game, swiped. The
 //!   executable imports the PQ Labs client (`pqmt.rs`) and the Matrix dongle, and has the
 //!   Kaboom board's library built in (`kaboom.rs`: its serial port).
-//! - Spider-Man Homecoming (Unity 5.5, Mono, 32-bit): two players, one button each.
-//!   `adrio2.rs` is its Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
+//! - Spider-Man Homecoming (Unity 5.5, Mono, 32-bit) and Crossy Road (Unity 5.1): two players,
+//!   one button each.
+//!   `adrio2.rs` is their Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
 //!   coins, the players' buttons on the operator's keypad, the ticket feeders).
 //!
 //! - Need for Speed Heat Takedown (Unity 2021, Mono, 64-bit): a driving game. `steering.rs`
