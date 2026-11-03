@@ -6,11 +6,17 @@
 //! refused ("you can't use the Banapassport card at this time"). This object reports a
 //! standalone cabinet that passed ALL.Net and MUCHA authentication.
 //!
-//! The structure layouts follow bananatools' `amcus/iauth.c` (public domain), with Wangan
-//! Midnight Maximum Tune 5's identity (game SBWJ 3.00 / 5DX 5.00, PCB ABGN, its dongle serial). This game
-//! uses an older IAuth: bananatools' slots minus 5, a shorter state (`GetInfo`), cabinet config
-//! and MUCHA answer; 6R the newer one, bananatools' own ([`OBJECT_NEW`]). The ALL.Net answer's `uri` is the game server
-//! (`https://` + `WAL_NAMCOES3_GAME_SERVER`, `host:port`, default `127.0.0.1:9002`).
+//! The structure layouts follow bananatools' `amcus/iauth.c` (public domain). Three IAuth
+//! versions, the game's identity set by its module ([`set_identity`]; Wangan Midnight Maximum
+//! Tune 5's version table otherwise):
+//! - [`OBJECT`]: Wangan Midnight Maximum Tune 5 / 5DX / 5DX+ / 6 and Time Crisis 5, the older
+//!   one: bananatools' slots minus 5, a shorter state (`GetInfo`), cabinet config and MUCHA
+//!   answer.
+//! - [`OBJECT_TEKKEN`]: Tekken 7, between them: bananatools' slots minus 2 from the state on.
+//! - [`OBJECT_NEW`]: 6R / 6RR, bananatools' own.
+//!
+//! The ALL.Net answer's `uri` is the game server (`https://` + `WAL_NAMCOES3_GAME_SERVER`,
+//! `host:port`, default `127.0.0.1:9002`).
 
 use std::ffi::c_void;
 
@@ -408,6 +414,94 @@ static VTABLE_NEW: Vtable = Vtable([
 ]);
 
 pub(crate) static OBJECT_NEW: Object = Object { vtable: VTABLE_NEW.0.as_ptr() };
+
+/// `GetState(state*)` (Tekken 7's IAuth, slot 7), 184 bytes: ALL.Net and MUCHA idle (14) and
+/// authenticated (2, one authentication), the versions, the clock set (+168), the daemon idle
+/// (+176: the game waits for 14 after `Initialize`) without error (+180).
+unsafe extern "system" fn get_state_tekken(_this: P, out: *mut u8) -> i32 {
+    if out.is_null() {
+        return S_OK;
+    }
+    unsafe {
+        std::ptr::write_bytes(out, 0, 184);
+        put(out, 0, 14u32);
+        put(out, 8, 2i32);
+        put(out, 12, 1i32);
+        let m = 24;
+        put(out, m, 14u32);
+        put(out, m + 8, 2i32);
+        put(out, m + 12, 1i32);
+        put(out, m + 16, 27i32);
+        put(out, m + 20, 32i32);
+        put(out, m + 24, 43i32);
+        put(out, m + 28, 52i32);
+        put(out, m + 32, 59i32);
+        let (major, minor) = identity().game_ver;
+        put(out, m + 36, major);
+        put(out, m + 38, minor);
+        put(out, m + 40, major);
+        put(out, m + 42, minor);
+        put(out, m + 96, 1i32);
+        put(out, 168, 1i64);
+        put(out, 176, 14u32);
+    }
+    S_OK
+}
+
+/// `GetCabinetConfig(config*)` (Tekken 7's IAuth, slot 8), 152 bytes: the newer config without
+/// its link status fields.
+unsafe extern "system" fn get_cabinet_config_tekken(this: P, out: *mut u8) -> i32 {
+    if out.is_null() {
+        return S_OK;
+    }
+    let mut full = [0u8; 168];
+    unsafe {
+        get_cabinet_config_new(this, full.as_mut_ptr());
+        std::ptr::copy_nonoverlapping(full.as_ptr(), out, 152);
+    }
+    S_OK
+}
+
+/// Tekken 7's IAuth (2015): the newer one's slots minus 2 from the state on, a shorter state
+/// and cabinet config, the older MUCHA answer.
+static VTABLE_TEKKEN: Vtable = Vtable([
+    query as *const (),
+    refs as *const (),
+    refs as *const (),
+    set_mode as *const (), // 3: Initialize(5)
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    get_state_tekken as *const (), // 7
+    get_cabinet_config_tekken as *const (), // 8
+    get_version_info as *const (), // 9
+    unused as *const (),
+    unused as *const (),
+    get_auth_server_resp as *const (), // 12
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    get_mucha_auth_response as *const (), // 16
+    get_mucha_updater_state as *const (), // 17
+    convert as *const (), // 18
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+    unused as *const (),
+]);
+
+pub(crate) static OBJECT_TEKKEN: Object = Object { vtable: VTABLE_TEKKEN.0.as_ptr() };
 
 /// The object a traced daemon forwards to (`WAL_NAMCOES3_AMCUS_TRACE=1`).
 static TRACED: std::sync::atomic::AtomicPtr<Object> = std::sync::atomic::AtomicPtr::new(std::ptr::null_mut());

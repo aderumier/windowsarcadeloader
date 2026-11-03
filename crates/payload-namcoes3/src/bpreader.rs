@@ -32,14 +32,18 @@ fn card() -> Option<&'static Card> {
 /// The player's card: `WAL_NAMCOES3_ACCESS_CODE` (20 digits), else a card made once and kept
 /// in `F:\banapass.txt`.
 pub(crate) fn player_card() -> &'static Card {
-    const SAVED: &str = "F:\\banapass.txt";
+    player_card_in("F:\\banapass.txt")
+}
+
+/// [`player_card`], the card made once kept in the file `path`.
+pub(crate) fn player_card_in(path: &str) -> &'static Card {
     let configured = std::env::var("WAL_NAMCOES3_ACCESS_CODE").ok().filter(|c| !c.trim().is_empty());
-    let saved = std::fs::read_to_string(SAVED).ok();
+    let saved = std::fs::read_to_string(path).ok();
     let card = configured.or(saved).and_then(|c| Card::from_access_code(c.trim())).unwrap_or_else(|| {
         let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64);
         let card = Card::generate(seed);
-        if let Err(e) = std::fs::write(SAVED, &card.access_code) {
-            log!("bpreader: {SAVED}: {e}");
+        if let Err(e) = std::fs::write(path, &card.access_code) {
+            log!("bpreader: {path}: {e}");
         }
         card
     });
@@ -54,6 +58,24 @@ pub(crate) fn card_button(card: &'static Card) {
             insert(card, Duration::from_secs(3));
         }
         std::thread::sleep(Duration::from_millis(50));
+    });
+}
+
+/// Puts `card` on the reader a second after player 1 presses `start`, for 8 seconds (the game
+/// asks for the card once the credit is started).
+pub(crate) fn card_on_start(card: &'static Card) {
+    std::thread::spawn(move || {
+        let mut held = false;
+        loop {
+            let pressed = wal_payload_common::input(0).pressed(wal_protocol::button::START);
+            if pressed && !held {
+                std::thread::sleep(Duration::from_secs(1));
+                insert(card, Duration::from_secs(8));
+                log!("bpreader: card inserted automatically");
+            }
+            held = pressed;
+            std::thread::sleep(Duration::from_millis(50));
+        }
     });
 }
 

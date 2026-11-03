@@ -240,12 +240,12 @@ fn gun_board(data: &[u8]) -> Vec<u8> {
 
 static CO_CREATE_INSTANCE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// The launcher's AMCUS auth daemon (`IAuth`), in-process (`wmmt5_amcus.rs`).
+/// The launcher's AMCUS auth daemon (`IAuth`), in-process (`amcus.rs`).
 unsafe extern "system" fn co_create_instance(clsid: *const u8, outer: *mut c_void, context: u32, iid: *const u8, out: *mut *mut c_void) -> i32 {
-    if !clsid.is_null() && unsafe { std::slice::from_raw_parts(clsid, 16) } == crate::wmmt5_amcus::CLSID {
+    if !clsid.is_null() && unsafe { std::slice::from_raw_parts(clsid, 16) } == crate::amcus::CLSID {
         if !out.is_null() {
-            let object = crate::wmmt5_amcus::daemon(&crate::wmmt5_amcus::OBJECT);
-            unsafe { *out = (object as *const crate::wmmt5_amcus::Object).cast_mut().cast() };
+            let object = crate::amcus::daemon(&crate::amcus::OBJECT);
+            unsafe { *out = (object as *const crate::amcus::Object).cast_mut().cast() };
         }
         log!("tc5: in-process AMCUS auth (IAuth)");
         return 0;
@@ -296,13 +296,13 @@ fn reset_saved_resolution() {
 fn network(base: usize) {
     let card = crate::bpreader::player_card();
     crate::bpreader::card_button(card);
-    crate::wmmt5_amcus::set_identity(crate::wmmt5_amcus::Identity { game_id: "SBVE", game_cd: "TC51", game_ver: (1, 0), serial: HASP_SERIAL_STR, scheme: "" });
+    crate::amcus::set_identity(crate::amcus::Identity { game_id: "SBVE", game_cd: "TC51", game_ver: (1, 0), serial: HASP_SERIAL_STR, scheme: "" });
     match unsafe { wal_payload_common::iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
         Some(o) => CO_CREATE_INSTANCE.store(o, Ordering::Relaxed),
         None => log!("tc5: CoCreateInstance not hooked"),
     }
     let verbose = std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1");
-    wal_wm5srv::spp::start(&crate::wmmt5_amcus::game_server(), "F:\\tc5srv", &card.access_code, |line| log!("{line}"), verbose);
+    wal_wm5srv::spp::start(&crate::amcus::game_server(), "F:\\tc5srv", &card.access_code, |line| log!("{line}"), verbose);
 }
 
 pub(crate) fn attach(exe: &str, base: usize) {

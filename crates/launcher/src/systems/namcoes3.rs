@@ -3,7 +3,8 @@
 //! Mach Storm (32-bit) loads the same payload at its executable's entry point (no import).
 //! Lost Land Adventure (64-bit) installs the 64-bit payload as its own launcher's and game's
 //! `hasp_windows_x64_106993.dll` (profile `payload_install`), Time Crisis 5 (64-bit) as its
-//! `hasp_windows_x64_105293.dll`.
+//! `hasp_windows_x64_105293.dll`. Tekken 7 (64-bit) imports no cabinet library: the payload is
+//! its `xinput1_3.dll` (profile `payload_install`).
 //!
 //! The dump's executable is the cabinet launcher `Launcher\RSLauncher.exe`, which starts
 //! `Binaries\Win64\SWArcGame-Win64-Shipping.exe`. Both import the HASP HL dongle library
