@@ -58,6 +58,12 @@ env:
 input:
   # the keyboard's plunger pulled back over a second, as a hand pulls the real one
   keyboard_ramp_ms: 1000
+  # Gamepad: L1 / L2 left flipper, R1 / R2 right flipper (A / B too).
+  gamepad:
+    l1: b5
+    l2: b5
+    r1: b6
+    r2: b6
   # Keyboard (player 1): Left / Right flippers (Z / X too, Space / Left Shift the second
   # flippers), Down pulls the plunger back (released: it launches the ball; Left Ctrl is the
   # plunger button), Up pushes it in, W / S nudge front / back, A / D nudge left / right (the
