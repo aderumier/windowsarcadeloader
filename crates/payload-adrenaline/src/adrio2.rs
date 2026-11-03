@@ -1,5 +1,5 @@
-//! The "Kaboom" Adrio two-feeder I/O board of Spider-Man Homecoming and Crossy Road (the same
-//! keypad: the players' jump buttons on up and down):
+//! The "Kaboom" Adrio two-feeder I/O board of Spider-Man Homecoming, Crossy Road and Disney
+//! Crossy Road (64-bit; the same keypad: the players' jump buttons on up and down):
 //! `KaboomAdrioFxPlusTwoFeeders.dll`, its serial board's library, replaced (cdecl, every
 //! function a `KABOOM_DLL_ERROR` byte, 0 no error).
 //!

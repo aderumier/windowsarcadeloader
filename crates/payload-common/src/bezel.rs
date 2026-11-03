@@ -12,7 +12,9 @@
 //! fitted to the game's window. The image keeps its scale (fitted to the screen's height); its
 //! parts left and right of the opening are drawn against the window's left and right edges
 //! (Spider-Man Homecoming: an opening wider than the game's picture). No stretching: the art
-//! keeps its aspect, the screen's edges black.
+//! keeps its aspect, the screen's edges black. `WAL_BEZEL_FIT=stretch`: those parts stretched
+//! across to the screen's edges, the height still the screen's (Disney Crossy Road: a 16:9
+//! image whose parts left black edges on the screen).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -41,6 +43,8 @@ static IMAGE_H: AtomicUsize = AtomicUsize::new(0);
 /// `WAL_BEZEL_FIT`: the opening's left and right edges in the image (0, 0: not fitted).
 static HOLE_L: AtomicUsize = AtomicUsize::new(0);
 static HOLE_R: AtomicUsize = AtomicUsize::new(0);
+/// `WAL_BEZEL_FIT=stretch`: the image's parts stretched to the screen's edges.
+static STRETCH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// The game's window left and right edges (screen), for the fitted drawing.
 static GAME_L: AtomicUsize = AtomicUsize::new(0);
 static GAME_R: AtomicUsize = AtomicUsize::new(0);
@@ -164,11 +168,14 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpar
                     let (gl, gr) = (GAME_L.load(Ordering::Relaxed) as i32, GAME_R.load(Ordering::Relaxed) as i32);
                     if hr > hl && gr > gl {
                         // the parts left and right of the opening against the game's edges
-                        // (the image's scale kept: its height fitted to the screen)
+                        // (the image's scale kept: its height fitted to the screen; `stretch`:
+                        // each part stretched to the screen's edge)
                         let s = sh as f64 / ih;
                         let (h, y) = ((ih * s).round() as i32, -at.top);
-                        let lw = (hl as f64 * s).round() as i32;
-                        let rw = ((iw as i32 - hr) as f64 * s).round() as i32;
+                        let (mut lw, mut rw) = ((hl as f64 * s).round() as i32, ((iw as i32 - hr) as f64 * s).round() as i32);
+                        if STRETCH.load(Ordering::Relaxed) {
+                            (lw, rw) = (gl, sw - gr);
+                        }
                         StretchBlt(dc, gl - lw - at.left, y, lw, h, mem, 0, 0, hl, ih as i32, SRCCOPY);
                         StretchBlt(dc, gr - at.left, y, rw, h, mem, hr, 0, iw as i32 - hr, ih as i32, SRCCOPY);
                     } else {
@@ -289,7 +296,9 @@ pub fn init() {
             IMAGE_W.store(w as usize, Ordering::Relaxed);
             IMAGE_H.store(h as usize, Ordering::Relaxed);
             log!("bezel: {path} ({w}x{h})");
-            let fit = std::env::var("WAL_BEZEL_FIT").is_ok_and(|v| v.trim() == "1");
+            let mode = std::env::var("WAL_BEZEL_FIT").unwrap_or_default();
+            let fit = matches!(mode.trim(), "1" | "stretch");
+            STRETCH.store(mode.trim() == "stretch", Ordering::Relaxed);
             match opening(image, w, h).filter(|_| fit) {
                 Some((l, r)) => {
                     HOLE_L.store(l as usize, Ordering::Relaxed);

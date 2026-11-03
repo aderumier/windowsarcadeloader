@@ -19,8 +19,8 @@
 //! - Infinity Blade FX (Unreal Engine 3, 32-bit): a touch screen sword game, swiped. The
 //!   executable imports the PQ Labs client (`pqmt.rs`) and the Matrix dongle, and has the
 //!   Kaboom board's library built in (`kaboom.rs`: its serial port).
-//! - Spider-Man Homecoming (Unity 5.5, Mono, 32-bit) and Crossy Road (Unity 5.1): two players,
-//!   one button each.
+//! - Spider-Man Homecoming (Unity 5.5, Mono, 32-bit), Crossy Road (Unity 5.1, 32-bit) and
+//!   Disney Crossy Road (Unity 5.4, 64-bit): two players, one button each.
 //!   `adrio2.rs` is their Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
 //!   coins, the players' buttons on the operator's keypad, the ticket feeders).
 //!
@@ -41,7 +41,6 @@
 //! `input_filter`: the games' own coin, operator and quit keys).
 
 mod adrio;
-#[cfg(target_pointer_width = "32")]
 mod adrio2;
 #[cfg(target_pointer_width = "64")]
 mod drakon;
@@ -164,8 +163,7 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         #[cfg(target_pointer_width = "32")]
         "kaboomcomdll.dll" => kaboom::resolve(name),
         "kaboomadriofxplusfourfeeders.dll" | "kaboomadriofxplusfourfeeders64.dll" => adrio::resolve(name),
-        #[cfg(target_pointer_width = "32")]
-        "kaboomadriofxplustwofeeders.dll" => adrio2::resolve(name),
+        "kaboomadriofxplustwofeeders.dll" | "kaboomadriofxplustwofeeders64.dll" => adrio2::resolve(name),
         "kaboomadriohotwheels64.dll" => hotwheels::resolve(name),
         "matrix32.dll" | "matrix64.dll" => matrix::resolve(name),
         #[cfg(target_pointer_width = "32")]
@@ -246,6 +244,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             kaboom::init_serial();
         }
         if !native {
+            // Disney Crossy Road (64-bit): the dump's board and dongle libraries are 32-bit
+            #[cfg(target_pointer_width = "64")]
+            mono_imports::stand_in(&["kaboomadriofxplustwofeeders.dll", "matrix32.dll"]);
             mono_imports::hook(resolve);
         }
         if steering::enabled() {

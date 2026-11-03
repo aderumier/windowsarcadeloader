@@ -316,12 +316,16 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     };
     // A system may have no payload for one executable architecture. In that case run the game
     // directly instead of starting wal-loader with a payload from the other architecture.
-    // wal-loader is built for 32-bit games. A system may also have 64-bit payloads
-    // (Namco ES3 Battle Pod), which are loaded through the game's own imports.
-    let loader = if system_payloads.is_empty() || rundir::is_pe64(&exe) {
+    // wal-loader is built for 32-bit games, and for the 64-bit games of `payload_loader`
+    // (wal-loader64.exe: Disney Crossy Road, whose screen Unity reads before it loads the
+    // payload). Other 64-bit payloads (Namco ES3 Battle Pod) are loaded through the game's own
+    // imports.
+    let loader = if system_payloads.is_empty() {
         None
     } else if profile.payload_loader {
         payloads.first().map(|(_, at)| *at)
+    } else if rundir::is_pe64(&exe) {
+        None
     } else if !profile.payload_install.is_empty() {
         // the game imports the payload under the profile's names
         None
@@ -331,7 +335,8 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     // the payload of the programs a relaunch starts (`exe=`), when the game's own is imported
     let program_loader = if loader.is_none() && !rundir::is_pe64(&exe) { system.program_loader() } else { None };
     if loader.is_some() || program_loader.is_some() {
-        payloads.push((payload_dir.join("wal-loader.exe"), "wal-loader.exe"));
+        let file = if rundir::is_pe64(&exe) { "wal-loader64.exe" } else { "wal-loader.exe" };
+        payloads.push((payload_dir.join(file), "wal-loader.exe"));
     }
     // a game DLL (Konami AVS): run by the system's host program
     let dll_host = if exe.extension().is_some_and(|e| e.eq_ignore_ascii_case("dll")) {

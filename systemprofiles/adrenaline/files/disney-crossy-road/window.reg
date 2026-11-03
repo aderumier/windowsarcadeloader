@@ -1,0 +1,6 @@
+Windows Registry Editor Version 5.00
+
+; The game window placed by the payload, not the window manager (GNOME kept it under its top
+; bar: the picture cut at the bottom); its input is the launcher's, not the window's focus.
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\Disney_Crossy_Road.exe\X11 Driver]
+"Managed"="N"
