@@ -21,6 +21,9 @@
 //! `WAL_UNIS_FREEPLAY` (default on; `0`: coins): the game has no free play, a start press is
 //! a coin and then the start.
 //!
+//! `WAL_UNIS_AFTERDARK_STAGE4` (default on; `0`: off): the fourth stage open from the start
+//! (`afterdark_stage4.rs`).
+//!
 //! Natives: `start trigger platform test plus minus coin` (each gun).
 
 use std::ffi::c_void;
@@ -272,11 +275,48 @@ fn replace_board_init() -> bool {
     true
 }
 
+// The stage select's composition: a copy with the fourth stage open (afterdark_stage4.rs)
+
+static CREATE_FILE_A: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// The copy's path (NUL terminated), once made; None: not made (the original opened).
+static STAGE4_COPY: OnceLock<Option<Vec<u8>>> = OnceLock::new();
+
+/// `Module\UI.nmo` with the fourth stage open, written beside the executable (the run
+/// directory's `Module` is the dump's).
+fn stage4_copy(original: &str) -> Option<Vec<u8>> {
+    let file = std::fs::read(original).ok()?;
+    let patched = crate::afterdark_stage4::open_stage4(&file)?;
+    let path = std::env::current_exe().ok()?.with_file_name("wal-UI.nmo");
+    std::fs::write(&path, patched).ok()?;
+    let mut bytes = path.to_str()?.as_bytes().to_vec();
+    bytes.push(0);
+    Some(bytes)
+}
+
+unsafe extern "system" fn create_file_a(name: *const u8, access: u32, share: u32, security: P, disposition: u32, flags: u32, template: P) -> P {
+    let orig: unsafe extern "system" fn(*const u8, u32, u32, P, u32, u32, P) -> P = unsafe { std::mem::transmute(CREATE_FILE_A.load(Ordering::Relaxed)) };
+    if !name.is_null() {
+        let path = unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy();
+        if path.to_ascii_lowercase().replace('/', "\\").ends_with("\\module\\ui.nmo")
+            && let Some(copy) = STAGE4_COPY.get_or_init(|| stage4_copy(&path)).as_ref()
+        {
+            return unsafe { orig(copy.as_ptr(), access, share, security, disposition, flags, template) };
+        }
+    }
+    unsafe { orig(name, access, share, security, disposition, flags, template) }
+}
+
 pub fn init() {
     // the MFC message loop's keyboard and mouse filtered too: the PC keyboard's F1 was MFC's
     // help (WinHelp, the game hung)
     wal_payload_common::input_filter::messages(unsafe { GetModuleHandleW(windows_sys::w!("mfc90.dll")) } as usize);
     serial::install_streaming(PORT, handler, idle);
+    // after the serial port's: its hook chained
+    if std::env::var("WAL_UNIS_AFTERDARK_STAGE4").map_or(true, |v| v.trim() != "0")
+        && let Some(o) = unsafe { wal_payload_common::iat::hook("kernel32.dll", "CreateFileA", create_file_a as *const () as usize) }
+    {
+        CREATE_FILE_A.store(o, Ordering::Relaxed);
+    }
     let hid = replace_board_init();
     log!("afterdark: board on {PORT}, HID board {}", if hid { "emulated" } else { "not found (unknown executable)" });
 }

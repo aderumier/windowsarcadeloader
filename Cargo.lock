@@ -3896,6 +3896,7 @@ dependencies = [
 name = "wal-payload-unis"
 version = "0.1.0"
 dependencies = [
+ "miniz_oxide 0.8.9",
  "wal-payload-common",
  "windows-sys 0.61.2",
 ]

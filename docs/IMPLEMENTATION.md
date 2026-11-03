@@ -4053,6 +4053,16 @@ profile, another `main.vmo`): a Virtools 3.5 player linked into
   player pauses without it (`UseFocus`, default 1): `GameConfig`'s `UseFocus=0`.
 - **PC keyboard.** The MFC message loop (`mfc90.dll`) is filtered too
   (`input_filter::messages`): the real F1 was MFC's help (WinHelp, the game hung).
+- **Fourth stage** (`afterdark_stage4.rs`, `WAL_UNIS_AFTERDARK_STAGE4`, default on). The stage
+  select (`Module/UI.nmo`) opens Arena of Terror once the first three stages are cleared in the
+  game: its local boolean `开启第四关`, set by `关卡元素` from the stage flags `第一关`..`第三关`,
+  reset with them to false at each game's start (`Int Data`'s Identity), tested by the cursor's
+  `关卡判断`. The executable's `CreateFileA` of `Module\UI.nmo` opens a copy (`wal-UI.nmo` beside
+  it) where that boolean is saved true and the reset's destination is another flag. The
+  composition: `Nemo Fi` header (Adler-32 from 0 of the file, its field zeroed; packed and
+  unpacked sizes), the zlib object table (id, class, data offset, GBK name per object), the
+  zlib data (per object a state chunk: size, header, dwords; a boolean local's value dword 6, a
+  parameter output's destinations from dword 9, object indices).
 - **Operator menu.** F2; + / - change the selected item's value. The menu (`1.vmo`) moves
   between items with Virtools key waiters (DirectInput keyboard) and the mouse: not emulated
   yet (no key of a 78-key sweep on the fake keyboard moved it).

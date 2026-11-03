@@ -31,6 +31,8 @@ env:
   WAL_CROSSHAIR: "0"
   # free play (the game has none: a start press inserts a coin first); "0": coins
   WAL_UNIS_FREEPLAY: "1"
+  # the fourth stage (Arena of Terror) open from the start ("0": after the first three)
+  WAL_UNIS_AFTERDARK_STAGE4: "1"
 
 options:
   - title: Game
@@ -40,6 +42,12 @@ options:
         kind: bool
         description: >-
           Free play: each start press inserts a coin first. Off: coins buy credits.
+      - key: WAL_UNIS_AFTERDARK_STAGE4
+        label: Fourth stage unlocked
+        kind: bool
+        description: >-
+          The fourth stage (Arena of Terror) selectable from the start. Off: after the
+          first three are cleared.
 
 input:
   # each player's gun (or mouse) aims, its trigger shoots
