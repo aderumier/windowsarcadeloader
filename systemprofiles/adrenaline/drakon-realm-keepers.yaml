@@ -1,0 +1,61 @@
+# Drakon: Realm Keepers (Adrenaline Amusements / Sarbakan, Unity 2021.3, IL2CPP, 64-bit) -
+# template, override values in userprofiles/adrenaline/drakon-realm-keepers.yaml.
+# Two turrets on a dragon ride. The payload aims each player's turret where the gun points,
+# its trigger shoots; the cabinet's coin doors, player buttons and operator keypad are the
+# game's keyboard keys, answered from the virtual sticks. The Matrix dongle is emulated, the
+# turrets' and seats' serial controllers absent (docs §6.3k).
+system: adrenaline
+name: "Drakon: Realm Keepers"
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+
+env:
+  WAL_DRAKON_RENDER_SCALE: "0.8"
+  WAL_DRAKON_MSAA: "1"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_DRAKON_RENDER_SCALE
+        label: Render scale
+        kind: choice
+        choices: ["1", "0.8", "0.67", "0.5"]
+        description: >-
+          The 3D picture's resolution in the screen's, upscaled with AMD FSR (the menus and HUD
+          stay sharp). 1 is the game's own; 0.8 (the default) is lighter on small GPUs.
+      - key: WAL_DRAKON_MSAA
+        label: Anti-aliasing (MSAA)
+        kind: choice
+        choices: ["1", "2", "4"]
+        description: >-
+          Multisampling of the 3D picture: 4 is the game's own, 1 (the default) none. The game's
+          4x MSAA is its heaviest cost on an integrated GPU (Radeon 860M at 1920x1080, a level's
+          start: 10-15 frames per second; without MSAA 44-60, 52-60 at render scale 0.8; the
+          game aims at 60).
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+native_map:
+  b1: trigger
+  start: start
+  coin: coin
+  test: operator
+  service: select
+  up: up
+  down: down
+
+controls:
+  lx: Turret aim (x)
+  ly: Turret aim (y)
+  b1: Trigger
+  start: Start
+  coin: Coin
+  test: Operator menu
+  service: Select (operator)
+  up: Up (operator)
+  down: Down (operator)
