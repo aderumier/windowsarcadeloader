@@ -61,6 +61,8 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             return TRUE;
         }
         patches::apply();
+        // NESiCAxLive games on Type X read the NESiCA launcher's settings at start
+        wal_payload_common::nesica_registry::init_if_set();
         drive::init("WAL_TYPEX_DDRIVE", "WindowsLoader");
         wal_payload_common::jvs_board::init("COM2");
         // the JVS touch screen's pointer (the gun games draw their own crosshairs)

@@ -19,7 +19,6 @@ mod fastio;
 mod nesys;
 mod nesystrace;
 mod nxl2;
-mod registry;
 mod rfid;
 mod theatrhythm;
 mod theatrhythm_mono;
@@ -41,7 +40,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         patches::apply();
         wal_payload_common::memdiff::start();
         // The game reads its settings before opening the I/O driver: write them now.
-        registry::init();
+        wal_payload_common::nesica_registry::init();
         drive::init();
         // after drive: its CreateFile hooks chain in front of the D: redirection
         rfid::init();

@@ -13,6 +13,9 @@ hide: [dsound.dll, Dinput8.dll]
 # Buttons 1-3 = b1-b3 (default mapping).
 
 env:
+  # HD (1280x768) from the NESiCAxLive registry settings: without them the game runs in SD
+  # (640x480 in the corner of the screen).
+  WAL_NESICA_REG: Resolution=1
   # Type X 1280x768 fullscreen is not a mode Wine emulates: 1280x800, scaled to the screen.
   WAL_D3D9_FULLSCREEN_SIZE: 1280x800
 
