@@ -8,7 +8,8 @@
 //! hardware code runs long after the runtime is loaded.
 //!
 //! An IL2CPP game's `DllImport`s are resolved the same way, by `GameAssembly.dll` (its own
-//! `LoadLibrary` and `GetProcAddress` imports): hooked the same.
+//! `LoadLibrary` and `GetProcAddress` imports), or by Unity 2021's `baselib.dll`
+//! (`Baselib_DynamicLibrary_GetFunction`, which `GameAssembly.dll` calls): hooked the same.
 
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::OnceLock;
@@ -82,6 +83,11 @@ fn hook_runtime() -> bool {
                 log!("mono: GetProcAddress hooked");
             }
             None => log!("mono: the runtime does not import GetProcAddress: no hardware emulated"),
+        }
+        // Unity 2021's IL2CPP: the DllImports' functions from baselib.dll's GetProcAddress
+        let baselib = unsafe { GetModuleHandleW(windows_sys::w!("baselib.dll")) } as usize;
+        if baselib != 0 && unsafe { iat::hook_module(baselib, "kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) }.is_some() {
+            log!("mono: baselib.dll's GetProcAddress hooked");
         }
         return true;
     }

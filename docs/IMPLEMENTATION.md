@@ -4258,6 +4258,55 @@ each (the Spider-Sense reflex game). `spider-man-homecoming.windowsloader` point
 - **Play.** 4 coins a player, the player's button to join, then the button during the
   Spider-Sense. Natives `button coin` (each player), `operator select`.
 
+#### Drakon: Realm Keepers
+
+Sarbakan's Unity 2021.3 game (IL2CPP: `GameAssembly.dll`, Direct3D 11, 64-bit; the dump is the
+development build 227996): two turrets on a dragon ride. `drakon-realm-keepers.windowsloader`
+points at `Game.exe`. The game's code is compiled: the payload (`drakon.rs`) finds its classes
+and methods by name through IL2CPP's embedding API (`payload-common`'s `il2cpp.rs`:
+`il2cpp_class_from_name`, `il2cpp_class_get_method_from_name`, a method's code the first field
+of its `MethodInfo`), once IL2CPP runs: at the Matrix dongle's first function resolved.
+
+- **DllImports.** Unity 2021's IL2CPP resolves them in `baselib.dll`
+  (`Baselib_DynamicLibrary_GetFunction`): its `GetProcAddress` import is hooked too
+  (`mono_imports.rs`). The Matrix dongle (`matrix64.dll`) is `matrix.rs`; the save files are
+  plain JSON (`AppData/LocalLow/Sarbakan/09038_Adrenaline_Skyride_Turret/savegame`).
+- **Serial ports.** The turrets' controllers (`SBK.TurretControllerLib`: yaw / pitch, two
+  triggers, LEDs, shaker) and the pneumatic seats talk through `RS_232_DLL.dll` on the ports
+  of `HARDWARE\DEVICEMAP\SERIALCOMM`: hidden (`lib.rs`), the game opens none (and
+  `RS232_OpenComport` fails). The development build plays without them, in mouse mode. No
+  Kaboom board either (the build's `KaboomBase` has no board left).
+- **Guns.** `InputsManager.Update` (each player's mouse, every frame) is replaced: the payload
+  calls `SendButtonEvent(player, trigger)` and `SendPositionEvent(player, viewport)` for each
+  player of `playersData`, the gun's place on the game window from -1 to 1 (y up), as a turret's
+  `OnReceiveTurretPosition`; off the screen, the last place. The game draws each turret's
+  reticle.
+- **Keys.** The cabinet's inputs are keys of the scene's `SBK.InputMapping.KeyboardPressInput`s
+  (Unity `KeyCode`s): coin doors `1` `2` (`CoinInput`; Alt with one: its credits cleared),
+  the players' buttons `q` `w` (`InactivePlayerState.OnPlayerStartButtonPressed`: join,
+  continue; the screen says "press trigger": the trigger presses it too), the operator's keypad `o`
+  (operator menu), keypad `1` `2` `3` (up, select, down). `UnityEngine.Input.GetKeyInt`,
+  `GetKeyDownInt` and `GetKeyUpInt` are the payload's: the virtual sticks' keys, a press seen
+  once a frame (`Time.frameCount`); the game's other keys (development cheats, Escape) never
+  down.
+- **Menus.** The level choice's turrets (`WindowTurret`) shoot at the turrets' buttons message
+  (`EventTurretButtonsState`) or, in the development build, at
+  `Input.GetMouseButtonDown(player)`: `GetMouseButton`, `GetMouseButtonDown`, `GetMouseButtonUp`
+  are the payload's too, mouse button n player n's trigger.
+- **Picture.** GPU-bound on an integrated Radeon 860M at 1920x1080: 10-15 fps at a level's
+  start (URP, 4x MSAA, shadows to 800 m; 60 in the menus). The URP asset of the current quality
+  (`UniversalRenderPipeline.asset`), checked every second from `InputsManager.Update`:
+  `WAL_DRAKON_MSAA` (GUI option, default 1) its `msaaSampleCount`, `WAL_DRAKON_RENDER_SCALE`
+  (GUI option, default 0.8) its `renderScale` with `upscalingFilter` FSR. Measured there: 4x
+  MSAA at scale 0.8 10-15 fps, at 0.5 46-58; no MSAA 44-60 at scale 1, 52-60 at 0.8. The payload
+  logs the frame rate every 10 s (`Time.frameCount`).
+- **WiFi.** The operator menu's WiFi tab opens `wlanapi.dll` (`NativeWifi.WlanClient`):
+  Wine's `WlanOpenHandle` fails (the development console shown over the menu); the payload's
+  has no adapter.
+- **Play.** A coin a player (operator setting), the trigger joins, the level chosen by the
+  reticle or the timer. The operator menu is played with the guns (target and shoot).
+  Natives `trigger start coin` (each player), `operator up down select`.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -4653,6 +4702,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): Rabbids Hollywood's Sixense trackers, Kaboom Adrio board and Matrix dongle; the trigger on the board's player button 2, the tracker's button reloads; Wine's `winhttp` |
+| `drakon-realm-keepers` | Drakon: Realm Keepers | adrenaline | user 100% (2026-11-03), 2 turrets | Sarbakan's turret game (Unity 2021.3 IL2CPP, 64-bit, §6.3k): `InputsManager.Update` and Unity's key functions replaced through IL2CPP's API (the guns, the cabinet's keys), Matrix dongle, no serial port, WiFi stubbed |
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | Adrenaline's 3-player monster game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Kaboom Adrio board (joysticks, attack buttons on the keypad, callbacks from a Mono-attached thread) and Matrix dongle |
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | Adrenaline's six-seat driving game (Unity 2018.3, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its three Kaboom Adrio Hot Wheels boards (wheels, pedals, coins, callbacks from a Mono-attached thread) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |

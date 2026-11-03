@@ -20,8 +20,12 @@
 //!   `adrio2.rs` is its Kaboom Adrio two-feeder board (`KaboomAdrioFxPlusTwoFeeders.dll`:
 //!   coins, the players' buttons on the operator's keypad, the ticket feeders).
 //!
+//! - Drakon: Realm Keepers (Unity 2021.3, IL2CPP, 64-bit): two turrets. `drakon.rs` replaces
+//!   its input code (the turrets' aim and triggers, the cabinet's keyboard keys) through
+//!   IL2CPP's API; no serial port.
+//!
 //! All have the Matrix dongle (`matrix.rs`: `matrix32.dll`, `matrix64.dll`), all through
-//! Mono's `DllImport`s (`payload-common`'s `mono_imports.rs`).
+//! Mono's or IL2CPP's `DllImport`s (`payload-common`'s `mono_imports.rs`).
 //!
 //! The payload is `xinput1_3.dll`, which Unity loads at start: no pads (the game's input comes
 //! from the emulated hardware), the real keyboard and mouse filtered (`payload-common`'s
@@ -30,6 +34,8 @@
 mod adrio;
 #[cfg(target_pointer_width = "32")]
 mod adrio2;
+#[cfg(target_pointer_width = "64")]
+mod drakon;
 mod hotwheels;
 #[cfg(target_pointer_width = "32")]
 mod kaboom;
@@ -121,6 +127,11 @@ fn held(player: usize, native: Native) -> bool {
 
 /// The emulated hardware's functions.
 fn resolve(name: &str, module: &str) -> Option<usize> {
+    // Drakon: Realm Keepers (IL2CPP): its methods replaced at its dongle's start
+    #[cfg(target_pointer_width = "64")]
+    if module == "matrix64.dll" {
+        drakon::init();
+    }
     match module {
         #[cfg(target_pointer_width = "32")]
         "kaboomcomdll.dll" => kaboom::resolve(name),
@@ -132,6 +143,10 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         #[cfg(target_pointer_width = "32")]
         "pqmtclient.dll" => pqmt::resolve(name),
         "sxcore.dll" => sixense::resolve(name),
+        #[cfg(target_pointer_width = "64")]
+        "rs_232_dll.dll" => drakon::resolve(name),
+        #[cfg(target_pointer_width = "64")]
+        "wlanapi.dll" => drakon::resolve_wlan(name),
         // Mono's registry (`Win32RegistryApi`, CharSet Unicode)
         "advapi32.dll" if name == "RegOpenKeyExW" => Some(reg_open_key_ex_w as *const () as usize),
         // another board's library: the real one (logged)

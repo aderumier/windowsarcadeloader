@@ -41,6 +41,9 @@ pub mod dshow;
 pub mod gun;
 #[cfg(windows)]
 pub mod iat;
+// Unity IL2CPP games' compiled code (GameAssembly.dll's embedding API)
+#[cfg(windows)]
+pub mod il2cpp;
 #[cfg(windows)]
 pub mod input_filter;
 // JSON values (servers' requests and answers)
