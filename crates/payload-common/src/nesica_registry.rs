@@ -5,8 +5,13 @@
 //! previous run (GameResult, IOError*) are reset every launch.
 //!
 //! Override with `WAL_NESICA_REG`, e.g. `Resolution=0,CoinCredit=1`.
+//!
+//! The NESiCA payload always writes them. Type X payload games built for NESiCAxLive read them
+//! too: written only when the profile sets `WAL_NESICA_REG` ([`init_if_set`]). 3D Cosplay
+//! Mahjong takes its resolution from `Resolution`: without the key it ran in SD (640x480, in the
+//! corner of the bigger back buffer its profile forces).
 
-use wal_payload_common::log;
+use crate::log;
 use windows_sys::Win32::System::Registry::{
     HKEY, HKEY_LOCAL_MACHINE, KEY_WRITE, REG_DWORD, REG_OPTION_NON_VOLATILE, RegCloseKey,
     RegCreateKeyExA, RegSetValueExA,
@@ -34,7 +39,14 @@ const VALUES: &[(&str, u32)] = &[
 
 const KEYS: &[&str] = &["SOFTWARE\\TAITO\\NESiCAxLive\0", "SOFTWARE\\TAITO\\TYPEX\0"];
 
-pub(crate) fn init() {
+/// [`init`] when `WAL_NESICA_REG` is set (even empty: the defaults).
+pub fn init_if_set() {
+    if std::env::var_os("WAL_NESICA_REG").is_some() {
+        init();
+    }
+}
+
+pub fn init() {
     let overrides = std::env::var("WAL_NESICA_REG").unwrap_or_default();
     let value_of = |name: &str, default: u32| {
         overrides

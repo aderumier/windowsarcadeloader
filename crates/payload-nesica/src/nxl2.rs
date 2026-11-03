@@ -217,7 +217,7 @@ pub extern "C" fn NxL2GetAppicationStep() -> i32 {
     0
 }
 
-/// The game kind of the NESiCAxLive registry key (written by `registry.rs`).
+/// The game kind of the NESiCAxLive registry key (written by `nesica_registry`).
 #[unsafe(no_mangle)]
 pub extern "C" fn NxL2GetGameID() -> i32 {
     first_call("NxL2GetGameID");

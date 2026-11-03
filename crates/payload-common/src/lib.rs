@@ -59,6 +59,9 @@ pub mod mono;
 // a Unity game's `DllImport`s resolved to the payload's functions
 #[cfg(windows)]
 pub mod mono_imports;
+// the NESiCAxLive launcher's registry settings (NESiCA payload; Type X games reading them)
+#[cfg(windows)]
+pub mod nesica_registry;
 pub mod paths;
 #[cfg(windows)]
 pub mod patches;
