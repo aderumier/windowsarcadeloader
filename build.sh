@@ -10,6 +10,8 @@ cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nes
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-konami -p wal-payload-adrenaline
 # the AVS boot of the 64-bit Konami game DLLs (Bishi Bashi Channel)
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-loader --bin wal-avs-boot
+# the 64-bit loader (payload_loader: Disney Crossy Road)
+cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-loader --bin wal-loader
 
 # copy + rename: works while a previous launcher is running ("Text file busy")
 install_file() {
@@ -29,6 +31,7 @@ install_file "target/i686-pc-windows-gnu/$PROFILE/wal_unis.dll" dist/payloads/wa
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_konami.dll" dist/payloads/wal_konami64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_adrenaline.dll" dist/payloads/wal_adrenaline64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-avs-boot.exe" dist/payloads/wal-avs-boot64.exe
+install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-loader.exe" dist/payloads/wal-loader64.exe
 # TMNT's managed input bridge (Mono's C# compiler, .NET 2.0 profile as the game's Unity)
 mcs -target:library -sdk:2 -out:dist/payloads/WAL.DirectInput.dll.tmp tools/tmnt-direct-input/InputBridge.cs
 mv -f dist/payloads/WAL.DirectInput.dll.tmp dist/payloads/WAL.DirectInput.dll

@@ -1,0 +1,51 @@
+# Disney Crossy Road (Adrenaline Amusements, Unity 5.4, Mono, 64-bit) - template, override
+# values in userprofiles/adrenaline/disney-crossy-road.yaml.
+# Two players, one button each (jump). The payload emulates the cabinet's Kaboom Adrio
+# two-feeder board (coins, the players' buttons on the operator's keypad, the ticket feeders)
+# and its Matrix dongle (docs §6.3k), as Crossy Road's.
+system: adrenaline
+name: Disney Crossy Road
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+
+# loaded at the executable's entry point: Unity reads the screen's size before it loads
+# xinput1_3.dll (the 1080x1920 desktop must be there first)
+payload_loader: true
+
+env:
+  # The cabinet's portrait monitor: the game sets 1080x1920 full screen at start
+  # (ApplicationManager: Screen.SetResolution(1080, 1920, true)). A 1080x1920 desktop for the
+  # game (its full screen at the desktop's size, no mode change), its window fitted onto the
+  # real screen (aspect kept, centered).
+  WAL_DESKTOP_SIZE: 1080x1920
+  # the cabinet art around the picture (in the dump), its opening fitted to the game's window,
+  # its parts stretched to the screen's edges (no black bars)
+  WAL_BEZEL: bezel.png
+  WAL_BEZEL_FIT: stretch
+
+# the window not managed: placed by the payload at the top of the screen (a window manager's
+# panel pushed it down)
+registry: [systemprofiles/adrenaline/files/disney-crossy-road/window.reg]
+
+# the start size too (else Unity's last one, saved in the registry)
+args: [-screen-fullscreen, "1", -screen-width, "1080", -screen-height, "1920"]
+
+# the 64-bit payload's defaults are the gun games': the players' buttons
+native_map:
+  b1: button
+  b2: select
+  start: none
+  coin: coin
+  test: operator
+  service: operator
+  up: none
+  down: none
+
+controls:
+  b1: Jump (the player's button)
+  b2: Select (operator)
+  coin: Coin
+  test: Operator menu
+  service: Operator menu
