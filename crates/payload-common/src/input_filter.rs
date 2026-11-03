@@ -81,7 +81,14 @@ pub fn init(unity: usize, key_held: fn(i32) -> bool) {
             None => log!("filter: user32 does not import win32u!{name}: the real keyboard may reach the game"),
         }
     }
-    if unity == 0 {
+    messages(unity);
+}
+
+/// The keyboard and mouse messages of one more module's `PeekMessage` / `GetMessage` calls
+/// filtered too (after [`init`]): a second message loop (an MFC program's, in `mfc100u.dll`
+/// and in its executable).
+pub fn messages(module: usize) {
+    if module == 0 {
         return;
     }
     let messages: [(&str, usize, &AtomicUsize); 4] = [
@@ -91,7 +98,7 @@ pub fn init(unity: usize, key_held: fn(i32) -> bool) {
         ("GetMessageW", get_message_w as *const () as usize, &GET_MESSAGE_W),
     ];
     for (name, hook, orig) in messages {
-        if let Some(o) = unsafe { iat::hook_module(unity, "user32.dll", name, hook) } {
+        if let Some(o) = unsafe { iat::hook_module(module, "user32.dll", name, hook) } {
             orig.store(o, Ordering::Relaxed);
         }
     }
