@@ -1,0 +1,67 @@
+# Tomb Raider Arcade (Adrenaline Amusements, Unity 2017.2, Mono, 64-bit) - template, override
+# values in userprofiles/adrenaline/tomb-raider.yaml.
+# Four guns: Sixense STEM electromagnetic trackers the payload poses to aim where each player's
+# gun points; the trigger is the gun's button on the cabinet's Kaboom Adrio board, the tracker's
+# own button reloads. The payload emulates the trackers' base, the board (coins, start buttons,
+# triggers, the operator's keypad, the ticket feeders) and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: Tomb Raider
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+  # the dump's Unity Doorstop proxy winhttp.dll: Wine's own, no plugins
+  winhttp: "b"
+
+# the full screen mode: the Resolution option (GUI's Options tab)
+args: [-screen-fullscreen, "1", -screen-width, "{WAL_RESOLUTION.width}", -screen-height, "{WAL_RESOLUTION.height}"]
+
+env:
+  WAL_RESOLUTION: 1920x1080
+  WAL_TOMBRAIDER_POSTPROCESS: "0"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_RESOLUTION
+        label: Resolution
+        kind: choice
+        choices: [1280x720, 1600x900, 1920x1080]
+        description: >-
+          The game's full screen mode. 1920x1080 is the cabinet's; 1280x720 is lighter on small
+          GPUs (an integrated Radeon 860M: 35-42 frames per second at 1920x1080, 47-57 at
+          1280x720, the game aims at 60).
+      - key: WAL_TOMBRAIDER_POSTPROCESS
+        label: Post-processing
+        kind: bool
+        description: >-
+          The gameplay camera's effects (ambient occlusion, bloom, colour grading) and
+          volumetric fog. Off (the default): a flatter, greyer picture, a few frames per
+          second more on small GPUs (Radeon 860M at 1920x1080: 40-47 instead of 35-42).
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+native_map:
+  b1: trigger
+  b2: reload
+  start: start
+  coin: coin
+  test: operator
+  service: select
+  up: up
+  down: down
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Reload
+  start: Start
+  coin: Coin
+  test: Operator menu
+  service: Select (operator)
+  up: Previous (operator)
+  down: Next (operator)

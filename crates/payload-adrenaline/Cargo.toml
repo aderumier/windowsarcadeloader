@@ -11,6 +11,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wal-payload-common = { path = "../payload-common" }
+wal-easrv = { path = "../easrv" }
 wal-protocol = { path = "../protocol" }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",

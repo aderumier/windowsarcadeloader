@@ -3765,6 +3765,7 @@ dependencies = [
 name = "wal-payload-adrenaline"
 version = "0.1.0"
 dependencies = [
+ "wal-easrv",
  "wal-payload-common",
  "wal-protocol",
  "windows-sys 0.61.2",

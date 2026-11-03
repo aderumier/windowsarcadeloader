@@ -1,4 +1,4 @@
-//! The "Kaboom" Adrio I/O board of Rabbids Hollywood and Rampage
+//! The "Kaboom" Adrio I/O board of Rabbids Hollywood, Tomb Raider and Rampage
 //! (`KaboomAdrioFxPlusFourFeeders64.dll`) and Spider-Man Homecoming (`KaboomAdrioFxPlusFourFeeders.dll`, 32-bit): its serial board's
 //! library, replaced (cdecl, every function a `KABOOM_DLL_ERROR` byte, 0 no error).
 //!
@@ -8,7 +8,8 @@
 //!   callbacks given to `InitLib`: the keypad (`un16AllKeys`: operator 1, down 2, select 4, up
 //!   8), the coin counters (a structure by value: its address; four doors of two counters,
 //!   running totals: the game credits their increase) and the player buttons (`un16AllButton`:
-//!   player n's button 1 (start) at bit 2n, button 2 at 2n + 1).
+//!   player n's button 1 (start) at bit 2n, button 2 at 2n + 1: the gun's trigger, which
+//!   Rabbids reads besides the tracker's button and Tomb Raider only there).
 //! - **Callbacks.** Rabbids' board thread polls `GetTicketFeederCountAdrio5` after every Unity
 //!   frame: the payload samples the inputs and calls the callbacks there, from the game's
 //!   managed thread. Rampage's calls nothing every frame: a payload thread (started at
@@ -108,9 +109,11 @@ fn keys() -> u16 {
     operator | players | attacks
 }
 
-/// The player buttons held: start (button 1, bit 2n), Rampage's joysticks (bits 4n).
+/// The player buttons held: start (button 1, bit 2n), the gun's trigger (button 2, bit
+/// 2n + 1), Rampage's joysticks (bits 4n).
 fn buttons() -> u16 {
     let start = (0..PLAYERS).filter(|&p| held(p, Native::Start)).fold(0, |b, p| b | 1 << (2 * p));
+    let trigger = (0..PLAYERS).filter(|&p| held(p, Native::Trigger)).fold(0, |b, p| b | 1 << (2 * p + 1));
     let mut sticks = 0;
     for p in 0..3 {
         for (native, bit) in [(Native::StickDown, 1), (Native::StickUp, 2), (Native::StickLeft, 4), (Native::StickRight, 8)] {
@@ -119,7 +122,7 @@ fn buttons() -> u16 {
             }
         }
     }
-    start | sticks
+    start | trigger | sticks
 }
 
 /// Samples the inputs every 10 ms from a thread attached to Mono (Rampage).
