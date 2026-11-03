@@ -242,6 +242,33 @@ fn log_context(info: *mut EXCEPTION_POINTERS, raw_stack: bool) {
             }
         }
     }
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        let c = &*(*info).ContextRecord;
+        log!(
+            "crash: rip={:016x} rax={:016x} rbx={:016x} rcx={:016x} rdx={:016x} rsi={:016x} rdi={:016x} rsp={:016x} r8={:016x} r9={:016x}",
+            c.Rip, c.Rax, c.Rbx, c.Rcx, c.Rdx, c.Rsi, c.Rdi, c.Rsp, c.R8, c.R9
+        );
+        // no frame pointers on x64: scan the stack for return addresses into modules
+        let rsp = c.Rsp as usize as *const usize;
+        let mut found = 0;
+        for i in 0..4096 {
+            if !readable(rsp.add(i) as usize, 8) {
+                break;
+            }
+            let v = std::ptr::read_volatile(rsp.add(i));
+            if v < 0x10000 {
+                continue;
+            }
+            if let Some(sym) = symbolize(v) {
+                log!("crash:   [rsp+{:#05x}] {v:#018x} {sym}", i * 8);
+                found += 1;
+                if found >= 32 {
+                    break;
+                }
+            }
+        }
+    }
 }
 
 /// Hang reporter: `heartbeat()` is called by the game's main loop (a per-frame API call);

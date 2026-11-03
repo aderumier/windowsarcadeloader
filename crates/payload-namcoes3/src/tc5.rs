@@ -125,13 +125,20 @@ struct State {
 
 static STATE: Mutex<Option<State>> = Mutex::new(None);
 
+/// The test switch outlives the game process: a game that ends with it on (a crash entering the
+/// operator menu) is started again by the launcher in the operator menu, as on the cabinet
+/// where the switch stays on. Kept in a file, cleared when the launcher starts.
+fn test_switch_file() -> std::path::PathBuf {
+    std::env::temp_dir().join("wal-tc5-test-switch")
+}
+
 fn with_state<T>(f: impl FnOnce(&mut State, &StickState) -> T) -> T {
     let mut guard = STATE.lock().unwrap();
     let state = guard.get_or_insert_with(|| State {
         map: ButtonMap::new(NATIVES, DEFAULT_MAP),
         coins: 0,
         coin_held: false,
-        test_on: false,
+        test_on: test_switch_file().exists(),
         test_held: false,
     });
     let stick: StickState = wal_payload_common::input(0);
@@ -158,6 +165,7 @@ fn usio_poll() -> usio::Inputs {
         if test && !s.test_held {
             s.test_on = !s.test_on;
             log!("tc5: test switch {}", if s.test_on { "on" } else { "off" });
+            let _ = if s.test_on { std::fs::write(test_switch_file(), b"1") } else { std::fs::remove_file(test_switch_file()) };
         }
         s.test_held = test;
         if s.test_on {
@@ -288,6 +296,94 @@ fn reset_saved_resolution() {
     }
 }
 
+/// The game's window is a borderless popup (`WAL_WINDOW_POPUP`), but the engine sizes it for a
+/// captioned frame (AdjustWindowRect) then fits that frame to the screen: a 1863x1048 game under
+/// the top left corner of a 1920x1080 screen (the command line's `FULLSCREEN` is ignored, the
+/// cabinet build stays windowed). No frame: the client area is the screen.
+fn frameless(base: usize) {
+    for (name, f) in [("AdjustWindowRect", adjust_window_rect as *const () as usize), ("AdjustWindowRectEx", adjust_window_rect_ex as *const () as usize)] {
+        if unsafe { wal_payload_common::iat::hook_module(base, "user32.dll", name, f) }.is_none() {
+            log!("tc5: {name} not hooked");
+        }
+    }
+}
+
+unsafe extern "system" fn adjust_window_rect(rect: *mut c_void, _style: u32, _menu: i32) -> i32 {
+    i32::from(!rect.is_null())
+}
+
+unsafe extern "system" fn adjust_window_rect_ex(rect: *mut c_void, _style: u32, _menu: i32, _ex_style: u32) -> i32 {
+    i32::from(!rect.is_null())
+}
+
+/// The Bink movie player's frame copy (0x345d20) locks its plane textures (`[movie+0x180]`,
+/// `0x188`, `0x190`) without checking them (only the alpha plane at 0x198 is): entering the
+/// operator menu frees them while the movie thread still copies, a null texture read at
+/// +0x9e22c4, the game ended and started again by the launcher, in a loop with the test switch
+/// on. A null check in the padding before the copy function (0x345bf0), its three unchecked
+/// calls sent through it.
+fn bink_null_texture(base: usize) {
+    // cmp qword [rcx], 0; jne copy; ret
+    if !patches::patch("bink null texture check", base, 0x345be5, &[0xCC; 7], &[0x48, 0x83, 0x39, 0x00, 0x75, 0x05, 0xC3]) {
+        return;
+    }
+    for (rva, old, new) in [
+        (0x345d87, [0xE8, 0x64, 0xFE, 0xFF, 0xFF], [0xE8, 0x59, 0xFE, 0xFF, 0xFF]),
+        (0x345dc5, [0xE8, 0x26, 0xFE, 0xFF, 0xFF], [0xE8, 0x1B, 0xFE, 0xFF, 0xFF]),
+        (0x345e03, [0xE8, 0xE8, 0xFD, 0xFF, 0xFF], [0xE8, 0xDD, 0xFD, 0xFF, 0xFF]),
+    ] {
+        patches::patch("bink plane copy", base, rva, &old, &new);
+    }
+}
+
+/// Entering the operator menu releases the Direct3D device (`[GDynamicRHI+0x34]`, the RHI at
+/// `[0x1841260]`) and makes a new one, while the movie thread renders its frame with it (its
+/// render to texture 0x348df0, its clears, its end of drawing): null device reads at +0x9d9261, +0x9d7fa6,
+/// the game ended and started again by the launcher. Guards in the unused end of `.text`'s last
+/// page (0x1075f8c..0x1076000): that render skipped without a device, and once a first device
+/// exists the movie's whole frame (0x19c100, called at 0x19df5a) skipped without one (before
+/// it, at boot, the movie must go on: skipping it stalled the boot).
+fn bink_no_device(base: usize) {
+    // mov rax, [GDynamicRHI]; test rax, rax; je done; cmp qword [rax+0x34], 0; je done;
+    // push rdi; sub rsp, 0x30 (its first instructions); jmp 0x348df6; done: ret
+    const RENDER_GUARD: [u8; 31] = [0x48, 0x8B, 0x05, 0xC9, 0xB2, 0x7C, 0x00, 0x48, 0x85, 0xC0, 0x74, 0x12, 0x48, 0x83, 0x78, 0x34, 0x00, 0x74, 0x0B, 0x40, 0x57, 0x48, 0x83, 0xEC, 0x30, 0xE9, 0x48, 0x2E, 0x2D, 0xFF, 0xC3];
+    if patches::patch("bink render guard", base, 0x1075f90, &[0; 31], &RENDER_GUARD) {
+        patches::patch("bink render entry", base, 0x348df0, &[0x40, 0x57, 0x48, 0x83, 0xEC, 0x30], &[0xE9, 0x9B, 0xD1, 0xD2, 0x00, 0x90]);
+    }
+    // the movie's clears through the RHI (its stop 0x192542, its frame 0x198817): rcx the RHI,
+    // rax its vtable. cmp qword [rcx+0x34], 0; je done; jmp [rax+0x570]; done: ret
+    const CLEAR_GUARD: [u8; 14] = [0x48, 0x83, 0x79, 0x34, 0x00, 0x74, 0x06, 0xFF, 0xA0, 0x70, 0x05, 0x00, 0x00, 0xC3];
+    if patches::patch("bink clear guard", base, 0x1075fd0, &[0; 14], &CLEAR_GUARD) {
+        for site in [0x192542, 0x198817] {
+            patches::patch("bink clear call", base, site, &[0xFF, 0x90, 0x70, 0x05, 0x00, 0x00], &match site {
+                0x192542 => [0xE8, 0x89, 0x3A, 0xEE, 0x00, 0x90],
+                _ => [0xE8, 0xB4, 0xD7, 0xED, 0x00, 0x90],
+            });
+        }
+    }
+    // the movie target's end of drawing (0x33bc00, after 0x348df0 in its vtable), same as its render
+    const END_GUARD: [u8; 31] = [0x48, 0x8B, 0x05, 0x79, 0xB2, 0x7C, 0x00, 0x48, 0x85, 0xC0, 0x74, 0x12, 0x48, 0x83, 0x78, 0x34, 0x00, 0x74, 0x0B, 0x40, 0x57, 0x48, 0x83, 0xEC, 0x30, 0xE9, 0x08, 0x5C, 0x2C, 0xFF, 0xC3];
+    if patches::patch("bink end guard", base, 0x1075fe0, &[0; 31], &END_GUARD) {
+        patches::patch("bink end entry", base, 0x33bc00, &[0x40, 0x57, 0x48, 0x83, 0xEC, 0x30], &[0xE9, 0xDB, 0xA3, 0xD3, 0x00, 0x90]);
+    }
+    // mov rax, [GDynamicRHI]; test rax, rax; je done; cmp qword [rax+0x34], 0; je done;
+    // jmp frame; done: ret
+    const FRAME_GUARD: [u8; 25] = [0x48, 0x8B, 0x05, 0xA9, 0xB2, 0x7C, 0x00, 0x48, 0x85, 0xC0, 0x74, 0x0C, 0x48, 0x83, 0x78, 0x34, 0x00, 0x74, 0x05, 0xE9, 0x38, 0x61, 0x12, 0xFF, 0xC3];
+    if !patches::patch("bink frame guard", base, 0x1075fb0, &[0; 25], &FRAME_GUARD) {
+        return;
+    }
+    std::thread::spawn(move || {
+        let device = || {
+            let rhi = unsafe { *((base + 0x1841260) as *const usize) };
+            rhi != 0 && unsafe { std::ptr::read_unaligned((rhi + 0x34) as *const usize) } != 0
+        };
+        while !device() {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        patches::patch("bink frame call", base, 0x19df5a, &[0xE8, 0xA1, 0xE1, 0xFF, 0xFF], &[0xE8, 0x51, 0x80, 0xED, 0x00]);
+    });
+}
+
 /// `WAL_NAMCOES3_BANAPASS=1`: the network the Banapass cards need. The launcher's AMCUS auth
 /// daemon (`IAuth`) in-process, the game server (`spp.rs`, players in `F:\tc5srv`) at its
 /// ALL.Net uri, the player's card on the reader with the `card` button. The launcher is online
@@ -307,6 +403,7 @@ fn network(base: usize) {
 
 pub(crate) fn attach(exe: &str, base: usize) {
     if exe.eq_ignore_ascii_case(LAUNCHER) {
+        let _ = std::fs::remove_file(test_switch_file());
         crate::lla::status_window(base);
         crate::bpreader::init("COM4", &[base]);
         crate::projector::init("COM1", &[base]);
@@ -322,6 +419,9 @@ pub(crate) fn attach(exe: &str, base: usize) {
     } else if exe.eq_ignore_ascii_case(GAME) {
         GAME_BASE.store(base, Ordering::Relaxed);
         reset_saved_resolution();
+        frameless(base);
+        bink_null_texture(base);
+        bink_no_device(base);
         patches::hook_usb_key(base, usb_key_enum);
         usio::init(base, usio_poll);
         wal_payload_common::serial::install_in("COM1", gun_board, &[base]);

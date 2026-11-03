@@ -34,9 +34,13 @@ input:
   stick_as_dpad: false
   gun:
     offscreen: b6
-    # right click: the (left) pedal, middle click: the gun button
+    # right click: the left pedal, middle click: the gun button, side buttons (back /
+    # forward, a lightgun's second button): the right pedal
     BTN_RIGHT: b3
     BTN_MIDDLE: b2
+    BTN_SIDE: b4
+    BTN_EXTRA: b4
+    BTN_2: b4
 
 # No start button on the cabinet: step on a pedal. Keyboard C / V: left / right pedal.
 controls:
