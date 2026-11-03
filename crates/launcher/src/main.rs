@@ -451,7 +451,7 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             rundir::readonly_sections(&game_root.join(file), &run_dir.join(file), sections)?;
         }
     }
-    wine.map_c_folders(&profile.c_folders, &run_dir)?;
+    wine.map_c_folders(&profile.c_folders, &run_dir, game_root)?;
     wine.link_game_fonts(&profile.fonts, game_root)?;
     wine.import_registry(&profile.registry.iter().map(|f| profile.path(f)).collect::<Vec<_>>())?;
     let run_exe_dir = run_dir.join(exe_subdir);

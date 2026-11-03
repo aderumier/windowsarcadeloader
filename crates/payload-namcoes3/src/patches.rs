@@ -18,7 +18,7 @@ use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
-fn write(at: usize, bytes: &[u8]) {
+pub(crate) fn write(at: usize, bytes: &[u8]) {
     let mut old = 0;
     unsafe {
         VirtualProtect(at as *const c_void, bytes.len(), PAGE_EXECUTE_READWRITE, &mut old);

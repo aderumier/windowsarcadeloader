@@ -17,6 +17,11 @@
 //! of a 6-speed H pattern: 1 up-left, 2 down-left, 3 up, 4 down, 5 up-right, 6 down-right).
 //! `gear_up` / `gear_down` move a sequential gear through the H pattern (neutral below 1st).
 //!
+//! Tekken 7 (`tekken7`): two players of 16 switches, the usual JVS stick layout: byte 0 start
+//! 0x80, service 0x40, up 0x20, down 0x10, left 0x08, right 0x04, button 1 0x02, button 2 0x01;
+//! byte 1 button 3 (left kick) 0x40, button 4 (right kick) 0x20 (0x80 is no switch of the
+//! operator menu's switch test). Both players' coins in slot 1.
+//!
 //! The cabinet's test switch latches: `test` toggles it (`WAL_NAMCOES3_TEST_TOGGLE=0`: held).
 //! While it is on, up / down also move the test menu cursor. The stick and throttle follow
 //! the analog axes; the d-pad and the `accelerate` / `brake` buttons move them gradually.
@@ -55,6 +60,14 @@ enum Native {
     LeverRight,
     GearUp,
     GearDown,
+    Up,
+    Down,
+    Left,
+    Right,
+    Button1,
+    Button2,
+    Button3,
+    Button4,
 }
 
 const NATIVES: &[(&str, Native)] = &[
@@ -77,6 +90,14 @@ const NATIVES: &[(&str, Native)] = &[
     ("lever_right", Native::LeverRight),
     ("gear_up", Native::GearUp),
     ("gear_down", Native::GearDown),
+    ("up", Native::Up),
+    ("down", Native::Down),
+    ("left", Native::Left),
+    ("right", Native::Right),
+    ("btn1", Native::Button1),
+    ("btn2", Native::Button2),
+    ("btn3", Native::Button3),
+    ("btn4", Native::Button4),
 ];
 
 /// Virtual stick -> board; profiles override it with `native_map`.
@@ -124,6 +145,37 @@ const WMMT5_MAP: &[(&str, &str)] = &[
     ("right", "lever_right"),
 ];
 
+/// Tekken 7: the stick and the four attack buttons (left / right punch, left / right kick), for
+/// each player.
+const TEKKEN7_MAP: &[(&str, &str)] = &[
+    ("test", "test"),
+    ("service", "service"),
+    ("coin", "coin"),
+    ("start", "start"),
+    ("up", "up"),
+    ("down", "down"),
+    ("left", "left"),
+    ("right", "right"),
+    ("b1", "btn1"),
+    ("b2", "btn2"),
+    ("b3", "btn3"),
+    ("b4", "btn4"),
+];
+
+/// Tekken 7's switches of each player: native input, byte, bit.
+const TEKKEN7_SWITCHES: &[(Native, usize, u8)] = &[
+    (Native::Start, 0, 0x80),
+    (Native::Service, 0, 0x40),
+    (Native::Up, 0, 0x20),
+    (Native::Down, 0, 0x10),
+    (Native::Left, 0, 0x08),
+    (Native::Right, 0, 0x04),
+    (Native::Button1, 0, 0x02),
+    (Native::Button2, 0, 0x01),
+    (Native::Button3, 1, 0x40),
+    (Native::Button4, 1, 0x20),
+];
+
 /// Wangan Midnight Maximum Tune 5's switches: native input, byte of player 1, bit.
 const WMMT5_SWITCHES: &[(Native, usize, u8)] = &[
     (Native::Service, 0, 0x40),
@@ -150,6 +202,7 @@ enum Game {
     BattlePod,
     Lla,
     Wmmt5,
+    Tekken7,
 }
 
 /// Per poll, how far the d-pad and the throttle buttons move the axes.
@@ -160,7 +213,7 @@ const THROTTLE_DEADZONE: i32 = 8689;
 
 struct Board {
     map: ButtonMap<Native>,
-    /// Player 2's map (Lost Land Adventure's start 2 and coin).
+    /// Player 2's map (Lost Land Adventure's start 2 and coin, Tekken 7's controls).
     map2: ButtonMap<Native>,
     game: Game,
     /// Raw bytes written by the game, up to a complete packet.
@@ -184,7 +237,9 @@ static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 /// Installs the board on the serial calls of `modules`.
 pub(crate) fn init(modules: &[usize]) {
     let flag = |name: &str, default: bool| std::env::var(name).map_or(default, |v| v != "0");
-    let game = if crate::lla::is_lla() {
+    let game = if crate::tekken7::is_loaded() {
+        Game::Tekken7
+    } else if crate::lla::is_lla() {
         Game::Lla
     } else if crate::wmmt5::is_wmmt5() {
         Game::Wmmt5
@@ -194,6 +249,7 @@ pub(crate) fn init(modules: &[usize]) {
     let defaults = match game {
         Game::Lla => LLA_MAP,
         Game::Wmmt5 => WMMT5_MAP,
+        Game::Tekken7 => TEKKEN7_MAP,
         Game::BattlePod => DEFAULT_MAP,
     };
     *BOARD.lock().unwrap() = Some(Board {
@@ -224,6 +280,8 @@ pub(crate) fn init(modules: &[usize]) {
 struct Inputs {
     test: bool,
     sw: [u8; 3],
+    /// Player 2's switch bytes (Tekken 7).
+    sw2: [u8; 3],
     /// Analog channels 0..8 (high byte).
     analog: [u8; 8],
 }
@@ -254,7 +312,7 @@ fn poll(board: &mut Board) -> Inputs {
     }
     // player 2 (Lost Land Adventure): start 2, coin
     let (mut start2, mut coin2) = (false, false);
-    if board.game == Game::Lla {
+    if matches!(board.game, Game::Lla | Game::Tekken7) {
         let stick2: StickState = wal_payload_common::input(1);
         board.map2.for_each_pressed(&stick2, |p| match p {
             Native::Start => start2 = true,
@@ -274,6 +332,9 @@ fn poll(board: &mut Board) -> Inputs {
     if board.game == Game::Wmmt5 {
         return wmmt5(board, &stick, &on, menu_up, menu_down);
     }
+    if board.game == Game::Tekken7 {
+        return tekken7(board, &n);
+    }
     let mut sw = [0u8; 3];
     // Lost Land Adventure: the starts are in byte 1
     let start = on(Native::Start) && board.game != Game::Lla;
@@ -292,7 +353,7 @@ fn poll(board: &mut Board) -> Inputs {
                 sw[1] |= bit;
             }
         }
-        return Inputs { test: board.test_on, sw, analog: [0x80; 8] };
+        return Inputs { test: board.test_on, sw, sw2: [0; 3], analog: [0x80; 8] };
     }
     if on(Native::View) {
         sw[1] |= 0x80;
@@ -330,7 +391,27 @@ fn poll(board: &mut Board) -> Inputs {
     }
     let mut analog = [0x80; 8];
     analog[1..4].copy_from_slice(&[throttle, x, y]);
-    Inputs { test: board.test_on, sw, analog }
+    Inputs { test: board.test_on, sw, sw2: [0; 3], analog }
+}
+
+/// Tekken 7's poll: both players' sticks and buttons (`pressed`: player 1's natives).
+fn tekken7(board: &mut Board, pressed: &[bool]) -> Inputs {
+    let switches = |on: &dyn Fn(Native) -> bool| {
+        let mut sw = [0u8; 3];
+        for &(native, byte, bit) in TEKKEN7_SWITCHES {
+            if on(native) {
+                sw[byte] |= bit;
+            }
+        }
+        sw
+    };
+    let index = |p: Native| NATIVES.iter().position(|(_, q)| *q == p).unwrap();
+    let sw = switches(&|p| pressed[index(p)]);
+    let stick2: StickState = wal_payload_common::input(1);
+    let mut pressed2 = [false; NATIVES.len()];
+    board.map2.for_each_pressed(&stick2, |p| pressed2[index(p)] = true);
+    let sw2 = switches(&|p| pressed2[index(p)]);
+    Inputs { test: board.test_on, sw, sw2, analog: [0x80; 8] }
 }
 
 /// Wangan Midnight Maximum Tune 5's poll: buttons, shift lever, wheel and pedals.
@@ -370,7 +451,7 @@ fn wmmt5(board: &mut Board, stick: &StickState, on: &dyn Fn(Native) -> bool, men
     analog[0] = stick.axis_u8(Axis::LeftX);
     analog[1] = stick.axis_u8(Axis::Accel);
     analog[2] = stick.axis_u8(Axis::Brake);
-    Inputs { test: board.test_on, sw, analog }
+    Inputs { test: board.test_on, sw, sw2: [0; 3], analog }
 }
 
 /// Serial handler: raw bytes in, replies to the complete packets out.
@@ -440,8 +521,10 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                 1
             }
             0x14 => {
-                // 1 player x 24 switches, 2 coin slots, 8 analogs (10 bits), 18 outputs
-                rep.extend_from_slice(&[0x01, 2, 0x18, 0, 0x02, 2, 0, 0, 0x03, 8, 0x0A, 0, 0x12, 0x14, 0, 0, 0x00]);
+                // 1 player x 24 switches (Tekken 7: 2 x 16), 2 coin slots, 8 analogs (10
+                // bits), 18 outputs
+                let (players, switches) = if board.game == Game::Tekken7 { (2, 0x10) } else { (1, 0x18) };
+                rep.extend_from_slice(&[0x01, players, switches, 0, 0x02, 2, 0, 0, 0x03, 8, 0x0A, 0, 0x12, 0x14, 0, 0, 0x00]);
                 1
             }
             0x15 => cmds[i..].iter().position(|b| *b == 0).map_or(cmds.len() - i, |z| z + 1),
@@ -449,7 +532,12 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                 rep.push(if io.test { 0x80 } else { 0 });
                 for player in 0..arg(1) {
                     for k in 0..arg(2) {
-                        rep.push(if player == 0 { io.sw.get(k).copied().unwrap_or(0) } else { 0 });
+                        let sw = match player {
+                            0 => &io.sw,
+                            1 => &io.sw2,
+                            _ => &[0; 3],
+                        };
+                        rep.push(sw.get(k).copied().unwrap_or(0));
                     }
                 }
                 3

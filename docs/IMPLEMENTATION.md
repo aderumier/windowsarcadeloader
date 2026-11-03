@@ -1831,7 +1831,7 @@ Time Crisis 5 code. Unlike Lost Land Adventure the game, not the launcher, owns 
   `My Games\UnrealEngine3\TimeCrisisGame\Config\TimeCrisisSystemSettings.ini`: the game
   payload sets them to the screen size at each start (a minimized window saved 160x31).
 - **Banapass (`WAL_NAMCOES3_BANAPASS=1`, the Options tab, off by default: not finished).** The
-  launcher's AMCUS `IAuth` is answered in-process (`wmmt5_amcus.rs`, the older layout: slots 6,
+  launcher's AMCUS `IAuth` is answered in-process (`amcus.rs`, the older layout: slots 6,
   4, 5, 14, 9, 13; identity SBVE / TC51 1.00, the HASP serial). The launcher puts `https://`
   before the ALL.Net uri itself (the answer has none). Its game server is `spp.net` (protocol
   buffers schemas in the launcher, `wm5srv/src/spp.rs`, run in the launcher process): `POST`
@@ -1844,6 +1844,70 @@ Time Crisis 5 code. Unlike Lost Land Adventure the game, not the launcher, owns 
   (LZO-compressed `TimeCrisisGame.u`). Off: offline, 05-20 / 05-34 on the test menu.
 - **Not done.** Outputs (gun recoil, LEDs at 0x1420), Banapass cards (above), the cabinet link
   (2-player co-op: two PCs).
+
+#### Tekken 7
+
+64-bit (`tekken7.rs`): Unreal Engine 4, 2015, v1.12 (`TekkenGame\Binaries\Win64\
+TekkenGame-Win64-Shipping_612.exe`, PE time stamp 0x566C3FBD, the dump's `.windowsloader`).
+One player per cabinet (versus is two linked cabinets; the switch test shows P1 only). No
+launcher, no dongle: the game imports no cabinet library, so the payload is installed as its
+`xinput1_3.dll` (`payload_install`, `xinput1_3=n,b`). The game imports ordinals 2 / 3 of it,
+which the loader binds to the payload's HASP exports of the same ordinals; `game_pads_hidden`
+rewrites those two entries before the game starts (neutral pads).
+
+- **Boot patches** (applied when the bytes match): the online check at 0x147380 returns 1
+  (offline); the pushes to the boot error list at 0x16bc41 and 0x179050 (`add qword [rbx+8],
+  4`) are removed. Without them the boot stops on 2-1 FIRST POWER ON, 21-4 FIRST CHECK ERROR,
+  22-2 NETWORK ERROR 2, 7-1 CARD R/W DISCONNECT, 19-1 SYSTEM ERROR, 3-1 I/O ERROR 1.
+- **I/O board.** The Namco JVS board on COM3 (`jvs.rs`; its Namco command `70 18` must be
+  answered, otherwise the game reopens the port and the boot hangs at 16%). Poll `20 02 02
+  21 01 22 06 32 02 00 00`. Switches of a player (the operator menu's switch test): byte 0
+  start 0x80, service 0x40, up 0x20, down 0x10, left 0x08, right 0x04, left punch 0x02, right
+  punch 0x01; byte 1 left kick 0x40, right kick 0x20 (0x80 is none). The operator menu: up /
+  down, enter with button 1.
+- **Online, Banapass cards (`WAL_NAMCOES3_BANAPASS=1`, default; the Options tab).** The
+  "offline" function answers 0 (it is `authtype == "OFFLINE"`: Fated Retribution's dump sets
+  it in `tekken.ini`). The game then creates the AMCUS auth daemon (`IAuth`, `amcus.rs`
+  in-process, ALL.Net identity SDBS, `TE76` 1.00 / `TER1` 1.50, the dongle serial
+  282814450001): Tekken 7's own layout (`OBJECT_TEKKEN`: bananatools' slots minus 2, state 184
+  bytes waited on until +176 is 14, cabinet config 152 bytes without the link status), Fated
+  Retribution's the newer one (`OBJECT_NEW`). The ALL.Net answer's uri is the game server
+  (`https://127.0.0.1:9002`), the Banapass reader is on COM4 (`bpreader.rs`, the `card`
+  button, F4; the card made once in the dump's `Saved\banapass.txt`).
+  `WAL_NAMCOES3_AUTO_CARD=1` (default): the card is on the reader a second after start, for
+  8 s (`bpreader::card_on_start`).
+- **Game server ("graphene", `wm5srv/src/graphene.rs`).** HTTPS (the game accepts the
+  self-signed certificate), `POST /` of a `graphene.protobuf.Request` (1 the `MessageType`, the
+  request in the field of the type's name in lower case), answered with a `Response` (1 the
+  type, 2 the result: 1 success, anything else is retried every 3 s). The messages are proto2,
+  all fields required, numbered differently in each build: the server reads the game's own
+  schema (the `graphene.proto` file descriptor in the executable, found in its image by the
+  payload) and encodes the answers by field name, the fields not set at their defaults. Boot:
+  RegisterPcb, SaveAds, LoadClientSettings, CheckDiagnosis (v1.12), Ping every minute (Fated
+  Retribution reads the card only after a Ping answering `acid_status` / `bnid_status` 1). The
+  card: LoadUser (a player made at the card's first use, `new_card`), LoadChar per fighter;
+  after each fight SaveCResult (CPU) / SaveMResult (versus) and SaveChar (rank, rank points,
+  wins / losses, fight money as a signed delta, treasure gauge). The players in the dump's
+  `Saved\graphene\users\<bp_amid>`.
+- **Game log (`WAL_NAMCOES3_GAMELOG=1`).** The game's printf-like debug log (0x223aa0 /
+  0x3319f0, an empty function in these builds) to the payload log: the boot sequence's
+  `get...SeqError()=<n>` results (1: done), menu texts.
+- **Language.** Tekken 7's menus are Japanese whatever its `tekken.ini` `Language` (`us` read,
+  the texts unchanged); Fated Retribution's are English.
+- **Saves.** Settings, credits and bookkeeping in the developers' path `C:\perforce\tk7\master\
+  ue4\TekkenGame\Saved\Savedatas`, mapped to the dump's `Saved` folder (`c_folders`, made in
+  the dump at the first start).
+- **Resolution.** The dump's `DefaultGameUserSettings.ini` asks 1280x720: the profile passes
+  `-ResX=1920 -ResY=1080`.
+- **Input filter.** Keyboard, raw input and the game's `PeekMessageW` filtered (developer
+  controls). Unreal Engine's usage reports (`wininet`, etsource.epicgames.com) get no
+  connection.
+
+Tekken 7 Fated Retribution (2016, `TekkenGame-Win64-Shipping.exe`, PE time stamp 0x573CBE0E):
+the same code (`tekken7.rs`'s build table: online check 0x204af0, error list 0x25e791 /
+0x268e00), the same board and switches, 1920x1080 from its own settings. It saves in Tekken
+7's folder (`C:\perforce\tk7\master\ue4\TekkenGame\Saved\Savedatas`, `*_75.bin`): the same
+`c_folders` entry, to its own dump's `Saved`.
 
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 
@@ -4262,6 +4326,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) | `ACE7_WIN_10.exe` (Direct3D 9, 32-bit): `bngrw.dll` payload loaded by wal-loader at the entry point, selected by the build; JVS on COM3 (flight layout: control lever, throttle lever, machine gun, missile, third button), device errors and extra serial device checks patched, dome lookup texture replaced by a flat screen map, saves next to the executable, borderless window fitted on the screen, XInput and real keyboard/mouse filtered |
 | `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_106993.dll` (dongle serial for both checks), JVS on COM3, Banapass reader on COM4 (no card), NEC projector on COM1, the gun camera on COM2 with the crosshair mapping inverted, the dumps' flat screen patch, English patch through JPN, F:/G: save drives |
 | `time-crisis-5` | Time Crisis 5 | namcoes3 | works (headless tests: coins, pedals, aim and shots, tutorial, operator menu), 1 gun | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_105293.dll` (HASP and USB key serials), Banapass reader on COM4 (no card), NEC projector on COM1, the USIO board on USB (WinUSB), the gun board on COM1 with the calibration inverted, borderless full-screen game window, F:/G: save drives |
+| `tekken-7` | Tekken 7 | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | UE4 v1.12 (64-bit, §6.3c): the payload as the game's `xinput1_3.dll`, boot patches, the Namco JVS board on COM3, in-process AMCUS, Banapass reader on COM4, built-in graphene game server, saves in the dump's `Saved`, 1920x1080; no cabinet link |
+| `tekken-7-fated-retribution` | Tekken 7 Fated Retribution | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | as `tekken-7` (§6.3c): `xinput1_3.dll` payload, the Fated Retribution boot patches, Namco JVS on COM3, newer IAuth, Banapass, graphene server, saves in the dump's `Saved` |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | dump built from the game's install disc (unshield), original executable: HASP4 dongle answered in memory (`hasp.rs`), W: drive, USBIO board and gun watchdog patches (`WAL_PATCHES`), operator keys only (`keyboard.rs`); the game's own `msvcr71` / `msvcp71` (Wine's clamps the level dependency CRCs: missing models, statue enemies), initial `systemcfg.lua` |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |

@@ -13,6 +13,7 @@
 //! directory (`store.rs`).
 
 pub mod pb;
+pub mod graphene;
 pub mod spp;
 pub use rpc::Game;
 mod records;

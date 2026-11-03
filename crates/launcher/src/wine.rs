@@ -206,8 +206,10 @@ impl Wine {
     }
 
     /// Links folders of drive C: a game reaches by absolute paths (`C:\Gvr`) to folders of its
-    /// run directory (one game runs at a time: the links follow the game launched).
-    pub fn map_c_folders(&self, folders: &std::collections::BTreeMap<String, PathBuf>, run_dir: &Path) -> Result<()> {
+    /// run directory (one game runs at a time: the links follow the game launched). A folder the
+    /// dump does not have yet (a save folder, Tekken 7's `C:\perforce\...\Saved`) is made in the
+    /// dump (`game_root`), as the drives are.
+    pub fn map_c_folders(&self, folders: &std::collections::BTreeMap<String, PathBuf>, run_dir: &Path, game_root: &Path) -> Result<()> {
         for (name, directory) in folders {
             let plain = |p: &Path| !p.as_os_str().is_empty() && p.components().all(|c| matches!(c, std::path::Component::Normal(_)));
             if !plain(Path::new(name)) {
@@ -220,6 +222,14 @@ impl Wine {
             let target = run_dir.join(directory);
             eprintln!("wine: C:\\{name} -> {}", target.display());
             if self.dry_run { continue; }
+            if !target.exists() && directory != Path::new(".") {
+                let dump = game_root.join(directory);
+                fs::create_dir_all(&dump).with_context(|| format!("creating C:\\{name} directory {}", dump.display()))?;
+                // the run directory's links are made: this new folder's too
+                if !target.is_symlink() {
+                    std::os::unix::fs::symlink(&dump, &target).with_context(|| format!("linking {}", target.display()))?;
+                }
+            }
             // a nested folder: its parents, existing ones in any case (C:\Program Files)
             let mut parent = self.prefix.join("drive_c");
             let mut parts: Vec<String> = Path::new(name).components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();

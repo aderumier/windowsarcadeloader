@@ -49,7 +49,7 @@ pub(crate) struct Version {
     server: wal_wm5srv::Game,
     /// The Banapass reader: the game's `bngrw.dll` (6), else the serial reader on COM4.
     bngrw: bool,
-    /// The AMCUS auth daemon's newer IAuth (6R, `wmmt5_amcus.rs`).
+    /// The AMCUS auth daemon's newer IAuth (6R, `amcus.rs`).
     amcus_new: bool,
     /// The cabinet's USB memory key (6R, `nbamUsbFinder.dll`): its serial, else none.
     usb_serial: Option<&'static str>,
@@ -308,13 +308,7 @@ pub(crate) fn version() -> Option<&'static Version> {
 /// The PE time stamp of the process's executable.
 fn exe_timestamp() -> Option<u32> {
     let base = crate::module_base();
-    if base == 0 {
-        return None;
-    }
-    unsafe {
-        let pe = base + *((base + 0x3c) as *const u32) as usize;
-        Some(*((pe + 8) as *const u32))
-    }
+    (base != 0).then(|| crate::exe_timestamp(base))
 }
 
 /// The loaded version (the payload runs in this game only).
@@ -370,12 +364,12 @@ pub(crate) fn attach(exe: &str, base: usize, version: &'static Version) {
     if let Some(serial) = version.usb_serial {
         usb_finder(base, serial);
     }
-    // the game server (the ALL.Net answer's uri, wmmt5_amcus.rs)
+    // the game server (the ALL.Net answer's uri, amcus.rs)
     // and the store terminal's HTTPS proxy, where a drive cabinet sends its requests while the
     // terminal links (its address, port 50765: wmmt5_terminal.rs)
     wal_wm5srv::start(
         version.server,
-        &[crate::wmmt5_amcus::game_server(), crate::wmmt5_terminal::PROXY.to_string()],
+        &[crate::amcus::game_server(), crate::wmmt5_terminal::PROXY.to_string()],
         "F:\\wm5srv",
         |line| log!("{line}"),
         std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1"),
@@ -540,12 +534,12 @@ fn usb_finder(base: usize, serial: &str) {
 
 static CO_CREATE_INSTANCE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// The cabinet's AMCUS auth daemon (`IAuth`), in-process (`wmmt5_amcus.rs`).
+/// The cabinet's AMCUS auth daemon (`IAuth`), in-process (`amcus.rs`).
 unsafe extern "system" fn co_create_instance(clsid: *const u8, outer: *mut std::ffi::c_void, context: u32, iid: *const u8, out: *mut *mut std::ffi::c_void) -> i32 {
-    if !clsid.is_null() && unsafe { std::slice::from_raw_parts(clsid, 16) } == crate::wmmt5_amcus::CLSID {
+    if !clsid.is_null() && unsafe { std::slice::from_raw_parts(clsid, 16) } == crate::amcus::CLSID {
         if !out.is_null() {
-            let object = if current().amcus_new { &crate::wmmt5_amcus::OBJECT_NEW } else { &crate::wmmt5_amcus::OBJECT };
-            unsafe { *out = (object as *const crate::wmmt5_amcus::Object).cast_mut().cast() };
+            let object = if current().amcus_new { &crate::amcus::OBJECT_NEW } else { &crate::amcus::OBJECT };
+            unsafe { *out = (object as *const crate::amcus::Object).cast_mut().cast() };
         }
         static LOGGED: std::sync::Once = std::sync::Once::new();
         LOGGED.call_once(|| log!("wmmt5: in-process AMCUS auth (IAuth)"));
