@@ -384,6 +384,26 @@ fn bink_no_device(base: usize) {
     });
 }
 
+static FOPEN_S: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// The operator menu's FREE PLAY is only shown by an offline build: the launcher reads its
+/// build from `Data/romVersion.txt` (`TC5<n>-<region>-<RS|NA>-...`), the dump's is the online
+/// one. Offline is region 5, region 2 with `NA`, or region 1 with an `X` at offset 12 (the
+/// dump's JPN "offline" variant has it at 17: still online). Offline (no Banapass network), the
+/// launcher opens the dump's international offline variant instead
+/// (`Data/romVersions/romVersion_INT_Offline.txt`, `TC5100-2-NA-...`).
+unsafe extern "C" fn fopen_s(file: *mut *mut c_void, name: *const u8, mode: *const u8) -> i32 {
+    type F = unsafe extern "C" fn(*mut *mut c_void, *const u8, *const u8) -> i32;
+    let real: F = unsafe { std::mem::transmute(FOPEN_S.load(Ordering::Relaxed)) };
+    let path = if name.is_null() { String::new() } else { unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy().into_owned() };
+    const OFFLINE: &str = "Data/romVersions/romVersion_INT_Offline.txt";
+    if path.replace('\\', "/").eq_ignore_ascii_case("Data/romVersion.txt") && std::path::Path::new(OFFLINE).exists() {
+        log!("tc5: {path} -> {OFFLINE}");
+        return unsafe { real(file, c"Data/romVersions/romVersion_INT_Offline.txt".as_ptr().cast(), mode) };
+    }
+    unsafe { real(file, name, mode) }
+}
+
 /// `WAL_NAMCOES3_BANAPASS=1`: the network the Banapass cards need. The launcher's AMCUS auth
 /// daemon (`IAuth`) in-process, the game server (`spp.rs`, players in `F:\tc5srv`) at its
 /// ALL.Net uri, the player's card on the reader with the `card` button. The launcher is online
@@ -405,10 +425,20 @@ pub(crate) fn attach(exe: &str, base: usize) {
     if exe.eq_ignore_ascii_case(LAUNCHER) {
         let _ = std::fs::remove_file(test_switch_file());
         crate::lla::status_window(base);
+        // the operator menu is this process' window (the game hides its own and hands it its
+        // switches): the PC keyboard reached it too, two moves per arrow press. Its message loops
+        // (mfc100u.dll's and its own) get no keyboard or mouse messages.
+        wal_payload_common::input_filter::init(module("mfc100u.dll"), |_| false);
+        wal_payload_common::input_filter::messages(base);
         crate::bpreader::init("COM4", &[base]);
         crate::projector::init("COM1", &[base]);
         if std::env::var("WAL_NAMCOES3_BANAPASS").is_ok_and(|v| v == "1") {
             network(base);
+        } else {
+            match unsafe { wal_payload_common::iat::hook_module(base, "msvcr100.dll", "fopen_s", fopen_s as *const () as usize) } {
+                Some(o) => FOPEN_S.store(o, Ordering::Relaxed),
+                None => log!("tc5: fopen_s not hooked, online build"),
+            }
         }
         // the game (started by this process, its environment) in a borderless window the
         // size of the screen; this process' own windows keep their sizes
