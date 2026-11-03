@@ -7,6 +7,12 @@
 //! bottom strips, following it). None covers the game's picture: a full-screen window behind
 //! it was kept above it by the window manager (GNOME: a full-screen window's layer), and
 //! transparency needs a compositor. The image is decoded with GDI+, loaded at run time.
+//!
+//! `WAL_BEZEL_FIT=1`: the image's opening (the dark area at its center: black or transparent)
+//! fitted to the game's window. The image keeps its scale (fitted to the screen's height); its
+//! parts left and right of the opening are drawn against the window's left and right edges
+//! (Spider-Man Homecoming: an opening wider than the game's picture). No stretching: the art
+//! keeps its aspect, the screen's edges black.
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -14,7 +20,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use crate::log;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{
-    BLACK_BRUSH, BeginPaint, CreateCompatibleDC, DeleteDC, EndPaint, FillRect, GetStockObject, HALFTONE, HBITMAP, InvalidateRect,
+    BITMAPINFO, BITMAPINFOHEADER, BLACK_BRUSH, BeginPaint, DIB_RGB_COLORS, GetDIBits, CreateCompatibleDC, DeleteDC, EndPaint, FillRect, GetStockObject, HALFTONE, HBITMAP, InvalidateRect,
     PAINTSTRUCT, SRCCOPY, SelectObject, SetStretchBltMode, StretchBlt,
 };
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
@@ -32,6 +38,50 @@ type P = *mut c_void;
 static IMAGE: AtomicUsize = AtomicUsize::new(0);
 static IMAGE_W: AtomicUsize = AtomicUsize::new(0);
 static IMAGE_H: AtomicUsize = AtomicUsize::new(0);
+/// `WAL_BEZEL_FIT`: the opening's left and right edges in the image (0, 0: not fitted).
+static HOLE_L: AtomicUsize = AtomicUsize::new(0);
+static HOLE_R: AtomicUsize = AtomicUsize::new(0);
+/// The game's window left and right edges (screen), for the fitted drawing.
+static GAME_L: AtomicUsize = AtomicUsize::new(0);
+static GAME_R: AtomicUsize = AtomicUsize::new(0);
+
+/// The opening of the image `hbm` (`w` x `h`): the dark columns around its center, on its
+/// middle row. `None`: no dark center.
+fn opening(hbm: HBITMAP, w: u32, h: u32) -> Option<(u32, u32)> {
+    let mut info: BITMAPINFO = unsafe { std::mem::zeroed() };
+    info.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+    info.bmiHeader.biWidth = w as i32;
+    // top-down, 32-bit BGRX
+    info.bmiHeader.biHeight = -(h as i32);
+    info.bmiHeader.biPlanes = 1;
+    info.bmiHeader.biBitCount = 32;
+    let mut pixels = vec![0u32; w as usize * h as usize];
+    let dc = unsafe { CreateCompatibleDC(std::ptr::null_mut()) };
+    let n = unsafe { GetDIBits(dc, hbm, 0, h, pixels.as_mut_ptr().cast(), &mut info, DIB_RGB_COLORS) };
+    unsafe { DeleteDC(dc) };
+    if n == 0 {
+        return None;
+    }
+    let row = &pixels[(h / 2) as usize * w as usize..][..w as usize];
+    let dark = |x: u32| {
+        let p = row[x as usize];
+        (p & 0xFF) < 24 && (p >> 8 & 0xFF) < 24 && (p >> 16 & 0xFF) < 24
+    };
+    let c = w / 2;
+    if !dark(c) {
+        return None;
+    }
+    let mut l = c;
+    while l > 0 && dark(l - 1) {
+        l -= 1;
+    }
+    let mut r = c;
+    while r + 1 < w && dark(r + 1) {
+        r += 1;
+    }
+    // the edges of the image: no frame around a dark center
+    (l > 0 && r + 1 < w).then_some((l, r + 1))
+}
 
 /// Decodes `path` into a bitmap over black (GDI+), with its size.
 fn load(path: &str) -> Option<(HBITMAP, u32, u32)> {
@@ -110,7 +160,20 @@ unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpar
                     let mem = CreateCompatibleDC(dc);
                     let old = SelectObject(mem, IMAGE.load(Ordering::Relaxed) as _);
                     SetStretchBltMode(dc, HALFTONE);
-                    StretchBlt(dc, x, y, w, h, mem, 0, 0, iw as i32, ih as i32, SRCCOPY);
+                    let (hl, hr) = (HOLE_L.load(Ordering::Relaxed) as i32, HOLE_R.load(Ordering::Relaxed) as i32);
+                    let (gl, gr) = (GAME_L.load(Ordering::Relaxed) as i32, GAME_R.load(Ordering::Relaxed) as i32);
+                    if hr > hl && gr > gl {
+                        // the parts left and right of the opening against the game's edges
+                        // (the image's scale kept: its height fitted to the screen)
+                        let s = sh as f64 / ih;
+                        let (h, y) = ((ih * s).round() as i32, -at.top);
+                        let lw = (hl as f64 * s).round() as i32;
+                        let rw = ((iw as i32 - hr) as f64 * s).round() as i32;
+                        StretchBlt(dc, gl - lw - at.left, y, lw, h, mem, 0, 0, hl, ih as i32, SRCCOPY);
+                        StretchBlt(dc, gr - at.left, y, rw, h, mem, hr, 0, iw as i32 - hr, ih as i32, SRCCOPY);
+                    } else {
+                        StretchBlt(dc, x, y, w, h, mem, 0, 0, iw as i32, ih as i32, SRCCOPY);
+                    }
                     SelectObject(mem, old);
                     DeleteDC(mem);
                 }
@@ -196,6 +259,8 @@ fn run(image: HBITMAP) {
         if same {
             continue;
         }
+        GAME_L.store(rect.left.max(0) as usize, Ordering::Relaxed);
+        GAME_R.store(rect.right.max(0) as usize, Ordering::Relaxed);
         for (strip, r) in STRIPS.iter().zip(strips(rect, sw, sh)) {
             let hwnd = strip.load(Ordering::Relaxed) as HWND;
             let (w, h) = (r.right - r.left, r.bottom - r.top);
@@ -224,6 +289,16 @@ pub fn init() {
             IMAGE_W.store(w as usize, Ordering::Relaxed);
             IMAGE_H.store(h as usize, Ordering::Relaxed);
             log!("bezel: {path} ({w}x{h})");
+            let fit = std::env::var("WAL_BEZEL_FIT").is_ok_and(|v| v.trim() == "1");
+            match opening(image, w, h).filter(|_| fit) {
+                Some((l, r)) => {
+                    HOLE_L.store(l as usize, Ordering::Relaxed);
+                    HOLE_R.store(r as usize, Ordering::Relaxed);
+                    log!("bezel: opening x {l}..{r} fitted to the game's window");
+                }
+                None if fit => log!("bezel: no opening found, not fitted"),
+                None => {}
+            }
             run(image);
         }
         None => log!("bezel: cannot load {path}"),
