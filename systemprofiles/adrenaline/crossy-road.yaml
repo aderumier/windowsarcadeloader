@@ -1,0 +1,33 @@
+# Crossy Road (Adrenaline Amusements, Unity 5.1, Mono, 32-bit) - template, override values in
+# userprofiles/adrenaline/crossy-road.yaml.
+# Two players, one button each (jump). The payload emulates the cabinet's Kaboom Adrio
+# two-feeder board (coins, the players' buttons on the operator's keypad, the ticket feeders)
+# and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: Crossy Road
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+
+# loaded at the executable's entry point: Unity reads the screen's size before it loads
+# xinput1_3.dll (the 1080x1920 desktop must be there first)
+payload_loader: true
+
+env:
+  # The cabinet's portrait monitor: a 1080x1920 desktop for the game (its only display mode,
+  # GDI's and Direct3D 9's), its window fitted onto the real screen (aspect kept, centered).
+  WAL_DESKTOP_SIZE: 1080x1920
+
+# Unity 5.1 starts at the size saved in the registry (the game deletes it, its command line
+# size is not read): 1080x1920 windowed (a full screen Reset at a portrait size fails on a
+# landscape screen), the window borderless
+registry: [systemprofiles/adrenaline/files/crossy-road/screen.reg]
+args: [-popupwindow]
+
+controls:
+  b1: Jump (the player's button)
+  b2: Select (operator)
+  coin: Coin
+  test: Operator menu
+  service: Operator menu

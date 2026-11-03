@@ -771,7 +771,20 @@ unsafe fn modes_missing_windowed(d3d: P, adapter: u32, format: u32) -> (u32, Opt
 
 static MODE_ADDED_LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// `WAL_DESKTOP_SIZE` (no windowed size): the primary adapter's only display mode is the game's
+/// desktop (60 Hz), as GDI's (`desktop.rs`). Crossy Road (Unity 5.1, Direct3D 9) takes its start
+/// size (1080x1920) only from these modes, else its default 1024x768.
+fn desktop_only_mode(adapter: u32) -> Option<(u32, u32)> {
+    if adapter != 0 || WINDOWED_SIZE.lock().unwrap().is_some() {
+        return None;
+    }
+    crate::desktop::size().map(|(w, h)| (w as u32, h as u32))
+}
+
 unsafe extern "system" fn adapter_mode_count(d3d: P, adapter: u32, format: u32) -> u32 {
+    if desktop_only_mode(adapter).is_some() {
+        return 1;
+    }
     let (n, extra) = unsafe { modes_missing_windowed(d3d, adapter, format) };
     if let Some((w, h)) = extra {
         if !MODE_ADDED_LOGGED.swap(true, Ordering::Relaxed) {
@@ -782,6 +795,13 @@ unsafe extern "system" fn adapter_mode_count(d3d: P, adapter: u32, format: u32) 
 }
 
 unsafe extern "system" fn enum_adapter_modes(d3d: P, adapter: u32, format: u32, index: u32, mode: *mut DisplayMode) -> HRESULT {
+    if let Some((width, height)) = desktop_only_mode(adapter) {
+        if index != 0 || mode.is_null() {
+            return 0x8876086Cu32 as HRESULT; // D3DERR_INVALIDCALL
+        }
+        unsafe { *mode = DisplayMode { width, height, refresh: 60, format } };
+        return 0;
+    }
     let (n, extra) = unsafe { modes_missing_windowed(d3d, adapter, format) };
     match extra {
         Some((width, height)) if index == n && !mode.is_null() => {
@@ -836,7 +856,7 @@ unsafe fn desktop_mode(mode: *mut DisplayMode) {
 /// The adapter's display modes list the windowed size (see `WAL_D3D9_WINDOWED_SIZE`); its
 /// current mode is the game's desktop (`WAL_DESKTOP_SIZE`).
 unsafe fn patch_modes(d3d: P) {
-    if WINDOWED_SIZE.lock().unwrap().is_some() {
+    if WINDOWED_SIZE.lock().unwrap().is_some() || crate::desktop::size().is_some() {
         unsafe {
             patch(d3d, D3D_GET_ADAPTER_MODE_COUNT, adapter_mode_count as *const () as usize, &ORIG_MODE_COUNT);
             patch(d3d, D3D_ENUM_ADAPTER_MODES, enum_adapter_modes as *const () as usize, &ORIG_ENUM_MODES);
