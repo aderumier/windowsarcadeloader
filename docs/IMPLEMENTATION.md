@@ -1835,7 +1835,7 @@ Time Crisis 5 code. Unlike Lost Land Adventure the game, not the launcher, owns 
   launcher's AMCUS `IAuth` is answered in-process (`amcus.rs`, the older layout: slots 6,
   4, 5, 14, 9, 13; identity SBVE / TC51 1.00, the HASP serial). The launcher puts `https://`
   before the ALL.Net uri itself (the answer has none). Its game server is `spp.net` (protocol
-  buffers schemas in the launcher, `wm5srv/src/spp.rs`, run in the launcher process): `POST`
+  buffers schemas in the launcher, `namcoes3srv/src/spp.rs`, run in the launcher process): `POST`
   of a raw `spp.net.Request`, the answer's body by its `Content-Length`; any certificate is
   accepted. REGISTER_PCB must answer the status INITIALIZED (0) or REPAIR: with NORMAL the
   launcher ends in its "PCB invalid" state (22-02, 05-20, 05-56). Online, the card manager
@@ -1877,7 +1877,7 @@ rewrites those two entries before the game starts (neutral pads).
   button, F4; the card made once in the dump's `Saved\banapass.txt`).
   `WAL_NAMCOES3_AUTO_CARD=1` (default): the card is on the reader a second after start, for
   8 s (`bpreader::card_on_start`).
-- **Game server ("graphene", `wm5srv/src/graphene.rs`).** HTTPS (the game accepts the
+- **Game server ("graphene", `namcoes3srv/src/graphene.rs`).** HTTPS (the game accepts the
   self-signed certificate), `POST /` of a `graphene.protobuf.Request` (1 the `MessageType`, the
   request in the field of the type's name in lower case), answered with a `Response` (1 the
   type, 2 the result: 1 success, anything else is retried every 3 s). The messages are proto2,
@@ -1925,6 +1925,83 @@ SetKenkyuBoost. LoadClientSettings sets the insignia event (`kenkyu_*`, its end 
 LoadUser the boost's end and the day's free boost (`kenkyu_boost_free_count`, "First try is
 free"), SetKenkyuBoost / OsBncoinConsume start a one-hour boost, GetKenkyu adds the insignias
 won.
+
+#### Pokkén Tournament
+
+64-bit (`pokken.rs`): Direct3D 11, 2015, `ferrum_app.exe`: update 24.05 (PE time stamp
+0x58DDBEF3, online) and 26.02 (0x5C18DFCF, the last one, made offline when the network
+service ended); per build the RVAs of the patches below. The cabinet's `init.ps1` starts it
+with `fullscreen serverenv=production verboseLevel=0` (the profile's `args`; without
+`fullscreen` a window). No launcher, no dongle library: as Tekken 7, the payload is the
+game's `xinput1_3.dll` (`payload_install`, `xinput1_3=n,b`), whose ordinals 2 / 3 / 4 the
+game imports (bound to HASP exports, rewritten in the import table at attach). The dump's
+`dinput8.dll` is another loader's force feedback plugin: hidden.
+
+- **Controller.** The cabinet's Pokkén controller is an XInput pad (USB 0f0d:0073): the game
+  reads XInput pad 0 (buttons, triggers, both sticks, subtype from the capabilities) and lists
+  the USB controllers (`driverUtil.dll` `driverUtilGetControllerUsbIdPairs`), stopping on any
+  other id ("usb controller error"): the payload answers that pair, and the pad from player
+  1's virtual stick (b1-b4 X A B Y, b5 / b6 L / R, b7 / b8 ZL / ZR on the triggers, start,
+  the d-pad, both sticks). DirectInput: no device (`WAL_DINPUT_DISABLE`).
+- **I/O board.** The Namco JVS board on COM3 through `wajvio.dll` (`jvs.rs`, `Game::Pokken`):
+  test, service, coins, start; poll `20 01 03 21 01 22 06 32 03 00 00 00` plus `70 18`. The
+  test menu (English): up / down (0x20 / 0x10) or service (0x40) choose, enter (0x02) enters:
+  start while the test switch is on (the pad's A does nothing there). FREE PLAY is in COIN
+  OPTIONS.
+- **Boot checks.** The Namco USB dongle enumeration at 0x30b1d0 (the Battle Pod library: a
+  0x628-byte block) answers the "USB DONGLE" 0b9a:0c10 (id at +0x22) with the serial
+  274713190001 at +0x428 (2747, region 1, role 3, cabinet 19: parsed by the boot). The boot's
+  serial step compares its first 8 digits with `F:\WritableConfig.ini` `[RuntimeConfig]`
+  `serialID` (the auth daemon's file; written by the payload with `netID` ABGN3190001, as
+  ARTEMiS derives it): "19-1 SYSTEM ERROR 1" otherwise. The system check wants Windows
+  Embedded Standard 7 SP1 (`GetVersionExA` / `RtlGetVersion` through `GetProcAddress`: 6.1,
+  workstation, `VER_SUITE_EMBEDDEDNT`) and the Windows account `arcade` (`GetUserNameA`):
+  "19-12 SYSTEM ERROR 12" otherwise. The link check (`GetIfTable2`) wants a hardware interface
+  with its cable connected: Wine marks none, the up interfaces but the loopback are ("4-1 LAN
+  ERROR 1" otherwise). The gateway ping (0x5f0d30) and the store subnet check (192.168.123.x,
+  0x5f1980) succeed; `BlockInput` does nothing.
+- **Language.** The game picks its language index from `GetUserDefaultLCID` (Japanese 0,
+  English 1, ... Spanish 5: the file suffix of table 0x984940, and the column of its
+  multi-language texts) and its region from `GetSystemDefaultUILanguage` / `GetUserGeoID`. It
+  carries only the Japanese files; on an English locale the navigator texts are Spanish: the
+  three answer Japan (ja-JP 0x0411, GEOID 122). The test menu is English anyway.
+- **Saves.** The operator settings and bookkeeping in the dump's `Win32\save_data`
+  (`nbamsavdat.dll`); F: / G: / J: (logs) are drives in the dump. Without network the screen
+  corner shows 4-1 LAN ERROR 1 (the in-store link), 2-1 FIRST POWER ON at the first start.
+- **Movies.** The attract and stage movies (`Win32\movie\master\*.mp4`, H.264 + AAC) go
+  through the Media Foundation source reader on the game's own byte stream, read
+  synchronously (`ReadSample` of any stream). Two GE-Proton bugs froze them, fixed by patches
+  of the runner (§ wine runner): mfreadwrite handed out the stream that was ahead, so the
+  game's small video frame pool filled while the audio it plays them on was still to be read
+  (patch 0110: the stream that is behind, as Windows); mfsrcsnk read the byte stream holding
+  the source lock, while the game's byte stream completes its reads through
+  `MFInvokeCallback` on the one-thread standard queue, whose thread waited for that lock
+  (patch 0111: demuxing without the source lock): a still title screen, stopping a movie hung.
+- **Banapassport cards (24.05).** In process, as the cabinet's AMAuthd: the AMCUS object
+  (`amcus.rs`, `OBJECT_NEW` through a `CoCreateInstance` hook; game SDAK / PKF1, the ALL.Net
+  uri path `/pokken/`, the reinit's state 0 at `Finalize`), the card reader on COM4
+  (`bpreader.rs`; with `WAL_NAMCOES3_AUTO_CARD` the card goes on the reader at the game's
+  polls after start, once per game: start also dismisses its messages), the game server
+  `namcoes3srv/src/jackal.rs` on 127.1.1.1:9002 (the game `strlen`s the `gethostbyname`
+  address: no 0 byte; ARTEMiS's `titles/pokken`: jackal.protobuf through the graphene
+  dispatch, the matching JSON and the admission websocket for the online battles against the
+  CPU). The game's server library speaks TLS 1.1 (axTLS): its `https://` checks answer "not
+  https" (plain HTTP, the server tells by the first byte, `Connection: close`). A new card is
+  registered by the server with the profile's name (`WAL_NAMCOES3_PROFILE_NAME`): the game's
+  registration asks for the name on a touch keyboard. The card is saved once per credit
+  (SaveUser after the last battle), players in the dump's `F\jackal`. The guest's name
+  (hard-coded Japanese) is patched to `Player (No Card)`. 26.02 starts no network.
+- **Text.** The game loads its texts from `Win32\text\master\resident_ntx_ja.drp` (and the
+  navigator's `NAVI_nnn_ja.drp`): DRP archives (encrypted big-endian, zlib), NTXL string
+  tables, labels looked up from the code and the layouts (`resident_tlt.drp`). The dumps
+  carry a Spanish fan translation; 24.05's resident archive is Pokkén Tournament DX's tables
+  (move lists, ...), without the arcade's Card / System / Tips and many labels: empty
+  message boxes. `wal-pokken-text` (`crates/pokken-text`) exports the strings and rebuilds
+  the archives from a translation memory; the English one is installed in the dumps (the
+  originals as `*.orig`), 24.05 with the arcade resident archive of 26.02. The game takes 32
+  tables at most in that archive (more: nothing drawn).
+- **Closing time.** The test menu's CLOSE TIME SETTING (the shop's): the game warns
+  ("N min. until coins can no longer be inserted") and stops taking coins.
 
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 
@@ -4615,6 +4692,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `tekken-7` | Tekken 7 | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | UE4 v1.12 (64-bit, §6.3c): the payload as the game's `xinput1_3.dll`, boot patches, the Namco JVS board on COM3, in-process AMCUS, Banapass reader on COM4, built-in graphene game server, saves in the dump's `Saved`, 1920x1080; no cabinet link |
 | `tekken-7-fated-retribution` | Tekken 7 Fated Retribution | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | as `tekken-7` (§6.3c): `xinput1_3.dll` payload, the Fated Retribution boot patches, Namco JVS on COM3, newer IAuth, Banapass, graphene server, saves in the dump's `Saved` |
 | `tekken-7-fated-retribution-round-2` | Tekken 7 Fated Retribution Round 2 | namcoes3 | works (user: 100%, online with Banapass cards, insignia rate boost), 1 player per cabinet | as `tekken-7-fated-retribution` (§6.3c): runs the dump's `.exe.orig`, Round 2 boot patches, game server port redirect, insignias |
+| `pokken-tournament` | Pokkén Tournament | namcoes3 | user 100% (24.05 with Banapassport cards, 26.02 offline), 1 player per cabinet, English text | updates 24.05 and 26.02 (64-bit, §6.3c): the payload as the game's `xinput1_3.dll` (the cabinet controller as XInput pad 0, its USB id), Namco JVS on COM3 (`wajvio.dll`), dongle / cabinet serial, ping and subnet patches, Japanese locale, cards (AMCUS, COM4 reader, jackal server), GE patches 0110 / 0111 (movies), saves in the dump's `Win32\save_data`; no cabinet link |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | dump built from the game's install disc (unshield), original executable: HASP4 dongle answered in memory (`hasp.rs`), W: drive, USBIO board and gun watchdog patches (`WAL_PATCHES`), operator keys only (`keyboard.rs`); the game's own `msvcr71` / `msvcp71` (Wine's clamps the level dependency CRCs: missing models, statue enemies), initial `systemcfg.lua` |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |

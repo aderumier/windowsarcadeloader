@@ -1,0 +1,102 @@
+# Pokkén Tournament (Bandai Namco, 2015, Direct3D 11, 64-bit), updates 24.05 (online:
+# Banapassport cards) and 26.02 (offline) - template, override values in
+# userprofiles/namcoes3/pokken-tournament.yaml. English texts: the dump's
+# Win32/text/master/*.drp rebuilt with wal-pokken-text (docs/IMPLEMENTATION.md).
+system: namcoes3
+name: Pokken Tournament
+
+# The game imports no cabinet library: the payload is its xinput1_3.dll (the cabinet
+# controller as an XInput pad, Namco JVS I/O board on COM3, boot patches). The dump's
+# dinput8.dll is a force feedback plugin of another loader.
+payload_install: [xinput1_3.dll]
+dll_overrides:
+  xinput1_3: "n,b"
+hide: [dinput8.dll]
+
+# The cabinet's drives: settings and bookkeeping (F, G), logs (J).
+drives:
+  f: F
+  g: G
+  j: J
+
+# The cabinet's command line.
+args: [fullscreen, serverenv=production, verboseLevel=0]
+
+env:
+  # The game reads DirectInput devices too (developer controls): none.
+  WAL_DINPUT_DISABLE: "1"
+  WAL_HIDE_CURSOR: "1"
+  # Online: the Banapassport card on the reader (card button, F4 on the keyboard), the cabinet
+  # authentication and a game server built into the payload, the players in the dump's
+  # F\jackal.
+  WAL_NAMCOES3_BANAPASS: "1"
+  # The name of a new card's trainer (registered by the server: the game's name entry is a
+  # touch keyboard)
+  WAL_NAMCOES3_PROFILE_NAME: "PLAYER"
+  # The card's 20-digit access code (empty: a card made once, the dump's F\banapass.txt)
+  WAL_NAMCOES3_ACCESS_CODE: ""
+  # The card goes in by itself after start
+  WAL_NAMCOES3_AUTO_CARD: "1"
+
+options:
+  - title: Banapassport card
+    options:
+      - key: WAL_NAMCOES3_BANAPASS
+        label: Online with cards
+        kind: bool
+        description: >-
+          The Banapassport card (card button, F4 on the keyboard) keeps the trainer's rank,
+          Pokémon levels, titles and records, on a game server built into the loader. Battles
+          are against the CPU (one cabinet). Off: offline, no card.
+      - key: WAL_NAMCOES3_AUTO_CARD
+        label: Insert the card automatically
+        kind: bool
+        description: >-
+          The card is inserted by itself a second after start is pressed. Off: insert it
+          with the card button.
+      - key: WAL_NAMCOES3_PROFILE_NAME
+        label: Trainer name
+        kind: text
+        description: The name of a new card's trainer.
+      - key: WAL_NAMCOES3_ACCESS_CODE
+        label: Access code
+        kind: text
+        description: >-
+          The card's 20-digit access code. Empty: a card made once for this dump
+          (F\banapass.txt).
+
+input:
+  # The cabinet controller's buttons on the pad's (A B X Y, L / R, ZL / ZR on the triggers).
+  gamepad:
+    x: b1
+    a: b2
+    b: b3
+    y: b4
+    l1: b5
+    r1: b6
+    l2: b7
+    r2: b8
+    start: start
+    back: coin
+    l3: service
+    r3: test
+    guide: card
+    dpup: up
+    dpdown: down
+    dpleft: left
+    dpright: right
+    leftx: lx
+    lefty: ly
+    rightx: rx
+    righty: ry
+
+controls:
+  b1: X
+  b2: A
+  b3: B
+  b4: Y
+  b5: L
+  b6: R
+  b7: ZL
+  b8: ZR
+  card: Banapass card

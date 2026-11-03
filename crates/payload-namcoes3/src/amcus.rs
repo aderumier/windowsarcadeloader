@@ -40,6 +40,8 @@ pub(crate) struct Identity {
     /// Put before the server in the ALL.Net answer's uri (Time Crisis 5's launcher adds
     /// `https://` itself).
     pub(crate) scheme: &'static str,
+    /// Put after the server in the uri (Pokkén Tournament parses `https://host:port/path`).
+    pub(crate) path: &'static str,
 }
 
 static IDENTITY: std::sync::OnceLock<Identity> = std::sync::OnceLock::new();
@@ -51,7 +53,7 @@ pub(crate) fn set_identity(identity: Identity) {
 fn identity() -> Identity {
     IDENTITY.get().copied().unwrap_or_else(|| {
         let v = crate::wmmt5::current();
-        Identity { game_id: GAME_ID, game_cd: v.game_cd, game_ver: v.game_ver, serial: v.serial, scheme: "https://" }
+        Identity { game_id: GAME_ID, game_cd: v.game_cd, game_ver: v.game_ver, serial: v.serial, scheme: "https://", path: "" }
     })
 }
 
@@ -177,7 +179,7 @@ unsafe extern "system" fn get_auth_server_resp(_this: P, out: *mut u8) -> i32 {
     unsafe {
         std::ptr::write_bytes(out, 0, 2210);
         let server = game_server();
-        put_str(out, 0, 257, &format!("{}{server}", identity().scheme));
+        put_str(out, 0, 257, &format!("{}{server}{}", identity().scheme, identity().path));
         put_str(out, 257, 257, &server);
         put_str(out, 514, 256, "Arcade");
         put_str(out, 770, 256, "Arcade");
@@ -288,9 +290,15 @@ pub(crate) static OBJECT: Object = Object { vtable: VTABLE.0.as_ptr() };
 /// initialized, then `AUTH_START` (6), `IDLE` (15), `DL` at the next state reads.
 static DAEMON_STATE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(9);
 
-/// `Initialize(mode)`, `Finalize()` (newer IAuth).
+/// `Initialize(mode)`, `Finalize()` (newer IAuth): the daemon started again (`INIT`, 5), stopped
+/// (0: Pokkén Tournament's re-initialization waits for it before `Initialize`).
 unsafe extern "system" fn initialize_new(_this: P, _mode: u64) -> i32 {
     DAEMON_STATE.store(5, std::sync::atomic::Ordering::Relaxed);
+    S_OK
+}
+
+unsafe extern "system" fn finalize_new(_this: P) -> i32 {
+    DAEMON_STATE.store(0, std::sync::atomic::Ordering::Relaxed);
     S_OK
 }
 
@@ -381,7 +389,7 @@ static VTABLE_NEW: Vtable = Vtable([
     refs as *const (),
     refs as *const (),
     initialize_new as *const (), // 3
-    finalize as *const (), // 4
+    finalize_new as *const (), // 4
     set_mode as *const (), // 5
     unused as *const (),
     unused as *const (),
