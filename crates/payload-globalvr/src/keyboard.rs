@@ -15,15 +15,22 @@
 //!
 //! The game also takes debug keys from its window messages (F1-F5 difficulty...):
 //! `PeekMessageA` / `GetMessageA` turn keyboard messages into `WM_NULL`.
+//!
+//! The coin mechanisms are window messages too (the cabinet's keyboard encoder): the window
+//! procedure (`0x4016db`) times each Shift / Ctrl press with `GetMessageTime`, and a press of at
+//! most 500 ms inserts the slot's credits (Shift: `g_arcadeCreditPerPulseSlot1`, Ctrl: slot 0),
+//! left key for player 1, right key for player 2. [`coin`] posts a left / right Shift press,
+//! marked so the filter lets it through.
 
 use std::ffi::c_void;
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use wal_payload_common::{iat, log};
 use wal_protocol::button;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageA, WM_KEYDOWN, WM_KEYUP};
 
 /// `push edx (states); push 0x100; push eax (device); call [ecx + 0x24]` (GetDeviceState).
 const SITE: usize = 0x3abaec;
@@ -79,15 +86,47 @@ const WM_KEYLAST: u32 = 0x109;
 
 static PEEK: AtomicUsize = AtomicUsize::new(0);
 static GET: AtomicUsize = AtomicUsize::new(0);
+/// The game keyboard is filtered (Far Cry): coins go to its window procedure.
+static ACTIVE: AtomicBool = AtomicBool::new(false);
+/// The window the game's messages are for (the last seen), where coins are posted.
+static WINDOW: AtomicUsize = AtomicUsize::new(0);
+
+const VK_SHIFT: usize = 0x10;
+/// Left / right Shift scan codes: players 1 / 2.
+const SHIFT_SCAN: [isize; 2] = [0x2a, 0x36];
+/// A reserved `lParam` bit (25, the game reads only the repeat count, scan code and extended
+/// bit): the payload's own coin presses.
+const COIN_MARK: isize = 1 << 25;
 
 type PeekFn = unsafe extern "system" fn(*mut u32, usize, u32, u32, u32) -> i32;
 type GetFn = unsafe extern "system" fn(*mut u32, usize, u32, u32) -> i32;
 
-/// `MSG.message` (after `hwnd`) of a keyboard message becomes `WM_NULL`.
+/// `MSG.message` (after `hwnd`) of a keyboard message becomes `WM_NULL`, but for coins.
 fn drop_key(msg: *mut u32) {
+    let hwnd = unsafe { *msg } as usize;
+    if hwnd != 0 {
+        WINDOW.store(hwnd, Ordering::Relaxed);
+    }
     let message = unsafe { msg.add(1) };
-    if (WM_KEYFIRST..=WM_KEYLAST).contains(&unsafe { *message }) {
+    let lparam = unsafe { *msg.add(3) } as isize;
+    if (WM_KEYFIRST..=WM_KEYLAST).contains(&unsafe { *message }) && lparam & COIN_MARK == 0 {
         unsafe { *message = 0 };
+    }
+}
+
+/// A coin of `player` (0 / 1): a short Shift press posted to the game window.
+pub(crate) fn coin(player: usize) {
+    if !ACTIVE.load(Ordering::Relaxed) {
+        return;
+    }
+    let hwnd = WINDOW.load(Ordering::Relaxed);
+    if hwnd == 0 || player >= SHIFT_SCAN.len() {
+        return;
+    }
+    let lparam = 1 | SHIFT_SCAN[player] << 16 | COIN_MARK;
+    unsafe {
+        PostMessageA(hwnd as _, WM_KEYDOWN, VK_SHIFT, lparam);
+        PostMessageA(hwnd as _, WM_KEYUP, VK_SHIFT, lparam | 3 << 30);
     }
 }
 
@@ -132,5 +171,6 @@ pub(crate) fn init() {
     code[1..5].copy_from_slice(&((stub as *const () as usize).wrapping_sub(at + 5) as i32).to_le_bytes());
     code[5..].fill(0x90);
     unsafe { VirtualProtect(at as *const c_void, ORIGINAL.len(), old, &mut old) };
+    ACTIVE.store(true, Ordering::Relaxed);
     log!("keyboard: game keyboard limited to the operator keys");
 }
