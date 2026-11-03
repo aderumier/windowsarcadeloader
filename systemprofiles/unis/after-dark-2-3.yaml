@@ -1,0 +1,58 @@
+# After Dark 2.3 (UNIS, Virtools 3.5, 32-bit; the 1.1 profile, after-dark.yaml, with its
+# version name) - template, override values in
+# userprofiles/unis/after-dark-2-3.yaml.
+# Two guns. The payload emulates the cabinet's serial gun board (guns, triggers, coins) and its
+# HID board (the dongle) (docs §6.3j).
+system: unis
+name: After Dark (2.3)
+
+# GamePlayer.exe imports none of the payload's DLL names: started with it by wal-loader
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# The player's settings (GameConfig, not in the dumps): the composition to play and the
+# dump's texture and sound folders, the window's size, running without the focus (the videos'
+# devices take it to the desktop window: the game paused, its operator menu "hung")
+files:
+  GameConfig: systemprofiles/unis/files/after-dark/GameConfig
+
+# GamePlayer.exe links MFC 9.0; the 2.3 dump has no D3DX9_41.dll (Wine's: its materials black)
+tricks: [vcrun2008, d3dx9_41]
+
+env:
+  WAL_UNIS_BOARD: afterdark
+  # the Virtools input manager's DirectInput (a COM object): the fake one, no PC keyboard or
+  # mouse (the guns are the serial board's)
+  WAL_DINPUT_DISABLE: "1"
+  # its window's device (GameConfig: 1920x1080) made full screen
+  WAL_D3D9_FULLSCREEN: "1"
+  # the game draws its own gun cursors: the common crosshair option off by default
+  WAL_CROSSHAIR: "0"
+  # free play (the game has none: a start press inserts a coin first); "0": coins
+  WAL_UNIS_FREEPLAY: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_UNIS_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Free play: each start press inserts a coin first. Off: coins buy credits.
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  start: Start
+  coin: Coin
+  test: Operator menu
+  service: Menu +
+  up: Menu +
+  down: Menu -

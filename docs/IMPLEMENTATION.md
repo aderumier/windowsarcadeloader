@@ -4018,7 +4018,8 @@ plugins, launcher, logs and the root copies of the plugins; the camera tracker's
 
 #### After Dark
 
-UNIS's After Dark (1.1; 2.3 has the same `GamePlayer.exe`): a Virtools 3.5 player linked into
+UNIS's After Dark (1.1, `after-dark`; 2.3, `after-dark-2-3`: the same `GamePlayer.exe` and
+profile, another `main.vmo`): a Virtools 3.5 player linked into
 `GamePlayer.exe` (32-bit, MFC 9.0: `vcrun2008`), the game in `main.vmo` and `Module/*.nmo`;
 `WAL_UNIS_BOARD=afterdark`, two guns. The executable imports none of the payload's names:
 `wal-loader` starts it with the payload (`xinput1_3.dll`, native first).
@@ -4035,7 +4036,7 @@ UNIS's After Dark (1.1; 2.3 has the same `GamePlayer.exe`): a Virtools 3.5 playe
   Internal Coins) read 26-byte frames `40 80`, gun A's and gun B's buttons (bytes 2, 3: 0x01
   start, 0x02 trigger, 0x04 the motion seat's button, 0x08 the operator menu, 0x10 / 0x20 its
   + / -, 0x80 a coin, counted once per 100 ms held), X and Y of each gun (bytes 7..14, big
-  endian, 0..4095 across the screen from the top left), `0D`, the XOR of the 25 bytes before.
+  endian, 0..4095 across the screen from the bottom left), `0D`, the XOR of the 25 bytes before.
   The game maps them through `coin.ini`'s calibration (`Gun1xMin` ... `Gun2yMax`, the operator
   menu's gun settings). The PC's frames (`40 80 ..` outputs, `50 90 0D`) are ignored.
 - **HID board (`HID\Vid_0471&Pid_485e`).** The dongle and the guns' vibration, behind an
@@ -4044,6 +4045,17 @@ UNIS's After Dark (1.1; 2.3 has the same `GamePlayer.exe`): a Virtools 3.5 playe
   Failed !") puts ours in the board table (`0x8983B0`). The dongle block writes 8 bytes
   (command 0x42) and reads them back (command 0x30, sub-command 1); the I/O thread's polls
   (sub-command 2, the vibration) get 16 zero bytes.
+- **2.3.** Its dump has no `D3DX9_41.dll` (1.1's has): Wine's draws its materials black,
+  the profile installs Microsoft's (`d3dx9_41`).
+- **Focus.** The videos (the attract's, the operator menu's) play through DirectShow, whose
+  renderer creates 8x8 Direct3D devices on the desktop window: kept windowed
+  (`WAL_D3D9_FULLSCREEN` leaves devices under 64x64 alone), they still take the focus, and the
+  player pauses without it (`UseFocus`, default 1): `GameConfig`'s `UseFocus=0`.
+- **PC keyboard.** The MFC message loop (`mfc90.dll`) is filtered too
+  (`input_filter::messages`): the real F1 was MFC's help (WinHelp, the game hung).
+- **Operator menu.** F2; + / - change the selected item's value. The menu (`1.vmo`) moves
+  between items with Virtools key waiters (DirectInput keyboard) and the mouse: not emulated
+  yet (no key of a 78-key sweep on the fake keyboard moved it).
 - **Play.** Coins, start; the game draws its own gun cursors (the crosshair option off). The
   game has no free play (its coin setting 0 does not give one): `WAL_UNIS_FREEPLAY` (default
   on, a profile option) makes a start press a coin, then the start.
@@ -4648,7 +4660,6 @@ NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance s
 `NxLMMF_*`, `\\.\pipe\NxLPipe*`) and starts the real game (`game2.exe launcher`,
 `game_liong.exe -s`): the profiles run that stub, the child loads our iDmacDrv32.dll from the
 run directory.
-| `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | `GamePlayer.exe` (Virtools 3.5, 32-bit, §6.3j) started by wal-loader with the payload: COM1 gun board (guns, triggers, start, coins, operator keys), the HID board's device object replaced (dongle), `GameConfig` (composition, folders, 1920x1080 full screen), fake DirectInput (COM-created) |
 
 winmm joysticks are hidden from every game (`WAL_JOYSTICK_DISABLE=0` shows them): a cabinet has
 none, and games that read them next to their board (Ge-Sen Love Plus Pengo, Phantom Breaker)
@@ -4666,6 +4677,8 @@ TODO, roughly by priority:
 * Lightgun backend: port `batocera-wine-guns` (evdev `ID_INPUT_GUN` guns, mouse fallback); needs
   gun axes in the virtual stick or a separate gun state in the protocol (protocol version bump).
 * Outputs: payload → launcher (lamps, force feedback, recoil) with system-defined ids.
+| `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | `GamePlayer.exe` (Virtools 3.5, 32-bit, §6.3j) started by wal-loader with the payload: COM1 gun board (guns, triggers, start, coins, operator keys), the HID board's device object replaced (dongle), `GameConfig` (composition, folders, 1920x1080 full screen), fake DirectInput (COM-created) |
+| `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns | as `after-dark` (the same executable and profile), Microsoft's `d3dx9_41` (not in the dump) |
 * NESiCA: verify card insertion/NESYS card data in a real play session; per-game patches.
 * Settings the batocera script has and the launcher does not: fonts, redistributable installs,
   save-file linking, virtual desktop, FSR, NVAPI, hidraw.

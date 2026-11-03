@@ -11,7 +11,8 @@
 //!   back buffer size. For games asking a display mode Wine cannot emulate (Type X2 1280x768);
 //!   Wine's fullscreen scaling then fits it to the monitor.
 //! * `WAL_D3D9_FULLSCREEN=1`: windowed devices are created (and reset) fullscreen instead,
-//!   with the same back buffer size, for games that only run in a window under Wine.
+//!   with the same back buffer size, for games that only run in a window under Wine (not the
+//!   tiny devices, under 64x64, of a video renderer).
 //! * `WAL_D3D9_WINDOWED_SIZE=<w>x<h>`: devices are created (and reset) windowed with this back
 //!   buffer size, which window mode stretches to the window (fullscreen ones made windowed). For
 //!   games drawing a smaller picture in the corner of their back buffer (Yatagarasu: 854x480 of
@@ -643,7 +644,9 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
                 }
             }
         }
-        if w != 0 && h != 0 {
+        // a helper's tiny device stays windowed (After Dark's videos: 8x8 devices of the video
+        // renderer, made fullscreen they took the screen from the game's device)
+        if w >= 64 && h >= 64 {
             unsafe {
                 *p.add(windowed_index) = 0;
                 if *p.add(2) == 0 {
