@@ -18,13 +18,15 @@
 //!
 //! The gun axes go through the game's calibration (`arcade_calibration.txt`: min, max for gun
 //! 1 X, gun 1 Y, gun 2 X, gun 2 Y): the axes are sent as 1..=255 (0 would read as a missing
-//! gun), so the profile installs a calibration for that range.
+//! gun), so the profile installs a calibration for that range. With a letterboxed picture
+//! (`WAL_D3D9_ASPECT`, keep aspect ratio on) the aim is mapped onto the picture ([`Letterbox`]).
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use wal_payload_common::{log, mapping::ButtonMap};
 use wal_protocol::{Axis, StickState};
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
 
 const RECORD_SIZE: usize = 0x34;
 const DEVICES: usize = 1;
@@ -107,19 +109,45 @@ fn records() -> *mut u8 {
         as *mut u8
 }
 
-/// Virtual stick axis (-32768..=32767) -> USBIO gun axis, 1..=255.
-fn gun_axis(v: i16) -> u8 {
-    (1 + (v as i32 + 32768) * 254 / 65535) as u8
+/// The picture's place on the screen (fractions: x, y, width, height): a centered
+/// `WAL_D3D9_ASPECT` rectangle (unless `WAL_KEEP_ASPECT_RATIO=0`), the window being the
+/// screen (Far Cry Paradise Lost); else the whole screen.
+struct Letterbox([f32; 4]);
+
+impl Letterbox {
+    fn get() -> &'static Letterbox {
+        static BOX: OnceLock<Letterbox> = OnceLock::new();
+        BOX.get_or_init(|| {
+            let aspect = wal_payload_common::screenshot::d3d9_aspect().filter(|_| crate::keyboard::active());
+            let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN) as f32, GetSystemMetrics(SM_CYSCREEN) as f32) };
+            let Some((aw, ah)) = aspect.map(|(w, h)| (w as f32, h as f32)).filter(|_| sw > 0.0 && sh > 0.0) else {
+                return Letterbox([0.0, 0.0, 1.0, 1.0]);
+            };
+            // the largest centered rectangle of that aspect (as the d3d9 shim's)
+            let (w, h) = if sw * ah > sh * aw { (sh * aw / ah / sw, 1.0) } else { (1.0, sw * ah / aw / sh) };
+            log!("usbio: aim mapped onto the {aw}:{ah} picture, {w:.3}x{h:.3} of the {sw}x{sh} screen");
+            Letterbox([(1.0 - w) / 2.0, (1.0 - h) / 2.0, w, h])
+        })
+    }
+}
+
+/// Virtual stick axis (-32768..=32767) -> USBIO gun axis, 1..=255, onto the picture's `start`,
+/// `size` (screen fractions) of that axis.
+fn gun_axis(v: i16, start: f32, size: f32) -> u8 {
+    let screen = (v as i32 + 32768) as f32 / 65535.0;
+    let picture = ((screen - start) / size).clamp(0.0, 1.0);
+    (1.0 + picture * 254.0).round() as u8
 }
 
 /// Builds record 0 from players 1 and 2.
 fn fill(rec: &mut [u8; RECORD_SIZE]) {
     let map = map();
+    let [bx, by, bw, bh] = Letterbox::get().0;
     let (mut e, mut f) = (0u8, 0u8);
     for player in 0..2 {
         let stick: StickState = wal_payload_common::input(player);
-        rec[6 + player * 2] = gun_axis(stick.axis(Axis::LeftY));
-        rec[7 + player * 2] = gun_axis(stick.axis(Axis::LeftX));
+        rec[6 + player * 2] = gun_axis(stick.axis(Axis::LeftY), by, bh);
+        rec[7 + player * 2] = gun_axis(stick.axis(Axis::LeftX), bx, bw);
         let bit = player as u8;
         map.for_each_pressed(&stick, |n| match n {
             Native::Trigger => f |= 0x04 << bit,

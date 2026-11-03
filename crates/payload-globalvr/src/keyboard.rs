@@ -30,7 +30,13 @@ use wal_payload_common::{iat, log};
 use wal_protocol::button;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
-use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageA, WM_KEYDOWN, WM_KEYUP};
+use windows_sys::Win32::Foundation::{HWND, LPARAM};
+use windows_sys::core::BOOL;
+use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    EnumWindows, GWL_WNDPROC, GetWindowLongA, GetWindowThreadProcessId, IsWindow, IsWindowVisible, PostMessageA, WM_KEYDOWN,
+    WM_KEYUP,
+};
 
 /// `push edx (states); push 0x100; push eax (device); call [ecx + 0x24]` (GetDeviceState).
 const SITE: usize = 0x3abaec;
@@ -88,7 +94,7 @@ static PEEK: AtomicUsize = AtomicUsize::new(0);
 static GET: AtomicUsize = AtomicUsize::new(0);
 /// The game keyboard is filtered (Far Cry): coins go to its window procedure.
 static ACTIVE: AtomicBool = AtomicBool::new(false);
-/// The window the game's messages are for (the last seen), where coins are posted.
+/// The game window, where coins are posted.
 static WINDOW: AtomicUsize = AtomicUsize::new(0);
 
 const VK_SHIFT: usize = 0x10;
@@ -103,10 +109,6 @@ type GetFn = unsafe extern "system" fn(*mut u32, usize, u32, u32) -> i32;
 
 /// `MSG.message` (after `hwnd`) of a keyboard message becomes `WM_NULL`, but for coins.
 fn drop_key(msg: *mut u32) {
-    let hwnd = unsafe { *msg } as usize;
-    if hwnd != 0 {
-        WINDOW.store(hwnd, Ordering::Relaxed);
-    }
     let message = unsafe { msg.add(1) };
     let lparam = unsafe { *msg.add(3) } as isize;
     if (WM_KEYFIRST..=WM_KEYLAST).contains(&unsafe { *message }) && lparam & COIN_MARK == 0 {
@@ -114,13 +116,21 @@ fn drop_key(msg: *mut u32) {
     }
 }
 
+/// The game keyboard is filtered: Far Cry Paradise Lost.
+pub(crate) fn active() -> bool {
+    ACTIVE.load(Ordering::Relaxed)
+}
+
 /// A coin of `player` (0 / 1): a short Shift press posted to the game window.
 pub(crate) fn coin(player: usize) {
     if !ACTIVE.load(Ordering::Relaxed) {
         return;
     }
-    let hwnd = WINDOW.load(Ordering::Relaxed);
-    if hwnd == 0 || player >= SHIFT_SCAN.len() {
+    let Some(hwnd) = game_window() else {
+        log!("keyboard: coin {}, no game window", player + 1);
+        return;
+    };
+    if player >= SHIFT_SCAN.len() {
         return;
     }
     let lparam = 1 | SHIFT_SCAN[player] << 16 | COIN_MARK;
@@ -146,6 +156,35 @@ unsafe extern "system" fn get_message(msg: *mut u32, hwnd: usize, min: u32, max:
         drop_key(msg);
     }
     r
+}
+
+/// The visible top-level window of this process whose window procedure is the executable's
+/// (the one counting the coins; not the payload's letterbox child or another module's).
+fn game_window() -> Option<usize> {
+    let known = WINDOW.load(Ordering::Relaxed);
+    if known != 0 && unsafe { IsWindow(known as _) } != 0 {
+        return Some(known);
+    }
+    unsafe extern "system" fn each(hwnd: HWND, _: LPARAM) -> BOOL {
+        let mut pid = 0;
+        unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+        if pid != unsafe { GetCurrentProcessId() } || unsafe { IsWindowVisible(hwnd) } == 0 {
+            return 1;
+        }
+        let proc = unsafe { GetWindowLongA(hwnd, GWL_WNDPROC) } as u32 as usize;
+        let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+        if (base..base + crate::exe_size()).contains(&proc) {
+            WINDOW.store(hwnd as usize, Ordering::Relaxed);
+            return 0;
+        }
+        1
+    }
+    unsafe { EnumWindows(Some(each), 0) };
+    let hwnd = WINDOW.load(Ordering::Relaxed);
+    if hwnd != 0 {
+        log!("keyboard: coins posted to window {hwnd:#x}");
+    }
+    (hwnd != 0).then_some(hwnd)
 }
 
 pub(crate) fn init() {
