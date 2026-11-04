@@ -21,7 +21,9 @@
 //!   "pressing", 25 and under a stuck pedal): 140 released to 50 full.
 //! - **Players.** The launcher's four players are boards 0 and 1 (players 5 and 6 idle): the
 //!   wheel on `lx`, the pedal on `accel` (or the `gas` native, full); the operator's keypad on
-//!   player 1.
+//!   player 1. The game's boost is the pedal's double press (Rewired's `PedalDown`, 0.75 of the
+//!   pedal, twice within `GameConstants.doublePressSpeed` 0.5 s, the car on the ground): the
+//!   `boost` native plays it on the pedal.
 //! - **Force feedback.** Each wheel's motor is a position servo: `SetSteeringParameters(board,
 //!   wheel, target, power 0..100, offset)` drives it towards the target, `DisengageSteeringWheel`
 //!   frees it. The game rests it at the centre at the steering's full power (a centring spring),
@@ -30,9 +32,11 @@
 //!   (`output::FFB_*`): a target at the centre as the centring spring of that power, any other as
 //!   a constant force towards it (its distance from the wheel's position, from `lx`, times 4, at
 //!   most the power), every 10 ms; `WAL_HOTWHEELS_FFB` scales it (percent, default 100, 0 off).
-//!   The bumps' power is their own times the online remote settings' `steeringBumpMultipler`:
-//!   0 when they never came (no bumps), the game's default (0.9) set then
-//!   (`RemoteSettingsManager.Instance.m_Save.m_Data`, Mono's embedding API).
+//!   The bumps' power is their own times the remote settings' `steeringBumpMultipler`.
+//! - **Remote settings.** The online `RemoteSettingsData` (`RemoteSettingsManager.Instance
+//!   .m_Save.m_Data`) all zero when they never came: no boost (`speedBoost`), no respawn
+//!   (`respawnOnDeath`), no bumps... `RemoteSettingsData.Reset` (the game's defaults) run on it
+//!   (Mono's embedding API), checked every second.
 //! - **Tickets.** Two feeders a board: `SetTicketFeederTicketToFeedCount(board, feeder, n)`
 //!   targets, `GetTicketFeederCount` fed / empty (a ticket every 100 ms, never empty).
 //! - **Webcams.** The cabinet's cameras take the players' pictures (`SBK.FaceDetection
@@ -43,10 +47,10 @@
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use wal_payload_common::log;
-use wal_payload_common::mono::mono;
+use wal_payload_common::mono::{self, mono};
 use wal_protocol::Axis;
 
 use crate::{Native, held};
@@ -134,8 +138,34 @@ fn wheel_pedal(global: usize) -> (u8, u8) {
     if held(p, Native::Gas) {
         gas = 1.0;
     }
+    if let Some(pressed) = boost(p) {
+        gas = if pressed { 1.0 } else { 0.0 };
+    }
     let pedal = (PEDAL_RELEASED - gas * (PEDAL_RELEASED - PEDAL_FULL)).round() as u8;
     (wheel.min(WHEEL_RIGHT), pedal)
+}
+
+/// The boost's pedal, by steps of [`BOOST_STEP`]: released, pressed, released, pressed (two
+/// presses 120 ms apart: the game's double press within 0.5 s), then the player's own.
+const BOOST_STEP: Duration = Duration::from_millis(60);
+
+/// A player's boost button, its pressed edge starting the pedal's sequence: during it, whether
+/// the pedal is pressed.
+fn boost(p: usize) -> Option<bool> {
+    static STATE: Mutex<[(bool, Option<Instant>); wal_protocol::MAX_PLAYERS]> = Mutex::new([(false, None); wal_protocol::MAX_PLAYERS]);
+    let mut state = STATE.lock().unwrap();
+    let (was, start) = &mut state[p];
+    let now = held(p, Native::Boost);
+    if now && !*was {
+        *start = Some(Instant::now());
+    }
+    *was = now;
+    let step = start.map(|t| t.elapsed().as_millis() / BOOST_STEP.as_millis())?;
+    if step >= 4 {
+        *start = None;
+        return None;
+    }
+    Some(step % 2 == 1)
 }
 
 /// A player's keypad: the operator's keys on player 1, accel with the pedal pressed.
@@ -154,33 +184,34 @@ fn keys(global: usize) -> u16 {
     k
 }
 
-/// The remote settings' bump multiplier, the game's default (0.9) if unset (0); true once seen.
-fn bump_multiplier() -> bool {
-    let Some(m) = mono() else { return false };
+/// The remote settings (`RemoteSettingsManager.Instance.m_Save.m_Data`) never received (all
+/// zero, the bump multiplier 0): the game's defaults, `RemoteSettingsData.Reset` run on
+/// them again.
+fn remote_settings() {
+    let Some(m) = mono() else { return };
     let image = m.image("Assembly-CSharp");
     let singleton = m.class_of_type_name(image, "SBK.Singleton`1[[RemoteSettingsManager, Assembly-CSharp]]");
     let instance = m.static_addr(singleton, m.field(singleton, "_instance"));
     let (manager, save_class, data_class) = (m.class(image, "", "RemoteSettingsManager"), m.class(image, "", "RemoteSettingsSave"), m.class(image, "", "RemoteSettingsData"));
     let (save, data, multiplier) = (m.field(manager, "m_Save"), m.field(save_class, "m_Data"), m.field(data_class, "steeringBumpMultipler"));
-    if instance.is_null() || save.is_null() || data.is_null() || multiplier.is_null() {
-        return false;
+    let reset = m.method(data_class, "Reset", 0);
+    if instance.is_null() || save.is_null() || data.is_null() || multiplier.is_null() || reset.is_null() {
+        return;
     }
     unsafe {
         let obj = (instance as *const usize).read();
         let save_obj = if obj != 0 { ((obj + m.offset(save)) as *const usize).read() } else { 0 };
         let data_obj = if save_obj != 0 { ((save_obj + m.offset(data)) as *const usize).read() } else { 0 };
         if data_obj == 0 {
-            return false;
+            return;
         }
-        let value = (data_obj + m.offset(multiplier)) as *mut f32;
-        if *value == 0.0 {
-            *value = 0.9;
-            log!("hotwheels: ffb bump multiplier unset (no remote settings): 0.9");
-        } else {
-            log!("hotwheels: ffb bump multiplier {}", *value);
+        let value = (data_obj + m.offset(multiplier)) as *const f32;
+        if *value != 0.0 {
+            return;
         }
+        let ok = m.invoke(reset, data_obj as mono::P, &mut []).is_some();
+        log!("hotwheels: no remote settings: the game's defaults ({}, ffb bump multiplier {})", if ok { "ok" } else { "failed" }, *value);
     }
-    true
 }
 
 fn board_thread() {
@@ -192,12 +223,12 @@ fn board_thread() {
     let mut coin_held = [false; 2 * BOARDS];
     let mut tick = 0u32;
     let mut sent = [(i32::MIN, i32::MIN); wal_protocol::MAX_PLAYERS];
-    let mut multiplier_seen = false;
     loop {
         std::thread::sleep(Duration::from_millis(10));
         tick += 1;
-        if !multiplier_seen && tick.is_multiple_of(100) {
-            multiplier_seen = bump_multiplier();
+        // the remote settings checked every second (the game may replace them)
+        if tick.is_multiple_of(100) {
+            remote_settings();
         }
         // the wheels' forces, on change
         for (player, last) in sent.iter_mut().enumerate() {

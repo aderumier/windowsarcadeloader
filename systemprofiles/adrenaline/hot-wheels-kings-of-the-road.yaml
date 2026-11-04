@@ -18,10 +18,11 @@ env:
   # the wheel's force feedback strength, percent (0: off)
   WAL_HOTWHEELS_FFB: "100"
 
-# Each seat: a steering wheel (lx) and a gas pedal (accel; b1 full gas). The operator's keypad
-# on player 1 (up / down / select).
+# Each seat: a steering wheel (lx) and a gas pedal (accel; b1 full gas; b3 the boost, the
+# pedal's double press). The operator's keypad on player 1 (up / down / select).
 native_map:
   b1: gas
+  b3: boost
   b2: select
   start: none
   test: operator
@@ -60,6 +61,7 @@ controls:
   lx: Wheel
   accel: Gas
   b1: Full gas
+  b3: Boost
   b2: Operator select
   start: none
   coin: Coin
