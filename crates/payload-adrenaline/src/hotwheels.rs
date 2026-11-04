@@ -33,6 +33,11 @@
 //!   (`RemoteSettingsManager.Instance.m_Save.m_Data`, Mono's embedding API).
 //! - **Tickets.** Two feeders a board: `SetTicketFeederTicketToFeedCount(board, feeder, n)`
 //!   targets, `GetTicketFeederCount` fed / empty (a ticket every 100 ms, never empty).
+//! - **Webcams.** The cabinet's cameras take the players' pictures (`SBK.FaceDetection
+//!   .FDManager`) when the operator's `TakePicture` setting is on: then without a camera
+//!   playing, "CAMERA(S) MALFUNCTION" at boot. `OperatorUtil.get_TakePicture`'s IL (`ldstr
+//!   "TakePicture" call GetBool ret`) becomes nops then `ldc.i4.0 ret` (no pictures, the operator's
+//!   setting ignored), before its first call.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -417,6 +422,33 @@ extern "C" fn read_input(_board: i32, out: *mut u16) -> u8 {
 extern "C" fn get_ir_detector_count(_board: i32, _output: u16, count: *mut u16) -> u8 {
     unsafe { write(count, 0) };
     NO_ERROR
+}
+
+/// At the game's first `DllImport`s (Assembly-CSharp loaded, its operator settings not read
+/// yet): no webcam pictures, once (nothing for a game without `FDManager`).
+pub fn init() {
+    static DONE: AtomicBool = AtomicBool::new(false);
+    if DONE.load(Ordering::Relaxed) {
+        return;
+    }
+    let Some(m) = mono() else { return };
+    let image = m.image("Assembly-CSharp");
+    if image.is_null() {
+        return;
+    }
+    DONE.store(true, Ordering::Relaxed);
+    if m.class(image, "SBK.FaceDetection", "FDManager").is_null() {
+        return;
+    }
+    match m.il_code(m.method(m.class(image, "SBK.BaseArcade", "OperatorUtil"), "get_TakePicture", 0)) {
+        Some(il) if il.len() == 11 && il[0] == 0x72 && il[5] == 0x28 && il[10] == 0x2A => {
+            // nops, ldc.i4.0 ret (Mono decodes the whole body: no bytes left after the ret)
+            il.fill(0x00);
+            il[9..].copy_from_slice(&[0x16, 0x2A]);
+            log!("hotwheels: webcam pictures off (no camera check)");
+        }
+        _ => log!("hotwheels: OperatorUtil.get_TakePicture not the expected one: webcams checked"),
+    }
 }
 
 /// The boards' functions.
