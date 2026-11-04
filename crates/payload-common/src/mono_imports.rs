@@ -7,6 +7,9 @@
 //! for a port the payload emulates). Mono resolves a `DllImport` at its first call: the game's
 //! hardware code runs long after the runtime is loaded.
 //!
+//! A native game resolving a library at run time (Jetpack Joyride Arcade's I/O board) has its own
+//! `GetProcAddress` import hooked the same way ([`hook_game`]).
+//!
 //! An IL2CPP game's `DllImport`s are resolved the same way, by `GameAssembly.dll` (its own
 //! `LoadLibrary` and `GetProcAddress` imports), or by Unity 2021's `baselib.dll`
 //! (`Baselib_DynamicLibrary_GetFunction`, which `GameAssembly.dll` calls): hooked the same.
@@ -141,6 +144,18 @@ pub fn hook(resolve: Resolver) {
                 std::thread::sleep(Duration::from_millis(1));
             }
         });
+    }
+}
+
+/// A native game's own `GetProcAddress` calls (the executable's import: Jetpack Joyride Arcade
+/// loads its I/O board's library at run time) given `resolve`'s functions.
+pub fn hook_game(resolve: Resolver) {
+    if RESOLVER.set(resolve).is_err() {
+        return;
+    }
+    match unsafe { iat::hook("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) } {
+        Some(o) => ORIG.store(o, Ordering::Relaxed),
+        None => log!("mono: the game does not import GetProcAddress: no hardware emulated"),
     }
 }
 

@@ -10,6 +10,13 @@
 //!   feed" count (`SetTicketFeederTicketToFeedCount`), then poll the fed count
 //!   (`GetTicketFeederCount`: fed, empty) until it reaches it and reset both
 //!   (`ResetTicketFeeder`). The dispenser feeds a ticket every 100 ms, never empty.
+//! - **Jetpack Joyride Arcade.** Resolves all the library's functions (`GetProcAddress`, any
+//!   missing: no board) and opens the board with `InitLib(port, keypad, coins, tickets, x)`:
+//!   cdecl callbacks the board thread calls, the keypad's `(keys)` on a change (operator 1, down
+//!   2, select 4, up 8: any of the last three is the jetpack button, `button` sets 2), the coins' `(counter 1, counter 2)` running totals on a coin (the game
+//!   credits their increase; `ResetCoinCount` zeroes them). It also uses the dispenser and the
+//!   lamps (`SetOutput`, `ClearOutput`, `ClearExtendedOutput`: one u16 of lamp bits, ignored);
+//!   the others answer no error.
 //! - **Serial (Infinity Blade FX).** The board library compiled into the game (`CKaboomCom`):
 //!   the same functions as packets on the board's port (`\\.\COMn`, the first answering): a
 //!   request `F10E`, checksum, length, command, data; the reply `B00F`, checksum (16-bit sum of
@@ -18,7 +25,7 @@
 //!   8 / 9 get / set the tickets to feed, 10 the fed count and the empty flag, 11 reset the
 //!   feeder, 12 / 13 the coin counters (and reset them).
 
-use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use wal_payload_common::log;
@@ -35,20 +42,45 @@ static MENU: AtomicU16 = AtomicU16::new(0);
 static TO_FEED: AtomicU16 = AtomicU16::new(0);
 static FED: AtomicU16 = AtomicU16::new(0);
 static OPENED: AtomicBool = AtomicBool::new(false);
+/// Jetpack Joyride's `InitLib` callbacks: the keypad's and the coins'.
+static KEYPAD_CALLBACK: AtomicUsize = AtomicUsize::new(0);
+static COIN_CALLBACK: AtomicUsize = AtomicUsize::new(0);
+/// `InitLib` takes the callbacks (Jetpack Joyride), not the port only.
+pub static WITH_CALLBACKS: AtomicBool = AtomicBool::new(false);
 
 /// Counts the coin and operator key presses, feeds the tickets.
 fn board_thread() {
     let mut coin_was = [false; PLAYERS];
     let mut operator_was = false;
+    let mut keys_was = 0u16;
     let mut feed_tick = 0u32;
     loop {
         std::thread::sleep(Duration::from_millis(10));
+        let mut coined = false;
         for (player, was) in coin_was.iter_mut().enumerate() {
             let now = held(player, Native::Coin);
             if now && !*was {
                 COINS[player.min(1)].fetch_add(1, Ordering::Relaxed);
+                coined = true;
             }
             *was = now;
+        }
+        let coin_callback = COIN_CALLBACK.load(Ordering::Relaxed);
+        if coined && coin_callback != 0 {
+            let f: extern "C" fn(u32, u32) = unsafe { std::mem::transmute(coin_callback) };
+            f(COINS[0].load(Ordering::Relaxed) as u32, COINS[1].load(Ordering::Relaxed) as u32);
+        }
+        let keypad_callback = KEYPAD_CALLBACK.load(Ordering::Relaxed);
+        if keypad_callback != 0 {
+            let keys = [(Native::Operator, 1), (Native::Down, 2), (Native::Button, 2), (Native::Select, 4), (Native::Up, 8)]
+                .iter()
+                .filter(|(n, _)| held(0, *n))
+                .fold(0u16, |k, (_, bit)| k | bit);
+            if keys != keys_was {
+                keys_was = keys;
+                let f: extern "C" fn(u32) = unsafe { std::mem::transmute(keypad_callback) };
+                f(keys as u32);
+            }
         }
         let now = held(0, Native::Operator);
         if now && !operator_was {
@@ -77,6 +109,16 @@ unsafe fn put(p: *mut u16, v: u16) {
 extern "C" fn init_lib(port: i32) -> u8 {
     if !OPENED.swap(true, Ordering::Relaxed) {
         log!("kaboom: InitLib({port}): the board");
+    }
+    NO_ERROR
+}
+
+/// Jetpack Joyride's `InitLib(port, keypad, coins, tickets, x)`: the board on the first port.
+extern "C" fn init_lib_callbacks(port: u32, keypad: usize, coins: usize, _tickets: usize, _x: usize) -> u8 {
+    KEYPAD_CALLBACK.store(keypad, Ordering::Relaxed);
+    COIN_CALLBACK.store(coins, Ordering::Relaxed);
+    if !OPENED.swap(true, Ordering::Relaxed) {
+        log!("kaboom: InitLib({port}) with callbacks: the board");
     }
     NO_ERROR
 }
@@ -141,9 +183,23 @@ extern "C" fn reset_empty_ticket_feeder(count: *mut u16) -> u8 {
     NO_ERROR
 }
 
+/// The lamps (`SetOutput`, `ClearOutput`, `SetExtendedOutput`, `ClearExtendedOutput`: lamp
+/// bits), the steering, IR detector and event functions Jetpack Joyride resolves but does not
+/// use: no error (cdecl: the arguments are the caller's to pop).
+extern "C" fn no_error() -> u8 {
+    NO_ERROR
+}
+
+/// `ReadInput(inputs)`: the board's inputs, none.
+extern "C" fn read_input(inputs: *mut u16) -> u8 {
+    unsafe { put(inputs, 0) };
+    NO_ERROR
+}
+
 /// The board's functions.
 pub fn resolve(name: &str) -> Option<usize> {
     let f = match name {
+        "InitLib" if WITH_CALLBACKS.load(Ordering::Relaxed) => init_lib_callbacks as *const () as usize,
         "InitLib" => init_lib as *const () as usize,
         "CloseLib" => close_lib as *const () as usize,
         "CheckComm" => check_comm as *const () as usize,
@@ -155,6 +211,10 @@ pub fn resolve(name: &str) -> Option<usize> {
         "GetTicketFeederCount" => get_ticket_feeder_count as *const () as usize,
         "ResetTicketFeeder" => reset_ticket_feeder as *const () as usize,
         "ResetEmptyTicketFeeder" => reset_empty_ticket_feeder as *const () as usize,
+        "ReadInput" => read_input as *const () as usize,
+        "SetOutput" | "ClearOutput" | "SetExtendedOutput" | "ClearExtendedOutput" | "GetEventMask" | "SetEventMask" | "SetDiagnosticState"
+        | "InitSteeringKickStart" | "GetSteeringStatus" | "SetSteeringParameters" | "SetSteeringUpdateRate" | "GetSteeringPosition"
+        | "GetIRDetectorCount" | "SetIRDetectorCount" | "StartIRDetector" => no_error as *const () as usize,
         _ => return None,
     };
     Some(f)
