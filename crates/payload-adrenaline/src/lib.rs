@@ -30,6 +30,11 @@
 //!   played with the mouse (`mouse.rs`: TouchScript's Windows touches at the cursor, a dot where
 //!   it touches); its full screen at the portrait desktop's size (`screen.rs`).
 //!
+//! - Fruit Ninja FX 2 (Halfbrick's native engine, 32-bit, Direct3D 9): Infinity Blade FX's
+//!   hardware (the touch frame's client and the dongle imported, the board on a serial port);
+//!   the fruit sliced with the mouse or a gun (`pqmt.rs`: a trigger pull draws a slice), its
+//!   figurine portal answered without a reader (`fruitninja.rs`).
+//!
 //! - Jetpack Joyride Arcade (Halfbrick's native engine, 32-bit, Direct3D 9): its board is
 //!   `KaboomComDll.dll` (`kaboom.rs`: coins, tickets, lamps), resolved through the executable's
 //!   own `GetProcAddress`; its dongle imported by name (`jetpack.rs`).
@@ -59,6 +64,8 @@ mod drakon;
 #[cfg(target_pointer_width = "64")]
 mod hdrp;
 mod hotwheels;
+#[cfg(target_pointer_width = "32")]
+mod fruitninja;
 #[cfg(target_pointer_width = "32")]
 mod jetpack;
 #[cfg(target_pointer_width = "32")]
@@ -283,6 +290,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         if native {
             matrix::hook_ordinals();
             kaboom::init_serial();
+            // Fruit Ninja FX 2: its figurine portal
+            fruitninja::init();
         }
         // Jetpack Joyride Arcade (native): the dongle imported, the board resolved at run time
         #[cfg(target_pointer_width = "32")]
