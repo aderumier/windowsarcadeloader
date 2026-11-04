@@ -6,8 +6,10 @@
 //! picture and the button bar below). The payload arrives later, with the input library
 //! (`NFSControl.dll` loads `GVRInputRaw.dll`): from the input updates, the frontend's top-level
 //! window is made a borderless popup over the largest centered rectangle of the panel's aspect,
-//! the panel filling it (the whole screen with `WAL_KEEP_ASPECT_RATIO=0`; `WAL_WINDOW_SIZE=aspect`:
-//! always that rectangle, the bezel's strips around), Direct3D stretching the picture to it. Checked again every few seconds: the frontend rebuilds its window after
+//! the panel filling it (the whole screen with `WAL_KEEP_ASPECT_RATIO=0`), Direct3D stretching
+//! the picture to it. `WAL_WINDOW_SIZE=aspect` (whatever `WAL_KEEP_ASPECT_RATIO`): the panel
+//! over the screen's centered 4:3 rectangle, as the race's (its picture a little flatter: the
+//! panel is 800x694, its bottom part the menus' prompts), the bezel's strips around. Checked again every few seconds: the frontend rebuilds its window after
 //! each race.
 
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -83,13 +85,22 @@ fn fit(window: HWND) {
     unsafe { EnumChildWindows(window, Some(fit_panel), &mut panel as *mut _ as LPARAM) };
 }
 
-/// The panel's place: the largest centered rectangle of its aspect, or the whole screen.
+/// The panel's place: the largest centered rectangle of its aspect, or the whole screen
+/// (`aspect`: the screen's centered 4:3 rectangle).
 fn panel_rect(sw: i32, sh: i32) -> [i32; 4] {
-    let aspect = std::env::var("WAL_WINDOW_SIZE").is_ok_and(|v| v.trim() == "aspect");
-    if !aspect && std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0") {
+    if std::env::var("WAL_WINDOW_SIZE").is_ok_and(|v| v.trim() == "aspect") {
+        return four_three(sw, sh);
+    }
+    if std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0") {
         return [0, 0, sw, sh];
     }
     let (w, h) = if sw * PANEL.1 > sh * PANEL.0 { (sh * PANEL.0 / PANEL.1, sh) } else { (sw, sw * PANEL.1 / PANEL.0) };
+    [(sw - w) / 2, (sh - h) / 2, w, h]
+}
+
+/// The screen's centered 4:3 rectangle (the race's).
+fn four_three(sw: i32, sh: i32) -> [i32; 4] {
+    let (w, h) = if sw * 3 > sh * 4 { (sh * 4 / 3, sh) } else { (sw, sw * 3 / 4) };
     [(sw - w) / 2, (sh - h) / 2, w, h]
 }
 
@@ -122,5 +133,7 @@ mod tests {
     fn letterbox() {
         assert_eq!(panel_rect(1920, 1080), [338, 0, 1244, 1080]);
         assert_eq!(panel_rect(1600, 1200), [108, 0, 1383, 1200]);
+        assert_eq!(four_three(1920, 1080), [240, 0, 1440, 1080]);
+        assert_eq!(four_three(1600, 1200), [0, 0, 1600, 1200]);
     }
 }
