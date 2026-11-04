@@ -1,0 +1,112 @@
+# JoJo's Bizarre Adventure: Last Survivor (Bandai Namco, 2019, Unreal Engine 4, Direct3D 11,
+# 64-bit), update JJL128-1-NA-MPR0-F02 (28.02, the dump's AJB/Config/DefaultVersion.ini) -
+# template, override values in userprofiles/namcoes3/jojos-bizarre-adventure-last-survivor.yaml.
+# Offline: the game's system check passes, its store network is set up; national and store
+# battles need the game server (not there yet).
+system: namcoes3
+name: JoJo's Bizarre Adventure - Last Survivor
+
+# The game imports no dongle library of ours: the payload is its xinput1_3.dll (the USIO board
+# of its winusio.dll, the Aime reader and display of libamw.dll, the cabinet's checks).
+payload_install: [AJB/Binaries/Win64/xinput1_3.dll]
+dll_overrides:
+  xinput1_3: "n,b"
+
+# The cabinet's drives: libamw's NVRAM (D:\sysfile.dat), the game's saves (F, G), libamw's
+# logs (L, the SEGA_AM_LOG volume).
+drives:
+  d: D
+  f: F
+  g: G
+  l: L
+
+env:
+  # the touch pointer: a small red dot where the mouse or gun touches (the game shows no
+  # cursor), its size in percent of the screen height
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_SIZE: "1.5"
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  # the analog sticks are the cabinet's (movement, camera): no d-pad from the left stick
+  stick_as_dpad: false
+  # the mouse (or a gun) is the touch panel: its left button touches, where the cursor is
+  guns_enabled: true
+  gun:
+    x: none
+    y: none
+    BTN_LEFT: kp0
+    BTN_RIGHT: none
+    BTN_MIDDLE: none
+    BTN_1: none
+    BTN_2: none
+    BTN_5: none
+    BTN_6: none
+    BTN_7: none
+    BTN_8: none
+  # the game's own pad layout (its developer mapping): A jump / decide, B crouch / cancel,
+  # X interact, Y map, the shoulders and triggers
+  gamepad:
+    a: b1
+    b: b2
+    x: b3
+    y: b4
+    l1: b5
+    r1: b6
+    l2: b7
+    r2: b8
+    guide: kp2
+    start: start
+    back: coin
+    l3: service
+    r3: test
+    dpup: up
+    dpdown: down
+    dpleft: left
+    dpright: right
+    leftx: lx
+    lefty: ly
+    rightx: rx
+    righty: ry
+
+options:
+  - title: Game
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun touches (the game shows no cursor).
+      - key: WAL_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
+
+# Control names (the GUI's mapping rows).
+controls:
+  lx: Move (x)
+  ly: Move (y)
+  rx: Camera (x)
+  ry: Camera (y)
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Jump / decide
+  b2: Crouch / cancel
+  b3: Interact
+  b4: Map
+  b5: L1
+  b6: R1
+  b7: L2
+  b8: R2
+  kp1: L3
+  kp2: Emote
+  kp0: Touch (the mouse's left button)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

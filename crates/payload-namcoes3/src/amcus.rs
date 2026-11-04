@@ -42,6 +42,9 @@ pub(crate) struct Identity {
     pub(crate) scheme: &'static str,
     /// Put after the server in the uri (Pokkén Tournament parses `https://host:port/path`).
     pub(crate) path: &'static str,
+    /// The cabinet's network id in the cabinet config (empty: `ABGN6789012`; JoJo's Bizarre
+    /// Adventure compares its last digits with the serial's).
+    pub(crate) net_id: &'static str,
 }
 
 static IDENTITY: std::sync::OnceLock<Identity> = std::sync::OnceLock::new();
@@ -53,7 +56,7 @@ pub(crate) fn set_identity(identity: Identity) {
 fn identity() -> Identity {
     IDENTITY.get().copied().unwrap_or_else(|| {
         let v = crate::wmmt5::current();
-        Identity { game_id: GAME_ID, game_cd: v.game_cd, game_ver: v.game_ver, serial: v.serial, scheme: "https://", path: "" }
+        Identity { game_id: GAME_ID, game_cd: v.game_cd, game_ver: v.game_ver, serial: v.serial, scheme: "https://", path: "", net_id: "" }
     })
 }
 
@@ -124,6 +127,10 @@ unsafe extern "system" fn get_info(_this: P, out: *mut u8) -> i32 {
     S_OK
 }
 
+fn net_id() -> &'static str {
+    Some(identity().net_id).filter(|n| !n.is_empty()).unwrap_or("ABGN6789012")
+}
+
 /// `GetCabinetConfig(config*)` (slot 5), 88 bytes: mode, PCB id, the dongle serial (+0x20, the
 /// game compares it with its own), the shop router and auth server, the hop count (u16 +0x50),
 /// the line type (+0x54, 1: B FLET'S).
@@ -134,7 +141,7 @@ unsafe extern "system" fn get_cabinet_config(_this: P, out: *mut u8) -> i32 {
     unsafe {
         std::ptr::write_bytes(out, 0, 88);
         put_str(out, 0x00, 16, "STANDALONE");
-        put_str(out, 0x10, 16, "ABGN6789012");
+        put_str(out, 0x10, 16, net_id());
         put_str(out, 0x20, 16, identity().serial);
         put_str(out, 0x30, 16, "127.0.0.1");
         put_str(out, 0x40, 16, "127.0.0.1");
@@ -289,6 +296,14 @@ pub(crate) static OBJECT: Object = Object { vtable: VTABLE.0.as_ptr() };
 /// The newer IAuth's daemon state (bananatools' `amauthd_state`): `DL` (9), `INIT` (5) once
 /// initialized, then `AUTH_START` (6), `IDLE` (15), `DL` at the next state reads.
 static DAEMON_STATE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(9);
+/// The daemon state the newer IAuth settles in: 9 (`DL`, Pokkén Tournament) or 15 (`IDLE`, JoJo's
+/// Bizarre Adventure: its network restart waits for it before and after `RequestAuthMucha`).
+static SETTLED_STATE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(9);
+
+pub(crate) fn settle_idle() {
+    SETTLED_STATE.store(15, std::sync::atomic::Ordering::Relaxed);
+    DAEMON_STATE.store(15, std::sync::atomic::Ordering::Relaxed);
+}
 
 /// `Initialize(mode)`, `Finalize()` (newer IAuth): the daemon started again (`INIT`, 5), stopped
 /// (0: Pokkén Tournament's re-initialization waits for it before `Initialize`).
@@ -310,11 +325,25 @@ unsafe extern "system" fn get_updater_state_new(_this: P, out: *mut u8) -> i32 {
         return S_OK;
     }
     use std::sync::atomic::Ordering::Relaxed;
+    if std::env::var("WAL_NAMCOES3_AMCUS_TRACE").is_ok_and(|v| v == "1") {
+        unsafe extern "system" {
+            fn RtlCaptureStackBackTrace(skip: u32, count: u32, frames: *mut usize, hash: *mut u32) -> u16;
+        }
+        static CALLERS: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
+        let mut frames = [0usize; 3];
+        unsafe { RtlCaptureStackBackTrace(1, 3, frames.as_mut_ptr(), std::ptr::null_mut()) };
+        let caller = frames[1].wrapping_sub(crate::module_base());
+        let mut callers = CALLERS.lock().unwrap();
+        if !callers.contains(&caller) {
+            callers.push(caller);
+            wal_payload_common::log!("amcus: updater state from {caller:#x} (state {})", DAEMON_STATE.load(Relaxed));
+        }
+    }
     let state = DAEMON_STATE.load(Relaxed);
     let next = match state {
         5 => 6,
         6 => 15,
-        15 => 9,
+        15 => SETTLED_STATE.load(Relaxed),
         s => s,
     };
     DAEMON_STATE.store(next, Relaxed);
@@ -350,8 +379,9 @@ unsafe extern "system" fn get_updater_state_new(_this: P, out: *mut u8) -> i32 {
 }
 
 /// `GetCabinetConfig(amcus_network_state*)` (newer IAuth, slot 10), 168 bytes: the older
-/// config's fields, the cabinet's address, mask, gateway and DNS, the hop count (+144) and line
-/// type (+148, 1: FTTH).
+/// config's fields, the cabinet's address, mask, gateway and DNS, the hop count (+144), line
+/// type (+148, 1: FTTH), the line, content router, shop router and hop statuses (+152..+164, 1:
+/// OK; JoJo's Bizarre Adventure's store network check waits until none is 0 or 3, checking).
 unsafe extern "system" fn get_cabinet_config_new(_this: P, out: *mut u8) -> i32 {
     if out.is_null() {
         return S_OK;
@@ -359,13 +389,16 @@ unsafe extern "system" fn get_cabinet_config_new(_this: P, out: *mut u8) -> i32 
     unsafe {
         std::ptr::write_bytes(out, 0, 168);
         put_str(out, 0x00, 16, "STANDALONE");
-        put_str(out, 0x10, 16, "ABGN6789012");
+        put_str(out, 0x10, 16, net_id());
         put_str(out, 0x20, 16, identity().serial);
         for (i, ip) in ["127.0.0.1", "127.0.0.1", "127.0.0.1", "255.0.0.0", "127.0.0.1", "127.0.0.1"].iter().enumerate() {
             put_str(out, 0x30 + 16 * i, 16, ip);
         }
         put(out, 144, 1i32);
         put(out, 148, 1u32);
+        for status in [152, 156, 160, 164] {
+            put(out, status, 1u32);
+        }
     }
     S_OK
 }

@@ -1,0 +1,9 @@
+[package]
+name = "wal-jojo-text"
+description = "JoJo's Bizarre Adventure: Last Survivor texts (UE4 cooked assets): export the strings, build the English Game.locres"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = "1"

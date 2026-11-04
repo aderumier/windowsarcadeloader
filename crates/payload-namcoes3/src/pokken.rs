@@ -659,7 +659,7 @@ fn network(base: usize) {
     }
     crate::bpreader::init("COM4", &[base]);
     // the ALL.Net game server uri: the title's path
-    crate::amcus::set_identity(crate::amcus::Identity { game_id: GAME_ID, game_cd: GAME_CD, game_ver: (1, 0), serial: SERIAL, scheme: "https://", path: "/pokken/" });
+    crate::amcus::set_identity(crate::amcus::Identity { game_id: GAME_ID, game_cd: GAME_CD, game_ver: (1, 0), serial: SERIAL, scheme: "https://", path: "/pokken/", net_id: "" });
     match unsafe { iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
         Some(o) => CO_CREATE_INSTANCE.store(o, std::sync::atomic::Ordering::Relaxed),
         None => log!("pokken: CoCreateInstance not hooked"),

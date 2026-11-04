@@ -3734,6 +3734,13 @@ name = "wal-easrv"
 version = "0.1.0"
 
 [[package]]
+name = "wal-jojo-text"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "wal-launcher"
 version = "0.1.0"
 dependencies = [
