@@ -600,8 +600,8 @@ unsafe extern "system" fn reset_ex(dev: P, params: P, mode: P) -> HRESULT {
     unsafe { orig(dev, params, mode) }
 }
 
-/// Next screenshot path when one is due.
-fn screenshot_due() -> Option<String> {
+/// Next screenshot path when one is due (`WAL_SCREENSHOT`; Direct3D 11: `pointer_d3d11`).
+pub(crate) fn screenshot_due() -> Option<String> {
     let mut state = STATE.lock().unwrap();
     match state.as_mut() {
         Some(s) if s.last.is_none_or(|t| t.elapsed() >= s.interval) => {

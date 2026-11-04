@@ -8,6 +8,9 @@
 //! Before each frame the dot is drawn in the back buffer, in a device context state of its own
 //! (`SwapDeviceContextState`): the game's pipeline state is left untouched. Shaders compiled at
 //! the first frame (`d3dcompiler_47.dll`).
+//!
+//! `WAL_SCREENSHOT=<seconds>` (`screenshot.rs`'s test screenshots) works here too: the back
+//! buffer, the dot drawn, copied to a staging texture and written as `shot-NNNN.bmp`.
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -164,6 +167,7 @@ fn hook_present() {
 unsafe extern "system" fn present(swap: P, sync: u32, flags: u32) -> HRESULT {
     if flags & DXGI_PRESENT_TEST == 0 {
         overlay(swap);
+        capture(swap);
     }
     let orig: unsafe extern "system" fn(P, u32, u32) -> HRESULT = unsafe { std::mem::transmute(PRESENT.load(Ordering::Relaxed)) };
     unsafe { orig(swap, sync, flags) }
@@ -172,6 +176,7 @@ unsafe extern "system" fn present(swap: P, sync: u32, flags: u32) -> HRESULT {
 unsafe extern "system" fn present1(swap: P, sync: u32, flags: u32, params: P) -> HRESULT {
     if flags & DXGI_PRESENT_TEST == 0 {
         overlay(swap);
+        capture(swap);
     }
     let orig: unsafe extern "system" fn(P, u32, u32, P) -> HRESULT = unsafe { std::mem::transmute(PRESENT1.load(Ordering::Relaxed)) };
     unsafe { orig(swap, sync, flags, params) }
@@ -324,6 +329,59 @@ fn overlay(swap: P) {
         let (w, h) = (desc.width as f32, desc.height as f32);
         let radius = (dot.size * h / 2.0).max(3.0);
         draw(r, context, back, (x * w, y * h), radius, dot.color, dot.crosshair);
+    }
+    release(context);
+    release(device);
+    release(back);
+}
+
+/// `WAL_SCREENSHOT`: the back buffer written as a BMP when a screenshot is due.
+fn capture(swap: P) {
+    let Some(path) = crate::screenshot::screenshot_due() else { return };
+    let mut back: P = std::ptr::null_mut();
+    if com!(swap, 9, fn(u32, *const GUID, *mut P) -> HRESULT, 0, &IID_TEXTURE2D, &mut back) < 0 || back.is_null() {
+        return;
+    }
+    let mut desc = Texture2DDesc::default();
+    com!(back, 10, fn(*mut Texture2DDesc) -> (), &mut desc);
+    let mut device: P = std::ptr::null_mut();
+    com!(back, 3, fn(*mut P) -> (), &mut device);
+    let mut context: P = std::ptr::null_mut();
+    com!(device, 40, fn(*mut P) -> (), &mut context);
+    // R8G8B8A8 (28, 29 sRGB) or B8G8R8A8 (87, 91 sRGB), not multisampled
+    let rgba = matches!(desc.format, 28 | 29);
+    if (rgba || matches!(desc.format, 87 | 91)) && desc.sample_count == 1 {
+        let staging_desc = Texture2DDesc {
+            mip_levels: 1,
+            array_size: 1,
+            usage: 3,           // D3D11_USAGE_STAGING
+            bind_flags: 0,
+            cpu_access: 0x20000, // D3D11_CPU_ACCESS_READ
+            misc: 0,
+            ..desc
+        };
+        let mut staging: P = std::ptr::null_mut();
+        if com!(device, 5, fn(*const Texture2DDesc, P, *mut P) -> HRESULT, &staging_desc, std::ptr::null_mut(), &mut staging) >= 0 {
+            com!(context, 47, fn(P, P) -> (), staging, back);
+            // D3D11_MAPPED_SUBRESOURCE: data, row pitch, depth pitch
+            let mut mapped = [0usize; 3];
+            if com!(context, 14, fn(P, u32, u32, u32, *mut usize) -> HRESULT, staging, 0, 1, 0, mapped.as_mut_ptr()) >= 0 {
+                let (w, h, pitch) = (desc.width as usize, desc.height as usize, mapped[1] as u32 as usize);
+                let mut pixels = Vec::with_capacity(w * h * 4);
+                for row in 0..h {
+                    let line = unsafe { std::slice::from_raw_parts((mapped[0] as *const u8).add(row * pitch), w * 4) };
+                    for px in line.chunks_exact(4) {
+                        pixels.extend_from_slice(&if rgba { [px[2], px[1], px[0], 0xFF] } else { [px[0], px[1], px[2], 0xFF] });
+                    }
+                }
+                com!(context, 15, fn(P, u32) -> (), staging, 0);
+                match crate::screenshot::write_bmp(&path, desc.width, desc.height, &pixels) {
+                    Ok(()) => log!("pointer: screenshot {path}"),
+                    Err(e) => log!("pointer: screenshot {path}: {e}"),
+                }
+            }
+            release(staging);
+        }
     }
     release(context);
     release(device);
