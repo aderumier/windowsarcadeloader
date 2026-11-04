@@ -15,6 +15,7 @@ wal-easrv = { path = "../easrv" }
 wal-protocol = { path = "../protocol" }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
+    "Win32_System_Environment",
     "Win32_System_LibraryLoader",
     "Win32_System_SystemServices",
     "Win32_UI_WindowsAndMessaging",

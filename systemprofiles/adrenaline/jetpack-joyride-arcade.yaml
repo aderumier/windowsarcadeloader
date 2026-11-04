@@ -1,0 +1,46 @@
+# Jetpack Joyride Arcade (Adrenaline Amusements / Halfbrick, native engine, 32-bit, Direct3D 9) -
+# template, override values in userprofiles/adrenaline/jetpack-joyride-arcade.yaml.
+# One button (hold to fly). The payload emulates the cabinet's Kaboom I/O board (the button and
+# the operator's keypad, coins, the ticket dispenser, the lamps) and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: Jetpack Joyride Arcade
+
+dll_overrides:
+  # the payload (loaded by wal-loader under this name)
+  xinput1_3: "n,b"
+
+# the payload loaded at the executable's entry point (the game loads no xinput1_3.dll)
+payload_loader: true
+
+# The cabinet's folders: the game runs in C:\Joyride\DataPC (the dump), reads its data from
+# ..\DataPC\ and writes its saves (credits, tickets, operator settings) in ..\ (C:\Joyride: the
+# dump's Saves folder, made at the first run).
+c_folders:
+  Joyride: Saves
+  Joyride/DataPC: .
+
+env:
+  WAL_ADRENALINE_CWD: C:\Joyride\DataPC
+  # the game's DirectInput keyboard sees no key (the jetpack button is on the board)
+  WAL_DINPUT_DISABLE: "1"
+  # the dump's executable has its board's InitLib call removed (6 nops after xor eax, eax):
+  # the call back (mov ecx, [esi+0x10c]; call ecx)
+  WAL_PATCHES: "0xE552D:8B8E0C010000FFD1"
+
+args: [fullscreen]
+
+# the board's keypad: the jetpack button (any of its down, select and up lines), the operator
+# menu's keys
+native_map:
+  b1: button
+  up: up
+  down: down
+
+controls:
+  b1: Jetpack (hold to fly)
+  up: Up (operator menu)
+  down: Down (operator menu)
+  b2: Select (operator menu)
+  coin: Coin
+  test: Operator menu (on the title screen)
+  service: Operator menu (on the title screen)

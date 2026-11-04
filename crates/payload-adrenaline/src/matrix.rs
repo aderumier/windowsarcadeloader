@@ -14,6 +14,8 @@
 //!   own, the same every run, and the saves (operator settings, free play) are read back.
 //! - Infinity Blade FX (native): the executable imports `Init_MatrixAPI` (#40),
 //!   `Dongle_Count` (#55) and `Dongle_ReadSerNr` (#61) by ordinal ([`hook_ordinals`]).
+//! - Jetpack Joyride Arcade (native): the executable imports them by name, with
+//!   `GetVersionAPI`, `Dongle_Find` and `Dongle_Version` ([`hook_names`]).
 
 const DONGLE_SERIAL: i32 = 0x0057_414C;
 const KEY: [u32; 4] = [0x5741_4C20, 0x4D61_7472, 0x6978_2044, 0x6F6E_676C];
@@ -25,6 +27,19 @@ extern "system" fn init_matrix_api() -> i16 {
 
 extern "system" fn release_matrix_api() -> i16 {
     0
+}
+
+extern "system" fn get_version_api() -> i32 {
+    0x0002_0007
+}
+
+/// `Dongle_Find`: the port of the first dongle (1).
+extern "system" fn dongle_find() -> i16 {
+    1
+}
+
+extern "system" fn dongle_version(_dongle: i16, _port: i16) -> i32 {
+    0x0002_003C
 }
 
 extern "system" fn dongle_count(_port: i16) -> i16 {
@@ -123,6 +138,9 @@ pub fn resolve(name: &str) -> Option<usize> {
     let f = match name {
         "Init_MatrixAPI" => init_matrix_api as *const () as usize,
         "Release_MatrixAPI" | "Dongle_Exit" => release_matrix_api as *const () as usize,
+        "GetVersionAPI" => get_version_api as *const () as usize,
+        "Dongle_Find" => dongle_find as *const () as usize,
+        "Dongle_Version" => dongle_version as *const () as usize,
         "Dongle_Count" => dongle_count as *const () as usize,
         "Dongle_ReadSerNr" => dongle_read_ser_nr as *const () as usize,
         "Dongle_ReadData" => dongle_read_data as *const () as usize,
@@ -146,4 +164,22 @@ pub fn hook_ordinals() {
         }
     }
     wal_payload_common::log!("matrix: {hooked} ordinal imports hooked");
+}
+
+/// A native game's imports of `matrix32.dll` by name pointed at ours: the number hooked (0: the
+/// game does not import the dongle by name).
+#[cfg(target_pointer_width = "32")]
+pub fn hook_names() -> usize {
+    let mut hooked = 0;
+    for name in ["Init_MatrixAPI", "Release_MatrixAPI", "GetVersionAPI", "Dongle_Find", "Dongle_Version", "Dongle_Count", "Dongle_ReadSerNr", "Dongle_ReadData"] {
+        if let Some(f) = resolve(name)
+            && unsafe { wal_payload_common::iat::hook("matrix32.dll", name, f) }.is_some()
+        {
+            hooked += 1;
+        }
+    }
+    if hooked > 0 {
+        wal_payload_common::log!("matrix: {hooked} imports hooked");
+    }
+    hooked
 }

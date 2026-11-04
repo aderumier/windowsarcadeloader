@@ -30,6 +30,10 @@
 //!   played with the mouse (`mouse.rs`: TouchScript's Windows touches at the cursor, a dot where
 //!   it touches); its full screen at the portrait desktop's size (`screen.rs`).
 //!
+//! - Jetpack Joyride Arcade (Halfbrick's native engine, 32-bit, Direct3D 9): its board is
+//!   `KaboomComDll.dll` (`kaboom.rs`: coins, tickets, lamps), resolved through the executable's
+//!   own `GetProcAddress`; its dongle imported by name (`jetpack.rs`).
+//!
 //! - Need for Speed Heat Takedown (Unity 2021, Mono, 64-bit): a driving game. `steering.rs`
 //!   is its steering board on a serial port (the wheel and its motor, the pedals, the nitro
 //!   button, the operator's keypad, the coin door); `hdrp.rs` its render scale (HDRP's dynamic
@@ -53,6 +57,8 @@ mod drakon;
 #[cfg(target_pointer_width = "64")]
 mod hdrp;
 mod hotwheels;
+#[cfg(target_pointer_width = "32")]
+mod jetpack;
 #[cfg(target_pointer_width = "32")]
 mod kaboom;
 mod matrix;
@@ -241,6 +247,8 @@ unsafe extern "system" fn reg_open_key_ex_w(key: *mut c_void, sub: *const u16, o
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("adrenaline");
+        // the profile's code patches (WAL_PATCHES)
+        wal_payload_common::patches::apply();
         // Unity 2017: the player is UnityPlayer.dll; Unity 4.2: the executable
         let mut unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) } as usize;
         if unity == 0 {
@@ -265,6 +273,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             matrix::hook_ordinals();
             kaboom::init_serial();
         }
+        // Jetpack Joyride Arcade (native): the dongle imported, the board resolved at run time
+        #[cfg(target_pointer_width = "32")]
+        let native = native || jetpack::init();
         if !native {
             // Disney Crossy Road (64-bit): the dump's board and dongle libraries are 32-bit;
             // Flappy Tickets: no dongle library in the dump

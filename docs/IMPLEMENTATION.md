@@ -4271,6 +4271,39 @@ touch screen sword game: swipes swing the sword, taps block and dodge. The dump'
   Full screen from `-ResX= -ResY= -fullscreen` (the Resolution option).
 - **Play (headless).** 4 coins a credit, touch: title, single player, the fight.
 
+#### Jetpack Joyride Arcade
+
+Halfbrick's own engine (native, 32-bit, Direct3D 9). On the cabinet `C:\Joyride\Joyride.bat`
+updates `C:\Joyride\DataPC` and runs `mgjp fullscreen` there; `mgjp.exe` is wrapped by the
+Matrix dongle's envelope (its code decrypted with the dongle over HID). The dump's
+`mgjp_standalone.exe` is the unwrapped executable (dongle check removed, imports rebuilt):
+`jetpack-joyride-arcade.windowsloader` points at it, `fullscreen` its argument. It imports no
+`xinput1_3.dll`: `payload_loader: true` (and `xinput1_3: n,b`, else Wine's builtin is loaded
+under the payload's path).
+
+- **Folders.** The game reads its data from `..\DataPC\` and writes its saves (credits,
+  tickets, operator settings: `ArcadeCoins.json`...) in `..\`. The profile's `c_folders` map
+  `C:\Joyride` to the dump's `Saves` folder and `C:\Joyride\DataPC` to the dump;
+  `WAL_ADRENALINE_CWD=C:\Joyride\DataPC` is set by the payload before the game's code runs.
+- **Dongle.** `matrix32.dll` imported by name (`GetVersionAPI`, `Dongle_Find`, `Dongle_Version`
+  too): `matrix.rs` `hook_names` (the unwrapped executable no longer checks it).
+- **Board (`kaboom.rs`).** `KaboomCOMBoardManager` loads `KaboomComDll.dll` with
+  `LoadLibrary` and resolves its 25 functions with `GetProcAddress` (any missing: no board):
+  the executable's import hooked (`mono_imports::hook_game`). `InitLib(port, keypad, coins,
+  tickets, x)` takes cdecl callbacks, called from the board thread: keypad `(keys)` on a change
+  (operator 1, down 2, select 4, up 8), coins `(counter 1, counter 2)` running totals (the
+  game credits their increase; `ResetCoinCount` zeroes them). The unwrapped executable had the
+  `InitLib` call replaced by `xor eax, eax` and 6 nops (no board opened, no coins): the profile's
+  `WAL_PATCHES` puts `mov ecx, [esi+0x10c]; call ecx` back (RVA `0xE552D`). Tickets:
+  `SetTicketFeederTicketToFeedCount` / `GetTicketFeederCount` (a ticket every 100 ms); the lamps
+  (`SetOutput`, `ClearOutput`, `ClearExtendedOutput`) are ignored.
+- **Button.** The jetpack button is on the keypad: any of the down, select and up lines flies
+  (button codes 1-3 pressed, 5-7 released), the operator line opens the operator menu from the
+  attract and title states (in the menu: down / up / select). The game's DirectInput keyboard
+  (it counts the keys held) sees nothing (`WAL_DINPUT_DISABLE`).
+- **Play (headless).** 4 coins a game (operator setting), the button: the 45 s run, then the
+  tickets (20 fed). Natives `button coin` (P1), `operator up down select`.
+
 #### Rabbids Hollywood
 
 Unity 2017.2 (Mono, Direct3D 11, 64-bit), four guns: Sixense STEM packs (electromagnetic
@@ -4923,6 +4956,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | Adrenaline's six-seat driving game (Unity 2018.3, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its three Kaboom Adrio Hot Wheels boards (wheels, pedals, coins, callbacks from a Mono-attached thread) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `need-for-speed-heat-takedown` | Need for Speed Heat Takedown | adrenaline | user 100% (2026-11-03), 1 wheel, force feedback | Sarbakan's driving game (Unity 2021.2, Mono, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its steering board on COM3 (Mono's `SerialPort`: the port listed in the registry, the wheel, pedals, nitro, keypad, coins; the car info played as force feedback) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `infinity-blade-fx` | Infinity Blade FX | adrenaline | works headless (2026-11-03: coins, start, fight, gun swipes, shield, dodges), 1 player | Adrenaline's touch screen sword game (Unreal Engine 3, 32-bit, §6.3k): the payload (`xinput1_3.dll`, imported by the game) hooks its PQ Labs client and Matrix dongle imports, answers its built-in Kaboom board on the serial port; gun swipe gain option; engine ini without joysticks, Direct3D 9 |
+| `jetpack-joyride-arcade` | Jetpack Joyride Arcade | adrenaline | user 100% (2026-11-04), 1 player | Adrenaline's one-button game (Halfbrick's native engine, 32-bit, §6.3k): the dump's unwrapped `mgjp_standalone.exe` (the original is in the Matrix dongle's envelope), run in `C:\Joyride\DataPC` (saves in the dump's `Saves`); the payload (wal-loader) hooks its dongle imports and its `GetProcAddress` for `KaboomComDll.dll` (keypad and coin callbacks), the removed `InitLib` call patched back |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
