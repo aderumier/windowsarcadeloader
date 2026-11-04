@@ -4475,6 +4475,32 @@ pneumatic seat.
   first `DllImport` (before HDRP's first frame compiles it). The HUD stays at full resolution.
   0.8: 38-48 frames per second, 0.67: about 50.
 
+#### Hot Wheels: Victory Lap
+
+Unity 6 (6000.0.40, IL2CPP, Direct3D 11, HDRP, 64-bit, Sarbakan): one seat, Need for Speed Heat
+Takedown's steering board (wheel, gas and brake, the boost on the nitro button, keypad, coin
+door), LED strips and a pneumatic seat. `hot-wheels-victory-lap.windowsloader` points at
+`Hotwheels.exe`; the dump's Unity Doorstop proxy `winhttp.dll` (a third-party patch): Wine's
+own `winhttp`. The profile's `WAL_NFS_FFB` enables NFS's board (`steering.rs`, COM3 listed).
+
+- **Ports (`rs232.rs`).** The game's `SBK.IOBoardLib.SerialProtocol` (the steering board, the
+  LED controllers, the seat) opens its ports with `RS_232_DLL.dll` (Teunis van Beelen's RS-232
+  library, cdecl, ports by index: `RS232_GetPortIndexByName("COM3")` 2), not Mono's
+  `SerialPort`: its `DllImport`s are the payload's, on `serial.rs`'s port (`CreateFileA`
+  through `steering.rs`: exclusive). The LED manager probes COM3 first (`GET_TARGET_INFO`,
+  product 1: "Not a LED controller on COM3", closed), then the steering manager keeps it. The
+  game writes a frame in pieces (`FE`, header and payload, sum): gathered into one packet.
+  `RS232_PollComport` never waits and, after a poll that read data, reads nothing for 10 ms:
+  the board's stream is endless (a frame at each empty poll), and the LED probe's read loop,
+  reading while bytes come, never ended (the game stuck before its first scene).
+- **Play.** As NFS: coins, the gas pedal joins and selects (car, model), the wheel moves; races
+  with AI cars ("waiting for other player" times out). The operator menu (test): down next
+  tab, select. `GET_CAR_INFO` comes each physics step: NFS's forces.
+- **Webcams (`victorylap.rs`).** The cabinet's camera takes the player's picture before the
+  race (`SBK.FaceDetection.FDManager`, OpenCV) when the operator's "Take Picture" is on (its
+  default). `OperatorUtil.get_TakePicture` is replaced (IL2CPP's API, at the dongle's first
+  call): false, no capture (the boxes have no camera; the menu still shows the setting on).
+
 #### Spider-Man Homecoming
 
 Unity 5.5 (Mono `mono.dll`, Direct3D 11, 32-bit), a portrait cabinet: two players, one button
@@ -4955,6 +4981,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | Adrenaline's 3-player monster game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Kaboom Adrio board (joysticks, attack buttons on the keypad, callbacks from a Mono-attached thread) and Matrix dongle |
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | Adrenaline's six-seat driving game (Unity 2018.3, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its three Kaboom Adrio Hot Wheels boards (wheels, pedals, coins, callbacks from a Mono-attached thread) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `need-for-speed-heat-takedown` | Need for Speed Heat Takedown | adrenaline | user 100% (2026-11-03), 1 wheel, force feedback | Sarbakan's driving game (Unity 2021.2, Mono, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its steering board on COM3 (Mono's `SerialPort`: the port listed in the registry, the wheel, pedals, nitro, keypad, coins; the car info played as force feedback) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
+| `hot-wheels-victory-lap` | Hot Wheels: Victory Lap | adrenaline | user 100% (2026-11-04), 1 wheel, force feedback | Sarbakan's driving game (Unity 6 IL2CPP, 64-bit, §6.3k): NFS Heat Takedown's steering board on COM3 through the game's `RS_232_DLL.dll` (the payload's), Matrix dongle, webcam pictures off; Wine's `winhttp` (no third-party patch) |
 | `infinity-blade-fx` | Infinity Blade FX | adrenaline | works headless (2026-11-03: coins, start, fight, gun swipes, shield, dodges), 1 player | Adrenaline's touch screen sword game (Unreal Engine 3, 32-bit, §6.3k): the payload (`xinput1_3.dll`, imported by the game) hooks its PQ Labs client and Matrix dongle imports, answers its built-in Kaboom board on the serial port; gun swipe gain option; engine ini without joysticks, Direct3D 9 |
 | `jetpack-joyride-arcade` | Jetpack Joyride Arcade | adrenaline | user 100% (2026-11-04), 1 player | Adrenaline's one-button game (Halfbrick's native engine, 32-bit, §6.3k): the dump's unwrapped `mgjp_standalone.exe` (the original is in the Matrix dongle's envelope), run in `C:\Joyride\DataPC` (saves in the dump's `Saves`); the payload (wal-loader) hooks its dongle imports and its `GetProcAddress` for `KaboomComDll.dll` (keypad and coin callbacks), the removed `InitLib` call patched back |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |

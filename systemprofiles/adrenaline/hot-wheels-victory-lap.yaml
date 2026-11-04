@@ -1,0 +1,75 @@
+# Hot Wheels: Victory Lap (Adrenaline Amusements / Sarbakan, Unity 6, IL2CPP, 64-bit) - template,
+# override values in userprofiles/adrenaline/hot-wheels-victory-lap.yaml.
+# One seat: a steering wheel with force feedback, gas and brake pedals, a boost button. The
+# payload emulates the cabinet's steering board (Need for Speed Heat Takedown's, here on the
+# game's RS-232 library: the wheel's motor, the pedals, the operator's keypad, the coin door)
+# and its Matrix dongle (docs §6.3k).
+system: adrenaline
+name: "Hot Wheels: Victory Lap"
+
+dll_overrides:
+  # Unity loads xinput1_3.dll at start: the payload
+  xinput1_3: "n,b"
+  # dumps with a Unity Doorstop proxy winhttp.dll (a third-party controls patch): Wine's own
+  winhttp: "b"
+
+args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
+
+env:
+  # the steering board (its presence) and its force feedback strength, percent (0: off)
+  WAL_NFS_FFB: "100"
+
+# The wheel (lx), the gas (accel) and brake pedals; b1 the boost. The operator's keypad:
+# up / down / select.
+native_map:
+  b1: nitro
+  b2: select
+  start: none
+  test: operator
+  service: select
+  up: up
+  down: down
+
+input:
+  # steering must not press the d-pad
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+    l2: brake
+  # keyboard steering and pedals: full in 0.3 s
+  keyboard_ramp_ms: 300
+  # Keyboard: Left / Right wheel, Up gas, Down brake, Page Up / Page Down operator up / down.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
+
+controls:
+  up: Operator up
+  down: Operator down
+  left: none
+  right: none
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Boost
+  b2: Operator select
+  start: none
+  coin: Coin
+  test: Operator menu
+  service: Operator select
+
+options:
+  - title: Game
+    options:
+      - key: WAL_NFS_FFB
+        label: Force feedback strength
+        kind: number
+        min: 0
+        max: 200
+        description: >-
+          The wheel's force feedback, in percent (0: off).
