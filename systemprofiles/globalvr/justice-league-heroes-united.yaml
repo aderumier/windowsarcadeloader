@@ -39,8 +39,10 @@ env:
   WAL_DINPUT_PADS_BUTTONS: "b1,b2,b4,b3,start"
   # Joystick 1 player 1, joystick 2 player 2, as the operator menu's controller assignment
   # leaves them: with auto detection (the dump's) both joysticks drove player 1. Not
-  # calibrated, auto detection off would open the operator menu at each start.
-  WAL_INI_KEYS: "UseJoystickAutoDetect=false;ControlsCalibrated=true;Joystick0SoftwareMap=0;Joystick1SoftwareMap=1"
+  # calibrated, auto detection off would open the operator menu at each start. The two
+  # joysticks and their button maps whatever the dump's JLH.ini says (some dumps have none),
+  # full screen at the screen's size.
+  WAL_INI_KEYS: "UseGVRIOBoard=true;UseJoystickAutoDetect=false;ControlsCalibrated=true;Joystick0SoftwareMap=0;Joystick1SoftwareMap=1;JoystickCount=2;AButtonMap=0;BButtonMap=1;CButtonMap=3;DButtonMap=2;Fullscreen=true;AutoDetectKitMonitors=false;ScreenResolutionX={screen_width};ScreenResolutionY={screen_height};DisplayWidth={screen_width};DisplayHeight={screen_height};DisplayXOffset=0;DisplayYOffset=0"
 
 input:
   # the four buttons on the pad's face: X / A attacks (combos), Y power, B defend (hold; with

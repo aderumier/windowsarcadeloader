@@ -240,7 +240,8 @@ fn screen_size() -> Option<(u32, u32)> {
 /// screen without it or with `WAL_KEEP_ASPECT_RATIO=0`) and `{aspect_width}` / `{aspect_height}`
 /// (that rectangle whatever `WAL_KEEP_ASPECT_RATIO`) replaced. For players sized from their
 /// command line: PGA TOUR Team Challenge's Anark frontend draws its 800x600 presentation at its
-/// `-pwidth` / `-pheight` (no gamescope).
+/// `-pwidth` / `-pheight` (no gamescope). The profile's environment values too: Justice League:
+/// Heroes United's screen size in `WAL_INI_KEYS`.
 fn screen_placeholders(arg: &str, (sw, sh): (u32, u32), env: &std::collections::BTreeMap<String, String>) -> String {
     if !arg.contains('{') {
         return arg.to_string();
@@ -540,18 +541,19 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             Err(e) => eprintln!("launcher: {e:#}"),
         }
     }
-    for (k, v) in &profile.env {
-        wine.set_env(k, v);
-    }
-
-    let game_exe = wine.windows_path(&run_exe_dir.join(exe_name));
-    // the screen's size placeholders of the arguments (headless: gamescope's screen)
+    // the screen's size placeholders of the arguments and the environment (headless:
+    // gamescope's screen)
     let screen = if opts.headless {
         let conf = headless_gamescope(&profile.gamescope);
         (conf.width, conf.height)
     } else {
         screen_size().unwrap_or((1920, 1080))
     };
+    for (k, v) in &profile.env {
+        wine.set_env(k, &screen_placeholders(v, screen, &profile.env));
+    }
+
+    let game_exe = wine.windows_path(&run_exe_dir.join(exe_name));
     let screen_args = |args: &[String]| -> Vec<String> { args.iter().map(|a| screen_placeholders(a, screen, &profile.env)).collect() };
     // the game command with these arguments; `relaunched`: started again at the payload's
     // request (WAL_RELAUNCH=1)
