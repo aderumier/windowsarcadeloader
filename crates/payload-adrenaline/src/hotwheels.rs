@@ -33,6 +33,8 @@
 //!   a constant force towards it (its distance from the wheel's position, from `lx`, times 4, at
 //!   most the power), every 10 ms; `WAL_HOTWHEELS_FFB` scales it (percent, default 100, 0 off).
 //!   The bumps' power is their own times the remote settings' `steeringBumpMultipler`.
+//! - **Pedal calibration.** Never calibrated in the operator menu (all 0), the game ignores
+//!   the pedals: those seats get the emulated pedal's range (released 140, full 50).
 //! - **Remote settings.** The online `RemoteSettingsData` (`RemoteSettingsManager.Instance
 //!   .m_Save.m_Data`) all zero when they never came: no boost (`speedBoost`), no respawn
 //!   (`respawnOnDeath`), no bumps... `RemoteSettingsData.Reset` (the game's defaults) run on it
@@ -214,6 +216,51 @@ fn remote_settings() {
     }
 }
 
+/// The pedals never calibrated in the operator menu (`PedalCalibrationSave`: all 0): the game
+/// ignores the pedal (its `Player.UpdatePedalCalibration` returns when min = max: no `Pedal`
+/// axis, no `PedalDown`, no time skip, no boost). Those seats get the emulated pedal's range
+/// (`KaboomManager.Instance.m_PedalsCalibration`, min released, max full); a real calibration
+/// is kept.
+fn pedal_calibration() {
+    let Some(m) = mono() else { return };
+    let image = m.image("Assembly-CSharp");
+    let singleton = m.class_of_type_name(image, "SBK.Singleton`1[[SBK.Kaboom.KaboomManager, Assembly-CSharp]]");
+    let instance = m.static_addr(singleton, m.field(singleton, "_instance"));
+    let manager = m.class(image, "SBK.Kaboom", "KaboomManager");
+    let calibration = m.class_of_type_name(image, "SBK.Kaboom.KaboomManager+PedalCalibration");
+    let list = m.class_of_type_name(m.image("mscorlib"), "System.Collections.Generic.List`1[[SBK.Kaboom.KaboomManager+PedalCalibration, Assembly-CSharp]]");
+    let (field, min, max) = (m.field(manager, "m_PedalsCalibration"), m.field(calibration, "Min"), m.field(calibration, "Max"));
+    let (items, size) = (m.field(list, "_items"), m.field(list, "_size"));
+    if instance.is_null() || field.is_null() || min.is_null() || max.is_null() || items.is_null() || size.is_null() {
+        return;
+    }
+    unsafe {
+        let obj = (instance as *const usize).read();
+        let list_obj = if obj != 0 { ((obj + m.offset(field)) as *const usize).read() } else { 0 };
+        if list_obj == 0 {
+            return;
+        }
+        let array = ((list_obj + m.offset(items)) as *const usize).read();
+        let count = ((list_obj + m.offset(size)) as *const i32).read().max(0) as usize;
+        let mut fixed = 0;
+        for i in 0..count {
+            // a MonoArray's elements after its header (vtable, sync, bounds, length)
+            let entry = ((array + 4 * size_of::<usize>() + i * size_of::<usize>()) as *const usize).read();
+            if entry == 0 {
+                continue;
+            }
+            let (lo, hi) = ((entry + m.offset(min)) as *mut u8, (entry + m.offset(max)) as *mut u8);
+            if *lo == *hi {
+                (*lo, *hi) = (PEDAL_RELEASED as u8, PEDAL_FULL as u8);
+                fixed += 1;
+            }
+        }
+        if fixed > 0 {
+            log!("hotwheels: {fixed} pedal(s) not calibrated: {PEDAL_RELEASED} released, {PEDAL_FULL} full");
+        }
+    }
+}
+
 fn board_thread() {
     if !mono().is_some_and(|m| m.attach()) {
         log!("hotwheels: cannot attach to Mono: no inputs");
@@ -226,9 +273,11 @@ fn board_thread() {
     loop {
         std::thread::sleep(Duration::from_millis(10));
         tick += 1;
-        // the remote settings checked every second (the game may replace them)
+        // the remote settings and the pedals' calibration checked every second (the game may
+        // replace them)
         if tick.is_multiple_of(100) {
             remote_settings();
+            pedal_calibration();
         }
         // the wheels' forces, on change
         for (player, last) in sent.iter_mut().enumerate() {
