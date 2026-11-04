@@ -323,17 +323,29 @@ pub fn resolve_kernel32(name: &str) -> Option<usize> {
     }
 }
 
-// The serial port list (`HARDWARE\DEVICEMAP\SERIALCOMM`): the board's port only.
+// The serial port list (`HARDWARE\DEVICEMAP\SERIALCOMM`): the board's port only, or Hot
+// Wheels' three boards' ports.
 
 /// The list's key handle, never a real one.
 pub const PORTS_KEY: usize = 0x5e71a1;
-const VALUE_NAME: &str = "\\Device\\WalSteering";
+
+/// The ports listed: [`PORT`] for the steering board; COM3 to COM5 for Hot Wheels: Kings of the
+/// Road (`KaboomManager` gives each of its boards the next port, COM1 skipped: its library is
+/// the payload's, no port opened).
+fn listed() -> &'static [&'static str] {
+    if enabled() { &[PORT] } else { &["COM3", "COM4", "COM5"] }
+}
+
+/// A port's value name.
+fn value_name(index: usize) -> String {
+    format!("\\Device\\WalSerial{index}")
+}
 
 fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain([0]).collect()
 }
 
-/// `RegQueryInfoKeyW`: one value, no sub key.
+/// `RegQueryInfoKeyW`: a value a port, no sub key.
 unsafe extern "system" fn reg_query_info_key_w(key: P, class: *mut u16, class_len: *mut u32, reserved: *mut u32, sub_keys: *mut u32, max_sub_key: *mut u32, max_class: *mut u32, values: *mut u32, max_value_name: *mut u32, max_value: *mut u32, security: *mut u32, last_write: *mut u64) -> i32 {
     type F = unsafe extern "system" fn(P, *mut u16, *mut u32, *mut u32, *mut u32, *mut u32, *mut u32, *mut u32, *mut u32, *mut u32, *mut u32, *mut u64) -> i32;
     if key as usize != PORTS_KEY {
@@ -348,9 +360,10 @@ unsafe extern "system" fn reg_query_info_key_w(key: P, class: *mut u16, class_le
     set(sub_keys, 0);
     set(max_sub_key, 0);
     set(max_class, 0);
-    set(values, 1);
-    set(max_value_name, VALUE_NAME.len() as u32);
-    set(max_value, (wide(PORT).len() * 2) as u32);
+    let ports = listed();
+    set(values, ports.len() as u32);
+    set(max_value_name, value_name(ports.len() - 1).len() as u32);
+    set(max_value, ports.iter().map(|p| wide(p).len() * 2).max().unwrap_or(0) as u32);
     set(security, 0);
     if !last_write.is_null() {
         unsafe { *last_write = 0 };
@@ -358,35 +371,39 @@ unsafe extern "system" fn reg_query_info_key_w(key: P, class: *mut u16, class_le
     0
 }
 
-/// `RegEnumValueW`: the board's value.
+/// `RegEnumValueW`: a port's value.
 unsafe extern "system" fn reg_enum_value_w(key: P, index: u32, name: *mut u16, name_len: *mut u32, reserved: *mut u32, kind: *mut u32, data: *mut u8, data_len: *mut u32) -> i32 {
     type F = unsafe extern "system" fn(P, u32, *mut u16, *mut u32, *mut u32, *mut u32, *mut u8, *mut u32) -> i32;
     if key as usize != PORTS_KEY {
         return unsafe { advapi32::<F>(c"RegEnumValueW")(key, index, name, name_len, reserved, kind, data, data_len) };
     }
-    if index > 0 {
+    let Some(port) = listed().get(index as usize) else {
         return 259; // ERROR_NO_MORE_ITEMS
-    }
-    let value = wide(VALUE_NAME);
+    };
+    let value = wide(&value_name(index as usize));
     if name_len.is_null() || (unsafe { *name_len } as usize) < value.len() {
         return 234; // ERROR_MORE_DATA
     }
     unsafe { std::ptr::copy_nonoverlapping(value.as_ptr(), name, value.len()) };
     unsafe { *name_len = (value.len() - 1) as u32 };
-    unsafe { query_value(kind, data, data_len) }
+    unsafe { query_value(port, kind, data, data_len) }
 }
 
-/// `RegQueryValueExW`: the port's name (REG_SZ).
+/// `RegQueryValueExW`: a port's name (REG_SZ), by its value name.
 unsafe extern "system" fn reg_query_value_ex_w(key: P, name: *const u16, reserved: *mut u32, kind: *mut u32, data: *mut u8, data_len: *mut u32) -> i32 {
     type F = unsafe extern "system" fn(P, *const u16, *mut u32, *mut u32, *mut u8, *mut u32) -> i32;
     if key as usize != PORTS_KEY {
         return unsafe { advapi32::<F>(c"RegQueryValueExW")(key, name, reserved, kind, data, data_len) };
     }
-    unsafe { query_value(kind, data, data_len) }
+    let name = if name.is_null() { String::new() } else { String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, (0..).take_while(|&i| *name.add(i) != 0).count()) }) };
+    let Some(port) = (0..listed().len()).find(|&i| value_name(i).eq_ignore_ascii_case(&name)).map(|i| listed()[i]) else {
+        return 2; // ERROR_FILE_NOT_FOUND
+    };
+    unsafe { query_value(port, kind, data, data_len) }
 }
 
-unsafe fn query_value(kind: *mut u32, data: *mut u8, data_len: *mut u32) -> i32 {
-    let port = wide(PORT);
+unsafe fn query_value(port: &str, kind: *mut u32, data: *mut u8, data_len: *mut u32) -> i32 {
+    let port = wide(port);
     let size = (port.len() * 2) as u32;
     if !kind.is_null() {
         unsafe { *kind = 1 }; // REG_SZ
