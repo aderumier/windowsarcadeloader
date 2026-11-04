@@ -23,8 +23,9 @@ dll_overrides:
   ir50_32: n
 
 # Direct3D 9 through the dump's dgVoodoo D3D9.dll (to Direct3D 11, DXVK): straight on DXVK the
-# levels draw wrong (washed out sky and fog, polygons stretched into spikes). It shows its
-# watermark (bottom right) whatever dgVoodoo.conf says.
+# levels draw wrong (washed out sky and fog, polygons stretched into spikes). dgVoodoo 2.79.3
+# (2.87 crashes in CreateDevice): its dgVoodoo.conf must say Version = 0x275 or it is ignored
+# (the watermark, bottom right, shows), dgVoodooWatermark = false there.
 hide: [D3D8.dll]
 files:
   ir50_32.dll: "{dump}/System Files/ir50_32.dll"
