@@ -30,14 +30,17 @@ mod bngrw;
 mod bpreader;
 mod dinput;
 mod hasp;
+mod jojo;
 mod jvs;
 mod lla;
 mod patches;
 mod pokken;
 mod projector;
+mod sgreader;
 mod tc5;
 mod tekken7;
 mod usio;
+mod vfd;
 mod wmmt5;
 mod wmmt5_net;
 mod wmmt5_terminal;
@@ -99,7 +102,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let exe = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()));
         let exe = exe.unwrap_or_default();
         let base = module_base();
-        if exe.eq_ignore_ascii_case(pokken::GAME) {
+        if exe.eq_ignore_ascii_case(jojo::GAME) {
+            jojo::attach(base);
+        } else if exe.eq_ignore_ascii_case(pokken::GAME) {
             pokken::attach(base);
         } else if tekken7::is_tekken7(&exe) {
             tekken7::attach(&exe, base);

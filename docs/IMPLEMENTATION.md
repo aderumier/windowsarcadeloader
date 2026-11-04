@@ -2003,6 +2003,53 @@ game imports (bound to HASP exports, rewritten in the import table at attach). T
 - **Closing time.** The test menu's CLOSE TIME SETTING (the shop's): the game warns
   ("N min. until coins can no longer be inserted") and stops taking coins.
 
+#### JoJo's Bizarre Adventure: Last Survivor
+
+64-bit (`jojo.rs`): Unreal Engine 4.20, Direct3D 11, 2019, `AJB-Win64-Shipping.exe`, update
+28.02 (`JJL128-1-NA-MPR0-F02`, the dump `JJL10JPN-28`; the PC port of github.com/Aeyth8/AJB
+runs the same exe). The payload is the game's `xinput1_3.dll` (`payload_install`,
+`xinput1_3=n,b`), as Tekken 7. The game logs to stdout (the launcher's output). Its system
+check (serial, I/O board, card reader, backup memory, touch panel, ALL.Net, store network)
+passes in full; the game server is not there: national and store battles are off ("network
+offline", the test menu's 5-24 / 5-1), the game plays as a guest.
+
+- **Cabinet serial.** `nbamUsbFinder_GetInformation` answers the USB key (`patches::usb_key`)
+  with `282713030001`: the game wants model 2827, region 1, type 3-5 and code 03 (found by
+  logging its wide string compares). AMCUS (in-process IAuth, `amcus.rs`) gives the matching
+  NetID `ABLN3030001` (`ABLN` and the serial's last 7 digits), game id `SDEX` / `JJL1`.
+- **AMActivator.** `amactivator.dll`'s imports answered in-process (bananatools'
+  `amactivator` stubs, public domain): not busy, statuses ok, generation 1.
+- **I/O board.** `winusio.dll` (`CWinUsio`, ANSI SetupDi / `CreateFileA`) on the emulated
+  USIO board (`usio.rs`): firmware 126 at board memory 0x12 (the game wants 120-126), the
+  board name `NBGI.REAL_USIO` at 0x1800, the switches (test 0x80, service 0x4000, start,
+  directions, 11 push buttons) and the analog inputs at 0x10a0 (both sticks; the d-pad drives
+  the left one).
+- **Card reader.** Sega's `libamw.dll`: its NVRAM `D:\sysfile.dat` (the dump's `D` drive),
+  the Aime NFC reader 837-15396 on COM1 (`sgreader.rs`, from bananatools' `sg-*.c`: frames,
+  firmware, LED board; no card) and the payment display (VFD) on COM2 (`vfd.rs`, the version
+  answer only): the card reader row is NG until the display answers.
+- **Touch panel.** The game asks `GetSystemMetrics(SM_TABLETPC)`: 1. The touches are the
+  mouse's (or a gun's) left button where the cursor is (`kp0`), posted as mouse messages, a
+  red dot where it touches (`WAL_CROSSHAIR`).
+- **Store network.** The cabinet sets itself to 192.168.171.2 with `netsh`: replaced by
+  `cmd /c exit 0`; from then on `GetAdaptersInfo` / `GetAdaptersAddresses` report that
+  address and `IcmpSendEcho` to it replies (before, silence: an early reply sends the game to
+  the store update server's mode). IAuth reports the cabinet links ok (the statuses of
+  `GetCabinetConfig`) and settles in its idle state 15 (`settle_idle`), which the game waits
+  for.
+- **English.** The game's texts are keyed `FText`s and string table entries, looked up in
+  the current culture's `Content/Localization/Game/<culture>/Game.locres`: the US locale
+  (en-US) loads the dump's `en` one, no asset is changed. `wal-jojo-text`
+  (`crates/jojo-text`) exports the Japanese texts to a translation memory and writes the
+  resource (version 1, `FCrc::StrCrc32` source hashes); titles spelled one text block per
+  character are found in the widget trees (a panel's slots, in order) and the English shared
+  out over the blocks. The PC port's fan patch (`AJB-ENG-PATCH-ALEXIOR.pak`, 39 replaced
+  assets) was adopted into the memory (`adopt`): a pak can't sit beside the loose files
+  (Shipping refuses loose `.uasset`s once a pak is mounted), and its English widgets clash
+  with the Japanese copies of the same keys. The memory and the fan patch are kept in the
+  dump's `translation`. Still Japanese: the catchphrases and pose names (plain strings of the
+  `m_words` / `m_pose` data tables) and the text drawn in textures.
+
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 
 RingEdge games (Virtua Tennis 4; RingEdge 2: Guilty Gear XX Accent Core Plus R) link Sega's amLib statically and import no driver DLL: the
@@ -4790,6 +4837,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `tekken-7-fated-retribution` | Tekken 7 Fated Retribution | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | as `tekken-7` (§6.3c): `xinput1_3.dll` payload, the Fated Retribution boot patches, Namco JVS on COM3, newer IAuth, Banapass, graphene server, saves in the dump's `Saved` |
 | `tekken-7-fated-retribution-round-2` | Tekken 7 Fated Retribution Round 2 | namcoes3 | works (user: 100%, online with Banapass cards, insignia rate boost), 1 player per cabinet | as `tekken-7-fated-retribution` (§6.3c): runs the dump's `.exe.orig`, Round 2 boot patches, game server port redirect, insignias |
 | `pokken-tournament` | Pokkén Tournament | namcoes3 | user 100% (24.05 with Banapassport cards, 26.02 offline), 1 player per cabinet, English text | updates 24.05 and 26.02 (64-bit, §6.3c): the payload as the game's `xinput1_3.dll` (the cabinet controller as XInput pad 0, its USB id), Namco JVS on COM3 (`wajvio.dll`), dongle / cabinet serial, ping and subnet patches, Japanese locale, cards (AMCUS, COM4 reader, jackal server), GE patches 0110 / 0111 (movies), saves in the dump's `Win32\save_data`; no cabinet link |
+| `jojos-bizarre-adventure-last-survivor` | JoJo's Bizarre Adventure - Last Survivor | namcoes3 | works offline (headless tests: system check, coins, start, PP purchase, mode select, operator menu), touch with the mouse, English text; no game server: national / store battles off | update 28.02 (64-bit UE4, §6.3c): the payload as the game's `xinput1_3.dll`, cabinet serial and AMActivator, USIO board with sticks, Aime reader (COM1) and display (COM2) of `libamw.dll`, tablet touch panel, store network (netsh, adapters, ping), English `Game.locres` |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | dump built from the game's install disc (unshield), original executable: HASP4 dongle answered in memory (`hasp.rs`), W: drive, USBIO board and gun watchdog patches (`WAL_PATCHES`), operator keys only (`keyboard.rs`); the game's own `msvcr71` / `msvcp71` (Wine's clamps the level dependency CRCs: missing models, statue enemies), initial `systemcfg.lua` |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |

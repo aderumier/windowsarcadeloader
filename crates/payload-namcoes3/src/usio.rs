@@ -34,6 +34,8 @@ pub(crate) struct Inputs {
     pub switches: u32,
     /// Coin and service counters (they only count up).
     pub coins: [u16; 2],
+    /// The analog inputs (0x10a0, eight words: `winusio.dll`'s `GetAnalogIn`).
+    pub analog: [u16; 8],
 }
 
 enum Pending {
@@ -56,6 +58,9 @@ static ENUM_INTERFACES: AtomicUsize = AtomicUsize::new(0);
 static INTERFACE_DETAIL: AtomicUsize = AtomicUsize::new(0);
 static DESTROY_LIST: AtomicUsize = AtomicUsize::new(0);
 static CREATE_FILE: AtomicUsize = AtomicUsize::new(0);
+static CLASS_DEVS_A: AtomicUsize = AtomicUsize::new(0);
+static INTERFACE_DETAIL_A: AtomicUsize = AtomicUsize::new(0);
+static CREATE_FILE_A: AtomicUsize = AtomicUsize::new(0);
 
 unsafe extern "system" {
     fn SetLastError(code: u32);
@@ -111,6 +116,45 @@ unsafe extern "system" fn interface_detail(set: usize, data: *mut u8, detail: *m
     }
     unsafe { std::ptr::copy_nonoverlapping(path.as_ptr(), detail.add(4) as *mut u16, path.len()) };
     1
+}
+
+unsafe extern "system" fn class_devs_a(guid: *const [u8; 16], enumerator: *const u8, hwnd: usize, flags: u32) -> usize {
+    if !guid.is_null() && unsafe { *guid } == GUID {
+        return DEVINFO;
+    }
+    let orig: unsafe extern "system" fn(*const [u8; 16], *const u8, usize, u32) -> usize = unsafe { std::mem::transmute(CLASS_DEVS_A.load(Ordering::Relaxed)) };
+    unsafe { orig(guid, enumerator, hwnd, flags) }
+}
+
+unsafe extern "system" fn interface_detail_a(set: usize, data: *mut u8, detail: *mut u8, size: u32, required: *mut u32, info: *mut c_void) -> i32 {
+    if set != DEVINFO {
+        let orig: unsafe extern "system" fn(usize, *mut u8, *mut u8, u32, *mut u32, *mut c_void) -> i32 = unsafe { std::mem::transmute(INTERFACE_DETAIL_A.load(Ordering::Relaxed)) };
+        return unsafe { orig(set, data, detail, size, required, info) };
+    }
+    // SP_DEVICE_INTERFACE_DETAIL_DATA_A: cbSize, then the path
+    let need = 4 + PATH.len() as u32 + 1;
+    if !required.is_null() {
+        unsafe { *required = need };
+    }
+    if detail.is_null() || size < need {
+        unsafe { SetLastError(ERROR_INSUFFICIENT_BUFFER) };
+        return 0;
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(PATH.as_ptr(), detail.add(4), PATH.len());
+        *detail.add(4 + PATH.len()) = 0;
+    }
+    1
+}
+
+unsafe extern "system" fn create_file_a(name: *const u8, access: u32, share: u32, sa: *mut c_void, disposition: u32, flags: u32, template: usize) -> usize {
+    if !name.is_null() && unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_bytes().eq_ignore_ascii_case(PATH.as_bytes()) {
+        log!("usio: device opened");
+        return FILE;
+    }
+    type CreateFileA = unsafe extern "system" fn(*const u8, u32, u32, *mut c_void, u32, u32, usize) -> usize;
+    let orig: CreateFileA = unsafe { std::mem::transmute(CREATE_FILE_A.load(Ordering::Relaxed)) };
+    unsafe { orig(name, access, share, sa, disposition, flags, template) }
 }
 
 unsafe extern "system" fn destroy_list(set: usize) -> i32 {
@@ -233,11 +277,17 @@ unsafe extern "system" fn read_pipe(_iface: usize, _pipe: u8, buf: *mut u8, len:
     let Some(board) = guard.as_mut() else { return 0 };
     let n = match std::mem::replace(&mut board.pending, Pending::None) {
         Pending::Read(addr, n) => {
+            if std::env::var("WAL_NAMCOES3_USIO_TRACE").is_ok_and(|v| v == "1") {
+                log!("usio: read {addr:#06x} ({n} bytes)");
+            }
             if (0x1080..0x1100).contains(&addr) {
                 let inputs = (board.poll)();
                 board.memory[0x1080..0x1084].copy_from_slice(&inputs.switches.to_le_bytes());
                 board.memory[0x1090..0x1092].copy_from_slice(&(inputs.coins[0] & 0x3FFF).to_le_bytes());
                 board.memory[0x1092..0x1094].copy_from_slice(&(inputs.coins[1] & 0x3FFF).to_le_bytes());
+                for (i, a) in inputs.analog.iter().enumerate() {
+                    board.memory[0x10a0 + 2 * i..0x10a2 + 2 * i].copy_from_slice(&a.to_le_bytes());
+                }
             }
             let n = n.min(out.len()).min(board.memory.len() - addr);
             out[..n].copy_from_slice(&board.memory[addr..addr + n]);
@@ -261,6 +311,14 @@ unsafe extern "system" fn overlapped_result(_iface: usize, ov: *const usize, tra
     1
 }
 
+/// Sets board memory at `addr` (identity fields read by the library: `winusio.dll`'s firmware
+/// version is the word at 0x12 when 0x06 is 0, its board name the string at 0x1800).
+pub(crate) fn set_memory(addr: usize, data: &[u8]) {
+    if let Some(board) = BOARD.lock().unwrap().as_mut() {
+        board.memory[addr..addr + data.len()].copy_from_slice(data);
+    }
+}
+
 /// Installs the board on the game executable's imports (`base`); `poll` gives its inputs.
 pub(crate) fn init(base: usize, poll: fn() -> Inputs) {
     let mut memory = vec![0u8; 0x10000];
@@ -273,6 +331,10 @@ pub(crate) fn init(base: usize, poll: fn() -> Inputs) {
         ("setupapi.dll", "SetupDiGetDeviceInterfaceDetailW", interface_detail as *const () as usize, Some(&INTERFACE_DETAIL)),
         ("setupapi.dll", "SetupDiDestroyDeviceInfoList", destroy_list as *const () as usize, Some(&DESTROY_LIST)),
         ("kernel32.dll", "CreateFileW", create_file as *const () as usize, Some(&CREATE_FILE)),
+        // the USIO library as its own DLL (`winusio.dll`, JoJo's Bizarre Adventure): ANSI
+        ("setupapi.dll", "SetupDiGetClassDevsA", class_devs_a as *const () as usize, Some(&CLASS_DEVS_A)),
+        ("setupapi.dll", "SetupDiGetDeviceInterfaceDetailA", interface_detail_a as *const () as usize, Some(&INTERFACE_DETAIL_A)),
+        ("kernel32.dll", "CreateFileA", create_file_a as *const () as usize, Some(&CREATE_FILE_A)),
         ("winusb.dll", "WinUsb_Initialize", initialize as *const () as usize, None),
         ("winusb.dll", "WinUsb_Free", free as *const () as usize, None),
         ("winusb.dll", "WinUsb_QueryDeviceInformation", device_information as *const () as usize, None),

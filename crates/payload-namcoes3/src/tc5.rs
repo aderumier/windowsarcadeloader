@@ -175,7 +175,7 @@ fn usio_poll() -> usio::Inputs {
             s.coins = s.coins.wrapping_add(1) & 0x3FFF;
         }
         s.coin_held = coin;
-        usio::Inputs { switches: sw, coins: [s.coins, 0] }
+        usio::Inputs { switches: sw, coins: [s.coins, 0], analog: [0; 8] }
     })
 }
 
@@ -431,7 +431,7 @@ unsafe extern "C" fn fopen_s(file: *mut *mut c_void, name: *const u8, mode: *con
 fn network(base: usize) {
     let card = crate::bpreader::player_card();
     crate::bpreader::card_button(card);
-    crate::amcus::set_identity(crate::amcus::Identity { game_id: "SBVE", game_cd: "TC51", game_ver: (1, 0), serial: HASP_SERIAL_STR, scheme: "", path: "" });
+    crate::amcus::set_identity(crate::amcus::Identity { game_id: "SBVE", game_cd: "TC51", game_ver: (1, 0), serial: HASP_SERIAL_STR, scheme: "", path: "", net_id: "" });
     match unsafe { wal_payload_common::iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
         Some(o) => CO_CREATE_INSTANCE.store(o, Ordering::Relaxed),
         None => log!("tc5: CoCreateInstance not hooked"),

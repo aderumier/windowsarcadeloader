@@ -160,7 +160,7 @@ fn network(base: usize, build: &Build) {
         crate::bpreader::card_on_start(card);
     }
     crate::bpreader::init("COM4", &[base]);
-    crate::amcus::set_identity(crate::amcus::Identity { game_id: GAME_ID, game_cd: build.game_cd, game_ver: build.game_ver, serial: SERIAL, scheme: "https://", path: "" });
+    crate::amcus::set_identity(crate::amcus::Identity { game_id: GAME_ID, game_cd: build.game_cd, game_ver: build.game_ver, serial: SERIAL, scheme: "https://", path: "", net_id: "" });
     match unsafe { wal_payload_common::iat::hook_module(base, "ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
         Some(o) => CO_CREATE_INSTANCE.store(o, Ordering::Relaxed),
         None => log!("tekken7: CoCreateInstance not hooked"),

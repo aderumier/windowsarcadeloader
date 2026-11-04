@@ -23,6 +23,7 @@ members = [
     "crates/easrv",
     "crates/namcoes3srv",
     "crates/pokken-text",
+    "crates/jojo-text",
 ]
 # Payloads are Windows DLLs: build them with --target i686-pc-windows-gnu, the 64-bit ones
 # (namcoes3) with x86_64-pc-windows-gnu (see build.sh)
