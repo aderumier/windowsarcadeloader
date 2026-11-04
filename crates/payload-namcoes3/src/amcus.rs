@@ -53,6 +53,16 @@ pub(crate) fn set_identity(identity: Identity) {
     let _ = IDENTITY.set(identity);
 }
 
+/// The cabinet's network in `GetCabinetConfig` (newer IAuth): shop router, auth server,
+/// address, mask, gateway, DNS. Default: the loopback.
+static CABINET_NETWORK: std::sync::OnceLock<[&'static str; 6]> = std::sync::OnceLock::new();
+
+/// Sets the cabinet's network (JoJo's Bizarre Adventure: its store network, whose content
+/// router the game checks against its gateway).
+pub(crate) fn set_cabinet_network(network: [&'static str; 6]) {
+    let _ = CABINET_NETWORK.set(network);
+}
+
 fn identity() -> Identity {
     IDENTITY.get().copied().unwrap_or_else(|| {
         let v = crate::wmmt5::current();
@@ -391,7 +401,8 @@ unsafe extern "system" fn get_cabinet_config_new(_this: P, out: *mut u8) -> i32 
         put_str(out, 0x00, 16, "STANDALONE");
         put_str(out, 0x10, 16, net_id());
         put_str(out, 0x20, 16, identity().serial);
-        for (i, ip) in ["127.0.0.1", "127.0.0.1", "127.0.0.1", "255.0.0.0", "127.0.0.1", "127.0.0.1"].iter().enumerate() {
+        let network = CABINET_NETWORK.get().copied().unwrap_or(["127.0.0.1", "127.0.0.1", "127.0.0.1", "255.0.0.0", "127.0.0.1", "127.0.0.1"]);
+        for (i, ip) in network.iter().enumerate() {
             put_str(out, 0x30 + 16 * i, 16, ip);
         }
         put(out, 144, 1i32);

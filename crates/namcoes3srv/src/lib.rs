@@ -7,9 +7,12 @@
 //! * `graphene`: Tekken 7 (the Graphene framework, `graphene.protobuf`), and Pokkén Tournament
 //!   on the same framework (`jackal.protobuf`, `jackal.rs`).
 //! * `spp`: Time Crisis 5 (`spp.net`).
+//! * `jojo`: JoJo's Bizarre Adventure: Last Survivor (JSON).
 
 pub mod graphene;
 mod jackal;
+pub mod jojo;
+mod msgpack;
 pub mod pb;
 mod records;
 mod rpc;
@@ -35,7 +38,9 @@ pub(crate) fn verbose() -> bool {
 }
 
 pub(crate) fn tls_config() -> Result<rustls::ServerConfig, String> {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).map_err(|e| e.to_string())?;
+    // the local server's names: a client checking the host name (JoJo's libcurl) wants the
+    // address it connected to
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into(), "127.0.0.1".into()]).map_err(|e| e.to_string())?;
     let key = rustls::pki_types::PrivateKeyDer::Pkcs8(cert.key_pair.serialize_der().into());
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     rustls::ServerConfig::builder_with_provider(provider)
