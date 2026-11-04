@@ -36,9 +36,13 @@ pub mod joystick;
 pub mod font;
 #[cfg(windows)]
 pub mod dshow;
-// where the players' guns point in the game's window
+#[cfg(windows)]
+pub mod exe_env;
 #[cfg(windows)]
 pub mod glview;
+#[cfg(windows)]
+pub(crate) mod late_hooks;
+// where the players' guns point in the game's window
 #[cfg(windows)]
 pub mod gun;
 #[cfg(windows)]
@@ -140,6 +144,8 @@ pub fn start(name: &'static str) {
         #[cfg(windows)]
         {
             crash::init();
+            // this program's own options, before any is read
+            exe_env::apply();
             // before the X11 driver starts (its first window or screen query)
             desktop::unmanaged();
             crash::dump_threads_at();

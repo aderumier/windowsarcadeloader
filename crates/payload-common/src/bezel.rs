@@ -1,5 +1,7 @@
 //! A bezel around the game's picture: `WAL_BEZEL=<image>` (PNG, JPEG..., a path relative to the
-//! game's directory or absolute).
+//! game's directory or absolute), or `WAL_BEZEL=black`: plain black strips, no image (a 4:3
+//! game centered on a wide screen whose sides nothing paints: PGA TOUR Team Challenge's Anark
+//! frontend, `WAL_WINDOW_SIZE=picture`).
 //!
 //! For a game whose window does not fill the screen (a portrait game fitted with
 //! `WAL_DESKTOP_SIZE`): the image, scaled to fit the screen (black around, its transparent
@@ -229,6 +231,11 @@ fn strips(game: RECT, sw: i32, sh: i32) -> [RECT; 4] {
 
 /// The strips' windows and their message loop, following the game's window.
 fn run(image: HBITMAP) {
+    // created once the game has a window of its own (PGA TOUR Team Challenge's frontend stayed
+    // on its startup checks' "Please wait..." with the strips made first)
+    while game_window().is_null() {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
     let instance = unsafe { GetModuleHandleW(std::ptr::null()) };
     let class = windows_sys::w!("WalBezel");
     let wc = WNDCLASSW { lpfnWndProc: Some(window_proc), hInstance: instance, lpszClassName: class, ..unsafe { std::mem::zeroed() } };
@@ -289,6 +296,12 @@ pub fn init() {
     let Ok(path) = std::env::var("WAL_BEZEL") else { return };
     let path = path.trim().to_string();
     if path.is_empty() || path == "0" {
+        return;
+    }
+    if path == "black" {
+        // no image: the strips are only painted black
+        log!("bezel: black");
+        std::thread::spawn(|| run(std::ptr::null_mut()));
         return;
     }
     std::thread::spawn(move || match load(&path) {

@@ -20,12 +20,8 @@ payload_loader: true
 c_folders:
   orion: orion
 
-# The frontend's and the game's 640x480 screen, scaled to the real one with its aspect kept.
-gamescope:
-  enabled: true
-  width: 640
-  height: 480
-  args: [-S, fit, -f]
+# The frontend's and the game's 640x480 screen (DirectDraw): Wine's display mode emulation
+# scales it to the screen, its aspect kept (black sides on a wide screen), no gamescope.
 
 # The pod's buttons (the payload's default map, SiN's): the trigger (b1, also start and select
 # in the frontend) and the gun's second button (b2) both fire, the thumb buttons (up / down)

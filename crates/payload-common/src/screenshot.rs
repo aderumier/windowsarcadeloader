@@ -1035,6 +1035,11 @@ pub fn d3d9_aspect() -> Option<(u32, u32)> {
     if std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0") {
         return None;
     }
+    aspect_setting()
+}
+
+/// `WAL_D3D9_ASPECT`, whatever `WAL_KEEP_ASPECT_RATIO`.
+pub fn aspect_setting() -> Option<(u32, u32)> {
     let v = std::env::var("WAL_D3D9_ASPECT").ok()?;
     let (w, h) = v.split_once(':')?;
     Some((w.trim().parse().ok()?, h.trim().parse().ok()?)).filter(|&(w, h)| w > 0 && h > 0)
