@@ -54,17 +54,25 @@ initial_files:
 # frontend: off, the game runs as on the cabinet.
 hide: [dinput8.dll]
 
+# The cabinet's 800x600 screen, fitted to the real one (the windows below fill it).
+gamescope:
+  enabled: true
+  width: 800
+  height: 600
+  args: [-S, fit, -f]
+
 env:
   # the game's own controllers off: the wheel, pedals and buttons come from GVRInputRaw.dll
   WAL_DINPUT_DISABLE: "1"
-  # The frontend and the race draw 800x600 (4:3, kept whatever KEEP ASPECT RATIO): borderless
-  # windows the size of the screen's centered 4:3 rectangle the back buffer is stretched to, black
-  # around (the bezel's strips).
+  # The frontend and the race draw 4:3 800x600 (kept whatever KEEP ASPECT RATIO): borderless
+  # windows filling gamescope's 800x600 screen (the frontend's panel too: payload frontend_fit.rs),
+  # gamescope fitting it to the screen, black bars on a wide one. Without gamescope the desktop
+  # (EmulationStation's menu) showed, and took the focus, between the frontend's window and the
+  # race's.
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: aspect
   WAL_D3D9_ASPECT: "4:3"
   WAL_D3D9_WINDOWED_SIZE: 800x600
-  WAL_BEZEL: black
 
 input:
   # the wheel must not press the d-pad
