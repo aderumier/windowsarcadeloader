@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games
+## Games (276)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -40,7 +40,18 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) | not in the test |  |
 | `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab | not in the test |  |
 | `time-crisis-5` | Time Crisis 5 | namcoes3 | works (headless tests: coins, pedals, aim and shots, tutorial, operator menu), 1 gun | not in the test |  |
+| `tekken-7` | Tekken 7 | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | not in the test |  |
+| `tekken-7-fated-retribution` | Tekken 7 Fated Retribution | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet | not in the test |  |
+| `tekken-7-fated-retribution-round-2` | Tekken 7 Fated Retribution Round 2 | namcoes3 | works (user: 100%, online with Banapass cards, insignia rate boost), 1 player per cabinet | not in the test |  |
+| `pokken-tournament` | Pokkén Tournament | namcoes3 | user 100% (24.05 with Banapassport cards, 26.02 offline), 1 player per cabinet, English text | not in the test |  |
 | `jojos-bizarre-adventure-last-survivor` | JoJo's Bizarre Adventure - Last Survivor | namcoes3 | works offline (headless tests: system check, coins, start, PP purchase, mode select, operator menu), touch with the mouse, English text; no game server: national / store battles off | not in the test |  |
+| `star-wars-battle-pod` | Star Wars Battle Pod - The Force Awakens | namcoes3 | boots (2026-10-06), not user-verified | not in the test |  |
+| `wangan-midnight-maximum-tune-5` | Wangan Midnight Maximum Tune 5 | namcoes3 | works (user: game works; headless: cards, new player, car, race, save) | not in the test |  |
+| `wangan-midnight-maximum-tune-5dx` | Wangan Midnight Maximum Tune 5DX | namcoes3 | works (user), full screen; cards and game server | not in the test |  |
+| `wangan-midnight-maximum-tune-5dxp` | Wangan Midnight Maximum Tune 5DX+ | namcoes3 | works (user), English; cards and game server | not in the test |  |
+| `wangan-midnight-maximum-tune-6` | Wangan Midnight Maximum Tune 6 | namcoes3 | works (headless tests: card, new player, race, save, attract), not user-verified | not in the test |  |
+| `wangan-midnight-maximum-tune-6r` | Wangan Midnight Maximum Tune 6R | namcoes3 | works (user: 100%) | not in the test |  |
+| `wangan-midnight-maximum-tune-6rr` | Wangan Midnight Maximum Tune 6RR | namcoes3 | works (user: 100%) | not in the test |  |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | pass | 2026-11-01 |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | pass | 2026-11-01 |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | pass | 2026-11-01 |
@@ -137,9 +148,6 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `gouketsuji-ichizoku-typex2` | Gouketsuji Ichizoku - Matsuri Senzo Kuyou | typex | works (user: 100%) | pass | 2026-11-01 |
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) | pass | 2026-11-01 |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade | pass | 2026-11-01 |
-| `harikiri-professional-baseball` | Harikiri Professional Baseball | typex | works (headless tests: coins, touch screen, player registration, test menu and back), offline mode, touch = mouse or gun with a pointer dot | not in the test |  |
-| `usagi-online` | Usagi - Yasei no Toupai Online | typex | works (user: 100%), offline mode, no cards (Taito G-Net cards: TODO), touch = mouse or gun with a pointer dot | pass | 2026-11-02 |
-| `wontertainment-music-channel` | Won!Tertainment Music Channel | typex | works (user: 100%), touch = mouse or gun with a pointer dot, virtual cards on an overlay | not in the test |  |
 | `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test, sound) | pass | 2026-11-01 |
 | `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video fixed with `WAL_D3D9_POW2`) | pass | 2026-11-01 |
 | `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: perfect, in gamescope, guns) | pass | 2026-11-01 |
@@ -159,6 +167,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `spica-adventure` | Spica Adventure | typex | works (user: 100%) | pass | 2026-11-01 |
 | `new-super-mario-bros-wii-coin-world` | New Super Mario Bros. Wii Coin World | typex | works (user: 100%), 4 satellites, medals, hoppers, satellite test menu | pass | 2026-11-01 |
 | `taisen-hot-gimmick-5` | Taisen Hot Gimmick 5: Mirai Eigou | typex | works (user: 100%) | pass | 2026-11-01 |
+| `usagi-online` | Usagi - Yasei no Toupai Online | typex | works (user: 100%), offline mode, no cards (Taito G-Net cards: TODO), touch = mouse or gun with a pointer dot | pass | 2026-11-02 |
+| `wontertainment-music-channel` | Won!Tertainment Music Channel | typex | works (user: 100%), touch = mouse or gun with a pointer dot, virtual cards on an overlay | not in the test |  |
 | `tetris-the-grand-master-3` | Tetris The Grand Master 3 Terror-Instinct | typex | works (user: perfect) | pass | 2026-11-01 |
 | `street-fighter-iv` | Street Fighter IV | typex | works (user: perfect), intro video plays | pass | 2026-11-01 |
 | `super-street-fighter-iv-ae` | Super Street Fighter IV Arcade Edition (export, standalone) | typex | works (user: 100%), intro video plays | pass | 2026-11-01 |
@@ -170,6 +180,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | pass | 2026-11-01 |
 | `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | pass | 2026-11-01 |
 | `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | pass | 2026-11-01 |
+| `harikiri-professional-baseball` | Harikiri Professional Baseball | typex | works (headless tests: coins, touch screen, player registration, test menu and back), offline mode, touch = mouse or gun with a pointer dot | not in the test |  |
 | `fast-and-furious` | The Fast and the Furious | rawthrills | works (user: 100%) | pass | 2026-11-01 |
 | `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | pass | 2026-11-02 |
 | `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | pass | 2026-11-01 |
@@ -217,6 +228,16 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `lets-go-safari` | Let's Go Safari | ringedge | works (user: 100%) | pass | 2026-11-01 |
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) | pass | 2026-11-01 |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | pass | 2026-11-01 |
+| `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | pass | 2026-11-01 |
+| `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | pass | 2026-11-01 |
+| `sega-racing-classic` | SEGA Racing Classic | ringedge | works (user: 100%) | pass | 2026-11-01 |
+| `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%) | pass | 2026-11-01 |
+| `melty-blood-actress-again-current-code-ringwide` | Melty Blood Actress Again Current Code (RingWide) | ringedge | works (user: 100%), 4:3 | pass | 2026-11-01 |
+| `initial-d-arcade-stage-6` | Initial D Arcade Stage 6 AA | ringedge | works (user: full screen, inputs, cards, offline); force feedback not felt on a wheel | pass | 2026-11-01 |
+| `initial-d-arcade-stage-7` | Initial D Arcade Stage 7 AAX | ringedge | works (full screen, cards, offline) | pass | 2026-11-01 |
+| `initial-d-arcade-stage-8` | Initial D Arcade Stage 8 Infinity | ringedge | works (full screen, cards, offline) | pass | 2026-11-01 |
+| `pleasant-goat-and-big-big-wolf-happy-happy-playground` | Pleasant Goat and Big Big Wolf Happy Happy Playground | ringedge | title, attract and coins verified; gameplay, sound, payout not verified | not in the test |  |
+| `puyo-puyo-quest-arcade` | Puyo Puyo!! Quest Arcade | ringedge | work in progress: does not start yet | not in the test |  |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | pass | 2026-11-02 |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user: 100%): the cabinet's shell `Tsunami\TVTSHELL.EXE` (dump `games/arcadepc/revolt`), its console then `ReVolt.exe -coinop`; coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | pass | 2026-11-01 |
@@ -247,6 +268,12 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `lethal-enforcers-3-2p` | Lethal Enforcers 3 (2 players) | konami | works (user: 100%), 2 guns, 2 screens side by side, test menu | pass | 2026-11-01 |
 | `coopers-9` | Cooper's 9 | konami | works (user: 100%), 2 guns, test menu | pass | 2026-11-01 |
 | `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) | pass | 2026-11-01 |
+| `castlevania-the-arcade` | Castlevania: The Arcade | konami | works (user: 100%), Little Witch unlocked; attract movie black | pass | 2026-11-01 |
+| `silent-hill-the-arcade` | Silent Hill: The Arcade | konami | works (user: 100%) | pass | 2026-11-01 |
+| `action-deka` | Action Deka | konami | works (user: 100%) | pass | 2026-11-01 |
+| `hyper-sports-2011-remake` | Hyper Sports 2011 Remake | konami | works (user: 100%) | pass | 2026-11-01 |
+| `thrill-drive-4` | Thrill Drive 4: Crazy Streets | konami | works (user: 100%) | pass | 2026-11-01 |
+| `chase-chase-jokers` | Chase Chase Jokers | konami | works (user: 100%) | pass | 2026-11-01 |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns | pass | 2026-11-01 |
 | `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun | not in the test |  |
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun | not in the test |  |
@@ -256,6 +283,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns | not in the test |  |
 | `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | user 100%, 1 gun | not in the test |  |
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | not in the test |  |
+| `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | not in the test |  |
+| `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | not in the test |  |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | not in the test |  |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | pass | 2026-11-01 |
 | `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | not in the test |  |
@@ -269,11 +298,16 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players | not in the test |  |
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats | not in the test |  |
 | `need-for-speed-heat-takedown` | Need for Speed Heat Takedown | adrenaline | user 100% (2026-11-03), 1 wheel, force feedback, render scale | not in the test |  |
-| `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait; NVIDIA not yet verified | not in the test |  |
+| `hot-wheels-victory-lap` | Hot Wheels: Victory Lap | adrenaline | user 100% (2026-11-04), 1 wheel, force feedback | not in the test |  |
+| `infinity-blade-fx` | Infinity Blade FX | adrenaline | works headless (2026-11-03: coins, start, fight, gun swipes, shield, dodges), 1 player | not in the test |  |
+| `fruit-ninja-fx2` | Fruit Ninja FX 2 | adrenaline | user 100% (2026-11-04), gun slices | not in the test |  |
+| `jetpack-joyride-arcade` | Jetpack Joyride Arcade | adrenaline | user 100% (2026-11-04), 1 player | not in the test |  |
+| `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | not in the test |  |
+| `candy-crush-arcade` | Candy Crush Arcade | adrenaline | works (user: 100%), portrait | not in the test |  |
 | `crossy-road` | Crossy Road | adrenaline | user 100% (2026-11-03), 2 buttons, portrait (1080x1920 desktop fitted to the screen) | not in the test |  |
 | `disney-crossy-road` | Disney Crossy Road | adrenaline | user 100% (2026-11-03), 2 buttons, portrait (64-bit, wal-loader64), stretched bezel | not in the test |  |
-| `flappy-tickets` | Flappy Tickets | adrenaline | user 100% (2026-11-03), 2 buttons, portrait, stretched bezel | not in the test |  |
 | `shooty-skies` | Shooty Skies | adrenaline | user 100% (2026-11-03), 2 joysticks (the game's keys) + buttons, portrait (64-bit), stretched bezel | not in the test |  |
+| `flappy-tickets` | Flappy Tickets | adrenaline | user 100% (2026-11-03), 2 buttons, portrait, stretched bezel | not in the test |  |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | not in the test |  |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | not in the test |  |
 | `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs), 2 camera guns | not in the test |  |
