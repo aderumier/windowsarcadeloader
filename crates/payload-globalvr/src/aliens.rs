@@ -146,9 +146,12 @@ fn call((site, expected): (usize, &[u8]), target: usize) -> bool {
     true
 }
 
-/// Virtual stick axis (-32768..=32767) -> 0..65535.
-fn axis(v: i16) -> i32 {
-    v as i32 + 32768
+/// Virtual stick axes (-32768..=32767, the screen) -> 0..65535 over the picture (fitted to the
+/// screen: payload glview.rs).
+fn aim(x: i16, y: i16) -> (i32, i32) {
+    let f = |v: i16| (v as i32 + 32768) as f32 / 65535.0;
+    let (x, y) = wal_payload_common::screenshot::to_picture(f(x), f(y));
+    ((x * 65535.0) as i32, (y * 65535.0) as i32)
 }
 
 /// `int gun(int gun, u32 *record)` (cdecl): the gun's buttons and position, 1 (gun present).
@@ -171,7 +174,7 @@ unsafe extern "C" fn gun(index: i32, record: *mut u32) -> i32 {
         _ => {}
     });
     // far outside the calibrated range (0..65535 spans the screen)
-    let (x, y) = if offscreen { (-65536, -65536) } else { (axis(stick.axis(Axis::LeftX)), axis(stick.axis(Axis::LeftY))) };
+    let (x, y) = if offscreen { (-65536, -65536) } else { aim(stick.axis(Axis::LeftX), stick.axis(Axis::LeftY)) };
     unsafe {
         *record = buttons;
         *(record as *mut u8).add(0x1ec).cast::<i32>() = x;

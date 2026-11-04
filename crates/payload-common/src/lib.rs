@@ -38,6 +38,8 @@ pub mod font;
 pub mod dshow;
 // where the players' guns point in the game's window
 #[cfg(windows)]
+pub mod glview;
+#[cfg(windows)]
 pub mod gun;
 #[cfg(windows)]
 pub mod iat;
@@ -147,6 +149,7 @@ pub fn start(name: &'static str) {
             screenshot::init();
             window::init();
             workarea::init();
+            glview::init();
             desktop::init();
             bezel::init();
             font::init();
