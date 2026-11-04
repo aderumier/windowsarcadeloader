@@ -13,16 +13,22 @@
 //! middle, y up), the tickets left to pay (0) and the coins inserted since the last frame. The
 //! PC's frames (lamps, motors, tickets to pay) are ignored.
 //!
-//! Natives: `trigger start coin` (each player), `menu ok up down` (the operator's).
+//! Top Gun 2 (`WAL_ARCADEPC_BOARD=jxcamera`, two players) reads the keys at other bits (player
+//! 1: trigger 0, left 1, right 2, weapon change 3, start 4; player 2: start 5, trigger 6, left 7,
+//! right 8, weapon change 9; menu, OK, down, up 20..23: its profile's `native_map`), behind a
+//! SoftKey dongle (`softkey.rs`); its guns are seen by a camera (`jxcamera.rs`).
+//!
+//! Natives: `trigger start coin` (each player; `left right change` too on Top Gun 2), `menu ok
+//! up down` (the operator's).
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use wal_payload_common::mapping::ButtonMap;
 use wal_payload_common::{input, log, serial};
 
-use crate::{demul, mono_imports};
+use crate::{demul, jxcamera, mono_imports, softkey};
 
 const PORT: &str = "COM1";
 const PLAYERS: usize = 4;
@@ -32,6 +38,9 @@ enum Native {
     Trigger,
     Start,
     Coin,
+    Left,
+    Right,
+    Change,
     /// An operator key's bit (20..23).
     Key(u8),
 }
@@ -40,6 +49,9 @@ const NATIVES: &[(&str, Native)] = &[
     ("trigger", Native::Trigger),
     ("start", Native::Start),
     ("coin", Native::Coin),
+    ("left", Native::Left),
+    ("right", Native::Right),
+    ("change", Native::Change),
     ("menu", Native::Key(20)),
     ("ok", Native::Key(21)),
     ("up", Native::Key(22)),
@@ -56,6 +68,28 @@ const DEFAULTS: &[(&str, &str)] = &[
     ("up", "up"),
     ("down", "down"),
 ];
+
+/// Top Gun 2's key layout (`WAL_ARCADEPC_BOARD=jxcamera`).
+static CAMERA: AtomicBool = AtomicBool::new(false);
+
+/// A player's key bit.
+fn bit(native: Native, player: usize) -> Option<u8> {
+    const CAMERA_KEYS: [[u8; 5]; 2] = [[0, 4, 1, 2, 3], [6, 5, 7, 8, 9]];
+    let i = match native {
+        Native::Trigger => 0,
+        Native::Start => 1,
+        Native::Left => 2,
+        Native::Right => 3,
+        Native::Change => 4,
+        Native::Coin | Native::Key(_) => return None,
+    };
+    if CAMERA.load(Ordering::Relaxed) {
+        CAMERA_KEYS.get(player).map(|k| k[i])
+    } else {
+        // Mech Dinosaur, Wisdom Zombies: the triggers 0..3, the start keys 4..7
+        [Some(player as u8), Some(4 + player as u8)].get(i).copied().flatten()
+    }
+}
 
 fn map() -> &'static ButtonMap<Native> {
     static MAP: OnceLock<ButtonMap<Native>> = OnceLock::new();
@@ -120,11 +154,10 @@ fn idle() -> Vec<u8> {
         let stick = input(player);
         let mut coin = false;
         map().for_each_pressed(&stick, |n| match n {
-            Native::Trigger => keys |= 1 << player,
-            Native::Start => keys |= 1 << (4 + player),
             Native::Coin => coin = true,
             Native::Key(bit) if player == 0 => keys |= 1 << bit,
             Native::Key(_) => {}
+            n => keys |= bit(n, player).map_or(0, |b| 1 << b),
         });
         if coin && !state.coins_held[player] {
             data[36 + player] = 1;
@@ -148,18 +181,34 @@ fn handler(_packet: &[u8]) -> Vec<u8> {
 }
 
 fn resolve(name: &str, module: &str) -> Option<usize> {
+    if CAMERA.load(Ordering::Relaxed) && let Some(f) = softkey::resolve(name, module) {
+        return Some(f);
+    }
     if module == "kernel32.dll" { serial::replacement(name) } else { None }
 }
 
-pub fn init() {
+/// `camera`: Top Gun 2 (its key layout, the SoftKey dongle, the camera's gun tracking).
+pub fn init(camera: bool) {
+    CAMERA.store(camera, Ordering::Relaxed);
     serial::install_streaming_in(PORT, handler, idle, &[]);
     mono_imports::hook(resolve);
-    log!("jxboard: JX board on {PORT}");
+    if camera {
+        jxcamera::init();
+    }
+    log!("jxboard: JX board on {PORT}{}", if camera { ", SoftKey dongle, camera guns" } else { "" });
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn key_bits() {
+        assert_eq!((bit(Native::Trigger, 1), bit(Native::Start, 3), bit(Native::Left, 0)), (Some(1), Some(7), None));
+        CAMERA.store(true, Ordering::Relaxed);
+        assert_eq!((bit(Native::Trigger, 1), bit(Native::Start, 1), bit(Native::Change, 0), bit(Native::Trigger, 2)), (Some(6), Some(5), Some(3), None));
+        CAMERA.store(false, Ordering::Relaxed);
+    }
 
     #[test]
     fn frames() {

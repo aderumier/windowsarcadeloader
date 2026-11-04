@@ -1,0 +1,64 @@
+# Top Gun 2: War of Gun (JXCompany "ShotRedLight", Unity 2017.2, Mono, 64-bit, portrait) -
+# template, override values in userprofiles/arcadepc/top-gun-2.yaml.
+# Two camera guns. The payload emulates the cabinet's JX I/O board on COM1 (coins, keys), its
+# SoftKey USB dongle and the camera's gun tracking (docs §6.3i).
+system: arcadepc
+name: Top Gun 2
+
+# Unity's own log beside the game
+args: [-logFile, Player.log]
+
+# the payload loaded at the start (wal-loader64.exe): before Wine's X11 driver
+# (WAL_DESKTOP_UNMANAGED)
+payload_loader: true
+
+# Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+# the cabinet's drive: d:\SettingData.db (settings), AcountData.db (bookkeeping), RankData.db
+drives:
+  d: D
+
+env:
+  WAL_ARCADEPC_BOARD: jxcamera
+  # the cabinet's portrait monitor: the game renders 1080x1920 full screen, fitted to the screen
+  WAL_DESKTOP_SIZE: 1080x1920
+  # where the gun points (the cabinet's camera gun has no sight): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+  # the cabinet art around the picture, its opening fitted to the game
+  WAL_BEZEL: bezel.png
+  WAL_BEZEL_FIT: "1"
+  # its window out of the window manager's hands (a desktop's top bar pushed it down), given
+  # the focus
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+
+# the game's left / right buttons (mode and map selects), weapon change; its board's up and
+# down keys are the other way round
+native_map:
+  b2: left
+  b3: right
+  b4: change
+  up: down
+  down: up
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Left button
+  b3: Right button
+  b4: Weapon change
+  start: Start
+  coin: Coin
+  test: Operator menu
+  service: Operator OK
+  up: Operator up
+  down: Operator down
