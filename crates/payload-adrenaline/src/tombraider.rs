@@ -34,15 +34,16 @@ const EFFECTS: [(&str, &str, &str); 3] = [
 /// shot's ray is the viewport's). `Player.MoveCrosshair` (its one caller, through the player's
 /// `OnCrosshairMove`) is replaced: the viewport divided by the canvas's scale factor.
 static SCALE: AtomicU32 = AtomicU32::new(0x3F80_0000); // 1.0
-static MOVE_FIELDS: AtomicUsize = AtomicUsize::new(0); // m_CrosshairMove | m_ID << 32
+/// `Player`'s `m_CrosshairMove` and `m_ID` offsets.
+static MOVE_FIELDS: [AtomicUsize; 2] = [AtomicUsize::new(0), AtomicUsize::new(0)];
 
 /// Mono's managed calls take the `Vector3` by value on the stack after the register arguments
 /// (`this`, the damage type): the 5th and 6th stack slots (x and y, then z).
 unsafe extern "system" fn move_crosshair(player: mono::P, _kind: i32, _r8: usize, _r9: usize, xy: u64, z: u64) {
     let Some(m) = mono::mono() else { return };
-    let fields = MOVE_FIELDS.load(Ordering::Relaxed);
+    let [delegate, id] = &MOVE_FIELDS;
     let (delegate, id) = unsafe {
-        (mono::read::<usize>(player as *const u8, fields & 0xFFFF_FFFF), mono::read::<i32>(player as *const u8, fields >> 32))
+        (mono::read::<usize>(player as *const u8, delegate.load(Ordering::Relaxed)), mono::read::<i32>(player as *const u8, id.load(Ordering::Relaxed)))
     };
     if delegate == 0 {
         return;
@@ -67,7 +68,8 @@ fn crosshairs(m: &Mono, core: mono::P) {
         let ok = !delegate.is_null()
             && !id.is_null()
             && {
-                MOVE_FIELDS.store(m.offset(delegate) | m.offset(id) << 32, Ordering::Relaxed);
+                MOVE_FIELDS[0].store(m.offset(delegate), Ordering::Relaxed);
+                MOVE_FIELDS[1].store(m.offset(id), Ordering::Relaxed);
                 m.replace(m.method(player, "MoveCrosshair", 2), move_crosshair as *const () as usize)
             };
         log!("tombraider: crosshairs at the aim below 1920x1080 ({})", if ok { "ok" } else { "Player.MoveCrosshair not found" });
