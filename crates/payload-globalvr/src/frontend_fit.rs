@@ -6,8 +6,8 @@
 //! picture and the button bar below). The payload arrives later, with the input library
 //! (`NFSControl.dll` loads `GVRInputRaw.dll`): from the input updates, the frontend's top-level
 //! window is made a borderless popup over the largest centered rectangle of the panel's aspect,
-//! the panel filling it (the whole screen with `WAL_KEEP_ASPECT_RATIO=0`), Direct3D stretching
-//! the picture to it. Checked again every few seconds: the frontend rebuilds its window after
+//! the panel filling it (the whole screen with `WAL_KEEP_ASPECT_RATIO=0`; `WAL_WINDOW_SIZE=aspect`:
+//! always that rectangle, the bezel's strips around), Direct3D stretching the picture to it. Checked again every few seconds: the frontend rebuilds its window after
 //! each race.
 
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -27,7 +27,7 @@ const PANEL: (i32, i32) = (800, 694);
 static UPDATES: AtomicU32 = AtomicU32::new(0);
 
 fn enabled() -> bool {
-    std::env::var("WAL_WINDOW_SIZE").is_ok_and(|v| v.trim() == "screen") && exe_name() == "univershell2.exe"
+    std::env::var("WAL_WINDOW_SIZE").is_ok_and(|v| matches!(v.trim(), "screen" | "aspect")) && exe_name() == "univershell2.exe"
 }
 
 /// The program's file name, lowercase.
@@ -85,7 +85,8 @@ fn fit(window: HWND) {
 
 /// The panel's place: the largest centered rectangle of its aspect, or the whole screen.
 fn panel_rect(sw: i32, sh: i32) -> [i32; 4] {
-    if std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0") {
+    let aspect = std::env::var("WAL_WINDOW_SIZE").is_ok_and(|v| v.trim() == "aspect");
+    if !aspect && std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0") {
         return [0, 0, sw, sh];
     }
     let (w, h) = if sw * PANEL.1 > sh * PANEL.0 { (sh * PANEL.0 / PANEL.1, sh) } else { (sw, sw * PANEL.1 / PANEL.0) };
