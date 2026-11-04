@@ -3,7 +3,9 @@
 //! `KABOOM_DLL_ERROR` byte, 0 no error, the board's id first).
 //!
 //! - **Boards.** Three boards (ids 0-2), two players each (a steering wheel with its motor, a
-//!   pedal, a keypad, a coin door). `KaboomAdrioHotWheels` opens each with `InitLib(board, port,
+//!   pedal, a keypad, a coin door), on the ports listed (COM3 to COM5, `steering.rs`'s list:
+//!   `KaboomManager` takes one a board from `SerialPort.GetPortNames`, the machine's own ports
+//!   hidden). `KaboomAdrioHotWheels` opens each with `InitLib(board, port,
 //!   keyboard, coin, ticket, steering callbacks)` on the first port answering
 //!   `GetTargetVersion` 9 (revision 1143, else it flashes the firmware) and `GetPlayerId` (its
 //!   first player's global id: 2 * board).
@@ -89,6 +91,12 @@ struct Board {
 
 /// Each wheel's servo command (target, power 0..100), none when disengaged.
 static SERVO: Mutex<[Option<(u8, u8)>; 2 * BOARDS]> = Mutex::new([None; 2 * BOARDS]);
+
+/// `WAL_HOTWHEELS_FFB` set (the profile's force feedback strength): the game is Hot Wheels.
+pub fn enabled() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_HOTWHEELS_FFB").is_ok())
+}
 
 /// `WAL_HOTWHEELS_FFB`: the force feedback's strength, percent.
 fn ffb_strength() -> i32 {

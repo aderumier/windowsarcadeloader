@@ -188,7 +188,8 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         // Mono's registry (`Win32RegistryApi`, CharSet Unicode)
         "advapi32.dll" if name == "RegOpenKeyExW" => Some(reg_open_key_ex_w as *const () as usize),
         // Need for Speed's steering board: its port listed, Mono's `SerialPort` on it
-        "advapi32.dll" if steering::enabled() => steering::resolve_advapi32(name),
+        // Hot Wheels: its boards' ports listed
+        "advapi32.dll" if steering::enabled() || hotwheels::enabled() => steering::resolve_advapi32(name),
         "kernel32.dll" if steering::enabled() => steering::resolve_kernel32(name),
         // Candy Crush Arcade: TouchScript's Windows touch input
         "user32.dll" if mouse::enabled() => mouse::resolve(name),
@@ -206,7 +207,7 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
 /// listed and waits for its controller's answer; Wine lists the machine's own ports (Batocera:
 /// COM1 = /dev/ttyS0, where nothing answers: the game hung before its first frame, a white
 /// window). No port, as on a PC without serial ports: no LED controller. Need for Speed Heat
-/// Takedown: its steering board's port only.
+/// Takedown: its steering board's port only; Hot Wheels: Kings of the Road: its three boards'.
 unsafe extern "system" fn reg_open_key_ex_w(key: *mut c_void, sub: *const u16, options: u32, access: u32, result: *mut *mut c_void) -> i32 {
     type F = unsafe extern "system" fn(*mut c_void, *const u16, u32, u32, *mut *mut c_void) -> i32;
     static ORIG: OnceLock<usize> = OnceLock::new();
@@ -214,14 +215,14 @@ unsafe extern "system" fn reg_open_key_ex_w(key: *mut c_void, sub: *const u16, o
         let len = (0..).take_while(|&i| unsafe { *sub.add(i) } != 0).count();
         let name = String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(sub, len) });
         if name.trim_matches('\\').eq_ignore_ascii_case("HARDWARE\\DEVICEMAP\\SERIALCOMM") {
-            if steering::enabled() {
+            if steering::enabled() || hotwheels::enabled() {
                 if !result.is_null() {
                     unsafe { *result = steering::PORTS_KEY as *mut c_void };
                 }
                 // listed again at each of the LED strips and spotlight managers' retries
                 static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
                 if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-                    wal_payload_common::log!("adrenaline: serial port list: the steering board's");
+                    wal_payload_common::log!("adrenaline: serial port list: the emulated boards'");
                 }
                 return 0;
             }
