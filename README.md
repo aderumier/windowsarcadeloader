@@ -49,7 +49,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `wangan-midnight-maximum-tune-5` | Wangan Midnight Maximum Tune 5 | namcoes3 | works (user: game works; headless: cards, new player, car, race, save) | not in the test |  |
 | `wangan-midnight-maximum-tune-5dx` | Wangan Midnight Maximum Tune 5DX | namcoes3 | works (user), full screen; cards and game server | not in the test |  |
 | `wangan-midnight-maximum-tune-5dxp` | Wangan Midnight Maximum Tune 5DX+ | namcoes3 | works (user), English; cards and game server | not in the test |  |
-| `wangan-midnight-maximum-tune-6` | Wangan Midnight Maximum Tune 6 | namcoes3 | works (headless tests: card, new player, race, save, attract), not user-verified | not in the test |  |
+| `wangan-midnight-maximum-tune-6` | Wangan Midnight Maximum Tune 6 | namcoes3 | works (user: 100%), cards and game server | not in the test |  |
 | `wangan-midnight-maximum-tune-6r` | Wangan Midnight Maximum Tune 6R | namcoes3 | works (user: 100%) | not in the test |  |
 | `wangan-midnight-maximum-tune-6rr` | Wangan Midnight Maximum Tune 6RR | namcoes3 | works (user: 100%) | not in the test |  |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | pass | 2026-11-01 |
@@ -180,7 +180,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | pass | 2026-11-01 |
 | `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | pass | 2026-11-01 |
 | `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | pass | 2026-11-01 |
-| `harikiri-professional-baseball` | Harikiri Professional Baseball | typex | works (headless tests: coins, touch screen, player registration, test menu and back), offline mode, touch = mouse or gun with a pointer dot | not in the test |  |
+| `harikiri-professional-baseball` | Harikiri Professional Baseball | typex | works (user: 100%), offline mode, touch = mouse or gun with a pointer dot | not in the test |  |
 | `fast-and-furious` | The Fast and the Furious | rawthrills | works (user: 100%) | pass | 2026-11-01 |
 | `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | pass | 2026-11-02 |
 | `fast-and-furious-supercars` | The Fast and the Furious SuperCars | rawthrills | works (user: 100%) | pass | 2026-11-01 |
