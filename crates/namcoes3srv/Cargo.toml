@@ -9,3 +9,4 @@ version.workspace = true
 rustls = { version = "0.23", default-features = false, features = ["ring", "tls12", "std"] }
 ring = "0.17"
 rcgen = { version = "0.13", default-features = false, features = ["ring"] }
+aes = "0.8"

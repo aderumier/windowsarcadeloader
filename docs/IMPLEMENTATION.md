@@ -2049,6 +2049,20 @@ offline", the test menu's 5-24 / 5-1), the game plays as a guest.
   with the Japanese copies of the same keys. The memory and the fan patch are kept in the
   dump's `translation`. Still Japanese: the catchphrases and pose names (plain strings of the
   `m_words` / `m_pose` data tables) and the text drawn in textures.
+- **Game server (unfinished, off: `WAL_JOJO_ONLINE=1`).** `wal_namcoes3srv::jojo` on the
+  ALL.Net uri: HTTPS POST `<api>` (`sys/serveralive`, `user/login`, ...), a message is the MD5
+  of its MessagePack and a hash key (`AJB `) then the MessagePack: a request `[header map,
+  parameters]`, an answer `[{result, session}, [result, values...]]` read by position (the
+  game's `Response_<Api>`). libcurl checks the certificate: its SAN `127.0.0.1`
+  (`tls_config`), `n.VerifyPeer=0` in the saved `Engine.ini`. The player's session comes from
+  the answer's header map; a guest (`user/create`) gets none and plays offline (the game's
+  `IsOfflineMode`). The Aime reader then holds a card (after a coin, until read: MIFARE
+  blocks, `F:\aime.txt`): "play with this card?", the online mode select (national solo with
+  `sys/national_match_info`). Not done: the sync server the login names (`UNetSocket`: a
+  54-byte header, AES-128-CBC MessagePack, key `0123456789012345`): the game's first message
+  (protocol 20000) gets no answer it takes, and it leaves every ~26 s ("disconnected from the
+  game server"), even in training. National and store battles also need dedicated game
+  servers (`UAJBInGameServerInfo`).
 
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 

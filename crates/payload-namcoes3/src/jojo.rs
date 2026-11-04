@@ -525,6 +525,62 @@ mod touch {
     }
 }
 
+/// The game server (unfinished, `WAL_JOJO_ONLINE=1`): the card login works and the game goes
+/// online, but the sync server's protocol is not known yet (the game leaves every ~26 s,
+/// "disconnected from the game server", even in training); off, the game plays offline as a
+/// guest.
+fn online() -> bool {
+    std::env::var("WAL_JOJO_ONLINE").is_ok_and(|v| v == "1")
+}
+
+/// The player's Aime card (`WAL_NAMCOES3_ACCESS_CODE`, else one made once and kept in
+/// `F:\\aime.txt`), touched like a player does: on the reader for 20 seconds after a coin (the
+/// game reads cards at the title and its card prompt), 3 seconds after the card button, until
+/// the game reads it. `WAL_JOJO_NO_CARD=1`: none (guests only).
+fn card() {
+    if std::env::var("WAL_JOJO_NO_CARD").is_ok_and(|v| v == "1") {
+        return log!("jojo: no card on the reader");
+    }
+    let code = crate::bpreader::player_card_in("F:\\aime.txt").access_code.clone();
+    log!("jojo: card {code}");
+    std::thread::spawn(move || {
+        let (mut coin_held, mut card_held) = (false, false);
+        loop {
+            let input = wal_payload_common::input(0);
+            let (coin, card) = (input.pressed(wal_protocol::button::COIN), input.pressed(wal_protocol::button::CARD));
+            if coin && !coin_held {
+                sgreader::insert(&code, std::time::Duration::from_secs(20));
+            }
+            if card && !card_held {
+                sgreader::insert(&code, std::time::Duration::from_secs(3));
+            }
+            (coin_held, card_held) = (coin, card);
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    });
+}
+
+/// The game's libcurl checks the server's certificate against its CA bundle (the console
+/// variable `n.VerifyPeer`, on by default): the game server's is self-signed. The user's saved
+/// engine config, read after the game's own (and only once the payload is loaded), sets the
+/// variable off (`[SystemSettings]`, where the engine takes console variables from).
+fn no_peer_verification() {
+    let Ok(local) = std::env::var("LOCALAPPDATA") else {
+        return log!("jojo: no LOCALAPPDATA, certificate check left on");
+    };
+    let dir = std::path::Path::new(&local).join("AJB\\Saved\\Config\\WindowsNoEditor");
+    let path = dir.join("Engine.ini");
+    let ini = std::fs::read_to_string(&path).unwrap_or_default();
+    if ini.contains("n.VerifyPeer=0") {
+        return;
+    }
+    let ini = format!("{}\r\n[SystemSettings]\r\nn.VerifyPeer=0\r\n", ini.trim_end());
+    match std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&path, ini)) {
+        Ok(()) => log!("jojo: server certificate check off ({})", path.display()),
+        Err(e) => log!("jojo: {}: {e}", path.display()),
+    }
+}
+
 pub(crate) fn attach(base: usize) {
     GAME_BASE.store(base, Ordering::Relaxed);
     unsafe {
@@ -569,6 +625,9 @@ pub(crate) fn attach(base: usize) {
         None => log!("jojo: libamw GetVolumeInformationW not hooked"),
     }
     sgreader::init("COM1", &[amw]);
+    if online() {
+        card();
+    }
     crate::vfd::init("COM2", &[amw]);
     if std::env::var("WAL_NAMCOES3_AMW_TRACE").is_ok_and(|v| v == "1") {
         amw_trace::init(amw);
@@ -576,6 +635,15 @@ pub(crate) fn attach(base: usize) {
     }
     crate::amcus::settle_idle();
     crate::amcus::set_identity(crate::amcus::Identity { game_id: GAME_ID, game_cd: GAME_CD, game_ver: (28, 2), serial: SERIAL, scheme: "https://", path: "/", net_id: NET_ID });
+    // the store network the game sets up (netsh): its gateway is the content router, which
+    // the game wants apart from the shop's router (else "No Content Router", 5-1)
+    crate::amcus::set_cabinet_network(["192.168.0.1", "192.168.171.1", "192.168.171.2", "255.255.255.0", "192.168.171.1", "192.168.171.1"]);
+    if online() {
+        no_peer_verification();
+        let verbose = std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1");
+        wal_namcoes3srv::jojo::start(&crate::amcus::game_server(), "F:\\jojosrv", |line| log!("{line}"), verbose);
+        wal_namcoes3srv::jojo::start_sync("127.0.0.1:9003");
+    }
     let winusio = module("winusio.dll");
     if winusio == 0 {
         log!("jojo: winusio.dll not loaded, no I/O board");
@@ -836,8 +904,69 @@ mod probe {
         name(at - 0x18)
     }
 
+    static OFFLINE: AtomicUsize = AtomicUsize::new(0);
+    static OFFLINE_LAST: AtomicUsize = AtomicUsize::new(usize::MAX);
+
+    /// `UAJBNetworkObserver::IsOfflineMode` (0x4ed5d0): the flags it reads, when they change
+    /// (the game instance from 0x49bca0: its observer at +0x3c8, a state at +0xc0).
+    unsafe extern "C" fn is_offline_mode(ctx: usize) -> u8 {
+        let real: unsafe extern "C" fn(usize) -> u8 = unsafe { std::mem::transmute(OFFLINE.load(Ordering::Relaxed)) };
+        let r = unsafe { real(ctx) };
+        let get_gi: unsafe extern "C" fn(usize) -> usize = unsafe { std::mem::transmute(BASE.load(Ordering::Relaxed) + 0x49bca0) };
+        let gi = unsafe { get_gi(ctx) };
+        if gi != 0 {
+            let b = |p: usize| unsafe { *(p as *const u8) } as usize;
+            let (obs, st, b8) = unsafe { (*((gi + 0x3c8) as *const usize), *((gi + 0xc0) as *const usize), *((gi + 0xb8) as *const usize)) };
+            let v = [b(b8 + 0x14d), b(b8 + 0x150), b(obs + 0x1e0), b(obs + 0x3b), b(obs + 0x3c), b(st + 0xfa), b(st + 0xfb), b(st + 0xd4)];
+            let fstr = |p: usize| -> String {
+                let (data, num) = unsafe { (*(p as *const *const u16), *((p + 8) as *const i32)) };
+                if data.is_null() || num <= 1 { String::new() } else { String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(data, num as usize - 1) }) }
+            };
+            let (session, user) = (fstr(gi + 0xd0), fstr(gi + 0xe0));
+            let (sync_host, sync_port) = (fstr(gi + 0xd0 + 0x110), unsafe { *((gi + 0xd0 + 0x120) as *const i32) });
+            let key = v.iter().fold(r as usize, |a, x| a << 4 | (x & 15)) ^ (sync_port as usize) << 40 ^ session.len() << 56;
+            if OFFLINE_LAST.swap(key, Ordering::Relaxed) != key {
+                log!("probe: offline {r}: b8+14d {} b8+150 {} maint {} obs+3b {} obs+3c {} st+fa {} st+fb {} st+d4 {} session {session:?} user {user:?} sync {sync_host}:{sync_port}", v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]);
+            }
+        }
+        r
+    }
+
+    static SOCKET_CONNECT: AtomicUsize = AtomicUsize::new(0);
+
+    /// `UNetSocket::Connect` (0x228830): the host and port (FStrings) the game connects to.
+    unsafe extern "C" fn socket_connect(this: usize, ctx: usize, host: usize, port: usize, a: usize, b: usize) -> usize {
+        let real: unsafe extern "C" fn(usize, usize, usize, usize, usize, usize) -> usize = unsafe { std::mem::transmute(SOCKET_CONNECT.load(Ordering::Relaxed)) };
+        let fstr = |p: usize| -> String {
+            if p == 0 { return "null".into() }
+            let (data, num) = unsafe { (*(p as *const *const u16), *((p + 8) as *const i32)) };
+            if data.is_null() || num <= 1 { String::new() } else { String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(data, num as usize - 1) }) }
+        };
+        log!("probe: socket connect {}:{}", fstr(host), fstr(port));
+        unsafe { real(this, ctx, host, port, a, b) }
+    }
+
+    static CONNECT: AtomicUsize = AtomicUsize::new(0);
+
+    /// `ws2_32!connect`: the address (IPv4) each socket connects to.
+    unsafe extern "system" fn connect(s: usize, name: *const u8, len: i32) -> i32 {
+        let real: unsafe extern "system" fn(usize, *const u8, i32) -> i32 = unsafe { std::mem::transmute(CONNECT.load(Ordering::Relaxed)) };
+        if !name.is_null() && len >= 8 {
+            let b = unsafe { std::slice::from_raw_parts(name, 8) };
+            if b[0] == 2 {
+                log!("probe: connect {}.{}.{}.{}:{}", b[4], b[5], b[6], b[7], u16::from_be_bytes([b[2], b[3]]));
+            }
+        }
+        unsafe { real(s, name, len) }
+    }
+
     pub(super) fn init(base: usize) {
         BASE.store(base, Ordering::Relaxed);
+        if let Some(o) = unsafe { wal_payload_common::iat::hook_ordinal(base, "WS2_32.dll", 4, connect as *const () as usize) } {
+            CONNECT.store(o, Ordering::Relaxed);
+        }
+        OFFLINE.store(detour(base, 0x4ed5d0, 15, is_offline_mode as *const () as usize), Ordering::Relaxed);
+        SOCKET_CONNECT.store(detour(base, 0x228830, 15, socket_connect as *const () as usize), Ordering::Relaxed);
         ADD_ACTION_MAPPING.store(detour(base, 0x1793c60, 15, add_action_mapping as *const () as usize), Ordering::Relaxed);
         INVOKE.store(detour(base, 0x70dbf0, 15, invoke as *const () as usize), Ordering::Relaxed);
         STRCMP.store(detour(base, 0x1e09c0, 13, strcmp as *const () as usize), Ordering::Relaxed);

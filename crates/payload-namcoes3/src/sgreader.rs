@@ -7,7 +7,43 @@
 //! and the payload; an answer's a status and a payload length before it. Two units on the line:
 //! the NFC reader (address 0) and its LED board (address 8).
 
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
 use wal_payload_common::log;
+
+/// The card on the reader (an Aime card's access code, 10 BCD bytes), until when.
+static CARD: Mutex<Option<([u8; 10], Instant)>> = Mutex::new(None);
+
+/// Puts the card of `access_code` (20 digits) on the reader for `time`.
+pub(crate) fn insert(access_code: &str, time: Duration) {
+    let d = access_code.as_bytes();
+    if d.len() != 20 || !d.iter().all(u8::is_ascii_digit) {
+        return log!("sgreader: access code {access_code:?} is not 20 digits");
+    }
+    let mut bcd = [0u8; 10];
+    for (b, pair) in bcd.iter_mut().zip(d.chunks(2)) {
+        *b = (pair[0] - b'0') << 4 | (pair[1] - b'0');
+    }
+    *CARD.lock().unwrap() = Some((bcd, Instant::now() + time));
+}
+
+fn card() -> Option<[u8; 10]> {
+    CARD.lock().unwrap().filter(|(_, until)| Instant::now() < *until).map(|(c, _)| c)
+}
+
+/// An Aime card's MIFARE blocks 0..=3 (bananatools' `iccard/aime.c`): the UID (its first 4
+/// bytes), `SBSD`, the access code at block 2's byte 6.
+fn block(code: &[u8; 10], n: u8) -> [u8; 16] {
+    let mut b = [0u8; 16];
+    match n {
+        0 => b[..4].copy_from_slice(&code[..4]),
+        1 => b[..4].copy_from_slice(b"SBSD"),
+        2 => b[6..].copy_from_slice(code),
+        _ => {}
+    }
+    b
+}
 
 /// The reader (generation 3): hardware and firmware versions, the LED board's info.
 const HW_VERSION: &[u8] = b"837-15396";
@@ -67,8 +103,23 @@ fn nfc(req: &[u8]) -> Option<Vec<u8>> {
         0x62 => answer(req, 3, &[]),
         0x30 => answer(req, 0, FW_VERSION),
         0x32 => answer(req, 0, HW_VERSION),
-        // poll: no card
-        0x42 => answer(req, 0, &[0]),
+        // poll: a MIFARE target (type 0x10, its 4-byte UID) or none
+        0x42 => match card() {
+            Some(code) => answer(req, 0, &[1, 0x10, 4, code[0], code[1], code[2], code[3]]),
+            None => answer(req, 0, &[0]),
+        },
+        // read block (UID, block number)
+        0x52 => match (card(), payload.get(4)) {
+            (Some(code), Some(&n)) => {
+                // the access code read: the card leaves the reader (a touch)
+                if n == 2 {
+                    *CARD.lock().unwrap() = None;
+                    log!("sgreader: card read");
+                }
+                answer(req, 0, &block(&code, n))
+            }
+            _ => answer(req, 1, &[]),
+        },
         // authenticate, firmware data (0x2b bytes: "the firmware is identical")
         0x51 | 0x55 => answer(req, 0, &[]),
         0x61 => answer(req, if payload.len() == 0x2b { 0x20 } else { 0 }, &[]),
