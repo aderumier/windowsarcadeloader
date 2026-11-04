@@ -17,9 +17,14 @@ dll_overrides:
 args: [-screen-fullscreen, "1", -screen-width, "{WAL_RESOLUTION.width}", -screen-height, "{WAL_RESOLUTION.height}"]
 
 env:
-  WAL_RESOLUTION: 1920x1080
-  WAL_TOMBRAIDER_POSTPROCESS: "0"
+  WAL_RESOLUTION: 1280x720
+  # Wine's full screen mode emulation scales a lower mode to the screen with AMD FSR 1
+  WINE_FULLSCREEN_FSR: "1"
+  WAL_TOMBRAIDER_SHADOWS: "off"
 
+# An integrated Radeon 860M (15 W) holds 60 frames per second at 1280x720 + FSR without the
+# shadows; the frame's costs at 1920x1080 (game mode screen, 22.6 ms): shadows 4.4 ms,
+# post-processing 3.6 ms, fog 1.2 ms, water reflection 0.4 ms.
 options:
   - title: Display
     options:
@@ -28,16 +33,39 @@ options:
         kind: choice
         choices: [1280x720, 1600x900, 1920x1080]
         description: >-
-          The game's full screen mode. 1920x1080 is the cabinet's; 1280x720 is lighter on small
-          GPUs (an integrated Radeon 860M: 35-42 frames per second at 1920x1080, 47-57 at
-          1280x720, the game aims at 60).
+          The game's 3D picture resolution, scaled to the screen (FSR upscaling below).
+          1920x1080 is the cabinet's; 1280x720 (the default) is lighter on small GPUs (an
+          integrated Radeon 860M: 60 frames per second with the shadows off, 35-42 at
+          1920x1080 with every effect).
+      - key: WINE_FULLSCREEN_FSR
+        label: FSR upscaling
+        kind: bool
+        description: >-
+          A resolution under the screen's upscaled with AMD FSR 1 (sharper than a plain
+          stretch). On (the default); no effect at the screen's own resolution.
+      - key: WAL_TOMBRAIDER_SHADOWS
+        label: Shadows
+        kind: choice
+        choices: ["on", low, "off"]
+        description: >-
+          The real-time shadows, the heaviest effect: on (the game's high resolution, two
+          cascades), low (low resolution, no cascades) or off (the default).
       - key: WAL_TOMBRAIDER_POSTPROCESS
         label: Post-processing
         kind: bool
         description: >-
-          The gameplay camera's effects (ambient occlusion, bloom, colour grading) and
-          volumetric fog. Off (the default): a flatter, greyer picture, a few frames per
-          second more on small GPUs (Radeon 860M at 1920x1080: 40-47 instead of 35-42).
+          Every camera's ambient occlusion, bloom, depth of field and colour grading. On (the
+          default); off: a flatter, greyer picture, lighter.
+      - key: WAL_TOMBRAIDER_FOG
+        label: Volumetric fog
+        kind: bool
+        description: The fog and mist layers. On (the default).
+      - key: WAL_TOMBRAIDER_REFLECTION
+        label: Water reflection
+        kind: bool
+        description: >-
+          The water's planar reflection (the scene rendered a second time). On (the
+          default).
 
 input:
   # each player's gun (or mouse) aims, its trigger shoots
