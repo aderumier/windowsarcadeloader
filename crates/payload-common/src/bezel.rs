@@ -10,6 +10,9 @@
 //! it was kept above it by the window manager (GNOME: a full-screen window's layer), and
 //! transparency needs a compositor. The image is decoded with GDI+, loaded at run time.
 //!
+//! The strips hide while a window of another program is in front (a game started by its
+//! frontend: the frontend's strips covered the race's sides).
+//!
 //! `WAL_BEZEL_FIT=1`: the image's opening (the dark area at its center: black or transparent)
 //! fitted to the game's window. The image keeps its scale (fitted to the screen's height); its
 //! parts left and right of the opening are drawn against the window's left and right edges
@@ -30,7 +33,7 @@ use windows_sys::Win32::Graphics::Gdi::{
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
 use windows_sys::Win32::System::Threading::GetCurrentProcessId;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumWindows, GetClientRect, GetMessageW, GetSystemMetrics,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumWindows, GetClientRect, GetForegroundWindow, GetMessageW, GetSystemMetrics,
     GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, MSG, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_HIDE,
     SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOZORDER, SetTimer, SetWindowPos, ShowWindow, TranslateMessage, WM_ERASEBKGND,
     WM_PAINT, WM_TIMER, WNDCLASSW, WS_EX_NOACTIVATE, WS_POPUP,
@@ -262,6 +265,22 @@ fn run(image: HBITMAP) {
             DispatchMessageW(&msg);
         }
         if timer == 0 || msg.message != WM_TIMER {
+            continue;
+        }
+        // another program in front (the race Need for Speed Underground's frontend starts, with a
+        // bezel of its own): hidden, placed again when the program's window is back in front
+        let front = unsafe { GetForegroundWindow() };
+        let mut pid = 0;
+        if !front.is_null() {
+            unsafe { GetWindowThreadProcessId(front, &mut pid) };
+        }
+        if !front.is_null() && pid != unsafe { GetCurrentProcessId() } {
+            if placed.take().is_some() {
+                for strip in &STRIPS {
+                    unsafe { ShowWindow(strip.load(Ordering::Relaxed) as HWND, SW_HIDE) };
+                }
+                log!("bezel: hidden (another program in front)");
+            }
             continue;
         }
         let game = game_window();

@@ -57,14 +57,14 @@ hide: [dinput8.dll]
 env:
   # the game's own controllers off: the wheel, pedals and buttons come from GVRInputRaw.dll
   WAL_DINPUT_DISABLE: "1"
-  # The frontend and the race draw 800x600: a borderless screen-sized window the back buffer is
-  # stretched to, presented to a centered 4:3 rectangle (black bars); WAL_KEEP_ASPECT_RATIO "0"
-  # (Batocera ES: KEEP ASPECT RATIO off): the whole screen.
+  # The frontend and the race draw 800x600 (4:3, kept whatever KEEP ASPECT RATIO): borderless
+  # windows the size of the screen's centered 4:3 rectangle the back buffer is stretched to, black
+  # around (the bezel's strips).
   WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_SIZE: aspect
   WAL_D3D9_ASPECT: "4:3"
   WAL_D3D9_WINDOWED_SIZE: 800x600
-  WAL_KEEP_ASPECT_RATIO: "1"
+  WAL_BEZEL: black
 
 input:
   # the wheel must not press the d-pad
