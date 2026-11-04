@@ -24,6 +24,13 @@
 //! right click / gun's second button) on the block zone (`SwordShieldBlock`: x 0.41-0.59,
 //! y 0.80-1.0), `dodge_left` / `dodge_right` (left / right: the arrow keys, the gun's d-pad) on
 //! the dodge arrows (`SwordDodgeLeft` / `Right`: the bottom corners, 0.11 x 0.12).
+//!
+//! Fruit Ninja FX 2 (native, the same imports; it asks the resolution but takes client pixels):
+//! the fruit is cut by swipes, a light gun's shot is a point. `WAL_GUN_SLICE=<length>` (the
+//! profile's "Gun slice" option, a fraction of the picture's height) makes each trigger pull a
+//! slice ([`Slicer`]): down at the aim, out half the length, back through the aim to the other
+//! side, back to the aim, in 8 frames (~130 ms), whether the trigger is still held or not; held,
+//! the finger then follows the gun.
 
 use std::ffi::{CStr, c_void};
 use std::sync::{Mutex, Once};
@@ -73,6 +80,94 @@ static NATIVE: AtomicBool = AtomicBool::new(false);
 fn swipe_gain() -> f32 {
     static GAIN: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
     *GAIN.get_or_init(|| std::env::var("WAL_GUN_SWIPE").ok().and_then(|v| v.trim().parse().ok()).filter(|g: &f32| *g >= 1.0).unwrap_or(1.0))
+}
+
+/// `WAL_GUN_SLICE`: the length of the slice a trigger pull draws (a fraction of the picture's
+/// height; 0: none, the finger only follows the gun).
+fn slice_length() -> f32 {
+    static LENGTH: std::sync::OnceLock<f32> = std::sync::OnceLock::new();
+    *LENGTH.get_or_init(|| std::env::var("WAL_GUN_SLICE").ok().and_then(|v| v.trim().parse().ok()).filter(|l: &f32| *l >= 0.0).unwrap_or(0.0).min(1.0))
+}
+
+/// The frames of a slice (16 ms each).
+const SLICE_FRAMES: usize = 8;
+/// The gun's places kept for its direction (16 ms apart).
+const TRAIL: usize = 6;
+
+/// A player's slices: at a trigger pull the finger goes down where the gun points, out half the
+/// slice's length one way, back through the aim to the other side and back to the aim, in
+/// [`SLICE_FRAMES`] frames: a light gun's shot is a slice through the aim (the fruit there cut),
+/// a quick pull too, and a button there gets its finger down and up on it. The slice's direction
+/// is the gun's move over its last [`TRAIL`] frames, else diagonals in turn.
+#[derive(Default)]
+struct Slicer {
+    /// The gun's last places on the picture.
+    trail: std::collections::VecDeque<(f32, f32)>,
+    /// The slice: its aim, half its extent (fractions of the picture), its next frame.
+    slice: Option<((f32, f32), (f32, f32), usize)>,
+    /// The diagonal of the next still gun's slice.
+    rising: bool,
+    /// The slice's last frame was the previous one.
+    ended: bool,
+    finished: bool,
+}
+
+impl Slicer {
+    fn track(&mut self, aim: Option<(f32, f32)>) {
+        match aim {
+            Some(at) => {
+                if self.trail.len() == TRAIL {
+                    self.trail.pop_front();
+                }
+                self.trail.push_back(at);
+            }
+            None => self.trail.clear(),
+        }
+    }
+
+    fn start(&mut self, aim: Option<(f32, f32)>, length: f32) {
+        let Some(aim) = aim else { return };
+        // pixels: the picture's aspect
+        let aspect = gun::client_area(gun::find_window()).map_or(16.0 / 9.0, |(_, _, w, h)| w / h);
+        let moved = match (self.trail.front(), self.trail.back()) {
+            (Some(a), Some(b)) => ((b.0 - a.0) * aspect, b.1 - a.1),
+            _ => (0.0, 0.0),
+        };
+        let norm = moved.0.hypot(moved.1);
+        let dir = if norm > 0.02 {
+            (moved.0 / norm, moved.1 / norm)
+        } else {
+            self.rising = !self.rising;
+            (0.866, if self.rising { -0.5 } else { 0.5 })
+        };
+        let half = length / 2.0;
+        self.slice = Some((aim, (dir.0 * half / aspect, dir.1 * half), 0));
+    }
+
+    /// The finger's place in this frame of the slice, `None` without one.
+    fn next(&mut self) -> Option<(f32, f32)> {
+        let Some((aim, half, frame)) = self.slice.as_mut() else {
+            self.ended = std::mem::take(&mut self.finished);
+            return None;
+        };
+        self.ended = false;
+        // along the stroke: 0 (the aim), out to 1, back through 0 to -1, back to 0
+        let t = *frame as f32 / SLICE_FRAMES as f32;
+        let s = if t < 0.25 { 4.0 * t } else if t < 0.75 { 2.0 - 4.0 * t } else { 4.0 * t - 4.0 };
+        let at = ((aim.0 + half.0 * s).clamp(0.0, 0.999), (aim.1 + half.1 * s).clamp(0.0, 0.999));
+        *frame += 1;
+        if *frame > SLICE_FRAMES {
+            self.slice = None;
+            self.finished = true;
+        }
+        Some(at)
+    }
+
+    /// The slice ended in the previous frame (the finger, still down, follows the gun from here):
+    /// valid after [`Slicer::next`].
+    fn ended(&self) -> bool {
+        self.ended
+    }
 }
 
 /// The reported resolution: 0.6 times the screen's.
@@ -213,6 +308,9 @@ fn touch_thread() {
     let mut last = [(0, 0); FINGERS];
     let mut anchor = [(0.0, 0.0); PLAYERS];
     let gain = swipe_gain();
+    let slice_len = slice_length();
+    let mut slicer: [Slicer; PLAYERS] = Default::default();
+    let mut was_pressed = [false; PLAYERS];
     let mut frame_id = 0i32;
     let mut sent = false;
     loop {
@@ -240,14 +338,23 @@ fn touch_thread() {
                 }
                 continue;
             }
-            let gun = if held(player, Native::Touch) { gun::gun_of_player_in_picture(player) } else { None };
+            let pressed = held(player, Native::Touch);
+            let aim = gun::gun_of_player_in_picture(player);
+            slicer[player].track(aim);
+            if pressed && !was_pressed[player] && slice_len > 0.0 {
+                slicer[player].start(aim, slice_len);
+            }
+            was_pressed[player] = pressed;
+            // a slice runs to its end, the trigger held or not
+            let sliced = slicer[player].next();
+            let gun = if pressed && sliced.is_none() { aim } else { None };
             if let Some(gun) = gun
-                && !down[player]
+                && (!down[player] || slicer[player].ended())
             {
                 anchor[player] = gun;
             }
-            let at = gun.and_then(|gun| finger(swiped(gun, anchor[player], gain)));
-            if held(player, Native::Touch) && at.is_none() {
+            let at = sliced.or_else(|| gun.map(|gun| swiped(gun, anchor[player], gain))).and_then(finger);
+            if pressed && at.is_none() {
                 static ONCE: Once = Once::new();
                 ONCE.call_once(|| log!("pqmt: P{} touch held off the picture (gun {gun:?}, window {:?})", player + 1, gun::client_area(gun::find_window())));
             }
@@ -319,7 +426,7 @@ pub fn hook_imports() -> bool {
     }
     if hooked > 0 {
         NATIVE.store(true, Ordering::Relaxed);
-        log!("pqmt: the executable's {hooked} client imports hooked (native game), swipe gain {}", swipe_gain());
+        log!("pqmt: the executable's {hooked} client imports hooked (native game), swipe gain {}, slice {}", swipe_gain(), slice_length());
     }
     hooked > 0
 }

@@ -4271,6 +4271,44 @@ touch screen sword game: swipes swing the sword, taps block and dodge. The dump'
   Full screen from `-ResX= -ResY= -fullscreen` (the Resolution option).
 - **Play (headless).** 4 coins a credit, touch: title, single player, the fight.
 
+#### Fruit Ninja FX 2
+
+Halfbrick's own engine ("Mortar", native, 32-bit, Direct3D 9), the touch screen fruit slicing
+game. The dump's `DataPC\Fruit Ninja FX 2 Arcade.exe` is an AutoHotkey script running
+`FruitNinja_2010_ATeamBuild_patch.exe` (not wrapped by the dongle's envelope):
+`fruit-ninja-fx2.windowsloader` points at the latter. It imports no `xinput1_3.dll`:
+`payload_loader: true`. Saves (`ArcadeCoins.json`, operator settings...) in `..\` (the dump's
+root).
+
+- **Touch frame.** `PQMTClient.dll` imported, as Infinity Blade FX: `pqmt.rs` through IAT
+  hooks. The game asks the resolution but takes the points in client pixels (native mode).
+  Several players' fingers at once (one per gun).
+- **Gun slice.** A gun's shot is a point, the fruit is cut by swipes: `WAL_GUN_SLICE=<length>`
+  (profile option, default 0.25 of the picture's height) makes each trigger pull a slice
+  (`pqmt.rs` `Slicer`): down at the aim, out half the length, back through the aim to the
+  other side, back to the aim, 8 frames of 16 ms, run to its end even if the trigger is
+  released; held, the finger then follows the gun. Its direction is the gun's move over the
+  last 6 frames, else alternate 30° diagonals. Menu buttons (powers, START's melon, the
+  operator menu's arrows) get their finger down and up on the aim. Headless: random shots over
+  a 60 s round cut 42 fruit.
+- **Kaboom board.** Built in, on `\\.\COMn` (COM1-19): the game opens the first port answering
+  command 24 (the board's version, two words: `kaboom.rs` answers 2, 2), then polls 6 (keypad:
+  the operator menu), 12 / 13 (coins), 11 (feeder). 4 coins a game (operator setting).
+- **Dongle.** `matrix32.dll` by ordinal: Infinity Blade's #40 #41 #55 #61 and #36
+  `GetVersionAPI`, #50 `Dongle_Find`, #52 `Dongle_Version`.
+- **Figurine portal (`fruitninja.rs`).** `NfcReader.dll` (cdecl, C++ names) opens COM19 down
+  to COM1 itself (the machine's real ports): its imports answered "no reader" (`NfcOpen` 0).
+  The power is picked on the screen instead.
+- **Heap slack.** The game's bilinear image scaler (`+0x5b0a10`, at load) reads the next source
+  row at the last one, a row past the buffer: on Wine a large block can end at a page's end
+  (access violation at start, 2 runs in 7). The executable's `HeapAlloc` / `HeapReAlloc`
+  blocks of 64 KB and more get 64 KB more (8 runs in 8 clean).
+- **ReShade.** The dump's `d3d9.dll` + `ReShade.ini` (its shaders not in the dump) hidden:
+  Wine's Direct3D 9, the common crosshair.
+- **Fruit Ninja FX (the first one).** Its `FruitNinja.exe` is wrapped by the Matrix envelope
+  (all sections encrypted, the stub opens the HID dongle `vid_845e` then shows a Retry box): the
+  code's key is in the dongle, not supported without an unwrapped executable.
+
 #### Jetpack Joyride Arcade
 
 Halfbrick's own engine (native, 32-bit, Direct3D 9). On the cabinet `C:\Joyride\Joyride.bat`
@@ -4983,6 +5021,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `need-for-speed-heat-takedown` | Need for Speed Heat Takedown | adrenaline | user 100% (2026-11-03), 1 wheel, force feedback | Sarbakan's driving game (Unity 2021.2, Mono, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its steering board on COM3 (Mono's `SerialPort`: the port listed in the registry, the wheel, pedals, nitro, keypad, coins; the car info played as force feedback) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `hot-wheels-victory-lap` | Hot Wheels: Victory Lap | adrenaline | user 100% (2026-11-04), 1 wheel, force feedback | Sarbakan's driving game (Unity 6 IL2CPP, 64-bit, §6.3k): NFS Heat Takedown's steering board on COM3 through the game's `RS_232_DLL.dll` (the payload's), Matrix dongle, webcam pictures off; Wine's `winhttp` (no third-party patch) |
 | `infinity-blade-fx` | Infinity Blade FX | adrenaline | works headless (2026-11-03: coins, start, fight, gun swipes, shield, dodges), 1 player | Adrenaline's touch screen sword game (Unreal Engine 3, 32-bit, §6.3k): the payload (`xinput1_3.dll`, imported by the game) hooks its PQ Labs client and Matrix dongle imports, answers its built-in Kaboom board on the serial port; gun swipe gain option; engine ini without joysticks, Direct3D 9 |
+| `fruit-ninja-fx2` | Fruit Ninja FX 2 | adrenaline | user 100% (2026-11-04), gun slices | Halfbrick's touch screen game (native, 32-bit, §6.3k): Infinity Blade FX's PQ Labs client, Matrix ordinals and built-in Kaboom board (version command 24); each gun pull draws a slice (`WAL_GUN_SLICE` option); figurine portal without a reader; heap slack for its scaler; ReShade hidden |
 | `jetpack-joyride-arcade` | Jetpack Joyride Arcade | adrenaline | user 100% (2026-11-04), 1 player | Adrenaline's one-button game (Halfbrick's native engine, 32-bit, §6.3k): the dump's unwrapped `mgjp_standalone.exe` (the original is in the Matrix dongle's envelope), run in `C:\Joyride\DataPC` (saves in the dump's `Saves`); the payload (wal-loader) hooks its dongle imports and its `GetProcAddress` for `KaboomComDll.dll` (keypad and coin callbacks), the removed `InitLib` call patched back |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |

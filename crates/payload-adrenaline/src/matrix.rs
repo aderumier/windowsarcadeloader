@@ -13,7 +13,8 @@
 //!   of our decryption of `KEY` and `IV` into those hashes: the check passes with a key of its
 //!   own, the same every run, and the saves (operator settings, free play) are read back.
 //! - Infinity Blade FX (native): the executable imports `Init_MatrixAPI` (#40),
-//!   `Dongle_Count` (#55) and `Dongle_ReadSerNr` (#61) by ordinal ([`hook_ordinals`]).
+//!   `Dongle_Count` (#55) and `Dongle_ReadSerNr` (#61) by ordinal ([`hook_ordinals`]); Fruit
+//!   Ninja FX 2 also `GetVersionAPI` (#36), `Dongle_Find` (#50) and `Dongle_Version` (#52).
 //! - Jetpack Joyride Arcade (native): the executable imports them by name, with
 //!   `GetVersionAPI`, `Dongle_Find` and `Dongle_Version` ([`hook_names`]).
 
@@ -156,7 +157,16 @@ pub fn resolve(name: &str) -> Option<usize> {
 pub fn hook_ordinals() {
     let exe = wal_payload_common::iat::game_module();
     let mut hooked = 0;
-    for (ordinal, name) in [(40, "Init_MatrixAPI"), (41, "Release_MatrixAPI"), (55, "Dongle_Count"), (56, "Dongle_ReadData"), (61, "Dongle_ReadSerNr")] {
+    for (ordinal, name) in [
+        (36, "GetVersionAPI"),
+        (40, "Init_MatrixAPI"),
+        (41, "Release_MatrixAPI"),
+        (50, "Dongle_Find"),
+        (52, "Dongle_Version"),
+        (55, "Dongle_Count"),
+        (56, "Dongle_ReadData"),
+        (61, "Dongle_ReadSerNr"),
+    ] {
         if let Some(f) = resolve(name)
             && unsafe { wal_payload_common::iat::hook_ordinal(exe, "matrix32.dll", ordinal, f) }.is_some()
         {

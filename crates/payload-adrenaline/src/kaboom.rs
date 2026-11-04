@@ -263,6 +263,8 @@ fn serial_packet(request: &[u8]) -> Vec<u8> {
         }
         12 => data(&[COINS[0].load(Ordering::Relaxed), COINS[1].load(Ordering::Relaxed)]),
         13 => data(&[COINS[0].swap(0, Ordering::Relaxed), COINS[1].swap(0, Ordering::Relaxed)]),
+        // the board's version (Fruit Ninja FX 2 opens the first port answering it): two words
+        24 => data(&[2, 2]),
         // the library's others (unused by the game): the request's data echoed
         _ => {
             log!("kaboom: serial command {command}");
