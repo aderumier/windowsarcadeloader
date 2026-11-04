@@ -1,6 +1,7 @@
 //! The steering board of Need for Speed Heat Takedown (Sarbakan's "AAG-04-0001" board: the
 //! wheel with its motor, the pedals, the nitro button, the operator's keypad, the coin door),
-//! emulated on a serial port (`WAL_NFS_FFB` set: the profile's force feedback strength).
+//! emulated on a serial port (`WAL_NFS_FFB` set: the profile's force feedback strength). Hot
+//! Wheels: Victory Lap has the same board, opened with `RS_232_DLL.dll` (`rs232.rs`).
 //!
 //! - **Port.** `SteeringManager` lists the ports (`SerialPort.GetPortNames`: the registry's
 //!   `HARDWARE\DEVICEMAP\SERIALCOMM`, here a single [`PORT`]), skips COM1 and opens each

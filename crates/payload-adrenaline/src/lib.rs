@@ -38,6 +38,8 @@
 //!   is its steering board on a serial port (the wheel and its motor, the pedals, the nitro
 //!   button, the operator's keypad, the coin door); `hdrp.rs` its render scale (HDRP's dynamic
 //!   resolution, FSR upscaling).
+//! - Hot Wheels: Victory Lap (Unity 6, IL2CPP, 64-bit): the same steering board, on the game's
+//!   RS-232 library (`rs232.rs`: `RS_232_DLL.dll`); its webcam pictures off (`victorylap.rs`).
 //!
 //! - Drakon: Realm Keepers (Unity 2021.3, IL2CPP, 64-bit): two turrets. `drakon.rs` replaces
 //!   its input code (the turrets' aim and triggers, the cabinet's keyboard keys) through
@@ -66,10 +68,13 @@ mod mouse;
 mod screen;
 #[cfg(target_pointer_width = "32")]
 mod pqmt;
+mod rs232;
 mod sixense;
 mod steering;
 mod stick_keys;
 mod tombraider;
+#[cfg(target_pointer_width = "64")]
+mod victorylap;
 
 use std::ffi::c_void;
 use std::sync::OnceLock;
@@ -179,6 +184,7 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
     #[cfg(target_pointer_width = "64")]
     if module == "matrix64.dll" {
         drakon::init();
+        victorylap::init();
     }
     match module {
         #[cfg(target_pointer_width = "32")]
@@ -190,6 +196,8 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         #[cfg(target_pointer_width = "32")]
         "pqmtclient.dll" => pqmt::resolve(name),
         "sxcore.dll" => sixense::resolve(name),
+        // Hot Wheels: Victory Lap: its steering board's port
+        "rs_232_dll.dll" if steering::enabled() => rs232::resolve(name),
         #[cfg(target_pointer_width = "64")]
         "rs_232_dll.dll" => drakon::resolve(name),
         #[cfg(target_pointer_width = "64")]
