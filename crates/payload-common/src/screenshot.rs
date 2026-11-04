@@ -1247,9 +1247,21 @@ fn letterbox_window(parent: P) -> P {
 }
 
 /// Keeps the letterbox window shown over the whole client area of its parent (`w`x`h`).
+/// The parent does not clip its children (`WS_CLIPCHILDREN` removed): Wine then composited both
+/// windows' Vulkan surfaces offscreen, a black screen on Batocera's NVIDIA Xorg (Blazing Angels);
+/// without it the parent's stays on screen, the letterbox's copied over it (Dariusburst).
 fn letterbox_place(hwnd: P, w: i32, h: i32) {
     use windows_sys::Win32::Foundation::RECT;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, HWND_TOP, IsWindowVisible, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetWindowPos};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GWL_STYLE, GetClientRect, GetParent, GetWindowLongW, HWND_TOP, IsWindowVisible, SWP_NOACTIVATE, SWP_SHOWWINDOW, SetWindowLongW,
+        SetWindowPos, WS_CLIPCHILDREN,
+    };
+    let parent = unsafe { GetParent(hwnd) };
+    let style = unsafe { GetWindowLongW(parent, GWL_STYLE) } as u32;
+    if !parent.is_null() && style & WS_CLIPCHILDREN != 0 {
+        unsafe { SetWindowLongW(parent, GWL_STYLE, (style & !WS_CLIPCHILDREN) as i32) };
+        log!("d3d9: letterbox parent {parent:?} no longer clips its children (style {style:#x})");
+    }
     let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
     unsafe { GetClientRect(hwnd, &mut r) };
     if unsafe { IsWindowVisible(hwnd) } != 0 && (r.right, r.bottom) == (w, h) {
