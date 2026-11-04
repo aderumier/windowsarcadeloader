@@ -38,7 +38,7 @@ type P = *mut c_void;
 
 /// A crosshair is hidden when its gun did not move for this long (`WAL_CROSSHAIR_HIDE`;
 /// `None`: never).
-fn idle() -> Option<Duration> {
+pub(crate) fn idle() -> Option<Duration> {
     static IDLE: std::sync::OnceLock<Option<Duration>> = std::sync::OnceLock::new();
     *IDLE.get_or_init(|| {
         let secs = std::env::var("WAL_CROSSHAIR_HIDE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(5.0);

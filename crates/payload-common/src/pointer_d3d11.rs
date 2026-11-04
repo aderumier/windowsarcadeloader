@@ -15,7 +15,7 @@
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::log;
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
@@ -55,8 +55,12 @@ static PLAYERS: OnceLock<(usize, fn(usize) -> Option<(f32, f32)>)> = OnceLock::n
 /// Players 2 to 4's colors (blue, green, yellow).
 const COLORS: [[f32; 3]; 3] = [[0.15, 0.45, 1.0], [0.25, 0.9, 0.2], [1.0, 0.85, 0.1]];
 
+/// Where players 2 to 4 pointed last and when they moved: an idle gun (a player not playing,
+/// its stick at the picture's center) is not shown, as the common crosshairs (`WAL_CROSSHAIR_HIDE`).
+static MOVED: Mutex<[Option<((f32, f32), Option<Instant>)>; 3]> = Mutex::new([None; 3]);
+
 /// Draws the other players' crosshairs too (players 2 to `count`, at most 4), in their colors,
-/// the dot's shape and size (`position(player)`, `player` from 0).
+/// the dot's shape and size (`position(player)`, `player` from 0), while their gun moves.
 pub fn more_players(count: usize, position: fn(usize) -> Option<(f32, f32)>) {
     let _ = PLAYERS.set((count.min(1 + COLORS.len()), position));
 }
@@ -318,7 +322,19 @@ fn overlay(swap: P) {
     let Some(dot) = DOT.get() else { return };
     let mut dots: Vec<((f32, f32), [f32; 3])> = (dot.position)().map(|p| (p, dot.color)).into_iter().collect();
     if let Some((count, position)) = PLAYERS.get() {
-        dots.extend((1..*count).filter_map(|player| position(player).map(|p| (p, COLORS[player - 1]))));
+        let now = Instant::now();
+        let mut moved = MOVED.lock().unwrap();
+        for player in 1..*count {
+            let Some(p) = position(player) else { continue };
+            let last = &mut moved[player - 1];
+            if last.is_none_or(|(at, _)| at != p) {
+                // its first position is the idle stick's: not a move
+                *last = Some((p, last.is_some().then_some(now)));
+            }
+            if last.and_then(|(_, m)| m).is_some_and(|m| crate::crosshair::idle().is_none_or(|idle| now.duration_since(m) < idle)) {
+                dots.push((p, COLORS[player - 1]));
+            }
+        }
     }
     if dots.is_empty() {
         return;
