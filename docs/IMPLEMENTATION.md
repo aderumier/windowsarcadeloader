@@ -3926,6 +3926,45 @@ settings and the guns' calibration, identity; `AcountData.db`, `RankData.db`) on
   (each call's `ldc.i4.1/2/3` patched to `ldc.i4.4`; file offsets: Mech Dinosaur 0x5977B,
   0x5978E, 0x597AD; Wisdom Zombies 0x3FBCB, 0x3FBDE, 0x3FC17).
 
+#### Top Gun 2
+
+JXCompany's "ShotRedLight" ("Top Gun 2: War of Gun", V2.0.5_20250325, Unity 2017.2, Mono `mono.dll`,
+64-bit: the payload as `xinput1_3.dll`, xinput1_4 disabled), a portrait cabinet (1080x1920)
+with two guns seen by a camera. The dump is rebuilt without the repack's BepInEx, DemulShooter
+plugin, Doorstop and ReShade (`dxgi.dll`, its shaders and presets), and the copy of the game's
+assembly (`Managed/Original.rar`, the same file); the executable renamed (`TopGun2.exe` /
+`TopGun2_Data`); the databases (`D:\SettingData.db`: settings, English; `AcountData.db`,
+`RankData.db`) on the cabinet's `D:`.
+
+- **Board (`jxboard.rs`, `WAL_ARCADEPC_BOARD=jxcamera`).** Mech Dinosaur's JX board, two
+  players, its keys at other bits (player 1: trigger 0, left 1, right 2, weapon change 3, start
+  4; player 2: start 5, trigger 6, left 7, right 8, weapon change 9; menu, OK, down, up 20..23:
+  up and down swapped in the profile's `native_map`). The left and right buttons choose the
+  modes and maps.
+- **Dongle (`softkey.rs`).** `GameMain.CheckKey`: a "SoftKey" USB HID dongle (vendor 0x3689,
+  product 0x8762) found with `SetupDi*` (ANSI) and `HidD_GetAttributes`, its EEPROM read with
+  feature reports (`HidD_SetFeature` report 2: command 0x12, address, length, password;
+  `HidD_GetFeature` report 1: status 0, the bytes): the length at 0, then `JXKJ88188188123`.
+  Its `DllImport`s are the payload's (`mono_imports.rs`), `CreateFileA` and `CloseHandle`
+  chained to the serial ports' replacement (Mono's `SerialPort` asks `CreateFileW`).
+- **Camera guns (`jxcamera.rs`).** A camera over the screen (OpenCV's blob detector on a
+  `WebCamTexture`) finds each gun's spot, mapped to the screen by `Game.json`'s `Srn*`
+  settings: `WebCamTextureToMatHelperExample.GetSrcPos(i)` (the weapons' aim, Unity's pixels,
+  y up) and `GetHPos(i)` (from the center: the name entry's cursors) are replaced
+  (`Mono::replace`) by each player's gun on the picture. Unity 2017's Mono returns a
+  `Vector2` in a buffer of the caller's, its address in RCX before `this` (RDX), the index in
+  R8. The camera is never opened (none on the box): `WebCamTextureToMatHelper.Initialize()`
+  and the `VideoCapture` settings (`SetCapture`, `SetNormalCapture`, `GetExposure`) do
+  nothing.
+- **Display.** `WAL_DESKTOP_SIZE=1080x1920` (the game's `SetResolution(1080, 1920, true)`),
+  the common crosshair for both guns (the cabinet's guns have no sight; `pointer_d3d11`'s
+  `more_players`: player 2's in blue), `WAL_BEZEL=bezel.png` (the repack's ReShade layer, its
+  corner mark removed) with `WAL_BEZEL_FIT=1` (its opening, wider than the picture, fitted to
+  the game's window). The window not managed (`WAL_DESKTOP_UNMANAGED`, `WAL_DESKTOP_ACTIVE`: a
+  desktop's top bar pushed it down), so the payload is loaded at the start (`payload_loader`,
+  `wal-loader64.exe`: before Wine's X11 driver), Unity's window messages filtered once
+  `UnityPlayer.dll` is loaded.
+
 #### Zombie Crisis
 
 SpiderZSoft's "zombie" (Unreal Engine 4.25, 64-bit, `zombie\Binaries\Win64\ZombieCrisis.exe`,
@@ -5088,6 +5127,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
+| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs), 2 camera guns | JXCompany's "ShotRedLight" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump without BepInEx/ReShade (`TopGun2.exe`); the payload emulates the JX COM1 board (`jxboard.rs`, `jxcamera`), the SoftKey HID dongle and the camera tracker's positions; portrait 1080x1920 fitted, crosshair, bezel |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

@@ -24,7 +24,8 @@
 //!
 //! Mech Tornado (`WAL_ARCADEPC_BOARD=gameport`): `gameport.rs` is its I/O DLL's C API.
 //! Mech Dinosaur, Wisdom Zombies (`WAL_ARCADEPC_BOARD=jxboard`): `jxboard.rs` emulates their
-//! COM1 I/O board.
+//! COM1 I/O board. Top Gun 2 (`WAL_ARCADEPC_BOARD=jxcamera`): the same board, its SoftKey
+//! dongle (`softkey.rs`) and its camera guns (`jxcamera.rs`).
 //!
 //! Skull of Shadow (`WAL_ARCADEPC_BOARD=boys`): `boys.rs` emulates its USB board and its gun
 //! camera.
@@ -54,7 +55,9 @@ mod commking;
 mod demul;
 mod gameport;
 mod jxboard;
+mod jxcamera;
 mod pads;
+mod softkey;
 mod topgun;
 mod uaf;
 mod unrealio;
@@ -80,13 +83,17 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
         let board = std::env::var("WAL_ARCADEPC_BOARD").unwrap_or_default();
         // the common crosshair option: player 1's gun on the picture (Direct3D 11)
-        if (matches!(board.trim(), "syfire" | "jxboard" | "bullseye") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
+        if (matches!(board.trim(), "syfire" | "jxboard" | "jxcamera" | "bullseye") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
             wal_payload_common::pointer_d3d11::init(wal_payload_common::pointer_d3d11::Dot {
                 color: [1.0, 0.15, 0.15],
                 size: 0.06,
                 position: demul::gun_in_picture,
                 crosshair: true,
             });
+            // Top Gun 2's second gun
+            if board.trim() == "jxcamera" {
+                wal_payload_common::pointer_d3d11::more_players(2, demul::gun_of_player_in_picture);
+            }
         }
         match std::env::var("WAL_DEMUL_PORT").ok().and_then(|p| p.trim().parse().ok()) {
             _ if board.trim() == "syfire" => {
@@ -99,10 +106,23 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 wal_payload_common::input_filter::init(unity, |_| false);
                 gameport::init_board();
             }
-            _ if board.trim() == "jxboard" => {
+            _ if matches!(board.trim(), "jxboard" | "jxcamera") => {
                 pads::disconnect();
                 wal_payload_common::input_filter::init(unity, |_| false);
-                jxboard::init();
+                if unity == 0 {
+                    // loaded at the start (Top Gun 2's `payload_loader`): Unity's messages once it is loaded
+                    std::thread::spawn(|| {
+                        let unity = loop {
+                            let m = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) } as usize;
+                            if m != 0 {
+                                break m;
+                            }
+                            std::thread::sleep(std::time::Duration::from_millis(1));
+                        };
+                        wal_payload_common::input_filter::messages(unity);
+                    });
+                }
+                jxboard::init(board.trim() == "jxcamera");
             }
             _ if board.trim() == "zombiecrisis" => {
                 pads::disconnect();

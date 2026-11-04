@@ -50,6 +50,17 @@ pub struct Dot {
 
 static DOT: OnceLock<Dot> = OnceLock::new();
 
+/// The other players' guns: how many players, where each one points (as `Dot::position`).
+static PLAYERS: OnceLock<(usize, fn(usize) -> Option<(f32, f32)>)> = OnceLock::new();
+/// Players 2 to 4's colors (blue, green, yellow).
+const COLORS: [[f32; 3]; 3] = [[0.15, 0.45, 1.0], [0.25, 0.9, 0.2], [1.0, 0.85, 0.1]];
+
+/// Draws the other players' crosshairs too (players 2 to `count`, at most 4), in their colors,
+/// the dot's shape and size (`position(player)`, `player` from 0).
+pub fn more_players(count: usize, position: fn(usize) -> Option<(f32, f32)>) {
+    let _ = PLAYERS.set((count.min(1 + COLORS.len()), position));
+}
+
 /// Draws `dot` over the game's picture from its first frame on.
 pub fn init(dot: Dot) {
     if DOT.set(dot).is_ok() {
@@ -305,7 +316,13 @@ impl Drop for Resources {
 
 fn overlay(swap: P) {
     let Some(dot) = DOT.get() else { return };
-    let Some((x, y)) = (dot.position)() else { return };
+    let mut dots: Vec<((f32, f32), [f32; 3])> = (dot.position)().map(|p| (p, dot.color)).into_iter().collect();
+    if let Some((count, position)) = PLAYERS.get() {
+        dots.extend((1..*count).filter_map(|player| position(player).map(|p| (p, COLORS[player - 1]))));
+    }
+    if dots.is_empty() {
+        return;
+    }
     let mut back: P = std::ptr::null_mut();
     if com!(swap, 9, fn(u32, *const GUID, *mut P) -> HRESULT, 0, &IID_TEXTURE2D, &mut back) < 0 || back.is_null() {
         return;
@@ -328,7 +345,9 @@ fn overlay(swap: P) {
     if let Some(r) = guard.as_ref() {
         let (w, h) = (desc.width as f32, desc.height as f32);
         let radius = (dot.size * h / 2.0).max(3.0);
-        draw(r, context, back, (x * w, y * h), radius, dot.color, dot.crosshair);
+        for ((x, y), color) in dots {
+            draw(r, context, back, (x * w, y * h), radius, color, dot.crosshair);
+        }
     }
     release(context);
     release(device);
