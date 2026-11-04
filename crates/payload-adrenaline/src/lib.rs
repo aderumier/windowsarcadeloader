@@ -26,6 +26,9 @@
 //!
 //! - Shooty Skies (Unity 5.3, 64-bit) and Flappy Tickets (Unity 4.6, 32-bit): the same board;
 //!   Shooty Skies' joysticks are its keyboard keys (`stick_keys.rs`).
+//! - Candy Crush Arcade (Unity 4.6, 32-bit, Direct3D 11): the same board; its touch screen
+//!   played with the mouse (`mouse.rs`: TouchScript's Windows touches at the cursor, a dot where
+//!   it touches); its full screen at the portrait desktop's size (`screen.rs`).
 //!
 //! - Need for Speed Heat Takedown (Unity 2021, Mono, 64-bit): a driving game. `steering.rs`
 //!   is its steering board on a serial port (the wheel and its motor, the pedals, the nitro
@@ -53,6 +56,8 @@ mod hotwheels;
 #[cfg(target_pointer_width = "32")]
 mod kaboom;
 mod matrix;
+mod mouse;
+mod screen;
 #[cfg(target_pointer_width = "32")]
 mod pqmt;
 mod sixense;
@@ -182,6 +187,8 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         // Need for Speed's steering board: its port listed, Mono's `SerialPort` on it
         "advapi32.dll" if steering::enabled() => steering::resolve_advapi32(name),
         "kernel32.dll" if steering::enabled() => steering::resolve_kernel32(name),
+        // Candy Crush Arcade: TouchScript's Windows touch input
+        "user32.dll" if mouse::enabled() => mouse::resolve(name),
         // another board's library: the real one (logged)
         m if m.starts_with("kaboom") => {
             wal_payload_common::log!("adrenaline: {m}!{name} not emulated");
@@ -238,6 +245,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         // Shooty Skies' joysticks: the keys the payload posts
         wal_payload_common::input_filter::init(unity, stick_keys::key_held);
         stick_keys::init();
+        // Candy Crush Arcade: the touch screen played with the mouse
+        if mouse::enabled() {
+            mouse::init(unity);
+        }
+        screen::init(unity);
         // Infinity Blade FX (Unreal Engine 3): the touch frame's client and the dongle imported
         // by the executable, the board on a serial port; no Mono
         #[cfg(target_pointer_width = "32")]

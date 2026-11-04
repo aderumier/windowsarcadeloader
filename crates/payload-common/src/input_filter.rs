@@ -125,6 +125,9 @@ unsafe extern "system" fn get_keyboard_state(keys: *mut u8) -> i32 {
 unsafe extern "system" fn get_raw_input_data(raw: P, command: u32, data: *mut u8, size: *mut u32, header_size: u32) -> u32 {
     let f: unsafe extern "system" fn(P, u32, *mut u8, *mut u32, u32) -> u32 =
         unsafe { std::mem::transmute(GET_RAW_INPUT_DATA.load(Ordering::Relaxed)) };
+    if let Some(flags) = own_raw_buttons(raw) {
+        return unsafe { own_raw_mouse(flags, command, data, size) };
+    }
     let n = unsafe { f(raw, command, data, size, header_size) };
     if command != RID_INPUT || data.is_null() || n == u32::MAX || (n as usize) < HEADER {
         return n;
@@ -203,6 +206,70 @@ unsafe fn scrub(msg: *mut MSG) {
     if !msg.is_null() && unsafe { filtered(&*msg) } {
         unsafe { (*msg).message = WM_NULL };
     }
+}
+
+/// The raw mouse reports [`post_raw_buttons`] posted: their `HRAWINPUT` handles (`RAW_MARK` and
+/// a sequence number), their button flags.
+const RAW_MARK: usize = 0x57A1_0000;
+const RAW_SLOTS: usize = 64;
+static RAW_SEQ: AtomicUsize = AtomicUsize::new(0);
+static RAW_FLAGS: [AtomicUsize; RAW_SLOTS] = [const { AtomicUsize::new(0) }; RAW_SLOTS];
+/// `GetRawInputData` command returning the header only.
+const RID_HEADER: u32 = 0x1000_0005;
+
+fn own_raw_buttons(raw: P) -> Option<u16> {
+    let h = raw as usize;
+    (h & !0xFFFF == RAW_MARK).then(|| RAW_FLAGS[h % RAW_SLOTS].load(Ordering::Relaxed) as u16)
+}
+
+/// The first raw mouse of the system (a report names its device; 0: none).
+fn raw_mouse_device() -> usize {
+    use windows_sys::Win32::UI::Input::{GetRawInputDeviceList, RAWINPUTDEVICELIST};
+    static DEVICE: OnceLock<usize> = OnceLock::new();
+    *DEVICE.get_or_init(|| {
+        let mut list = [RAWINPUTDEVICELIST { hDevice: std::ptr::null_mut(), dwType: 0 }; 32];
+        let mut n = list.len() as u32;
+        let got = unsafe { GetRawInputDeviceList(list.as_mut_ptr(), &mut n, size_of::<RAWINPUTDEVICELIST>() as u32) };
+        if got == u32::MAX {
+            return 0;
+        }
+        list[..got as usize].iter().find(|d| d.dwType == RIM_TYPEMOUSE).map_or(0, |d| d.hDevice as usize)
+    })
+}
+
+/// The answer to `GetRawInputData` for a report of the payload's: a mouse report of `flags`
+/// (`RI_MOUSE_*` button transitions), no motion.
+unsafe fn own_raw_mouse(flags: u16, command: u32, data: *mut u8, size: *mut u32) -> u32 {
+    let full = if command == RID_HEADER { HEADER } else { HEADER + RAWMOUSE };
+    if size.is_null() {
+        return u32::MAX;
+    }
+    if data.is_null() {
+        unsafe { *size = full as u32 };
+        return 0;
+    }
+    if (unsafe { *size } as usize) < full {
+        return u32::MAX;
+    }
+    let mut report = [0u8; HEADER + RAWMOUSE];
+    report[..4].copy_from_slice(&RIM_TYPEMOUSE.to_le_bytes());
+    report[4..8].copy_from_slice(&((HEADER + RAWMOUSE) as u32).to_le_bytes());
+    report[8..8 + size_of::<usize>()].copy_from_slice(&raw_mouse_device().to_le_bytes());
+    // RAWMOUSE: usFlags 0 (relative), usButtonFlags at +4
+    report[HEADER + 4..HEADER + 6].copy_from_slice(&flags.to_le_bytes());
+    unsafe { std::ptr::copy_nonoverlapping(report.as_ptr(), data, full) };
+    full as u32
+}
+
+/// Posts a raw mouse report (`WM_INPUT`) of button transitions `flags` (`RI_MOUSE_LEFT_BUTTON_DOWN`
+/// 1, `_UP` 2...) to the game window `hwnd`: games reading the mouse's buttons from raw input
+/// (Unity 4) get the payload's.
+pub fn post_raw_buttons(hwnd: P, flags: u16) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_INPUT};
+    let seq = RAW_SEQ.fetch_add(1, Ordering::Relaxed) % RAW_SLOTS;
+    RAW_FLAGS[seq].store(flags as usize, Ordering::Relaxed);
+    // RIM_INPUT (the window in the foreground)
+    unsafe { PostMessageW(hwnd, WM_INPUT, 0, (RAW_MARK | seq) as isize) };
 }
 
 /// Posts a key press (`down`) or release of virtual key `vk` to the game window `hwnd`, as the
