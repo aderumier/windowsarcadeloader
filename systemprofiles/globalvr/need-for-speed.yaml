@@ -31,15 +31,15 @@ env:
   # The game's own controllers (DirectInput keyboard and pads, Controllers/defaults.ini): it
   # takes the wheel, pedals and buttons from GVRInputRaw.dll, its DirectInput sees nothing.
   WAL_DINPUT_DISABLE: "1"
-  # The frontend and the game draw a 4:3 800x600 window: a borderless screen-sized window the
-  # back buffer is stretched to, presented to a centered 4:3 rectangle (black bars);
-  # WAL_KEEP_ASPECT_RATIO "0" (Batocera ES: KEEP ASPECT RATIO off): the whole screen.
+  # The frontend and the game draw a 4:3 800x600 window (4:3 kept whatever KEEP ASPECT RATIO):
+  # borderless windows over the screen's centered 4:3 rectangle the back buffer is stretched to
+  # (the frontend's panel too: payload frontend_fit.rs), black around (the bezel's strips).
   WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_SIZE: aspect
   WAL_D3D9_ASPECT: "4:3"
   # the game's fullscreen device made windowed (same size), so it fits the window as well
   WAL_D3D9_WINDOWED_SIZE: 800x600
-  WAL_KEEP_ASPECT_RATIO: "1"
+  WAL_BEZEL: black
 
 input:
   # the wheel must not press the d-pad
@@ -65,17 +65,6 @@ input:
       KEY_RIGHT: lx
       KEY_UP: accel
       KEY_DOWN: brake
-
-# The game's own options, for the GUI's Options tab (its env variables above).
-options:
-  - title: Display
-    options:
-      - key: WAL_KEEP_ASPECT_RATIO
-        label: Keep aspect ratio
-        kind: bool
-        description: >-
-          The game's 4:3 picture with its aspect kept, black bars on a wide screen. Off:
-          stretched to the whole screen.
 
 # Control names (the GUI's mapping rows).
 controls:
