@@ -96,13 +96,11 @@ pub fn init() {
     WIDTH.store(w, Ordering::Relaxed);
     HEIGHT.store(h, Ordering::Relaxed);
     hook_create();
-    unsafe {
-        if let Some(o) = hook_game("SetWindowPos", set_window_pos as *const () as usize) {
-            ORIG_SET_WINDOW_POS.store(o, Ordering::Relaxed);
-        }
-        if let Some(o) = hook_game("MoveWindow", move_window as *const () as usize) {
-            ORIG_MOVE_WINDOW.store(o, Ordering::Relaxed);
-        }
+    if let Some(o) = hook_game("SetWindowPos", set_window_pos as *const () as usize) {
+        ORIG_SET_WINDOW_POS.store(o, Ordering::Relaxed);
+    }
+    if let Some(o) = hook_game("MoveWindow", move_window as *const () as usize) {
+        ORIG_MOVE_WINDOW.store(o, Ordering::Relaxed);
     }
     log!("window: top-level windows sized {w}x{h}");
 }
@@ -168,16 +166,14 @@ fn hook_game(name: &str, f: usize) -> Option<usize> {
 }
 
 fn hook_create() {
-    unsafe {
-        if ORIG_CREATE_WINDOW_A.load(Ordering::Relaxed) == 0 {
-            if let Some(o) = hook_game("CreateWindowExA", create_window_a as *const () as usize) {
-                ORIG_CREATE_WINDOW_A.store(o, Ordering::Relaxed);
-            }
+    if ORIG_CREATE_WINDOW_A.load(Ordering::Relaxed) == 0 {
+        if let Some(o) = hook_game("CreateWindowExA", create_window_a as *const () as usize) {
+            ORIG_CREATE_WINDOW_A.store(o, Ordering::Relaxed);
         }
-        if ORIG_CREATE_WINDOW_W.load(Ordering::Relaxed) == 0 {
-            if let Some(o) = hook_game("CreateWindowExW", create_window_w as *const () as usize) {
-                ORIG_CREATE_WINDOW_W.store(o, Ordering::Relaxed);
-            }
+    }
+    if ORIG_CREATE_WINDOW_W.load(Ordering::Relaxed) == 0 {
+        if let Some(o) = hook_game("CreateWindowExW", create_window_w as *const () as usize) {
+            ORIG_CREATE_WINDOW_W.store(o, Ordering::Relaxed);
         }
     }
 }

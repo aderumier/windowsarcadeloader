@@ -225,6 +225,21 @@ fn headless_gamescope(conf: &config::GamescopeConfig) -> config::GamescopeConfig
     config::GamescopeConfig { enabled: true, bin: conf.bin.clone(), width, height, args }
 }
 
+/// The gamescope arguments with the `fit` scaler (`-S fit`, `--scaler fit`) made `stretch`
+/// when `stretch` (the profile's `WAL_KEEP_ASPECT_RATIO=0`, Batocera ES's KEEP ASPECT RATIO
+/// off): the GDI frontends gamescope scales (Beach Head's 640x480 shells) fill the screen.
+fn stretched(conf: &config::GamescopeConfig, stretch: bool) -> config::GamescopeConfig {
+    let mut args = conf.args.clone();
+    if stretch {
+        for i in 1..args.len() {
+            if matches!(args[i - 1].as_str(), "-S" | "--scaler") && args[i] == "fit" {
+                args[i] = "stretch".to_string();
+            }
+        }
+    }
+    config::GamescopeConfig { enabled: conf.enabled, bin: conf.bin.clone(), width: conf.width, height: conf.height, args }
+}
+
 /// `cmd` run inside gamescope, with its environment and directory.
 fn gamescope(conf: &config::GamescopeConfig, cmd: Command) -> Command {
     let mut gs = Command::new(&conf.bin);
@@ -515,10 +530,12 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         if relaunched {
             cmd.env(env::RELAUNCH, "1");
         }
+        // KEEP ASPECT RATIO off: gamescope's fit scaler stretches instead
+        let stretch = profile.env.get("WAL_KEEP_ASPECT_RATIO").is_some_and(|v| v.trim() == "0");
         if opts.headless {
-            cmd = gamescope(&headless_gamescope(&profile.gamescope), cmd);
+            cmd = gamescope(&stretched(&headless_gamescope(&profile.gamescope), stretch), cmd);
         } else if profile.gamescope.enabled {
-            cmd = gamescope(&profile.gamescope, cmd);
+            cmd = gamescope(&stretched(&profile.gamescope, stretch), cmd);
         }
         // own process group: whatever the game leaves (gamescope's reaper and its children) is
         // killed with it at the end
