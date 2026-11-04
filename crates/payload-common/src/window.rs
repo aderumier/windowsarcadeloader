@@ -16,7 +16,7 @@
 //! (`SetWindowLong(Ptr)A/W`) keep them popups: Time Crisis 5 (UE3) sets its captioned window
 //! style back on its window, a frame around a smaller picture.
 //!
-//! `WAL_NO_MODE_CHANGE=1`: the game's display mode changes (`ChangeDisplaySettings(Ex)A/W`) do
+//! `WAL_NO_MODE_CHANGE=1`: the game's (and its directory's DLLs') display mode changes (`ChangeDisplaySettings(Ex)A/W`) do
 //! nothing and succeed. For games made windowed (`WAL_D3D9_WINDOWED_SIZE`) that also set their
 //! mode themselves: Wine emulates the mode by scaling it into the screen, the screen-sized
 //! window scaled with it (Blazing Angels: 1280x720 on a 1600x1200 screen, the window's picture
@@ -97,10 +97,10 @@ pub fn init() {
     HEIGHT.store(h, Ordering::Relaxed);
     hook_create();
     unsafe {
-        if let Some(o) = iat::hook("user32.dll", "SetWindowPos", set_window_pos as *const () as usize) {
+        if let Some(o) = hook_game("SetWindowPos", set_window_pos as *const () as usize) {
             ORIG_SET_WINDOW_POS.store(o, Ordering::Relaxed);
         }
-        if let Some(o) = iat::hook("user32.dll", "MoveWindow", move_window as *const () as usize) {
+        if let Some(o) = hook_game("MoveWindow", move_window as *const () as usize) {
             ORIG_MOVE_WINDOW.store(o, Ordering::Relaxed);
         }
     }
@@ -150,20 +150,32 @@ fn no_mode_change() {
         ("ChangeDisplaySettingsExW", change_display_settings_ex as *const () as usize),
     ];
     for (name, f) in hooks {
-        unsafe { iat::hook("user32.dll", name, f) };
+        hook_game(name, f);
     }
     log!("window: display mode changes not done");
+}
+
+/// `user32!name` of the game module and the DLLs of its directory replaced by `f`: the
+/// original function, if one of them imports it.
+fn hook_game(name: &str, f: usize) -> Option<usize> {
+    let mut orig = None;
+    for base in crate::workarea::game_modules(iat::game_module()) {
+        if let Some(o) = unsafe { iat::hook_module(base, "user32.dll", name, f) }.filter(|&o| o != f) {
+            orig = Some(o);
+        }
+    }
+    orig
 }
 
 fn hook_create() {
     unsafe {
         if ORIG_CREATE_WINDOW_A.load(Ordering::Relaxed) == 0 {
-            if let Some(o) = iat::hook("user32.dll", "CreateWindowExA", create_window_a as *const () as usize) {
+            if let Some(o) = hook_game("CreateWindowExA", create_window_a as *const () as usize) {
                 ORIG_CREATE_WINDOW_A.store(o, Ordering::Relaxed);
             }
         }
         if ORIG_CREATE_WINDOW_W.load(Ordering::Relaxed) == 0 {
-            if let Some(o) = iat::hook("user32.dll", "CreateWindowExW", create_window_w as *const () as usize) {
+            if let Some(o) = hook_game("CreateWindowExW", create_window_w as *const () as usize) {
                 ORIG_CREATE_WINDOW_W.store(o, Ordering::Relaxed);
             }
         }

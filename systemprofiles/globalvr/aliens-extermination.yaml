@@ -12,6 +12,18 @@ env:
   # "Failed To Open The AVI Stream / Frame" message boxes and goes on without the movie. Their
   # MessageBoxA calls -> add esp,0x10 (its 4 arguments): no boxes, no codec to install.
   WAL_PATCHES: "0x4813B:83C410909090,0x4821D:83C410909090"
+  # The game renders at a fixed 1920x1080 (glutInitWindowSize, GLUT game mode
+  # "1920x1080:32@60"): on a smaller screen the mode change fails or the window is larger than
+  # the screen, the picture (intro movie, game) going off it. No mode change, GLUT's window the
+  # screen's size, borderless, the game's viewports fitted to it: 16:9 with black bars;
+  # WAL_KEEP_ASPECT_RATIO "0" (Batocera ES: KEEP ASPECT RATIO off): stretched to the whole
+  # screen (payload glview.rs). The guns' aim is mapped onto the picture.
+  WAL_NO_MODE_CHANGE: "1"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_GL_SIZE: 1920x1080
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_KEEP_ASPECT_RATIO: "1"
 
 input:
   # lightguns first, then mice
@@ -36,15 +48,17 @@ files:
   OpenAL32.dll: "{dump}/DATA/OpenAL32.dll"
   wrap_oal.dll: "{dump}/DATA/wrap_oal.dll"
 
-# The game renders at a fixed 1920x1080 (glutInitWindowSize, GLUT game mode
-# "1920x1080:32@60"): on a smaller screen the mode change fails or the window is larger than
-# the screen, the picture (intro movie, game) going off it. A 1920x1080 gamescope screen,
-# scaled to the real one with its aspect kept (fit: black bars on a 16:10 or 4:3 screen).
-gamescope:
-  enabled: true
-  width: 1920
-  height: 1080
-  args: [-S, fit, -f]
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The game's 16:9 picture with its aspect kept, black bars on a 4:3 or 16:10 screen.
+          Off: stretched to the whole screen.
+
 # Control names (the GUI's mapping rows).
 controls:
   up: Volume up, test menu up
