@@ -16,6 +16,12 @@
 //! (`SetWindowLong(Ptr)A/W`) keep them popups: Time Crisis 5 (UE3) sets its captioned window
 //! style back on its window, a frame around a smaller picture.
 //!
+//! `WAL_NO_MODE_CHANGE=1`: the game's display mode changes (`ChangeDisplaySettings(Ex)A/W`) do
+//! nothing and succeed. For games made windowed (`WAL_D3D9_WINDOWED_SIZE`) that also set their
+//! mode themselves: Wine emulates the mode by scaling it into the screen, the screen-sized
+//! window scaled with it (Blazing Angels: 1280x720 on a 1600x1200 screen, the window's picture
+//! 2000x1500 from y=150, cut at the bottom).
+//!
 //! `WAL_HIDE_CURSOR=1`: no mouse cursor over the game (a cabinet has none; Battle Gear 4 shows
 //! the arrow of its window class): `LoadCursorA/W` return no cursor and `SetCursor` sets none.
 //!
@@ -51,6 +57,9 @@ pub fn init() {
     keep_unminimized();
     if std::env::var("WAL_HIDE_CURSOR").is_ok_and(|v| v.trim() == "1") {
         hide_cursor();
+    }
+    if std::env::var("WAL_NO_MODE_CHANGE").is_ok_and(|v| v.trim() == "1") {
+        no_mode_change();
     }
     if std::env::var("WAL_WINDOW_POPUP").is_ok_and(|v| v.trim() == "1") {
         POPUP.store(true, Ordering::Relaxed);
@@ -119,6 +128,31 @@ fn hide_cursor() {
         }
     }
     log!("window: mouse cursor hidden");
+}
+
+unsafe extern "system" fn change_display_settings(mode: *const c_void, flags: u32) -> i32 {
+    unsafe { change_display_settings_ex(std::ptr::null(), mode, std::ptr::null_mut(), flags, std::ptr::null_mut()) }
+}
+
+unsafe extern "system" fn change_display_settings_ex(_name: *const c_void, mode: *const c_void, _hwnd: HWND, flags: u32, _param: P) -> i32 {
+    static LOGGED: AtomicBool = AtomicBool::new(false);
+    if !LOGGED.swap(true, Ordering::Relaxed) {
+        log!("window: display mode change (mode {mode:?}, flags {flags:#x}) not done");
+    }
+    0 // DISP_CHANGE_SUCCESSFUL
+}
+
+fn no_mode_change() {
+    let hooks: [(&str, usize); 4] = [
+        ("ChangeDisplaySettingsA", change_display_settings as *const () as usize),
+        ("ChangeDisplaySettingsW", change_display_settings as *const () as usize),
+        ("ChangeDisplaySettingsExA", change_display_settings_ex as *const () as usize),
+        ("ChangeDisplaySettingsExW", change_display_settings_ex as *const () as usize),
+    ];
+    for (name, f) in hooks {
+        unsafe { iat::hook("user32.dll", name, f) };
+    }
+    log!("window: display mode changes not done");
 }
 
 fn hook_create() {
