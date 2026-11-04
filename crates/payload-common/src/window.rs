@@ -6,6 +6,12 @@
 //! (DxLib) computes a window height of ~5 million pixels, which X refuses (BadAlloc); Haunted
 //! Museum creates its window 1286x5434821 at CW_USEDEFAULT (empty frame, desktop behind).
 //!
+//! `WAL_WINDOW_SIZE=picture`: the largest centered rectangle of `WAL_D3D9_ASPECT` on the screen,
+//! at its place (the whole screen with `WAL_KEEP_ASPECT_RATIO=0`); `aspect`: that rectangle
+//! whatever `WAL_KEEP_ASPECT_RATIO`. For a player drawing at its window's size (PGA TOUR Team
+//! Challenge's Anark frontend: 4:3 in any window, its sides unpainted), a bezel (`WAL_BEZEL`)
+//! around it.
+//!
 //! `WAL_WINDOW_POPUP=1`: the game's top-level windows are created as borderless popups
 //! (`WS_POPUP`, no caption, frame or system menu). Shikigami no Shiro III creates a plain
 //! overlapped window (style 0: Windows adds a caption and border) and makes its Direct3D 8
@@ -16,7 +22,8 @@
 //! (`SetWindowLong(Ptr)A/W`) keep them popups: Time Crisis 5 (UE3) sets its captioned window
 //! style back on its window, a frame around a smaller picture.
 //!
-//! `WAL_NO_MODE_CHANGE=1`: the game's (and its directory's DLLs') display mode changes (`ChangeDisplaySettings(Ex)A/W`) do
+//! `WAL_NO_MODE_CHANGE=1`: the game's (and its directory's DLLs', and wined3d's: DirectDraw)
+//! display mode changes (`ChangeDisplaySettings(Ex)A/W`) do
 //! nothing and succeed. For games made windowed (`WAL_D3D9_WINDOWED_SIZE`) that also set their
 //! mode themselves: Wine emulates the mode by scaling it into the screen, the screen-sized
 //! window scaled with it (Blazing Angels: 1280x720 on a 1600x1200 screen, the window's picture
@@ -42,6 +49,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 type HWND = *mut c_void;
 
 static WIDTH: AtomicU32 = AtomicU32::new(0);
+/// `WAL_WINDOW_SIZE=picture`: the window's place (0, 0 otherwise).
+static LEFT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+static TOP: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 static HEIGHT: AtomicU32 = AtomicU32::new(0);
 static ORIG_SET_WINDOW_POS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_MOVE_WINDOW: AtomicUsize = AtomicUsize::new(0);
@@ -88,6 +98,26 @@ pub fn init() {
             let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
             return Some((w as u32, h as u32));
         }
+        if matches!(v.trim(), "picture" | "aspect") {
+            // the WAL_D3D9_ASPECT rectangle centered on the screen (`picture`: the whole screen
+            // with WAL_KEEP_ASPECT_RATIO=0)
+            let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+            let aspect = if v.trim() == "aspect" { crate::screenshot::aspect_setting() } else { crate::screenshot::d3d9_aspect() };
+            let (l, t, w, h) = match aspect {
+                Some((aw, ah)) if sw as u64 * ah as u64 > sh as u64 * aw as u64 => {
+                    let w = (sh as u64 * aw as u64 / ah as u64) as i32;
+                    ((sw - w) / 2, 0, w, sh)
+                }
+                Some((aw, ah)) => {
+                    let h = (sw as u64 * ah as u64 / aw as u64) as i32;
+                    (0, (sh - h) / 2, sw, h)
+                }
+                None => (0, 0, sw, sh),
+            };
+            LEFT.store(l, Ordering::Relaxed);
+            TOP.store(t, Ordering::Relaxed);
+            return Some((w as u32, h as u32));
+        }
         let (w, h) = v.split_once('x')?;
         Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
     }) else {
@@ -96,12 +126,8 @@ pub fn init() {
     WIDTH.store(w, Ordering::Relaxed);
     HEIGHT.store(h, Ordering::Relaxed);
     hook_create();
-    if let Some(o) = hook_game("SetWindowPos", set_window_pos as *const () as usize) {
-        ORIG_SET_WINDOW_POS.store(o, Ordering::Relaxed);
-    }
-    if let Some(o) = hook_game("MoveWindow", move_window as *const () as usize) {
-        ORIG_MOVE_WINDOW.store(o, Ordering::Relaxed);
-    }
+    hook_game("SetWindowPos", set_window_pos as *const () as usize, &ORIG_SET_WINDOW_POS);
+    hook_game("MoveWindow", move_window as *const () as usize, &ORIG_MOVE_WINDOW);
     log!("window: top-level windows sized {w}x{h}");
 }
 
@@ -147,39 +173,37 @@ fn no_mode_change() {
         ("ChangeDisplaySettingsExA", change_display_settings_ex as *const () as usize),
         ("ChangeDisplaySettingsExW", change_display_settings_ex as *const () as usize),
     ];
+    // DirectDraw's mode changes (Wine's ddraw.dll through wined3d.dll: PGA TOUR Team Challenge's
+    // Anark frontend, its 800x600 mode emulated, its OpenGL picture not scaled with it)
+    let wined3d = unsafe { GetModuleHandleW(windows_sys::w!("wined3d.dll")) } as usize;
+    // (their replacements never call the original functions)
+    static UNUSED: AtomicUsize = AtomicUsize::new(0);
     for (name, f) in hooks {
-        hook_game(name, f);
-    }
-    log!("window: display mode changes not done");
-}
-
-/// `user32!name` of the game module and the DLLs of its directory replaced by `f`: the
-/// original function, if one of them imports it.
-fn hook_game(name: &str, f: usize) -> Option<usize> {
-    let mut orig = None;
-    for base in crate::workarea::game_modules(iat::game_module()) {
-        if let Some(o) = unsafe { iat::hook_module(base, "user32.dll", name, f) }.filter(|&o| o != f) {
-            orig = Some(o);
+        hook_game(name, f, &UNUSED);
+        if wined3d != 0 {
+            unsafe { iat::hook_module(wined3d, "user32.dll", name, f) };
         }
     }
-    orig
+    log!("window: display mode changes not done{}", if wined3d != 0 { " (wined3d's too)" } else { "" });
+}
+
+/// `user32!name` of the game module and the DLLs of its directory (also those it loads later)
+/// replaced by `f`, the original function in `orig`.
+fn hook_game(name: &'static str, f: usize, orig: &'static AtomicUsize) {
+    crate::late_hooks::hook("user32.dll", name, f, orig);
 }
 
 fn hook_create() {
-    if ORIG_CREATE_WINDOW_A.load(Ordering::Relaxed) == 0 {
-        if let Some(o) = hook_game("CreateWindowExA", create_window_a as *const () as usize) {
-            ORIG_CREATE_WINDOW_A.store(o, Ordering::Relaxed);
-        }
-    }
-    if ORIG_CREATE_WINDOW_W.load(Ordering::Relaxed) == 0 {
-        if let Some(o) = hook_game("CreateWindowExW", create_window_w as *const () as usize) {
-            ORIG_CREATE_WINDOW_W.store(o, Ordering::Relaxed);
-        }
-    }
+    static DONE: std::sync::Once = std::sync::Once::new();
+    DONE.call_once(|| {
+        hook_game("CreateWindowExA", create_window_a as *const () as usize, &ORIG_CREATE_WINDOW_A);
+        hook_game("CreateWindowExW", create_window_w as *const () as usize, &ORIG_CREATE_WINDOW_W);
+    });
 }
 
-/// The forced size when `hwnd` is a top-level window, logging the replaced geometry.
-pub(crate) fn forced(hwnd: HWND, x: i32, y: i32, cx: i32, cy: i32) -> Option<(i32, i32)> {
+/// The forced place and size (x, y, w, h) when `hwnd` is a top-level window, logging the
+/// replaced geometry.
+pub(crate) fn forced(hwnd: HWND, x: i32, y: i32, cx: i32, cy: i32) -> Option<(i32, i32, i32, i32)> {
     if !unsafe { GetParent(hwnd) }.is_null() {
         return None;
     }
@@ -191,18 +215,19 @@ pub(crate) fn forced(hwnd: HWND, x: i32, y: i32, cx: i32, cy: i32) -> Option<(i3
         // collapsed on purpose (Time Crisis 5 entering its operator menu): left so
         return None;
     }
-    if (x, y, cx, cy) != (0, 0, w, h) {
-        log!("window: {hwnd:?} {cx}x{cy} at {x},{y} -> {w}x{h} at 0,0");
+    let (l, t) = (LEFT.load(Ordering::Relaxed), TOP.load(Ordering::Relaxed));
+    if (x, y, cx, cy) != (l, t, w, h) {
+        log!("window: {hwnd:?} {cx}x{cy} at {x},{y} -> {w}x{h} at {l},{t}");
     }
-    Some((w, h))
+    Some((l, t, w, h))
 }
 
 unsafe extern "system" fn set_window_pos(hwnd: HWND, after: HWND, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32 {
     let orig: unsafe extern "system" fn(HWND, HWND, i32, i32, i32, i32, u32) -> i32 =
         unsafe { std::mem::transmute(ORIG_SET_WINDOW_POS.load(Ordering::Relaxed)) };
     if flags & SWP_NOSIZE == 0 {
-        if let Some((w, h)) = forced(hwnd, x, y, cx, cy) {
-            return unsafe { orig(hwnd, after, 0, 0, w, h, flags & !SWP_NOMOVE) };
+        if let Some((l, t, w, h)) = forced(hwnd, x, y, cx, cy) {
+            return unsafe { orig(hwnd, after, l, t, w, h, flags & !SWP_NOMOVE) };
         }
     }
     unsafe { orig(hwnd, after, x, y, cx, cy, flags) }
@@ -212,7 +237,7 @@ unsafe extern "system" fn move_window(hwnd: HWND, x: i32, y: i32, cx: i32, cy: i
     let orig: unsafe extern "system" fn(HWND, i32, i32, i32, i32, i32) -> i32 =
         unsafe { std::mem::transmute(ORIG_MOVE_WINDOW.load(Ordering::Relaxed)) };
     match forced(hwnd, x, y, cx, cy) {
-        Some((w, h)) => unsafe { orig(hwnd, 0, 0, w, h, repaint) },
+        Some((l, t, w, h)) => unsafe { orig(hwnd, l, t, w, h, repaint) },
         None => unsafe { orig(hwnd, x, y, cx, cy, repaint) },
     }
 }
@@ -272,7 +297,7 @@ pub(crate) fn created(ex: u32, style: u32, x: i32, y: i32, w: i32, h: i32, paren
     }
     let (fw, fh) = (WIDTH.load(Ordering::Relaxed) as i32, HEIGHT.load(Ordering::Relaxed) as i32);
     if fw > 0 && (w != 0 || h != 0) {
-        geometry = (0, 0, fw, fh);
+        geometry = (LEFT.load(Ordering::Relaxed), TOP.load(Ordering::Relaxed), fw, fh);
     }
     if (ex2, style2, geometry) != (ex, style, (x, y, w, h)) {
         log!("window: created style {style:#x} ex {ex:#x} {w}x{h} at {x},{y} -> style {style2:#x} ex {ex2:#x} {}x{} at {},{}", geometry.2, geometry.3, geometry.0, geometry.1);

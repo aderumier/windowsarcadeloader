@@ -18,12 +18,12 @@ payload_loader: true
 c_folders:
   orion: orion
 
-# The frontend's 640x480 screen, scaled to the real one with its aspect kept.
-gamescope:
-  enabled: true
-  width: 640
-  height: 480
-  args: [-S, fit, -f]
+# No gamescope. The frontend's 640x480 screen (DirectDraw): Wine's display mode emulation scales
+# it, its aspect kept. The game (Quake II's engine, OpenGL, 640x480 from its renderer loaded at
+# the game's start) gets no mode change, a borderless window of the screen's centered 4:3
+# rectangle, black around, and its 640x480 picture scaled into it (payload glview.rs).
+env:
+  WAL_EXE_ENV: "sin.exe: WAL_NO_MODE_CHANGE=1, WAL_WINDOW_POPUP=1, WAL_WINDOW_SIZE=aspect, WAL_D3D9_ASPECT=4:3, WAL_GL_CORNER=640x480, WAL_BEZEL=black"
 
 input:
   # Keyboard (player 1): left / right turn, up / down walk forward / back, Ctrl fire (and

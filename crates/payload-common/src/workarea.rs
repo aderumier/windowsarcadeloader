@@ -37,8 +37,8 @@ unsafe extern "system" fn set_window_pos(hwnd: P, after: P, x: i32, y: i32, cx: 
     const SWP_NOSIZE: u32 = 0x1;
     const SWP_NOMOVE: u32 = 0x2;
     if flags & SWP_NOSIZE == 0 {
-        if let Some((w, h)) = crate::window::forced(hwnd, x, y, cx, cy) {
-            return unsafe { orig(hwnd, after, 0, 0, w, h, flags & !SWP_NOMOVE) };
+        if let Some((l, t, w, h)) = crate::window::forced(hwnd, x, y, cx, cy) {
+            return unsafe { orig(hwnd, after, l, t, w, h, flags & !SWP_NOMOVE) };
         }
     }
     unsafe { orig(hwnd, after, x, y, cx, cy, flags) }
@@ -47,7 +47,7 @@ unsafe extern "system" fn set_window_pos(hwnd: P, after: P, x: i32, y: i32, cx: 
 unsafe extern "system" fn move_window(hwnd: P, x: i32, y: i32, cx: i32, cy: i32, repaint: i32) -> i32 {
     let orig: unsafe extern "system" fn(P, i32, i32, i32, i32, i32) -> i32 = unsafe { std::mem::transmute(ORIG_MOVE.load(Ordering::Relaxed)) };
     match crate::window::forced(hwnd, x, y, cx, cy) {
-        Some((w, h)) => unsafe { orig(hwnd, 0, 0, w, h, repaint) },
+        Some((l, t, w, h)) => unsafe { orig(hwnd, l, t, w, h, repaint) },
         None => unsafe { orig(hwnd, x, y, cx, cy, repaint) },
     }
 }

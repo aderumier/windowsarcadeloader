@@ -225,6 +225,46 @@ fn headless_gamescope(conf: &config::GamescopeConfig) -> config::GamescopeConfig
     config::GamescopeConfig { enabled: true, bin: conf.bin.clone(), width, height, args }
 }
 
+/// The X screen's size (`xrandr`'s current size), none without one.
+fn screen_size() -> Option<(u32, u32)> {
+    let out = Command::new("xrandr").arg("--current").output().ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    // "Screen 0: minimum 8 x 8, current 1600 x 1200, maximum ..."
+    let current = text.lines().next()?.split(", ").find_map(|p| p.strip_prefix("current "))?;
+    let (w, h) = current.split_once(" x ")?;
+    Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
+}
+
+/// `arg` with `{screen_width}` / `{screen_height}` (the screen's size), `{picture_width}` /
+/// `{picture_height}` (the largest centered `WAL_D3D9_ASPECT` rectangle of the screen, the whole
+/// screen without it or with `WAL_KEEP_ASPECT_RATIO=0`) and `{aspect_width}` / `{aspect_height}`
+/// (that rectangle whatever `WAL_KEEP_ASPECT_RATIO`) replaced. For players sized from their
+/// command line: PGA TOUR Team Challenge's Anark frontend draws its 800x600 presentation at its
+/// `-pwidth` / `-pheight` (no gamescope).
+fn screen_placeholders(arg: &str, (sw, sh): (u32, u32), env: &std::collections::BTreeMap<String, String>) -> String {
+    if !arg.contains('{') {
+        return arg.to_string();
+    }
+    let keep = !env.get("WAL_KEEP_ASPECT_RATIO").is_some_and(|v| v.trim() == "0");
+    let aspect = env.get("WAL_D3D9_ASPECT").and_then(|v| {
+        let (w, h) = v.split_once(':')?;
+        Some((w.trim().parse::<u64>().ok()?, h.trim().parse::<u64>().ok()?))
+    });
+    let fit = |aspect: Option<(u64, u64)>| match aspect.filter(|&(w, h)| w > 0 && h > 0) {
+        Some((aw, ah)) if sw as u64 * ah > sh as u64 * aw => ((sh as u64 * aw / ah) as u32, sh),
+        Some((aw, ah)) => (sw, (sw as u64 * ah / aw) as u32),
+        None => (sw, sh),
+    };
+    let (pw, ph) = fit(aspect.filter(|_| keep));
+    let (aw, ah) = fit(aspect);
+    arg.replace("{screen_width}", &sw.to_string())
+        .replace("{aspect_width}", &aw.to_string())
+        .replace("{aspect_height}", &ah.to_string())
+        .replace("{screen_height}", &sh.to_string())
+        .replace("{picture_width}", &pw.to_string())
+        .replace("{picture_height}", &ph.to_string())
+}
+
 /// The gamescope arguments with the `fit` scaler (`-S fit`, `--scaler fit`) made `stretch`
 /// when `stretch` (the profile's `WAL_KEEP_ASPECT_RATIO=0`, Batocera ES's KEEP ASPECT RATIO
 /// off): the GDI frontends gamescope scales (Beach Head's 640x480 shells) fill the screen.
@@ -503,10 +543,20 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     }
 
     let game_exe = wine.windows_path(&run_exe_dir.join(exe_name));
+    // the screen's size placeholders of the arguments (headless: gamescope's screen)
+    let screen = if opts.headless {
+        let conf = headless_gamescope(&profile.gamescope);
+        (conf.width, conf.height)
+    } else {
+        screen_size().unwrap_or((1920, 1080))
+    };
+    let screen_args = |args: &[String]| -> Vec<String> { args.iter().map(|a| screen_placeholders(a, screen, &profile.env)).collect() };
     // the game command with these arguments; `relaunched`: started again at the payload's
     // request (WAL_RELAUNCH=1)
     // `exe`: another executable of the game directory (a relaunch to the test menu program)
     let game_command = |args: &[String], relaunched: bool, exe: Option<&str>| {
+        let args = screen_args(args);
+        let args = args.as_slice();
         let game_exe = exe.map_or_else(|| game_exe.clone(), |e| wine.windows_path(&run_exe_dir.join(e)));
         let mut cmd = match loader.or(exe.and(program_loader)) {
             // wal-loader <payload> <game> [args]: payload loaded before the game entry point

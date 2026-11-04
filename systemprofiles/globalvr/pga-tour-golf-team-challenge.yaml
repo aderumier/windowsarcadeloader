@@ -9,8 +9,10 @@
 system: globalvr
 name: PGA TOUR Golf Team Challenge
 
-# the supervisor's command line of the frontend (HerculesSetup.reg, Prog04)
-args: ["c:\\PGA_TOUR_GOLF_2006\\Shell\\shell.am", "-v", "FULL", "-cabinet", "-minvol", "-1500"]
+# the supervisor's command line of the frontend (HerculesSetup.reg, Prog04), and the size the
+# player draws its 800x600 presentation at: the screen's 4:3 rectangle, the player scaling it
+# (no gamescope)
+args: ["c:\\PGA_TOUR_GOLF_2006\\Shell\\shell.am", "-v", "FULL", "-cabinet", "-minvol", "-1500", "-pwidth", "{aspect_width}", "-pheight", "{aspect_height}"]
 
 # Its prefix: .NET 1.1 (the frontend's plug-ins and the game's Engine.dll are mixed-mode CLR 1.1
 # code), shared with Need for Speed Underground and Carbon.
@@ -98,6 +100,18 @@ env:
   WAL_GLOBALVR_CARBON_MONITORS: '..\..\..\hercules'
   # the dongle the frontend checks (game, version, region)
   WAL_GLOBALVR_DONGLE: "PGA,4.0,US"
+  # The cabinet's 800x600 screen, no gamescope: borderless windows the size of the centered 4:3
+  # rectangle of the screen, black around, whatever KEEP ASPECT RATIO (the player keeps its 4:3
+  # in a wider window, the sides unpainted). The player draws its presentation at that size (its
+  # arguments); its startup checks wait for its own 800x600 mode, left to Wine ("Please wait..."
+  # forever without it).
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  # the game's fullscreen 800x600 device made windowed (Wine's mode emulation kept its aspect)
+  WAL_D3D9_WINDOWED_SIZE: 800x600
+  WAL_D3D9_ASPECT: "4:3"
+  # the sides (nothing paints them: the screen behind flashed through) black
+  WAL_BEZEL: black
   # the I/O board firmware the frontend wants (1.4 or later)
   WAL_GLOBALVR_BOARD_VERSION: "3.3"
   # The frontend's PGAPlugIn.dll startup checks: the dongle's country compared with the
@@ -120,13 +134,6 @@ graphics: wine
 # The game's Direct3D 9 through Wine's wined3d: the golfers' faces (drawn by the game into a
 # render target each frame, then read back) stayed white with DXVK.
 dxvk: false
-
-# The cabinet's 800x600 screen, scaled to the real one with its aspect kept.
-gamescope:
-  enabled: true
-  width: 800
-  height: 600
-  args: [-S, fit, -f]
 
 # The cabinet's panel (its GvrIO.xml): Start, the aim's Left / Right turns, Fly-over, Shot type;
 # the menus' Back (a keyboard key on the cabinet).
