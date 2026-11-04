@@ -102,6 +102,8 @@ enum Native {
     Button,
     /// Full gas, whatever the pedal (Hot Wheels: Kings of the Road, Need for Speed).
     Gas,
+    /// Hot Wheels: Kings of the Road's boost: the pedal pressed twice, quickly.
+    Boost,
     /// Full brake, the nitro button (Need for Speed Heat Takedown).
     Brake,
     Nitro,
@@ -135,6 +137,7 @@ const NATIVES: &[(&str, Native)] = &[
     ("stick_right", Native::StickRight),
     ("attack", Native::Attack),
     ("gas", Native::Gas),
+    ("boost", Native::Boost),
     ("brake", Native::Brake),
     ("nitro", Native::Nitro),
     ("coin", Native::Coin),
