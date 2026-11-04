@@ -6,7 +6,8 @@ Only plain runs of this tree count: runs marked `experiment` (regression.py --pr
 hand for a run with an uncommitted change), with an extra profile layer or another tree (--root)
 are skipped; a clean worktree of this repository (the deployed commit) counts as this tree. The
 games of a Batocera roms run (--roms) are named by their image's id
-(tools/regression/roms-index.json). Rewrites README.md between the GAMELIST markers.
+(tools/regression/roms-index.json). Rewrites README.md between the GAMELIST markers, and the
+games' count in its "## Games" title.
 
 Usage: tools/gamelist.py
 """
@@ -114,8 +115,12 @@ def table() -> str:
 def main():
     text = README.read_text()
     start, end = text.index(BEGIN) + len(BEGIN), text.index(END)
-    README.write_text(text[:start] + "\n" + table() + "\n" + text[end:])
-    print(f"{README}: {len(doc_games())} games")
+    text = text[:start] + "\n" + table() + "\n" + text[end:]
+    # the games' count in the section's title
+    count = len(doc_games())
+    text = re.sub(r"^## Games( \(\d+\))?$", f"## Games ({count})", text, count=1, flags=re.M)
+    README.write_text(text)
+    print(f"{README}: {count} games")
 
 
 if __name__ == "__main__":
