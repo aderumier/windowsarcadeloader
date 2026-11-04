@@ -267,10 +267,12 @@ fn screen_placeholders(arg: &str, (sw, sh): (u32, u32), env: &std::collections::
 
 /// The gamescope arguments with the `fit` scaler (`-S fit`, `--scaler fit`) made `stretch`
 /// when `stretch` (the profile's `WAL_KEEP_ASPECT_RATIO=0`, Batocera ES's KEEP ASPECT RATIO
-/// off): the GDI frontends gamescope scales (Beach Head's 640x480 shells) fill the screen.
+/// off) and the game's screen is not 4:3: wide games fill a 4:3 screen, 4:3 games (Beach Head's
+/// 640x480 shells, Need for Speed's 800x600) keep their aspect, black bars on a wide screen.
 fn stretched(conf: &config::GamescopeConfig, stretch: bool) -> config::GamescopeConfig {
     let mut args = conf.args.clone();
-    if stretch {
+    let four_three = conf.width > 0 && conf.width * 3 == conf.height * 4;
+    if stretch && !four_three {
         for i in 1..args.len() {
             if matches!(args[i - 1].as_str(), "-S" | "--scaler") && args[i] == "fit" {
                 args[i] = "stretch".to_string();
