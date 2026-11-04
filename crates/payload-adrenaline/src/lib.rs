@@ -163,6 +163,9 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
     // Need for Speed Heat Takedown (HDRP): its render scale, before its first frame
     #[cfg(target_pointer_width = "64")]
     hdrp::init();
+    // Hot Wheels: Kings of the Road: no webcam pictures, before its operator settings are read
+    #[cfg(target_pointer_width = "64")]
+    hotwheels::init();
     // Drakon: Realm Keepers (IL2CPP): its methods replaced at its dongle's start
     #[cfg(target_pointer_width = "64")]
     if module == "matrix64.dll" {
