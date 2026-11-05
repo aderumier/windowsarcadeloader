@@ -4585,6 +4585,10 @@ wal-loader (no XInput import; `xinput1_3: "n,b"`, else Wine's builtin is loaded)
 - **Settings.** `SaveData.xml` beside the executable (free play on in the dump), written back by
   the game: the profile installs a copy of the dump's.
 
+- **Keyboard.** The arrows steer and drive (up the gas, down the brake), Page Up / Page Down
+  move in the operator menu. No force feedback: the game drives nothing (no board output; its
+  network code is SmartFox, the linked cabinets' races).
+
 Headless checks: attract, start, track select, a race (gas, steering both ways, overtakes).
 
 ### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
@@ -5445,7 +5449,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
 | `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |
 | `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config), 1920x1080 desktop fitted (packed imports rescanned), arrows move |
-| `mighty-moto` | Mighty Moto | unis | works (headless: start, track select, a race) | Unity 2.x 32-bit (§6.3j): wal-loader, the cabinet's keys posted to the game window from player 1's stick and pedals (real keyboard filtered), fake DirectInput |
+| `mighty-moto` | Mighty Moto | unis | user 100% (2026-11-05) | Unity 2.x 32-bit (§6.3j): wal-loader, the cabinet's keys posted to the game window from player 1's stick and pedals (real keyboard filtered), fake DirectInput |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): Rabbids Hollywood's Sixense trackers, Kaboom Adrio board and Matrix dongle; the trigger on the board's player button 2, the tracker's button reloads; Wine's `winhttp` |
