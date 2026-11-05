@@ -6,7 +6,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 PROFILE=${PROFILE:-release}
 
 cargo build --profile "$PROFILE" -p wal-launcher
-cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-adrenaline -p wal-loader
+cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-adrenaline -p wal-payload-apm3 -p wal-loader
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-konami -p wal-payload-adrenaline
 # the AVS boot of the 64-bit Konami game DLLs (Bishi Bashi Channel)
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-loader --bin wal-avs-boot
@@ -19,7 +19,7 @@ install_file() {
 }
 mkdir -p dist/payloads
 install_file "target/$PROFILE/arcade-launcher" dist/arcade-launcher
-for f in wal_nesica.dll wal_typex.dll wal_globalvr.dll wal_tsunami.dll wal_rawthrills.dll wal_ringedge.dll wal_segashell.dll wal_wahlap.dll wal_europar.dll wal_adrenaline.dll wal_konami.dll wal_bngrw.dll wal-loader.exe wal-avs-boot.exe wal-gasguzzlers.exe; do
+for f in wal_nesica.dll wal_typex.dll wal_globalvr.dll wal_tsunami.dll wal_rawthrills.dll wal_ringedge.dll wal_segashell.dll wal_wahlap.dll wal_europar.dll wal_adrenaline.dll wal_apm3.dll wal_konami.dll wal_bngrw.dll wal-loader.exe wal-avs-boot.exe wal-gasguzzlers.exe; do
     install_file "target/i686-pc-windows-gnu/$PROFILE/$f" "dist/payloads/$f"
 done
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_namcoes3.dll" dist/payloads/wal_namcoes3.dll
