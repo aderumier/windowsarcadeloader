@@ -1,5 +1,8 @@
 # Blade Strangers (Sega ALLS, APM3 edition). Runs himekaku.exe (OpenGL; apm_x86.dll delay
 # loaded). One player per cabinet (the APM3 versus mode is two linked cabinets).
+# Aime card: always on the reader (the game asks after START whether to use it); the card input
+# (F4, pad guide) takes it off (guest play). The player's data (name, league, records) in
+# apms/gs-<aime id>.json of the game folder, the payload's ABAAS game server.
 # Override values in userprofiles/apm3/blade-strangers-apm3.yaml.
 system: apm3
 name: Blade Strangers (APM3)
@@ -12,3 +15,18 @@ env:
   # the code hiding both its texts (0x49943e)
   WAL_PATCHES: "0x9925a:E9DF01000090909090"
   WAL_PATCHES_EXE: himekaku.exe
+  # ALL.Net, the Aime server and the ABAAS game server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  # the card on the reader without pressing anything
+  WAL_APM3_CARD_AUTO: "1"
+  # no ABAAS matching server (no link): the studio logo scene waits for its connection (the je
+  # at 0x4f9c24), and the network state (0x4aa3d0: 0 = card play) also needs it ready (the je
+  # at 0x4aa40b, else 1: the game skips the card read)
+  WAL_APM3_NO_LINK_PATCHES: "0xf9c24:9090,0xaa40b:9090"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  card: Aime card (take off / put back)

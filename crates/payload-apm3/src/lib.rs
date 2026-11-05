@@ -39,6 +39,7 @@ mod apms;
 mod backup;
 mod cts;
 mod emoney;
+mod gs;
 
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -578,16 +579,44 @@ pub extern "system" fn System_getAppRootPath() -> *const u16 {
     wide(root, 0)
 }
 
+/// An id structure: two UTF-16 strings, the first at 0 (17 characters), the second at byte 0x22
+/// (the test menus print `[%s] [%s]`; Blade Strangers' ABAAS client takes the second, an
+/// 11-character id).
+fn two_ids(first: &str, second: &str) -> *const u16 {
+    static CACHE: Mutex<Option<HashMap<String, &'static [u16]>>> = Mutex::new(None);
+    let key = format!("{first}|{second}");
+    let mut cache = CACHE.lock().unwrap();
+    cache
+        .get_or_insert_with(HashMap::new)
+        .entry(key)
+        .or_insert_with(|| {
+            let mut v = vec![0u16; 17 + 24];
+            for (i, c) in first.encode_utf16().take(16).enumerate() {
+                v[i] = c;
+            }
+            for (i, c) in second.encode_utf16().take(23).enumerate() {
+                v[17 + i] = c;
+            }
+            Box::leak(v.into_boxed_slice())
+        })
+        .as_ptr()
+}
+
+/// The main board's ids (`WAL_APM3_BOARD`).
 #[unsafe(no_mangle)]
 pub extern "system" fn System_getBoardId() -> *const u16 {
     first_call("System_getBoardId");
-    wide(&env("WAL_APM3_BOARD").unwrap_or_else(|| "ACAE01A99999999".into()), 32)
+    let board = env("WAL_APM3_BOARD").unwrap_or_else(|| "ACAE01A99999999".into());
+    two_ids(&board, &board.replace('-', "").chars().take(11).collect::<String>())
 }
 
+/// The keychip's ids (`WAL_APM3_KEYCHIP`, 16 characters `XXXX-XXXXXXXXXXX`): the id, then its
+/// 11-character form (the dash removed, the first 11: `A69E01A8888`).
 #[unsafe(no_mangle)]
 pub extern "system" fn System_getKeychipId() -> *const u16 {
     first_call("System_getKeychipId");
-    wide(&env("WAL_APM3_KEYCHIP").unwrap_or_else(|| "A69E-01A88888888".into()), 32)
+    let keychip = env("WAL_APM3_KEYCHIP").unwrap_or_else(|| "A69E-01A88888888".into());
+    two_ids(&keychip, &keychip.replace('-', "").chars().take(11).collect::<String>())
 }
 
 #[unsafe(no_mangle)]
@@ -660,7 +689,13 @@ pub extern "system" fn AllnetAuth_isDevelop() -> bool {
 #[unsafe(no_mangle)]
 pub extern "system" fn AllnetAuth_getAbaasGsServerName() -> *const u16 {
     first_call("AllnetAuth_getAbaasGsServerName");
-    wide("", 0)
+    // online: the payload's game server (gs.rs): a host name (the client adds port 80, moved to
+    // the title server's port by apms.rs' connect hook)
+    if ONLINE.load(Ordering::Relaxed) {
+        wide(&env("WAL_APM3_ABAAS_GS").unwrap_or_else(|| "127.0.0.1".into()), 0)
+    } else {
+        wide("", 0)
+    }
 }
 
 #[unsafe(no_mangle)]
