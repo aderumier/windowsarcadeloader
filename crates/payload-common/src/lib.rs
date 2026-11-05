@@ -77,6 +77,9 @@ pub mod images_d3d11;
 // a touch screen's pointer over Direct3D 11 pictures
 #[cfg(windows)]
 pub mod pointer_d3d11;
+// a portrait Unity cabinet game on a 16:9 screen (WAL_UNITY_LANDSCAPE)
+#[cfg(windows)]
+pub mod unity_landscape;
 // parallel port force feedback boards (inpout32 Out32)
 pub mod port_ffb;
 #[cfg(windows)]

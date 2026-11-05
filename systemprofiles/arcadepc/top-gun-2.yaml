@@ -33,7 +33,7 @@ env:
   # "1": a 16:9 screen, the levels full screen (not stretched), the menus, attract and
   # loading in the bezel (the portrait setup above undone by the payload); "0": the cabinet's
   # portrait picture
-  WAL_JX_LANDSCAPE: "1"
+  WAL_UNITY_LANDSCAPE: "1"
   # its window out of the window manager's hands (a desktop's top bar pushed it down), given
   # the focus
   WAL_DESKTOP_UNMANAGED: "1"
@@ -51,7 +51,7 @@ native_map:
 options:
   - title: Display
     options:
-      - key: WAL_JX_LANDSCAPE
+      - key: WAL_UNITY_LANDSCAPE
         label: Landscape
         kind: bool
         description: >-
