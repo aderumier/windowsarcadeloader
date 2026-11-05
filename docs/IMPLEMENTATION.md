@@ -5175,7 +5175,27 @@ whole stack under the real amdaemon; here the payload replaces the library inste
     same exports, undecorated; also the main payload of 64-bit APM3 games).
   - inputs (`0x6a1bf0`): push01-04 bits 0x8-0x40, push05 0x1 | 0x2, push06 0x4 | 0x80000000,
     push07 / 08 0x80 / 0x100, start 0x800; they are read only ~16 s after the boot (the logos).
-  - online (`WAL_APM3_ONLINE=1`) stalls the boot on the studio logo: not done (offline only).
+  - online (`WAL_APM3_ONLINE=1`, the profile's default: Aime cards): without an ABAAS link the
+    studio logo scene waits for its connection (the `je` at `0x4f9c24`) and the network state
+    (`0x4aa3d0`: 0 with ALL.Net, the Aime DB, the game server's online flag and the link ready;
+    1 without the link: the game starts without asking for a card) needs the link (`0x4aa40b`):
+    both NOPed by the profile's `WAL_APM3_NO_LINK_PATCHES`. Then START reads the card
+    (`LGameMode_aime_cardRead`, "use the Aime card? yes / no") and the game asks the ABAAS game
+    server for the player.
+  - the ABAAS game server (`gs.rs`, `am::abaas::GsMain`): POSTs to
+    `http://<AllnetAuth_getAbaasGsServerName>/api/<api>` (the name a host, port 80 added: the
+    payload's `127.0.0.1`, its connect hook moves port 80 to the title server's, which routes
+    `/api/`). A body: a 16-byte header, also the IV (`01 01 01 00`, the game id, 8 random
+    bytes), then zlib-compressed JSON, AES-256-CBC encrypted with the title key the game gives
+    the client (traced from `BCryptGenerateSymmetricKey`, `WAL_APM3_APMS_TRACE=1`). The response
+    header: `01 01`, a status (u16 BE, 0 = success), the JSON's CRC32 and length (BE), 4 bytes.
+    `server/alive`: `{"control":{"online":1}}` (the online flag, `0x6a3b2e`). `user/load`
+    (`{"user":{"user_id":N,"savedata":{"keys":[..]}}}`, keys with `*` / `?` patterns:
+    `league*`, `Ch??rank`): the answer must hold `user` (missing: a crash at `0x68d494`, the
+    reader at `0x6a3dca`); `{"user":{"user_id":N}}` is a new player; a known one gets its name and
+    the requested saved values. `user/save` (the end of a game: `name` and `savedata`, a flat
+    object of strings: league, per-character records, play counts): stored as
+    `apms/gs-<aime id>.json`. `user/heartbeat` and the rest: `{}`.
   - no network banner (pink "Aime play and national / in-store matching unavailable"; online, the
     access code hint): the profile's `WAL_PATCHES` (`WAL_PATCHES_EXE=himekaku.exe`, not the test
     program) make the banner's switch on the network state (`0x4aa3d0`) jump to the code hiding
@@ -5546,7 +5566,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `under-night-in-birth-exe-late` | Under Night In-Birth Exe:Late | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `RingGame.exe.orig` (the dump's `RingGame.exe` is patched), amAuth 1.40 commands, JVS on COM4 |
 | `under-night-in-birth-exe-late-st` | Under Night In-Birth Exe:Late[st] | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), newer version of the same game: `RingGame.exe.orig`, amAuth 1.40 commands, JVS on `\\.\mxjvs` |
 | `under-night-in-birth-exe-late-cl-r` | Under Night In-Birth Exe:Late[cl-r] | apm3 | works (user: game fine, 2026-11-05); Aime cards + saves headless (2026-11-05); 1 player per cabinet; no network versus | Sega ALLS APM3 (§6.3k): replacement `apm_x86.dll`, title server in the payload, boot / online patches |
-| `blade-strangers-apm3` | Blade Strangers (APM3) | apm3 | user 100% (2026-11-05), offline, network banner removed, test menu, 1 player per cabinet | Sega ALLS APM3 (§6.3k): OpenGL, `apm_x86.dll` delay loaded, e-money window, backup records, .NET test menu on the 64-bit `apm.dll` |
+| `blade-strangers-apm3` | Blade Strangers (APM3) | apm3 | user 100% (2026-11-05), network banner removed, test menu, 1 player per cabinet; Aime cards + player data (ABAAS game server) headless | Sega ALLS APM3 (§6.3k): OpenGL, `apm_x86.dll` delay loaded, e-money window, backup records, .NET test menu on the 64-bit `apm.dll` |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |

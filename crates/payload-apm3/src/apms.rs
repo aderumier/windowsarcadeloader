@@ -213,6 +213,13 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
     }
     let mut body = vec![0; length];
     reader.read_exact(&mut body)?;
+    if path.starts_with("/api/") {
+        let reply = crate::gs::reply(&path, &body);
+        let mut out = stream;
+        out.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", reply.len()).as_bytes())?;
+        out.write_all(&reply)?;
+        return Ok(());
+    }
     let api = path.rsplit('/').next().unwrap_or("").to_string();
     let request = cts::open_request(&body).map(|raw| cts::decode_all(&raw).into_iter().next().unwrap_or(Value::Nil)).unwrap_or(Value::Nil);
     log!("apms: {api} {}", cts::show(&request));
