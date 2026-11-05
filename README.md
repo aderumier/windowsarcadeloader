@@ -292,7 +292,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns | not in the test |  |
 | `night-hunter-after-dark-chapter-ii-3-0-2` | Night Hunter: After Dark Chapter II (3.0.2) | unis | user 100% (2026-11-03), 2 guns, 4 missions selectable (Lost Trails) | not in the test |  |
 | `raccoon-rampage` | Raccoon Rampage | unis | user 100% (2026-11-05), 4 guns | not in the test |  |
-| `crazy-ride` | Crazy Ride | unis | works (headless: start, car select, race, operator menu), wheel | not in the test |  |
+| `crazy-ride` | Crazy Ride | unis | user 100% (2026-11-05), wheel, force feedback | not in the test |  |
 | `crazy-speed-arcade` | Crazy Speed Arcade | unis | works (headless: coins, start, car and course select, race), wheel | not in the test |  |
 | `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | not in the test |  |
 | `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | not in the test |  |

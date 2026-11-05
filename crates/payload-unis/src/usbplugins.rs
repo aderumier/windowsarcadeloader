@@ -37,15 +37,19 @@
 //! ## Crazy Ride
 //!
 //! - **I/O.** `BIND_GetIoData(FCoUnisIoData&)`, 33 bytes (`ACTGameState::ParseIOData`): byte 2
-//!   the operator's buttons (as Raccoon Rampage's), byte 3 bit 0 the start button, 1 the seat
-//!   motion's pause (each press toggles it), 2 the seat belt (fastened: set), 7 a coin (unused:
-//!   the coins are the DLL's counter); byte 6 the brake, 7 the gas (1..255).
+//!   the operator's buttons (as Raccoon Rampage's), byte 3 bit 0 the start button (in a race:
+//!   the nitro), 1 the seat motion's pause (each press toggles it), 2 the seat belt (fastened:
+//!   set), 7 a coin (unused: the coins are the DLL's counter); byte 6 the brake, 7 the gas
+//!   (1..255).
 //! - **Wheel.** `BIND_IsExistSteeringWheel`, `BIND_OpenSteeringWheelDevice(port)`: true;
 //!   `BIND_GetSteeringWheelAngle()`: 255 full left .. 1 full right, 128 the centre (the
 //!   cabinet's wheel: left the high values). The game maps the wheel and the pedals through the
 //!   operator menu's input calibration (`Setting_Test_Input.ini`, CRLF lines: `IniFile.dll`'s
-//!   parser): the profile's matches these ranges. The force feedback
-//!   (`BIND_SetSteeringWheelData`) is the DLL's (no wheel: nothing).
+//!   parser): the profile's matches these ranges.
+//! - **Force feedback.** `BIND_SetSteeringWheelData(force, centre, shake, 0)`: the motor's
+//!   centring force level (0..10, the operator menu's, 3 by default) and its shaking level (set
+//!   while the car hits or bumps): the launcher's centring spring and vibration, a tenth of the
+//!   full force per level.
 //! - **Coins.** `BIND_GetInternalCoins()`: the credits; `BIND_DecCoins(count)`,
 //!   `BIND_AddKeyboardCoins(count)`. The dump's pay setting is free play.
 //!
@@ -210,12 +214,14 @@ const RACCOON_RAMPAGE_DEFAULTS: &[(&str, &str)] = &[
     ("b2", "enter"),
 ];
 
-/// Crazy Ride's: the start button, the operator's.
+/// Crazy Ride's: the start button (in a race, while a mission runs, the nitro: the cabinet's
+/// "wing", `IO_TurnOnWing`), also on b1; the operator's (test opens the menu and moves up; not
+/// on up: the keyboard's up arrow is the gas).
 const CRAZY_RIDE_DEFAULTS: &[(&str, &str)] = &[
     ("start", "start"),
+    ("b1", "start"),
     ("coin", "coin"),
     ("test", "test"),
-    ("up", "test"),
     ("down", "down"),
     ("service", "enter"),
 ];
@@ -475,6 +481,31 @@ unsafe extern "C" fn add_internal_coins(count: i32) -> bool {
 }
 
 /// The wheel (player 1's `lx`): 255 full left .. 1 full right, 128 the centre.
+/// Crazy Ride's `BIND_SetSteeringWheelData(force, centre, shake, 0)`: the wheel motor's centring
+/// force (the operator menu's `iSteeringWheelForceFeedback`, 0..10, 3 by default; 0 while the
+/// game starts), its centre (128) and its shaking (`iSteeringWheelShakingForce` while the car
+/// hits or bumps, 0 otherwise): the player's force feedback, a centring spring and a vibration
+/// (each level a tenth of the full force).
+unsafe extern "C" fn set_steering_wheel_data(force: i32, centre: i32, shake: i32, _unused: i32) {
+    use wal_protocol::output::{FFB_MAX, FFB_SPRING, FFB_VIBRATION};
+    static LAST: Mutex<Option<(i32, i32)>> = Mutex::new(None);
+    let level = |l: i32| l.clamp(0, 10) * FFB_MAX / 10;
+    let (spring, vibration) = (level(force), level(shake));
+    let mut last = LAST.lock().unwrap();
+    let previous = *last;
+    if previous.is_some_and(|p| p == (spring, vibration)) {
+        return;
+    }
+    *last = Some((spring, vibration));
+    if previous.is_none_or(|p| p.0 != spring) {
+        log!("unis: wheel force {force} (centre {centre}): spring {spring}");
+        wal_payload_common::send_output(0, FFB_SPRING, spring);
+    }
+    if previous.is_none_or(|p| p.1 != vibration) {
+        wal_payload_common::send_output(0, FFB_VIBRATION, vibration);
+    }
+}
+
 unsafe extern "C" fn steering_wheel_angle() -> i32 {
     (128 - input(0).axis(Axis::LeftX) as i32 * 127 / 32767).clamp(1, 255)
 }
@@ -525,6 +556,7 @@ fn replacement(name: &[u8]) -> Option<usize> {
         (Game::FantasySoccer, b"BIND_GetInternalCoins") => f(total_coins as *const () as usize),
         (Game::CrazyRide, b"BIND_IsExistSteeringWheel") => f(yes as *const () as usize),
         (Game::CrazyRide, b"BIND_OpenSteeringWheelDevice") => f(open_device as *const () as usize),
+        (Game::CrazyRide, b"BIND_SetSteeringWheelData") => f(set_steering_wheel_data as *const () as usize),
         (Game::CrazyRide, b"BIND_GetSteeringWheelAngle") => f(steering_wheel_angle as *const () as usize),
         _ => None,
     })
