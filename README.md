@@ -203,7 +203,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `under-night-in-birth-exe-late` | Under Night In-Birth Exe:Late | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | pass | 2026-11-01 |
 | `under-night-in-birth-exe-late-st` | Under Night In-Birth Exe:Late[st] | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | pass | 2026-11-01 |
 | `under-night-in-birth-exe-late-cl-r` | Under Night In-Birth Exe:Late[cl-r] | apm3 | works (user: game fine, 2026-11-05); Aime cards + saves headless (2026-11-05); 1 player per cabinet; no network versus | not in the test |  |
-| `blade-strangers-apm3` | Blade Strangers (APM3) | apm3 | user 100% (2026-11-05), network banner removed, test menu, 1 player per cabinet; Aime cards + player data (ABAAS game server) headless | not in the test |  |
+| `blade-strangers-apm3` | Blade Strangers (APM3) | apm3 | user 100% (2026-11-05), network banner removed, test menu, 1 player per cabinet, Aime cards + player data (ABAAS game server, user 100%) | not in the test |  |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | pass | 2026-11-01 |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | pass | 2026-11-01 |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | pass | 2026-11-01 |
