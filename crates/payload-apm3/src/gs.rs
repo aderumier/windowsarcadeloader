@@ -6,24 +6,39 @@
 //!
 //! Bodies: a 16-byte header that is also the IV (`01 01 01 00`, the game id, 8 random bytes),
 //! then the zlib-compressed JSON, AES-256-CBC encrypted (PKCS#7) with the title key the game gives
-//! the client (`setTitleServerConfig`; Blade Strangers' key in [`KEY`]). Requests:
+//! the client (`setTitleServerConfig`: learnt at run time, [`KEY`]). Requests:
 //! `{"client":{"serial":..,"game_id":..,"game_ver":..,"location_id":..,"create_time":..}, ...}`.
 
 use aes::Aes256;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit, generic_array::GenericArray};
 use wal_payload_common::log;
 
-/// Blade Strangers (APM3)'s title key (`BCryptGenerateSymmetricKey`, `WAL_APM3_APMS_TRACE=1`).
-const KEY: [u8; 32] = [
-    0x56, 0xbd, 0x36, 0xd0, 0xd0, 0x5c, 0x8d, 0x01, 0x00, 0xa8, 0x90, 0xb5, 0x7f, 0x29, 0x91, 0x98, 0xaf, 0x54, 0xa5, 0x69, 0xcb, 0xb2,
-    0xfc, 0xa2, 0xaf, 0x23, 0xbf, 0x62, 0x16, 0x81, 0xc8, 0x09,
-];
+/// The title key the game gives the client (`setTitleServerConfig`), learnt from its
+/// `BCryptGenerateSymmetricKey` call (apms.rs; a 256-bit secret); `WAL_APM3_GS_KEY` (hex) instead.
+static KEY: std::sync::Mutex<Option<[u8; 32]>> = std::sync::Mutex::new(None);
+
+pub(crate) fn learn_key(secret: &[u8]) {
+    let Ok(key) = <[u8; 32]>::try_from(secret) else { return };
+    let mut current = KEY.lock().unwrap();
+    if crate::env("WAL_APM3_GS_KEY").is_none() && *current != Some(key) {
+        log!("gs: title key {}", key.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        *current = Some(key);
+    }
+}
+
+fn key() -> Option<[u8; 32]> {
+    if let Some(hex) = crate::env("WAL_APM3_GS_KEY") {
+        let bytes: Vec<u8> = (0..hex.len() / 2).filter_map(|i| u8::from_str_radix(hex.get(2 * i..2 * i + 2)?, 16).ok()).collect();
+        return bytes.try_into().ok();
+    }
+    *KEY.lock().unwrap()
+}
 
 fn decrypt(iv: &[u8], data: &[u8]) -> Option<Vec<u8>> {
     if data.is_empty() || data.len() % 16 != 0 {
         return None;
     }
-    let cipher = Aes256::new(GenericArray::from_slice(&KEY));
+    let cipher = Aes256::new(GenericArray::from_slice(&key()?));
     let mut prev: [u8; 16] = iv.try_into().ok()?;
     let mut out = Vec::with_capacity(data.len());
     for block in data.chunks(16) {
@@ -41,7 +56,7 @@ fn decrypt(iv: &[u8], data: &[u8]) -> Option<Vec<u8>> {
 }
 
 fn encrypt(iv: &[u8; 16], data: &[u8]) -> Vec<u8> {
-    let cipher = Aes256::new(GenericArray::from_slice(&KEY));
+    let cipher = Aes256::new(GenericArray::from_slice(&key().unwrap_or_default()));
     let pad = 16 - data.len() % 16;
     let mut plain = data.to_vec();
     plain.extend(std::iter::repeat_n(pad as u8, pad));
@@ -176,28 +191,178 @@ fn path(user_id: &str) -> String {
     format!("apms\\gs-{user_id}.json")
 }
 
-/// `user/load`: the player, with the saved values of the requested keys (`user.savedata.keys`;
-/// none for a new player: the game starts one).
-fn load(id: &str, request: &str) -> String {
-    let Ok(file) = std::fs::read_to_string(path(id)) else {
-        log!("gs: player {id}: new");
-        return format!(r#"{{"user":{{"user_id":{id}}}}}"#);
-    };
-    let name = value(&file, "name").unwrap_or(r#""""#);
-    let saved = value(&file, "savedata").map(members).unwrap_or_default();
-    // the game's player check (`control.start_game`) asks for no keys: the player only
-    let Some(keys) = value(request, "keys") else {
-        return format!(r#"{{"user":{{"user_id":{id},"name":{name}}}}}"#);
-    };
-    let list = keys.trim().trim_start_matches('[').trim_end_matches(']');
-    let patterns: Vec<&str> = list.split(',').map(|p| p.trim().trim_matches('"')).filter(|p| !p.is_empty()).collect();
-    let data: Vec<String> = saved
+/// The elements of a JSON array (`array`'s text).
+fn elements(array: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let mut rest = array.trim().strip_prefix('[').unwrap_or("");
+    loop {
+        rest = rest.trim_start_matches(|c: char| c.is_whitespace() || c == ',');
+        if rest.is_empty() || rest.starts_with(']') {
+            return out;
+        }
+        let element = scan(rest);
+        if element.is_empty() {
+            return out;
+        }
+        rest = &rest[element.len()..];
+        out.push(element);
+    }
+}
+
+/// A number member of an object (0 when absent).
+fn number(object: &str, key: &str) -> i64 {
+    value(object, key).and_then(|v| v.trim_matches('"').parse().ok()).unwrap_or(0)
+}
+
+/// One ranking's records (`apms/gs-ranking-<id>.txt`): a line per player, best score first:
+/// user id, score, sub score, then the name and the game's optional data (JSON strings), tab
+/// separated.
+struct Record {
+    user_id: i64,
+    score: i64,
+    sub_score: i64,
+    name: String,
+    optional: String,
+}
+
+fn ranking_path(id: i64) -> String {
+    format!("apms\\gs-ranking-{id}.txt")
+}
+
+fn ranking(id: i64) -> Vec<Record> {
+    let text = std::fs::read_to_string(ranking_path(id)).unwrap_or_default();
+    text.lines()
+        .filter_map(|line| {
+            let f: Vec<&str> = line.splitn(5, '\t').collect();
+            Some(Record {
+                user_id: f.first()?.parse().ok()?,
+                score: f.get(1)?.parse().ok()?,
+                sub_score: f.get(2)?.parse().ok()?,
+                name: f.get(3)?.to_string(),
+                optional: f.get(4)?.to_string(),
+            })
+        })
+        .collect()
+}
+
+/// `user/save`'s scores (`rankings`: ranking id, score, sub score, optional data): the
+/// player's best one kept in each ranking.
+fn save_rankings(user_id: i64, name: &str, request: &str) {
+    let Some(list) = value(request, "rankings") else { return };
+    for entry in elements(list) {
+        let id = number(entry, "ranking_id");
+        let score = number(entry, "score");
+        let mut records = ranking(id);
+        if records.iter().any(|r| r.user_id == user_id && r.score >= score) {
+            continue;
+        }
+        records.retain(|r| r.user_id != user_id);
+        records.push(Record {
+            user_id,
+            score,
+            sub_score: number(entry, "sub_score"),
+            name: name.to_string(),
+            optional: value(entry, "optional_data").unwrap_or(r#""""#).to_string(),
+        });
+        records.sort_by(|a, b| b.score.cmp(&a.score).then(b.sub_score.cmp(&a.sub_score)));
+        records.truncate(1000);
+        let text: String = records
+            .iter()
+            .map(|r| format!("{}\t{}\t{}\t{}\t{}\n", r.user_id, r.score, r.sub_score, r.name, r.optional))
+            .collect();
+        let _ = std::fs::create_dir_all("apms");
+        match std::fs::write(ranking_path(id), text) {
+            Ok(()) => log!("gs: ranking {id}: player {user_id} score {score}"),
+            Err(e) => log!("gs: ranking {id}: {e}"),
+        }
+    }
+}
+
+/// `ranking/list` (`rankings`: ranking id, count): each ranking's best records.
+fn list_rankings(request: &str) -> String {
+    let lists: Vec<String> = value(request, "rankings")
+        .map(elements)
+        .unwrap_or_default()
         .iter()
-        .filter(|(key, _)| patterns.iter().any(|p| matches(p, key)))
-        .map(|(key, v)| format!(r#""{key}":{v}"#))
+        .map(|entry| {
+            let id = number(entry, "ranking_id");
+            let count = match number(entry, "count") {
+                0 => 100,
+                n => n,
+            };
+            let records: Vec<String> = ranking(id)
+                .iter()
+                .take(count as usize)
+                .enumerate()
+                .map(|(i, r)| {
+                    format!(
+                        r#"{{"rank":{},"user_id":{},"name":{},"score":{},"sub_score":{},"optional_data":{}}}"#,
+                        i + 1,
+                        r.user_id,
+                        r.name,
+                        r.score,
+                        r.sub_score,
+                        r.optional
+                    )
+                })
+                .collect();
+            format!(r#"{{"ranking_id":{id},"total":{},"records":[{}]}}"#, records.len(), records.join(","))
+        })
         .collect();
-    log!("gs: player {id}: {} of {} values", data.len(), saved.len());
-    format!(r#"{{"user":{{"user_id":{id},"name":{name},"savedata":{{{}}}}}}}"#, data.join(","))
+    format!(r#"{{"rankings":[{}]}}"#, lists.join(","))
+}
+
+/// The player's place in the requested rankings (`user.rankings`: ranking ids).
+fn player_rankings(user_id: i64, list: &str) -> String {
+    let entries: Vec<String> = elements(list)
+        .iter()
+        .map(|entry| {
+            let id = number(entry, "ranking_id");
+            let records = ranking(id);
+            let (rank, score, sub, optional) = match records.iter().position(|r| r.user_id == user_id) {
+                Some(i) => (i + 1, records[i].score, records[i].sub_score, records[i].optional.as_str()),
+                None => (0, 0, 0, r#""""#),
+            };
+            format!(
+                r#"{{"ranking_id":{id},"score":{score},"sub_score":{sub},"filter1":0,"filter2":0,"filter3":0,"optional_data":{optional},"rank":{rank},"total":{}}}"#,
+                records.len()
+            )
+        })
+        .collect();
+    format!("[{}]", entries.join(","))
+}
+
+/// `user/load`: the player, with the saved values of the requested keys (`user.savedata.keys`;
+/// an empty object for a new player: the game starts one) and its place in the requested
+/// rankings (`user.rankings`).
+fn load(id: &str, request: &str) -> String {
+    let file = std::fs::read_to_string(path(id)).ok();
+    let mut user = vec![format!(r#""user_id":{id}"#)];
+    let keys = value(request, "keys");
+    match &file {
+        Some(file) => user.push(format!(r#""name":{}"#, value(file, "name").unwrap_or(r#""""#))),
+        // no name and an empty savedata object for a new player (Senxin Aleste's reader
+        // requires both when it asked for keys)
+        None if keys.is_some() => user.push(r#""name":"""#.into()),
+        None => {}
+    }
+    // the game's player check (`control.start_game`) asks for no keys: no values
+    if let Some(keys) = keys {
+        let saved = file.as_deref().and_then(|f| value(f, "savedata")).map(members).unwrap_or_default();
+        let list = keys.trim().trim_start_matches('[').trim_end_matches(']');
+        let patterns: Vec<&str> = list.split(',').map(|p| p.trim().trim_matches('"')).filter(|p| !p.is_empty()).collect();
+        let data: Vec<String> = saved
+            .iter()
+            .filter(|(key, _)| patterns.iter().any(|p| matches(p, key)))
+            .map(|(key, v)| format!(r#""{key}":{v}"#))
+            .collect();
+        log!("gs: player {id}: {}, {} of {} values", if file.is_some() { "known" } else { "new" }, data.len(), saved.len());
+        user.push(format!(r#""savedata":{{{}}}"#, data.join(",")));
+    }
+    if let Some(list) = value(request, "rankings") {
+        user.push(format!(r#""rankings":{}"#, player_rankings(id.parse().unwrap_or(0), list)));
+    }
+    format!(r#"{{"user":{{{}}}}}"#, user.join(","))
 }
 
 /// The JSON answer to one request (`api`: the path after `/api/`).
@@ -207,18 +372,25 @@ fn answer(api: &str, request: &str) -> Option<String> {
         // the game's online flag: control.online nonzero
         ("server/alive", _) => Some(r#"{"control":{"online":1}}"#.into()),
         ("user/load", Some(id)) => Some(load(id, request)),
-        // the end of a game: the name and all values (a second save without them: nothing)
+        // the end of a game: the name and all values (a second save without them: nothing),
+        // the scores
         ("user/save", Some(id)) => {
+            let name = value(request, "name").unwrap_or(r#""""#);
             if let Some(data) = value(request, "savedata") {
-                let name = value(request, "name").unwrap_or(r#""""#);
                 let _ = std::fs::create_dir_all("apms");
                 match std::fs::write(path(id), format!(r#"{{"name":{name},"savedata":{data}}}"#)) {
                     Ok(()) => log!("gs: player {id}: data saved ({} bytes)", data.len()),
                     Err(e) => log!("gs: player {id}: {e}"),
                 }
             }
+            let name = match value(request, "name") {
+                Some(n) => n.to_string(),
+                None => std::fs::read_to_string(path(id)).ok().and_then(|f| value(&f, "name").map(str::to_string)).unwrap_or(r#""""#.into()),
+            };
+            save_rankings(id.parse().unwrap_or(0), &name, request);
             Some(format!(r#"{{"user":{{"user_id":{id}}}}}"#))
         }
+        ("ranking/list", _) => Some(list_rankings(request)),
         _ => Some("{}".into()),
     }
 }
@@ -232,6 +404,17 @@ pub(crate) fn reply(path: &str, body: &[u8]) -> Vec<u8> {
     };
     log!("gs: {api} {request}");
     match answer(api, &request) {
+        // `control.online` in every answer (Senxin Aleste reads it from each, an exception
+        // without it): the server's for server/alive, the player's elsewhere (1: still playing
+        // on another cabinet, "the last play did not end normally")
+        Some(json) if value(&json, "control").is_none() => {
+            let json = match json.strip_suffix('}') {
+                Some(body) if body.len() > 1 => format!(r#"{body},"control":{{"online":0}}}}"#),
+                _ => r#"{"control":{"online":0}}"#.to_string(),
+            };
+            log!("gs: {api} -> {json}");
+            seal(body, &json)
+        }
         Some(json) => {
             log!("gs: {api} -> {json}");
             seal(body, &json)

@@ -5231,6 +5231,39 @@ whole stack under the real amdaemon; here the payload replaces the library inste
     returned by the next StartGame (the block padded to 0x4000).
   - GetRanking `[kind, [ranking ids], filters]` → `[[[] per id]]` (fewer crashes the attract);
     GetCollection → `[]`; the others: the header alone.
+* **ABAAS game server, all games** (`gs.rs`; Blade Strangers above). The title key is learnt at
+  run time: the game's `BCryptGenerateSymmetricKey` 256-bit secret (`WAL_APM3_GS_KEY` hex
+  instead); a client in its own DLL (Otoshu DX's Unity plugin `abaasgs.dll`,
+  `WAL_APM3_GS_MODULE`) gets its `connect` (ordinal 4) and key imports hooked as soon as it is
+  loaded (polled every 2 ms). Every answer carries `control.online` (Senxin Aleste throws
+  without it): 1 for `server/alive` (the server), 0 elsewhere (the player's: 1 = still playing on
+  another cabinet, "the last play did not end normally"). `user/load` for a new player answers
+  `"name":""` and an empty `savedata` object when keys were asked (Senxin's reader requires both;
+  the games then use their default name), and `user.rankings` (the requested ranking ids) gets the
+  player's score, rank and the ranking's total. `user/save`'s `rankings` (`ranking_id`, `score`,
+  `sub_score`, `optional_data`) keep each player's best in `apms/gs-ranking-<id>.txt`;
+  `ranking/list` (`rankings`: id, count) answers `{"rankings":[{"ranking_id", "total",
+  "records":[{"rank", "user_id", "name", "score", "sub_score", "optional_data"}]}]}` (Otoshu's
+  `JTest7` / `JTest5` / `JTest6` classes).
+* **Exports' `BOOL`s.** The exported functions answer 32-bit 0 / 1 (not a Rust `bool`, which
+  only sets `al`): 64-bit C# games P/Invoke them and read the whole `eax` (Otoshu DX).
+* **Aime result after cancel.** The last card read stays readable (`Aime_getAimeId`,
+  `Aime_getAccessCode`) until the next `Aime_start`: Otoshu DX cancels the reader, then asks
+  the id (`g::GetAimeIDAndLoad`; a failure there never loads the player).
+* **Senxin Aleste** (`senxin_aleste_apm3.exe -a`, 32-bit Direct3D 9, M2 ShotTriggers): works as
+  the generic APM3 game; test mode = the same program with `-t` (`WAL_APM3_TEST` plus
+  `WAL_APM3_TEST_ARGS`, the test program recognized by its arguments). Aime cards on the ABAAS
+  game server (records, settings, rankings). Japanese only (`config.txt`'s `LANGUAGE` ignored).
+* **Otoshu DX** (`otsdx.exe`, Unity 2018.3 IL2CPP, 64-bit: the payload's `apm.dll`, P/Invoked
+  by `GameAssembly.dll`). A touch screen game: `WAL_APM3_TOUCH=1` (`touch.rs`) makes player 1's
+  gun (the mouse, or the pointer `lx` / `ly`) the screen and its `touch` input (`b1`) the
+  touch, posted as the window's left mouse button (Unity's touch screen is its mouse), the real
+  mouse and keyboard filtered (`input_filter`, the Unity player's cursor polls). Test mode:
+  `otsdx.exe -t` (`gl::Start` sets its test flag when the command line has an argument). Found
+  without a decompiler (Hopper ran out of memory): the IL2CPP metadata (v24.1) types, fields and
+  method pointers (`CodeRegistration`'s `methodPointers`, found by its count) read by a script,
+  then objdump; `WAL_APM3_TRACE_PINVOKE=1` logs the P/Invoke functions the game resolves,
+  `WAL_APM3_PEEK=<module>+<rva>,<offset>...` logs bytes of a pointer chain when they change.
 
 ### 6.4 Batocera integration
 
@@ -5567,6 +5600,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `under-night-in-birth-exe-late-st` | Under Night In-Birth Exe:Late[st] | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), newer version of the same game: `RingGame.exe.orig`, amAuth 1.40 commands, JVS on `\\.\mxjvs` |
 | `under-night-in-birth-exe-late-cl-r` | Under Night In-Birth Exe:Late[cl-r] | apm3 | works (user: game fine, 2026-11-05); Aime cards + saves headless (2026-11-05); 1 player per cabinet; no network versus | Sega ALLS APM3 (§6.3k): replacement `apm_x86.dll`, title server in the payload, boot / online patches |
 | `blade-strangers-apm3` | Blade Strangers (APM3) | apm3 | user 100% (2026-11-05), network banner removed, test menu, 1 player per cabinet, Aime cards + player data (ABAAS game server, user 100%) | Sega ALLS APM3 (§6.3k): OpenGL, `apm_x86.dll` delay loaded, e-money window, backup records, .NET test menu on the 64-bit `apm.dll` |
+| `senxin-aleste` | Senxin Aleste | apm3 | works headless (2026-11-05): attract, coins, Aime cards (records, settings, rankings saved and reloaded), story play, test mode | Sega ALLS APM3 (§6.3k): 32-bit, the ABAAS game server, test mode `-t` |
+| `otoshu-dx` | Otoshu DX | apm3 | works headless (2026-11-05): touch screen (mouse / gun), Aime cards (name entry, login, data reloaded), songs, test mode | Sega ALLS APM3 (§6.3k): Unity IL2CPP 64-bit, `abaasgs.dll` plugin hooked, touch emulation |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
