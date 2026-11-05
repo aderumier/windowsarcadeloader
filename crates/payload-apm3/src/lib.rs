@@ -187,7 +187,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         // the test program is that exe started with these arguments
         let test_args = env("WAL_APM3_TEST_ARGS").unwrap_or_default();
         let args: Vec<String> = std::env::args().skip(1).collect();
-        let is_test = patches::exe_name().eq_ignore_ascii_case(&test)
+        // its file name (Goonya Fighter's is in a folder beside the game's: ..\gametest\...)
+        let test_name = test.rsplit(['\\', '/']).next().unwrap_or(&test);
+        let is_test = patches::exe_name().eq_ignore_ascii_case(test_name)
             && test_args.split_whitespace().all(|a| args.iter().any(|b| b.eq_ignore_ascii_case(a)));
         IS_TEST_PROGRAM.store(is_test, Ordering::Relaxed);
         // the game's patches, not the test program's
@@ -664,7 +666,9 @@ pub extern "system" fn Sequence_isTest() -> u32 {
     // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
     (|| -> bool {
         first_call("Sequence_isTest");
-        false
+        // the game started as its own test mode (`WAL_APM3_TEST_ARGS`: Puyo Puyo e-Sports,
+        // Koihime Enbu run the same program for both)
+        IS_TEST_PROGRAM.load(Ordering::Relaxed) && env("WAL_APM3_TEST_ARGS").is_some()
     })() as u32
 }
 

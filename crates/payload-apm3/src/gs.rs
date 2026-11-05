@@ -176,6 +176,15 @@ fn members(object: &str) -> Vec<(&str, &str)> {
     }
 }
 
+/// The cabinet's data (`data/save`'s `free_buckets`).
+const DATA: &str = "apms\\gs-data.json";
+
+/// A request's `keys` (key patterns).
+fn key_patterns(request: &str) -> Vec<&str> {
+    let list = value(request, "keys").unwrap_or("[]").trim().trim_start_matches('[').trim_end_matches(']');
+    list.split(',').map(|p| p.trim().trim_matches('"')).filter(|p| !p.is_empty()).collect()
+}
+
 /// `user/load`'s key patterns: `*` any end, `?` any character (`league*`, `Ch??rank`).
 fn matches(pattern: &str, key: &str) -> bool {
     let (p, k) = (pattern.as_bytes(), key.as_bytes());
@@ -341,16 +350,14 @@ fn load(id: &str, request: &str) -> String {
     let keys = value(request, "keys");
     match &file {
         Some(file) => user.push(format!(r#""name":{}"#, value(file, "name").unwrap_or(r#""""#))),
-        // no name and an empty savedata object for a new player (Senxin Aleste's reader
-        // requires both when it asked for keys)
-        None if keys.is_some() => user.push(r#""name":"""#.into()),
-        None => {}
+        // no name (and an empty savedata object) for a new player: Senxin Aleste's and Puyo Puyo
+        // e-Sports' readers require a name string
+        None => user.push(r#""name":"""#.into()),
     }
     // the game's player check (`control.start_game`) asks for no keys: no values
-    if let Some(keys) = keys {
+    if keys.is_some() {
         let saved = file.as_deref().and_then(|f| value(f, "savedata")).map(members).unwrap_or_default();
-        let list = keys.trim().trim_start_matches('[').trim_end_matches(']');
-        let patterns: Vec<&str> = list.split(',').map(|p| p.trim().trim_matches('"')).filter(|p| !p.is_empty()).collect();
+        let patterns = key_patterns(request);
         let data: Vec<String> = saved
             .iter()
             .filter(|(key, _)| patterns.iter().any(|p| matches(p, key)))
@@ -391,6 +398,35 @@ fn answer(api: &str, request: &str) -> Option<String> {
             Some(format!(r#"{{"user":{{"user_id":{id}}}}}"#))
         }
         ("ranking/list", _) => Some(list_rankings(request)),
+        // the cabinet's own data (`free_buckets`: Pengo's settings), all players'
+        ("data/load", _) => {
+            let saved = std::fs::read_to_string(DATA).unwrap_or_default();
+            let saved = members(if saved.is_empty() { "{}" } else { &saved }).into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<Vec<_>>();
+            let patterns = key_patterns(request);
+            let data: Vec<String> =
+                saved.iter().filter(|(k, _)| patterns.iter().any(|p| matches(p, k))).map(|(k, v)| format!(r#""{k}":{v}"#)).collect();
+            Some(format!(r#"{{"free_buckets":{{{}}}}}"#, data.join(",")))
+        }
+        ("data/save", _) => {
+            if let Some(buckets) = value(request, "free_buckets") {
+                let old = std::fs::read_to_string(DATA).unwrap_or_default();
+                let mut merged: Vec<(String, String)> =
+                    members(if old.is_empty() { "{}" } else { &old }).into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+                for (k, v) in members(buckets) {
+                    match merged.iter_mut().find(|(m, _)| m == k) {
+                        Some(entry) => entry.1 = v.to_string(),
+                        None => merged.push((k.to_string(), v.to_string())),
+                    }
+                }
+                let text = format!("{{{}}}", merged.iter().map(|(k, v)| format!(r#""{k}":{v}"#)).collect::<Vec<_>>().join(","));
+                let _ = std::fs::create_dir_all("apms");
+                match std::fs::write(DATA, text) {
+                    Ok(()) => log!("gs: cabinet data saved ({} values)", merged.len()),
+                    Err(e) => log!("gs: cabinet data: {e}"),
+                }
+            }
+            Some("{}".into())
+        }
         _ => Some("{}".into()),
     }
 }
@@ -404,13 +440,18 @@ pub(crate) fn reply(path: &str, body: &[u8]) -> Vec<u8> {
     };
     log!("gs: {api} {request}");
     match answer(api, &request) {
-        // `control.online` in every answer (Senxin Aleste reads it from each, an exception
+        // `control` in every answer (Senxin Aleste reads `online` from each, an exception
         // without it): the server's for server/alive, the player's elsewhere (1: still playing
         // on another cabinet, "the last play did not end normally")
         Some(json) if value(&json, "control").is_none() => {
+            // the play's sequence id and token (strings: Puyo Puyo e-Sports reads `seq_id`; the
+            // games send them back)
+            static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+            let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let control = format!(r#""control":{{"online":0,"seq_id":"{seq}","token":"{seq:08x}"}}"#);
             let json = match json.strip_suffix('}') {
-                Some(body) if body.len() > 1 => format!(r#"{body},"control":{{"online":0}}}}"#),
-                _ => r#"{"control":{"online":0}}"#.to_string(),
+                Some(body) if body.len() > 1 => format!("{body},{control}}}"),
+                _ => format!("{{{control}}}"),
             };
             log!("gs: {api} -> {json}");
             seal(body, &json)

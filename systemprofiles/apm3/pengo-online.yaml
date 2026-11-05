@@ -1,0 +1,27 @@
+# Pengo! Online (Sega ALLS, APM3 edition; 64-bit: the payload's apm.dll). Runs pen5.exe; the
+# test switch starts pen5_test.exe (the dump's gametest.bat), whose exit starts the game again.
+# Its menus are touched (the Aime choice): the mouse (or player 1's gun) touches.
+# Override values in userprofiles/apm3/pengo-online.yaml.
+system: apm3
+name: Pengo! Online
+
+env:
+  WAL_APM3_TEST: pen5_test.exe
+  # the touch screen: player 1's gun, its trigger the touch
+  WAL_APM3_TOUCH: "1"
+  # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+
+# button 1 pushes the ice blocks and touches the screen
+native_map:
+  b1: push01+touch
+
+input:
+  guns_enabled: true
+  gamepad:
+    guide: card
+
+controls:
+  b1: Push / touch
+  card: Aime card (take off / put back)

@@ -58,6 +58,11 @@ impl Server {
     pub fn take_relaunch(&self) -> Option<String> {
         self.relaunch.lock().unwrap().take()
     }
+
+    /// A relaunch is asked: the game ending is not a crash.
+    pub fn relaunch_pending(&self) -> bool {
+        self.relaunch.lock().unwrap().is_some()
+    }
 }
 
 fn read_client(mut stream: TcpStream, outputs: Sender<Output>, relaunch: Arc<Mutex<Option<String>>>) {

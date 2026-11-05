@@ -205,6 +205,35 @@ impl Wine {
         Ok(())
     }
 
+    /// Maps cabinet drive letters to folders of the run directory (the payloads installed there:
+    /// the APM3 cabinets' `X:\lib\apm.dll`).
+    pub fn map_run_drives(&self, drives: &std::collections::BTreeMap<String, PathBuf>, run_dir: &Path) -> Result<()> {
+        for (letter, directory) in drives {
+            let letter = letter.trim_end_matches(':').to_ascii_lowercase();
+            if letter.len() != 1 || !letter.as_bytes()[0].is_ascii_alphabetic() || matches!(letter.as_str(), "c" | "z") {
+                bail!("invalid run drive {letter:?}: use a letter other than C or Z");
+            }
+            if directory.as_os_str().is_empty() || directory.components().any(|c| !matches!(c, std::path::Component::Normal(_))) {
+                bail!("drive {letter}: directory must be relative to the run directory: {}", directory.display());
+            }
+            let target = run_dir.join(directory);
+            eprintln!("wine: drive {letter}: -> {}", target.display());
+            if self.dry_run {
+                continue;
+            }
+            fs::create_dir_all(&target).with_context(|| format!("creating drive {letter}: directory {}", target.display()))?;
+            let link = self.prefix.join("dosdevices").join(format!("{letter}:"));
+            if fs::symlink_metadata(&link).is_ok() {
+                if !link.is_symlink() {
+                    bail!("drive {} is not a symlink", link.display());
+                }
+                fs::remove_file(&link)?;
+            }
+            std::os::unix::fs::symlink(&target, &link).with_context(|| format!("mapping drive {letter}:"))?;
+        }
+        Ok(())
+    }
+
     /// Links folders of drive C: a game reaches by absolute paths (`C:\Gvr`) to folders of its
     /// run directory (one game runs at a time: the links follow the game launched). A folder the
     /// dump does not have yet (a save folder, Tekken 7's `C:\perforce\...\Saved`) is made in the
