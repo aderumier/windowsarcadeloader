@@ -13,7 +13,9 @@
 //! packer's, its code calls these DLLs through the packer's stubs (Teratoma). Their hooks patch the
 //! functions themselves: Wine's hot patch prologue (kernelbase's function for kernel32's,
 //! where kernel32's ends up), every caller redirected; a function without one keeps its
-//! callers, the image's pointers to it are replaced (an unpacked import table slot).
+//! callers, the image's pointers to it are replaced (an unpacked import table slot), and again
+//! as they appear for 20 s: an unpacker filling the import table after the payload's start
+//! (Fantasy Soccer's `user32` imports).
 //!
 //! A game whose code is a DLL a host program loads (Konami's AVS games: the boot program runs
 //! `jgt.dll`) names that DLL the game module ([`set_game_module`]) before the hooks are made.
@@ -231,6 +233,57 @@ unsafe fn hook_packed(base: usize, dll: &str, function: Import, replacement: usi
         }
         // the pointers the image holds to it (or to a previous hook's replacement of it)
         let previous = HOOKED.lock().unwrap().iter().rev().find(|(r, _)| *r == real).map(|(_, h)| *h).unwrap_or(real);
+        let slots = replace_pointers(base, &[(previous, replacement)]);
+        HOOKED.lock().unwrap().push((real, replacement));
+        // the unpacker may fill the image's import slots after the payload's start (Fantasy
+        // Soccer): the image scanned again for a while, the real function's pointers made the
+        // latest replacement's
+        {
+            let mut late = LATE.lock().unwrap();
+            match late.iter_mut().find(|(b, r, _)| *b == base && *r == real) {
+                Some(entry) => entry.2 = replacement,
+                None => late.push((base, real, replacement)),
+            }
+        }
+        start_rescans();
+        log!("iat: {dll}!{function}: {slots} pointer(s) in the image replaced (packed executable; rescanned for 20 s)");
+        Some(previous)
+    }
+}
+
+/// The packed executables' hooks kept up: (image base, real function, latest replacement).
+static LATE: Mutex<Vec<(usize, usize, usize)>> = Mutex::new(Vec::new());
+
+/// Rescans the packed images for 20 s (often at first): the import slots the unpacker fills
+/// late get the replacements.
+fn start_rescans() {
+    static STARTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if STARTED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    std::thread::spawn(|| {
+        let start = std::time::Instant::now();
+        while start.elapsed().as_secs() < 20 {
+            let delay = if start.elapsed().as_secs() < 3 { 20 } else { 500 };
+            std::thread::sleep(std::time::Duration::from_millis(delay));
+            let late = LATE.lock().unwrap().clone();
+            let mut bases: Vec<usize> = late.iter().map(|(b, _, _)| *b).collect();
+            bases.dedup();
+            for base in bases {
+                let pairs: Vec<(usize, usize)> = late.iter().filter(|(b, _, _)| *b == base).map(|(_, r, h)| (*r, *h)).collect();
+                let n = unsafe { replace_pointers(base, &pairs) };
+                if n > 0 {
+                    log!("iat: {n} late import pointer(s) of the packed image replaced");
+                }
+            }
+        }
+    });
+}
+
+/// Replaces the pointers in the image at `base` equal to a pair's first value by its second;
+/// their count.
+unsafe fn replace_pointers(base: usize, pairs: &[(usize, usize)]) -> usize {
+    unsafe {
         let nt = base + read::<u32>(base, 0x3C) as usize;
         let size = read::<u32>(nt + 24, 56) as usize; // SizeOfImage
         let mut slots = 0;
@@ -244,7 +297,8 @@ unsafe fn hook_packed(base: usize, dll: &str, function: Import, replacement: usi
             if info.State == MEM_COMMIT && info.Protect & (PAGE_NOACCESS | PAGE_GUARD) == 0 {
                 let mut p = at.next_multiple_of(size_of::<usize>());
                 while p + size_of::<usize>() <= end {
-                    if (p as *const usize).read() == previous {
+                    let v = (p as *const usize).read();
+                    if let Some(&(_, replacement)) = pairs.iter().find(|(from, _)| *from == v) {
                         let mut old = 0;
                         VirtualProtect(p as *const _, size_of::<usize>(), PAGE_READWRITE, &mut old);
                         (p as *mut usize).write(replacement);
@@ -256,12 +310,7 @@ unsafe fn hook_packed(base: usize, dll: &str, function: Import, replacement: usi
             }
             at = end;
         }
-        if slots == 0 {
-            return None;
-        }
-        HOOKED.lock().unwrap().push((real, replacement));
-        log!("iat: {dll}!{function}: {slots} pointer(s) in the image replaced (packed executable)");
-        Some(previous)
+        slots
     }
 }
 

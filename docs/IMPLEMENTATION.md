@@ -4535,13 +4535,12 @@ a red and a blue button and a real ball kicked against a sensor. The game loads
 `Plugins/UsbPluginsDll_R.dll` as Crazy Ride does.
 
 - **Packed executable.** The executable's code is unpacked at run time (sections without
-  names): it reaches the DLL's functions past the hooked `GetProcAddress` (`WAL_PACKED_IMPORTS`
-  did not help). Once the DLL is loaded, each export the payload answers is patched to jump to
+  names): it reaches the DLL's functions past the hooked `GetProcAddress`. Once the DLL is loaded, each export the payload answers is patched to jump to
   the payload's function (`mov rax, f; jmp rax`; every export is 16 bytes or more). The board's
   layout was read from the unpacked image (dumped from memory by the payload during the work):
   the game state's tick reads `BIND_GetIoData` into its 0x511 and parses it.
-- **I/O.** 33 bytes. Byte 3: the operator's (bit 7 test: opens the menu, moves; 6 down; 5
-  enter). Byte 4 bit 3 - n: a button of player n's (not on the operator menu's input test).
+- **I/O.** 33 bytes. Byte 3: the operator's (bit 7 test: opens the menu, moves down; 6 up,
+  the up arrow and the d-pad's up; 5 enter). Byte 4 bit 3 - n: a button of player n's (not on the operator menu's input test).
   Bytes 5, 6: the ticket dispensers (a nibble each player, clear). Byte 11 + n: player n's ball
   sensor, the kick's strength (the game takes it when it rises from 0: one read per kick).
   Byte 15 bits 7 - 2n: the red button (accelerate; any button starts), 6 - 2n: the blue one.
@@ -4557,6 +4556,14 @@ a red and a blue button and a real ball kicked against a sensor. The game loads
   second screen's video beside the game, "Video File Missing") is set off in the user's saved
   `Manage_Menu.ini` before the game reads it (`WAL_UNIS_SPLITSCREEN=1`: both screens). The
   engine's `-ini:` command line override did not take.
+
+- **Full screen.** The game sizes its window from the screen's height (cut on 16:10): a
+  1920x1080 desktop fitted, its window a borderless popup. The executable's import table is
+  filled after the payload's start (packed): `WAL_PACKED_IMPORTS=user32.dll`, its image's
+  slots of the hooked functions replaced as they appear (`iat.rs` rescans the image for 20 s).
+  The engine's `-fullscreen` did nothing: the game sets its windowed resolution itself
+  (`r.SetRes %dx%d%s`, its width the height × 16/9).
+- **Keyboard.** The arrows move the player (the stick); the up arrow is also the menu's up.
 
 Headless checks: coins (3/3), two players joined, mode select, a match (moves, accelerate,
 kicks), the operator menu and its input test (buttons, calibration).
@@ -5437,7 +5444,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `crazy-speed-arcade` | Crazy Speed Arcade | unis | user 100% (2026-11-05), wheel | Ogre 32-bit (§6.3j): COM1 game232 board (menu up / down buttons on the d-pad and Page Up / Down, the arrows steer and drive), 1360x768 windowed d3d9 on a 1360x768 desktop fitted, native D3DX, WMI / machine id / dongle action cipher / network thread patches, mirror material |
 | `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
 | `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |
-| `fantasy-soccer` | Fantasy Soccer | unis | works (headless: coins, 2 players, a match, operator menu), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config) |
+| `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config), 1920x1080 desktop fitted (packed imports rescanned), arrows move |
 | `mighty-moto` | Mighty Moto | unis | works (headless: start, track select, a race) | Unity 2.x 32-bit (§6.3j): wal-loader, the cabinet's keys posted to the game window from player 1's stick and pedals (real keyboard filtered), fake DirectInput |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |

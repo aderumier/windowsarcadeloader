@@ -20,9 +20,23 @@ files:
 
 env:
   WAL_UNIS_BOARD: usbplugins
+  # full screen: the game sizes its 16:9 picture from the screen's height (cut on a 16:10
+  # screen): a 1920x1080 desktop for it, its borderless window fitted onto the real screen.
+  # The executable is packed (its import table filled after the payload's start): its user32
+  # imports hooked in its image, rescanned
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_PACKED_IMPORTS: user32.dll
 
 input:
   stick_as_dpad: false
+  # the keyboard: the arrows move the player (the stick)
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly,up
+      KEY_DOWN: ly
 
 controls:
   lx: Move (x)
@@ -33,5 +47,6 @@ controls:
   b3: Accelerate (red button)
   b4: Switch player (blue button)
   coin: Coin
-  test: Operator menu
+  test: Operator menu (open, move down)
+  up: Menu up (up arrow)
   service: Menu enter
