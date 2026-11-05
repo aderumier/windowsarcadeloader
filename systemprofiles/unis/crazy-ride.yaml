@@ -22,17 +22,31 @@ files:
 
 env:
   WAL_UNIS_BOARD: usbplugins
+  # full screen: the game sizes its 16:9 picture from the screen's height (on a 1920x1200
+  # screen 2133x1200, its right cut off): a 1920x1080 desktop for it, its borderless window
+  # fitted onto the real screen (aspect kept)
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
 
 input:
   stick_as_dpad: false
+  # the keyboard: the arrows steer (left / right) and drive (up the gas, down the brake),
+  # pushed progressively
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
 
 controls:
   lx: Steering
   accel: Gas
   brake: Brake
-  start: Start
+  start: Start (in a race, the nitro)
+  b1: Nitro (start)
   coin: Coin
-  test: Operator menu (up)
-  up: Menu up
+  test: Operator menu (open, move up)
   down: Menu down
   service: Menu enter
