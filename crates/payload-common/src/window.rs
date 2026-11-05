@@ -20,7 +20,8 @@
 //! later `SetMenu`): Thrill Drive 4's DirectX sample framework window showed its File menu
 //! (Go/stop, Single step, Change device, Exit) above the picture. Their later style changes
 //! (`SetWindowLong(Ptr)A/W`) keep them popups: Time Crisis 5 (UE3) sets its captioned window
-//! style back on its window, a frame around a smaller picture.
+//! style back on its window, a frame around a smaller picture; Hog Wild's `ftu_GameWin.dll`
+//! sets style 8 on its shown window (its DLL's calls hooked too, `WS_VISIBLE` kept).
 //!
 //! `WAL_NO_MODE_CHANGE=1`: the game's (and its directory's DLLs', and wined3d's: DirectDraw)
 //! display mode changes (`ChangeDisplaySettings(Ex)A/W`) do
@@ -84,10 +85,9 @@ pub fn init() {
                 ("SetWindowLongPtrA", set_window_long_ptr::<2> as *const () as usize),
                 ("SetWindowLongPtrW", set_window_long_ptr::<3> as *const () as usize),
             ];
+            // the game's and its directory's DLLs' (Hog Wild's ftu_GameWin.dll)
             for (i, (name, f)) in hooks.into_iter().enumerate() {
-                if let Some(o) = iat::hook("user32.dll", name, f) {
-                    ORIG_SET_WINDOW_LONG[i].store(o, Ordering::Relaxed);
-                }
+                hook_game(name, f, &ORIG_SET_WINDOW_LONG[i]);
             }
         }
         log!("window: top-level windows created as popups");
@@ -271,6 +271,7 @@ unsafe extern "system" fn show_window(hwnd: HWND, cmd: i32) -> i32 {
 
 const WS_POPUP: u32 = 0x8000_0000;
 const WS_CHILD: u32 = 0x4000_0000;
+const WS_VISIBLE: u32 = 0x1000_0000;
 /// Caption, frame, system menu, minimize/maximize boxes.
 const WS_DECORATIONS: u32 = 0x00C0_0000 | 0x0004_0000 | 0x0008_0000 | 0x0002_0000 | 0x0001_0000;
 /// Extended styles adding a border.
@@ -331,7 +332,10 @@ fn kept_popup(hwnd: HWND, index: i32, value: isize) -> isize {
         if v & WS_CHILD != 0 {
             return value;
         }
-        (v & !WS_DECORATIONS) | WS_POPUP
+        // a shown window stays shown (Hog Wild's style 8: no longer visible to Wine, the strips
+        // of a bezel never found it)
+        let current = unsafe { GetWindowLongW(hwnd, GWL_STYLE) } as u32;
+        (v & !WS_DECORATIONS) | WS_POPUP | (current & WS_VISIBLE)
     } else {
         v & !WS_EX_DECORATIONS
     };

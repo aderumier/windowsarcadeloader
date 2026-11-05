@@ -4138,6 +4138,57 @@ stub, `_Frenzy Express GameFiles/` the repacker's leftovers.
   `winedmo-parser-rewind-after-eos` (§5.3).
 - **Not done.** Lamps and vibration (accepted, ignored).
 
+#### Hog Wild
+
+Uniana's police car chase (*Hog Wild: Chase Up!!*, 2003, `bin/Racing.CRK.exe`, Direct3D 8,
+32-bit; the "neoFT3D" engine's `ft3d_*.dll`): a steering wheel, accelerator and brake buttons, a
+gear lever, a view button. The dump is a community repack: its executable is cracked (the boot's
+checks bypassed), its `Interface.dll` a wrapper reading the keyboard in front of the original
+(`Interface.ORI.dll`), its `D3D8.dll` / `DDraw.dll` dgVoodoo (hidden: DXVK's Direct3D 8).
+
+- **Payload = `bin/Interface.dll` (`interface.rs`, `WAL_ARCADEPC_BOARD=interface`,
+  `payload_install`, x86 build).** The game imports the C++ class `CInterface` (thiscall
+  methods by their MSVC names: `interface.def`, merged into the x86 build's exports), and
+  `ft3d_GameEngine.dll` reads its fields inline (the handle's center and limits): the payload
+  forwards the 17 methods the game imports to the dump's original library, the object stays
+  its own. That library drives the cabinet's board on the parallel port through the PortTalk
+  driver: its port routines (`Inputb` 0x15f0, `Outputb` 0x1650) jump to the payload's and
+  `OpenInterface` (0x1280) answers 1 without the driver (their first bytes checked: another
+  build is left alone, logged).
+- **Board (by the control register written before a read of the data port 0x378).** `0x24`
+  buttons A, `0x2E` buttons B (a bit at 0 = pressed), `0x26` the protection check (0: the
+  cabinet's), `0x2C` the next bit, MSB first, of the handle's ADC0831 (a conversion started by
+  the chip select, data bit 2); `GetADC0831Value` gives the reading minus 0x80 (right positive,
+  the I/O check's -120..120). `Input_Type` 0..10: coin (A 0x80), start (A 0x04), service (B
+  0x04), test (B 0x08), accelerator (A 0x40), gear high (B 0x02), gear low (B 0x01), brake (B
+  0x10), view change (A 0x02); 9 and 10 are not read. Lamps (siren, start, view), the handle's
+  motor and the vibration are written to the data port: ignored.
+- **Inputs.** The left stick steers (the d-pad's left / right fully), b1, the d-pad's up or the
+  accelerator pedal past a quarter accelerates, b2, the d-pad's down or the brake pedal brakes,
+  b3 / b4 the gears (the game shifts by itself), b5 the view. Real keyboard and mouse filtered
+  (`input_filter` on the executable's messages: it also reads the arrows, Enter and the keypad
+  with `GetAsyncKeyState`).
+- **Patches (profile `WAL_PATCHES`, applied by the payload).** The boot's protection reads C:'s
+  volume serial number and label (`GetVolumeInformationA`, 0x433e8c; a result the cracked
+  executable ignores): the call never returned in Wine (the main thread waited in
+  `GetVolumeInformationW`, the screen black), it is skipped (`add esp, 0x20; xor eax, eax`).
+  The executable builds its menu inputs from the keyboard and the board, the handle's menu
+  moves from `main_GetHandleValue`'s result: the cracked build stores 0 there (0x433be4
+  `mov [esi+0x10], ebx`), its menus moved on the arrows only; the reading is restored
+  (`mov [esi+0x10], eax`): turning the handle selects (repeating faster the further it is
+  turned), the accelerator confirms.
+- **Picture.** The 640x480 full-screen device made windowed (`WAL_D3D9_WINDOWED_SIZE`) in a
+  borderless window the size of the screen's centered 4:3 rectangle (`WAL_WINDOW_SIZE=aspect`),
+  black sides (`WAL_BEZEL=black`). `ftu_GameWin.dll` sets style 8 on its shown window: no longer
+  visible to Wine, the bezel's strips never found it; `WAL_WINDOW_POPUP`'s `SetWindowLong` hooks
+  now cover the game directory's DLLs and keep `WS_VISIBLE`. Not managed by the window manager
+  (`WAL_DESKTOP_UNMANAGED`): GNOME's top bar pushed the full-height window 32 pixels down.
+- **Flow (headless):** warning, Uniana logo, attract (demo replay, title, rankings), FREE PLAY
+  (the dump's `mainmenu.cfg`), START: how to play, player select, map select, the chase (auto
+  gearbox, ~140 km/h); TEST: the operator's menu, I/O check (handle, other inputs, lamps).
+- **Not done.** Force feedback: the motor bytes (a centering spring by the handle's position,
+  vibration and collision levels: a low nibble with a direction bit) are not decoded.
+
 #### Polar Wars
 
 Maiqiang's "JiDiDaZhan" (Unity 5.6, Mono `mono.dll`, 32-bit, `UnrealGame/JiDiDaZhan/` below the
@@ -5507,6 +5558,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | user 100%, 1 gun | UDC's portrait game (Unity 2019.4, 64-bit, encrypted IL decrypted by its runtime, §6.3i): no board left in the dump: the payload plays its keyboard and mouse mode with the gun (`post_mouse`, `GetCursorPos`); 1080x1920 desktop, `Screen.SetResolution` full screen on it (UI effects at 1080-wide pixels), bezel, crosshair |
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | Uniana (OpenGL, 32-bit, §6.3i): the payload is its `xio.dll` (`XIO` class, exported input bytes); pedals pushed by turns from one button or the accelerator; needs the runner's `winedmo-parser-rewind-after-eos` (music loop hang) |
+| `hog-wild` | Hog Wild | arcadepc | user 100% (2026-11-05) | Uniana (Direct3D 8, 32-bit, §6.3i): the payload is its `Interface.dll` (the original `CInterface` library forwarded, its parallel port board emulated: buttons, handle ADC); patches: the boot's volume serial check skipped (hung in Wine), the menus' handle reading restored; 4:3 window, black sides; no force feedback |
 | `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |

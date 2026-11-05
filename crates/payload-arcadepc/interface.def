@@ -1,0 +1,19 @@
+; Interface.dll exports (Hog Wild, interface.rs; x86 build only): MSVC names of the CInterface
+; class's thiscall methods the game imports.
+    "??0CInterface@@QAE@XZ" = iface_new
+    "??1CInterface@@QAE@XZ" = iface_delete
+    "?InterfaceInitialize@CInterface@@QAEXXZ" = iface_initialize
+    "?Clear@CInterface@@QAEXXZ" = iface_clear
+    "?GetADC0831Value@CInterface@@QAEHXZ" = iface_adc0831_value
+    "?GetButtonValue@CInterface@@QAEEW4Input_Type@@@Z" = iface_button_value
+    "?SetButtonLamp@CInterface@@QAEXW4Lamp_Type@@H@Z" = iface_set_button_lamp
+    "?SetHardwareLock@CInterface@@QAEXH@Z" = iface_set_hardware_lock
+    "?SecretChcek@CInterface@@QAEHXZ" = iface_secret_check
+    "?HandleCenterCheck@CInterface@@QAEHXZ" = iface_handle_center_check
+    "?HandleStrength@CInterface@@QAEHH@Z" = iface_handle_strength
+    "?SetFeedBackLevel@CInterface@@QAEXUHardware_Parameter_s@@@Z" = iface_set_feedback_level
+    "?HandleSetting@CInterface@@QAEXMH@Z" = iface_handle_setting
+    "?Handle_and_Vibration@CInterface@@QAEXHHHH@Z" = iface_handle_and_vibration
+    "?SetCollision_and_Position@CInterface@@QAEXW4FIRST_TYPE@@HHHH@Z" = iface_set_collision_and_position
+    "?CollisionCheck@CInterface@@QAE_NM@Z" = iface_collision_check
+    "?CollisionCheck@CInterface@@QAEHHW4Collision_Type@@@Z" = iface_collision_check2

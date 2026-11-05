@@ -42,6 +42,9 @@
 //! Frenzy Express (`WAL_ARCADEPC_BOARD=xio`, x86 build): `xio.rs` is its `xio.dll` (the
 //! handlebar, brake, pedals and keys).
 //!
+//! Hog Wild (`WAL_ARCADEPC_BOARD=interface`, x86 build): `interface.rs` is its `Interface.dll`
+//! (the original library's calls forwarded, its parallel port board emulated).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -54,6 +57,8 @@ mod bullseye;
 mod commking;
 mod demul;
 mod gameport;
+#[cfg(target_arch = "x86")]
+mod interface;
 mod jxboard;
 mod jxcamera;
 mod pads;
@@ -146,6 +151,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "xio" => {
                 pads::disconnect();
                 // the profile's code patches (the boot's handlebar and brake calibration)
+                wal_payload_common::patches::apply();
+                // the game's window messages: the executable's
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+            }
+            _ if board.trim() == "interface" => {
+                pads::disconnect();
                 wal_payload_common::patches::apply();
                 // the game's window messages: the executable's
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;

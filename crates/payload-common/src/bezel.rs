@@ -244,6 +244,7 @@ fn run(image: HBITMAP) {
     while game_window().is_null() {
         std::thread::sleep(std::time::Duration::from_millis(250));
     }
+    log!("bezel: game window {:?}", game_window());
     let instance = unsafe { GetModuleHandleW(std::ptr::null()) };
     let class = windows_sys::w!("WalBezel");
     let wc = WNDCLASSW { lpfnWndProc: Some(window_proc), hInstance: instance, lpszClassName: class, ..unsafe { std::mem::zeroed() } };
@@ -279,7 +280,15 @@ fn run(image: HBITMAP) {
         if !front.is_null() {
             unsafe { GetWindowThreadProcessId(front, &mut pid) };
         }
-        if !front.is_null() && pid != unsafe { GetCurrentProcessId() } {
+        // the desktop window in front: no program's (a game window Wine never activated)
+        let desktop = front == unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetDesktopWindow() };
+        if !front.is_null() && !desktop && pid != unsafe { GetCurrentProcessId() } {
+            static LOGGED: std::sync::Once = std::sync::Once::new();
+            LOGGED.call_once(|| {
+                let mut class = [0u16; 64];
+                let n = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetClassNameW(front, class.as_mut_ptr(), 64) } as usize;
+                log!("bezel: window {front:?} of process {pid} in front (class {})", String::from_utf16_lossy(&class[..n]));
+            });
             if placed.take().is_some() {
                 for strip in &STRIPS {
                     unsafe { ShowWindow(strip.load(Ordering::Relaxed) as HWND, SW_HIDE) };
@@ -291,6 +300,8 @@ fn run(image: HBITMAP) {
         let game = game_window();
         let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
         if game.is_null() || unsafe { GetWindowRect(game, &mut rect) } == 0 {
+            static LOST: std::sync::Once = std::sync::Once::new();
+            LOST.call_once(|| log!("bezel: no game window ({game:?})"));
             continue;
         }
         let same = placed.is_some_and(|p| (p.left, p.top, p.right, p.bottom) == (rect.left, rect.top, rect.right, rect.bottom));

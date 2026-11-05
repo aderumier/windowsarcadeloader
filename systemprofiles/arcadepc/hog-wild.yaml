@@ -1,0 +1,54 @@
+# Hog Wild: Chase Up!! (bin/Racing.CRK.exe, Direct3D 8, 32-bit) - template, override values in
+# userprofiles/arcadepc/hog-wild.yaml.
+# Uniana's police car chase: a steering wheel, an accelerator and a brake button, a gear
+# lever, a view button. The cabinet's I/O library (Interface.dll, the parallel port board) is
+# the payload: the dump's original one (Interface.ORI.dll) is driven with its board emulated
+# (docs §6.3i).
+system: arcadepc
+name: Hog Wild
+
+# the game imports Interface.dll: the payload in its place (the dump's reads the keyboard)
+payload_install: [bin/Interface.dll]
+
+# DXVK's Direct3D 8, not the dump's dgVoodoo
+hide: [D3D8.dll, DDraw.dll, D3DImm.dll, dgVoodooCpl.exe, dgVoodoo.conf]
+
+env:
+  WAL_ARCADEPC_BOARD: interface
+  # The boot's protection reads the serial number of C:\ (GetVolumeInformationA, a result the
+  # executable ignores): the call never returned in Wine, the game stayed on a black screen.
+  # Skipped (0x33e8c: add esp, 0x20; xor eax, eax). The menus' handle value (0x33be4): the
+  # executable stored 0 in place of the handle reading (its menus moved on the keyboard's
+  # arrows only); the reading restored (mov [esi+0x10], eax).
+  WAL_PATCHES: "0x33E8C:83C42031C090,0x33BE4:894610"
+  # The 640x480 full-screen device made windowed, in a borderless window the size of the
+  # centered 4:3 rectangle of the screen, black around.
+  WAL_D3D9_WINDOWED_SIZE: 640x480
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  WAL_BEZEL: black
+  # not managed by the window manager: GNOME's top bar pushed the full-height window down
+  WAL_DESKTOP_UNMANAGED: "1"
+
+input:
+  # the d-pad's up / down (keyboard arrows) accelerate / brake, its left / right steer fully
+  stick_as_dpad: false
+
+controls:
+  lx: Steering wheel
+  accel: Accelerator
+  brake: Brake
+  b1: Accelerator
+  b2: Brake
+  b3: Gear high
+  b4: Gear low
+  b5: View change
+  up: Accelerator
+  down: Brake
+  left: Steer left
+  right: Steer right
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test menu
