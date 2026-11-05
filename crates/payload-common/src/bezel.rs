@@ -10,6 +10,9 @@
 //! it was kept above it by the window manager (GNOME: a full-screen window's layer), and
 //! transparency needs a compositor. The image is decoded with GDI+, loaded at run time.
 //!
+//! A click on a strip (a gun or mouse shot beside the picture) does not activate it: the game
+//! keeps the focus (`WM_MOUSEACTIVATE`: `MA_NOACTIVATE`).
+//!
 //! The strips hide while a window of another program is in front (a game started by its
 //! frontend: the frontend's strips covered the race's sides).
 //!
@@ -36,7 +39,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumWindows, GetClientRect, GetForegroundWindow, GetMessageW, GetSystemMetrics,
     GetWindowRect, GetWindowThreadProcessId, IsWindowVisible, MSG, RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_HIDE,
     SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOZORDER, SetTimer, SetWindowPos, ShowWindow, TranslateMessage, WM_ERASEBKGND,
-    WM_PAINT, WM_TIMER, WNDCLASSW, WS_EX_NOACTIVATE, WS_POPUP,
+    MA_NOACTIVATE, WM_MOUSEACTIVATE, WM_PAINT, WM_TIMER, WNDCLASSW, WS_EX_NOACTIVATE, WS_POPUP,
 };
 
 type P = *mut c_void;
@@ -150,6 +153,8 @@ fn load(path: &str) -> Option<(HBITMAP, u32, u32)> {
 unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     match msg {
         WM_ERASEBKGND => 1,
+        // a click on the bezel (a gun or mouse shot beside the picture) leaves the game the focus
+        WM_MOUSEACTIVATE => MA_NOACTIVATE as LRESULT,
         WM_PAINT => {
             unsafe {
                 let mut ps: PAINTSTRUCT = std::mem::zeroed();

@@ -23,6 +23,8 @@ env:
   # size), its window fitted onto the real screen (aspect kept, centered)
   WAL_DESKTOP_SIZE: 1080x1920
   WAL_DESKTOP_UNMANAGED: "1"
+  # the game keeps the focus: a shot beside the picture (on the bezel, the desktop) took it
+  WAL_DESKTOP_ACTIVE: "1"
   # the cabinet's elevator doors over the picture, moved by the game (the dump's pictures,
   # relative to the executable's directory: the portrait set, the picture's size)
   WAL_UNIS_DOORS: "../../../Attraction Doors Pack/1920x1080/Portrait"
