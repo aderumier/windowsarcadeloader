@@ -1,6 +1,6 @@
 //! Sega ALLS APM3 ("ALL.Net P-ras MULTI Version 3": Under Night In-Birth Exe:Late[cl-r]).
 //!
-//! The game imports `apm_x86.dll`, the client library of the cabinet's APM3 system
+//! The game imports `apm_x86.dll` (`apm.dll`: 64-bit games and programs), the client library of the cabinet's APM3 system
 //! (`amdaemon`: keychip, ALL.Net, I/O board, Aime, credits): our payload replaces it and
 //! implements the API itself. The test program (`TestModeApp.exe`) imports it too.
 //!
@@ -29,11 +29,23 @@ impl System for Apm3 {
     }
 
     fn payloads(&self) -> &'static [Payload] {
-        &[Payload { file: "wal_apm3.dll", install_as: "apm_x86.dll" }]
+        // apm.dll: the system's 64-bit library, for the game's 64-bit programs (Blade Strangers'
+        // test menu, a .NET AnyCPU program)
+        &[
+            Payload { file: "wal_apm3.dll", install_as: "apm_x86.dll" },
+            Payload { file: "wal_apm3_64.dll", install_as: "apm.dll" },
+        ]
+    }
+
+    fn payloads64(&self) -> Option<&'static [Payload]> {
+        Some(&[
+            Payload { file: "wal_apm3_64.dll", install_as: "apm.dll" },
+            Payload { file: "wal_apm3.dll", install_as: "apm_x86.dll" },
+        ])
     }
 
     fn data_dirs(&self) -> &'static [&'static str] {
-        // the Aime card players' records (the payload's title server)
-        &["apms"]
+        // the Aime card players' records (the payload's title server), the system's backup
+        &["apms", "backup"]
     }
 }

@@ -36,7 +36,9 @@
 
 mod aime;
 mod apms;
+mod backup;
 mod cts;
+mod emoney;
 
 use std::collections::HashMap;
 use std::ffi::c_void;
@@ -172,6 +174,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         IS_TEST_PROGRAM.store(patches::exe_name().eq_ignore_ascii_case(&test), Ordering::Relaxed);
         // the game's patches, not the test program's
         if !IS_TEST_PROGRAM.load(Ordering::Relaxed) {
+            emoney::start();
             let online = ONLINE.load(Ordering::Relaxed);
             if online {
                 if let Some(spec) = env("WAL_APM3_ONLINE_PATCHES") {
@@ -202,6 +205,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
 #[unsafe(no_mangle)]
 pub extern "system" fn Core_execute() -> bool {
     first_call("Core_execute");
+    backup::tick();
     let now = read_switches();
     let before = CURRENT.swap(now, Ordering::Relaxed);
     PREVIOUS.store(before, Ordering::Relaxed);
@@ -229,6 +233,7 @@ pub extern "system" fn Core_exitGame(flag: u32) -> bool {
     if EXITING.swap(true, Ordering::Relaxed) {
         return true;
     }
+    backup::flush();
     if IS_TEST_PROGRAM.load(Ordering::Relaxed) {
         log!("apm3: test menu ends: the game again");
         wal_payload_common::request_relaunch("");
@@ -285,6 +290,10 @@ pub extern "system" fn Error_setDeviceLost() {
 #[unsafe(no_mangle)]
 pub extern "system" fn Input_isOn(id: u32) -> bool {
     first_call("Input_isOn");
+    static SEEN: AtomicU32 = AtomicU32::new(0);
+    if id < 32 && SEEN.fetch_or(1 << id, Ordering::Relaxed) & (1 << id) == 0 {
+        log!("apm3: Input_isOn({id}) queried");
+    }
     CURRENT.load(Ordering::Relaxed) & bit(id) != 0
 }
 
@@ -763,11 +772,14 @@ pub extern "system" fn ApmSystemSetting_getGamePadSetting(_out: *mut c_void) -> 
     false
 }
 
+/// The store's matching group: a letter (the test menu's `GROUP: A`; Blade Strangers indexes
+/// a picture with it: 0 crashes its title), `WAL_APM3_MATCHING_GROUP` (default `A`).
 #[unsafe(no_mangle)]
 pub extern "system" fn ApmSystemSetting_getMatchingGroup(out: *mut u32) -> bool {
     first_call("ApmSystemSetting_getMatchingGroup");
+    let group = env("WAL_APM3_MATCHING_GROUP").and_then(|g| g.bytes().next()).filter(u8::is_ascii_uppercase).unwrap_or(b'A');
     if !out.is_null() {
-        unsafe { *out = 0 };
+        unsafe { *out = group as u32 };
     }
     true
 }
@@ -788,37 +800,7 @@ pub extern "system" fn ApmSystemSetting_getUiSetting(_out: *mut c_void) -> bool 
     false
 }
 
-// ---- Backup (records saved by the system): the games keep their own files ----
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Backup_getRecordStatus(_index: u32) -> u32 {
-    first_call("Backup_getRecordStatus");
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Backup_isSetupSucceeded() -> bool {
-    first_call("Backup_isSetupSucceeded");
-    true
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Backup_saveRecord(_index: u32) -> bool {
-    first_call("Backup_saveRecord");
-    true
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Backup_saveRecordByAddress(_address: *const c_void) -> bool {
-    first_call("Backup_saveRecordByAddress");
-    true
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Backup_setupRecords(_records: *const c_void, count: u32) -> bool {
-    log!("apm3: Backup_setupRecords({count})");
-    true
-}
+// ---- Backup: backup.rs ----
 
 // ---- Aime card reader: aime.rs ----
 

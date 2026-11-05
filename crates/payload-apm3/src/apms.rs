@@ -6,7 +6,8 @@
 //! AES-CBC encrypted (`bcrypt.dll`).
 //!
 //! Here: that name resolves to 127.0.0.1, the game's port 80 connections go to the payload's
-//! server on [`PORT`] (port 80 needs root on the host).
+//! server on [`port`] (port 80 needs root on the host): the launcher's port + 100 (33800 by
+//! default), one per launcher (the parallel test runs use other launcher ports).
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -14,7 +15,14 @@ use std::sync::OnceLock;
 
 use wal_payload_common::{iat, log};
 
-pub(crate) const PORT: u16 = 33703;
+/// The title server's port: the launcher's port + 100.
+pub(crate) fn port() -> u16 {
+    static PORT: OnceLock<u16> = OnceLock::new();
+    *PORT.get_or_init(|| {
+        let launcher = std::env::var(wal_protocol::env::PORT).ok().and_then(|p| p.parse().ok()).unwrap_or(wal_protocol::DEFAULT_PORT);
+        launcher.wrapping_add(100)
+    })
+}
 
 fn hex(data: &[u8]) -> String {
     data.iter().map(|b| format!("{b:02x}")).collect()
@@ -72,7 +80,7 @@ unsafe extern "system" fn connect(socket: usize, address: *const u8, length: i32
         if a[0] == 2 && a[2..4] == [0, 80] && a[4..8] == [127, 0, 0, 1] {
             let mut moved = [0u8; 16];
             moved.copy_from_slice(a);
-            moved[2..4].copy_from_slice(&PORT.to_be_bytes());
+            moved[2..4].copy_from_slice(&port().to_be_bytes());
             return unsafe { real(socket, moved.as_ptr(), length) };
         }
     }
@@ -240,9 +248,9 @@ pub(crate) fn init() {
             }
         }
     }
-    match TcpListener::bind(("127.0.0.1", PORT)) {
+    match TcpListener::bind(("127.0.0.1", port())) {
         Ok(listener) => {
-            log!("apms: title server on 127.0.0.1:{PORT}");
+            log!("apms: title server on 127.0.0.1:{}", port());
             std::thread::spawn(move || {
                 for stream in listener.incoming().flatten() {
                     std::thread::spawn(move || {
@@ -253,6 +261,6 @@ pub(crate) fn init() {
                 }
             });
         }
-        Err(e) => log!("apms: 127.0.0.1:{PORT}: {e}"),
+        Err(e) => log!("apms: 127.0.0.1:{}: {e}", port()),
     }
 }
