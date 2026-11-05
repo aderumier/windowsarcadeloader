@@ -159,6 +159,15 @@ impl Mono {
         unsafe { (self.class_get_method_from_name)(class, c(name).as_ptr(), args) }
     }
 
+    /// `method`'s compiled code (compiled now): to call the original of a method replaced
+    /// elsewhere (another overload).
+    pub fn compiled(&self, method: P) -> usize {
+        if method.is_null() {
+            return 0;
+        }
+        unsafe { (self.compile_method)(method) as usize }
+    }
+
     /// `method`'s IL code, in the loaded image (writable: Mono compiles a method from it at its
     /// first call, so a patch must come before).
     pub fn il_code(&self, method: P) -> Option<&'static mut [u8]> {

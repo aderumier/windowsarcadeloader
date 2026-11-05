@@ -79,6 +79,10 @@ pub use zombiecrisis::GetInstance;
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
+        // Top Gun 2 in landscape: its portrait setup undone before the common start reads it
+        if std::env::var("WAL_ARCADEPC_BOARD").is_ok_and(|b| b.trim() == "jxcamera") {
+            jxcamera::prepare();
+        }
         wal_payload_common::start("arcadepc");
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
         let board = std::env::var("WAL_ARCADEPC_BOARD").unwrap_or_default();

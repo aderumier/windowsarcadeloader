@@ -3964,6 +3964,25 @@ assembly (`Managed/Original.rar`, the same file); the executable renamed (`TopGu
   desktop's top bar pushed it down), so the payload is loaded at the start (`payload_loader`,
   `wal-loader64.exe`: before Wine's X11 driver), Unity's window messages filtered once
   `UnityPlayer.dll` is loaded.
+- **Landscape (`WAL_JX_LANDSCAPE=1`, the profile's default; "0": the cabinet's portrait).**
+  The levels full screen on a 16:9 screen, not stretched; the menus, attract and loading
+  screens as on the cabinet, a portrait column in the bezel. Before the common start, the
+  portrait setup is undone (`WAL_DESKTOP_SIZE`, `WAL_BEZEL`, `WAL_BEZEL_FIT` removed from the
+  environment, the bezel's image kept). `Screen.SetResolution(int, int, bool)` is replaced:
+  the screen's size, full screen (the 4-argument overload, compiled: `Mono::compiled`); the
+  cameras keep their vertical field of view, the 3D scenes take the wider aspect. The UI
+  canvases are constant pixel size, laid out on 1080x1920 around the screen's center (at 1080
+  high the levels' scores, time and messages were off the screen): `CanvasScaler.
+  HandleConstantPixelSize`'s IL (patched before its first compilation) passes `Screen.height
+  / 1920` to `SetScaleFactor` (1 on the cabinet's screen), the portrait layout in the screen's
+  middle. The bezel is drawn on the game's picture (`images_d3d11.rs`): the image's parts
+  left and right of its opening against the column (9:16 of the height), at the screen's
+  height, black beyond; hidden in the levels: `GameMain._State` (the singleton
+  `MonoSingletonManager<GameMain>.instance`) PLAYGAME, PAUSEGAME, GAMEOVER, ACCOUNT or
+  PLAYERRANK, and no scene loaded for 1.5 s (`LoadManager.Instance.IsLoading`: the level's
+  state is set as its loading screen shows, the screen hidden a second after the load).
+  Headless: attract, select and loading screens in the bezel, the level full screen with its
+  scores, time and "Free Play" lines, aim and hits.
 
 #### Zombie Crisis
 
@@ -4298,25 +4317,6 @@ profile takes Wine's `winhttp`, the game unmodified.
   value checked first. After a mission the game picks the next one at random: the fourth,
   it starts it without the select.
 
-### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
-
-Adrenaline's PC-based arcade games. System `adrenaline` (Batocera's ES `adrenaline`), payload
-`wal_adrenaline.dll` (32-bit) or `wal_adrenaline64.dll` (64-bit games) installed as
-`xinput1_3.dll`: no pads, the real keyboard and mouse filtered (the games' own coin, operator
-and quit keys). The Unity games' `DllImport`s are resolved through Mono's `GetProcAddress`
-(`payload-common`'s `mono_imports.rs`). Both games have the Matrix dongle (`matrix.rs`).
-
-#### Skylanders Cloud Patrol
-
-Unity 4.2 (Mono `mono.dll`, Direct3D 9, 32-bit), a touch screen game (the mobile game's arcade
-port). The dump is the cabinet's `DataPC` folder (`Skylanders.bat` updates it with
-`Skylanders.jar`, then runs `Skylanders.exe`): `skylanders-cloud-patrol.windowsloader` points at
-`Skylanders.exe`. Unity loads `xinput1_3.dll` after its Direct3D device: `payload_loader: true`
-loads it at the entry point, so the crosshair overlay hooks the device.
-
-- **Touch frame (`pqmt.rs`).** `PqmtScreenGestures` is the client of a PQ Labs frame's server
-  (`PQMTClient.dll`, TCP 127.0.0.1:21555): `ConnectServer`, `SendRequest`,
-  `GetServerResolution` (callback), the point frame callback (`SetOnReceivePointFrame`, cdecl:
 #### Raccoon Rampage
 
 UNIS's water-gun cabinet (Unreal Engine 4.26, 64-bit, `RSGame-Win64-Shipping.exe` 1.4, its PDB
@@ -4552,6 +4552,25 @@ wal-loader (no XInput import; `xinput1_3: "n,b"`, else Wine's builtin is loaded)
 
 Headless checks: attract, start, track select, a race (gas, steering both ways, overtakes).
 
+### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
+
+Adrenaline's PC-based arcade games. System `adrenaline` (Batocera's ES `adrenaline`), payload
+`wal_adrenaline.dll` (32-bit) or `wal_adrenaline64.dll` (64-bit games) installed as
+`xinput1_3.dll`: no pads, the real keyboard and mouse filtered (the games' own coin, operator
+and quit keys). The Unity games' `DllImport`s are resolved through Mono's `GetProcAddress`
+(`payload-common`'s `mono_imports.rs`). Both games have the Matrix dongle (`matrix.rs`).
+
+#### Skylanders Cloud Patrol
+
+Unity 4.2 (Mono `mono.dll`, Direct3D 9, 32-bit), a touch screen game (the mobile game's arcade
+port). The dump is the cabinet's `DataPC` folder (`Skylanders.bat` updates it with
+`Skylanders.jar`, then runs `Skylanders.exe`): `skylanders-cloud-patrol.windowsloader` points at
+`Skylanders.exe`. Unity loads `xinput1_3.dll` after its Direct3D device: `payload_loader: true`
+loads it at the entry point, so the crosshair overlay hooks the device.
+
+- **Touch frame (`pqmt.rs`).** `PqmtScreenGestures` is the client of a PQ Labs frame's server
+  (`PQMTClient.dll`, TCP 127.0.0.1:21555): `ConnectServer`, `SendRequest`,
+  `GetServerResolution` (callback), the point frame callback (`SetOnReceivePointFrame`, cdecl:
   `TouchPoint { point_event 0 down / 1 move / 2 up, id, x, y, dx, dy }`; a finger missing from a
   frame is lifted). Each player's finger (id = player) is down where its gun points while
   `touch` (the trigger) is held, frames every 16 ms. The game maps a point to Unity's screen as
@@ -5385,6 +5404,13 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns; operator menu items not selectable | as `after-dark` (the same executable and profile), Microsoft's `d3dx9_41` (not in the dump) |
 | `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns | UNIS's qumo guns (Unity 5.5, 64-bit, §6.3j): the payload (`xinput1_3.dll`) emulates the USB HID board (`SetupDi`, `HidD_GetAttributes`, overlapped reads and writes: Mono `DllImport`s) and the Sense4 dongle; identity gun calibration file; Wine's `winhttp` (no BepInEx) |
 | `night-hunter-after-dark-chapter-ii-3-0-2` | Night Hunter: After Dark Chapter II (3.0.2) | unis | user 100% (2026-11-03), 2 guns, 4 missions selectable (Lost Trails) | as `night-hunter-after-dark-chapter-ii` (the same board code), four missions: the mission select at the start and the fourth open (profile config), the fourth island on the select (patched `level0` copy) |
+| `raccoon-rampage` | Raccoon Rampage | unis | works (headless: attract, 2 players, aim and shots, operator menu), 4 guns | UE4 4.26 (§6.3j): the payload (`xinput1_3.dll`) answers `UsbPluginsDll.dll`'s I/O, coin and dongle functions through the executable's `GetProcAddress`; `GunDataToScreen` replaced (aim without calibration), `IsGunCalibrate` true |
+| `crazy-ride` | Crazy Ride | unis | works (headless: start, car select, race, operator menu), wheel | UE4 4.19 (§6.3j): `UsbPluginsDll_R.dll` answers (I/O, wheel, coins, dongle), the input calibration (CRLF ini), one 16:9 screen (split screen off) |
+| `crazy-speed-arcade` | Crazy Speed Arcade | unis | works (headless: coins, start, car and course select, race), wheel | Ogre 32-bit (§6.3j): COM1 game232 board, 1360x768 windowed d3d9 stretched, native D3DX, WMI / machine id / dongle action cipher / network thread patches, mirror material |
+| `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
+| `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |
+| `fantasy-soccer` | Fantasy Soccer | unis | works (headless: coins, 2 players, a match, operator menu), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config) |
+| `mighty-moto` | Mighty Moto | unis | works (headless: start, track select, a race) | Unity 2.x 32-bit (§6.3j): wal-loader, the cabinet's keys posted to the game window from player 1's stick and pedals (real keyboard filtered), fake DirectInput |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): Rabbids Hollywood's Sixense trackers, Kaboom Adrio board and Matrix dongle; the trigger on the board's player button 2, the tracker's button reloads; Wine's `winhttp` |
@@ -5404,15 +5430,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `shooty-skies` | Shooty Skies | adrenaline | user 100% (2026-11-03), 2 joysticks (the game's keys) + buttons, portrait (64-bit), stretched bezel | as Crossy Road, stick keys |
 | `flappy-tickets` | Flappy Tickets | adrenaline | user 100% (2026-11-03), 2 buttons, portrait, stretched bezel | as Crossy Road |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
-| `raccoon-rampage` | Raccoon Rampage | unis | works (headless: attract, 2 players, aim and shots, operator menu), 4 guns | UE4 4.26 (§6.3j): the payload (`xinput1_3.dll`) answers `UsbPluginsDll.dll`'s I/O, coin and dongle functions through the executable's `GetProcAddress`; `GunDataToScreen` replaced (aim without calibration), `IsGunCalibrate` true |
-| `crazy-ride` | Crazy Ride | unis | works (headless: start, car select, race, operator menu), wheel | UE4 4.19 (§6.3j): `UsbPluginsDll_R.dll` answers (I/O, wheel, coins, dongle), the input calibration (CRLF ini), one 16:9 screen (split screen off) |
-| `crazy-speed-arcade` | Crazy Speed Arcade | unis | works (headless: coins, start, car and course select, race), wheel | Ogre 32-bit (§6.3j): COM1 game232 board, 1360x768 windowed d3d9 stretched, native D3DX, WMI / machine id / dongle action cipher / network thread patches, mirror material |
-| `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
-| `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |
-| `fantasy-soccer` | Fantasy Soccer | unis | works (headless: coins, 2 players, a match, operator menu), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config) |
-| `mighty-moto` | Mighty Moto | unis | works (headless: start, track select, a race) | Unity 2.x 32-bit (§6.3j): wal-loader, the cabinet's keys posted to the game window from player 1's stick and pedals (real keyboard filtered), fake DirectInput |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
-| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs), 2 camera guns | JXCompany's "ShotRedLight" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump without BepInEx/ReShade (`TopGun2.exe`); the payload emulates the JX COM1 board (`jxboard.rs`, `jxcamera`), the SoftKey HID dongle and the camera tracker's positions; portrait 1080x1920 fitted, crosshair, bezel |
+| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | JXCompany's "ShotRedLight" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump without BepInEx/ReShade (`TopGun2.exe`); the payload emulates the JX COM1 board (`jxboard.rs`, `jxcamera`), the SoftKey HID dongle and the camera tracker's positions; landscape by default (levels full screen, not stretched; menus, attract and loading in the bezel), portrait 1080x1920 fitted as an option, crosshair |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

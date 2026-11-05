@@ -318,5 +318,5 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `flappy-tickets` | Flappy Tickets | adrenaline | user 100% (2026-11-03), 2 buttons, portrait, stretched bezel | not in the test |  |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | not in the test |  |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | not in the test |  |
-| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs), 2 camera guns | not in the test |  |
+| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | not in the test |  |
 <!-- GAMELIST END -->
