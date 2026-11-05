@@ -23,6 +23,14 @@ env:
 
 input:
   stick_as_dpad: false
+  # the keyboard: the arrows steer (left / right) and drive (up the gas, down the brake);
+  # Page Up / Page Down move in the operator menu
+  keyboard:
+    p1:
+      KEY_UP: accel
+      KEY_DOWN: brake
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
 
 controls:
   lx: Handlebar
@@ -36,5 +44,5 @@ controls:
   coin: Coin
   test: Operator menu
   service: Menu enter
-  up: Menu move
-  down: Menu move
+  up: Menu move (Page Up)
+  down: Menu move (Page Down)
