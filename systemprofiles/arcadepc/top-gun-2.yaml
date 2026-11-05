@@ -30,6 +30,10 @@ env:
   # the cabinet art around the picture, its opening fitted to the game
   WAL_BEZEL: bezel.png
   WAL_BEZEL_FIT: "1"
+  # "1": a 16:9 screen, the levels full screen (not stretched), the menus, attract and
+  # loading in the bezel (the portrait setup above undone by the payload); "0": the cabinet's
+  # portrait picture
+  WAL_JX_LANDSCAPE: "1"
   # its window out of the window manager's hands (a desktop's top bar pushed it down), given
   # the focus
   WAL_DESKTOP_UNMANAGED: "1"
@@ -43,6 +47,16 @@ native_map:
   b4: change
   up: down
   down: up
+
+options:
+  - title: Display
+    options:
+      - key: WAL_JX_LANDSCAPE
+        label: Landscape
+        kind: bool
+        description: >-
+          On: the levels full screen on a 16:9 screen, not stretched; the menus, attract and
+          loading screens in the bezel. Off: the cabinet's portrait picture.
 
 input:
   # each player's gun (or mouse) aims, its trigger shoots
