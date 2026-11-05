@@ -5,7 +5,8 @@
 //! 1080x1080 and its UI, laid out for 1080x1920, was cut. The game and the DLLs of its
 //! directory see a `<w>x<h>` desktop instead (`GetSystemMetrics`, the monitors' areas, the
 //! work area, the display modes), and their top-level windows, sized and placed on it, are
-//! fitted onto the real screen (aspect kept, centered). Direct3D stretches the back buffer the
+//! fitted onto the real screen (aspect kept, centered; the DLLs of its directory loaded later
+//! too: `late_hooks.rs`). Direct3D stretches the back buffer the
 //! game renders at its own size to that smaller window. DXGI (DXVK) resizes the window to the
 //! back buffer itself (`ResizeTarget`: `MoveWindow`): its imports are hooked too. The windows'
 //! size limits (`WM_GETMINMAXINFO`, Wine's X size hints) are fitted too. The d3d9 shim reports
@@ -601,6 +602,9 @@ pub fn init() {
                 }
             }
         }
+        // the DLLs of the game's directory it loads later too (Ogre's render system makes the
+        // window: Crazy Speed Arcade's RenderSystem_Direct3D9.dll)
+        crate::late_hooks::hook("user32.dll", name, *f, orig);
         // not imported by these modules: the original for the others' calls
         if orig.load(Ordering::Relaxed) == 0 {
             let cname = format!("{name}\0");

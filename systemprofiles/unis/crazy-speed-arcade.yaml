@@ -23,13 +23,29 @@ files:
 env:
   WAL_UNIS_BOARD: game232
   # the game's 1360x768 picture (its full screen mode, in its code: a mode the screen may lack,
-  # Ogre stops) drawn windowed, stretched to a borderless screen-sized window
+  # Ogre stops) drawn windowed in a borderless window, on a 1360x768 desktop fitted onto the
+  # screen (aspect kept). Ogre sizes its view from the window's client area: a screen-sized
+  # window zoomed the picture (its right and bottom cut off)
   WAL_D3D9_WINDOWED_SIZE: 1360x768
+  WAL_DESKTOP_SIZE: 1360x768
   WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: screen
+  # the fitted window's client area answered in the desktop's units (1360x768): Ogre's view
+  WAL_DESKTOP_CLIENT: "1"
 
 input:
   stick_as_dpad: false
+  # the keyboard: the arrows steer (left / right) and drive (up the gas, down the brake),
+  # pushed progressively
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+      # the menus' up and down (the game's own keys for them)
+      KEY_PAGEUP: up
+      KEY_PAGEDOWN: down
 
 controls:
   lx: Steering (and the menus' selection)
@@ -39,3 +55,7 @@ controls:
   b1: Nitro (start)
   b2: View (renew game card on the title)
   coin: Coin
+  up: Menu up (d-pad, Page Up)
+  down: Menu down (d-pad, Page Down)
+  left: Menu left (d-pad)
+  right: Menu right (d-pad)

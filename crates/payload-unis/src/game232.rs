@@ -35,8 +35,13 @@
 //! - **Buttons.** Button 5 is START/NOS (the menus' confirm, the race's nitro), 4 VIEW (the
 //!   camera; on the title the game card's renewal), 9 the operator's (it quits the game: not
 //!   mapped). The wheel selects in the menus.
+//! - **Menu directions.** The vertical lists move with buttons 0 (up) and 1 (down): the d-pad's
+//!   up and down (the keyboard's Page Up / Page Down, the game's own keys for them in
+//!   `kb_map.dat`); the d-pad's left and right turn the wheel fully (`menuleft menuright`: the
+//!   horizontal selections).
 //!
-//! Natives: `button0`..`button21`, `coin`; the wheel `lx`, the gas `accel`, the brake `brake`.
+//! Natives: `button0`..`button21`, `coin`, `menuleft menuright`; the wheel `lx`, the gas
+//! `accel`, the brake `brake`.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -58,6 +63,8 @@ const AXIS_MAX: i32 = 1024;
 enum Native {
     Button(u8),
     Coin,
+    /// A menu direction: 0 left, 1 right (the wheel turned fully).
+    Menu(u8),
 }
 
 const NATIVES: &[(&str, Native)] = &[
@@ -84,6 +91,8 @@ const NATIVES: &[(&str, Native)] = &[
     ("button20", Native::Button(20)),
     ("button21", Native::Button(21)),
     ("coin", Native::Coin),
+    ("menuleft", Native::Menu(0)),
+    ("menuright", Native::Menu(1)),
 ];
 
 const DEFAULTS: &[(&str, &str)] = &[
@@ -93,6 +102,11 @@ const DEFAULTS: &[(&str, &str)] = &[
     // the VIEW button: the camera, the game card's renewal on the title
     ("b2", "button4"),
     ("coin", "coin"),
+    // the menus' directions on the d-pad: up and down the lists' buttons, left and right the wheel
+    ("up", "button0"),
+    ("down", "button1"),
+    ("left", "menuleft"),
+    ("right", "menuright"),
 ];
 
 fn map() -> &'static ButtonMap<Native> {
@@ -142,17 +156,20 @@ fn idle() -> Vec<u8> {
     state.last = Instant::now();
     let stick = input(0);
     let mut data = [0u8; 10];
-    let wheel = (stick.axis(Axis::LeftX) as f32 / 32767.0 + 1.0) / 2.0;
+    let mut wheel = (stick.axis(Axis::LeftX) as f32 / 32767.0 + 1.0) / 2.0;
     let pedal = |a: Axis| stick.axis(a).max(0) as f32 / 32767.0;
-    data[0..2].copy_from_slice(&axis(wheel).to_le_bytes());
-    data[2..4].copy_from_slice(&axis(pedal(Axis::Accel)).to_le_bytes());
-    data[4..6].copy_from_slice(&axis(pedal(Axis::Brake)).to_le_bytes());
+    let (gas, brake) = (pedal(Axis::Accel), pedal(Axis::Brake));
     let mut buttons: u32 = 0;
     let mut coin = false;
     map().for_each_pressed(&stick, |n| match n {
         Native::Button(bit) => buttons |= 1 << bit,
         Native::Coin => coin = true,
+        Native::Menu(0) => wheel = 0.0,
+        Native::Menu(_) => wheel = 1.0,
     });
+    data[0..2].copy_from_slice(&axis(wheel).to_le_bytes());
+    data[2..4].copy_from_slice(&axis(gas).to_le_bytes());
+    data[4..6].copy_from_slice(&axis(brake).to_le_bytes());
     data[6..9].copy_from_slice(&buttons.to_le_bytes()[..3]);
     // one frame per press
     if coin && !state.coin_held {
@@ -165,7 +182,9 @@ fn idle() -> Vec<u8> {
     frame(&data)
 }
 
-/// The PC's frames (lights, force feedback): nothing to answer.
+/// The PC's frames (`AA AA`, length, command, data, CRC): two settings at the start (`01 05`,
+/// `04 01`), the cabinet's lamps (`09`, seven bytes: a lamp's number and its brightness). No
+/// force feedback in a race: nothing to answer.
 fn handler(_packet: &[u8]) -> Vec<u8> {
     Vec::new()
 }

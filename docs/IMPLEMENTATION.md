@@ -4405,10 +4405,20 @@ wal-loader.
   through `DATABASE/RuntimeSettings/AnalogAdjust.ini`'s calibration (the profile's: 0..1).
   Buttons, through `configure/js_game232_map.dat`: 5 START/NOS (confirm, nitro), 4 VIEW (the
   camera; on the title the game card's renewal), 9 the operator's (it quits the game: not
-  mapped). The wheel selects in the menus.
+  mapped), 0 / 1 the menus' up / down (the vertical lists: the d-pad, the keyboard's Page Up
+  / Page Down, the game's own keys for them). The wheel selects in the horizontal menus (the
+  d-pad's left / right turn it fully); the arrows steer and drive.
 - **Display.** The game asks for a 1360x768 full screen mode (constants in its code), which
   Ogre refuses when the screen lacks it: `WAL_D3D9_WINDOWED_SIZE=1360x768` (the mode added to
-  the adapter's list, the device made windowed), `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`.
+  the adapter's list, the device made windowed) in a borderless window (`WAL_WINDOW_POPUP`) on
+  a 1360x768 desktop (`WAL_DESKTOP_SIZE`) fitted onto the screen, aspect kept. Ogre sizes its
+  view from the window's client area: a screen-sized window (`WAL_WINDOW_SIZE: screen`, the
+  first setup) zoomed the 1360x768 picture, its right and bottom cut off. Ogre's render
+  system (`RenderSystem_Direct3D9.dll`, loaded after the start) makes the window: the fake
+  desktop's hooks reach the DLLs of the game's directory loaded later (`late_hooks.rs`), and
+  the window's client area answers in desktop units (`WAL_DESKTOP_CLIENT`). No force feedback:
+  the game writes its board two settings at the start and the cabinet's lamps, nothing in a
+  race.
   Ogre creates the device from `RenderSystem_Direct3D9.dll`, loaded later by `OgreMain.dll`:
   the d3d9 shim's imports are now late hooks (`late_hooks.rs`), every DLL of the game's
   directory loaded later gets them.
@@ -5424,7 +5434,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `night-hunter-after-dark-chapter-ii-3-0-2` | Night Hunter: After Dark Chapter II (3.0.2) | unis | user 100% (2026-11-03), 2 guns, 4 missions selectable (Lost Trails) | as `night-hunter-after-dark-chapter-ii` (the same board code), four missions: the mission select at the start and the fourth open (profile config), the fourth island on the select (patched `level0` copy) |
 | `raccoon-rampage` | Raccoon Rampage | unis | user 100% (2026-11-05), 4 guns | UE4 4.26 (§6.3j): the payload (`xinput1_3.dll`) answers `UsbPluginsDll.dll`'s I/O, coin and dongle functions through the executable's `GetProcAddress`; `GunDataToScreen` replaced (aim without calibration), `IsGunCalibrate` true |
 | `crazy-ride` | Crazy Ride | unis | user 100% (2026-11-05), wheel, force feedback | UE4 4.19 (§6.3j): `UsbPluginsDll_R.dll` answers (I/O, wheel, coins, dongle, wheel motor: spring and vibration), the input calibration (CRLF ini), one 16:9 screen (split screen off), 1920x1080 desktop fitted, arrows steer and drive |
-| `crazy-speed-arcade` | Crazy Speed Arcade | unis | works (headless: coins, start, car and course select, race), wheel | Ogre 32-bit (§6.3j): COM1 game232 board, 1360x768 windowed d3d9 stretched, native D3DX, WMI / machine id / dongle action cipher / network thread patches, mirror material |
+| `crazy-speed-arcade` | Crazy Speed Arcade | unis | user 100% (2026-11-05), wheel | Ogre 32-bit (§6.3j): COM1 game232 board (menu up / down buttons on the d-pad and Page Up / Down, the arrows steer and drive), 1360x768 windowed d3d9 on a 1360x768 desktop fitted, native D3DX, WMI / machine id / dongle action cipher / network thread patches, mirror material |
 | `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
 | `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |
 | `fantasy-soccer` | Fantasy Soccer | unis | works (headless: coins, 2 players, a match, operator menu), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config) |
