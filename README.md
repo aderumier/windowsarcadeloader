@@ -295,7 +295,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `crazy-ride` | Crazy Ride | unis | user 100% (2026-11-05), wheel, force feedback | not in the test |  |
 | `crazy-speed-arcade` | Crazy Speed Arcade | unis | user 100% (2026-11-05), wheel | not in the test |  |
 | `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | not in the test |  |
-| `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | not in the test |  |
+| `wicked-tuna` | Wicked Tuna | unis | user 100% (2026-11-05), 4 rods on light guns or pads | not in the test |  |
 | `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players | not in the test |  |
 | `mighty-moto` | Mighty Moto | unis | user 100% (2026-11-05) | not in the test |  |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | not in the test |  |
