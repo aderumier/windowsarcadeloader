@@ -87,7 +87,9 @@ unsafe extern "system" fn connect(socket: usize, address: *const u8, length: i32
     unsafe { real(socket, address, length) }
 }
 
-// ---- bcrypt: the AES key and the plain bodies (WAL_APM3_APMS_TRACE=1) ----
+// ---- bcrypt: the game server's AES key; the plain bodies (WAL_APM3_APMS_TRACE=1) ----
+
+static TRACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 type GenerateKey = unsafe extern "system" fn(usize, *mut usize, *mut u8, u32, *const u8, u32, u32) -> i32;
 type Crypt = unsafe extern "system" fn(usize, *const u8, u32, *const u8, *mut u8, u32, *mut u8, u32, *mut u32, u32) -> i32;
@@ -97,7 +99,12 @@ static REAL_DECRYPT: OnceLock<usize> = OnceLock::new();
 
 unsafe extern "system" fn generate_key(alg: usize, key: *mut usize, object: *mut u8, object_len: u32, secret: *const u8, secret_len: u32, flags: u32) -> i32 {
     if !secret.is_null() {
-        log!("apms: key {}", hex(unsafe { std::slice::from_raw_parts(secret, secret_len as usize) }));
+        let key = unsafe { std::slice::from_raw_parts(secret, secret_len as usize) };
+        if TRACE.load(std::sync::atomic::Ordering::Relaxed) {
+            log!("apms: key {}", hex(key));
+        }
+        // a 256-bit key: the ABAAS game server's title key (gs.rs)
+        crate::gs::learn_key(key);
     }
     let real: GenerateKey = unsafe { std::mem::transmute(*REAL_GENERATE.get().unwrap()) };
     unsafe { real(alg, key, object, object_len, secret, secret_len, flags) }
@@ -234,6 +241,33 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
     Ok(())
 }
 
+/// The game server client in its own DLL (Otoshu DX: the Unity plugin `abaasgs.dll`, loaded at
+/// its first call; `WAL_APM3_GS_MODULE`): its connect and key imports hooked as soon as it is
+/// loaded (checked every 2 ms for 5 minutes).
+fn watch_gs_module() {
+    let name = std::env::var("WAL_APM3_GS_MODULE").unwrap_or_else(|_| "abaasgs.dll".into());
+    let cname = format!("{name}\0");
+    std::thread::spawn(move || {
+        for _ in 0..150_000 {
+            let module = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(cname.as_ptr()) };
+            if !module.is_null() {
+                let base = module as usize;
+                unsafe {
+                    if let Some(real) = iat::hook_ordinal(base, "WS2_32.dll", 4, connect as *const () as usize) {
+                        let _ = REAL_CONNECT.set(real);
+                    }
+                    if let Some(real) = iat::hook_module(base, "bcrypt.dll", "BCryptGenerateSymmetricKey", generate_key as *const () as usize) {
+                        let _ = REAL_GENERATE.set(real);
+                    }
+                }
+                log!("apms: {name} loaded: its connect and key imports hooked");
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+    });
+}
+
 pub(crate) fn init() {
     let base = iat::game_module();
     unsafe {
@@ -243,18 +277,21 @@ pub(crate) fn init() {
         if let Some(real) = iat::hook_ordinal(base, "WS2_32.dll", 4, connect as *const () as usize) {
             let _ = REAL_CONNECT.set(real);
         }
-        if std::env::var("WAL_APM3_APMS_TRACE").is_ok_and(|v| v.trim() == "1") {
-            for (name, f, slot) in [
-                ("BCryptGenerateSymmetricKey", generate_key as *const () as usize, &REAL_GENERATE),
-                ("BCryptEncrypt", encrypt as *const () as usize, &REAL_ENCRYPT),
-                ("BCryptDecrypt", decrypt as *const () as usize, &REAL_DECRYPT),
-            ] {
-                if let Some(real) = iat::hook("bcrypt.dll", name, f) {
-                    let _ = slot.set(real);
-                }
+        let trace = std::env::var("WAL_APM3_APMS_TRACE").is_ok_and(|v| v.trim() == "1");
+        TRACE.store(trace, std::sync::atomic::Ordering::Relaxed);
+        // the key always (the game server's), the bodies when tracing
+        let hooks: &[(&str, usize, &OnceLock<usize>)] = &[
+            ("BCryptGenerateSymmetricKey", generate_key as *const () as usize, &REAL_GENERATE),
+            ("BCryptEncrypt", encrypt as *const () as usize, &REAL_ENCRYPT),
+            ("BCryptDecrypt", decrypt as *const () as usize, &REAL_DECRYPT),
+        ];
+        for &(name, f, slot) in &hooks[..if trace { 3 } else { 1 }] {
+            if let Some(real) = iat::hook("bcrypt.dll", name, f) {
+                let _ = slot.set(real);
             }
         }
     }
+    watch_gs_module();
     match TcpListener::bind(("127.0.0.1", port())) {
         Ok(listener) => {
             log!("apms: title server on 127.0.0.1:{}", port());

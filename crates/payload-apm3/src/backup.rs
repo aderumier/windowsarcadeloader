@@ -67,36 +67,39 @@ pub(crate) fn tick() {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Backup_setupRecords(records: *const usize, count: u32) -> bool {
-    log!("apm3: Backup_setupRecords({count})");
-    if records.is_null() {
-        return false;
-    }
-    let mut list = RECORDS.lock().unwrap();
-    list.clear();
-    for i in 0..count as usize {
-        // `{void *data; size_t size}`: pointer-sized fields (16 bytes a record in 64-bit programs)
-        let (address, size) = unsafe { (*records.add(2 * i), *records.add(2 * i + 1)) };
-        let mut record = Record { address, size, status: 1, saved: 0 };
-        let data = memory(&record);
-        // the contents at setup are not the game's data yet (Blade Strangers' are its allocator's
-        // fill and it never writes them): saved only once the game changes them
-        record.saved = hash(data);
-        // the game and its test program may declare a record with different sizes (Blade
-        // Strangers: 8 and 7 bytes): their common part
-        match std::fs::read(path(i)) {
-            Ok(saved) if !saved.is_empty() => {
-                let n = saved.len().min(size);
-                data[..n].copy_from_slice(&saved[..n]);
-                record.status = 0;
-                record.saved = hash(data);
-                log!("backup: record {i} loaded ({n} of {size} bytes)");
-            }
-            _ => log!("backup: record {i} ({size} bytes): new"),
+pub extern "system" fn Backup_setupRecords(records: *const usize, count: u32) -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        log!("apm3: Backup_setupRecords({count})");
+        if records.is_null() {
+            return false;
         }
-        list.push(record);
-    }
-    true
+        let mut list = RECORDS.lock().unwrap();
+        list.clear();
+        for i in 0..count as usize {
+            // `{void *data; size_t size}`: pointer-sized fields (16 bytes a record in 64-bit programs)
+            let (address, size) = unsafe { (*records.add(2 * i), *records.add(2 * i + 1)) };
+            let mut record = Record { address, size, status: 1, saved: 0 };
+            let data = memory(&record);
+            // the contents at setup are not the game's data yet (Blade Strangers' are its allocator's
+            // fill and it never writes them): saved only once the game changes them
+            record.saved = hash(data);
+            // the game and its test program may declare a record with different sizes (Blade
+            // Strangers: 8 and 7 bytes): their common part
+            match std::fs::read(path(i)) {
+                Ok(saved) if !saved.is_empty() => {
+                    let n = saved.len().min(size);
+                    data[..n].copy_from_slice(&saved[..n]);
+                    record.status = 0;
+                    record.saved = hash(data);
+                    log!("backup: record {i} loaded ({n} of {size} bytes)");
+                }
+                _ => log!("backup: record {i} ({size} bytes): new"),
+            }
+            list.push(record);
+        }
+        true
+    })() as u32
 }
 
 /// 0: the record holds valid saved data; 1: new (no saved data: the game initializes it).
@@ -107,21 +110,30 @@ pub extern "system" fn Backup_getRecordStatus(index: u32) -> u32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Backup_isSetupSucceeded() -> bool {
-    first_call("Backup_isSetupSucceeded");
-    true
+pub extern "system" fn Backup_isSetupSucceeded() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Backup_isSetupSucceeded");
+        true
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Backup_saveRecord(_index: u32) -> bool {
-    first_call("Backup_saveRecord");
-    flush();
-    true
+pub extern "system" fn Backup_saveRecord(_index: u32) -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Backup_saveRecord");
+        flush();
+        true
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Backup_saveRecordByAddress(_address: *const u8) -> bool {
-    first_call("Backup_saveRecordByAddress");
-    flush();
-    true
+pub extern "system" fn Backup_saveRecordByAddress(_address: *const u8) -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Backup_saveRecordByAddress");
+        flush();
+        true
+    })() as u32
 }

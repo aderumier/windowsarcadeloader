@@ -1,4 +1,5 @@
-//! Sega ALLS APM3 ("ALL.Net P-ras MULTI Version 3": Under Night In-Birth Exe:Late[cl-r]).
+//! Sega ALLS APM3 ("ALL.Net P-ras MULTI Version 3": Under Night In-Birth Exe:Late[cl-r], Blade
+//! Strangers, Senxin Aleste, Otoshu DX).
 //!
 //! The game imports `apm_x86.dll` (`apm.dll`: 64-bit games and programs), the client library of the cabinet's APM3 system
 //! (`amdaemon`: keychip, ALL.Net, I/O board, Aime, credits): our payload replaces it and
@@ -13,7 +14,11 @@
 //! - `WAL_APM3_ABAAS_LINK`: the ABAAS matching server (cabinet versus; none emulated yet); without
 //!   it `WAL_APM3_NO_LINK_PATCHES` apply (the game no longer waits for its link)
 //! - `WAL_APM3_FREEPLAY=1`: free play (default: coins, 1 credit per game)
-//! - `WAL_APM3_TEST`: the test program the game's test switch starts (default `TestModeApp.exe`)
+//! - `WAL_APM3_TEST`: the test program the game's test switch starts (default `TestModeApp.exe`);
+//!   `WAL_APM3_TEST_ARGS`: its arguments (a test mode of the game's own program: `-t`)
+//! - `WAL_APM3_TOUCH=1`: a touch screen game (player 1's gun and `touch` input)
+//! - `WAL_APM3_GS_KEY`, `WAL_APM3_GS_MODULE`: the ABAAS game server's key (default: learnt),
+//!   the DLL of its client (default `abaasgs.dll`)
 //! - `WAL_APM3_KEYCHIP`, `WAL_APM3_BOARD`, `WAL_APM3_GAME_ID`, `WAL_APM3_LOCATION`,
 //!   `WAL_APM3_RESOLUTION` (`<w>x<h>`): values the system reports
 //! - `WAL_APM3_APMS_TRACE=1`: the title server's AES key and plain bodies in the log

@@ -28,6 +28,14 @@ enum Reader {
 }
 
 static READER: Mutex<Reader> = Mutex::new(Reader::Idle);
+/// The last card read stays readable (`Aime_getAimeId`, `Aime_getAccessCode`) until the next
+/// `Aime_start`, after `Aime_cancel` too (Otoshu DX cancels the reader, then asks the id).
+static READ: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// A card's result is readable.
+fn has_card() -> bool {
+    poll() == Reader::Done || READ.load(Ordering::Relaxed)
+}
 
 fn access_code() -> String {
     let code = env("WAL_APM3_ACCESS_CODE").unwrap_or_else(|| "50000000000000000001".into());
@@ -61,81 +69,104 @@ fn poll() -> Reader {
         } else if released {
             log!("aime: card read, access code {} aime id {}", access_code(), aime_id());
             *reader = Reader::Done;
+            READ.store(true, Ordering::Relaxed);
         }
     }
     *reader
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_start() -> bool {
-    first_call("Aime_start");
-    if !ONLINE.load(Ordering::Relaxed) {
-        return false;
-    }
-    log!("aime: waiting for a card");
-    // a card already held is read too (the player pressed the card input before the prompt)
-    *READER.lock().unwrap() = Reader::Waiting { released: true };
-    true
+pub extern "system" fn Aime_start() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_start");
+        if !ONLINE.load(Ordering::Relaxed) {
+            return false;
+        }
+        log!("aime: waiting for a card");
+        // a card already held is read too (the player pressed the card input before the prompt)
+        *READER.lock().unwrap() = Reader::Waiting { released: true };
+        READ.store(false, Ordering::Relaxed);
+        true
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_cancel() -> bool {
-    first_call("Aime_cancel");
-    let mut reader = READER.lock().unwrap();
-    if *reader != Reader::Idle {
-        log!("aime: cancelled");
-    }
-    *reader = Reader::Idle;
-    true
+pub extern "system" fn Aime_cancel() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_cancel");
+        let mut reader = READER.lock().unwrap();
+        if *reader != Reader::Idle {
+            log!("aime: cancelled");
+        }
+        *reader = Reader::Idle;
+        true
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_isBusy() -> bool {
-    first_call("Aime_isBusy");
-    matches!(poll(), Reader::Waiting { .. })
+pub extern "system" fn Aime_isBusy() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_isBusy");
+        matches!(poll(), Reader::Waiting { .. })
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_hasResult() -> bool {
-    first_call("Aime_hasResult");
-    poll() == Reader::Done
+pub extern "system" fn Aime_hasResult() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_hasResult");
+        poll() == Reader::Done
+    })() as u32
 }
 
 /// `AccessCode`: 10 bytes (the 20 digits as BCD), then the digits as a NUL terminated UTF-16
 /// string (21 characters).
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_getAccessCode(out: *mut u8) -> bool {
-    first_call("Aime_getAccessCode");
-    if out.is_null() || poll() != Reader::Done {
-        return false;
-    }
-    let code = access_code();
-    let digits: Vec<u8> = code.bytes().map(|b| b - b'0').collect();
-    let mut data = [0u8; 0x34];
-    for (i, pair) in digits.chunks(2).enumerate() {
-        data[i] = pair[0] << 4 | pair[1];
-    }
-    for (i, c) in code.encode_utf16().enumerate() {
-        data[10 + 2 * i..12 + 2 * i].copy_from_slice(&c.to_le_bytes());
-    }
-    unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), out, data.len()) };
-    true
+pub extern "system" fn Aime_getAccessCode(out: *mut u8) -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_getAccessCode");
+        if out.is_null() || !has_card() {
+            return false;
+        }
+        let code = access_code();
+        let digits: Vec<u8> = code.bytes().map(|b| b - b'0').collect();
+        let mut data = [0u8; 0x34];
+        for (i, pair) in digits.chunks(2).enumerate() {
+            data[i] = pair[0] << 4 | pair[1];
+        }
+        for (i, c) in code.encode_utf16().enumerate() {
+            data[10 + 2 * i..12 + 2 * i].copy_from_slice(&c.to_le_bytes());
+        }
+        unsafe { std::ptr::copy_nonoverlapping(data.as_ptr(), out, data.len()) };
+        true
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_getAimeId(out: *mut u32) -> bool {
-    first_call("Aime_getAimeId");
-    let read = poll() == Reader::Done;
-    if !out.is_null() {
-        unsafe { *out = if read { aime_id() } else { u32::MAX } };
-    }
-    read
+pub extern "system" fn Aime_getAimeId(out: *mut u32) -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_getAimeId");
+        let read = has_card();
+        if !out.is_null() {
+            unsafe { *out = if read { aime_id() } else { u32::MAX } };
+        }
+        read
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_acceptConfirm() -> bool {
-    first_call("Aime_acceptConfirm");
-    false
+pub extern "system" fn Aime_acceptConfirm() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_acceptConfirm");
+        false
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
@@ -145,9 +176,12 @@ pub extern "system" fn Aime_getConfirm() -> u32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_hasConfirm() -> bool {
-    first_call("Aime_hasConfirm");
-    false
+pub extern "system" fn Aime_hasConfirm() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_hasConfirm");
+        false
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
@@ -157,43 +191,64 @@ pub extern "system" fn Aime_getErrorCategory() -> u32 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_hasError() -> bool {
-    first_call("Aime_hasError");
-    false
+pub extern "system" fn Aime_hasError() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_hasError");
+        false
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_isDBAlive() -> bool {
-    first_call("Aime_isDBAlive");
-    ONLINE.load(Ordering::Relaxed)
+pub extern "system" fn Aime_isDBAlive() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_isDBAlive");
+        ONLINE.load(Ordering::Relaxed)
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_isMobile() -> bool {
-    first_call("Aime_isMobile");
-    false
+pub extern "system" fn Aime_isMobile() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_isMobile");
+        false
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_isReaderDetected() -> bool {
-    first_call("Aime_isReaderDetected");
-    ONLINE.load(Ordering::Relaxed)
+pub extern "system" fn Aime_isReaderDetected() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        first_call("Aime_isReaderDetected");
+        ONLINE.load(Ordering::Relaxed)
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_sendLog(aime_id: u32, kind: u32, value: u32) -> bool {
-    log!("aime: log {aime_id} {kind} {value}");
-    true
+pub extern "system" fn Aime_sendLog(aime_id: u32, kind: u32, value: u32) -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        log!("aime: log {aime_id} {kind} {value}");
+        true
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_setLedError() -> bool {
-    log!("aime: LED error");
-    true
+pub extern "system" fn Aime_setLedError() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        log!("aime: LED error");
+        true
+    })() as u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Aime_setLedSuccess() -> bool {
-    log!("aime: LED success");
-    true
+pub extern "system" fn Aime_setLedSuccess() -> u32 {
+    // a 32-bit BOOL: 64-bit C# callers (P/Invoke) read the whole register
+    (|| -> bool {
+        log!("aime: LED success");
+        true
+    })() as u32
 }
