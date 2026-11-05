@@ -14,6 +14,9 @@
 //! keyboard keys; natives `trigger reload action change offscreen key_<name>` (docs §6.3i).
 //! Polar Wars (32-bit, `WAL_ARCADEPC_BOARD=unrealio`): the payload is its UnrealIO board's
 //! `UnrealHid.dll`; natives `trigger start coin` and the operator's `setting left right up`.
+//! Hog Wild (32-bit, `WAL_ARCADEPC_BOARD=interface`): the payload is its `Interface.dll` (the
+//! original library forwarded, its parallel port board emulated); natives `coin start service
+//! test accelerator brake gear_high gear_low view steer_left steer_right`, the left stick steers.
 
 use super::{Payload, System};
 
