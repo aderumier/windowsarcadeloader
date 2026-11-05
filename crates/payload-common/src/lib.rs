@@ -71,6 +71,9 @@ pub mod nesica_registry;
 pub mod paths;
 #[cfg(windows)]
 pub mod patches;
+// images (elevator doors, a bezel) over Direct3D 11 pictures
+#[cfg(windows)]
+pub mod images_d3d11;
 // a touch screen's pointer over Direct3D 11 pictures
 #[cfg(windows)]
 pub mod pointer_d3d11;

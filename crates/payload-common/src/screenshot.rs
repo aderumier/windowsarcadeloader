@@ -74,7 +74,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
-use crate::{iat, log};
+use crate::log;
 
 type HRESULT = i32;
 type P = *mut c_void;
@@ -299,28 +299,21 @@ pub fn init() {
     if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && source.is_none() && max_fps.is_none() && !force && !query_fix && !update_texture_fix && !trace && !pow2 && !multithreaded {
         return;
     }
-    // the game and the DLLs of its directory (engines creating the device themselves)
-    let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    // the game and the DLLs of its directory (engines creating the device themselves), also
+    // those it loads later (Ogre's RenderSystem_Direct3D9.dll, loaded by OgreMain.dll: Crazy
+    // Speed Arcade)
     // Direct3DCreate9Ex too: games importing only the 9Ex entry point (Mario Kart GP DX)
     // never resolve Direct3DCreate9, so their devices would escape the shims.
-    let hooks: [(&str, &str, usize, &AtomicUsize); 4] = [
+    let hooks: [(&'static str, &'static str, usize, &'static AtomicUsize); 4] = [
         ("d3d9.dll", "Direct3DCreate9", create9 as *const () as usize, &ORIG_CREATE9),
         ("d3d9.dll", "Direct3DCreate9Ex", create9ex as *const () as usize, &ORIG_CREATE9EX),
         ("d3d8.dll", "Direct3DCreate8", d3d8::create8 as *const () as usize, &d3d8::ORIG_CREATE8),
         ("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize, &ORIG_GET_PROC_ADDRESS),
     ];
-    for base in crate::workarea::game_modules(exe) {
-        for (dll, name, f, orig) in &hooks {
-            if let Some(o) = unsafe { iat::hook_module(base, dll, name, *f) } {
-                if o != *f {
-                    orig.store(o, Ordering::Relaxed);
-                }
-                if *dll != "kernel32.dll" {
-                    log!("{}: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, windowed size {windowed_size:?}, force fullscreen {force})", &dll[..4]);
-                }
-            }
-        }
+    for (dll, name, f, orig) in hooks {
+        crate::late_hooks::hook(dll, name, f, orig);
     }
+    log!("d3d9: shims enabled (screenshot every {secs:?}s, fullscreen size {size:?}, windowed size {windowed_size:?}, force fullscreen {force})");
 }
 
 /// Games loading d3d9/d3d8 at run time get the wrapped creation functions.

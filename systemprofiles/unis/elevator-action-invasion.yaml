@@ -1,0 +1,49 @@
+# Elevator Action Invasion (UNIS / Taito, Unreal Engine 4.26, 64-bit) - template, override
+# values in userprofiles/unis/elevator-action-invasion.yaml.
+# Two light guns, the cabinet's elevator doors drawn over the picture. The payload answers the
+# game's UsbPluginsDll.dll (I/O board, guns, coins, doors, dongle) (docs §6.3j).
+system: unis
+name: Elevator Action Invasion
+
+dll_overrides:
+  # the game imports xinput1_3.dll: the payload
+  xinput1_3: "n,b"
+
+files:
+  # the guns' calibration: the payload's aim, 0..4095 across the picture (CRLF lines: the
+  # game's ini parser)
+  Setting_GunCalibrate.ini: systemprofiles/unis/files/elevator-action-invasion/Setting_GunCalibrate.ini
+  Setting_GunCalibrate_Backups.ini: systemprofiles/unis/files/elevator-action-invasion/Setting_GunCalibrate.ini
+
+env:
+  WAL_UNIS_BOARD: usbplugins
+  # the game draws its guns' crosshairs
+  WAL_CROSSHAIR: "0"
+  # The cabinet's portrait monitor: a 1080x1920 desktop for the game (its picture at that
+  # size), its window fitted onto the real screen (aspect kept, centered)
+  WAL_DESKTOP_SIZE: 1080x1920
+  WAL_DESKTOP_UNMANAGED: "1"
+  # the cabinet's elevator doors over the picture, moved by the game (the dump's pictures,
+  # relative to the executable's directory: the portrait set, the picture's size)
+  WAL_UNIS_DOORS: "../../../Attraction Doors Pack/1920x1080/Portrait"
+  # the elevator's wall around the picture (the dump's landscape picture), its opening fitted
+  # to the game's window
+  WAL_BEZEL: "../../../Attraction Doors Pack/1920x1080/Landscape/Bezel.png"
+  WAL_BEZEL_FIT: "1"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  start: Start
+  coin: Coin
+  b2: Gun button (right)
+  b3: Gun button (middle)
+  up: Gun button (up)
+  down: Gun button (down)
+  test: Operator menu (move)
+  service: Menu enter

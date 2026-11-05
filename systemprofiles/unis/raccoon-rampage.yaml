@@ -1,0 +1,34 @@
+# Raccoon Rampage (UNIS, Unreal Engine 4.26, 64-bit) - template, override values in
+# userprofiles/unis/raccoon-rampage.yaml.
+# Four water guns. The payload answers the game's UsbPluginsDll.dll (the I/O board: triggers,
+# water tank, operator's buttons; the coins; the dongle) and puts each gun's aim on the
+# picture, no calibration needed (docs §6.3j). Free play: the game's own pay setting
+# (operator menu, Game Setting), free by default.
+system: unis
+name: Raccoon Rampage
+
+dll_overrides:
+  # the game imports xinput1_3.dll: the payload
+  xinput1_3: "n,b"
+
+env:
+  WAL_UNIS_BOARD: usbplugins
+  # the game draws its own crosshairs
+  WAL_CROSSHAIR: "0"
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  start: Start (trigger)
+  b2: Menu enter
+  coin: Coin
+  test: Operator menu (up)
+  up: Menu up
+  down: Menu down
+  service: Menu enter

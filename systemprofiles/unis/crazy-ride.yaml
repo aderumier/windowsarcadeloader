@@ -1,0 +1,38 @@
+# Crazy Ride (UNIS, Unreal Engine 4.19, 64-bit, CrazyTaxiGame 1.9) - template, override values
+# in userprofiles/unis/crazy-ride.yaml.
+# One driving cabinet. The payload answers the game's UsbPluginsDll_R.dll (the I/O board:
+# pedals, buttons, operator's buttons; the wheel; the coins; the dongle) (docs §6.3j).
+# Free play: the game's own pay setting (the dump's Setting_Pay.ini), operator menu.
+system: unis
+name: Crazy Ride
+
+dll_overrides:
+  # the game imports xinput1_3.dll: the payload
+  xinput1_3: "n,b"
+
+# The operator menu's input calibration: the payload's wheel (255 left .. 1 right, 128 the
+# centre) and pedals (1..255), CRLF lines (the game's ini parser)
+files:
+  Setting_Test_Input.ini: systemprofiles/unis/files/crazy-ride/Setting_Test_Input.ini
+  Setting_Test_Input_Backups.ini: systemprofiles/unis/files/crazy-ride/Setting_Test_Input.ini
+  # one screen: the cabinet's second one (the 600x800 touch screen's ranking list, right of
+  # the main picture in a 2520x1080 window) off, the game's picture 16:9 (the dump's file,
+  # bEnableSplitscreen=false, its comments dropped)
+  SysStart/Game/CrazyCab/CrazyTaxiGame/Config/DefaultManage_Menu.ini: systemprofiles/unis/files/crazy-ride/DefaultManage_Menu.ini
+
+env:
+  WAL_UNIS_BOARD: usbplugins
+
+input:
+  stick_as_dpad: false
+
+controls:
+  lx: Steering
+  accel: Gas
+  brake: Brake
+  start: Start
+  coin: Coin
+  test: Operator menu (up)
+  up: Menu up
+  down: Menu down
+  service: Menu enter

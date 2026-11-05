@@ -1,0 +1,41 @@
+# Crazy Speed Arcade (UNIS, Ogre, 32-bit) - template, override values in
+# userprofiles/unis/crazy-speed-arcade.yaml.
+# One driving cabinet. The payload emulates the cabinet's COM1 I/O board (the "game232"
+# board: the wheel, the pedals, the buttons, the coins) (docs §6.3j).
+system: unis
+name: Crazy Speed Arcade
+
+# Client_r.exe imports none of the payload's DLL names: started with it by wal-loader
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+  # the dump's D3DX (its shaders' compiler: Wine's drops their constants)
+  d3dx9_28: "n,b"
+
+files:
+  # the wheel's and pedals' calibration: the payload's full ranges (the dump's, a cabinet's)
+  DATABASE/RuntimeSettings/AnalogAdjust.ini: systemprofiles/unis/files/crazy-speed-arcade/AnalogAdjust.ini
+  DATABASE/RuntimeSettings/AnalogAdjust_bak.ini: systemprofiles/unis/files/crazy-speed-arcade/AnalogAdjust.ini
+  # the rear view mirror's material without its empty texture unit: the game adds the mirror's
+  # render texture as the next one, the empty first one drew it white
+  Media/UI/overlays/rearviewMirror/rearviewMirrorOverlay.material: systemprofiles/unis/files/crazy-speed-arcade/rearviewMirrorOverlay.material
+
+env:
+  WAL_UNIS_BOARD: game232
+  # the game's 1360x768 picture (its full screen mode, in its code: a mode the screen may lack,
+  # Ogre stops) drawn windowed, stretched to a borderless screen-sized window
+  WAL_D3D9_WINDOWED_SIZE: 1360x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+
+input:
+  stick_as_dpad: false
+
+controls:
+  lx: Steering (and the menus' selection)
+  accel: Gas
+  brake: Brake
+  start: Start / nitro (confirm)
+  b1: Nitro (start)
+  b2: View (renew game card on the title)
+  coin: Coin

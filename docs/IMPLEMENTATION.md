@@ -4317,6 +4317,241 @@ loads it at the entry point, so the crosshair overlay hooks the device.
 - **Touch frame (`pqmt.rs`).** `PqmtScreenGestures` is the client of a PQ Labs frame's server
   (`PQMTClient.dll`, TCP 127.0.0.1:21555): `ConnectServer`, `SendRequest`,
   `GetServerResolution` (callback), the point frame callback (`SetOnReceivePointFrame`, cdecl:
+#### Raccoon Rampage
+
+UNIS's water-gun cabinet (Unreal Engine 4.26, 64-bit, `RSGame-Win64-Shipping.exe` 1.4, its PDB
+in the dump; `WAL_UNIS_BOARD=usbplugins`), four guns. The executable imports `xinput1_3.dll`:
+the payload. The game loads `Plugins/UsbPluginsDll.dll` (the I/O board over USB HID, the guns,
+the dongle) and looks its `BIND_*` functions up by name (`FWindowsPlatformProcess::GetDllExport`,
+the executable's `GetProcAddress`, hooked): for that DLL the payload answers the I/O, coin and
+dongle functions, the others (lights, recoil, settings files) are the DLL's own.
+
+- **I/O (`usbplugins.rs`).** `BIND_GetIoData(FCoUnisIoData&)`, 49 bytes read by
+  `ABPGameState::ParseIOData`: byte 2 the operator's buttons (bit 2 test: the menu, its move up;
+  1 its move down; 0 its enter), byte 5 the triggers (bit 7 - n gun n: a press starts the gun's
+  game, the cabinet has no start buttons) and the water tank's sensors (bit 3 low, 2 medium,
+  1 high: medium, the normal level; none = no water, coins locked), bytes 6..9 the ticket and
+  card dispensers (clear), 10..25 each gun's raw x, y (big endian, unused).
+- **Coins.** Counted by the DLL: `BIND_GetCoinNumByPlayer`, `BIND_DecCoins`,
+  `BIND_AddKeyboardCoins` are the payload's counters (a coin press one coin). The game's pay
+  setting (operator menu, Game Setting; the dump's `Setting_Pay.ini` is empty) is free play.
+- **Aim.** The game maps each gun's raw x, y through the operator menu's grid calibration
+  (`Setting_Hardware.ini` `Calibrate_<n>P_<cell>_LT_X`..., `ABPGameState::GunDataToScreen`) to
+  its 1920x1080 picture (`FPACKET::iX`, `iY`, then `UBPGameInstance::SetMouseLocation`, the
+  game's crosshairs). `GunDataToScreen` (RVA 0x9B3110) jumps to the payload's: the gun's place
+  on the picture times 1920x1080; `IsGunCalibrate`'s `xor al, al` (0x9B7290) is `mov al, 1`
+  (DemulShooter's Raccoon Rampage module patches the same RVAs). Both checked first: another
+  version keeps the game's code.
+- **Dongle.** `BIND_InitDongle`, `IsDongleExist`, `IsDongleVerify`, `UnInitDongle`: true;
+  `BIND_SetLocalTime` (the menu's clock) changes nothing.
+
+Headless checks: attract, two players joined by their triggers, aim and shots, the operator
+menu (test, down, enter: Gun Test, every gun "Corrected").
+
+#### Crazy Ride
+
+UNIS's driving cabinet (Unreal Engine 4.19, 64-bit, `CrazyTaxiGame-Win64-Shipping.exe` 1.9, its
+PDB in the dump; `WAL_UNIS_BOARD=usbplugins`, the game told by its executable): the same
+`GetProcAddress` answers as Raccoon Rampage's, for `Plugins/UsbPluginsDll_R.dll`.
+
+- **I/O.** `BIND_GetIoData`, 33 bytes (`ACTGameState::ParseIOData`): byte 2 the operator's
+  buttons (as Raccoon Rampage's), byte 3 bit 0 the start button, 1 the seat motion's pause
+  (each press toggles it), 2 the seat belt (set: fastened), 7 a coin (unused); byte 6 the
+  brake, 7 the gas.
+- **Wheel.** `BIND_IsExistSteeringWheel`, `BIND_OpenSteeringWheelDevice`: true;
+  `BIND_GetSteeringWheelAngle()`: 255 full left .. 1 full right (the cabinet's wheel: left the
+  high values), 128 the centre. The game maps it and the pedals through the operator menu's
+  input calibration (`Setting_Test_Input.ini`, read by `IniFile.dll`, CRLF lines only: the LF
+  file was ignored, "Steering wheel or gas pedal is not calibrated"): the profile's matches the
+  payload's ranges.
+- **Coins.** `BIND_GetInternalCoins()` the credits, `BIND_DecCoins(count)`,
+  `BIND_AddKeyboardCoins(count)`. The dump's pay setting is free play.
+- **One screen.** `Config/DefaultManage_Menu.ini` `bEnableSplitscreen=true` (`AManage_Menu::
+  SetSplitscreen`): a 2520x1080 window, the main picture 76 % of it, the cabinet's 600x800
+  touch screen (the ranking list) at its right. The profile's copy sets it false: a 16:9
+  window, one picture.
+
+Headless checks: attract, start, car select, a race (gas, steering both ways), the operator
+menu (Hardware Test, Input Test).
+
+#### Crazy Speed Arcade
+
+UNIS's "game232" driving cabinet (`release/Client_r.exe`, Ogre 1.x, 32-bit, no symbols;
+`WAL_UNIS_BOARD=game232`, `crates/payload-unis/src/game232.rs`), started with the payload by
+wal-loader.
+
+- **Board.** COM1, 19200 bauds 8N1, overlapped reads of one byte: the board streams `AA AA`,
+  10 data bytes, their CRC-16/Modbus (low byte first). Data: three axes (16-bit little endian,
+  0..1024, the game's value `1 - raw / 1024`: wheel, gas, brake), 20 buttons (bytes 6..8),
+  byte 8 bit 7 a coin (counted on each frame it is set: one frame per press). The axes go
+  through `DATABASE/RuntimeSettings/AnalogAdjust.ini`'s calibration (the profile's: 0..1).
+  Buttons, through `configure/js_game232_map.dat`: 5 START/NOS (confirm, nitro), 4 VIEW (the
+  camera; on the title the game card's renewal), 9 the operator's (it quits the game: not
+  mapped). The wheel selects in the menus.
+- **Display.** The game asks for a 1360x768 full screen mode (constants in its code), which
+  Ogre refuses when the screen lacks it: `WAL_D3D9_WINDOWED_SIZE=1360x768` (the mode added to
+  the adapter's list, the device made windowed), `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`.
+  Ogre creates the device from `RenderSystem_Direct3D9.dll`, loaded later by `OgreMain.dll`:
+  the d3d9 shim's imports are now late hooks (`late_hooks.rs`), every DLL of the game's
+  directory loaded later gets them.
+- **Shaders.** The dump's `d3dx9_28.dll` native (Wine's compiler dropped the shaders'
+  constants: "Parameter ... does not exist").
+- **WMI.** `Win32_LogicalMemoryConfiguration` (absent from Wine) enumerates nothing: the
+  checks after `IEnumWbemClassObject::Next` are made `jne` (no object skipped).
+- **Machine id.** A licence key bound to the cabinet ("UNIDENTIFIED SYSTEM ID"): its check
+  answers valid.
+- **Dongle.** The game's actions (64-byte blocks) are RSA-encrypted with a public key in the
+  game (OpenSSL) and decrypted by the dongle (`dic32u.dll`, the private key): without it every
+  dispatched action came out garbled ("no module process this action", START spending a
+  credit, the title staying). Both functions return at once: the actions in clear.
+- **Offline.** The network engine's connection thread (to an internet dispatch server, every
+  30 s) crashed on its queue (its global overwritten at the engine's start; the crash dialog,
+  "CrazyForSpeed", took the screen): it ends at once, and `connect` to non-local addresses is
+  refused. The engine's shutdown skips the queue's release (crashed at the exit). The game shows
+  OFFLINE and plays Tournament / Time Attack.
+- **Rear view mirror.** Its material's empty texture unit drew it white (the game adds the
+  mirror's render texture as the next unit): the profile's material has none.
+
+Headless checks: coin, credits, START, game card (timeout: no card), car and course select, a
+race (gas, steering both ways, the mirror).
+
+#### Elevator Action Invasion
+
+UNIS / Taito's two-gun elevator cabinet (Unreal Engine 4.26, 64-bit, `ESGame-Win64-Shipping.exe`,
+its PDB in the dump; `WAL_UNIS_BOARD=usbplugins`, the game told by its executable): the same
+`GetProcAddress` answers as Raccoon Rampage's, for `Plugins/UsbPluginsDll.dll`, its "ESIO"
+board and USB guns.
+
+- **I/O.** `BIND_IsExistESIODevice`, `BIND_OpenESIODevice`: true; `BIND_GetESIoData`, 17 bytes
+  (`ABPGameState::ParseIOData`, into `FIoData`): byte 2 bit 0 the operator's enter, 1 down,
+  2 up (test: the menu), 4 start 2P, 5 start 1P; bytes 3, 4 the left and right doors' sensors
+  (low nibble: the door closed, `LeftDoorVal`; bit 7 `bInfraredHit`, bit 6 `bInfraredError`:
+  the doors' hand sensors, clear); bytes 5..12 each gun's raw x, y (0..4095, big endian: the
+  board's guns, used when the settings' gun type is 1); byte 13 the triggers (bit 1 1P, 0 2P).
+- **Guns.** `BIND_GetGunData(player, FPACKET*)` (`ABPGameState::Tick`, the gun type 0, the
+  dump's): the payload writes the gun's place on the 1080x1920 portrait picture (`iX`, `iY`;
+  the game clamps them to 70..1010, 70..1850 and moves its crosshair there), the trigger
+  (`bLeftBtn`: its edges fire), the buttons, `iUSB` 1 (`ABPGameState::IsGun` wants it above 0:
+  0 crossed the guns' icons out, a negative one skips the gun) and a calibration (`LeftTop`,
+  `Middle`, `RightBotton`: the picture's corners and middle; none, "enter Setting Menu to
+  calibrate!" in the attract).
+- **Coins.** `BIND_GetCoinNumByPlayer`, `BIND_DecCoins`, `BIND_AddKeyboardCoins`: the payload's
+  counters, as Raccoon Rampage's.
+- **Doors (`eai_doors.rs`).** The cabinet's elevator doors, in front of the screen, are the
+  game's: `ABPPC::SetDoorVal` → `UBPGameInstance::SetDoorData` → `BIND_SetDoorData(left, right)`
+  (each door's closed part, 0 open .. 10 closed: closed for each elevator ride, opened at the
+  floor). The payload moves them at the cabinet's pace (1.5 s open to closed), reports their
+  positions as the sensors and draws them over the picture (`WAL_UNIS_DOORS`: the dump's
+  `Attraction Doors Pack/1920x1080/Portrait` pictures, `DoorLeft.png`, `DoorRight.png` and the
+  `DoorsBezel.png` frame; `payload-common`'s `images_d3d11.rs`, textured quads drawn at the
+  swap chain's `Present` with its own device context state). The game's door video
+  (`ShowDoorMV`, cabinets without doors, `bHasDoor` false) is not used.
+- **Levels.** After the first mission (the helicopter's) the game shows its mission select.
+  The game keeps no progress (no save game: the levels' passed flags are `UGameData`'s, in
+  memory). A level is unlocked when every level of its list (`FSelectLevelData`) is passed
+  (`UGameData::GetLevelIsUnlock`): its `je` there (RVA 0x7687CE, checked first) is a nop,
+  every level unlocked.
+- **Display.** The portrait picture: `WAL_DESKTOP_SIZE=1080x1920` (the game's window that size,
+  fitted onto the screen, aspect kept), the landscape set's `Bezel.png` around it
+  (`WAL_BEZEL`, `WAL_BEZEL_FIT`).
+
+Headless checks: attract (the doors closing and opening), coins, start, a game (the doors at
+each ride, aim, shots, enemies hit).
+
+#### Wicked Tuna
+
+UNIS's four-player fishing cabinet (Unity 2018, Mono, 64-bit, `WickedTuna.exe`;
+`WAL_UNIS_BOARD=wickedtuna`, `crates/payload-unis/src/wickedtuna.rs`): four rods (a reel's
+handle, the rod turned left and right and raised, a hook button) on one serial board. Unity
+tries `xinput1_4.dll` first: disabled, the payload (`xinput1_3.dll`) is loaded at start. The
+dump's mod loader (`winhttp.dll`, BepInEx and its input plugin) is not used: Wine's `winhttp`.
+
+- **Board.** `IOBoardControler` scans COM 2..10 (`iobaordCom.dll`'s `exIO_Initiate(port,
+  115200)`), then reads 48 bytes (`exIO_ReadData`) after each command (`exIO_SendCmd`, 26
+  bytes: lights, the reels' and rods' resistance, shakers, tickets: ignored). The payload
+  answers those `DllImport`s (`mono_imports.rs`). Data: four 12-byte records, byte 0 `A1` +
+  the player, byte 2 bits 0..2 the reel's position (each change one step of the line: the
+  game's `GetRollingRope`), 3 the hook button (cast, confirm; menus move with the reel), 4 a
+  coin (counted on each read it is set: one read per press), 5 / 6 / 7 the operator's repair,
+  service, test; bytes 3, 4 the rod's direction, 5, 6 its angle (12 bits each, high nibble
+  first), 7..9 the tickets left, 11 the complement of the sum of bytes 0..10.
+- **Rods on light guns.** The game maps direction and angle through the operator menu's
+  per-player ranges (`logs/Data.dat` `AdLeft` / `AdRight`, `AdMin` / `AdMax`; the dump's:
+  player 1 a cabinet's, 2..4 min = max), then turns the rod and drops the hook at
+  `FishPointRange - dir × 2 FishPointRange` (`PlayerCtrl::StartFlyHook`), and asks for the rod
+  raised (≥ 0.7) or lowered during a fight. The payload: the gun's x the direction (the
+  board's from the right: 0 the rod turned right; checked headless, the rod's tip follows the
+  aim), its y the angle (aimed up: raised), the trigger the hook button, a held button the
+  reel (one step per read, the board read every other frame). `WAL_UNIS_TUNA_AIM=column` (the
+  default): each gun's x across its player's quarter of the picture (the four players' columns,
+  left to right); `screen`: the whole picture (pads, a mouse). The profile's `logs/Data.dat`
+  (installed at each start, as the dump's otherwise: free play, English) has every range
+  0..4095, its `logs/Data2.dat` the bookkeeping cleared.
+- **Sound.** Bass streams opened with a speaker flag per player (`GF_SoundManager::
+  InitSound4`: 1 front left, 2 front right, 3 rear left, 4 rear right, music on all): on a
+  stereo device BASS refuses the rear ones (`BASS_ERROR_SPEAKER`, 42: players 3 and 4
+  silent). The payload's `BASS_StreamCreateFile` (the same `DllImport` hook) opens a refused
+  stream again on the front speaker of its side.
+- **Online.** `UnisINTR.dll` (UNIS's network service) is off in the game's code
+  (`isUseUnisINTR = false`).
+
+Headless checks: coin, join on free play, mode and character select, the fish radar, casts,
+fights (the line reeled in, the rod raised and lowered), fish landed (a shark), the rod's
+direction both ways, player 3's sounds on the front speakers.
+
+#### Fantasy Soccer
+
+UNIS's four-player football cabinet (Unreal Engine 4, 64-bit, `FB-Win64-Shipping.exe` 2.4,
+no PDB; `WAL_UNIS_BOARD=usbplugins`, the game told by its executable): each player has a stick,
+a red and a blue button and a real ball kicked against a sensor. The game loads
+`Plugins/UsbPluginsDll_R.dll` as Crazy Ride does.
+
+- **Packed executable.** The executable's code is unpacked at run time (sections without
+  names): it reaches the DLL's functions past the hooked `GetProcAddress` (`WAL_PACKED_IMPORTS`
+  did not help). Once the DLL is loaded, each export the payload answers is patched to jump to
+  the payload's function (`mov rax, f; jmp rax`; every export is 16 bytes or more). The board's
+  layout was read from the unpacked image (dumped from memory by the payload during the work):
+  the game state's tick reads `BIND_GetIoData` into its 0x511 and parses it.
+- **I/O.** 33 bytes. Byte 3: the operator's (bit 7 test: opens the menu, moves; 6 down; 5
+  enter). Byte 4 bit 3 - n: a button of player n's (not on the operator menu's input test).
+  Bytes 5, 6: the ticket dispensers (a nibble each player, clear). Byte 11 + n: player n's ball
+  sensor, the kick's strength (the game takes it when it rises from 0: one read per kick).
+  Byte 15 bits 7 - 2n: the red button (accelerate; any button starts), 6 - 2n: the blue one.
+  Bytes 16 + 2n, 17 + 2n: the stick's x and y, 255 full left / up .. 0, 128 the centre (dead
+  zone 20). The operator menu's input test (Main Menu, Input Test) shows each part.
+- **Calibration.** `Setting_Test_Input.ini` (`IoDataList_iMin_X_%dP`... the sticks' and the
+  balls' ranges, `bIsVerify_Rocker` / `bIsVerify_Football`, CRLF lines): without it every slot
+  warns "The joystick or the ball or the camera is not verified". The profile's has every
+  player's; `Setting_Webcam.ini`'s `bEnableWebcam=false` (the players' photos: no camera).
+- **Coins.** `BIND_GetInternalCoins(player)`: the player's coins since the start (the game adds
+  each increase to the player's credits; three a game).
+- **One screen.** `AManage_Menu`'s `bEnableSplitscreen` (on: a 3840x1080 window, the cabinet's
+  second screen's video beside the game, "Video File Missing") is set off in the user's saved
+  `Manage_Menu.ini` before the game reads it (`WAL_UNIS_SPLITSCREEN=1`: both screens). The
+  engine's `-ini:` command line override did not take.
+
+Headless checks: coins (3/3), two players joined, mode select, a match (moves, accelerate,
+kicks), the operator menu and its input test (buttons, calibration).
+
+#### Mighty Moto
+
+UNIS's motorbike cabinet (Unity 2.x, 32-bit, `motobikeV1.0.9.exe`, 2009;
+`WAL_UNIS_BOARD=mightymoto`, `crates/payload-unis/src/mightymoto.rs`), started with the payload by
+wal-loader (no XInput import; `xinput1_3: "n,b"`, else Wine's builtin is loaded).
+
+- **Keys.** The cabinet's controls are keys (its board a key encoder): the scripts read Unity's
+  `Input` (`headScript`: `1` start, `2` the item, `3` a coin, `4` the operator menu, the
+  `Horizontal` axis the handlebar, the `d` / `up` buttons the gas, `u` the brake; `myCar`: `s`
+  back, space the handbrake; `houtai`, the operator menu: `j` / `l` move, `d` enters). The real
+  keyboard is filtered; the payload posts these keys to the game's window as its own key
+  messages (`input_filter::post_key`, held for the key state polls) and gives the fake
+  DirectInput (`WAL_DINPUT_DISABLE=1`) the same keyboard. The stick's x past a third of its
+  travel is the arrows, the gas and brake pedals (`accel`, `brake`) the keys too.
+- **Settings.** `SaveData.xml` beside the executable (free play on in the dump), written back by
+  the game: the profile installs a copy of the dump's.
+
+Headless checks: attract, start, track select, a race (gas, steering both ways, overtakes).
+
   `TouchPoint { point_event 0 down / 1 move / 2 up, id, x, y, dx, dy }`; a finger missing from a
   frame is lifted). Each player's finger (id = player) is down where its gun points while
   `touch` (the trigger) is held, frames every 16 ms. The game maps a point to Unity's screen as
@@ -5169,6 +5404,13 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `shooty-skies` | Shooty Skies | adrenaline | user 100% (2026-11-03), 2 joysticks (the game's keys) + buttons, portrait (64-bit), stretched bezel | as Crossy Road, stick keys |
 | `flappy-tickets` | Flappy Tickets | adrenaline | user 100% (2026-11-03), 2 buttons, portrait, stretched bezel | as Crossy Road |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
+| `raccoon-rampage` | Raccoon Rampage | unis | works (headless: attract, 2 players, aim and shots, operator menu), 4 guns | UE4 4.26 (§6.3j): the payload (`xinput1_3.dll`) answers `UsbPluginsDll.dll`'s I/O, coin and dongle functions through the executable's `GetProcAddress`; `GunDataToScreen` replaced (aim without calibration), `IsGunCalibrate` true |
+| `crazy-ride` | Crazy Ride | unis | works (headless: start, car select, race, operator menu), wheel | UE4 4.19 (§6.3j): `UsbPluginsDll_R.dll` answers (I/O, wheel, coins, dongle), the input calibration (CRLF ini), one 16:9 screen (split screen off) |
+| `crazy-speed-arcade` | Crazy Speed Arcade | unis | works (headless: coins, start, car and course select, race), wheel | Ogre 32-bit (§6.3j): COM1 game232 board, 1360x768 windowed d3d9 stretched, native D3DX, WMI / machine id / dongle action cipher / network thread patches, mirror material |
+| `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
+| `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |
+| `fantasy-soccer` | Fantasy Soccer | unis | works (headless: coins, 2 players, a match, operator menu), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config) |
+| `mighty-moto` | Mighty Moto | unis | works (headless: start, track select, a race) | Unity 2.x 32-bit (§6.3j): wal-loader, the cabinet's keys posted to the game window from player 1's stick and pedals (real keyboard filtered), fake DirectInput |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 | `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs), 2 camera guns | JXCompany's "ShotRedLight" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump without BepInEx/ReShade (`TopGun2.exe`); the payload emulates the JX COM1 board (`jxboard.rs`, `jxcamera`), the SoftKey HID dongle and the camera tracker's positions; portrait 1080x1920 fitted, crosshair, bezel |
 

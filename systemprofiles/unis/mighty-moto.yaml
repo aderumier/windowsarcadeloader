@@ -1,0 +1,40 @@
+# Mighty Moto (UNIS, Unity 2.x, 32-bit) - template, override values in
+# userprofiles/unis/mighty-moto.yaml.
+# A motorbike: the handlebar, gas and brake. The cabinet's controls are keys: the payload
+# gives the game's DirectInput keyboard player 1's (docs §6.3j).
+system: unis
+name: Mighty Moto
+
+# a 32-bit game importing no XInput: started with the payload by wal-loader
+payload_loader: true
+
+dll_overrides:
+  # the payload (the loader's), not Wine's
+  xinput1_3: "n,b"
+
+files:
+  # the game's settings and bookkeeping (it writes them back): a copy, the dump's kept
+  SaveData.xml: "{dump}/SaveData.xml"
+
+env:
+  WAL_UNIS_BOARD: mightymoto
+  # the fake DirectInput: its keyboard the payload's (the real keyboard hidden)
+  WAL_DINPUT_DISABLE: "1"
+
+input:
+  stick_as_dpad: false
+
+controls:
+  lx: Handlebar
+  accel: Gas
+  brake: Brake
+  b1: Gas
+  b2: Brake
+  b3: Item
+  b4: Back
+  start: Start
+  coin: Coin
+  test: Operator menu
+  service: Menu enter
+  up: Menu move
+  down: Menu move
