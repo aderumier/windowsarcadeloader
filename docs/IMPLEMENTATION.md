@@ -4479,6 +4479,9 @@ board and USB guns.
   memory). A level is unlocked when every level of its list (`FSelectLevelData`) is passed
   (`UGameData::GetLevelIsUnlock`): its `je` there (RVA 0x7687CE, checked first) is a nop,
   every level unlocked.
+- **Focus.** A shot beside the picture (a mouse click on the bezel or the desktop) took the
+  game's focus: `WAL_DESKTOP_ACTIVE` (the window never deactivated), the bezel's strips answer
+  `WM_MOUSEACTIVATE` with `MA_NOACTIVATE`.
 - **Display.** The portrait picture: `WAL_DESKTOP_SIZE=1080x1920` (the game's window that size,
   fitted onto the screen, aspect kept), the landscape set's `Bezel.png` around it
   (`WAL_BEZEL`, `WAL_BEZEL_FIT`).
@@ -5446,7 +5449,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `raccoon-rampage` | Raccoon Rampage | unis | user 100% (2026-11-05), 4 guns | UE4 4.26 (§6.3j): the payload (`xinput1_3.dll`) answers `UsbPluginsDll.dll`'s I/O, coin and dongle functions through the executable's `GetProcAddress`; `GunDataToScreen` replaced (aim without calibration), `IsGunCalibrate` true |
 | `crazy-ride` | Crazy Ride | unis | user 100% (2026-11-05), wheel, force feedback | UE4 4.19 (§6.3j): `UsbPluginsDll_R.dll` answers (I/O, wheel, coins, dongle, wheel motor: spring and vibration), the input calibration (CRLF ini), one 16:9 screen (split screen off), 1920x1080 desktop fitted, arrows steer and drive |
 | `crazy-speed-arcade` | Crazy Speed Arcade | unis | user 100% (2026-11-05), wheel | Ogre 32-bit (§6.3j): COM1 game232 board (menu up / down buttons on the d-pad and Page Up / Down, the arrows steer and drive), 1360x768 windowed d3d9 on a 1360x768 desktop fitted, native D3DX, WMI / machine id / dongle action cipher / network thread patches, mirror material |
-| `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
+| `elevator-action-invasion` | Elevator Action Invasion | unis | user 100% (2026-11-05), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
 | `wicked-tuna` | Wicked Tuna | unis | user 100% (2026-11-05), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |
 | `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config), 1920x1080 desktop fitted (packed imports rescanned), arrows move |
 | `mighty-moto` | Mighty Moto | unis | user 100% (2026-11-05) | Unity 2.x 32-bit (§6.3j): wal-loader, the cabinet's keys posted to the game window from player 1's stick and pedals (real keyboard filtered), fake DirectInput |
