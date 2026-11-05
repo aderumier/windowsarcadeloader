@@ -1,0 +1,22 @@
+[package]
+name = "wal-payload-apm3"
+description = "Sega ALLS APM3 payload: replacement apm_x86.dll (the APM3 game API)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_apm3"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-protocol = { path = "../protocol" }
+wal-payload-common = { path = "../payload-common" }
+aes = "0.8"
+miniz_oxide = "0.8"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+] }

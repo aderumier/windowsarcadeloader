@@ -1,0 +1,39 @@
+//! Sega ALLS APM3 ("ALL.Net P-ras MULTI Version 3": Under Night In-Birth Exe:Late[cl-r]).
+//!
+//! The game imports `apm_x86.dll`, the client library of the cabinet's APM3 system
+//! (`amdaemon`: keychip, ALL.Net, I/O board, Aime, credits): our payload replaces it and
+//! implements the API itself. The test program (`TestModeApp.exe`) imports it too.
+//!
+//! Payload options (profile `env`, details in `crates/payload-apm3`):
+//! - `WAL_APM3_ONLINE=1`: ALL.Net and the Aime server reported up: Aime cards, the players' data
+//!   on the payload's title server (`apms/<aime id>.dat` in the game folder);
+//!   `WAL_APM3_ONLINE_PATCHES`: game patches for it (as `WAL_PATCHES`). Default offline.
+//! - `WAL_APM3_ACCESS_CODE` (20 digits), `WAL_APM3_AIME_ID`: the card (`card` input);
+//!   `WAL_APM3_CARD_AUTO=1`: always on the reader (the `card` input takes it off)
+//! - `WAL_APM3_ABAAS_LINK`: the ABAAS matching server (cabinet versus; none emulated yet); without
+//!   it `WAL_APM3_NO_LINK_PATCHES` apply (the game no longer waits for its link)
+//! - `WAL_APM3_FREEPLAY=1`: free play (default: coins, 1 credit per game)
+//! - `WAL_APM3_TEST`: the test program the game's test switch starts (default `TestModeApp.exe`)
+//! - `WAL_APM3_KEYCHIP`, `WAL_APM3_BOARD`, `WAL_APM3_GAME_ID`, `WAL_APM3_LOCATION`,
+//!   `WAL_APM3_RESOLUTION` (`<w>x<h>`): values the system reports
+//! - `WAL_APM3_APMS_TRACE=1`: the title server's AES key and plain bodies in the log
+//! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
+
+use super::{Payload, System};
+
+pub struct Apm3;
+
+impl System for Apm3 {
+    fn name(&self) -> &'static str {
+        "apm3"
+    }
+
+    fn payloads(&self) -> &'static [Payload] {
+        &[Payload { file: "wal_apm3.dll", install_as: "apm_x86.dll" }]
+    }
+
+    fn data_dirs(&self) -> &'static [&'static str] {
+        // the Aime card players' records (the payload's title server)
+        &["apms"]
+    }
+}

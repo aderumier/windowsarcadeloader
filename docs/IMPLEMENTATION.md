@@ -5024,6 +5024,73 @@ of its `MethodInfo`), once IL2CPP runs: at the Matrix dongle's first function re
   reticle or the timer. The operator menu is played with the guns (target and shoot).
   Natives `trigger start coin` (each player), `operator up down select`.
 
+### 6.3k Sega ALLS APM3 (`crates/payload-apm3`)
+
+APM3 ("ALL.Net P-ras MULTI Version 3") is the ALLS platform for digitally distributed games
+(Under Night In-Birth Exe:Late[cl-r]). The game imports `apm_x86.dll`, the client library of the
+cabinet's system (`amdaemon`: keychip, ALL.Net, the Type 4 I/O board, Aime reader, credits,
+backup), which the dumps do not include. segatools' `apm3hook` (public domain) emulates that
+whole stack under the real amdaemon; here the payload replaces the library instead (system
+`apm3`, installed as `apm_x86.dll`), like `NxL2Core.dll` for NESiCAxLive 2:
+
+* **Exports.** All 106 (`apm_x86.def`: MSVC stdcall names, `_Input_isOn@4`; the Rust functions
+  are `extern "system"`, ld links the decorated names, `--enable-stdcall-fixup`). Every function
+  logs its first call. Strings are UTF-16 (the game converts them with code page 932); the
+  keychip / board ids are 0x38-byte buffers the game copies.
+* **Inputs.** `Input_isOn(id)` / `isOnNow` / `isOffNow` / `isFlipNow`: ids from the library's
+  name table: 0 test, 1 service, 2-5 up down left right, 6 start, 7-14 `push01`-`push08` (the
+  8-button Vewlix layout, segatools' apm3io: top row 1-4, bottom row 5-8), 15 home (back to the
+  system menu: unmapped). Edges are between two `Core_execute` calls (once per frame). One player
+  per cabinet: the game's `CPadInput_APM` reads pad 0 only; versus is cabinet to cabinet. Under
+  Night: A B C D = push01 push02 push03 push05 (profile: b4 = push05, b5 = push04).
+* **Credits.** The `coin` input adds a credit and calls the game's coin hook
+  (`Credit_setCoinInHook`); `Sequence_beginPlay` / `continuePlay` pay 1. `Credit_toString` is
+  the number only (the game prints `CREDIT(S) %s`, `FREE PLAY` itself). `WAL_APM3_FREEPLAY=1`.
+* **Test menu.** The game reads the test switch itself and calls `Core_exitGame(1)`: the payload
+  requests a relaunch `exe=TestModeApp.exe` (`WAL_APM3_TEST`, the dump's `gametest.bat`), whose
+  `Core_exitGame` relaunches the game. The process is ended 3 s after `Core_exitGame` (the
+  system closes it on a cabinet). Settings: the dump's `testmodesavedata.ini`.
+* **Network.** `WAL_APM3_ONLINE=1` (Under Night's profile default): `AllnetAuth_isGood` and
+  `Aime_isDBAlive` true; otherwise offline (the game's banner: offline, no Aime card, single
+  play only). The game embeds SEGA's ABAAS matching client (`am::abaas`, libcurl HTTP + STUN/TURN
+  relay, server from `AllnetAuth_getAbaasLinkServerName`): at boot it waits 1800 frames (30 s,
+  countdown `0x9bc8f4` set at `0x52edb7`) for the link before the attract mode; without a link
+  server (`WAL_APM3_ABAAS_LINK`) the profile's `WAL_APM3_NO_LINK_PATCHES` make it 1 frame (game
+  only, never the test program). Network versus needs an ABAAS server: none is public (ARTEMiS
+  and minime have no such title, segatools only redirects its DNS); not written yet. Found with
+  `WAL_MEMDUMP` dumps every 2 s: a frame counter stopping at 1800 when the attract started.
+* **Aime card** (`aime.rs`). The `card` input (a toggle: on / off the reader) is the card;
+  `WAL_APM3_CARD_AUTO=1` (Under Night's profile): always on, the input takes it off. The
+  game's `AMU::PlayState` (`0x43ebf0`, states through the byte table `0x43f6f8`): `Aime_start`
+  → `Aime_isBusy` true while no card (`Aime_cancel`: START at the "Data Certification" prompt,
+  no card) → a card: not busy, `Aime_hasResult`, `Aime_getAccessCode` (`AccessCode`: 10 BCD
+  bytes, then the 20 digits as UTF-16, 0x34 bytes), `Aime_getAimeId` → `AppData::startPlay`
+  (aime id; -1 = guest, no server). `WAL_APM3_ACCESS_CODE` (default `50000000000000000001`),
+  `WAL_APM3_AIME_ID` (default: the code's last 9 digits).
+* **Title server** (`apms.rs`, `cts.rs`). The players' data go through SEGA's `libcts`
+  (`am::cts::AppData`): HTTP POSTs to `http://<ip>:80/apms-api/<name>` (StartGame, EndGame,
+  ContinueGame, UpdateUser, Heartbeat, GetRanking, Get/SetCollection, Alive, CreateAccessCode,
+  ConvertCtsId, SetCabinetProperty), `<ip>` from `DnsQuery_A("<game id>.apm.sys-all.net")`
+  (game id `SDCM`; `.test-apm.sys-all.net` when `AllnetAuth_isDevelop`). The payload answers that
+  name with 127.0.0.1, moves the game's port 80 connections (WS2_32 `connect`, ordinal 4) to its
+  server on 33703 (port 80 needs root on the host). The setup step at `0x43e748` tests a flag
+  (`+0x2d0`) nothing sets here: `WAL_APM3_ONLINE_PATCHES` NOPs its `je`. Bodies: a 16-byte header
+  that is also the AES-128-CBC IV (request `02 01 03 28`, game id, CRC32 of the data, random;
+  response `02 01`, u16 status 0 = success, CRC32, data length, any), then the zlib-compressed
+  MessagePack data, encrypted (key `8a8df80d…` from `BCryptGenerateSymmetricKey`, logged with
+  `WAL_APM3_APMS_TRACE=1`; PKCS#7). Positional arrays: requests `[[keychip, game id, version, 1,
+  time], arguments...]`. Answers (decoders: `PlayerData` vtable `0x7531d0` method 2 by request
+  type, `GameData` `0x753188`):
+  - StartGame `[[aime id, ""], [first slot, 16]]` → `[[aime id, ""], [name, u16, save], [8
+    strings, 8 ints]]`; `save` (a MessagePack str holding bytes) is the game's 0x4000-byte block
+    (`0x4bbd90` copies it; bytes 4-7 zero: a new player, `0x4bb930`; else checked: `0xaa` magic +
+    checksum, `0x4bbca0`); an empty block crashes (`getSlotData` subscript).
+  - EndGame / ContinueGame / UpdateUser `[[aime id, ""], [name, u16, save], slots, play logs]`:
+    `[profile, slots]` stored in `apms/<aime id>.dat` (a launcher data dir of the game folder),
+    returned by the next StartGame (the block padded to 0x4000).
+  - GetRanking `[kind, [ranking ids], filters]` → `[[[] per id]]` (fewer crashes the attract);
+    GetCollection → `[]`; the others: the header alone.
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -5357,6 +5424,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `guilty-gear-xx-accent-core-plus-r` | Guilty Gear XX Accent Core Plus R | ringedge | works (user: 100%) | RingEdge 2 (§6.3d): platform `AAL2`, amAuth PCP service (TCP 40190), 4-byte SRAM access unit, keychip MACs from `SBYG_Table.dat` |
 | `under-night-in-birth-exe-late` | Under Night In-Birth Exe:Late | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `RingGame.exe.orig` (the dump's `RingGame.exe` is patched), amAuth 1.40 commands, JVS on COM4 |
 | `under-night-in-birth-exe-late-st` | Under Night In-Birth Exe:Late[st] | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), newer version of the same game: `RingGame.exe.orig`, amAuth 1.40 commands, JVS on `\\.\mxjvs` |
+| `under-night-in-birth-exe-late-cl-r` | Under Night In-Birth Exe:Late[cl-r] | apm3 | works (user: game fine, 2026-11-05); Aime cards + saves headless (2026-11-05); 1 player per cabinet; no network versus | Sega ALLS APM3 (§6.3k): replacement `apm_x86.dll`, title server in the payload, boot / online patches |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |

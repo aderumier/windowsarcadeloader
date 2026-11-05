@@ -19,6 +19,7 @@ members = [
     "crates/payload-arcadepc",
     "crates/payload-unis",
     "crates/payload-adrenaline",
+    "crates/payload-apm3",
     "crates/loader",
     "crates/easrv",
     "crates/namcoes3srv",

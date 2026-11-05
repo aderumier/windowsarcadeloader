@@ -2,6 +2,7 @@
 //! matching `payload-<system>` crate; both only share the common protocol.
 
 mod adrenaline;
+mod apm3;
 mod arcadepc;
 mod europar;
 mod globalvr;
@@ -77,7 +78,8 @@ pub fn by_name(name: &str) -> Result<Box<dyn System>> {
         "arcadepc" => Box::new(arcadepc::ArcadePc),
         "unis" => Box::new(unis::Unis),
         "adrenaline" => Box::new(adrenaline::Adrenaline),
+        "apm3" | "segalls" | "alls" => Box::new(apm3::Apm3),
         "europar" | "europa-r" | "segaeuropar" | "segaeuropa-r" => Box::new(europar::EuropaR),
-        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, konami, europar, arcadepc, unis, adrenaline)"),
+        _ => bail!("unknown system '{name}' (supported: nesica, nesica2, typex, globalvr, namcoes3, tsunami, rawthrills, ringedge, segashell, wahlap, konami, europar, arcadepc, unis, adrenaline, apm3)"),
     })
 }

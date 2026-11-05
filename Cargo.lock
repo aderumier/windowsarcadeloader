@@ -3819,6 +3819,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wal-payload-apm3"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "miniz_oxide 0.8.9",
+ "wal-payload-common",
+ "wal-protocol",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "wal-payload-arcadepc"
 version = "0.1.0"
 dependencies = [
