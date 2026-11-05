@@ -3964,7 +3964,8 @@ assembly (`Managed/Original.rar`, the same file); the executable renamed (`TopGu
   desktop's top bar pushed it down), so the payload is loaded at the start (`payload_loader`,
   `wal-loader64.exe`: before Wine's X11 driver), Unity's window messages filtered once
   `UnityPlayer.dll` is loaded.
-- **Landscape (`WAL_JX_LANDSCAPE=1`, the profile's default; "0": the cabinet's portrait).**
+- **Landscape (`WAL_UNITY_LANDSCAPE=1`, the profile's default; "0": the cabinet's portrait;
+  `payload-common`'s `unity_landscape.rs`, the game's level test in `jxcamera.rs`).**
   The levels full screen on a 16:9 screen, not stretched; the menus, attract and loading
   screens as on the cabinet, a portrait column in the bezel. Before the common start, the
   portrait setup is undone (`WAL_DESKTOP_SIZE`, `WAL_BEZEL`, `WAL_BEZEL_FIT` removed from the
@@ -3983,6 +3984,9 @@ assembly (`Managed/Original.rar`, the same file); the executable renamed (`TopGu
   state is set as its loading screen shows, the screen hidden a second after the load).
   Headless: attract, select and loading screens in the bezel, the level full screen with its
   scores, time and "Free Play" lines, aim and hits.
+  Tried on Top Gun Arcade (2026-11-05): its canvases are constant pixel size too, but its
+  stages' 3D cameras render to a texture shown in the portrait UI and its targets are UI
+  elements: the play stays a portrait column (the UI's red background beside it), not kept.
 
 #### Zombie Crisis
 
