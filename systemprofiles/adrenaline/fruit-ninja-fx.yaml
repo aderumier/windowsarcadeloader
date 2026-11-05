@@ -1,0 +1,62 @@
+# Fruit Ninja FX (Adrenaline Amusements / Halfbrick, native engine, 32-bit, Direct3D 9) -
+# template, override values in userprofiles/adrenaline/fruit-ninja-fx.yaml.
+# A touch screen game: the fruit is sliced with swipes. The mouse (or a gun) touches the screen
+# where it points while its button is held, and a pull draws a slice through the aim (the Gun
+# slice option): a light gun's shot cuts the fruit it aims at. The payload emulates the
+# cabinet's PQ Labs touch frame, its Kaboom I/O board (on its serial port: coins, the operator's
+# keypad, the ticket dispenser) (docs §6.3k). The dump's FruitNinja.exe is wrapped by the Matrix
+# dongle's envelope: the profile runs FruitNinja.decrypted.exe, the unwrapped executable
+# (docs/FRUIT-NINJA-FX-DECRYPTION.md).
+system: adrenaline
+name: Fruit Ninja FX
+
+dll_overrides:
+  # the payload (loaded by wal-loader under this name)
+  xinput1_3: "n,b"
+
+# the payload loaded at the executable's entry point (the game loads no xinput1_3.dll)
+payload_loader: true
+
+env:
+  # Sleep(15000) at start, after the window is created (the cabinet's boot wait): Sleep(0),
+  # else GNOME shows "not responding" over a white window
+  WAL_PATCHES: "0x7BD89:6800000000"
+  # the slice a pull draws: a quarter of the picture's height
+  WAL_GUN_SLICE: "0.25"
+  # the game's DirectInput (its mouse, its debug keys) sees no device: its input is the touch
+  # frame's
+  WAL_DINPUT_DISABLE: "1"
+  # the game draws no gun cursor: the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+
+options:
+  - title: Controls
+    options:
+      - key: WAL_GUN_SLICE
+        label: Gun slice
+        kind: choice
+        choices: ["0", "0.15", "0.25", "0.4"]
+        description: >-
+          For light guns: each trigger pull draws a slice through the aim, this long (a
+          fraction of the screen's height), the finger going out one way and back through the
+          aim to the other side; holding the trigger then slices along the gun's moves. 0: no
+          slice, the finger only follows the gun or mouse while its button is held.
+
+input:
+  # each player's gun (or mouse) aims, its trigger touches
+  guns_enabled: true
+  stick_as_dpad: false
+
+native_map:
+  b1: touch
+  coin: coin
+  test: operator
+  service: operator
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (slice, hold to swipe)
+  coin: Coin
+  test: Operator menu
+  service: Operator menu
