@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (276)
+## Games (277)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -300,6 +300,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `need-for-speed-heat-takedown` | Need for Speed Heat Takedown | adrenaline | user 100% (2026-11-03), 1 wheel, force feedback, render scale | not in the test |  |
 | `hot-wheels-victory-lap` | Hot Wheels: Victory Lap | adrenaline | user 100% (2026-11-04), 1 wheel, force feedback | not in the test |  |
 | `infinity-blade-fx` | Infinity Blade FX | adrenaline | works headless (2026-11-03: coins, start, fight, gun swipes, shield, dodges), 1 player | not in the test |  |
+| `fruit-ninja-fx` | Fruit Ninja FX | adrenaline | user 100% (2026-11-05), gun slices, decrypted executable | not in the test |  |
 | `fruit-ninja-fx2` | Fruit Ninja FX 2 | adrenaline | user 100% (2026-11-04), gun slices | not in the test |  |
 | `jetpack-joyride-arcade` | Jetpack Joyride Arcade | adrenaline | user 100% (2026-11-04), 1 player | not in the test |  |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | not in the test |  |

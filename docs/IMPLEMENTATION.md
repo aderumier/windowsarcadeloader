@@ -4405,9 +4405,22 @@ root).
   blocks of 64 KB and more get 64 KB more (8 runs in 8 clean).
 - **ReShade.** The dump's `d3d9.dll` + `ReShade.ini` (its shaders not in the dump) hidden:
   Wine's Direct3D 9, the common crosshair.
-- **Fruit Ninja FX (the first one).** Its `FruitNinja.exe` is wrapped by the Matrix envelope
-  (all sections encrypted, the stub opens the HID dongle `vid_845e` then shows a Retry box): the
-  code's key is in the dongle, not supported without an unwrapped executable.
+- **Fruit Ninja FX (the first one).** Its original `FruitNinja.exe` is wrapped by the Matrix
+  envelope. REA analysis recovered this build's table-derived XTEA key without a dongle:
+  its optional dongle key transformation is disabled. `FruitNinja.decrypted.exe` restores
+  the three protected sections, imports and original entry point. Reproduction and
+  reusable investigation notes: [FRUIT-NINJA-FX-DECRYPTION.md](FRUIT-NINJA-FX-DECRYPTION.md),
+  `tools/scripts/fruit-ninja-fx-decrypt.py` (exact input hash enforced).
+  `fruit-ninja-fx.windowsloader` points at the decrypted executable; the profile is FX 2's
+  without its ReShade `hide` (none in this dump). Same hardware path: `PQMTClient.dll`
+  imported (8 functions), the built-in Kaboom board on `\\.\COMn` (commands 13, 6, 11 then 12
+  / 6 polled: coins, keypad, feeder). No `matrix32.dll` and no `NfcReader.dll` import (the
+  dongle was the envelope's only), so no ordinal hooks, no figurine portal, no heap slack
+  (not needed: clean starts). `Sleep(15000)` at start, after the window is created (the
+  cabinet's boot wait, `+0x7bd89`): `WAL_PATCHES` makes it `Sleep(0)` (else a white window and
+  GNOME's "not responding"). Version 1.4.0.0. Headless: 4 coins a credit, the Single
+  Player melon sliced, a 60 s round (34 fruit from random shots), bonus screen, 7 tickets
+  fed; F1 operator menu.
 
 #### Jetpack Joyride Arcade
 
@@ -5146,6 +5159,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `need-for-speed-heat-takedown` | Need for Speed Heat Takedown | adrenaline | user 100% (2026-11-03), 1 wheel, force feedback, render scale | Sarbakan's driving game (Unity 2021.2, Mono, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its steering board on COM3 (Mono's `SerialPort`: the port listed in the registry, the wheel, pedals, nitro, keypad, coins; the car info played as force feedback) and Matrix dongle; Wine's `winhttp` (no third-party patch) |
 | `hot-wheels-victory-lap` | Hot Wheels: Victory Lap | adrenaline | user 100% (2026-11-04), 1 wheel, force feedback | Sarbakan's driving game (Unity 6 IL2CPP, 64-bit, §6.3k): NFS Heat Takedown's steering board on COM3 through the game's `RS_232_DLL.dll` (the payload's), Matrix dongle, webcam pictures off; Wine's `winhttp` (no third-party patch) |
 | `infinity-blade-fx` | Infinity Blade FX | adrenaline | works headless (2026-11-03: coins, start, fight, gun swipes, shield, dodges), 1 player | Adrenaline's touch screen sword game (Unreal Engine 3, 32-bit, §6.3k): the payload (`xinput1_3.dll`, imported by the game) hooks its PQ Labs client and Matrix dongle imports, answers its built-in Kaboom board on the serial port; gun swipe gain option; engine ini without joysticks, Direct3D 9 |
+| `fruit-ninja-fx` | Fruit Ninja FX | adrenaline | user 100% (2026-11-05), gun slices, decrypted executable | Fruit Ninja FX 2's hardware path (§6.3k) on the dump's `FruitNinja.decrypted.exe` (the Matrix envelope removed, FRUIT-NINJA-FX-DECRYPTION.md): PQ Labs client and built-in Kaboom board; no dongle or figurine portal imports |
 | `fruit-ninja-fx2` | Fruit Ninja FX 2 | adrenaline | user 100% (2026-11-04), gun slices | Halfbrick's touch screen game (native, 32-bit, §6.3k): Infinity Blade FX's PQ Labs client, Matrix ordinals and built-in Kaboom board (version command 24); each gun pull draws a slice (`WAL_GUN_SLICE` option); figurine portal without a reader; heap slack for its scaler; ReShade hidden |
 | `jetpack-joyride-arcade` | Jetpack Joyride Arcade | adrenaline | user 100% (2026-11-04), 1 player | Adrenaline's one-button game (Halfbrick's native engine, 32-bit, §6.3k): the dump's unwrapped `mgjp_standalone.exe` (the original is in the Matrix dongle's envelope), run in `C:\Joyride\DataPC` (saves in the dump's `Saves`); the payload (wal-loader) hooks its dongle imports and its `GetProcAddress` for `KaboomComDll.dll` (keypad and coin callbacks), the removed `InitLib` call patched back |
 | `spider-man-homecoming` | Spider-Man Homecoming | adrenaline | user 100% (2026-11-02), 2 buttons, portrait | Adrenaline's reflex game (Unity 5.5, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) emulates its Kaboom Adrio two-feeder board and Matrix dongle; a 1080x1920 desktop (`WAL_DESKTOP_SIZE`) for its portrait full screen (NVIDIA black screen) |
