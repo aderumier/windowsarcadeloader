@@ -5110,6 +5110,31 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   only, never the test program). Network versus needs an ABAAS server: none is public (ARTEMiS
   and minime have no such title, segatools only redirects its DNS); not written yet. Found with
   `WAL_MEMDUMP` dumps every 2 s: a frame counter stopping at 1800 when the attract started.
+* **Blade Strangers (APM3)** (`himekaku.exe`, OpenGL, `apm_x86.dll` delay loaded: the payload
+  starts at the game's first APM call). What it needs beyond Under Night:
+  - the e-money UI window (`emoney.rs`): the boot waits until a top-level window titled
+    `emoneyUI` exists (`EnumWindows` + `GetWindowTextW` every 10 ms; the cabinet's
+    `emoneyUI.exe`): the payload makes a hidden one (`WAL_APM3_EMONEY_WINDOW=0`: none);
+  - the matching group a letter (`ApmSystemSetting_getMatchingGroup`, default `A`,
+    `WAL_APM3_MATCHING_GROUP`): the title indexes a picture with `group - 'A'` (0 crashed it:
+    animation 0xffbf);
+  - the backup (`backup.rs`): `Backup_setupRecords` `{data, size}` pairs (pointer-sized), two
+    small records (8 and 3 bytes) the test menu writes (its settings) and the game copies at boot;
+    the game imports no save function (the system saves the memory itself). `backup/<index>.bin`
+    loaded at setup (status 0; another size than the file's: their common part), status 1
+    without a file (the game's defaults: status 0 with memory never written, the game never starts
+    a play); a record whose memory changed is written about every 2 s from `Core_execute` and at
+    `Core_exitGame`.
+  - the test program `gametest.exe` (`WAL_APM3_TEST`; .NET AnyCPU, WPF on Wine Mono): a 64-bit
+    process P/Invoking `apm.dll`: the payload's x86_64 build is installed as `apm.dll` too (the
+    same exports, undecorated; also the main payload of 64-bit APM3 games).
+  - inputs (`0x6a1bf0`): push01-04 bits 0x8-0x40, push05 0x1 | 0x2, push06 0x4 | 0x80000000,
+    push07 / 08 0x80 / 0x100, start 0x800; they are read only ~16 s after the boot (the logos).
+  - online (`WAL_APM3_ONLINE=1`) stalls the boot on the studio logo: not done (offline only).
+  - no network banner (pink "Aime play and national / in-store matching unavailable"; online, the
+    access code hint): the profile's `WAL_PATCHES` (`WAL_PATCHES_EXE=himekaku.exe`, not the test
+    program) make the banner's switch on the network state (`0x4aa3d0`) jump to the code hiding
+    both its texts (`0x49943e`).
 * **Aime card** (`aime.rs`). The `card` input (a toggle: on / off the reader) is the card;
   `WAL_APM3_CARD_AUTO=1` (Under Night's profile): always on, the input takes it off. The
   game's `AMU::PlayState` (`0x43ebf0`, states through the byte table `0x43f6f8`): `Aime_start`
@@ -5124,7 +5149,7 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   ConvertCtsId, SetCabinetProperty), `<ip>` from `DnsQuery_A("<game id>.apm.sys-all.net")`
   (game id `SDCM`; `.test-apm.sys-all.net` when `AllnetAuth_isDevelop`). The payload answers that
   name with 127.0.0.1, moves the game's port 80 connections (WS2_32 `connect`, ordinal 4) to its
-  server on 33703 (port 80 needs root on the host). The setup step at `0x43e748` tests a flag
+  server on the launcher's port + 100 (33800 by default; port 80 needs root on the host). The setup step at `0x43e748` tests a flag
   (`+0x2d0`) nothing sets here: `WAL_APM3_ONLINE_PATCHES` NOPs its `je`. Bodies: a 16-byte header
   that is also the AES-128-CBC IV (request `02 01 03 28`, game id, CRC32 of the data, random;
   response `02 01`, u16 status 0 = success, CRC32, data length, any), then the zlib-compressed
@@ -5476,6 +5501,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `under-night-in-birth-exe-late` | Under Night In-Birth Exe:Late | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `RingGame.exe.orig` (the dump's `RingGame.exe` is patched), amAuth 1.40 commands, JVS on COM4 |
 | `under-night-in-birth-exe-late-st` | Under Night In-Birth Exe:Late[st] | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), newer version of the same game: `RingGame.exe.orig`, amAuth 1.40 commands, JVS on `\\.\mxjvs` |
 | `under-night-in-birth-exe-late-cl-r` | Under Night In-Birth Exe:Late[cl-r] | apm3 | works (user: game fine, 2026-11-05); Aime cards + saves headless (2026-11-05); 1 player per cabinet; no network versus | Sega ALLS APM3 (§6.3k): replacement `apm_x86.dll`, title server in the payload, boot / online patches |
+| `blade-strangers-apm3` | Blade Strangers (APM3) | apm3 | user 100% (2026-11-05), offline, network banner removed, test menu, 1 player per cabinet | Sega ALLS APM3 (§6.3k): OpenGL, `apm_x86.dll` delay loaded, e-money window, backup records, .NET test menu on the 64-bit `apm.dll` |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |

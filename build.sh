@@ -7,7 +7,7 @@ PROFILE=${PROFILE:-release}
 
 cargo build --profile "$PROFILE" -p wal-launcher
 cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-adrenaline -p wal-payload-apm3 -p wal-loader
-cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-konami -p wal-payload-adrenaline
+cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-konami -p wal-payload-adrenaline -p wal-payload-apm3
 # the AVS boot of the 64-bit Konami game DLLs (Bishi Bashi Channel)
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-loader --bin wal-avs-boot
 # the 64-bit loader (payload_loader: Disney Crossy Road)
@@ -30,6 +30,7 @@ install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_unis.dll" dist/payloads/
 install_file "target/i686-pc-windows-gnu/$PROFILE/wal_unis.dll" dist/payloads/wal_unis32.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_konami.dll" dist/payloads/wal_konami64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_adrenaline.dll" dist/payloads/wal_adrenaline64.dll
+install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_apm3.dll" dist/payloads/wal_apm3_64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-avs-boot.exe" dist/payloads/wal-avs-boot64.exe
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-loader.exe" dist/payloads/wal-loader64.exe
 # TMNT's managed input bridge (Mono's C# compiler, .NET 2.0 profile as the game's Unity)

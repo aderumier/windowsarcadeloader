@@ -1,0 +1,14 @@
+# Blade Strangers (Sega ALLS, APM3 edition). Runs himekaku.exe (OpenGL; apm_x86.dll delay
+# loaded). One player per cabinet (the APM3 versus mode is two linked cabinets).
+# Override values in userprofiles/apm3/blade-strangers-apm3.yaml.
+system: apm3
+name: Blade Strangers (APM3)
+
+env:
+  # the test switch starts the cabinet's test program (.NET, 64-bit: the payload's apm.dll)
+  WAL_APM3_TEST: gametest.exe
+  # no network banner ("Aime play and national / in-store matching unavailable"; online, the
+  # access code hint): the banner's switch on the network state (0x4aa3d0: 2 offline) jumps to
+  # the code hiding both its texts (0x49943e)
+  WAL_PATCHES: "0x9925a:E9DF01000090909090"
+  WAL_PATCHES_EXE: himekaku.exe

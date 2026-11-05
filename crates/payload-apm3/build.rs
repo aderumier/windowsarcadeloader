@@ -1,8 +1,11 @@
 fn main() {
-    // Pin the export ordinals of the original apm_x86.dll (see apm_x86.def).
+    // Pin the export ordinals of the original apm_x86.dll (see apm_x86.def); the 64-bit apm.dll
+    // exports the same names undecorated: Rust's own exports.
     let def = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("apm_x86.def");
     println!("cargo:rerun-if-changed={}", def.display());
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+        && std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("x86")
+    {
         println!("cargo:rustc-cdylib-link-arg={}", def.display());
         // the decorated .def names resolve Rust's undecorated exports of the same functions
         println!("cargo:rustc-cdylib-link-arg=-Wl,--enable-stdcall-fixup");
