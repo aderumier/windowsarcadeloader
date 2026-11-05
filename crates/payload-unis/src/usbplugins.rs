@@ -74,8 +74,8 @@
 //! the hooked `GetProcAddress`, so once the DLL is loaded the exports the payload answers are
 //! patched to jump to the payload's (`patch_exports`).
 //!
-//! - **I/O.** `BIND_GetIoData`, 33 bytes: byte 3 the operator's (bit 7 test: the menu, its
-//!   move; 6 down; 5 enter), byte 4 bit 3 - n a button of player n's (not on the operator
+//! - **I/O.** `BIND_GetIoData`, 33 bytes: byte 3 the operator's (bit 7 test: opens the menu,
+//!   moves down; 6 up; 5 enter), byte 4 bit 3 - n a button of player n's (not on the operator
 //!   menu's input test), bytes 5, 6 the ticket dispensers (a nibble each player: clear), 11 + n
 //!   player n's ball sensor (the kick's strength, taken when it rises from 0: one read per
 //!   kick), byte 15 bits 7 - 2n the red button (accelerate; any button starts) and 6 - 2n the
@@ -249,8 +249,10 @@ const FANTASY_SOCCER_DEFAULTS: &[(&str, &str)] = &[
     ("b3", "accelerate"),
     ("b4", "switch"),
     ("coin", "coin"),
-    // the operator menu: test opens it and moves, service enters
+    // the operator menu: test opens it and moves down, up moves up (byte 3 bit 6: nothing out
+    // of the menu), service enters
     ("test", "test"),
+    ("up", "down"),
     ("service", "enter"),
 ];
 
@@ -360,7 +362,7 @@ unsafe extern "C" fn get_io_data(io: *mut u8) -> bool {
                 let mut kick = 0u8;
                 map().for_each_pressed(&stick, |n| match n {
                     Native::Coin => *coin = true,
-                    // the operator's: byte 3 bits 7 test, 6 down, 5 enter
+                    // the operator's: byte 3 bits 7 test (down), 6 up (the `down` native), 5 enter
                     Native::Operator(bit) if player == 0 => d[3] |= 0x20 << bit,
                     Native::Kick(strength) => kick = kick.max(strength),
                     Native::Button(2) => d[4] |= 0x08 >> player,
