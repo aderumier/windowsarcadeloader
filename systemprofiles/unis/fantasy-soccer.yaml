@@ -1,0 +1,37 @@
+# Fantasy Soccer (UNIS, Unreal Engine 4, 64-bit) - template, override values in
+# userprofiles/unis/fantasy-soccer.yaml.
+# Four players: a stick, the ball's kick sensor and buttons each. The payload answers the
+# game's UsbPluginsDll_R.dll (I/O board, coins, dongle) (docs §6.3j).
+system: unis
+name: Fantasy Soccer
+
+dll_overrides:
+  # the game imports xinput1_3.dll: the payload
+  xinput1_3: "n,b"
+
+files:
+  # every player's stick and ball calibrated to the payload's ranges (CRLF lines: the game's
+  # ini parser)
+  Game/FantasySoccer/FB/Binaries/Win64/Setting_Test_Input.ini: systemprofiles/unis/files/fantasy-soccer/Setting_Test_Input.ini
+  Game/FantasySoccer/FB/Binaries/Win64/Setting_Test_Input_Backups.ini: systemprofiles/unis/files/fantasy-soccer/Setting_Test_Input.ini
+  # no camera (the players' photos)
+  Game/FantasySoccer/FB/Binaries/Win64/Setting_Webcam.ini: systemprofiles/unis/files/fantasy-soccer/Setting_Webcam.ini
+  Game/FantasySoccer/FB/Binaries/Win64/Setting_Webcam_Backups.ini: systemprofiles/unis/files/fantasy-soccer/Setting_Webcam.ini
+
+env:
+  WAL_UNIS_BOARD: usbplugins
+
+input:
+  stick_as_dpad: false
+
+controls:
+  lx: Move (x)
+  ly: Move (y)
+  b1: Kick (shot)
+  b2: Kick (pass)
+  start: Accelerate (red button, start)
+  b3: Accelerate (red button)
+  b4: Switch player (blue button)
+  coin: Coin
+  test: Operator menu
+  service: Menu enter

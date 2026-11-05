@@ -1,0 +1,56 @@
+# Wicked Tuna (UNIS, Unity 2018, Mono, 64-bit) - template, override values in
+# userprofiles/unis/wicked-tuna.yaml.
+# Four fishing rods on light guns (or pads): the gun's x turns the rod (where the hook
+# falls), its y raises it, the trigger is the hook button, a held button turns the reel. The
+# payload emulates the cabinet's serial I/O board (docs §6.3j).
+system: unis
+name: Wicked Tuna
+
+dll_overrides:
+  # Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+  xinput1_4: ""
+  xinput1_3: "n,b"
+  # the dump's mod loader (winhttp.dll, BepInEx): Wine's own, the game unmodified
+  winhttp: "b"
+
+files:
+  # The game's saved settings (installed at each start): the dump's, every rod's calibration
+  # the payload's 0..4095 (the dump's are a cabinet's, players 2..4 none), free play
+  logs/Data.dat: systemprofiles/unis/files/wicked-tuna/Data.dat
+  # its bookkeeping (credits, counters) cleared
+  logs/Data2.dat: systemprofiles/unis/files/wicked-tuna/Data2.dat
+
+env:
+  WAL_UNIS_BOARD: wickedtuna
+  # each gun's x across its player's quarter of the picture; "screen": the whole picture
+  WAL_UNIS_TUNA_AIM: column
+  WAL_CROSSHAIR: "0"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_UNIS_TUNA_AIM
+        label: Rod aim
+        kind: choice
+        choices: [column, screen]
+        description: >-
+          column (light guns): each gun turns its rod across its player's quarter of the
+          screen. screen (pads, a mouse): across the whole screen (the stick's centre is the
+          rod's).
+
+input:
+  # each player's gun (or stick) points the rod
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Rod direction (gun x)
+  ly: Rod angle (gun y, up raises)
+  b1: Hook (cast, confirm)
+  start: Hook
+  b2: Reel (hold)
+  coin: Coin
+  test: Operator menu
+  service: Menu move
+  down: Menu move
+  up: Menu move (back)

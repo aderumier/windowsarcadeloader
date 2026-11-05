@@ -10,16 +10,38 @@
 //! After Dark (Virtools 3.5, 32-bit; `WAL_UNIS_BOARD=afterdark`): `afterdark.rs` emulates its
 //! serial gun board and its HID board's device object (the dongle).
 //!
-//! The payload is `xinput1_3.dll`, which Unity loads at start (After Dark: started with it by
-//! `wal-loader`): no pads (the game's input comes from the emulated hardware), the real keyboard
+//! Raccoon Rampage (Unreal Engine 4, 64-bit; `WAL_UNIS_BOARD=usbplugins`): `usbplugins.rs`
+//! answers the game's `UsbPluginsDll.dll` functions (the I/O board, the coins, the dongle) and
+//! maps the guns onto its picture; Crazy Ride (Unreal Engine 4, 64-bit, the same board): its
+//! I/O board, wheel and coins; Elevator Action Invasion (Unreal Engine 4, 64-bit, the same
+//! board): its I/O board, USB guns and coins, its elevator doors (`eai_doors.rs`) moved as the
+//! game commands and drawn over the picture.
+//!
+//! Wicked Tuna (Unity 2018, Mono, 64-bit; `WAL_UNIS_BOARD=wickedtuna`): `wickedtuna.rs`
+//! emulates its four rods' serial board (`iobaordCom.dll`'s `DllImport`s), the rods on light
+//! guns.
+//!
+//! Mighty Moto (Unity 2.x, 32-bit; `WAL_UNIS_BOARD=mightymoto`): `mightymoto.rs` gives the
+//! fake DirectInput keyboard its cabinet's keys (started with the payload by `wal-loader`).
+//!
+//! Crazy Speed Arcade (Ogre, 32-bit; `WAL_UNIS_BOARD=game232`): `game232.rs` emulates its COM1
+//! driving board (started with the payload by `wal-loader`).
+//!
+//! The payload is `xinput1_3.dll`, which Unity (and the Unreal game) loads at start (After
+//! Dark: started with it by `wal-loader`): no pads (the game's input comes from the emulated hardware), the real keyboard
 //! and mouse filtered (`payload-common`'s `input_filter`), the common crosshair option over the
 //! picture (Direct3D 11, After Dark's Direct3D 9).
 
 mod afterdark;
 mod afterdark_stage4;
+mod eai_doors;
+mod game232;
+mod mightymoto;
 mod nighthunter_mission4;
 mod qumo;
 mod shunxiang;
+mod usbplugins;
+mod wickedtuna;
 
 use std::ffi::c_void;
 
@@ -50,11 +72,17 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         if unity == 0 {
             unity = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
         }
-        wal_payload_common::input_filter::init(unity, |_| false);
+        // the keys the game polls: Mighty Moto's, from the virtual stick
+        let key_held: fn(i32) -> bool = if board.trim() == "mightymoto" { mightymoto::key_held } else { |_| false };
+        wal_payload_common::input_filter::init(unity, key_held);
         match board.trim() {
             "" | "shunxiang" => shunxiang::init(),
             "afterdark" => afterdark::init(),
             "qumo" => qumo::init(),
+            "usbplugins" => usbplugins::init(),
+            "game232" => game232::init(),
+            "wickedtuna" => wickedtuna::init(),
+            "mightymoto" => mightymoto::init(),
             other => wal_payload_common::log!("unis: unknown board {other}"),
         }
     }

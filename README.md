@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (277)
+## Games (284)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -291,6 +291,13 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns; operator menu items not selectable | not in the test |  |
 | `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns | not in the test |  |
 | `night-hunter-after-dark-chapter-ii-3-0-2` | Night Hunter: After Dark Chapter II (3.0.2) | unis | user 100% (2026-11-03), 2 guns, 4 missions selectable (Lost Trails) | not in the test |  |
+| `raccoon-rampage` | Raccoon Rampage | unis | works (headless: attract, 2 players, aim and shots, operator menu), 4 guns | not in the test |  |
+| `crazy-ride` | Crazy Ride | unis | works (headless: start, car select, race, operator menu), wheel | not in the test |  |
+| `crazy-speed-arcade` | Crazy Speed Arcade | unis | works (headless: coins, start, car and course select, race), wheel | not in the test |  |
+| `elevator-action-invasion` | Elevator Action Invasion | unis | works (headless: attract, coins, start, a game, aim and shots), 2 guns, virtual elevator doors and bezel, every level unlocked | not in the test |  |
+| `wicked-tuna` | Wicked Tuna | unis | works (headless: join, casts, fights, fish landed), 4 rods on light guns or pads | not in the test |  |
+| `fantasy-soccer` | Fantasy Soccer | unis | works (headless: coins, 2 players, a match, operator menu), 4 players | not in the test |  |
+| `mighty-moto` | Mighty Moto | unis | works (headless: start, track select, a race) | not in the test |  |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | not in the test |  |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | not in the test |  |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved | not in the test |  |
