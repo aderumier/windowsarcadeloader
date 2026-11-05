@@ -112,6 +112,9 @@ drives: {}
 # dump root. Linked at each launch to that folder of the run directory (with the payloads). A
 # nested folder ("Program Files/EA SPORTS") is linked in its parent folders, created if needed.
 c_folders: {}
+# Cabinet drive letters -> folders of the run directory (where the payloads are installed:
+# the APM3 cabinets' X:\lib holding the system library some games load by its path).
+run_drives: {}
 # Registry files (.reg, relative to the root) imported in the prefix before each launch, in the
 # 32-bit view the games read (WOW6432Node): the values a cabinet's installer wrote.
 registry: []

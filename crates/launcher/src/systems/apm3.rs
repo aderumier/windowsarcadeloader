@@ -1,5 +1,6 @@
 //! Sega ALLS APM3 ("ALL.Net P-ras MULTI Version 3": Under Night In-Birth Exe:Late[cl-r], Blade
-//! Strangers, Senxin Aleste, Otoshu DX).
+//! Strangers, Senxin Aleste, Otoshu DX, Kasiori, Nosferatu Lilinor, Pengo! Online, Puyo Puyo
+//! e-Sports, Milkchan, Koihime Enbu RyoRaiRai Version 3, Goonya Fighter).
 //!
 //! The game imports `apm_x86.dll` (`apm.dll`: 64-bit games and programs), the client library of the cabinet's APM3 system
 //! (`amdaemon`: keychip, ALL.Net, I/O board, Aime, credits): our payload replaces it and

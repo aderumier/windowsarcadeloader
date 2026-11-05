@@ -5264,6 +5264,31 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   method pointers (`CodeRegistration`'s `methodPointers`, found by its count) read by a script,
   then objdump; `WAL_APM3_TRACE_PINVOKE=1` logs the P/Invoke functions the game resolves,
   `WAL_APM3_PEEK=<module>+<rva>,<offset>...` logs bytes of a pointer chain when they change.
+* **More ABAAS game server answers.** Every answer's `control` also carries `seq_id` and
+  `token` strings (a counter: Puyo Puyo e-Sports reads `seq_id`, the games send them back); a
+  player answer always has `name` (empty for a new player: Puyo's keyless `start_game` load
+  needs it). `data/load` / `data/save` (`free_buckets`: the cabinet's settings, Pengo's
+  `conf_*`, Puyo's `rule_*`...) in `apms/gs-data.json`, the requested key patterns answered.
+* **Same-program test modes.** A test mode that is the game's own program without arguments
+  (Puyo Puyo e-Sports, Koihime Enbu) is started with a marker argument the game ignores
+  (`WAL_APM3_TEST_ARGS: "-wal-test"`): the payload recognizes it and `Sequence_isTest` answers
+  true there.
+* **Kasiori** (Unity, 64-bit, Mono): loads the system library by its path, `X:/lib/apm.dll` (the
+  cabinet's system drive; without it the APM3 code is off: no credits). The profile installs the
+  payload there too (`payload_install: [apm.dll, X/lib/apm.dll]`) and maps X: to that run
+  directory folder (`run_drives`, a launcher key: drive letters to run directory folders, with
+  the payloads). Test mode `TestMode`.
+* **Nosferatu Lilinor** (Unity, 64-bit; test `-test`), **Milkchan** (32-bit, `gametest.exe` .NET
+  test program), **Koihime Enbu RyoRaiRai Version 3** (32-bit, `abaasgs.dll` beside the game):
+  the generic APM3 game. **Puyo Puyo e-Sports** (64-bit): a new player accepts the terms (the
+  dialog's default is "no"). **Pengo! Online** (64-bit, `pen5_test.exe` test program): its menus
+  are touched (`WAL_APM3_TOUCH=1`, native game: the posted mouse messages; `b1` both push01 and
+  the touch). **Goonya Fighter** (Unity, 64-bit): the game in `game\`, its test program in
+  `gametest\` (`WAL_APM3_TEST: ..\gametest\gametest.exe`, the payload in both folders by
+  `payload_install`); a Unity game's main thread ends before its process: with a relaunch asked
+  the launcher ends the process and relaunches (no crash stop).
+* **Shanghai IV Ryuumon Hiyaku**: the dump has no `Shanghai.exe` / `UnityPlayer.dll` (data and
+  plugins only): not runnable.
 
 ### 6.4 Batocera integration
 
@@ -5602,6 +5627,13 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `blade-strangers-apm3` | Blade Strangers (APM3) | apm3 | user 100% (2026-11-05), network banner removed, test menu, 1 player per cabinet, Aime cards + player data (ABAAS game server, user 100%) | Sega ALLS APM3 (§6.3k): OpenGL, `apm_x86.dll` delay loaded, e-money window, backup records, .NET test menu on the 64-bit `apm.dll` |
 | `senxin-aleste` | Senxin Aleste | apm3 | works headless (2026-11-05): attract, coins, Aime cards (records, settings, rankings saved and reloaded), story play, test mode | Sega ALLS APM3 (§6.3k): 32-bit, the ABAAS game server, test mode `-t` |
 | `otoshu-dx` | Otoshu DX | apm3 | works headless (2026-11-05): touch screen (mouse / gun), Aime cards (name entry, login, data reloaded), songs, test mode | Sega ALLS APM3 (§6.3k): Unity IL2CPP 64-bit, `abaasgs.dll` plugin hooked, touch emulation |
+| `kasiori` | Kasiori | apm3 | works headless (2026-11-05): Aime cards, story play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
+| `nosferatu-lilinor` | Nosferatu Lilinor | apm3 | works headless (2026-11-05): Aime cards (name entry), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit |
+| `pengo-online` | Pengo! Online | apm3 | works headless (2026-11-05): touch menus, Aime cards, play, test mode; "Aime / versus unavailable" banner (no link) | Sega ALLS APM3 (§6.3k): 64-bit, touch, cabinet data |
+| `puyo-puyo-e-sports` | Puyo Puyo e-Sports | apm3 | works headless (2026-11-05): Aime cards (terms, saved), play, test mode | Sega ALLS APM3 (§6.3k): 64-bit, same-program test mode |
+| `milkchan` | Milkchan | apm3 | works headless (2026-11-05): Aime cards, story, test mode | Sega ALLS APM3 (§6.3k): 32-bit, .NET test program |
+| `koihime-enbu-ryorairai-v3` | Koihime Enbu RyoRaiRai Version 3 | apm3 | works headless (2026-11-05): Aime cards, modes, character select, test mode; no network versus | Sega ALLS APM3 (§6.3k): 32-bit, same-program test mode |
+| `goonya-fighter` | Goonya Fighter | apm3 | works headless (2026-11-05): Aime cards, play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, game and test program in folders |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |

@@ -1,0 +1,21 @@
+# Milkchan (Sega ALLS, APM3 edition; 32-bit). Runs milki.exe; the test switch starts
+# gametest.exe (.NET, 64-bit: the payload's apm.dll), whose exit starts the game again.
+# Aime card: always on the reader (the game asks after START); the card input (F4, pad guide)
+# takes it off. The player's data in apms/gs-<aime id>.json of the game folder (the payload's
+# ABAAS game server).
+# Override values in userprofiles/apm3/milkchan.yaml.
+system: apm3
+name: Milkchan
+
+env:
+  WAL_APM3_TEST: gametest.exe
+  # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  card: Aime card (take off / put back)

@@ -515,6 +515,7 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         }
     }
     wine.map_c_folders(&profile.c_folders, &run_dir, game_root)?;
+    wine.map_run_drives(&profile.run_drives, &run_dir)?;
     wine.link_game_fonts(&profile.fonts, game_root)?;
     wine.import_registry(&profile.registry.iter().map(|f| profile.path(f)).collect::<Vec<_>>())?;
     let run_exe_dir = run_dir.join(exe_subdir);
@@ -687,7 +688,13 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         // the process stays a zombie leader with live threads, never reaped
         if !killing && last_check.elapsed() > Duration::from_millis(500) {
             last_check = Instant::now();
-            if main_thread_dead(child.id()) {
+            if main_thread_dead(child.id()) && server.relaunch_pending() {
+                // the game ending to start the next program (a Unity game's main thread ends
+                // first: Goonya Fighter's test menu): its leftover threads killed, the relaunch
+                // follows
+                eprintln!("launcher: the game's main thread is gone (relaunch asked): ending it");
+                let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stderr(std::process::Stdio::null()).status();
+            } else if main_thread_dead(child.id()) {
                 eprintln!("launcher: the game's main thread is gone (crash): stopping the game");
                 killing = true;
                 let _ = wine.wineserver("-k");
