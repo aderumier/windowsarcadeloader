@@ -4189,6 +4189,51 @@ checks bypassed), its `Interface.dll` a wrapper reading the keyboard in front of
 - **Not done.** Force feedback: the motor bytes (a centering spring by the handle's position,
   vibration and collision levels: a low nibble with a direction bit) are not decoded.
 
+#### Wasteland Racers 2071
+
+DND Arcade's racer (`Arcade.exe`, Direct3D 8, 32-bit, dump root), its menus in scripts
+(`Data/Menu/Main/main.dsf`), its cabinet a force feedback wheel and pedals on a serial board,
+up to 8 linked cabinets.
+
+- **Payload = `SDC2.dll` (`sdc2.rs`, `WAL_ARCADEPC_BOARD=sdc2`, `payload_install`, x86
+  build, `payload_loader`).** The game loads the board's library (cdecl exports by name,
+  `sdc2.def`) when `Inputs.xml`'s `UseForceFeedbackWheel` is 1 (the profile's `Inputs.xml`).
+  `Init(port)` 0, `IsConnected` 1 (else "Force feedback board disconnected", the game ends);
+  `GetAxisData(axis)` `(raw - 32767) / 32767`: 0 the wheel (used as is), 1 gas, 2 brake (read
+  as `1 - value` and scaled by `Inputs.xml`'s `Min/MaxAxisY/Z`: the profile's 1..2, released
+  0, pressed -1; `Min/MaxAxisX` must be in range, -1..1, or "Calibration values out of
+  range"); `GetDigitalIn` 16 buttons active low (0 boost, 1 camera, 2..5 cheats, 7 gear, 8
+  coin, 11 maintenance, 12 stop); `GetCoin`/`SetCoin`/`ClearCoin` the board's coin counter:
+  the credits (free play's buttons set it to a game's price, the start takes it: a stubbed
+  counter never started a game); the coin button adds one.
+- **Force feedback.** The board's motor is a position servo: `SetForce` its strength
+  (0..32767), `SetSteeringPos` the position it holds the wheel at (the effects of
+  `Feedback Parameters.xml`: the road's cracks move it +-4500 every 27 ms at strength
+  10000). Played as a constant force toward that position from the wheel's reading (full at
+  8192 away), every 10 ms on change.
+- **Link.** The socket of the cabinets' link (UDP port 2070) is bound with a length the game
+  never sets: Windows reads the 16 bytes of the address, Wine copied that many and crashed
+  (patched to 16, 0x2ed42). A game starts once the link has elected a host: the request goes
+  to 255.255.255.255 and the cabinet answers its own, which Linux does not deliver back to the
+  sender ("FINDING SERVER..." forever): the address string is 127.0.0.1 (0x2fd0b8), one
+  cabinet.
+- **Loading.** The map's object loader presents its loading bar after each object: under
+  the 60 fps limit (`WAL_D3D9_MAX_FPS`) the load lasted minutes behind a full bar, the window
+  not answering (GNOME's popup); no limit (the game times itself). `WAL_D3D9_WINDOWED_SIZE`
+  broke its partial presents (the race drawn in the bar's rectangle): the profile's
+  `D3DLocalConfigData.txt` makes the game draw 1920x1080 (the dump's 2560x1440), in a
+  borderless screen-sized window.
+- **Attract movie** (`attractMode.avi`, MPEG-4 in a windowless VMR-9, `RepaintVideo` every
+  frame): Wine's VMR-9 used its device from two threads without `D3DCREATE_MULTITHREADED`,
+  DXVK crashed ~12 s in: runner patch 0112 (GE branch `quartz-vmr9-multithreaded-device`).
+  Start skips it.
+- **Inputs.** Left stick / wheel steers, b1 or the gas pedal accelerates, b2 or the brake
+  pedal brakes, b3 boost (start too), b4 camera, b5 gear, test the maintenance menu,
+  service stop; keyboard arrows as axes, full in 0.5 s. Quick start: start (movie), start,
+  start (car), left (LOW motion), start.
+- **Flow (user):** movie, title (free play), car, track, motion select, loading (~15 s),
+  race.
+
 #### Polar Wars
 
 Maiqiang's "JiDiDaZhan" (Unity 5.6, Mono `mono.dll`, 32-bit, `UnrealGame/JiDiDaZhan/` below the
@@ -5585,6 +5630,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | Uniana (OpenGL, 32-bit, §6.3i): the payload is its `xio.dll` (`XIO` class, exported input bytes); pedals pushed by turns from one button or the accelerator; needs the runner's `winedmo-parser-rewind-after-eos` (music loop hang) |
 | `hog-wild` | Hog Wild | arcadepc | user 100% (2026-11-05) | Uniana (Direct3D 8, 32-bit, §6.3i): the payload is its `Interface.dll` (the original `CInterface` library forwarded, its parallel port board emulated: buttons, handle ADC); patches: the boot's volume serial check skipped (hung in Wine), the menus' handle reading restored; 4:3 window, black sides; no force feedback |
+| `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | DND Arcade (Direct3D 8, 32-bit, §6.3i): the payload is its `SDC2.dll` force feedback wheel board (axes, buttons, coin counter, motor as constant force); patches: the link's bind length, its host request to 127.0.0.1; no frame limit (loading); 1920x1080 settings; runner patch 0112 (VMR-9 device multithreaded) |
 | `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |

@@ -1,0 +1,68 @@
+# Wasteland Racers 2071 (Arcade.exe, Direct3D 8, 32-bit) - template, override values in
+# userprofiles/arcadepc/wasteland-racers-2071.yaml.
+# DND Arcade's post-apocalyptic racer: a force feedback wheel, gas and brake pedals, boost,
+# camera and gear buttons. The wheel's board library (SDC2.dll) is the payload (docs §6.3i).
+system: arcadepc
+name: Wasteland Racers 2071
+
+# the game loads SDC2.dll: the payload in its place (the dump's drives the serial board)
+payload_install: [SDC2.dll]
+# loaded at the start (the game loads SDC2.dll after its Direct3D device): wal-loader
+payload_loader: true
+
+files:
+  # the board in use (UseForceFeedbackWheel 1) and the pedals' calibration: the payload's range
+  Inputs.xml: systemprofiles/arcadepc/files/wasteland-racers-2071/Inputs.xml
+  # the picture: 1920x1080 (the dump's: 2560x1440); quality settings as the dump's
+  D3DLocalConfigData.txt: systemprofiles/arcadepc/files/wasteland-racers-2071/D3DLocalConfigData.txt
+
+# the game writes its logs to C:\WasteLand\DNDArcade
+c_folders:
+  WasteLand/DNDArcade: .
+
+env:
+  WAL_ARCADEPC_BOARD: sdc2
+  # The cabinets' link (UDP broadcasts on port 2070) binds its socket with a length the game
+  # never sets (0x2c8 of its object): Windows reads the 16 bytes of the address, Wine copied that
+  # many and crashed. The length is 16 (0x2ed42: mov ecx, 0x10).
+  # A game starts once the link has elected its host: the cabinet sends its request to
+  # 255.255.255.255 and answers its own, which Linux does not deliver back to the sender; the
+  # requests go to 127.0.0.1 (0x2fd0b8, the address string), this cabinet alone.
+  WAL_PATCHES: "0x2ED42:B91000000090,0x2FD0B8:3132372E302E302E3100"
+  # The map's loader draws its loading bar and presents a frame after each object it loads:
+  # held to 60 presents per second the load lasted minutes, the full bar on the screen (and
+  # the window not answering). No limit: the game times itself.
+  WAL_D3D9_MAX_FPS: "0"
+  # A borderless window over the screen (the game draws 1920x1080, profile's
+  # D3DLocalConfigData.txt; a 16:9 game: stretched on a 4:3 screen).
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+
+input:
+  stick_as_dpad: false
+  # keyboard steering, gas and brake: full in 0.5 s (at once, steering was too quick)
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+controls:
+  lx: Steering wheel
+  accel: Gas
+  brake: Brake
+  b1: Gas
+  b2: Brake
+  b3: Boost
+  b4: Camera
+  b5: Gear
+  up: Gas
+  down: Brake
+  left: Steer left
+  right: Steer right
+  start: Boost
+  coin: Coin
+  service: Stop
+  test: Maintenance

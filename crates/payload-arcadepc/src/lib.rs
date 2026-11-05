@@ -45,6 +45,9 @@
 //! Hog Wild (`WAL_ARCADEPC_BOARD=interface`, x86 build): `interface.rs` is its `Interface.dll`
 //! (the original library's calls forwarded, its parallel port board emulated).
 //!
+//! Wasteland Racers 2071 (`WAL_ARCADEPC_BOARD=sdc2`, x86 build): `sdc2.rs` is its `SDC2.dll`
+//! (the force feedback wheel board: wheel, pedals, buttons).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -62,6 +65,8 @@ mod interface;
 mod jxboard;
 mod jxcamera;
 mod pads;
+#[cfg(target_arch = "x86")]
+mod sdc2;
 mod softkey;
 mod topgun;
 mod uaf;
@@ -156,7 +161,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
             }
-            _ if board.trim() == "interface" => {
+            _ if matches!(board.trim(), "interface" | "sdc2") => {
                 pads::disconnect();
                 wal_payload_common::patches::apply();
                 // the game's window messages: the executable's

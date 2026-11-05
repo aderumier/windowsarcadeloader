@@ -1,0 +1,59 @@
+<?xml version="1.0" ?>
+<!DOCTYPE ScriptDataBase SYSTEM "ScriptDataBase.dtd">
+
+<ScriptDataBase name="Inputs">
+	<block name="ForceFeedbackWheel">
+		<integer name="UseForceFeedbackWheel" value="1"/>		
+		<integer name="SerialPort" value="3"/>
+		<integer name="DrivingConfig" value="6"/>
+		<string name="AxisX" value="WHEEL"/>
+		<string name="AxisY" value="GAS"/>
+		<string name="AxisZ" value="BRAKE"/>
+		<float name="MinAxisX" value="-1.000"/>
+		<float name="MaxAxisX" value="1.000"/>
+		<float name="MinAxisY" value="1.000"/>
+		<float name="MaxAxisY" value="2.000"/>
+		<float name="MinAxisZ" value="1.000"/>
+		<float name="MaxAxisZ" value="2.000"/>
+		<float name="MinDeadZoneAxisY" value="0.15"/>
+		<float name="MaxDeadZoneAxisY" value="0.85"/>
+		<float name="MinDeadZoneAxisZ" value="0.15"/>
+		<float name="MaxDeadZoneAxisZ" value="0.85"/>
+	</block>	
+	<block name="Buttons">
+		<string name="Button0" value="BOOST"/>
+		<string name="Button1" value="CAMERA"/>
+		<string name="Button2" value="CHEAT1"/>
+		<string name="Button3" value="CHEAT2"/>
+		<string name="Button4" value="CHEAT3"/>
+		<string name="Button5" value="CHEAT4"/>
+		<string name="Button6" value="UNUSED"/>
+		<string name="Button7" value="GEAR"/>
+		<string name="Button8" value="COIN"/>
+		<string name="Button9" value="UNUSED"/>
+		<string name="Button10" value="UNUSED"/>
+		<string name="Button11" value="MAINTENANCE"/>
+		<string name="Button12" value="STOP"/>
+		<string name="Button13" value="UNUSED"/>
+		<string name="Button14" value="UNUSED"/>
+		<string name="Button15" value="UNUSED"/>
+	</block>
+	<block name="DigitalOutputs">
+		<string name="Output0" value="UNUSED"/>
+		<string name="Output1" value="BOOST"/>
+		<string name="Output2" value="CAMERA"/>
+		<string name="Output3" value="CHEAT1"/>
+		<string name="Output4" value="ACTIVEBOOST"/>
+		<string name="Output5" value="UNUSED"/>
+		<string name="Output6" value="UNUSED"/>
+		<string name="Output7" value="UNUSED"/>
+		<string name="Output8" value="UNUSED"/>
+		<string name="Output9" value="UNUSED"/>
+		<string name="Output10" value="BRAKES"/>
+		<string name="Output11" value="UNUSED"/>
+		<string name="Output12" value="UNUSED"/>
+		<string name="Output13" value="UNUSED"/>
+		<string name="Output14" value="UNUSED"/>
+		<string name="Output15" value="UNUSED"/>
+	</block>
+</ScriptDataBase>

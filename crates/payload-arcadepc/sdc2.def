@@ -1,0 +1,18 @@
+; SDC2.dll exports (Wasteland Racers 2071, sdc2.rs; x86 build only): the force feedback wheel
+; board's cdecl functions the game gets by name.
+    Init = sdc2_init
+    Shutdown = sdc2_none
+    GetAxisData = sdc2_axis
+    GetDigitalIn = sdc2_digital_in
+    SetDigitalOut = sdc2_none1
+    SetForce = sdc2_set_force
+    SetSteeringPos = sdc2_set_steering_pos
+    SetDGain = sdc2_none1
+    IsConnected = sdc2_connected
+    GetErrorCode = sdc2_none
+    GetModel = sdc2_none
+    GetFirmware = sdc2_none
+    GetSerial = sdc2_none
+    GetCoin = sdc2_get_coin
+    ClearCoin = sdc2_clear_coin
+    SetCoin = sdc2_set_coin
