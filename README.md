@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (286)
+## Games (287)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -287,6 +287,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | not in the test |  |
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | not in the test |  |
 | `hog-wild` | Hog Wild | arcadepc | user 100% (2026-11-05), steering wheel, no force feedback | not in the test |  |
+| `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | not in the test |  |
 | `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | not in the test |  |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | not in the test |  |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | pass | 2026-11-01 |
