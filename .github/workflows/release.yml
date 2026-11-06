@@ -24,10 +24,13 @@ jobs:
       - name: Build dependencies
         run: |
           sudo apt-get update
-          # mingw: the Windows payloads; mono: TMNT's input bridge (mcs -sdk:2); cmake and X11's
-          # headers: SDL3 (its build needs X11 or Wayland)
+          # mingw: the Windows payloads; mono: TMNT's input bridge (mcs -sdk:2); cmake and the
+          # libraries' headers: SDL3 (its build fails on any missing one: SDL's README-linux list)
           sudo apt-get install -y --no-install-recommends gcc-mingw-w64 mono-mcs mono-devel cmake pkg-config \
-            libx11-dev libxext-dev
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxtst-dev \
+            libxkbcommon-dev libdrm-dev libgbm-dev libgl-dev libegl-dev libgles-dev libdbus-1-dev libibus-1.0-dev \
+            libudev-dev libwayland-dev wayland-protocols libdecor-0-dev libasound2-dev libpulse-dev \
+            libpipewire-0.3-dev libjack-jackd2-dev libsndio-dev libusb-1.0-0-dev liburing-dev
           rustup toolchain install stable --profile minimal
           rustup default stable
           rustup target add i686-pc-windows-gnu x86_64-pc-windows-gnu
