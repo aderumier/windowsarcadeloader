@@ -5264,8 +5264,10 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   method pointers (`CodeRegistration`'s `methodPointers`, found by its count) read by a script,
   then objdump; `WAL_APM3_TRACE_PINVOKE=1` logs the P/Invoke functions the game resolves,
   `WAL_APM3_PEEK=<module>+<rva>,<offset>...` logs bytes of a pointer chain when they change.
-* **More ABAAS game server answers.** Every answer's `control` also carries `seq_id` and
-  `token` strings (a counter: Puyo Puyo e-Sports reads `seq_id`, the games send them back); a
+* **More ABAAS game server answers.** The answer of a play's start (`user/load` with
+  `control.start_game` 1) carries `seq_id` and `token` strings (a counter: Puyo Puyo e-Sports
+  reads `seq_id`, the games send them back; `WAL_APM3_GS_SEQ=0`: none, Nosferatu Lilinor refuses
+  the player's data with one, "the play data could not be read"); a
   player answer always has `name` (empty for a new player: Puyo's keyless `start_game` load
   needs it). `data/load` / `data/save` (`free_buckets`: the cabinet's settings, Pengo's
   `conf_*`, Puyo's `rule_*`...) in `apms/gs-data.json`, the requested key patterns answered.
