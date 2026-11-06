@@ -19,13 +19,15 @@ jobs:
     # glibc 2.39: the launcher must run on Batocera (glibc 2.40)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build dependencies
         run: |
           sudo apt-get update
-          # mingw: the Windows payloads; mono: TMNT's input bridge (mcs -sdk:2); cmake: SDL3
-          sudo apt-get install -y --no-install-recommends gcc-mingw-w64 mono-mcs mono-devel cmake pkg-config
+          # mingw: the Windows payloads; mono: TMNT's input bridge (mcs -sdk:2); cmake and X11's
+          # headers: SDL3 (its build needs X11 or Wayland)
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64 mono-mcs mono-devel cmake pkg-config \
+            libx11-dev libxext-dev
           rustup toolchain install stable --profile minimal
           rustup default stable
           rustup target add i686-pc-windows-gnu x86_64-pc-windows-gnu
