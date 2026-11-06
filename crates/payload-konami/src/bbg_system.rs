@@ -67,7 +67,7 @@ fn settings() -> &'static Settings {
     S.get_or_init(|| {
         let env = |name: &str| std::env::var(name).ok().map(|v| v.trim().to_ascii_lowercase());
         let s = Settings {
-            free_play: env("WAL_KONAMI_FREEPLAY").is_some_and(|v| v == "1"),
+            free_play: wal_payload_common::free_play("WAL_KONAMI_FREEPLAY").unwrap_or(false),
             price: env("WAL_KONAMI_PRICE").and_then(|v| v.parse().ok()).filter(|p| (1..=9).contains(p)).unwrap_or(1),
             asia: env("WAL_KONAMI_REGION").is_some_and(|v| v == "asia"),
         };

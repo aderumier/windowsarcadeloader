@@ -215,7 +215,7 @@ fn prepare_user() {
         xml.replace_range(at.., &rest);
     });
     if changed {
-        log!("ndd: test menu settings set (gun calibration full range, free play {:?})", std::env::var("WAL_KONAMI_FREEPLAY").ok());
+        log!("ndd: test menu settings set (gun calibration full range, free play {:?})", wal_payload_common::free_play("WAL_KONAMI_FREEPLAY"));
     }
 }
 

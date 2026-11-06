@@ -252,6 +252,14 @@ pub fn relaunched() -> bool {
     std::env::var(wal_protocol::env::RELAUNCH).is_ok_and(|v| v == "1")
 }
 
+/// The common free play option: the system's own variable (`system`, e.g. `WAL_KONAMI_FREEPLAY`)
+/// when set, else `WAL_FREEPLAY` (the launcher's default: on; the GUI's Common options and
+/// Batocera's FREE PLAY change it); `None` when neither is set (the game's own setting).
+pub fn free_play(system: &str) -> Option<bool> {
+    let read = |name: &str| std::env::var(name).ok().map(|v| v.trim().to_ascii_lowercase()).filter(|v| !v.is_empty());
+    read(system).or_else(|| read("WAL_FREEPLAY")).map(|v| matches!(v.as_str(), "1" | "true" | "on"))
+}
+
 /// The common crosshair option, `WAL_CROSSHAIR` (`1`/`0`): the game profile's default, the
 /// GUI's or Batocera's choice. Whether the payload shows the players' crosshairs (`default`
 /// when unset).

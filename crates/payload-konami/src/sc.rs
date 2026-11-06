@@ -225,7 +225,7 @@ fn settings() {
         }
     });
     if done {
-        log!("sc: test menu settings set (calibrated, free play {:?})", std::env::var("WAL_KONAMI_FREEPLAY").ok());
+        log!("sc: test menu settings set (calibrated, free play {:?})", wal_payload_common::free_play("WAL_KONAMI_FREEPLAY"));
     }
 }
 

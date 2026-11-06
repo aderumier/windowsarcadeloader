@@ -32,8 +32,9 @@ unsafe extern "system" fn get_private_profile_int(section: *const u8, key: *cons
     let f: GetPrivateProfileIntA = unsafe { std::mem::transmute(ORIG_GET_INT.load(Ordering::Relaxed)) };
     let mut v = unsafe { f(section, key, default, file) };
     if key_is(key, "FreePlay") {
-        if let Some(o) = option("WAL_EUROPAR_FREEPLAY").and_then(|o| o.parse().ok()) {
-            v = o;
+        // `WAL_EUROPAR_FREEPLAY`, else the common `WAL_FREEPLAY`
+        if let Some(on) = wal_payload_common::free_play("WAL_EUROPAR_FREEPLAY") {
+            v = on as u32;
         }
         crate::shell::set_free_play(v != 0);
         log!("settings: free play {}", if v != 0 { "on" } else { "off" });

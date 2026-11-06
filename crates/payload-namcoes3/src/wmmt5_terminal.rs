@@ -133,7 +133,7 @@ fn packet(frame: u32, settings: bool, free_play: bool, revision: u32) -> Vec<u8>
 }
 
 pub(crate) fn start(base: usize) {
-    let free_play = std::env::var("WAL_NAMCOES3_FREEPLAY").map_or(true, |v| v != "0");
+    let free_play = wal_payload_common::free_play("WAL_NAMCOES3_FREEPLAY").unwrap_or(true);
     std::thread::spawn(move || {
         let socket = match UdpSocket::bind((ADDRESS, 0)) {
             Ok(s) => s,

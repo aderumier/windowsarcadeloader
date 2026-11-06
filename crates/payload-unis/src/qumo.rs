@@ -322,7 +322,7 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
 /// set in its saved settings (`Free_Play` in `Assets/config/game/excel_data/data_info.csv`, the
 /// bookkeeping kept) before the game reads them.
 fn free_play() {
-    let Some(on) = std::env::var("WAL_UNIS_FREEPLAY").ok().map(|v| v.trim() != "0") else { return };
+    let Some(on) = wal_payload_common::free_play("WAL_UNIS_FREEPLAY") else { return };
     let Some(path) = std::env::current_exe().ok().map(|e| e.with_file_name("Assets/config/game/excel_data/data_info.csv")) else { return };
     let Ok(data) = std::fs::read_to_string(&path) else { return };
     let Some(updated) = with_free_play(&data, on) else { return };
