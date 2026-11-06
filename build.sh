@@ -5,7 +5,8 @@ cd "$(dirname "$0")"
 export PATH="$HOME/.cargo/bin:$PATH"
 PROFILE=${PROFILE:-release}
 
-cargo build --profile "$PROFILE" -p wal-launcher
+# LAUNCHER_FEATURES: extra launcher features (CI: sdl3/build-from-source, no SDL3 package there)
+cargo build --profile "$PROFILE" -p wal-launcher ${LAUNCHER_FEATURES:+--features "$LAUNCHER_FEATURES"}
 cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-adrenaline -p wal-payload-apm3 -p wal-loader
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-konami -p wal-payload-adrenaline -p wal-payload-apm3
 # the AVS boot of the 64-bit Konami game DLLs (Bishi Bashi Channel)

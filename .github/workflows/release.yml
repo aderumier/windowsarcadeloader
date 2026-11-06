@@ -1,0 +1,57 @@
+# Builds the launcher and the payloads (./build.sh) when a tag is pushed, and publishes them as a
+# GitHub release of that tag: windows-arcade-loader-<tag>.tar.gz, the Batocera emulator folder's
+# layout (tools/batocera/install.sh: arcade-launcher, payloads/, systemprofiles/, launcher.yaml,
+# the GUI wrapper and icon).
+name: release
+
+on:
+  push:
+    tags: ["*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # glibc 2.39: the launcher must run on Batocera (glibc 2.40)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build dependencies
+        run: |
+          sudo apt-get update
+          # mingw: the Windows payloads; mono: TMNT's input bridge (mcs -sdk:2); cmake: SDL3
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64 mono-mcs mono-devel cmake pkg-config
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add i686-pc-windows-gnu x86_64-pc-windows-gnu
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        env:
+          # Ubuntu 24.04 has no SDL3 package: built from source, still linked as libSDL3.so.0
+          LAUNCHER_FEATURES: sdl3/build-from-source
+        run: ./build.sh
+
+      - name: Check the launcher's glibc
+        run: |
+          glibc=$(objdump -T dist/arcade-launcher | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          echo "launcher needs $glibc"
+          [ "$(printf '%s\nGLIBC_2.40\n' "$glibc" | sort -V | tail -1)" = GLIBC_2.40 ]
+
+      - name: Package
+        run: |
+          name=windows-arcade-loader-${GITHUB_REF_NAME}
+          tools/batocera/install.sh "staging/$name"
+          tar -C staging -czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name=windows-arcade-loader-${GITHUB_REF_NAME}
+          gh release create "$GITHUB_REF_NAME" "$name.tar.gz" "$name.tar.gz.sha256" \
+            --title "$GITHUB_REF_NAME" --generate-notes
