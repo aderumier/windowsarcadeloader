@@ -1,0 +1,27 @@
+# Dengeki Bunko: Fighting Climax (Sega ALLS, APM3 edition; 32-bit, Direct3D 9). Runs
+# DengekiFCI_APM3.exe; the test switch starts gametest.exe (.NET: the payload's apm.dll), whose
+# exit starts the game again.
+# Aime card: always on the reader (read after START; a new card agrees to the Aime terms: up for
+# YES then START); the card input (F4, pad guide) takes it off. With a card the game waits for a
+# "global matching" challenger (none: no versus server), then plays the CPU.
+# Override values in userprofiles/apm3/dengeki-bunko-fighting-climax-apm3.yaml.
+system: apm3
+name: "Dengeki Bunko: Fighting Climax (APM3)"
+
+env:
+  WAL_APM3_TEST: gametest.exe
+  # ALL.Net and the Aime server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+  # online: the network state (0x4642d0, online only when the link built into the game,
+  # abaaslink 0f03646, is ready: no link server) stays offline ("Aime card play and versus
+  # unavailable", no card read): online (0) as its default (0x464302, the early exit before the
+  # link is set up) and as its result (0x46450f): ALL.Net and the Aime server are up
+  WAL_APM3_ONLINE_PATCHES: "0x64302:C7878000000000000000,0x6450f:31C090909090"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  card: Aime card (take off / put back)

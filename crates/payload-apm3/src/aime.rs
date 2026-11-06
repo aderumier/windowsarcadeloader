@@ -170,9 +170,12 @@ pub extern "system" fn Aime_acceptConfirm() -> u32 {
 }
 
 #[unsafe(no_mangle)]
+/// The card's database (`AimeConfirm`: 0 NoneDB, 1 FeliCaDB, 2 AimeDB): an Aime card registered in
+/// the Aime database (Dengeki Bunko reads it after the card: NoneDB is "the card could not be
+/// read").
 pub extern "system" fn Aime_getConfirm() -> u32 {
     first_call("Aime_getConfirm");
-    0
+    if has_card() { 2 } else { 0 }
 }
 
 #[unsafe(no_mangle)]
