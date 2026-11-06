@@ -1,0 +1,31 @@
+# Guilty Gear -Strive- (Sega ALLS, APM3 edition; 64-bit, Unreal Engine 4, Direct3D 11). Runs
+# GGST-Win64-Shipping.exe with the dump's game.bat arguments; the test switch starts the same
+# program with -testmode (the dump's gametest.bat), whose exit starts the game again.
+# Override values in userprofiles/apm3/guilty-gear-strive.yaml.
+system: apm3
+name: Guilty Gear -Strive-
+
+args: [-language=ja]
+
+payload_install: [WindowsNoEditor/RED/Binaries/Win64/apm.dll]
+
+env:
+  WAL_APM3_TEST: GGST-Win64-Shipping.exe
+  WAL_APM3_TEST_ARGS: "-language=ja -testmode"
+  # ALL.Net, the Aime server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+  # online: the game server's URL (0x143439998, https://arcade-ggst-game.guiltygear.com/api/) is
+  # the payload's title server
+  WAL_APM3_ONLINE_PATCHES: "0x3439998:687474703A2F2F3132372E302E302E312F6170692F00"
+  # no ABAAS matching server: the link is reported available (isABaaSLinkAvailable_apm3, its
+  # "matching unavailable" notice); the built-in link client's server name (0x1434255f0,
+  # sdem.test-abs-link.sys-all.net) is loopback, no traffic to it
+  WAL_APM3_NO_LINK_PATCHES: "0xa2d4f0:B001C3,0x34255f0:3132372E302E302E3100"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  card: Aime card (take off / put back)

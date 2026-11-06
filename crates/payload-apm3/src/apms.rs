@@ -114,6 +114,18 @@ unsafe extern "system" fn connect(socket: usize, address: *const u8, length: i32
     unsafe { real(socket, address, length) }
 }
 
+// ---- WinINet (Guilty Gear -Strive-'s HTTP): port 80 of 127.0.0.1 too ----
+
+type InternetConnectW = unsafe extern "system" fn(usize, *const u16, u16, *const u16, *const u16, u32, u32, usize) -> usize;
+static REAL_INTERNET_CONNECT: OnceLock<usize> = OnceLock::new();
+
+unsafe extern "system" fn internet_connect_w(session: usize, server: *const u16, server_port: u16, user: *const u16, password: *const u16, service: u32, flags: u32, context: usize) -> usize {
+    let real: InternetConnectW = unsafe { std::mem::transmute(*REAL_INTERNET_CONNECT.get().unwrap()) };
+    let loopback = !server.is_null() && "127.0.0.1\0".encode_utf16().enumerate().all(|(i, c)| unsafe { *server.add(i) } == c);
+    let server_port = if loopback && server_port == 80 { port() } else { server_port };
+    unsafe { real(session, server, server_port, user, password, service, flags, context) }
+}
+
 // ---- bcrypt: the game server's AES key; the plain bodies (WAL_APM3_APMS_TRACE=1) ----
 
 static TRACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -264,7 +276,8 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
     let mut body = vec![0; length];
     reader.read_exact(&mut body)?;
     if path.starts_with("/api/") {
-        let reply = crate::gs::reply(&path, &body);
+        // Guilty Gear -Strive-'s own server (hex text), else the ABAAS game server
+        let reply = if body.starts_with(b"data=") { crate::tl::reply(&path, &body) } else { crate::gs::reply(&path, &body) };
         let mut out = stream;
         out.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", reply.len()).as_bytes())?;
         out.write_all(&reply)?;
@@ -272,7 +285,10 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
     }
     let api = path.rsplit('/').next().unwrap_or("").to_string();
     let request = cts::open_request(&body).map(|raw| cts::decode_all(&raw).into_iter().next().unwrap_or(Value::Nil)).unwrap_or(Value::Nil);
-    log!("apms: {api} {}", cts::show(&request));
+    // the built-in ABAAS link client's retries (Guilty Gear -Strive-) have no name
+    if !api.is_empty() {
+        log!("apms: {api} {}", cts::show(&request));
+    }
     let (status, data) = answer(&api, &request);
     if let Some(d) = &data {
         log!("apms: {api} -> {status} {}", cts::show(d));
@@ -322,6 +338,9 @@ pub(crate) fn init() {
         }
         if let Some(real) = iat::hook_ordinal(base, "WS2_32.dll", 4, connect as *const () as usize) {
             let _ = REAL_CONNECT.set(real);
+        }
+        if let Some(real) = iat::hook_module(base, "WININET.dll", "InternetConnectW", internet_connect_w as *const () as usize) {
+            let _ = REAL_INTERNET_CONNECT.set(real);
         }
         let trace = std::env::var("WAL_APM3_APMS_TRACE").is_ok_and(|v| v.trim() == "1");
         TRACE.store(trace, std::sync::atomic::Ordering::Relaxed);

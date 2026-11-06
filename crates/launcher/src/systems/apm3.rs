@@ -1,6 +1,6 @@
 //! Sega ALLS APM3 ("ALL.Net P-ras MULTI Version 3": Under Night In-Birth Exe:Late[cl-r], Blade
 //! Strangers, Senxin Aleste, Otoshu DX, Kasiori, Nosferatu Lilinor, Pengo! Online, Puyo Puyo
-//! e-Sports, Milkchan, Koihime Enbu RyoRaiRai Version 3, Goonya Fighter).
+//! e-Sports, Milkchan, Koihime Enbu RyoRaiRai Version 3, Goonya Fighter, Guilty Gear -Strive-).
 //!
 //! The game imports `apm_x86.dll` (`apm.dll`: 64-bit games and programs), the client library of the cabinet's APM3 system
 //! (`amdaemon`: keychip, ALL.Net, I/O board, Aime, credits): our payload replaces it and
@@ -24,6 +24,7 @@
 //!   the DLL of its client (default `abaasgs.dll`)
 //! - `WAL_APM3_KEYCHIP`, `WAL_APM3_BOARD`, `WAL_APM3_GAME_ID`, `WAL_APM3_LOCATION`,
 //!   `WAL_APM3_RESOLUTION` (`<w>x<h>`): values the system reports
+//! - `WAL_APM3_PLAYER_NAME`: the player's name on Guilty Gear -Strive-'s server (default `PLAYER`)
 //! - `WAL_APM3_APMS_TRACE=1`: the title server's AES key and plain bodies in the log
 //! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
 

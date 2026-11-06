@@ -5383,6 +5383,34 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   send/receive failed (-1)", no `EndGame`): the block is now the requested slots x 0x400 bytes.
   `WAL_CRASH_REPORTS` (payload-common, default 8) raises the exception reports a run logs (this
   game's boot uses the 8).
+* **Guilty Gear -Strive-** (`WindowsNoEditor\RED\Binaries\Win64\GGST-Win64-Shipping.exe`, 64-bit
+  Unreal Engine 4, Direct3D 11; the PDB in the dump gives every symbol and struct): `apm.dll`
+  next to the exe (`payload_install`), the dump's `game.bat` argument; test mode = the same
+  program with `-testmode`. `-language=` takes the exe's names (`JPN`, `INT`, `FRA`...; anything
+  else, the dump's `ja` included, is Japanese): `INT` shows the arcade menus' raw text keys
+  (`*Title_PressButton_AC*`), only the EULA has English text, so Japanese stays. No ABAAS server:
+  `isABaaSLinkAvailable_apm3` answers true (no "matching unavailable" notice; the link client
+  itself must still start, else the game reports Aime unusable), the client's server name
+  (`sdem.test-abs-link.sys-all.net`, a real host) is patched to loopback. LOCAL then plays alone
+  against a still P2; no network versus. Selecting a character yourself matters: a character
+  select that times out plays the fights by itself.
+  - The player's data is not on SEGA's title server: Arc System Works' own `TLGameServerAPI`
+    (`tl.rs`): WinINet POSTs of `data=<hex MessagePack>` to
+    `https://arcade-ggst-game.guiltygear.com/api/<name>`, the URL patched to
+    `http://127.0.0.1/api/` (`WAL_APM3_ONLINE_PATCHES`). WinINet is not the game's `connect`
+    import: `apms.rs` hooks `InternetConnectW` to move port 80 to the title server, which routes
+    a `data=` body to `tl.rs`. Request `[[user id, session, language, version, platform], param]`,
+    response `[[session, result, date, appVer, dataVer, serverVer], param]`, positional; shorter
+    arrays are accepted, so `[0]` answers news, rankings, items, VIP and results.
+  - `user/login` (the Aime id; `WAL_APM3_PLAYER_NAME`, default `PLAYER`); `statistics/ac_get` /
+    `ac_set`: JSON text per data type, character and matching value,
+    `apms/tl-<user id>-<type>-<chara>-<value>.bin`; `tus/read` / `tus/write`: the compressed save
+    (`0xd3b58` bytes unpacked), `apms/tl-<user id>-tus-<slot>.bin` (`apms` next to the exe, the
+    program's folder). A known player without a save must get `tus/read` status 1: status 0
+    without data is a fatal `BulkData compressed header read error. This package may be corrupt!`
+    (`uei::archive::Decompress`, from `UpdateState_SaveDataWait`), which looks like a damaged pak
+    and is not. The saves go at game over ("uploading data", about 2 s), the data is read back
+    after the Aime prompt ("communicating with the server", about 15 s, one request at a time).
 * **Shanghai IV Ryuumon Hiyaku** (Unity, 64-bit, Mono): as Kasiori (`X:/lib/apm.dll` by its path,
   `run_drives`; test mode `TestMode`; `-popupwindow`). Its `apmgamepad.dll` (the cabinet's gamepad
   library, DirectInput / XInput) is never called by the game. The Aime prompt's default is "play
@@ -5749,6 +5777,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |
 | `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen | Sega ALLS APM3 (§6.3k): 32-bit Unreal Engine 3, Direct3D 9, built-in link client not started, title server by `gethostbyname` |
+| `guilty-gear-strive` | Guilty Gear -Strive- | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen; LOCAL plays alone against a still P2, no network versus | Sega ALLS APM3 (§6.3k): Unreal Engine 4, 64-bit, Direct3D 11, Arc System Works' own game server (`tl.rs`, WinINet) |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
