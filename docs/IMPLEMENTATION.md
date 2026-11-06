@@ -5652,7 +5652,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `otoshu-dx` | Otoshu DX | apm3 | user 100% (2026-11-06), free play, touch dot; headless: touch screen (mouse / gun), Aime cards (name entry, login, data reloaded), songs, test mode | Sega ALLS APM3 (§6.3k): Unity IL2CPP 64-bit, `abaasgs.dll` plugin hooked, touch emulation |
 | `kasiori` | Kasiori | apm3 | user 100% (2026-11-06), link reported available; headless: Aime cards, story play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
 | `nosferatu-lilinor` | Nosferatu Lilinor | apm3 | user 100% (2026-11-06), no play sequence id; headless: Aime cards (name entry), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit |
-| `pengo-online` | Pengo! Online | apm3 | works headless (2026-11-05): touch menus, Aime cards, play, test mode; "Aime / versus unavailable" banner (no link) | Sega ALLS APM3 (§6.3k): 64-bit, touch, cabinet data |
+| `pengo-online` | Pengo! Online | apm3 | user 100% (2026-11-06): touch menus (red dot), Aime cards, play, test mode, no link banner | Sega ALLS APM3 (§6.3k): 64-bit, touch, cabinet data |
 | `puyo-puyo-e-sports` | Puyo Puyo e-Sports | apm3 | works headless (2026-11-05): Aime cards (terms, saved), play, test mode | Sega ALLS APM3 (§6.3k): 64-bit, same-program test mode |
 | `milkchan` | Milkchan | apm3 | works headless (2026-11-05): Aime cards, story, test mode | Sega ALLS APM3 (§6.3k): 32-bit, .NET test program |
 | `koihime-enbu-ryorairai-v3` | Koihime Enbu RyoRaiRai Version 3 | apm3 | works headless (2026-11-05): Aime cards, modes, character select, test mode; no network versus | Sega ALLS APM3 (§6.3k): 32-bit, same-program test mode |
