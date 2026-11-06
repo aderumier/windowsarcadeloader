@@ -10,6 +10,11 @@ env:
   WAL_APM3_TEST_ARGS: "-t"
   # the touch screen: player 1's gun, its trigger the touch
   WAL_APM3_TOUCH: "1"
+  # the dot where it touches (the game shows no cursor): its size in percent of the screen
+  # height, its color
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_SIZE: "1.5"
+  WAL_CROSSHAIR_COLOR: FF2020
   # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
   WAL_APM3_ONLINE: "1"
   WAL_APM3_CARD_AUTO: "1"
@@ -28,3 +33,12 @@ controls:
   ly: Touch position (y)
   b1: Touch
   card: Aime card (take off / put back)
+
+options:
+  - title: Game
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun touches (the game shows no cursor).
