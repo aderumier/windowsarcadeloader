@@ -5648,7 +5648,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `senxin-aleste` | Senxin Aleste | apm3 | user 100% (2026-11-06); headless: attract, coins, Aime cards (records, settings, rankings saved and reloaded), story play, test mode | Sega ALLS APM3 (§6.3k): 32-bit, the ABAAS game server, test mode `-t` |
 | `otoshu-dx` | Otoshu DX | apm3 | user 100% (2026-11-06), free play, touch dot; headless: touch screen (mouse / gun), Aime cards (name entry, login, data reloaded), songs, test mode | Sega ALLS APM3 (§6.3k): Unity IL2CPP 64-bit, `abaasgs.dll` plugin hooked, touch emulation |
 | `kasiori` | Kasiori | apm3 | user 100% (2026-11-06), link reported available; headless: Aime cards, story play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
-| `nosferatu-lilinor` | Nosferatu Lilinor | apm3 | works headless (2026-11-05): Aime cards (name entry), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit |
+| `nosferatu-lilinor` | Nosferatu Lilinor | apm3 | user 100% (2026-11-06), no play sequence id; headless: Aime cards (name entry), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit |
 | `pengo-online` | Pengo! Online | apm3 | works headless (2026-11-05): touch menus, Aime cards, play, test mode; "Aime / versus unavailable" banner (no link) | Sega ALLS APM3 (§6.3k): 64-bit, touch, cabinet data |
 | `puyo-puyo-e-sports` | Puyo Puyo e-Sports | apm3 | works headless (2026-11-05): Aime cards (terms, saved), play, test mode | Sega ALLS APM3 (§6.3k): 64-bit, same-program test mode |
 | `milkchan` | Milkchan | apm3 | works headless (2026-11-05): Aime cards, story, test mode | Sega ALLS APM3 (§6.3k): 32-bit, .NET test program |
