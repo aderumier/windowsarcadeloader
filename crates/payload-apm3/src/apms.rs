@@ -163,8 +163,10 @@ use crate::cts::{self, Value, arr, int, s};
 /// `[profile, slots]` of the player's last EndGame: profile `[name, u16, save block]` (the
 /// game's own save, checked by the game), slots the 16 values after it.
 const SAVE_DIR: &str = "apms";
-/// The game's save block size (Under Night copies 0x4000 bytes; it sends 0x1c00).
+/// The game's save block size (Under Night copies 0x4000 bytes; it sends 0x1c00): its slots
+/// (`StartGame`'s `[first slot, slots]`, 16) of 0x400 bytes.
 const SAVE_BLOCK: usize = 0x4000;
+const SLOT_SIZE: usize = 0x400;
 
 fn record_path(aime_id: i64) -> String {
     format!("{SAVE_DIR}\\{aime_id}.dat")
@@ -185,12 +187,13 @@ fn save_record(aime_id: i64, profile: &Value, slots: &Value) {
     }
 }
 
-/// A profile `[name, u16, save block]` with its block at least [`SAVE_BLOCK`] bytes (the game
-/// copies that much).
-fn padded(profile: &Value) -> Value {
+/// The profile `[name, u16, save block]` with its save block padded to `slots` slots (Guilty Gear Xrd REV 2 asks 32: at the
+/// end of a play it compares the block slot by slot, a shorter one threw out of range).
+fn padded(profile: &Value, slots: usize) -> Value {
     let mut block = profile.get(2).bytes().unwrap_or(&[]).to_vec();
-    if block.len() < SAVE_BLOCK {
-        block.resize(SAVE_BLOCK, 0);
+    let size = if slots > 0 { slots * SLOT_SIZE } else { SAVE_BLOCK };
+    if block.len() < size {
+        block.resize(size, 0);
     }
     arr(vec![profile.get(0).clone(), profile.get(1).clone(), Value::Str(block)])
 }
@@ -205,13 +208,26 @@ fn answer(api: &str, request: &Value) -> (u16, Option<Value>) {
         "StartGame" => {
             let (profile, slots) = load_record(aime_id).unwrap_or_else(|| (arr(vec![s(""), int(0), Value::Str(vec![])]), arr(vec![])));
             log!("apms: player {aime_id}: {}", if slots.array().is_empty() { "new" } else { "known" });
-            (0, Some(arr(vec![arr(vec![int(aime_id), s("")]), padded(&profile), slots])))
+            let count = request.get(2).get(1).int().unwrap_or(0).clamp(0, 1024) as usize;
+            (0, Some(arr(vec![arr(vec![int(aime_id), s("")]), padded(&profile, count), slots])))
         }
         // [header, [aime id, ""], profile, slots, play logs]
+        // The profile's save holds the changed slots only (libcts compares them with the block
+        // StartGame answered): `[name, first changed slot, slots' bytes]`, none when nothing
+        // changed. Merged into the stored block, kept from slot 0.
         "EndGame" | "ContinueGame" | "UpdateUser" => {
             let profile = request.get(2);
-            if aime_id >= 0 && profile.get(2).bytes().is_some_and(|b| !b.is_empty()) {
-                save_record(aime_id, profile, request.get(3));
+            if let (true, Some(changed)) = (aime_id >= 0, profile.get(2).bytes().filter(|b| !b.is_empty())) {
+                let first = profile.get(1).int().unwrap_or(0).clamp(0, 1024) as usize;
+                let mut block = load_record(aime_id).and_then(|(p, _)| p.get(2).bytes().map(<[u8]>::to_vec)).unwrap_or_default();
+                let at = first * SLOT_SIZE;
+                if block.len() < at + changed.len() {
+                    block.resize(at + changed.len(), 0);
+                }
+                block[at..at + changed.len()].copy_from_slice(changed);
+                log!("apms: player {aime_id}: slots {first}..{} changed", first + changed.len().div_ceil(SLOT_SIZE));
+                let merged = arr(vec![profile.get(0).clone(), int(0), Value::Str(block)]);
+                save_record(aime_id, &merged, request.get(3));
             }
             (0, None)
         }

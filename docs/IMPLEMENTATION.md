@@ -5227,8 +5227,11 @@ whole stack under the real amdaemon; here the payload replaces the library inste
     (`0x4bbd90` copies it; bytes 4-7 zero: a new player, `0x4bb930`; else checked: `0xaa` magic +
     checksum, `0x4bbca0`); an empty block crashes (`getSlotData` subscript).
   - EndGame / ContinueGame / UpdateUser `[[aime id, ""], [name, u16, save], slots, play logs]`:
-    `[profile, slots]` stored in `apms/<aime id>.dat` (a launcher data dir of the game folder),
-    returned by the next StartGame (the block padded to 0x4000).
+    `save` holds only the changed slots (libcts compares the 0x400-byte slots with the block
+    StartGame answered), `u16` the first one (none changed: empty, nothing saved). Merged into
+    the stored block of `apms/<aime id>.dat` (a launcher data dir of the game folder), returned
+    by the next StartGame padded to the requested slots (16: 0x4000). A replaced block lost the
+    unchanged last slots: Guilty Gear then reset the player.
   - GetRanking `[kind, [ranking ids], filters]` → `[[[] per id]]` (fewer crashes the attract);
     GetCollection → `[]`; the others: the header alone.
 * **ABAAS game server, all games** (`gs.rs`; Blade Strangers above). The title key is learnt at
@@ -5319,8 +5322,9 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   connection with the server" wait (3600 frames, `0x12fcfdc`) 1 frame; `WAL_APM3_ONLINE_PATCHES`
   make the network state (`0x140eac0`) and the link's "alive" (`0x1493820`) online. It resolves the
   title server with `gethostbyname` (WS2_32 ordinal 52, `sdcp.apm.sys-all.net`): `apms.rs` hooks it
-  as `DnsQuery_A`. Open: at game over `am::cts::AppData::endPlay` fails to serialize the player
-  ("user data send/receive failed (-1)"), no `EndGame` is sent: the card player is not saved.
+  as `DnsQuery_A`. It asks 32 save slots (`StartGame`'s `[0, 32]`): with Under Night's 16 KB block
+  its end of play compared the slots past it ("invalid vector<T> subscript", "user data
+  send/receive failed (-1)", no `EndGame`): the block is now the requested slots x 0x400 bytes.
   `WAL_CRASH_REPORTS` (payload-common, default 8) raises the exception reports a run logs (this
   game's boot uses the 8).
 * **Shanghai IV Ryuumon Hiyaku** (Unity, 64-bit, Mono): as Kasiori (`X:/lib/apm.dll` by its path,
@@ -5688,7 +5692,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |
-| `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | works (user: sound, buttons, test menu, full screen); Aime cards read, the card player not saved yet | Sega ALLS APM3 (§6.3k): 32-bit Unreal Engine 3, Direct3D 9, built-in link client not started, title server by `gethostbyname` |
+| `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen | Sega ALLS APM3 (§6.3k): 32-bit Unreal Engine 3, Direct3D 9, built-in link client not started, title server by `gethostbyname` |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
