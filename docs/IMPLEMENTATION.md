@@ -5285,7 +5285,10 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   the generic APM3 game. **Puyo Puyo e-Sports** (64-bit): a new player accepts the terms (the
   dialog's default is "no"). **Pengo! Online** (64-bit, `pen5_test.exe` test program): its menus
   are touched (`WAL_APM3_TOUCH=1`, native game: the posted mouse messages; `b1` both push01 and
-  the touch). **Goonya Fighter** (Unity, 64-bit): the game in `game\`, its test program in
+  the touch). Its link client is built in (abaaslink 0f03646): without a link server its "link ready" flag
+  (`0x1402d0c6c`) stays 0 and the status (the "Aime / versus unavailable" banner, the network
+  icon) counts it; the profile's `WAL_APM3_NO_LINK_PATCHES` make the flag's five reads of the
+  status code answer 1 (ALL.Net and the Aime server decide); the red touch dot on (Direct3D 11). **Goonya Fighter** (Unity, 64-bit): the game in `game\`, its test program in
   `gametest\` (`WAL_APM3_TEST: ..\gametest\gametest.exe`, the payload in both folders by
   `payload_install`); a Unity game's main thread ends before its process: with a relaunch asked
   the launcher ends the process and relaunches (no crash stop).

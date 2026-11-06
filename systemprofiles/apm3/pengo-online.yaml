@@ -9,6 +9,17 @@ env:
   WAL_APM3_TEST: pen5_test.exe
   # the touch screen: player 1's gun, its trigger the touch
   WAL_APM3_TOUCH: "1"
+  # the dot where it touches (the game shows no cursor): its size in percent of the screen
+  # height, its color
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_SIZE: "1.5"
+  WAL_CROSSHAIR_COLOR: FF2020
+  # no ABAAS link server: the link built into the game never sets its "link ready" flag
+  # (0x1402d0c6c: its setup fails), and the status shown (the "Aime / versus unavailable"
+  # banner, the network icon) counts it as not ready; the flag's reads of the status code
+  # (0x140070d5f banner, 0x1400715c5, 0x14007163e, 0x1400716c3, 0x14017e545) answer 1: only ALL.Net
+  # and the Aime server decide (the link itself unchanged)
+  WAL_APM3_NO_LINK_PATCHES: "0x70d5f:41B80100000090,0x715c5:41B90100000090,0x7163e:85E49090909090,0x716c3:85E490909090,0x17e545:BA0100000090"
   # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
   WAL_APM3_ONLINE: "1"
   WAL_APM3_CARD_AUTO: "1"
@@ -25,3 +36,12 @@ input:
 controls:
   b1: Push / touch
   card: Aime card (take off / put back)
+
+options:
+  - title: Game
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun touches (the game shows no cursor).
