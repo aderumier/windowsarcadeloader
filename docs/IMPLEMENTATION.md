@@ -5283,7 +5283,9 @@ whole stack under the real amdaemon; here the payload replaces the library inste
 * **Nosferatu Lilinor** (Unity, 64-bit; test `-test`), **Milkchan** (32-bit, `gametest.exe` .NET
   test program), **Koihime Enbu RyoRaiRai Version 3** (32-bit, `abaasgs.dll` beside the game):
   the generic APM3 game. **Puyo Puyo e-Sports** (64-bit): a new player accepts the terms (the
-  dialog's default is "no"). **Pengo! Online** (64-bit, `pen5_test.exe` test program): its menus
+  dialog's default is "no"); its built-in link (abaaslink ee20f2d) is never set up: the profile's
+  `WAL_APM3_NO_LINK_PATCHES` make the icon green and skip the versus box's link tests once the
+  Aime server answers. **Pengo! Online** (64-bit, `pen5_test.exe` test program): its menus
   are touched (`WAL_APM3_TOUCH=1`, native game: the posted mouse messages; `b1` both push01 and
   the touch). Its link client is built in (abaaslink 0f03646): without a link server its "link ready" flag
   (`0x1402d0c6c`) stays 0 and the status (the "Aime / versus unavailable" banner, the network
