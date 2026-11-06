@@ -318,6 +318,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `wicked-tuna` | Wicked Tuna | unis | user 100% (2026-11-05), 4 rods on light guns or pads | not in the test |  |
 | `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players | not in the test |  |
 | `mighty-moto` | Mighty Moto | unis | user 100% (2026-11-05) | not in the test |  |
+| `big-foot-crush` | Big Foot Crush | unis | user 100% (2026-11-06), portrait, wheel; attract video not played (no Windows video backend in the build) | not in the test |  |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | not in the test |  |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | not in the test |  |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved | not in the test |  |

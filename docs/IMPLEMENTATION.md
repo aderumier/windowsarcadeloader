@@ -4746,6 +4746,37 @@ wal-loader (no XInput import; `xinput1_3: "n,b"`, else Wine's builtin is loaded)
 
 Headless checks: attract, start, track select, a race (gas, steering both ways, overtakes).
 
+
+#### Big Foot Crush
+
+Unity 2022.3, Mono, 32-bit (`WAL_UNIS_BOARD=bigfootcrush`, `crates/payload-unis/src/bigfootcrush.rs`),
+started with the payload by `wal-loader`. The Windows build of an Android cabinet's game: the board
+bridge (`Framework_Call_JNI`) is empty, nothing comes from the MCU.
+
+- **Settings.** The dump lacks the APK's `StreamingAssets/Setting`; the game reads
+  `C:\mnt\sdcard\UNIS_GameData\Setting` (`c_folders`, the profile's `files`): `Config.ini`,
+  `PlayerSetting.ini`, `Menu0/ConfigReadOnly.ini` and `Menu0/Framework_Menu_Main.ini` are made for
+  this cabinet. `GlobalSetting.GetMenuSetting` throws on a key without a menu row, so every key
+  the game asks is a row (hidden when it does not apply: tickets, the cabinets' link). An empty
+  `BootLoader/BinName.ini` passes the boot's comparison with the missing APK file.
+- **Keys.** `W` the gas, `A` / `D` the wheel (`CarAll`), `1` a coin, `M` test, the arrows the
+  menu's values (`Framework_Keyboard_Test`), posted from player 1's stick. The wheel is `A` / `D`
+  out of the menu: the left arrow is the operator's free coin there. Unity 2022's `KeyCode` is the
+  place on a US keyboard of the key a virtual key has in the host's layout (on AZERTY `VK_W` reads
+  as `Z`, whatever the message's scan code): each is posted as the virtual key at that place
+  (`MapVirtualKey(scan, MAPVK_VSC_TO_VK)`). Headless runs have a US layout:
+  `XKB_DEFAULT_LAYOUT=fr` tests another.
+- **Operator menu.** Its keys go through the link between a cabinet's two PCs: `GetData` /
+  `SetData` of `Framework_UART_Manager` replaced to answer it (`GetFromOther2` = 1, `GetFromOther4`
+  echoes `SendToOther4`), the MCU's polling coroutine ended (its IO ERROR). Leaving the menu, an
+  Android player restarts; `CallBackState.OnMenuEvent`'s IL is patched to load the game's scene as
+  the editor does. `Mono::replace` has a 32-bit jump for this game.
+- **Picture.** Portrait (the logo, truck select and counters are laid out on 9:16): a 1080x1920
+  fake desktop, fitted on the screen, black around.
+- **Not in the dump.** AVPro's Windows backend (the attract video's area stays empty) and the
+  maps' `SLFramework/Inis` tools (`IniManager`'s initializer also fails on `AndroidJavaObject`: the
+  update check and these tools are skipped, harmlessly).
+
 ### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)
 
 Adrenaline's PC-based arcade games. System `adrenaline` (Batocera's ES `adrenaline`), payload
@@ -5878,6 +5909,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `wicked-tuna` | Wicked Tuna | unis | user 100% (2026-11-05), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |
 | `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players | UE4 packed executable (§6.3j): `UsbPluginsDll_R.dll`'s exports patched (I/O: sticks, buttons, ball kicks; per-player coins; dongle), every player calibrated, no camera, one screen (`bEnableSplitscreen` off in the saved config), 1920x1080 desktop fitted (packed imports rescanned), arrows move |
 | `mighty-moto` | Mighty Moto | unis | user 100% (2026-11-05) | Unity 2.x 32-bit (§6.3j): wal-loader, the cabinet's keys posted to the game window from player 1's stick and pedals (real keyboard filtered), fake DirectInput |
+| `big-foot-crush` | Big Foot Crush | unis | user 100% (2026-11-06) | Unity 2022 32-bit (§6.3j): wal-loader, keys posted from player 1's stick, the settings the dump lacks in the profile, the operator menu's link answered, portrait fake desktop |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | Adrenaline's touch screen game (Unity 4.2, 32-bit, §6.3k): the payload (`xinput1_3.dll`, loaded at the entry point) is its PQ Labs touch frame client (the guns touch where they point), its Kaboom I/O board and Matrix dongle, through Mono's `GetProcAddress`; crosshair |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): the payload (`xinput1_3.dll`) emulates its Sixense STEM trackers (each gun turned towards its aim), its Kaboom Adrio board and Matrix dongle, puts `NewInputManager` on the guns; Wine's `winhttp` (no BepInEx) |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved | Adrenaline's gun game (Unity 2017.2, 64-bit, §6.3k): Rabbids Hollywood's Sixense trackers, Kaboom Adrio board and Matrix dongle; the trigger on the board's player button 2, the tracker's button reloads; Wine's `winhttp` |

@@ -53,7 +53,7 @@ unsafe extern "system" fn move_window(hwnd: P, x: i32, y: i32, cx: i32, cy: i32,
 }
 
 /// Base of the module holding this code (the payload DLL).
-fn this_module() -> usize {
+pub(crate) fn this_module() -> usize {
     use windows_sys::Win32::System::LibraryLoader::{
         GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, GetModuleHandleExW,
     };

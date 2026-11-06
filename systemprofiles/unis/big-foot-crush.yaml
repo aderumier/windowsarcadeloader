@@ -1,0 +1,60 @@
+# Big Foot Crush (UNIS, Unity 2022, Mono, 32-bit) - template, override values in
+# userprofiles/unis/big-foot-crush.yaml.
+# A monster truck: the wheel and the gas. The Windows build of an Android cabinet's game: its
+# keys come from the payload, which also answers its operator menu's link (docs §6.3j).
+system: unis
+name: Big Foot Crush
+
+dll_overrides:
+  # Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+# loaded at the executable's entry point: Unity reads the screen's size before it loads
+# xinput1_3.dll (the 1080x1920 desktop must be there first)
+payload_loader: true
+
+# the cabinet's portrait picture
+args: [-screen-fullscreen, "1", -screen-width, "1080", -screen-height, "1920"]
+
+# the game's settings, by absolute path (/mnt/sdcard/UNIS_GameData, on C:)
+c_folders:
+  mnt: mnt
+
+files:
+  # The dump lacks the APK's settings (StreamingAssets/Setting): made for this cabinet. The game's
+  # own saved settings and coins are its files next to them.
+  mnt/sdcard/UNIS_GameData/BootLoader/BinName.ini: systemprofiles/unis/files/big-foot-crush/BinName.ini
+  mnt/sdcard/UNIS_GameData/Setting/Config.ini: systemprofiles/unis/files/big-foot-crush/Config.ini
+  mnt/sdcard/UNIS_GameData/Setting/PlayerSetting.ini: systemprofiles/unis/files/big-foot-crush/PlayerSetting.ini
+  mnt/sdcard/UNIS_GameData/Setting/UNIS_SettingFileList.ini: systemprofiles/unis/files/big-foot-crush/UNIS_SettingFileList.ini
+  mnt/sdcard/UNIS_GameData/Setting/Menu0/ConfigReadOnly.ini: systemprofiles/unis/files/big-foot-crush/ConfigReadOnly.ini
+  mnt/sdcard/UNIS_GameData/Setting/Menu0/Framework_Menu_Main.ini: systemprofiles/unis/files/big-foot-crush/Framework_Menu_Main.ini
+
+env:
+  WAL_UNIS_BOARD: bigfootcrush
+  # The cabinet's portrait monitor (the logo, the truck select and the game's counters are laid
+  # out on it): a 1080x1920 desktop for the game, its window fitted onto the real screen, black
+  # around; not managed, placed by the payload, never deactivated.
+  WAL_DESKTOP_SIZE: 1080x1920
+  WAL_BEZEL: black
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+
+input:
+  stick_as_dpad: false
+  # the keyboard: the up arrow is the gas
+  keyboard:
+    p1:
+      KEY_UP: accel
+
+controls:
+  lx: Wheel
+  accel: Gas
+  b1: Gas
+  start: Gas
+  left: Wheel left (operator menu value)
+  right: Wheel right (operator menu value)
+  coin: Coin
+  test: Operator menu (move down)
+  service: Operator menu select

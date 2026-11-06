@@ -98,7 +98,9 @@ fn loaded(module: usize) {
     }
     let dir = DIR.lock().unwrap().clone();
     let file = path(module);
-    if dir.is_empty() || !file.starts_with(&dir) {
+    // not this payload, installed under a DLL's name the game loads (Unity's xinput1_3.dll): its
+    // own calls are the real functions' (the fake desktop's real screen size)
+    if dir.is_empty() || !file.starts_with(&dir) || module == crate::workarea::this_module() {
         return;
     }
     done.push(module);

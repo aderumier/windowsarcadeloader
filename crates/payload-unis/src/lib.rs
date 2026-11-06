@@ -24,6 +24,9 @@
 //! Mighty Moto (Unity 2.x, 32-bit; `WAL_UNIS_BOARD=mightymoto`): `mightymoto.rs` gives the
 //! fake DirectInput keyboard its cabinet's keys (started with the payload by `wal-loader`).
 //!
+//! Big Foot Crush (Unity 2022, Mono, 32-bit; `WAL_UNIS_BOARD=bigfootcrush`): `bigfootcrush.rs` posts
+//! its keys from player 1's stick and answers its cabinets' link (the operator menu).
+//!
 //! Crazy Speed Arcade (Ogre, 32-bit; `WAL_UNIS_BOARD=game232`): `game232.rs` emulates its COM1
 //! driving board (started with the payload by `wal-loader`).
 //!
@@ -34,6 +37,7 @@
 
 mod afterdark;
 mod afterdark_stage4;
+mod bigfootcrush;
 mod eai_doors;
 mod game232;
 mod mightymoto;
@@ -73,7 +77,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             unity = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
         }
         // the keys the game polls: Mighty Moto's, from the virtual stick
-        let key_held: fn(i32) -> bool = if board.trim() == "mightymoto" { mightymoto::key_held } else { |_| false };
+        let key_held: fn(i32) -> bool = match board.trim() {
+            "mightymoto" => mightymoto::key_held,
+            "bigfootcrush" => bigfootcrush::key_held,
+            _ => |_| false,
+        };
         wal_payload_common::input_filter::init(unity, key_held);
         match board.trim() {
             "" | "shunxiang" => shunxiang::init(),
@@ -83,6 +91,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             "game232" => game232::init(),
             "wickedtuna" => wickedtuna::init(),
             "mightymoto" => mightymoto::init(),
+            "bigfootcrush" => bigfootcrush::init(),
             other => wal_payload_common::log!("unis: unknown board {other}"),
         }
     }

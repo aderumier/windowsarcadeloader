@@ -1,6 +1,6 @@
 //! UNIS: UNIS's PC-based arcade games (Dino Invasion, After Dark, Night Hunter, Raccoon
 //! Rampage, Crazy Ride, Elevator Action Invasion, Fantasy Soccer, Crazy Speed Arcade, Wicked
-//! Tuna, Mighty Moto).
+//! Tuna, Mighty Moto, Big Foot Crush).
 //!
 //! Dino Invasion (Unity 5.4, Mono, 64-bit; the "shunxiang" gun cabinet): our payload is the
 //! `xinput1_3.dll` Unity loads at start; it emulates the COM3 I/O board (coins, triggers, the
@@ -26,6 +26,10 @@
 //! Mighty Moto (Unity 2.x, 32-bit): started by `wal-loader` with the 32-bit payload, which
 //! gives the game its cabinet's keys from player 1's stick.
 //!
+//! Big Foot Crush (Unity 2022, Mono, 32-bit): started by `wal-loader` with the 32-bit payload,
+//! which gives the game its cabinet's keys from player 1's stick and answers its operator menu's
+//! link.
+//!
 //! Crazy Speed Arcade (Ogre, 32-bit): started by `wal-loader` with the 32-bit payload, which
 //! emulates its COM1 "game232" driving board and disarms its dongle, machine id and network.
 //!
@@ -37,7 +41,8 @@
 //! `gunmiddle gunright gunup gundown gunleft gunright2` (the gun's buttons), `test down enter`;
 //! Fantasy Soccer's `kick pass accelerate switch button2 coin` (each player), `test down enter`;
 //! Wicked Tuna's `hook reel coin` (each rod), `test service repair`; Mighty Moto's `start item
-//! coin test gas brake back handbrake left right menuleft menuright menuenter`; Crazy Speed
+//! coin test gas brake back handbrake left right menuleft menuright menuenter`; Big Foot Crush's
+//! `coin test service gas left right`; Crazy Speed
 //! Arcade's
 //! `button0`..`button21` (5 start, 4 view) and
 //! `coin`.

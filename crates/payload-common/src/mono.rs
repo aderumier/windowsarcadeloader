@@ -292,8 +292,19 @@ impl Mono {
             return false;
         }
         // jmp [rip+0]; the target's address
-        let mut jump = [0xFF, 0x25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        jump[6..].copy_from_slice(&(target as u64).to_le_bytes());
+        #[cfg(target_arch = "x86_64")]
+        let jump = {
+            let mut jump = [0xFF, 0x25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            jump[6..].copy_from_slice(&(target as u64).to_le_bytes());
+            jump
+        };
+        // jmp rel32
+        #[cfg(target_arch = "x86")]
+        let jump = {
+            let mut jump = [0xE9, 0, 0, 0, 0];
+            jump[1..].copy_from_slice(&(target as u32).wrapping_sub(code as u32 + 5).to_le_bytes());
+            jump
+        };
         use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
         use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
         use windows_sys::Win32::System::Threading::GetCurrentProcess;
