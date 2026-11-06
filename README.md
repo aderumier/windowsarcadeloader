@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (298)
+## Games (299)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -214,6 +214,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `koihime-enbu-ryorairai-v3` | Koihime Enbu RyoRaiRai Version 3 | apm3 | user 100% (2026-11-06); headless: Aime cards, modes, character select, test mode; no network versus | not in the test |  |
 | `goonya-fighter` | Goonya Fighter | apm3 | user 100% (2026-11-06); headless: Aime cards, play, test mode | not in the test |  |
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | not in the test |  |
+| `rolling-gunner` | Rolling Gunner | apm3 | works headless (2026-11-06): Aime cards, tutorial, test mode | not in the test |  |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | pass | 2026-11-01 |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | pass | 2026-11-01 |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | pass | 2026-11-01 |
