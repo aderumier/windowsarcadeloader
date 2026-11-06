@@ -207,7 +207,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `senxin-aleste` | Senxin Aleste | apm3 | user 100% (2026-11-06); headless: attract, coins, Aime cards (records, settings, rankings saved and reloaded), story play, test mode | not in the test |  |
 | `otoshu-dx` | Otoshu DX | apm3 | user 100% (2026-11-06), free play, touch dot; headless: touch screen (mouse / gun), Aime cards (name entry, login, data reloaded), songs, test mode | not in the test |  |
 | `kasiori` | Kasiori | apm3 | user 100% (2026-11-06), link reported available; headless: Aime cards, story play, test mode | not in the test |  |
-| `nosferatu-lilinor` | Nosferatu Lilinor | apm3 | works headless (2026-11-05): Aime cards (name entry), play, test mode | not in the test |  |
+| `nosferatu-lilinor` | Nosferatu Lilinor | apm3 | user 100% (2026-11-06), no play sequence id; headless: Aime cards (name entry), play, test mode | not in the test |  |
 | `pengo-online` | Pengo! Online | apm3 | works headless (2026-11-05): touch menus, Aime cards, play, test mode; "Aime / versus unavailable" banner (no link) | not in the test |  |
 | `puyo-puyo-e-sports` | Puyo Puyo e-Sports | apm3 | works headless (2026-11-05): Aime cards (terms, saved), play, test mode | not in the test |  |
 | `milkchan` | Milkchan | apm3 | works headless (2026-11-05): Aime cards, story, test mode | not in the test |  |
