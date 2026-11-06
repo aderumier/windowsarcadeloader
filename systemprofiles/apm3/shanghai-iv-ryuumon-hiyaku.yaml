@@ -1,0 +1,30 @@
+# Shanghai IV Ryuumon Hiyaku (Sega ALLS, APM3 edition; Unity, 64-bit). Runs Shanghai.exe -popupwindow; the test
+# switch starts its test mode (TestMode argument, the dump's gametest.bat), whose exit starts
+# the game again. It loads the system library by its path (X:\lib\apm.dll).
+# Aime card: always on the reader (the game asks after START); the card input (F4, pad guide)
+# takes it off. The player's data in apms/gs-<aime id>.json of the game folder (the payload's
+# ABAAS game server).
+# Override values in userprofiles/apm3/shanghai-iv-ryuumon-hiyaku.yaml.
+system: apm3
+name: Shanghai IV Ryuumon Hiyaku
+
+args: [-popupwindow]
+
+# the game loads the system library by its path, X:\lib\apm.dll: the payload is there too
+payload_install: [apm.dll, X/lib/apm.dll]
+run_drives:
+  x: X
+
+env:
+  WAL_APM3_TEST: Shanghai.exe
+  WAL_APM3_TEST_ARGS: "TestMode"
+  # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  card: Aime card (take off / put back)
