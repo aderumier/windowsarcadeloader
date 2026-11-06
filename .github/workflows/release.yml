@@ -1,12 +1,15 @@
-# Builds the launcher and the payloads (./build.sh) when a tag is pushed, and publishes them as a
-# GitHub release of that tag: windows-arcade-loader-<tag>.tar.gz, the Batocera emulator folder's
-# layout (tools/batocera/install.sh: arcade-launcher, payloads/, systemprofiles/, launcher.yaml,
-# the GUI wrapper and icon).
+# Builds the launcher and the payloads (./build.sh) into windows-arcade-loader-<version>.tar.gz,
+# the Batocera emulator folder's layout (tools/batocera/install.sh: arcade-launcher, payloads/,
+# systemprofiles/, launcher.yaml, the GUI wrapper and icon).
+# - a pushed tag: published as the GitHub release of that tag (<version> = the tag)
+# - run by hand (Actions tab, "Run workflow"): the tarball as the run's artifact only, no release
+#   (<version> = the branch and the commit's short hash)
 name: release
 
 on:
   push:
     tags: ["*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -43,15 +46,26 @@ jobs:
 
       - name: Package
         run: |
-          name=windows-arcade-loader-${GITHUB_REF_NAME}
+          if [ "$GITHUB_REF_TYPE" = tag ]; then version=$GITHUB_REF_NAME; else version=$GITHUB_REF_NAME-${GITHUB_SHA::7}; fi
+          name=windows-arcade-loader-${version//\//-}
+          echo "NAME=$name" >> "$GITHUB_ENV"
           tools/batocera/install.sh "staging/$name"
           tar -C staging -czf "$name.tar.gz" "$name"
           sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
 
+      - name: Artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.NAME }}
+          path: |
+            ${{ env.NAME }}.tar.gz
+            ${{ env.NAME }}.tar.gz.sha256
+
       - name: Release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          name=windows-arcade-loader-${GITHUB_REF_NAME}
-          gh release create "$GITHUB_REF_NAME" "$name.tar.gz" "$name.tar.gz.sha256" \
+          gh release create "$GITHUB_REF_NAME" "$NAME.tar.gz" "$NAME.tar.gz.sha256" \
             --title "$GITHUB_REF_NAME" --generate-notes
