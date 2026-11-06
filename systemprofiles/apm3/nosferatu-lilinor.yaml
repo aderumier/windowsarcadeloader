@@ -13,6 +13,9 @@ env:
   # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
   WAL_APM3_ONLINE: "1"
   WAL_APM3_CARD_AUTO: "1"
+  # no play sequence id in the game server's answers: the game refuses the player's data with
+  # one ("the play data could not be read")
+  WAL_APM3_GS_SEQ: "0"
 
 input:
   gamepad:

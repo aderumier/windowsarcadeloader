@@ -444,11 +444,19 @@ pub(crate) fn reply(path: &str, body: &[u8]) -> Vec<u8> {
         // without it): the server's for server/alive, the player's elsewhere (1: still playing
         // on another cabinet, "the last play did not end normally")
         Some(json) if value(&json, "control").is_none() => {
-            // the play's sequence id and token (strings: Puyo Puyo e-Sports reads `seq_id`; the
-            // games send them back)
+            // a play's sequence id and token (strings), given when a play starts (`user/load`
+            // with `control.start_game` 1: Puyo Puyo e-Sports reads `seq_id` there; the games send
+            // them back). `WAL_APM3_GS_SEQ=0`: never (Nosferatu Lilinor refuses the player's data
+            // with one: "the play data could not be read")
             static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
-            let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let control = format!(r#""control":{{"online":0,"seq_id":"{seq}","token":"{seq:08x}"}}"#);
+            let starts = value(&request, "start_game").is_some_and(|v| v.trim() == "1")
+                && crate::env("WAL_APM3_GS_SEQ").is_none_or(|v| v != "0");
+            let control = if starts {
+                let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                format!(r#""control":{{"online":0,"seq_id":"{seq}","token":"{seq:08x}"}}"#)
+            } else {
+                r#""control":{"online":0}"#.to_string()
+            };
             let json = match json.strip_suffix('}') {
                 Some(body) if body.len() > 1 => format!("{body},{control}}}"),
                 _ => format!("{{{control}}}"),
