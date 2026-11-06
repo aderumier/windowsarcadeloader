@@ -5301,7 +5301,9 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   `_name@4`, stdcall): no warning, the games still play against the CPU.
 * **Rolling Gunner** (`game01.exe`, 32-bit SDL2, Senxin Aleste's engine): test mode `-t`; its
   sounds read from `C:\SDGW\sound` (the dump's `game.bat` copies `resource\sound` there): the
-  profile's `c_folders` link it. The Aime prompt's default is "don't use" (left then button 1).
+  profile's `c_folders` link it. Full screen with `-f` (the dump's `fullscreen.bat`; windowed
+  without), the test mode too (`-t -f`). The Aime prompt's default is "don't use" (left then
+  button 1).
 * **Shanghai IV Ryuumon Hiyaku** (Unity, 64-bit, Mono): as Kasiori (`X:/lib/apm.dll` by its path,
   `run_drives`; test mode `TestMode`; `-popupwindow`). Its `apmgamepad.dll` (the cabinet's gamepad
   library, DirectInput / XInput) is never called by the game. The Aime prompt's default is "play
@@ -5665,7 +5667,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `koihime-enbu-ryorairai-v3` | Koihime Enbu RyoRaiRai Version 3 | apm3 | user 100% (2026-11-06); headless: Aime cards, modes, character select, test mode; no network versus | Sega ALLS APM3 (§6.3k): 32-bit, same-program test mode |
 | `goonya-fighter` | Goonya Fighter | apm3 | user 100% (2026-11-06); headless: Aime cards, play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, game and test program in folders |
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
-| `rolling-gunner` | Rolling Gunner | apm3 | works headless (2026-11-06): Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
+| `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
