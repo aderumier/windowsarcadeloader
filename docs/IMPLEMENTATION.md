@@ -5258,7 +5258,7 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   by `GameAssembly.dll`). A touch screen game: `WAL_APM3_TOUCH=1` (`touch.rs`) makes player 1's
   gun (the mouse, or the pointer `lx` / `ly`) the screen and its `touch` input (`b1`) the
   touch, posted as the window's left mouse button (Unity's touch screen is its mouse), the real
-  mouse and keyboard filtered (`input_filter`, the Unity player's cursor polls). Test mode:
+  mouse and keyboard filtered (`input_filter`, the Unity player's cursor polls). A red dot where it touches (the game shows no cursor): the common crosshair option (`WAL_CROSSHAIR`, on in the profile), drawn over the Direct3D 11 picture (`pointer_d3d11`). Test mode:
   `otsdx.exe -t` (`gl::Start` sets its test flag when the command line has an argument). Found
   without a decompiler (Hopper ran out of memory): the IL2CPP metadata (v24.1) types, fields and
   method pointers (`CodeRegistration`'s `methodPointers`, found by its count) read by a script,

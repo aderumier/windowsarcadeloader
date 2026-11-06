@@ -3,11 +3,14 @@
 //! trigger, the profile's `native_map`), posted as the game window's left mouse button: Unity
 //! reads touch screens' presses as its mouse. The real mouse and keyboard never reach the game
 //! (`input_filter`, the Unity player's cursor polls answered with the payload's cursor).
+//! A dot where it touches over the Direct3D 11 picture (the game shows no cursor): the common
+//! crosshair option (`WAL_CROSSHAIR=1`, off by default; `WAL_CROSSHAIR_SIZE` its diameter in
+//! percent of the picture's height, 1.5; `WAL_CROSSHAIR_COLOR` `RRGGBB`, red).
 
 use std::time::Duration;
 
 use wal_payload_common::input_filter::{own_mouse, post_mouse, post_raw_buttons};
-use wal_payload_common::{gun, log};
+use wal_payload_common::{gun, log, pointer_d3d11};
 use windows_sys::Win32::Foundation::RECT;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE};
@@ -24,6 +27,18 @@ pub(crate) fn start() {
     wal_payload_common::input_filter::init(unity, |_| false);
     own_mouse(unity);
     log!("touch: player 1's gun touches the screen (Unity player {unity:#x})");
+    if wal_payload_common::crosshairs(false) {
+        let size = crate::env("WAL_CROSSHAIR_SIZE").and_then(|v| v.parse::<f32>().ok()).unwrap_or(1.5);
+        let color = crate::env("WAL_CROSSHAIR_COLOR")
+            .and_then(|v| u32::from_str_radix(&v, 16).ok().filter(|_| v.len() == 6))
+            .map_or([1.0, 0.125, 0.125], |n| [(n >> 16) as u8, (n >> 8) as u8, n as u8].map(|c| c as f32 / 255.0));
+        pointer_d3d11::init(pointer_d3d11::Dot {
+            color,
+            size: (size / 100.0).clamp(0.005, 0.2),
+            position: gun::gun_in_picture,
+            crosshair: false,
+        });
+    }
     std::thread::spawn(|| {
         let (mut was, mut last) = (false, (i32::MIN, i32::MIN));
         loop {
