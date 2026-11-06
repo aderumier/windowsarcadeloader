@@ -17,6 +17,8 @@
 //! - `WAL_APM3_FREEPLAY=0`: coins, 1 credit per game (default: free play)
 //! - `WAL_APM3_TEST`: the test program the game's test switch starts (default `TestModeApp.exe`);
 //!   `WAL_APM3_TEST_ARGS`: its arguments (a test mode of the game's own program: `-t`)
+//! - `WAL_APM3_LINK_READY=0`: `abaaslink.dll`'s link left unavailable (default: reported
+//!   available, no "matching unavailable" warning)
 //! - `WAL_APM3_TOUCH=1`: a touch screen game (player 1's gun and `touch` input)
 //! - `WAL_APM3_GS_KEY`, `WAL_APM3_GS_MODULE`: the ABAAS game server's key (default: learnt),
 //!   the DLL of its client (default `abaasgs.dll`)
