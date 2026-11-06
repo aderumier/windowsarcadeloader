@@ -155,13 +155,13 @@ static SET_RESOLUTION: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomi
 extern "C" fn set_resolution(width: i32, height: i32, _fullscreen: u8) {
     let sh = desktop::size().map_or_else(|| unsafe { GetSystemMetrics(SM_CYSCREEN) }, |d| d.1);
     let w = if height > 0 { (sh as i64 * width as i64 / height as i64) as i32 } else { width };
-    log!("bullseye: SetResolution({width}, {height}) -> {w}x{sh}");
+    log!("Screen.SetResolution({width}, {height}) -> {w}x{sh}");
     let f: extern "C" fn(i32, i32, u8, i32) = unsafe { std::mem::transmute(SET_RESOLUTION.load(Ordering::Relaxed)) };
     f(w, sh, desktop::size().is_some() as u8, 0);
 }
 
 /// Replaces `Screen.SetResolution(int, int, bool)` once UnityEngine's assembly is loaded.
-fn replace_set_resolution() {
+pub(crate) fn replace_set_resolution() {
     type P = *mut std::ffi::c_void;
     use wal_payload_common::mono::mono;
     for _ in 0..20000 {
@@ -176,7 +176,7 @@ fn replace_set_resolution() {
         let get = |n: &[u8]| unsafe { GetProcAddress(module, n.as_ptr()) }.map(|f| f as usize).unwrap_or(0);
         let (desc_new, desc_search, compile) = (get(b"mono_method_desc_new\0"), get(b"mono_method_desc_search_in_class\0"), get(b"mono_compile_method\0"));
         if screen.is_null() || desc_new == 0 || desc_search == 0 || compile == 0 {
-            log!("bullseye: Screen.SetResolution not found");
+            log!("Screen.SetResolution not found");
             return;
         }
         let find = |sig: &[u8]| -> P {
@@ -188,13 +188,13 @@ fn replace_set_resolution() {
         };
         let (three, four) = (find(b":SetResolution(int,int,bool)\0"), find(b":SetResolution(int,int,bool,int)\0"));
         if three.is_null() || four.is_null() {
-            log!("bullseye: Screen.SetResolution overloads not found");
+            log!("Screen.SetResolution overloads not found");
             return;
         }
         let compile: extern "C" fn(P) -> usize = unsafe { std::mem::transmute(compile) };
         SET_RESOLUTION.store(compile(four), Ordering::Relaxed);
         let ok = m.replace(three, set_resolution as *const () as usize);
-        log!("bullseye: Screen.SetResolution fitted on the screen ({ok})");
+        log!("Screen.SetResolution fitted on the screen ({ok})");
         return;
     }
 }

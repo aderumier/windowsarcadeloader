@@ -1,0 +1,5 @@
+REGEDIT4
+
+; the game's window not managed by the window manager (a panel pushed it down, the picture cut)
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\SpaceWarp.exe\X11 Driver]
+"Managed"="N"

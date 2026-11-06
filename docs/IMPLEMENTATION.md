@@ -4302,6 +4302,35 @@ build, loaded by `wal-loader`):
 - **Not done.** The operator menu is the Shell's (`Sega/Shell/Shell.exe`, not run): the settings
   are the dump's `ShellData/*.ini`. TEST does nothing here.
 
+#### Space Warp 66
+
+Touchmagix's ticket game (`SpaceWarp.exe`, Unity 2019.3, Mono, 64-bit, OpenGL, portrait): a ship
+in a tube turned with one spinner, 66 rings for the jackpot. A Linux cabinet's game in a Windows
+build (`spacewarp.rs`, `WAL_ARCADEPC_BOARD=spacewarp`):
+
+- **Linux calls.** `/usr/bin/find /dev -name ttyUSB*` and `/bin/udevadm` are answered by Mono's
+  `CreateProcessW` import (their output written to the pipe Mono gave, signaled handles). No disk
+  serial and no file in `C:\dev\disk\by-id\`: the licence's two empty serials agree, its key is
+  always `66c43ccaa9bc28ef668cac779b4cea2b`, written to `Config.xml` at each start.
+- **Settings.** `/touchmagix/config/` is on the current drive: `C:\touchmagix` is the dump's
+  `touchmagix` folder (`c_folders`). `Config.xml` is made with the game's defaults when missing (the
+  dump's `StreamingAssets/Config.xml` is unused); the common `WAL_FREEPLAY` is `FreePlayMode`.
+- **Boards.** Mono's `SerialPort` on `/dev/ttyUSB0` (credits: `G` answers `I`, `play` a coin,
+  tickets dropped) and `/dev/ttyUSB1` (the spinner: degrees turned per line, positive to the left).
+  Lines end with `\r\n`, its Windows `NewLine`. An empty read must be Mono's pending read over with
+  0 bytes (`TimeoutException`): a read returning 0 at once gives an empty line, and in free play any
+  line starts a game.
+- **Spinner.** The mouse (`mouse_wrap`, `rx`: `WAL_SPACEWARP_MOUSE`, degrees per count), the left
+  stick and `left` / `right` (`WAL_SPACEWARP_SPEED`, degrees per second) add up. The game keeps one
+  line in a static string its `FixedUpdate` empties: the next one waits until it is (read from
+  the payload, 100 ms at most: the attract screen does not empty it), so no turn is lost.
+- **Display.** OpenGL's default framebuffer is the window's: a 1080x1920 fake desktop is clipped.
+  `Screen.SetResolution` is fitted on the screen's height (Bullseye's replacement) in a 9:16
+  borderless window, in the dump's `bezel.png` (`WAL_BEZEL_FIT=stretch`). The window is not managed
+  (Wine's `Managed=N` in the profile's registry: a panel pushed it down, the picture cut; the payload
+  at the entry point instead stops Unity before its first frame); the payload tells it it has the focus (Unity ignores posted keys otherwise).
+- **Operator menu.** `test` posts `C`, the arrows and `service` / `b1` (Enter) drive it.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -5803,6 +5832,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | Uniana (OpenGL, 32-bit, §6.3i): the payload is its `xio.dll` (`XIO` class, exported input bytes); pedals pushed by turns from one button or the accelerator; needs the runner's `winedmo-parser-rewind-after-eos` (music loop hang) |
 | `hog-wild` | Hog Wild | arcadepc | user 100% (2026-11-05) | Uniana (Direct3D 8, 32-bit, §6.3i): the payload is its `Interface.dll` (the original `CInterface` library forwarded, its parallel port board emulated: buttons, handle ADC); patches: the boot's volume serial check skipped (hung in Wine), the menus' handle reading restored; 4:3 window, black sides; no force feedback |
+| `space-warp-66` | Space Warp 66 | arcadepc | user 100% (2026-11-06), 1 spinner, bezel | Touchmagix (Unity 2019.3, Mono, 64-bit, OpenGL, §6.3i): the payload (`xinput1_3.dll`) emulates its two serial boards and answers its Linux commands; the spinner is the mouse, left stick or left / right; 9:16 window at the screen's height, the dump's bezel |
 | `pigs-might-fly` | Pigs Might Fly | arcadepc | user 100% (2026-11-06) | Gamewax (Direct3D 9, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (`wal-loader`) is its USB board (vendor 0x1043), the game run without its Shell (`SHELLENABLE=0`, `/h=1`); upright portrait picture in the dump's bezel; no tickets paid; no operator menu |
 | `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | DND Arcade (Direct3D 8, 32-bit, §6.3i): the payload is its `SDC2.dll` force feedback wheel board (axes, buttons, coin counter, motor as constant force); patches: the link's bind length, its host request to 127.0.0.1; no frame limit (loading); 1920x1080 settings; runner patch 0112 (VMR-9 device multithreaded) |
 | `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage) |

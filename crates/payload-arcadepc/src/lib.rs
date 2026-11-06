@@ -51,6 +51,9 @@
 //! Pigs Might Fly (`WAL_ARCADEPC_BOARD=gamewax`, x86 build): `gamewax.rs` emulates its USB board
 //! and overrides its settings (no Shell).
 //!
+//! Space Warp 66 (`WAL_ARCADEPC_BOARD=spacewarp`): `spacewarp.rs` emulates its two serial boards
+//! (coins, the spinner: mouse, stick or keys) and answers its Linux commands.
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -73,6 +76,7 @@ mod pads;
 #[cfg(target_arch = "x86")]
 mod sdc2;
 mod softkey;
+mod spacewarp;
 mod topgun;
 mod uaf;
 mod unrealio;
@@ -181,6 +185,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 gamewax::init();
+            }
+            _ if board.trim() == "spacewarp" => {
+                pads::disconnect();
+                wal_payload_common::input_filter::init(unity, spacewarp::key_held);
+                spacewarp::init();
             }
             _ if board.trim() == "bullseye" => {
                 pads::disconnect();

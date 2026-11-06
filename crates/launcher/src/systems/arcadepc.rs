@@ -19,6 +19,9 @@
 //! test accelerator brake gear_high gear_low view steer_left steer_right`, the left stick steers.
 //! Pigs Might Fly (32-bit, `WAL_ARCADEPC_BOARD=gamewax`): the payload is its USB board, no Shell;
 //! natives `start lever coin`.
+//! Space Warp 66 (64-bit, `WAL_ARCADEPC_BOARD=spacewarp`): the payload is its two serial boards;
+//! natives `coin start left right up down menu ok`, the mouse (`rx`), left stick and `left` /
+//! `right` turn the spinner.
 
 use super::{Payload, System};
 

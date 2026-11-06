@@ -301,6 +301,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | not in the test |  |
 | `hog-wild` | Hog Wild | arcadepc | user 100% (2026-11-05) | not in the test |  |
 | `pigs-might-fly` | Pigs Might Fly | arcadepc | user 100% (2026-11-06) | not in the test |  |
+| `space-warp-66` | Space Warp 66 | arcadepc | user 100% (2026-11-06), 1 spinner | not in the test |  |
 | `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | not in the test |  |
 | `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | not in the test |  |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | not in the test |  |

@@ -1,0 +1,72 @@
+# Space Warp 66 (Touchmagix, Unity 2019.3, Mono, 64-bit, portrait) - template, override values in
+# userprofiles/arcadepc/space-warp-66.yaml.
+# A ticket game played with one spinner: the payload emulates its two serial boards and answers
+# its Linux commands (docs §6.3i). The spinner is the mouse, the left stick or left / right.
+system: arcadepc
+name: Space Warp 66
+
+# Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+# windowed (the payload's fitted Screen.SetResolution): no title bar, no frame
+args: [-popupwindow]
+
+# the game's settings and statistics (/touchmagix/config/, on C:)
+c_folders:
+  touchmagix: touchmagix
+
+env:
+  WAL_ARCADEPC_BOARD: spacewarp
+  # The cabinet's portrait picture, its aspect kept. OpenGL: rendered at the window's size (the
+  # payload fits the game's Screen.SetResolution), no fake desktop.
+  WAL_D3D9_ASPECT: "9:16"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  # the art around it (the dump's), its opening fitted to the game's window, its parts stretched
+  # to the screen's edges
+  WAL_BEZEL: bezel.png
+  WAL_BEZEL_FIT: stretch
+
+# Wine's X11 option for the executable: its window not managed, at the top of the screen (a panel
+# pushed it down, the picture cut). In the registry: the payload, which Unity loads, comes after
+# the X11 driver starts.
+registry: [systemprofiles/arcadepc/files/space-warp-66/window.reg]
+
+input:
+  # the stick turns the spinner, it must not press left / right too
+  stick_as_dpad: false
+  # The mouse is the spinner: its position wraps (a counter) on the right stick's x axis.
+  guns_enabled: true
+  guns_mice: 1
+  mouse_screen: [65536, 65536]
+  mouse_wrap: true
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: none
+    BTN_RIGHT: none
+    BTN_MIDDLE: none
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins, with start or a turn of the spinner. Off: a coin starts a
+          game.
+
+controls:
+  lx: Spinner
+  left: Spinner left (operator menu left)
+  right: Spinner right (operator menu right)
+  up: Operator menu up
+  down: Operator menu down
+  start: Start (free play)
+  coin: Coin
+  test: Operator menu
+  service: Operator menu OK
+  b1: Operator menu OK
