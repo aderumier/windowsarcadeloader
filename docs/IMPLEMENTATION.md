@@ -4275,6 +4275,33 @@ board (`CommSetting.ini`: 32-bit protocol over USB).
 - **Not done.** Outputs (start lamps, vibration, ball motors, water spray). A static "ERROR: IO
   Exception!!" label in the operator menu (no script toggles it).
 
+#### Pigs Might Fly
+
+Gamewax's redemption game (2009, `Sega/PigsMightFly/PigsMightFly.exe`, Direct3D 9, 32-bit, `.windowsloader`
+below the dump root): one lever launches a pig at flying saucers, tickets won by what it hits. The
+dump keeps the cabinet's `C:\Sega` tree, with Sega Amusements' `Shell.exe` beside the game (coins,
+tickets, operator menu). The game runs without it (`gamewax.rs`, `WAL_ARCADEPC_BOARD=gamewax`, x86
+build, loaded by `wal-loader`):
+
+- **Board.** The HID device of vendor 0x1043 product 0 (the board of SEGA Rally 3), found with
+  SetupAPI (`0x43eaa0`), named "GAMEPAD" from its collection (usage 1 / 5) and read by a thread
+  (`0x43ef50`): 15-byte reports, bytes 6 / 7 the buttons (bit 0 start, 4 the lever, 12 TEST, 13
+  SERVICE). All answered by IAT hooks; the lamps' output reports are dropped.
+- **No Shell.** The game quits without a Shell window on its command line (`/h=<window>`): the
+  profile's `/h=1` is a dummy, since `[system] SHELLENABLE=0` makes it send nothing (`0x4400e0`).
+  In that mode SERVICE is a credit (`0x43e720`, on its release): the payload's coin.
+- **Settings.** `WAL_ARCADEPC_INI=<section>/<key>=<value>,...` answers `GetPrivateProfileStringA`
+  (`[system]` is `.\game.ini`, `[GameSettings]` `..\ShellData\GameSettings.ini`, the others
+  `..\ShellData\ShellData.ini`); the common `WAL_FREEPLAY` is `Credit/Freeplay`.
+- **Tickets.** Tickets are counted by the Shell's messages: without them the game stays on VENDING
+  ERROR. Its free play path pays none (`0x43f238`, `0x43f420`: 5 frames, nothing owed); the patch
+  `0x3F240:9090` takes that path with coins too.
+- **Display.** The cabinet's monitor is on its side: `SCREEN_WIDTH` x `SCREEN_HEIGHT` 1280x768 and
+  `RENDER_FLAG=5` turn the picture. Overridden to 768x1280 and 0, upright, windowed
+  (`WAL_D3D9_WINDOWED_SIZE`) in a 3:5 borderless window, in the dump's `bezel.png` (`WAL_BEZEL_FIT=1`).
+- **Not done.** The operator menu is the Shell's (`Sega/Shell/Shell.exe`, not run): the settings
+  are the dump's `ShellData/*.ini`. TEST does nothing here.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -5776,6 +5803,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons | Dacheng's UAF framework (Unity 2019.2 IL2CPP, 32-bit, §6.3i): rebuilt dump; the payload emulates the `io_board.dll` IO board and the SuperDog (`api_dsp_windows.dll`) through `GameAssembly.dll`'s `GetProcAddress`, `MoveGunController` jumped to the payload's (each cannon's place) |
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) | Uniana (OpenGL, 32-bit, §6.3i): the payload is its `xio.dll` (`XIO` class, exported input bytes); pedals pushed by turns from one button or the accelerator; needs the runner's `winedmo-parser-rewind-after-eos` (music loop hang) |
 | `hog-wild` | Hog Wild | arcadepc | user 100% (2026-11-05) | Uniana (Direct3D 8, 32-bit, §6.3i): the payload is its `Interface.dll` (the original `CInterface` library forwarded, its parallel port board emulated: buttons, handle ADC); patches: the boot's volume serial check skipped (hung in Wine), the menus' handle reading restored; 4:3 window, black sides; no force feedback |
+| `pigs-might-fly` | Pigs Might Fly | arcadepc | user 100% (2026-11-06) | Gamewax (Direct3D 9, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (`wal-loader`) is its USB board (vendor 0x1043), the game run without its Shell (`SHELLENABLE=0`, `/h=1`); upright portrait picture in the dump's bezel; no tickets paid; no operator menu |
 | `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | DND Arcade (Direct3D 8, 32-bit, §6.3i): the payload is its `SDC2.dll` force feedback wheel board (axes, buttons, coin counter, motor as constant force); patches: the link's bind length, its host request to 127.0.0.1; no frame limit (loading); 1920x1080 settings; runner patch 0112 (VMR-9 device multithreaded) |
 | `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage) |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |

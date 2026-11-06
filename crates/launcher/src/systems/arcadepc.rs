@@ -17,6 +17,8 @@
 //! Hog Wild (32-bit, `WAL_ARCADEPC_BOARD=interface`): the payload is its `Interface.dll` (the
 //! original library forwarded, its parallel port board emulated); natives `coin start service
 //! test accelerator brake gear_high gear_low view steer_left steer_right`, the left stick steers.
+//! Pigs Might Fly (32-bit, `WAL_ARCADEPC_BOARD=gamewax`): the payload is its USB board, no Shell;
+//! natives `start lever coin`.
 
 use super::{Payload, System};
 

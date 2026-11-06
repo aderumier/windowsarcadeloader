@@ -1,0 +1,46 @@
+# Pigs Might Fly (Gamewax, 2009, Direct3D 9, 32-bit, portrait) - template, override values in
+# userprofiles/arcadepc/pigs-might-fly.yaml.
+# A redemption game of the Sega Amusements Shell family: the payload emulates the cabinet's USB
+# board (buttons, coins), the game runs without its Shell (docs §6.3i).
+system: arcadepc
+name: Pigs Might Fly
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# the Shell's window: the game quits without one (it sends it nothing, SHELLENABLE below)
+args: [/h=1]
+
+env:
+  WAL_ARCADEPC_BOARD: gamewax
+  # no Shell; the cabinet's portrait picture drawn upright, not turned for its sideways monitor
+  WAL_ARCADEPC_INI: "system/SHELLENABLE=0,system/SCREEN_WIDTH=768,system/SCREEN_HEIGHT=1280,system/RENDER_FLAG=0"
+  # Tickets: without a Shell to count them the game stays on VENDING ERROR, except in its free
+  # play path, which pays none (0x43f238: the free play test skipped, for coins too).
+  WAL_PATCHES: "0x3F240:9090"
+  # the portrait picture in a borderless window, its aspect kept
+  WAL_D3D9_WINDOWED_SIZE: 768x1280
+  WAL_D3D9_ASPECT: "3:5"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  # the cabinet art around it (the dump's root), its opening fitted to the game's window
+  WAL_BEZEL: ../../bezel.png
+  WAL_BEZEL_FIT: "1"
+  WAL_DESKTOP_UNMANAGED: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: a coin per game.
+
+controls:
+  b1: Lever (launch)
+  start: Start
+  coin: Coin
+  service: Coin

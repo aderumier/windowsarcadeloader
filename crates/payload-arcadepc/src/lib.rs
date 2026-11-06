@@ -48,6 +48,9 @@
 //! Wasteland Racers 2071 (`WAL_ARCADEPC_BOARD=sdc2`, x86 build): `sdc2.rs` is its `SDC2.dll`
 //! (the force feedback wheel board: wheel, pedals, buttons).
 //!
+//! Pigs Might Fly (`WAL_ARCADEPC_BOARD=gamewax`, x86 build): `gamewax.rs` emulates its USB board
+//! and overrides its settings (no Shell).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -60,6 +63,8 @@ mod bullseye;
 mod commking;
 mod demul;
 mod gameport;
+#[cfg(target_arch = "x86")]
+mod gamewax;
 #[cfg(target_arch = "x86")]
 mod interface;
 mod jxboard;
@@ -167,6 +172,15 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 // the game's window messages: the executable's
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "gamewax" => {
+                pads::disconnect();
+                wal_payload_common::patches::apply();
+                // the game's window messages: the executable's
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                gamewax::init();
             }
             _ if board.trim() == "bullseye" => {
                 pads::disconnect();
