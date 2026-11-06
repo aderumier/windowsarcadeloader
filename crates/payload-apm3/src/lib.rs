@@ -42,6 +42,7 @@ mod cts;
 mod debug;
 mod emoney;
 mod gs;
+mod link;
 mod touch;
 
 use std::collections::HashMap;
@@ -196,6 +197,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         // the game's patches, not the test program's
         if !IS_TEST_PROGRAM.load(Ordering::Relaxed) {
             emoney::start();
+            link::start();
             if touch::enabled() {
                 touch::start();
             }

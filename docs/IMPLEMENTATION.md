@@ -5287,6 +5287,11 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   `gametest\` (`WAL_APM3_TEST: ..\gametest\gametest.exe`, the payload in both folders by
   `payload_install`); a Unity game's main thread ends before its process: with a relaunch asked
   the launcher ends the process and relaunches (no crash stop).
+* **The link DLL** (`link.rs`): games with the ABAAS link client in `abaaslink.dll` (Kasiori,
+  Goonya Fighter, Koihime Enbu) show "in-store matching unavailable" and a network icon not
+  green without a link server; `WAL_APM3_LINK_READY` (default on, unless `WAL_APM3_ABAAS_LINK`)
+  patches its `linkIsAvailable` / `linkIsChecked` exports to answer 1 once it is loaded (x86:
+  `_name@4`, stdcall): no warning, the games still play against the CPU.
 * **Shanghai IV Ryuumon Hiyaku**: the dump has no `Shanghai.exe` / `UnityPlayer.dll` (data and
   plugins only): not runnable.
 
