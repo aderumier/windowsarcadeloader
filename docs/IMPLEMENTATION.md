@@ -5141,7 +5141,7 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   Night: A B C D = push01 push02 push03 push05 (profile: b4 = push05, b5 = push04).
 * **Credits.** The `coin` input adds a credit and calls the game's coin hook
   (`Credit_setCoinInHook`); `Sequence_beginPlay` / `continuePlay` pay 1. `Credit_toString` is
-  the number only (the game prints `CREDIT(S) %s`, `FREE PLAY` itself). `WAL_APM3_FREEPLAY=1`.
+  the number only (the game prints `CREDIT(S) %s`, `FREE PLAY` itself). Free play by default (`WAL_APM3_FREEPLAY=0`: coins).
 * **Test menu.** The game reads the test switch itself and calls `Core_exitGame(1)`: the payload
   requests a relaunch `exe=TestModeApp.exe` (`WAL_APM3_TEST`, the dump's `gametest.bat`), whose
   `Core_exitGame` relaunches the game. The process is ended 3 s after `Core_exitGame` (the
@@ -5307,7 +5307,8 @@ repository) runs `arcade-launcher run <rom> --root <emulator dir> --profile <es 
   (`writesToRom`, kept in `/userdata/saves/<system>/<image>`) and hands the mounted directory.
 * ES options (`es_features_windowsarcadeloader.cfg`): rotation (`reshade`), renderer (`dxvk`),
   mouse as gun (`input.guns_mouse`), keyboard (`input.keyboard_enabled`), keep aspect ratio
-  (`env.WAL_KEEP_ASPECT_RATIO`), crosshairs (`env.WAL_CROSSHAIR`, the common crosshair option).
+  (`env.WAL_KEEP_ASPECT_RATIO`), crosshairs (`env.WAL_CROSSHAIR`, the common crosshair option),
+  free play (`env.WAL_FREEPLAY`, §6.6).
   Only the options set in
   ES are written to the `--profile` layer (merged last), so a game's own value stays otherwise.
 * Hotkey exit runs `pkill -TERM -x arcade-launcher` (the launcher stops the game on SIGTERM).
@@ -5324,6 +5325,18 @@ Gashaaaan Refill! (konami `crosshair.rs` overlay, on), Elevator Action Death Par
 `P1.png`/`P2.png`, off), and the touch pointers of Winning Eleven 2012, Yu-Gi-Oh! DT6, Steel
 Chronicle (on). A new game: set `WAL_CROSSHAIR` in its profile's `env` and read it with
 `crosshairs()` in the payload.
+
+### 6.6 Common free play option (`WAL_FREEPLAY`)
+
+`WAL_FREEPLAY` (`1` / `0`; `defaults.yaml`: `1`) makes the games start without coins where the
+system's payload can set it: `wal_payload_common::free_play(<system variable>)` answers the
+system's own variable when set (`WAL_APM3_FREEPLAY`, `WAL_KONAMI_FREEPLAY`,
+`WAL_SEGASHELL_FREEPLAY`, `WAL_EUROPAR_FREEPLAY`, `WAL_UNIS_FREEPLAY`, `WAL_NAMCOES3_FREEPLAY`: a
+profile's own option wins), else `WAL_FREEPLAY`, else none (the game's setting kept). Used by
+apm3 (`Credit_isFreePlay`), Konami (ARK settings, Bishi Bashi's system), Sega Shell
+(`Credit/Freeplay`), Europa-R (`FreePlay`), UNIS (Qumo's `Free_Play`, After Dark) and the WMMT5
+terminal. The GUI shows it in the Common options of these systems' games
+(`config::FREEPLAY_SYSTEMS`); Batocera's FREE PLAY (`wal_freeplay`) writes it.
 
 ## 7. Adding a system
 

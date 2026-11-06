@@ -30,10 +30,9 @@ fn overrides() -> &'static [(String, String, String)] {
                 Some((section.trim().to_string(), key.trim().to_string(), value.trim().to_string()))
             })
             .collect();
-        if let Ok(v) = std::env::var("WAL_SEGASHELL_FREEPLAY").map(|v| v.trim().to_string()) {
-            if !v.is_empty() {
-                list.push(("Credit".into(), "Freeplay".into(), v));
-            }
+        // `WAL_SEGASHELL_FREEPLAY`, else the common `WAL_FREEPLAY`
+        if let Some(on) = wal_payload_common::free_play("WAL_SEGASHELL_FREEPLAY") {
+            list.push(("Credit".into(), "Freeplay".into(), if on { "1" } else { "0" }.into()));
         }
         list
     })

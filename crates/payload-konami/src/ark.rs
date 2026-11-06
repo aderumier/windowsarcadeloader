@@ -92,10 +92,9 @@ pub(crate) fn edit_settings(xml_path: &str, crc_path: &str, edit: impl FnOnce(&m
     edit(&mut xml);
     // the operator clock set (the PC's clock; unset: 5-2503-0000 "set the clock")
     xml = xml.replace("<is_set __type=\"s32\">0</is_set>", "<is_set __type=\"s32\">1</is_set>");
-    match std::env::var("WAL_KONAMI_FREEPLAY").ok().as_deref().map(str::trim) {
-        Some("1") => _ = set_current(&mut xml, "freeplay", 1),
-        Some("0") => _ = set_current(&mut xml, "freeplay", 0),
-        _ => {}
+    // `WAL_KONAMI_FREEPLAY`, else the common `WAL_FREEPLAY`; neither: the game's setting
+    if let Some(on) = wal_payload_common::free_play("WAL_KONAMI_FREEPLAY") {
+        _ = set_current(&mut xml, "freeplay", on as i32);
     }
     let bytes: Vec<u8> = xml.chars().map(|c| c as u8).collect();
     if bytes == text {

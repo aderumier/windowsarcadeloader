@@ -89,7 +89,7 @@ static FREE_PLAY: Mutex<FreePlay> = Mutex::new(FreePlay { held: [false; GUNS], p
 
 fn free_play_on() -> bool {
     static ON: OnceLock<bool> = OnceLock::new();
-    *ON.get_or_init(|| std::env::var("WAL_UNIS_FREEPLAY").map_or(true, |v| v.trim() != "0"))
+    *ON.get_or_init(|| wal_payload_common::free_play("WAL_UNIS_FREEPLAY").unwrap_or(true))
 }
 
 /// Free play: a start press is a coin (its first 120 ms: the board counts one per 100 ms

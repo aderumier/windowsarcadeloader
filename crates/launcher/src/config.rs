@@ -15,6 +15,10 @@ pub const USER_PROFILES: &str = "userprofiles";
 /// The common crosshair option (`1`/`0`), in `env`: a game profile setting it (its default)
 /// can show crosshairs; the GUI's Common options and Batocera's CROSSHAIRS change it.
 pub const CROSSHAIR_ENV: &str = "WAL_CROSSHAIR";
+/// The common free play option (`1`/`0`, default `1`: `defaults.yaml`), for the systems whose
+/// payload can set free play ([`FREEPLAY_SYSTEMS`]).
+pub const FREEPLAY_ENV: &str = "WAL_FREEPLAY";
+pub const FREEPLAY_SYSTEMS: &[&str] = &["apm3", "konami", "segashell", "europar", "unis", "namcoes3"];
 const DEFAULTS: &str = include_str!("defaults.yaml");
 
 /// Graphics stack for old DirectDraw/D3D games.
@@ -349,29 +353,37 @@ impl Profile {
 
     /// The common options of the games able to use them, for the GUI's Options tab (unless the
     /// game declares the option itself, with its own label): the crosshairs of the games whose
-    /// profile sets [`CROSSHAIR_ENV`] (their default).
+    /// profile sets [`CROSSHAIR_ENV`] (their default), free play for [`FREEPLAY_SYSTEMS`].
     fn add_common_options(&mut self) {
         let declared = |key: &str| self.options.iter().flat_map(|g| &g.options).any(|o| o.key == key);
+        let option = |key: &str, label: &str, description: &str| GameOption {
+            key: key.into(),
+            label: Some(label.into()),
+            kind: OptionKind::Bool,
+            choices: Vec::new(),
+            min: None,
+            max: None,
+            description: Some(description.into()),
+        };
+        let mut common = Vec::new();
         if self.env.contains_key(CROSSHAIR_ENV) && !declared(CROSSHAIR_ENV) {
-            self.options.insert(
-                0,
-                OptionGroup {
-                    title: Some("Common".into()),
-                    options: vec![GameOption {
-                        key: CROSSHAIR_ENV.into(),
-                        label: Some("Crosshairs".into()),
-                        kind: OptionKind::Bool,
-                        choices: Vec::new(),
-                        min: None,
-                        max: None,
-                        description: Some(
-                            "Each player's crosshair shown where the gun (or mouse) aims. Batocera: \
-                             CROSSHAIRS in the game's advanced settings."
-                                .into(),
-                        ),
-                    }],
-                },
-            );
+            common.push(option(
+                CROSSHAIR_ENV,
+                "Crosshairs",
+                "Each player's crosshair shown where the gun (or mouse) aims. Batocera: CROSSHAIRS in the \
+                 game's advanced settings.",
+            ));
+        }
+        if FREEPLAY_SYSTEMS.contains(&self.system.as_str()) && !declared(FREEPLAY_ENV) {
+            common.push(option(
+                FREEPLAY_ENV,
+                "Free play",
+                "Games start without coins (off: insert coins). Batocera: FREE PLAY in the game's advanced \
+                 settings.",
+            ));
+        }
+        if !common.is_empty() {
+            self.options.insert(0, OptionGroup { title: Some("Common".into()), options: common });
         }
     }
 
@@ -674,6 +686,23 @@ options:
         assert_eq!(p.options[0].options[0].label.as_deref(), Some("Pointer"));
         // a game without crosshairs: none
         assert!(load("system: test\n").options.is_empty());
+    }
+
+    #[test]
+    fn common_free_play_option() {
+        let load = |yaml: &str| {
+            let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
+            merge(&mut v, serde_yaml_ng::from_str(yaml).unwrap());
+            Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap()
+        };
+        // on by default, shown for the systems able to set it, with the crosshairs in one group
+        let p = load("system: konami\nenv: {WAL_CROSSHAIR: \"1\"}\n");
+        assert_eq!(p.env.get(FREEPLAY_ENV).map(String::as_str), Some("1"));
+        assert_eq!(p.options.len(), 1);
+        let keys: Vec<&str> = p.options[0].options.iter().map(|o| o.key.as_str()).collect();
+        assert_eq!(keys, [CROSSHAIR_ENV, FREEPLAY_ENV]);
+        // another system: not shown
+        assert!(load("system: typex\n").options.is_empty());
     }
 
     #[test]

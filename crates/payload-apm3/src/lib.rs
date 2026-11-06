@@ -13,7 +13,7 @@
 //!   `Input_isOnNow` / `isOffNow` / `isFlipNow` are the changes between the last two
 //!   `Core_execute` calls (one per game frame).
 //! * credits: the coins of the `coin` input (the game's coin hook called), 1 credit per game,
-//!   `WAL_APM3_FREEPLAY=1` free play.
+//!   free play by default (`WAL_APM3_FREEPLAY=0`: coins, 1 credit per game).
 //! * network: `WAL_APM3_ONLINE=1`: ALL.Net and the Aime server reported up, the game's patches
 //!   `WAL_APM3_ONLINE_PATCHES` (as `WAL_PATCHES`), Aime cards (`aime.rs`) with the players' data
 //!   on the payload's title server (`apms.rs`, `cts.rs`). Otherwise offline (ALL.Net
@@ -180,7 +180,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         wal_payload_common::start("apm3");
         patches::apply();
         MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP));
-        FREE_PLAY.store(env_on("WAL_APM3_FREEPLAY"), Ordering::Relaxed);
+        // free play unless `WAL_APM3_FREEPLAY=0` / `WAL_FREEPLAY=0` (coins, 1 credit per game)
+        FREE_PLAY.store(wal_payload_common::free_play("WAL_APM3_FREEPLAY").unwrap_or(true), Ordering::Relaxed);
         ONLINE.store(env_on("WAL_APM3_ONLINE"), Ordering::Relaxed);
         let test = env("WAL_APM3_TEST").unwrap_or_else(|| "TestModeApp.exe".into());
         // a test mode of the game's own program (`WAL_APM3_TEST_ARGS`, Senxin Aleste's `-t`):
