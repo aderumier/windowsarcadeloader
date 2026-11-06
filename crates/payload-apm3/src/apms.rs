@@ -1,7 +1,8 @@
 //! The APM3 title server (`apms-api`): the players' data of Aime cards. The game's `libcts`
 //! client posts to `http://<ip>:80/apms-api/<request>` (StartGame, EndGame, ContinueGame,
 //! UpdateUser, Heartbeat, GetRanking, Get/SetCollection, Alive, CreateAccessCode, ConvertCtsId,
-//! SetCabinetProperty), the address resolved from `<keychip>.apm.sys-all.net` (`DnsQuery_A`),
+//! SetCabinetProperty), the address resolved from `<keychip>.apm.sys-all.net` (`DnsQuery_A`;
+//! Guilty Gear Xrd REV 2: its own name by `gethostbyname`),
 //! only when ALL.Net is good. Bodies: a 16-byte header, then zlib-compressed MessagePack,
 //! AES-CBC encrypted (`bcrypt.dll`).
 //!
@@ -65,6 +66,32 @@ unsafe extern "system" fn dns_query_a(name: *const u8, kind: u16, options: u32, 
     }
     let real: DnsQueryA = unsafe { std::mem::transmute(*REAL_DNS.get().unwrap()) };
     unsafe { real(name, kind, options, extra, results, reserved) }
+}
+
+/// `hostent`: h_name, h_aliases, h_addrtype, h_length, h_addr_list.
+#[repr(C)]
+struct HostEnt {
+    name: *const u8,
+    aliases: *const *const u8,
+    kind: i16,
+    length: i16,
+    addresses: *const *const u8,
+}
+
+type GetHostByName = unsafe extern "system" fn(*const u8) -> *mut HostEnt;
+static REAL_GETHOSTBYNAME: OnceLock<usize> = OnceLock::new();
+
+unsafe extern "system" fn gethostbyname(name: *const u8) -> *mut HostEnt {
+    let text = if name.is_null() { String::new() } else { unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy().into_owned() };
+    if text.to_ascii_lowercase().ends_with("apm.sys-all.net") {
+        log!("apms: gethostbyname {text}: 127.0.0.1");
+        static ADDRESS: [u8; 4] = [127, 0, 0, 1];
+        let aliases: &'static [*const u8; 1] = Box::leak(Box::new([std::ptr::null()]));
+        let addresses: &'static [*const u8; 2] = Box::leak(Box::new([ADDRESS.as_ptr(), std::ptr::null()]));
+        return Box::leak(Box::new(HostEnt { name, aliases: aliases.as_ptr(), kind: 2, length: 4, addresses: addresses.as_ptr() }));
+    }
+    let real: GetHostByName = unsafe { std::mem::transmute(*REAL_GETHOSTBYNAME.get().unwrap()) };
+    unsafe { real(name) }
 }
 
 // ---- connect: port 80 of 127.0.0.1 to the payload's server ----
@@ -273,6 +300,9 @@ pub(crate) fn init() {
     unsafe {
         if let Some(real) = iat::hook("DNSAPI.dll", "DnsQuery_A", dns_query_a as *const () as usize) {
             let _ = REAL_DNS.set(real);
+        }
+        if let Some(real) = iat::hook_ordinal(base, "WS2_32.dll", 52, gethostbyname as *const () as usize) {
+            let _ = REAL_GETHOSTBYNAME.set(real);
         }
         if let Some(real) = iat::hook_ordinal(base, "WS2_32.dll", 4, connect as *const () as usize) {
             let _ = REAL_CONNECT.set(real);

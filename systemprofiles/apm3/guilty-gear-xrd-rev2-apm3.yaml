@@ -1,0 +1,30 @@
+# Guilty Gear Xrd REV 2 (Sega ALLS, APM3 edition; 32-bit, Unreal Engine 3, Direct3D 9). Runs
+# GuiltyGearXrd.exe with the dump's game.bat arguments; the test switch starts the same program
+# with -TESTMODE (the dump's gametest.bat), whose exit starts the game again.
+# Override values in userprofiles/apm3/guilty-gear-xrd-rev2-apm3.yaml.
+system: apm3
+name: Guilty Gear Xrd REV 2 (APM3)
+
+args: [-SEEKFREELOADINGPCCONSOLE, -FULLSCREEN, -ResX=1920, -ResY=1080, -LANGUAGE=JPN, -NOHOMEDIR, -NOSPLASH, -NOWRITE, -VSYNC, -APM3, -PCTOC, -AUTH]
+
+env:
+  WAL_APM3_TEST: GuiltyGearXrd.exe
+  WAL_APM3_TEST_ARGS: "-SEEKFREELOADINGPCCONSOLE -FULLSCREEN -ResX=1920 -ResY=1080 -LANGUAGE=JPN -NOHOMEDIR -NOSPLASH -NOWRITE -VSYNC -APM3 -PCTOC -AUTH -TESTMODE"
+  # ALL.Net, the Aime server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+  # online: the network state (0x140eac0, its "unavailable" banner) and the other readers of the
+  # built-in link's "alive" (0x1493820, no link server) answer online
+  WAL_APM3_ONLINE_PATCHES: "0x100eac0:31C0C3,0x1093820:B001C3"
+  # no ABAAS matching server: the built-in link client is not started (the call at 0x1412736; it
+  # kept retrying, then ended the online mode with a "communication error" toast) and the boot's
+  # "checking the connection with the server" does not wait 3600 frames for it (the cmp at
+  # 0x12fcfdc: 1 frame)
+  WAL_APM3_NO_LINK_PATCHES: "0x1012736:9090909090,0xefcfdd:01000000"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  card: Aime card (take off / put back)

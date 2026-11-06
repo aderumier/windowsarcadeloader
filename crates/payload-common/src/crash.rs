@@ -45,6 +45,12 @@ const EXCEPTION_MSVC_CPP: i32 = 0xE06D_7363_u32 as i32;
 const EXCEPTION_CONTINUE_SEARCH: i32 = 0;
 const MAX_REPORTS: u32 = 8;
 
+/// Reports per kind: `WAL_CRASH_REPORTS` (default 8; a game throwing at boot uses them up).
+fn max_reports() -> u32 {
+    static MAX: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *MAX.get_or_init(|| std::env::var("WAL_CRASH_REPORTS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(MAX_REPORTS))
+}
+
 // Separate quotas: a burst of C++ exceptions (the game's fatal-error throw path dispatches
 // several before the dialog) must not suppress the access-violation dump, which carries the
 // real crash stack (the report quota was otherwise exhausted before the fatal AV).
@@ -79,7 +85,7 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
     } else {
         return EXCEPTION_CONTINUE_SEARCH;
     };
-    if reports.fetch_add(1, Ordering::Relaxed) >= MAX_REPORTS {
+    if reports.fetch_add(1, Ordering::Relaxed) >= max_reports() {
         return EXCEPTION_CONTINUE_SEARCH;
     }
     let addr = record.ExceptionAddress as usize;
