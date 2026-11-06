@@ -1,0 +1,26 @@
+# Rolling Gunner (Sega ALLS, APM3 edition; 32-bit, SDL2). Runs game01.exe; the test switch
+# starts its test mode (-t, the dump's gametest.bat), whose exit starts the game again.
+# Aime card: always on the reader (the game asks after START); the card input (F4, pad guide)
+# takes it off. The player's data in apms/gs-<aime id>.json of the game folder (the payload's
+# ABAAS game server).
+# Override values in userprofiles/apm3/rolling-gunner.yaml.
+system: apm3
+name: Rolling Gunner
+
+# the game's sounds from C:\SDGW\sound (the dump's game.bat copies resource\sound there)
+c_folders:
+  SDGW/sound: resource/sound
+
+env:
+  WAL_APM3_TEST: game01.exe
+  WAL_APM3_TEST_ARGS: "-t"
+  # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  card: Aime card (take off / put back)
