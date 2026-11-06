@@ -14,6 +14,9 @@ env:
   WAL_CROSSHAIR: "1"
   WAL_CROSSHAIR_SIZE: "1.5"
   WAL_CROSSHAIR_COLOR: FF2020
+  # no system arrow over the game (it drifts from the touch's place: the launcher's pointer
+  # adds up the mouse's motion): the dot is the pointer
+  WAL_HIDE_CURSOR: "1"
   # no ABAAS link server: the link built into the game never sets its "link ready" flag
   # (0x1402d0c6c: its setup fails), and the status shown (the "Aime / versus unavailable"
   # banner, the network icon) counts it as not ready; the flag's reads of the status code
