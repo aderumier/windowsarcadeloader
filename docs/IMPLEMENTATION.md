@@ -5299,6 +5299,13 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   green without a link server; `WAL_APM3_LINK_READY` (default on, unless `WAL_APM3_ABAAS_LINK`)
   patches its `linkIsAvailable` / `linkIsChecked` exports to answer 1 once it is loaded (x86:
   `_name@4`, stdcall): no warning, the games still play against the CPU.
+* **Dengeki Bunko: Fighting Climax (APM3)** (`DengekiFCI_APM3.exe`, 32-bit Direct3D 9; id
+  `dengeki-bunko-fighting-climax-apm3`, the RingEdge version has the plain one): `gametest.exe`
+  (.NET) test program. Its network state (`0x4642d0`) is online only with the built-in link
+  ready: the profile's `WAL_APM3_ONLINE_PATCHES` make it online (its early exit's default and
+  its result). It reads `Aime_getConfirm` after the card: the payload answers AimeDB (2; NoneDB,
+  0, was "the Aime card could not be read"). No player data server (the card's player is
+  "NO NAME"); a new card agrees to the Aime terms (up for YES, START).
 * **Rolling Gunner** (`game01.exe`, 32-bit SDL2, Senxin Aleste's engine): test mode `-t`; its
   sounds read from `C:\SDGW\sound` (the dump's `game.bat` copies `resource\sound` there): the
   profile's `c_folders` link it. Full screen with `-f` (the dump's `fullscreen.bat`; windowed
@@ -5668,6 +5675,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `goonya-fighter` | Goonya Fighter | apm3 | user 100% (2026-11-06); headless: Aime cards, play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, game and test program in folders |
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
+| `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | works headless (2026-11-06): online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
