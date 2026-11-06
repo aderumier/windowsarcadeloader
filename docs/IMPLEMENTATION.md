@@ -5311,6 +5311,18 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   profile's `c_folders` link it. Full screen with `-f` (the dump's `fullscreen.bat`; windowed
   without), the test mode too (`-t -f`). The Aime prompt's default is "don't use" (left then
   button 1).
+* **Guilty Gear Xrd REV 2 (APM3)** (`Binaries\Win32\GuiltyGearXrd.exe`, 32-bit Unreal Engine 3,
+  Direct3D 9): the dump's `game.bat` arguments (`-FULLSCREEN -ResX=1920 -ResY=1080 -APM3 ...`);
+  test mode = the same program with `-TESTMODE` (`gametest.bat`). Its ABAAS link client is built
+  in: without a link server it retried and then ended the online mode ("communication error"), so
+  `WAL_APM3_NO_LINK_PATCHES` do not start it (`0x1412736`) and make the boot's "checking the
+  connection with the server" wait (3600 frames, `0x12fcfdc`) 1 frame; `WAL_APM3_ONLINE_PATCHES`
+  make the network state (`0x140eac0`) and the link's "alive" (`0x1493820`) online. It resolves the
+  title server with `gethostbyname` (WS2_32 ordinal 52, `sdcp.apm.sys-all.net`): `apms.rs` hooks it
+  as `DnsQuery_A`. Open: at game over `am::cts::AppData::endPlay` fails to serialize the player
+  ("user data send/receive failed (-1)"), no `EndGame` is sent: the card player is not saved.
+  `WAL_CRASH_REPORTS` (payload-common, default 8) raises the exception reports a run logs (this
+  game's boot uses the 8).
 * **Shanghai IV Ryuumon Hiyaku** (Unity, 64-bit, Mono): as Kasiori (`X:/lib/apm.dll` by its path,
   `run_drives`; test mode `TestMode`; `-popupwindow`). Its `apmgamepad.dll` (the cabinet's gamepad
   library, DirectInput / XInput) is never called by the game. The Aime prompt's default is "play
@@ -5676,6 +5688,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |
+| `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | works (user: sound, buttons, test menu, full screen); Aime cards read, the card player not saved yet | Sega ALLS APM3 (§6.3k): 32-bit Unreal Engine 3, Direct3D 9, built-in link client not started, title server by `gethostbyname` |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
