@@ -210,7 +210,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `nosferatu-lilinor` | Nosferatu Lilinor | apm3 | user 100% (2026-11-06), no play sequence id; headless: Aime cards (name entry), play, test mode | not in the test |  |
 | `pengo-online` | Pengo! Online | apm3 | user 100% (2026-11-06): touch menus (red dot), Aime cards, play, test mode, no link banner | not in the test |  |
 | `puyo-puyo-e-sports` | Puyo Puyo e-Sports | apm3 | user 100% (2026-11-06), icon green; headless: Aime cards (terms, saved), play, test mode | not in the test |  |
-| `milkchan` | Milkchan | apm3 | works headless (2026-11-05): Aime cards, story, test mode | not in the test |  |
+| `milkchan` | Milkchan | apm3 | user 100% (2026-11-06); headless: Aime cards, story, test mode | not in the test |  |
 | `koihime-enbu-ryorairai-v3` | Koihime Enbu RyoRaiRai Version 3 | apm3 | works headless (2026-11-05): Aime cards, modes, character select, test mode; no network versus | not in the test |  |
 | `goonya-fighter` | Goonya Fighter | apm3 | works headless (2026-11-05): Aime cards, play, test mode | not in the test |  |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | pass | 2026-11-01 |
