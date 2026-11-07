@@ -126,6 +126,17 @@ unsafe extern "system" fn internet_connect_w(session: usize, server: *const u16,
     unsafe { real(session, server, server_port, user, password, service, flags, context) }
 }
 
+type InternetConnectA = unsafe extern "system" fn(usize, *const u8, u16, *const u8, *const u8, u32, u32, usize) -> usize;
+static REAL_INTERNET_CONNECT_A: OnceLock<usize> = OnceLock::new();
+
+/// BlazBlue: Cross Tag Battle's HTTP (ANSI).
+unsafe extern "system" fn internet_connect_a(session: usize, server: *const u8, server_port: u16, user: *const u8, password: *const u8, service: u32, flags: u32, context: usize) -> usize {
+    let real: InternetConnectA = unsafe { std::mem::transmute(*REAL_INTERNET_CONNECT_A.get().unwrap()) };
+    let loopback = !server.is_null() && b"127.0.0.1\0".iter().enumerate().all(|(i, &c)| unsafe { *server.add(i) } == c);
+    let server_port = if loopback && server_port == 80 { port() } else { server_port };
+    unsafe { real(session, server, server_port, user, password, service, flags, context) }
+}
+
 // ---- bcrypt: the game server's AES key; the plain bodies (WAL_APM3_APMS_TRACE=1) ----
 
 static TRACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -260,8 +271,10 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
     let mut reader = BufReader::new(stream.try_clone()?);
     let mut line = String::new();
     reader.read_line(&mut line)?;
+    let method = line.split_whitespace().next().unwrap_or("").to_string();
     let path = line.split_whitespace().nth(1).unwrap_or("").to_string();
     let mut length = 0usize;
+    let mut headers = Vec::new();
     loop {
         let mut header = String::new();
         if reader.read_line(&mut header)? == 0 || header.trim().is_empty() {
@@ -271,10 +284,19 @@ fn serve(stream: TcpStream) -> std::io::Result<()> {
             if name.trim().eq_ignore_ascii_case("content-length") {
                 length = value.trim().parse().unwrap_or(0);
             }
+            headers.push((name.trim().to_string(), value.trim().to_string()));
         }
     }
     let mut body = vec![0; length];
     reader.read_exact(&mut body)?;
+    if path.starts_with("/api/v1/") || path.starts_with("/prod/") {
+        // BlazBlue: Cross Tag Battle's own server (JSON)
+        let (kind, reply) = crate::bb::reply(&method, &path, &headers, &body);
+        let mut out = stream;
+        out.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", reply.len()).as_bytes())?;
+        out.write_all(&reply)?;
+        return Ok(());
+    }
     if path.starts_with("/api/") {
         // Guilty Gear -Strive-'s own server (hex text), else the ABAAS game server
         let reply = if body.starts_with(b"data=") { crate::tl::reply(&path, &body) } else { crate::gs::reply(&path, &body) };
@@ -341,6 +363,9 @@ pub(crate) fn init() {
         }
         if let Some(real) = iat::hook_module(base, "WININET.dll", "InternetConnectW", internet_connect_w as *const () as usize) {
             let _ = REAL_INTERNET_CONNECT.set(real);
+        }
+        if let Some(real) = iat::hook_module(base, "WININET.dll", "InternetConnectA", internet_connect_a as *const () as usize) {
+            let _ = REAL_INTERNET_CONNECT_A.set(real);
         }
         let trace = std::env::var("WAL_APM3_APMS_TRACE").is_ok_and(|v| v.trim() == "1");
         TRACE.store(trace, std::sync::atomic::Ordering::Relaxed);

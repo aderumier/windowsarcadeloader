@@ -38,6 +38,7 @@
 mod aime;
 mod apms;
 mod backup;
+mod bb;
 mod cts;
 mod debug;
 mod emoney;
@@ -684,6 +685,13 @@ pub extern "system" fn System_getAppRootPath() -> *const u16 {
     first_call("System_getAppRootPath");
     static ROOT: OnceLock<String> = OnceLock::new();
     let root = ROOT.get_or_init(|| {
+        // the cabinet's short root (BlazBlue Cross Tag Battle builds `<root>bblog<date>.dat` in a
+        // 40-byte buffer: the run directory's path overflowed it): WAL_APM3_APP_ROOT, a run drive
+        if let Some(root) = std::env::var("WAL_APM3_APP_ROOT").ok().filter(|r| !r.is_empty()) {
+            let root = if root.ends_with('\\') { root } else { format!("{root}\\") };
+            log!("apm3: app root {root}");
+            return root;
+        }
         let mut buf = [0u16; 520];
         let n = unsafe {
             windows_sys::Win32::System::LibraryLoader::GetModuleFileNameW(std::ptr::null_mut(), buf.as_mut_ptr(), buf.len() as u32)

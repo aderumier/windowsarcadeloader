@@ -1,0 +1,33 @@
+# BlazBlue: Cross Tag Battle (Sega ALLS, APM3 edition; 32-bit, Direct3D 9). Runs Game.exe (the
+# dump's game.bat); the test switch starts its test mode (Game.exe -t, gametest.bat), whose exit
+# starts the game again.
+# Aime card: always on the reader (read after START: left for YES, then button A; a new card then
+# buys points with the free credit: up for YES, button A); the card input (F4, pad guide) takes it
+# off. The player's data in apms/bb-<card>.bin of the game folder.
+# Override values in userprofiles/apm3/blazblue-cross-tag-battle.yaml.
+system: apm3
+name: "BlazBlue: Cross Tag Battle (APM3)"
+
+# the cabinet's game drive W: (the dump's game.bat: cd /d W:\) as the app root: the game writes
+# <root>bblog<date>.dat into a 40-byte buffer (the run directory's long path overran its stack)
+run_drives:
+  w: .
+
+env:
+  WAL_APM3_APP_ROOT: 'W:\'
+  WAL_APM3_TEST: Game.exe
+  WAL_APM3_TEST_ARGS: "-t"
+  # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+  # online: the game's own server (0x992dc0, https://api.bbtag.blazblue.jp/api/v1) is the payload's
+  # title server; the network state (0x485d52) does not test the built-in link (abaaslink
+  # ee20f2d, no link server: "network play unavailable")
+  WAL_APM3_ONLINE_PATCHES: "0x592dc0:687474703A2F2F3132372E302E302E312F6170692F763100,0x85d52:EB40"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  card: Aime card (take off / put back)

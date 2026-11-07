@@ -213,10 +213,12 @@ impl Wine {
             if letter.len() != 1 || !letter.as_bytes()[0].is_ascii_alphabetic() || matches!(letter.as_str(), "c" | "z") {
                 bail!("invalid run drive {letter:?}: use a letter other than C or Z");
             }
-            if directory.as_os_str().is_empty() || directory.components().any(|c| !matches!(c, std::path::Component::Normal(_))) {
+            // "." maps the run directory itself (the cabinet's game drive, BlazBlue Cross Tag Battle's W:)
+            let whole = directory.as_os_str() == ".";
+            if !whole && (directory.as_os_str().is_empty() || directory.components().any(|c| !matches!(c, std::path::Component::Normal(_)))) {
                 bail!("drive {letter}: directory must be relative to the run directory: {}", directory.display());
             }
-            let target = run_dir.join(directory);
+            let target = if whole { run_dir.to_path_buf() } else { run_dir.join(directory) };
             eprintln!("wine: drive {letter}: -> {}", target.display());
             if self.dry_run {
                 continue;

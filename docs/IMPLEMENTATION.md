@@ -5446,6 +5446,32 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   `run_drives`; test mode `TestMode`; `-popupwindow`). Its `apmgamepad.dll` (the cabinet's gamepad
   library, DirectInput / XInput) is never called by the game. The Aime prompt's default is "play
   without linking" (left then button 1 for the card).
+* **BlazBlue: Cross Tag Battle** (`Game.exe`, 32-bit Direct3D 9, Arc System Works' AALib; test
+  mode `Game.exe -t`, the dump's `gametest.bat`). Its boot wrote `<app root>bblog<date>.dat` into
+  a 40-byte stack buffer: the run directory's long path (`C:\wal\apm3\...`) overran it (a
+  `__report_gsfailure` fast fail, exit `c0000409`, found by making its `int 0x29` an access
+  violation for the crash reporter). The cabinet's root is `W:\` (`cd /d W:\` in `game.bat`):
+  `WAL_APM3_APP_ROOT` (payload: `System_getAppRootPath`'s answer) and `run_drives: {w: .}` (`.`,
+  the run directory itself). Its network state (`0x485d52`) is "unavailable" (banner
+  `NESYS_INFO_NoUseOnlineBattle`) unless the built-in link (abaaslink ee20f2d) is set up and alive:
+  the profile's `WAL_APM3_ONLINE_PATCHES` skip that test.
+  - The player's data is on Arc System Works' own server (`bb.rs`), WinINet (`InternetConnectA`:
+    `apms.rs` moves port 80 of 127.0.0.1 to the title server, which routes `/api/v1/`), the base
+    `https://api.bbtag.blazblue.jp/api/v1` patched to `http://127.0.0.1/api/v1`. After a card:
+    `GET /prod/150/config.json` (`base_url`), `/IsUserCreated` (`result`, a JSON bool),
+    `/session` (`sid`, sent back as `X-SID`), `/GetUserId` (`user_id`), `/GetUserData`: the
+    player's 0x314c-byte block read raw (magic `0xfc`, byte sum at +1, word sum at +2 of the bytes
+    from +4; anything else is a new player: zeros, the last player's block still in the buffer);
+    `/SetMyData` (octet-stream) stores it in `apms/bb-<card>.bin`; `/LogEvent` / `/EndPlay`:
+    `{}`. The block's lock: `+0x32c` > 0 less than 900 s after the play time at `+0x324` is "this
+    Aime is in use on another cabinet" (`0x5f3fd7`), set at the play's start and 0 at its end: a
+    play ended by closing the game locked the card for 15 minutes, so `/GetUserData` answers the
+    block unlocked (checksums updated).
+  - Play: the card's player (left for YES, button A) then buys points with credits (100 points =
+    1 credit; free play gives the credit; a card or not); a national "winner stays" room (50
+    points) is a 300 s practice against a still opponent while waiting for a challenger: no
+    network versus (no ABAAS server), the play ends when the points run out. English: only 144
+    of the 664 arcade texts are in `localizeAC/eng_idlist.txt`, Japanese stays.
 
 ### 6.4 Batocera integration
 
@@ -5809,6 +5835,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |
 | `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen | Sega ALLS APM3 (§6.3k): 32-bit Unreal Engine 3, Direct3D 9, built-in link client not started, title server by `gethostbyname` |
 | `guilty-gear-strive` | Guilty Gear -Strive- | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen; LOCAL plays alone against a still P2, no network versus | Sega ALLS APM3 (§6.3k): Unreal Engine 4, 64-bit, Direct3D 11, Arc System Works' own game server (`tl.rs`, WinINet) |
+| `blazblue-cross-tag-battle` | BlazBlue: Cross Tag Battle (APM3) | apm3 | works headless (2026-11-07): Aime cards, points, practice rooms, player saved and reloaded, test menu; no network versus | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, Arc System Works' own game server (`bb.rs`, WinINet), app root `W:\` |
 | `koihime-enbu` | Koihime Enbu | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline; its sprites are uploaded with an `UpdateTexture` DXVK refuses (1 source level, 11 destination levels): `WAL_D3D9_UPDATE_TEXTURE_FIX` copies level by level (else invisible characters) |
 | `blade-arcus-from-shining` | Blade Arcus from Shining (2.10.00) | ringedge | works (user: 100%), Aime offline banner removed; no Aime card play | RingEdge 2 (§6.3d), `crus.exe` (OpenGL), amAime, JVS on `\\.\mxjvs`, profile patch: the attract banner's scene test always hides it (`0x1749b6:EB`) |
 | `blade-strangers` | Blade Strangers (1.02.00, 1.3.2) | ringedge | works (user: 100%) | RingEdge 2 (§6.3d), `himekaku.exe` (OpenGL), amLib 1.21 (2015 build), JVS on `\\.\mxjvs`, APM network client offline |
