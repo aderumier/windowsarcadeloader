@@ -343,3 +343,46 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | not in the test |  |
 | `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | not in the test |  |
 <!-- GAMELIST END -->
+
+## Thanks
+
+Thanks to tovarichtch (https://github.com/tovarichtch/) for a prototype of light gun input over
+TCP: it gave the idea of this loader's input design, read on the Linux side and forwarded over
+TCP to the game in Wine.
+
+Thanks to these projects, used as documentation and implementation references:
+
+* Loaders and I/O
+  * spice2x (Konami e-Amusement loader: ACIO devices, AVS, per-game hooks): https://github.com/spice2x/spice2x.github.io
+  * bananatools (Bandai Namco ES3: AMCUS, Banapass reader, NA-JV): https://gitea.tendokyu.moe/TeamTofuShop/bananatools
+  * segatools (Sega ALLS / Nu / RingEdge: keychip, Aime reader, JVS): https://gitea.tendokyu.moe/TeamTofuShop/segatools
+  * taitools (Taito Type X3 / NESiCAxLive): https://gitea.tendokyu.moe/TeamTofuShop/taitools
+  * DemulShooter (light gun games): https://github.com/argonlefou/DemulShooter
+  * FFBArcadePlugin (force feedback): https://github.com/Boomslangnz/FFBArcadePlugin
+  * OpenBanapassW5P (Banapass for Wangan Midnight Maximum Tune 5): https://github.com/kritbualad/OpenBanapassW5P
+* Game servers
+  * ARTEMiS (ALL.Net server and per-title game servers): https://gitea.tendokyu.moe/Hay1tsme/artemis
+  * AquaDX: https://github.com/MewoLab/AquaDX
+  * OIAS: https://github.com/OtogameLab/OIAS
+  * Bayshore (Wangan Midnight Maximum Tune servers): https://github.com/ProjectAsakura/Bayshore
+    and its forks https://github.com/shiroikitsu8/Bayshore_legacy,
+    https://github.com/kritbualad/Bayshore_WM5DX-PLUS, https://github.com/shadany7824/Bayshore_5,
+    https://github.com/RumiHasegawa/Bayshore_WM5, https://github.com/anthonyng43/Bayshore_6r,
+    https://github.com/JoeKoh27/Bayshore_6RR
+  * FakeNesicaService (NESiCAxLive services): https://github.com/ArcadeMachinist/FakeNesicaService
+  * GC-local-server-rewrite (NESiCA card server): https://github.com/asesidaa/GC-local-server-rewrite
+  * Asphyxia CORE and its plugins (e-Amusement): https://github.com/asphyxia-core/core,
+    https://github.com/asphyxia-core/plugins
+  * bemaniutils (e-Amusement): https://github.com/DragonMinded/bemaniutils
+  * hiiragi (e-Amusement): https://github.com/nennneko5787/hiiragi
+  * IaSoC e-Amusement server: https://github.com/IaSoC/iasoc-eamusement-server
+* Game data
+  * MKDX-Unlocked-Profile (Mario Kart Arcade GP DX): https://github.com/Harmmmm/MKDX-Unlocked-Profile
+  * injustice-arcade-cards (Injustice arcade): https://github.com/CB9001/injustice-arcade-cards
+* Runtime
+  * Wine: https://www.winehq.org
+  * GE-Proton: https://github.com/GloriousEggroll/proton-ge-custom
+  * DXVK: https://github.com/doitsujin/dxvk
+  * gamescope: https://github.com/ValveSoftware/gamescope
+  * dgVoodoo2: https://dege.freeweb.hu/dgVoodoo2/
+  * ReShade: https://reshade.me
