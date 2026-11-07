@@ -17,6 +17,11 @@ env:
   WAL_APM3_CARD_AUTO: "1"
   # the dump's app.json subGameId
   WAL_APM3_GAME_ID: SDJQ
+  # no ABAAS link server: the link built into the game (abaaslink 16eb670) never comes up and the
+  # network icon (0x141257470: ALL.Net, the Aime server, then the link) stays yellow; its link
+  # test (0x14125755d, call [rax+0x2e0]) answers 1: green. The versus menus' own link tests are
+  # unchanged (national / in-store / password versus greyed, one player only)
+  WAL_APM3_NO_LINK_PATCHES: "0x125755d:B00190909090"
 
 input:
   gamepad:

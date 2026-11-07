@@ -5410,7 +5410,12 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   patch. Test mode = the same program (`gametest.bat`): `-wal-test`. The ABAAS game server holds
   the player (`misc_*`, `chara*` keys); a new card agrees to the play terms (default "no": left
   then button 1). Buttons push01-04 = Guard, Punch, Kick, Escape. National / in-store versus
-  greyed (no link server): "one player" mode plays the CPU.
+  greyed (no link server): "one player" mode plays the CPU. The network icon (`0x141257470`, its
+  state: 1 without ALL.Net, 2 = yellow "!" unless the Aime server, the cabinet flag (`+0xa8`) and
+  the link (system object slot `0x2e0`, the link's `+0x1c99`) all answer, 3 = green): the
+  profile's `WAL_APM3_NO_LINK_PATCHES` make only the icon's link test answer 1; patching slot
+  `0x2e0` itself also enabled the versus menus (a national match waiting for a server). Found by
+  a crash probe on the `AllnetAuth_isGood` thunk (`0x1412641a0`): its caller is the icon code.
 * **Guilty Gear Xrd REV 2 (APM3)** (`Binaries\Win32\GuiltyGearXrd.exe`, 32-bit Unreal Engine 3,
   Direct3D 9): the dump's `game.bat` arguments (`-FULLSCREEN -ResX=1920 -ResY=1080 -APM3 ...`);
   test mode = the same program with `-TESTMODE` (`gametest.bat`). Its ABAAS link client is built
@@ -5845,7 +5850,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `cotton-rock-n-roll` | Cotton Rock 'n' Roll | apm3 | user 100% (2026-11-07); headless: Aime cards, story, play, game over saved (ranking), test mode | Sega ALLS APM3 (§6.3k): 32-bit OpenGL, test program `gametest.exe` (.NET) |
-| `virtua-fighter-3tb-online` | Virtua Fighter 3tb Online | apm3 | headless (2026-11-07): Aime cards (terms, user data, saved), team battle play, test mode and back; not user-tested | Sega ALLS APM3 (§6.3k): 64-bit Direct3D 11, Model 3 game in `pre3`, same-program test mode |
+| `virtua-fighter-3tb-online` | Virtua Fighter 3tb Online | apm3 | user 100% (2026-11-07), network icon green; headless: Aime cards (terms, user data, saved), team battle play, test mode and back | Sega ALLS APM3 (§6.3k): 64-bit Direct3D 11, Model 3 game in `pre3`, same-program test mode |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |
 | `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen | Sega ALLS APM3 (§6.3k): 32-bit Unreal Engine 3, Direct3D 9, built-in link client not started, title server by `gethostbyname` |
 | `guilty-gear-strive` | Guilty Gear -Strive- | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen; LOCAL plays alone against a still P2, no network versus | Sega ALLS APM3 (§6.3k): Unreal Engine 4, 64-bit, Direct3D 11, Arc System Works' own game server (`tl.rs`, WinINet) |
