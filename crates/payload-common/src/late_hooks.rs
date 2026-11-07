@@ -28,10 +28,27 @@ fn path(base: usize) -> String {
     String::from_utf16_lossy(&buf[..n]).to_lowercase()
 }
 
+/// The real `dll!name` (its export).
+fn export(dll: &str, name: &str) -> usize {
+    let cdll = format!("{dll}\0");
+    let cname = format!("{name}\0");
+    let module = unsafe { GetModuleHandleA(cdll.as_ptr()) };
+    (!module.is_null()).then(|| unsafe { GetProcAddress(module, cname.as_ptr()) }).flatten().map_or(0, |p| p as usize)
+}
+
 fn apply(base: usize, (dll, name, f, orig): Hook) {
     if let Some(o) = unsafe { iat::hook_module(base, dll, name, f) } {
-        if o != f && orig.load(Ordering::Relaxed) == 0 {
+        if o == f {
+            return;
+        }
+        let prev = orig.load(Ordering::Relaxed);
+        if prev == 0 {
             orig.store(o, Ordering::Relaxed);
+        } else if o != prev && o != export(dll, name) {
+            // the slot held another hook of the payload this one does not call (the Unity
+            // runtime's GetProcAddress, Mono's DllImports resolved to the emulated serial ports
+            // and dongles: replaced, the game opened the machine's real COM1): kept
+            unsafe { iat::hook_module(base, dll, name, o) };
         }
     }
 }
@@ -57,12 +74,7 @@ pub(crate) fn hook(dll: &'static str, name: &'static str, f: usize, orig: &'stat
         }
     }
     if orig.load(Ordering::Relaxed) == 0 {
-        let cdll = format!("{dll}\0");
-        let cname = format!("{name}\0");
-        let module = unsafe { GetModuleHandleA(cdll.as_ptr()) };
-        if let Some(p) = (!module.is_null()).then(|| unsafe { GetProcAddress(module, cname.as_ptr()) }).flatten() {
-            orig.store(p as usize, Ordering::Relaxed);
-        }
+        orig.store(export(dll, name), Ordering::Relaxed);
     }
     HOOKS.lock().unwrap().push((dll, name, f, orig));
     hook_loads(&modules);
