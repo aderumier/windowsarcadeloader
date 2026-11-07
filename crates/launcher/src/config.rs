@@ -394,6 +394,17 @@ impl Profile {
                 ..option(VOLUME_ENV, "Volume", "The game's sound level in percent (all its sounds, music and videos).")
             });
         }
+        if self.input.guns_enabled {
+            for (key, label, kind, choices, description) in [
+                ("WAL_SINDEN_BORDER", "Sinden border", OptionKind::Choice, vec!["auto", "1", "0"], "Auto: enabled when a Sinden is plugged in. 1: always on. 0: off."),
+                ("WAL_SINDEN_BORDER_SIZE", "Border size", OptionKind::Text, vec![], "thin, medium, big, or thickness in percent of screen width (0.1 to 10)."),
+                ("WAL_SINDEN_BORDER_COLOR", "Border color", OptionKind::Text, vec![], "white, red, green, blue, or #RRGGBB."),
+            ] {
+                if !declared(key) {
+                    common.push(GameOption { kind, choices: choices.into_iter().map(str::to_string).collect(), ..option(key, label, description) });
+                }
+            }
+        }
         if !common.is_empty() {
             self.options.insert(0, OptionGroup { title: Some("Common".into()), options: common });
         }

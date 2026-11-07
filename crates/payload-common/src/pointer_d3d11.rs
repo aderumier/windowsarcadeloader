@@ -13,14 +13,11 @@
 //! buffer, the dot drawn, copied to a staging texture and written as `shot-NNNN.bmp`.
 
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::log;
-use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
-use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
-use windows_sys::Win32::UI::WindowsAndMessaging::{CreateWindowExW, DestroyWindow, WS_OVERLAPPEDWINDOW};
+use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 use windows_sys::core::GUID;
 
 type P = *mut c_void;
@@ -31,10 +28,7 @@ const IID_DEVICE: GUID = GUID::from_u128(0xdb6f6ddb_ac77_4e88_8253_819df9bbf140)
 const IID_DEVICE1: GUID = GUID::from_u128(0xa04bfb29_08ef_43d6_a49c_a9bdbdcbe686);
 const IID_CONTEXT1: GUID = GUID::from_u128(0xbb2c6faa_b5fb_4082_8e6b_388b8cfa90e1);
 
-const DXGI_PRESENT_TEST: u32 = 1;
 
-static PRESENT: AtomicUsize = AtomicUsize::new(0);
-static PRESENT1: AtomicUsize = AtomicUsize::new(0);
 
 /// The dot's look and where it is.
 pub struct Dot {
@@ -68,7 +62,7 @@ pub fn more_players(count: usize, position: fn(usize) -> Option<(f32, f32)>) {
 /// Draws `dot` over the game's picture from its first frame on.
 pub fn init(dot: Dot) {
     if DOT.set(dot).is_ok() {
-        std::thread::spawn(hook_present);
+        crate::border_d3d11::register(presentation);
     }
 }
 
@@ -88,24 +82,6 @@ fn release(obj: P) {
 }
 
 #[repr(C)]
-struct SwapChainDesc {
-    width: u32,
-    height: u32,
-    refresh: [u32; 2],
-    format: u32,
-    scanline: u32,
-    scaling: u32,
-    sample_count: u32,
-    sample_quality: u32,
-    usage: u32,
-    buffer_count: u32,
-    window: P,
-    windowed: i32,
-    swap_effect: u32,
-    flags: u32,
-}
-
-#[repr(C)]
 #[derive(Default)]
 struct Texture2DDesc {
     width: u32,
@@ -122,80 +98,7 @@ struct Texture2DDesc {
 }
 
 /// Waits for the game's Direct3D 11, then replaces `Present` in the swap chains' vtable.
-fn hook_present() {
-    let d3d11 = loop {
-        let m = unsafe { GetModuleHandleW(windows_sys::w!("d3d11.dll")) };
-        if !m.is_null() {
-            break m;
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    };
-    let Some(create) = (unsafe { GetProcAddress(d3d11, c"D3D11CreateDeviceAndSwapChain".as_ptr() as *const u8) }) else {
-        log!("pointer: D3D11CreateDeviceAndSwapChain not found, no pointer");
-        return;
-    };
-    type Create = unsafe extern "system" fn(P, u32, P, u32, P, u32, u32, *const SwapChainDesc, *mut P, *mut P, *mut u32, *mut P) -> HRESULT;
-    let create: Create = unsafe { std::mem::transmute(create) };
-    let window = unsafe { CreateWindowExW(0, windows_sys::w!("STATIC"), windows_sys::w!("wal"), WS_OVERLAPPEDWINDOW, 0, 0, 64, 64, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null()) };
-    let desc = SwapChainDesc {
-        width: 64,
-        height: 64,
-        refresh: [0, 0],
-        format: 28, // R8G8B8A8_UNORM
-        scanline: 0,
-        scaling: 0,
-        sample_count: 1,
-        sample_quality: 0,
-        usage: 0x20, // RENDER_TARGET_OUTPUT
-        buffer_count: 1,
-        window,
-        windowed: 1,
-        swap_effect: 0,
-        flags: 0,
-    };
-    let (mut swap, mut device, mut context): (P, P, P) = (std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
-    // D3D_DRIVER_TYPE_HARDWARE, D3D11_SDK_VERSION
-    let hr = unsafe { create(std::ptr::null_mut(), 1, std::ptr::null_mut(), 0, std::ptr::null_mut(), 0, 7, &desc, &mut swap, &mut device, std::ptr::null_mut(), &mut context) };
-    if hr < 0 || swap.is_null() {
-        log!("pointer: no swap chain of our own ({hr:#x}), no pointer");
-        unsafe { DestroyWindow(window) };
-        return;
-    }
-    let vtable = unsafe { *(swap as *const *mut usize) };
-    for (index, hook, orig) in [(8, present as *const () as usize, &PRESENT), (22, present1 as *const () as usize, &PRESENT1)] {
-        let slot = unsafe { vtable.add(index) };
-        let mut old = 0;
-        unsafe {
-            VirtualProtect(slot.cast(), 8, PAGE_READWRITE, &mut old);
-            orig.store(*slot, Ordering::Relaxed);
-            *slot = hook;
-            VirtualProtect(slot.cast(), 8, old, &mut old);
-        }
-    }
-    release(context);
-    release(device);
-    release(swap);
-    unsafe { DestroyWindow(window) };
-    log!("pointer: Present hooked, the touch pointer drawn over the picture");
-}
-
-unsafe extern "system" fn present(swap: P, sync: u32, flags: u32) -> HRESULT {
-    if flags & DXGI_PRESENT_TEST == 0 {
-        overlay(swap);
-        capture(swap);
-    }
-    let orig: unsafe extern "system" fn(P, u32, u32) -> HRESULT = unsafe { std::mem::transmute(PRESENT.load(Ordering::Relaxed)) };
-    unsafe { orig(swap, sync, flags) }
-}
-
-unsafe extern "system" fn present1(swap: P, sync: u32, flags: u32, params: P) -> HRESULT {
-    if flags & DXGI_PRESENT_TEST == 0 {
-        overlay(swap);
-        capture(swap);
-    }
-    let orig: unsafe extern "system" fn(P, u32, u32, P) -> HRESULT = unsafe { std::mem::transmute(PRESENT1.load(Ordering::Relaxed)) };
-    unsafe { orig(swap, sync, flags, params) }
-}
+fn presentation(swap: P) { overlay(swap); if crate::border::config().is_none() { capture(swap); } }
 
 /// The objects of the drawing, for one device.
 struct Resources {
@@ -371,7 +274,7 @@ fn overlay(swap: P) {
 }
 
 /// `WAL_SCREENSHOT`: the back buffer written as a BMP when a screenshot is due.
-fn capture(swap: P) {
+pub(crate) fn capture(swap: P) {
     let Some(path) = crate::screenshot::screenshot_due() else { return };
     let mut back: P = std::ptr::null_mut();
     if com!(swap, 9, fn(u32, *const GUID, *mut P) -> HRESULT, 0, &IID_TEXTURE2D, &mut back) < 0 || back.is_null() {

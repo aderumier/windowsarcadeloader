@@ -15,6 +15,12 @@ pub mod crypto;
 #[cfg(windows)]
 pub mod bezel;
 #[cfg(windows)]
+pub(crate) mod border;
+#[cfg(windows)]
+mod border_d3d11;
+#[cfg(windows)]
+mod border_d3d8;
+#[cfg(windows)]
 pub mod crosshair;
 #[cfg(windows)]
 pub mod d3d9_quads;
@@ -77,9 +83,6 @@ pub mod images_d3d11;
 // a touch screen's pointer over Direct3D 11 pictures
 #[cfg(windows)]
 pub mod pointer_d3d11;
-// a portrait Unity cabinet game on a 16:9 screen (WAL_UNITY_LANDSCAPE)
-#[cfg(windows)]
-pub mod unity_landscape;
 // parallel port force feedback boards (inpout32 Out32)
 pub mod port_ffb;
 #[cfg(windows)]
@@ -160,6 +163,7 @@ pub fn start(name: &'static str) {
             #[cfg(target_arch = "x86")]
             crash::trace_exit();
             dshow::init();
+            if border::config().is_some() { border_d3d11::init(); }
             screenshot::init();
             window::init();
             workarea::init();

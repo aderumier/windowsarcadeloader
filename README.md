@@ -386,3 +386,41 @@ Thanks to these projects, used as documentation and implementation references:
   * gamescope: https://github.com/ValveSoftware/gamescope
   * dgVoodoo2: https://dege.freeweb.hu/dgVoodoo2/
   * ReShade: https://reshade.me
+
+
+### Sinden lightgun frame
+
+Lightgun games automatically enable a native Sinden frame when a Sinden is connected at
+launch. The gun driver must already be running. The game's **Common** options include
+**Sinden border** (`auto`, `1` always on, `0` off), **Border size**, and **Border color**.
+These can also be set globally in `launcher.yaml` or per game in `userprofiles/`:
+
+```yaml
+env:
+  WAL_SINDEN_BORDER: "auto"
+  WAL_SINDEN_BORDER_SIZE: "medium"
+  WAL_SINDEN_BORDER_COLOR: "white"
+```
+
+Size accepts Batocera's `thin` (1%), `medium` (2%), `big` (2% color plus 1% outer black),
+or a decimal percentage of the screen width, from `0.1` to `10`. Color accepts `white`,
+`red`, `green`, `blue`, or a quoted `#RRGGBB` value. The frame covers the monitor; the
+complete game picture is scaled into its interior with its aspect preserved. Physical
+gun and mouse aim is transformed to match. Existing aspect/stretch settings still apply
+to the game picture inside that frame.
+
+Bezel artwork and the game are composed together inside the frame, including Top Gun 2's
+dynamic landscape bezel and separate portrait bezels.
+
+Presentation uses the payload's native Direct3D 8/9/11 or OpenGL hooks, following
+linuxloader's clean-frame approach. It adds GPU copies and a scaled draw while enabled;
+there is no CPU pixel readback and no gamescope requirement. A performance impact has
+not yet been measured on real games. A profile that already explicitly enables gamescope
+continues to use its existing setting; the border itself never enables it.
+
+Batocera's generator passes `controllers.guns.borderssize`,
+`controllers.guns.borderscolor`, and `controllers.guns.bordersmode` (plus the game-specific
+`bordersmode`) from system config. `hidden` disables the frame and `force` enables it;
+auto activates only for a gun game with a detected Sinden. Optional overrides are
+`wal_sinden_border`, `wal_sinden_border_size`, and `wal_sinden_border_color`.
+`tools/batocera/install.sh` also updates the generator when installing into an RGS tree.

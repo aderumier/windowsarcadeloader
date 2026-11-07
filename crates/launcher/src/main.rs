@@ -19,6 +19,7 @@ mod players;
 mod rundir;
 mod script;
 mod server;
+mod sinden;
 mod squashfs;
 mod systems;
 mod wheels;
@@ -339,6 +340,7 @@ struct RunOptions {
 }
 
 fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> Result<()> {
+    let border = sinden::select(profile)?;
     let dry_run = opts.dry_run;
     raise_open_files_limit();
     if profile.exe.is_empty() {
@@ -554,6 +556,12 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         wine.set_env(k, &screen_placeholders(v, screen, &profile.env));
     }
 
+    wine.set_env("WAL_SINDEN_BORDER", if border.is_some() { "1" } else { "0" });
+    if let Some(border) = border {
+        // Physical geometry is shared with the renderer even if a game changes its mode.
+        wine.set_env("WAL_SINDEN_SCREEN", &format!("{}x{}", screen.0, screen.1));
+        eprintln!("sinden: border {}% color #{:06x}", border.percent, border.rgb);
+    }
     let game_exe = wine.windows_path(&run_exe_dir.join(exe_name));
     let screen_args = |args: &[String]| -> Vec<String> { args.iter().map(|a| screen_placeholders(a, screen, &profile.env)).collect() };
     // the game command with these arguments; `relaunched`: started again at the payload's
@@ -615,6 +623,7 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     let stop = stop_flag()?;
     let server = server::Server::start(profile.port)?;
     let mut hub = input::Hub::new(profile)?;
+    hub.border = border.map(|b| (b, [screen.0, screen.1]));
     for helper in &profile.pre_launch {
         let helper_path = run_exe_dir.join(helper);
         let helper_path = wine.windows_path(&helper_path);

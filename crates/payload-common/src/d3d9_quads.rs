@@ -115,6 +115,14 @@ pub unsafe fn draw_over(dev: P, states: P, draw: impl FnOnce(u32, u32)) {
         if get_back_buffer(dev, 0, 0, 0, &mut back) < 0 || back.is_null() {
             return;
         }
+        draw_on(dev,states,back,draw);
+        release(back);
+    }
+}
+
+/// Draws into a borrowed presentation surface (a compositor's additional swap chain).
+pub unsafe fn draw_on(dev:P,states:P,back:P,draw:impl FnOnce(u32,u32)) {
+    unsafe {
         // D3DSURFACE_DESC: Format, Type, Usage, Pool, MultiSampleType, MultiSampleQuality, Width, Height
         let mut desc = [0u32; 8];
         let get_desc: unsafe extern "system" fn(P, *mut u32) -> i32 = std::mem::transmute(method(back, SURF_GET_DESC));
@@ -144,7 +152,6 @@ pub unsafe fn draw_over(dev: P, states: P, draw: impl FnOnce(u32, u32)) {
         release(old_rt);
         release(old_ds);
         apply(states);
-        release(back);
     }
 }
 

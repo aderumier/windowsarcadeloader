@@ -63,7 +63,10 @@ unsafe extern "system" fn get_proc_address(module: P, name: *const u8) -> usize 
 unsafe extern "system" fn wgl_swap_buffers(dc: P) -> i32 {
     let orig: unsafe extern "system" fn(P) -> i32 = unsafe { std::mem::transmute(ORIG_WGL_SWAP.load(Ordering::Relaxed)) };
     unsafe { before_swap(dc) };
-    unsafe { orig(dc) }
+    let clean = unsafe { border_frame(dc, false) };
+    let result = unsafe { orig(dc) };
+    if clean { unsafe { border_frame(dc, true) }; }
+    result
 }
 /// glEnable, glDisable, glIsEnabled, glScissor, glGetIntegerv, glGetFloatv, glClearColor, glClear.
 static GL: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
@@ -79,7 +82,7 @@ fn size(var: &str) -> Option<(i32, i32)> {
 pub fn init() {
     let corner = size("WAL_GL_CORNER");
     let viewports = size("WAL_GL_SIZE");
-    if corner.is_none() && viewports.is_none() {
+    if corner.is_none() && viewports.is_none() && crate::border::config().is_none() {
         return;
     }
     if let Some((w, h)) = corner {
@@ -97,7 +100,8 @@ pub fn init() {
     crate::late_hooks::hook("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize, &ORIG_GET_PROC);
     match corner {
         Some((w, h)) => log!("glview: the {w}x{h} corner scaled to the window"),
-        None => log!("glview: {}x{} viewports fitted to the window", WIDTH.load(Ordering::Relaxed), HEIGHT.load(Ordering::Relaxed)),
+        None if viewports.is_some() => log!("glview: {}x{} viewports fitted to the window", WIDTH.load(Ordering::Relaxed), HEIGHT.load(Ordering::Relaxed)),
+        None => log!("glview: native Sinden frame enabled"),
     }
 }
 
@@ -170,7 +174,10 @@ fn gl_ready() -> bool {
 unsafe extern "system" fn swap_buffers(dc: P) -> i32 {
     let orig: unsafe extern "system" fn(P) -> i32 = unsafe { std::mem::transmute(ORIG_SWAP.load(Ordering::Relaxed)) };
     unsafe { before_swap(dc) };
-    unsafe { orig(dc) }
+    let clean = unsafe { border_frame(dc, false) };
+    let result = unsafe { orig(dc) };
+    if clean { unsafe { border_frame(dc, true) }; }
+    result
 }
 
 /// Before a swap: the corner scaled, or the bars cleared.
@@ -182,6 +189,7 @@ unsafe fn before_swap(dc: P) {
         unsafe { corner(dc) };
         return;
     }
+    if WIDTH.load(Ordering::Relaxed) == 0 { return; }
     if let Some((px, py, pw, ph, cw, ch)) = picture().filter(|p| (p.2, p.3) != (p.4, p.5)) {
         const GL_SCISSOR_TEST: u32 = 0x0C11;
         const GL_SCISSOR_BOX: u32 = 0x0C10;
@@ -338,5 +346,228 @@ unsafe fn corner(dc: P) {
         }
         clear_color(color[0], color[1], color[2], color[3]);
         (f.color_mask)(mask[0], mask[1], mask[2], mask[3]);
+    }
+}
+
+
+/// A clean frame per GL context, as in linuxloader's borderFrame. No readback to the CPU.
+unsafe fn border_frame(dc: P, restore: bool) -> bool {
+    if crate::border::config().is_none() || !gl_ready() {
+        return false;
+    }
+    let Some(f) = fbo() else { return false };
+    let hwnd = unsafe { WindowFromDC(dc) };
+    let mut rect: RECT = unsafe { std::mem::zeroed() };
+    if hwnd.is_null() || unsafe { GetClientRect(hwnd, &mut rect) } == 0 {
+        return false;
+    }
+    let (w, h) = (rect.right, rect.bottom);
+    if w < 2 || h < 2 {
+        return false;
+    }
+    let Some((picture, bx, by, rgb)) = crate::border::geometry(w as u32, h as u32) else {
+        return false;
+    };
+    thread_local! { static CLEAN: std::cell::RefCell<std::collections::HashMap<usize,(u32,u32,i32,i32)>> = std::cell::RefCell::new(std::collections::HashMap::new()); }
+    unsafe {
+        let get: unsafe extern "system" fn(u32, *mut i32) = std::mem::transmute(gl(4));
+        let module = GetModuleHandleW(windows_sys::w!("opengl32.dll"));
+        let Some(context) = GetProcAddress(module, c"wglGetCurrentContext".as_ptr().cast()) else {
+            return false;
+        };
+        let context: unsafe extern "system" fn() -> usize = std::mem::transmute(context);
+        let Some(read_buffer) = GetProcAddress(module, c"glReadBuffer".as_ptr().cast()) else {
+            return false;
+        };
+        let Some(draw_buffer) = GetProcAddress(module, c"glDrawBuffer".as_ptr().cast()) else {
+            return false;
+        };
+        let read_buffer: unsafe extern "system" fn(u32) = std::mem::transmute(read_buffer);
+        let draw_buffer: unsafe extern "system" fn(u32) = std::mem::transmute(draw_buffer);
+        let enable: unsafe extern "system" fn(u32) = std::mem::transmute(gl(0));
+        let disable: unsafe extern "system" fn(u32) = std::mem::transmute(gl(1));
+        let is_enabled: unsafe extern "system" fn(u32) -> u8 = std::mem::transmute(gl(2));
+        let scissor_fn: unsafe extern "system" fn(i32, i32, i32, i32) = std::mem::transmute(gl(3));
+        let get_float: unsafe extern "system" fn(u32, *mut f32) = std::mem::transmute(gl(5));
+        let clear_color: unsafe extern "system" fn(f32, f32, f32, f32) = std::mem::transmute(gl(6));
+        let clear: unsafe extern "system" fn(u32) = std::mem::transmute(gl(7));
+        let (mut read, mut draw, mut rb, mut readbuf, mut drawbuf) = (0, 0, 0, 0, 0);
+        get(0x8CAA, &mut read);
+        get(0x8CA6, &mut draw);
+        get(0x8CA7, &mut rb);
+        let mut color = [0.0; 4];
+        get_float(0x0C22, color.as_mut_ptr());
+        let mut mask = [0u8; 4];
+        (f.get_booleanv)(0x0C23, mask.as_mut_ptr());
+        let mut boxed = [0i32; 4];
+        get(0x0C10, boxed.as_mut_ptr());
+        let scissor = is_enabled(0x0C11);
+        (f.bind_framebuffer)(0x8CA8, 0);
+        (f.bind_framebuffer)(0x8CA9, 0);
+        get(0x0C02, &mut readbuf);
+        get(0x0C01, &mut drawbuf);
+        read_buffer(0x0405);
+        draw_buffer(0x0405); // GL_BACK
+        disable(0x0C11);
+        let ok = CLEAN.with(|state| {
+            let mut state = state.borrow_mut();
+            let entry = state.entry(context()).or_insert((0, 0, 0, 0));
+            if restore && (entry.0 == 0 || entry.2 != w || entry.3 != h) {
+                return false;
+            }
+            if entry.0 == 0 {
+                (f.gen_framebuffers)(1, &mut entry.0);
+                (f.gen_renderbuffers)(1, &mut entry.1);
+            }
+            if (entry.2, entry.3) != (w, h) {
+                (f.bind_renderbuffer)(0x8D41, entry.1);
+                (f.renderbuffer_storage)(0x8D41, 0x8058, w, h);
+                (f.bind_framebuffer)(0x8CA9, entry.0);
+                (f.framebuffer_renderbuffer)(0x8CA9, 0x8CE0, 0x8D41, entry.1);
+                entry.2 = w;
+                entry.3 = h;
+            }
+            if restore {
+                (f.bind_framebuffer)(0x8CA8, entry.0);
+                (f.bind_framebuffer)(0x8CA9, 0);
+                (f.blit_framebuffer)(0, 0, w, h, 0, 0, w, h, 0x4000, 0x2600);
+            } else {
+                (f.bind_framebuffer)(0x8CA8, 0);
+                (f.bind_framebuffer)(0x8CA9, entry.0);
+                (f.blit_framebuffer)(0, 0, w, h, 0, 0, w, h, 0x4000, 0x2600);
+                (f.bind_framebuffer)(0x8CA9, 0);
+                (f.color_mask)(1, 1, 1, 1);
+                clear_color(0.0, 0.0, 0.0, 1.0);
+                clear(0x4000);
+                enable(0x0C11);
+                clear_color(
+                    ((rgb >> 16) & 255) as f32 / 255.0,
+                    ((rgb >> 8) & 255) as f32 / 255.0,
+                    (rgb & 255) as f32 / 255.0,
+                    1.0,
+                );
+                let (ox, oy) = crate::border::outline(w as u32, h as u32);
+                for [l, t, r, b] in crate::border::strips(w, h, bx, by, ox, oy) {
+                    scissor_fn(l, h - b, r - l, b - t);
+                    clear(0x4000);
+                }
+                disable(0x0C11);
+                if let Some((bezel, bw, bh)) = border_bezel_gl(f, context()) {
+                    if let Some((outer, _, _, _)) =
+                        crate::border::outer_geometry(w as u32, h as u32)
+                    {
+                        (f.bind_framebuffer)(0x8CA8, bezel);
+                        (f.bind_framebuffer)(0x8CA9, 0);
+                        (f.blit_framebuffer)(
+                            0,
+                            bh,
+                            bw,
+                            0,
+                            outer[0],
+                            h - outer[3],
+                            outer[2],
+                            h - outer[1],
+                            0x4000,
+                            0x2601,
+                        );
+                    }
+                }
+                (f.bind_framebuffer)(0x8CA9, 0);
+                (f.bind_framebuffer)(0x8CA8, entry.0);
+                (f.blit_framebuffer)(
+                    0,
+                    0,
+                    w,
+                    h,
+                    picture[0],
+                    h - picture[3],
+                    picture[2],
+                    h - picture[1],
+                    0x4000,
+                    0x2601,
+                );
+            }
+            true
+        });
+        (f.bind_framebuffer)(0x8CA8, 0);
+        (f.bind_framebuffer)(0x8CA9, 0);
+        read_buffer(readbuf as u32);
+        draw_buffer(drawbuf as u32);
+        (f.bind_framebuffer)(0x8CA8, read as u32);
+        (f.bind_framebuffer)(0x8CA9, draw as u32);
+        (f.bind_renderbuffer)(0x8D41, rb as u32);
+        clear_color(color[0], color[1], color[2], color[3]);
+        (f.color_mask)(mask[0], mask[1], mask[2], mask[3]);
+        scissor_fn(boxed[0], boxed[1], boxed[2], boxed[3]);
+        if scissor != 0 {
+            enable(0x0C11);
+        } else {
+            disable(0x0C11);
+        }
+        ok
+    }
+}
+
+/// Uploads the static bezel once per GL context, keeping it separate from the clean frame.
+unsafe fn border_bezel_gl(f: &Fbo, context: usize) -> Option<(u32, i32, i32)> {
+    let image = crate::border::backdrop()?;
+    thread_local! { static BEZELS:std::cell::RefCell<std::collections::HashMap<usize,u32>>=std::cell::RefCell::new(std::collections::HashMap::new()); }
+    if let Some(fbo) = BEZELS.with(|b| b.borrow().get(&context).copied()) {
+        return Some((fbo, image.w as i32, image.h as i32));
+    }
+    unsafe {
+        let module = GetModuleHandleW(windows_sys::w!("opengl32.dll"));
+        let core = |name: &std::ffi::CStr| {
+            GetProcAddress(module, name.as_ptr().cast()).map(|p| p as usize)
+        };
+        let wgl: unsafe extern "system" fn(*const u8) -> usize =
+            std::mem::transmute(core(c"wglGetProcAddress")?);
+        let ext = |name: &std::ffi::CStr| Some(wgl(name.as_ptr().cast())).filter(|p| *p > 3);
+        let generate_texture: unsafe extern "system" fn(i32, *mut u32) =
+            std::mem::transmute(core(c"glGenTextures")?);
+        let bind: unsafe extern "system" fn(u32, u32) =
+            std::mem::transmute(core(c"glBindTexture")?);
+        let upload: unsafe extern "system" fn(u32, i32, i32, i32, i32, i32, u32, u32, *const u8) =
+            std::mem::transmute(core(c"glTexImage2D")?);
+        let store: unsafe extern "system" fn(u32, i32) =
+            std::mem::transmute(core(c"glPixelStorei")?);
+        let bind_buffer: unsafe extern "system" fn(u32, u32) =
+            std::mem::transmute(ext(c"glBindBuffer")?);
+        let attach: unsafe extern "system" fn(u32, u32, u32, u32, i32) =
+            std::mem::transmute(ext(c"glFramebufferTexture2D")?);
+        let get: unsafe extern "system" fn(u32, *mut i32) = std::mem::transmute(gl(4));
+        let (mut old_texture, mut pbo) = (0, 0);
+        get(0x8069, &mut old_texture);
+        get(0x88EF, &mut pbo);
+        let mut unpack = [0i32; 4];
+        for (i, tag) in [0x0CF2, 0x0CF3, 0x0CF4, 0x0CF5].into_iter().enumerate() {
+            get(tag, &mut unpack[i]);
+            store(tag, if i == 3 { 4 } else { 0 });
+        }
+        bind_buffer(0x88EC, 0);
+        let (mut texture, mut target) = (0, 0);
+        generate_texture(1, &mut texture);
+        bind(0x0DE1, texture);
+        upload(
+            0x0DE1,
+            0,
+            0x8058,
+            image.w as i32,
+            image.h as i32,
+            0,
+            0x80E1,
+            0x1401,
+            image.bgra.as_ptr(),
+        );
+        bind(0x0DE1, old_texture as u32);
+        bind_buffer(0x88EC, pbo as u32);
+        for (i, tag) in [0x0CF2, 0x0CF3, 0x0CF4, 0x0CF5].into_iter().enumerate() {
+            store(tag, unpack[i]);
+        }
+        (f.gen_framebuffers)(1, &mut target);
+        (f.bind_framebuffer)(0x8CA9, target);
+        attach(0x8CA9, 0x8CE0, 0x0DE1, texture, 0);
+        BEZELS.with(|b| b.borrow_mut().insert(context, target));
+        Some((target, image.w as i32, image.h as i32))
     }
 }

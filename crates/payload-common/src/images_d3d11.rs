@@ -10,14 +10,10 @@
 //! textures made on the game's device.
 
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
 
 use crate::log;
-use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW};
-use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
-use windows_sys::Win32::UI::WindowsAndMessaging::{CreateWindowExW, DestroyWindow, WS_OVERLAPPEDWINDOW};
+use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 use windows_sys::core::GUID;
 
 type P = *mut c_void;
@@ -28,10 +24,7 @@ const IID_DEVICE: GUID = GUID::from_u128(0xdb6f6ddb_ac77_4e88_8253_819df9bbf140)
 const IID_DEVICE1: GUID = GUID::from_u128(0xa04bfb29_08ef_43d6_a49c_a9bdbdcbe686);
 const IID_CONTEXT1: GUID = GUID::from_u128(0xbb2c6faa_b5fb_4082_8e6b_388b8cfa90e1);
 
-const DXGI_PRESENT_TEST: u32 = 1;
 
-static PRESENT: AtomicUsize = AtomicUsize::new(0);
-static PRESENT1: AtomicUsize = AtomicUsize::new(0);
 
 /// An image: its size and BGRA pixels.
 pub struct Image {
@@ -75,7 +68,7 @@ static SETUP: OnceLock<Setup> = OnceLock::new();
 /// Draws `quads()` (the images' quads, in drawing order) over the game's picture each frame.
 pub fn init(images: Vec<Image>, quads: fn() -> Vec<Quad>) {
     if SETUP.set(Setup { images, quads }).is_ok() {
-        std::thread::spawn(hook_present);
+        crate::border_d3d11::register(presentation);
     }
 }
 
@@ -91,24 +84,6 @@ fn release(obj: P) {
     if !obj.is_null() {
         com!(obj, 2, fn() -> u32);
     }
-}
-
-#[repr(C)]
-struct SwapChainDesc {
-    width: u32,
-    height: u32,
-    refresh: [u32; 2],
-    format: u32,
-    scanline: u32,
-    scaling: u32,
-    sample_count: u32,
-    sample_quality: u32,
-    usage: u32,
-    buffer_count: u32,
-    window: P,
-    windowed: i32,
-    swap_effect: u32,
-    flags: u32,
 }
 
 #[repr(C)]
@@ -128,77 +103,7 @@ struct Texture2DDesc {
 }
 
 /// Waits for the game's Direct3D 11, then replaces `Present` in the swap chains' vtable.
-fn hook_present() {
-    let d3d11 = loop {
-        let m = unsafe { GetModuleHandleW(windows_sys::w!("d3d11.dll")) };
-        if !m.is_null() {
-            break m;
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    };
-    let Some(create) = (unsafe { GetProcAddress(d3d11, c"D3D11CreateDeviceAndSwapChain".as_ptr() as *const u8) }) else {
-        log!("images: D3D11CreateDeviceAndSwapChain not found, no images");
-        return;
-    };
-    type Create = unsafe extern "system" fn(P, u32, P, u32, P, u32, u32, *const SwapChainDesc, *mut P, *mut P, *mut u32, *mut P) -> HRESULT;
-    let create: Create = unsafe { std::mem::transmute(create) };
-    let window = unsafe { CreateWindowExW(0, windows_sys::w!("STATIC"), windows_sys::w!("wal"), WS_OVERLAPPEDWINDOW, 0, 0, 64, 64, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null()) };
-    let desc = SwapChainDesc {
-        width: 64,
-        height: 64,
-        refresh: [0, 0],
-        format: 28,
-        scanline: 0,
-        scaling: 0,
-        sample_count: 1,
-        sample_quality: 0,
-        usage: 0x20,
-        buffer_count: 1,
-        window,
-        windowed: 1,
-        swap_effect: 0,
-        flags: 0,
-    };
-    let (mut swap, mut device, mut context): (P, P, P) = (std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
-    let hr = unsafe { create(std::ptr::null_mut(), 1, std::ptr::null_mut(), 0, std::ptr::null_mut(), 0, 7, &desc, &mut swap, &mut device, std::ptr::null_mut(), &mut context) };
-    if hr < 0 || swap.is_null() {
-        log!("images: no swap chain of our own ({hr:#x}), no images");
-        unsafe { DestroyWindow(window) };
-        return;
-    }
-    let vtable = unsafe { *(swap as *const *mut usize) };
-    for (index, hook, orig) in [(8, present as *const () as usize, &PRESENT), (22, present1 as *const () as usize, &PRESENT1)] {
-        let slot = unsafe { vtable.add(index) };
-        let mut old = 0;
-        unsafe {
-            VirtualProtect(slot.cast(), 8, PAGE_READWRITE, &mut old);
-            orig.store(*slot, Ordering::Relaxed);
-            *slot = hook;
-            VirtualProtect(slot.cast(), 8, old, &mut old);
-        }
-    }
-    release(context);
-    release(device);
-    release(swap);
-    unsafe { DestroyWindow(window) };
-    log!("images: Present hooked, the images drawn over the picture");
-}
-
-unsafe extern "system" fn present(swap: P, sync: u32, flags: u32) -> HRESULT {
-    if flags & DXGI_PRESENT_TEST == 0 {
-        overlay(swap);
-    }
-    let orig: unsafe extern "system" fn(P, u32, u32) -> HRESULT = unsafe { std::mem::transmute(PRESENT.load(Ordering::Relaxed)) };
-    unsafe { orig(swap, sync, flags) }
-}
-
-unsafe extern "system" fn present1(swap: P, sync: u32, flags: u32, params: P) -> HRESULT {
-    if flags & DXGI_PRESENT_TEST == 0 {
-        overlay(swap);
-    }
-    let orig: unsafe extern "system" fn(P, u32, u32, P) -> HRESULT = unsafe { std::mem::transmute(PRESENT1.load(Ordering::Relaxed)) };
-    unsafe { orig(swap, sync, flags, params) }
-}
+fn presentation(swap: P) { overlay(swap); }
 
 /// The drawing's objects, for one device: the images' shader resource views.
 struct Resources {

@@ -11,6 +11,13 @@ rm -rf "$DEST/payloads" "$DEST/systemprofiles"
 cp -r dist/payloads "$DEST/payloads"
 cp -r systemprofiles "$DEST/systemprofiles"
 [ -f "$DEST/launcher.yaml" ] || cp tools/batocera/launcher.yaml "$DEST/"
+# Keep the RGS configgen integration in sync when installing into its emulator tree.
+if [ -d "$DEST/../../generators/windows-arcade-loader" ]; then
+    cp tools/batocera/windowsArcadeLoaderGenerator.py "$DEST/../../generators/windows-arcade-loader/"
+fi
+if [ -d "$DEST/../../../configs/emulationstation" ]; then
+    cp tools/batocera/es_features_windowsarcadeloader.cfg "$DEST/../../../configs/emulationstation/"
+fi
 # GUI: its wrapper and icon (the applications menu entry of the rgs tree points at them)
 cp tools/batocera/arcade-launcher-gui tools/batocera/icon.png "$DEST/"
 # prefixes ready to unpack: the shared one (tools/prefix-archive.sh) and games' own

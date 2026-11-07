@@ -68,6 +68,8 @@ pub struct Hub<'a> {
     keys: Option<Receiver<(u16, i32)>>,
     pointers: Option<Receiver<PointerEvent>>,
     pub exit_requested: bool,
+    pub border: Option<(wal_protocol::border::Border, [u32; 2])>,
+    border_aim: HashMap<usize, ([i32; 2], bool, Option<Instant>)>,
     /// Keyboards' ramped stick axes per player (`input.keyboard_ramp_ms`), and when they moved.
     ramped: [[i16; Axis::COUNT]; MAX_PLAYERS],
     last_frame: Instant,
@@ -170,6 +172,8 @@ impl<'a> Hub<'a> {
             keys,
             pointers,
             exit_requested: false,
+            border: None,
+            border_aim: HashMap::new(),
             ramped: [[0; Axis::COUNT]; MAX_PLAYERS],
             last_frame: Instant::now(),
             verbose: false,
@@ -224,9 +228,32 @@ impl<'a> Hub<'a> {
         }
         if let Some(rx) = &self.pointers {
             let pending: Vec<_> = rx.try_iter().collect();
-            for (index, key, value) in pending {
+            for (index, key, mut value) in pending {
+                if let Some((border,screen)) = self.border {
+                    let (position,offscreen,_)=self.border_aim.entry(index).or_insert(([0,0],false,None));
+                    match key {
+                        RawKey::GunAxis(axis @ 0..=1) => {
+                            position[axis as usize]=value;
+                            value=border.axis(value,axis as usize,screen);
+                        }
+                        RawKey::GunOffscreen => *offscreen=value!=0,
+                        _ => {}
+                    }
+                }
                 if let Some(dev) = self.devices.get_mut(&DevKey::Pointer(index)) {
                     dev.raw.insert(key, value);
+                }
+            }
+            if let Some((border,screen))=self.border {
+                for (index,(position,offscreen,since)) in &mut self.border_aim {
+                    if border.contains(*position,screen) { *since=None; }
+                    else { since.get_or_insert_with(Instant::now); }
+                    // As the gun reader's debounce: one bad Sinden camera sample must not
+                    // become an off-screen reload. Three 60 Hz samples outside the picture.
+                    let outside=*offscreen || since.is_some_and(|t|t.elapsed()>=Duration::from_millis(50));
+                    if let Some(dev)=self.devices.get_mut(&DevKey::Pointer(*index)) {
+                        dev.raw.insert(RawKey::GunOffscreen,outside as i32);
+                    }
                 }
             }
         }

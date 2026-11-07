@@ -1,4 +1,4 @@
-//! A portrait Unity cabinet game on a 16:9 screen: `WAL_UNITY_LANDSCAPE=1`.
+//! Top Gun 2 on a 16:9 screen: `WAL_UNITY_LANDSCAPE=1`.
 //!
 //! The game asks its cabinet's 1080x1920 (`Screen.SetResolution(1080, 1920, true)`) and lays
 //! its UI out on it (constant pixel size canvases, around the screen's center). In landscape:
@@ -23,14 +23,15 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use crate::images_d3d11::{self, Image, Quad};
-use crate::log;
-use crate::mono::{Mono, mono};
+use wal_payload_common::images_d3d11::{self, Image, Quad};
+use wal_payload_common::log;
+use wal_payload_common::mono::mono;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
 
 /// `WAL_UNITY_LANDSCAPE=1`.
 pub fn enabled() -> bool {
-    std::env::var("WAL_UNITY_LANDSCAPE").is_ok_and(|v| v.trim() == "1")
+    std::env::var("WAL_ARCADEPC_BOARD").is_ok_and(|v| v.trim() == "jxcamera")
+        && std::env::var("WAL_UNITY_LANDSCAPE").is_ok_and(|v| v.trim() == "1")
 }
 
 /// The bezel's image (`WAL_BEZEL`, taken from the portrait setup).
@@ -206,35 +207,6 @@ fn bezel_quads() -> Vec<Quad> {
         Quad { image: 0, rect: [gl - lw, 0.0, lw, 1.0] },
         Quad { image: 1, rect: [gr, 0.0, rw, 1.0] },
     ]
-}
-
-/// Reads a pointer-sized value at `at` (0: none).
-pub fn read_ptr(at: usize) -> usize {
-    if at == 0 { 0 } else { unsafe { (at as *const usize).read_volatile() } }
-}
-
-/// The class (`MonoClass*`) of the object at `obj`: its vtable's first field.
-pub fn class_of(obj: usize) -> usize {
-    read_ptr(read_ptr(obj))
-}
-
-/// A Mono array's first element's offset (its header: vtable, sync, bounds, length).
-pub const ARRAY_DATA: usize = 4 * size_of::<usize>();
-
-/// Waits for Mono and UnityEngine's game assembly (`Assembly-CSharp`), then calls `f` with them
-/// on this thread (attached).
-pub fn with_game_assembly(f: impl FnOnce(&'static Mono, *mut std::ffi::c_void) + Send + 'static) {
-    std::thread::spawn(move || {
-        for _ in 0..3000 {
-            std::thread::sleep(Duration::from_millis(100));
-            let Some(m) = mono() else { continue };
-            let image = m.image("Assembly-CSharp");
-            if image.is_null() || !m.attach() {
-                continue;
-            }
-            return f(m, image);
-        }
-    });
 }
 
 #[cfg(test)]

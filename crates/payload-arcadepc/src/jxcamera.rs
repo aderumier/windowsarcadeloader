@@ -11,7 +11,7 @@
 //! helper idles) and the OpenCV `VideoCapture` settings (`SetCapture`, `SetNormalCapture`,
 //! `GetExposure`) are replaced by nothing.
 //!
-//! `WAL_UNITY_LANDSCAPE=1` (`payload-common`'s `unity_landscape.rs`): the game on a 16:9
+//! `WAL_UNITY_LANDSCAPE=1` (`topgun2_landscape.rs`): the game on a 16:9
 //! screen, its levels full screen, the menus, attract and loading screens a portrait column in
 //! the bezel, hidden in the levels (`GameMain._State`).
 
@@ -89,7 +89,7 @@ fn replace() {
             m.replace(m.method(class, "SetNormalCapture", 2), none),
             m.replace(m.method(class, "GetExposure", 1), none),
         ];
-        if wal_payload_common::unity_landscape::enabled() {
+        if crate::topgun2_landscape::enabled() {
             game_state(m);
         }
         let src = m.replace(m.method(class, "GetSrcPos", 1), get_src_pos as *const () as usize);
@@ -166,7 +166,7 @@ fn game_state(m: &wal_payload_common::mono::Mono) {
 }
 
 pub fn init() {
-    wal_payload_common::unity_landscape::start(in_level);
+    crate::topgun2_landscape::start(in_level);
     std::thread::spawn(replace);
 }
 

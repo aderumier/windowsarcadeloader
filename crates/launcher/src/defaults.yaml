@@ -124,6 +124,12 @@ registry: []
 fonts: []
 # Extra environment variables of the game process (system options, wine settings).
 env:
+  # Native Sinden frame: auto for gun games with a Sinden attached, "1" always, "0" off.
+  # Size: thin/medium/big (Batocera), or percent of screen width (0.1..10).
+  # Color: white/red/green/blue or #RRGGBB. The whole picture fits inside the frame.
+  WAL_SINDEN_BORDER: "auto"
+  WAL_SINDEN_BORDER_SIZE: "medium"
+  WAL_SINDEN_BORDER_COLOR: "white"
   # Direct3D 9/8 presents held to 60 per second: arcade games are timed by frames and ran
   # too fast where vsync is not given (high refresh rate screens, VRR, windowed games on
   # some drivers). "0": no limit.

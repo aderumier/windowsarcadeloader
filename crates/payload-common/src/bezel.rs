@@ -328,6 +328,8 @@ fn run(image: HBITMAP) {
     }
 }
 pub fn init() {
+    // Native presentation composes the bezel and game before fitting them inside the frame.
+    if crate::border::config().is_some() { return; }
     let Ok(path) = std::env::var("WAL_BEZEL") else { return };
     let path = path.trim().to_string();
     if path.is_empty() || path == "0" {

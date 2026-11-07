@@ -3965,7 +3965,9 @@ assembly (`Managed/Original.rar`, the same file); the executable renamed (`TopGu
   `wal-loader64.exe`: before Wine's X11 driver), Unity's window messages filtered once
   `UnityPlayer.dll` is loaded.
 - **Landscape (`WAL_UNITY_LANDSCAPE=1`, the profile's default; "0": the cabinet's portrait;
-  `payload-common`'s `unity_landscape.rs`, the game's level test in `jxcamera.rs`).**
+  `payload-arcadepc`'s `topgun2_landscape.rs`, the game's level test in `jxcamera.rs`).**
+  This dynamic display patch is private to Top Gun 2 (`WAL_ARCADEPC_BOARD=jxcamera`);
+  other ArcadePC games use their standard bezel behavior.
   The levels full screen on a 16:9 screen, not stretched; the menus, attract and loading
   screens as on the cabinet, a portrait column in the bezel. Before the common start, the
   portrait setup is undone (`WAL_DESKTOP_SIZE`, `WAL_BEZEL`, `WAL_BEZEL_FIT` removed from the

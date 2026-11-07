@@ -85,6 +85,8 @@ const D3D_GET_ADAPTER_DISPLAY_MODE: usize = 8;
 const D3D_CREATE_DEVICE: usize = 16;
 const D3D_CREATE_DEVICE_EX: usize = 20;
 const DEV_GET_DISPLAY_MODE: usize = 8;
+const D3D9_WINDOWED: usize = if cfg!(target_pointer_width = "64") { 10 } else { 8 };
+const D3D9_HWND: usize = if cfg!(target_pointer_width = "64") { 8 } else { 7 };
 const DEV_RESET: usize = 16;
 const DEV_PRESENT: usize = 17;
 const DEV_PRESENT_EX: usize = 121;
@@ -202,6 +204,9 @@ unsafe fn draw_overlay(dev: P, window: P) -> Option<P> {
 unsafe fn present_overlay(dev: P, chain: P) -> HRESULT {
     const CHAIN_PRESENT: usize = 3;
     const CHAIN_GET_BACK_BUFFER: usize = 5;
+    // The common compositor already fits the frame directly from the untouched game surface.
+    let composed = LETTERBOX.lock().unwrap().as_ref().is_some_and(|l| l.chain==chain as usize);
+    let clean = if composed { false } else { unsafe { border_begin(dev, Some(chain)) } };
     if let Some(path) = screenshot_due() {
         let get: unsafe extern "system" fn(P, u32, u32, *mut P) -> HRESULT = unsafe { std::mem::transmute(method(chain, CHAIN_GET_BACK_BUFFER)) };
         let mut back: P = std::ptr::null_mut();
@@ -209,13 +214,17 @@ unsafe fn present_overlay(dev: P, chain: P) -> HRESULT {
             if let Err(e) = unsafe { capture_surface(dev, back, &path) } {
                 log!("screenshot: {path}: {e}");
             }
+            unsafe { release(back) };
         }
     }
     let present: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(method(chain, CHAIN_PRESENT)) };
-    unsafe { present(chain, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), 0) }
+    let hr = unsafe { present(chain, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), 0) };
+    unsafe { border_end(dev, Some(chain), clean) };
+    hr
 }
 
 unsafe fn overlay_reset(dev: P) {
+    border_reset();
     letterbox_reset();
     let f = OVERLAY_RESET.load(Ordering::Relaxed);
     if f != 0 {
@@ -296,7 +305,7 @@ pub fn init() {
     POW2.store(pow2, Ordering::Relaxed);
     let multithreaded = std::env::var("WAL_D3D9_MULTITHREADED").is_ok_and(|v| v == "1");
     MULTITHREADED.store(multithreaded, Ordering::Relaxed);
-    if secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && source.is_none() && max_fps.is_none() && !force && !query_fix && !update_texture_fix && !trace && !pow2 && !multithreaded {
+    if crate::border::config().is_none() && secs.is_none() && size.is_none() && windowed_size.is_none() && aspect.is_none() && source.is_none() && max_fps.is_none() && !force && !query_fix && !update_texture_fix && !trace && !pow2 && !multithreaded {
         return;
     }
     // the game and the DLLs of its directory (engines creating the device themselves), also
@@ -552,7 +561,10 @@ unsafe extern "system" fn present_ex(dev: P, src: P, dst: P, window: P, dirty: P
     let dst = unsafe { aspect_rect(dst, window, &mut rect) };
     let mut source = [0i32; 4];
     let src = source_rect(src, &mut source);
-    unsafe { orig(dev, src, dst, window, dirty, flags) }
+    let clean = unsafe { border_begin(dev, None) };
+    let hr = unsafe { orig(dev, src, dst, window, dirty, flags) };
+    unsafe { border_end(dev, None, clean) };
+    hr
 }
 
 /// D3DDISPLAYMODEEX
@@ -569,17 +581,14 @@ struct DisplayModeEx {
 
 /// 9Ex fullscreen devices need a display mode: games made fullscreen by the shims pass none.
 unsafe fn fullscreen_mode(params: P, mode: P, fallback: &mut DisplayModeEx) -> P {
-    if params.is_null() || !mode.is_null() {
-        return mode;
-    }
+    if params.is_null() { return mode; }
     let p = params as *const u32;
-    if unsafe { *p.add(8) } != 0 {
-        return mode; // windowed
-    }
+    if unsafe { *p.add(D3D9_WINDOWED) } != 0 { return std::ptr::null_mut(); }
+    if !mode.is_null() { return mode; }
     unsafe {
         // display modes have no alpha: A8R8G8B8 back buffers are shown in X8R8G8B8
         let format = if *p.add(2) == D3DFMT_A8R8G8B8 { D3DFMT_X8R8G8B8 } else { *p.add(2) };
-        *fallback = DisplayModeEx { size: 24, width: *p, height: *p.add(1), refresh: *p.add(12), format, scanline_ordering: 1 };
+        *fallback = DisplayModeEx { size: 24, width: *p, height: *p.add(1), refresh: *p.add(D3D9_WINDOWED+4), format, scanline_ordering: 1 };
     }
     fallback as *mut DisplayModeEx as P
 }
@@ -610,7 +619,7 @@ pub(crate) fn screenshot_due() -> Option<String> {
 /// Width, Height, Format, Count, MultiSample, MultiSampleQuality, SwapEffect, hDeviceWindow,
 /// Windowed, ...). Direct3D 8 has no MultiSampleQuality: Windowed is dword 7.
 unsafe fn override_size(params: P) {
-    unsafe { override_size_at(params, 8) }
+    unsafe { override_size_at(params, D3D9_WINDOWED) }
 }
 
 /// Format is dword 2 and FullScreen_RefreshRateInHz is 4 dwords after Windowed in both layouts.
@@ -624,7 +633,8 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
         if w == 0 || h == 0 {
             // a back buffer of the window's size (SEGA Golden Gun: 0x0 in a 1360x768 window):
             // fullscreen needs it explicit
-            let window = match unsafe { *p.add(windowed_index - 1) } as usize {
+            let hwnd_index=if windowed_index==d3d8::WINDOWED { 6 } else { D3D9_HWND };
+            let window = match unsafe { *(p.add(hwnd_index).cast::<usize>()) } {
                 0 => FOCUS_WINDOW.load(Ordering::Relaxed),
                 hwnd => hwnd,
             };
@@ -660,6 +670,9 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
             make_windowed(params, windowed_index);
         }
         log!("d3d: back buffer {old_w}x{old_h} (windowed {old_windowed}) -> windowed {w}x{h}");
+    }
+    if crate::border::config().is_some() {
+        unsafe { make_windowed(params,windowed_index) };
     }
     let windowed = unsafe { *p.add(windowed_index) } != 0;
     if !windowed && let Some((w, h)) = *FULLSCREEN_SIZE.lock().unwrap() {
@@ -699,7 +712,7 @@ unsafe fn fullscreen_fallback(hr: HRESULT, params: P, windowed_index: usize, dev
     let (w, h) = unsafe { (*p, *p.add(1)) };
     WINDOWED_FALLBACK.store(true, Ordering::Relaxed);
     unsafe { make_windowed(params, windowed_index) };
-    let device_window = unsafe { *p.add(device_window_index) } as usize as P;
+    let device_window = unsafe { *(p.add(device_window_index).cast::<usize>()) } as P;
     let hwnd = if device_window.is_null() { focus } else { device_window };
     unsafe { cover_screen(hwnd) };
     log!("d3d: fullscreen {w}x{h} device failed ({hr:#x}): windowed {w}x{h} device over the whole screen");
@@ -883,14 +896,14 @@ unsafe extern "system" fn create_device(d3d: P, adapter: u32, kind: u32, window:
     let mut hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
     if hr < 0 {
         unsafe { log_failure(hr, params, flags) };
-        if unsafe { fullscreen_fallback(hr, params, 8, 7, window) } {
+        if unsafe { fullscreen_fallback(hr, params, D3D9_WINDOWED, D3D9_HWND, window) } {
             hr = unsafe { orig(d3d, adapter, kind, window, flags, params, out) };
         }
     }
     if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
         unsafe { remember_window(params, window) };
         unsafe { show_device_window() };
-        unsafe { log_device("d3d9", params, 8, window) };
+        unsafe { log_device("d3d9", params, D3D9_WINDOWED, window) };
         unsafe { wrap_device(*out) };
     } else {
         unsafe { log_failure(hr, params, flags) };
@@ -984,7 +997,10 @@ unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -
     let dst = unsafe { aspect_rect(dst, window, &mut rect) };
     let mut source = [0i32; 4];
     let src = source_rect(src, &mut source);
-    unsafe { orig(dev, src, dst, window, dirty) }
+    let clean = unsafe { border_begin(dev, None) };
+    let hr = unsafe { orig(dev, src, dst, window, dirty) };
+    unsafe { border_end(dev, None, clean) };
+    hr
 }
 
 /// `WAL_D3D9_WINDOWED_SIZE`: the device's window, hidden or without a size (a fullscreen game
@@ -995,7 +1011,7 @@ unsafe fn show_device_window() {
         GWL_STYLE, GetSystemMetrics, GetWindowLongW, GetWindowRect, HWND_TOP, IsWindowVisible, SM_CXSCREEN, SM_CYSCREEN,
         SWP_FRAMECHANGED, SWP_SHOWWINDOW, SetWindowLongW, SetWindowPos, WS_CAPTION, WS_POPUP, WS_THICKFRAME,
     };
-    if WINDOWED_SIZE.lock().unwrap().is_none() {
+    if WINDOWED_SIZE.lock().unwrap().is_none() && crate::border::config().is_none() {
         return;
     }
     let hwnd = DEVICE_WINDOW.load(Ordering::Relaxed) as P;
@@ -1018,7 +1034,7 @@ unsafe fn show_device_window() {
 
 /// Device window of D3DPRESENT_PARAMETERS (hDeviceWindow, dword 7), else the focus window.
 unsafe fn remember_window(params: P, focus: P) {
-    let device_window = if params.is_null() { 0 } else { (unsafe { *(params as *const u32).add(7) }) as usize };
+    let device_window = if params.is_null() { 0 } else { (unsafe { *(params as *const usize).byte_add(D3D9_HWND * 4) }) as usize };
     DEVICE_WINDOW.store(if device_window != 0 { device_window } else { focus as usize }, Ordering::Relaxed);
 }
 
@@ -1121,7 +1137,8 @@ static LETTERBOX_STRETCH_LOGGED: AtomicBool = AtomicBool::new(false);
 unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
     use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, SW_HIDE, ShowWindow};
-    let (aw, ah) = (*ASPECT.lock().unwrap())?;
+    let aspect = *ASPECT.lock().unwrap();
+    if aspect.is_none() && crate::border::config().is_none() { return None; }
     if LETTERBOX_FAILED.load(Ordering::Relaxed) {
         return None;
     }
@@ -1135,6 +1152,8 @@ unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
         return None;
     }
 
+    let desktop_aspect=crate::desktop::size().filter(|_| crate::border::config().is_some()).map(|(w,h)|(w as u32,h as u32));
+    let (aw, ah) = aspect.or(desktop_aspect).unwrap_or((cw as u32, ch as u32));
     let overlay = letterbox_window(hwnd);
     if overlay.is_null() {
         LETTERBOX_FAILED.store(true, Ordering::Relaxed);
@@ -1147,10 +1166,12 @@ unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
     if state.is_none() {
         // D3DPRESENT_PARAMETERS: the client size, discard, the letterbox window, windowed, no
         // depth, presentation interval default
-        let mut params: [u32; 14] = [cw as u32, ch as u32, D3DFMT_X8R8G8B8, 1, 0, 0, 1, overlay as u32, 1, 0, 0, 0, 0, 0];
+        #[repr(C)]
+        struct Params { width:u32,height:u32,format:u32,count:u32,multi:u32,quality:u32,swap:u32,window:P,windowed:i32,depth:i32,depth_format:u32,flags:u32,refresh:u32,interval:u32 }
+        let mut params = Params { width:cw as u32,height:ch as u32,format:D3DFMT_X8R8G8B8,count:1,multi:0,quality:0,swap:1,window:overlay,windowed:1,depth:0,depth_format:0,flags:0,refresh:0,interval:0 };
         let create: unsafe extern "system" fn(P, *mut u32, *mut P) -> HRESULT = unsafe { std::mem::transmute(method(dev, DEV_CREATE_ADDITIONAL_SWAP_CHAIN)) };
         let mut chain: P = std::ptr::null_mut();
-        let hr = unsafe { create(dev, params.as_mut_ptr(), &mut chain) };
+        let hr = unsafe { create(dev, (&mut params as *mut Params).cast(), &mut chain) };
         let rect = fit(cw, ch, aw, ah);
         log!("d3d9: letterbox {cw}x{ch} swap chain: {hr:#x}, picture {}x{} at {},{} ({aw}:{ah})", rect[2] - rect[0], rect[3] - rect[1], rect[0], rect[1]);
         if hr < 0 || chain.is_null() {
@@ -1177,11 +1198,20 @@ unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
         unsafe { release(back) };
         return None;
     }
+    // A multisampled buffer must be resolved at its original size before it can be scaled.
+    let back = unsafe { border_resolve(dev,back) };
     let mut source = [0i32; 4];
     let src = source_rect(src, &mut source);
-    let rect = fit(cw, ch, aw, ah);
+    let mut rect = fit(cw, ch, aw, ah);
     unsafe {
         fill(dev, target, std::ptr::null(), 0xFF00_0000);
+        if let Some((outer,bx,by,rgb))=crate::border::outer_geometry(cw as u32,ch as u32) {
+            let (ox,oy)=crate::border::outline(cw as u32,ch as u32);
+            for strip in crate::border::strips(cw,ch,bx,by,ox,oy) { fill(dev,target,strip.as_ptr(),0xff000000|rgb); }
+            border_bezel9(dev,target,outer);
+            let [x,y,r,b]=outer;
+            rect=[x+rect[0]*(r-x)/cw,y+rect[1]*(b-y)/ch,x+rect[2]*(r-x)/cw,y+rect[3]*(b-y)/ch];
+        }
         let hr = stretch(dev, back, src as *const i32, target, rect.as_ptr(), D3DTEXF_LINEAR);
         if hr < 0 && !LETTERBOX_STRETCH_LOGGED.swap(true, Ordering::Relaxed) {
             log!("d3d9: letterbox StretchRect failed: {hr:#x}");
@@ -1528,6 +1558,7 @@ mod d3d8 {
     }
 
     unsafe extern "system" fn reset(dev: P, params: P) -> HRESULT {
+        crate::border_d3d8::reset();
         unsafe { override_size_at(params, WINDOWED) };
         let orig: unsafe extern "system" fn(P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_RESET.load(Ordering::Relaxed)) };
         unsafe { orig(dev, params) }
@@ -1545,7 +1576,10 @@ mod d3d8 {
             }
         }
         let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
-        unsafe { orig(dev, src, dst, window, dirty) }
+        let clean=crate::border_d3d8::begin(dev);
+        let result=unsafe { orig(dev, src, dst, window, dirty) };
+        crate::border_d3d8::end(dev,clean);
+        result
     }
 
     /// D3DSURFACE_DESC (8)
@@ -1642,11 +1676,228 @@ unsafe fn log_device(api: &str, params: P, windowed_index: usize, window: P) {
         return;
     }
     let p = params as *const u32;
-    let device_window = unsafe { *p.add(windowed_index - 1) } as usize as P;
+    let hwnd_index=if windowed_index==d3d8::WINDOWED { 6 } else { D3D9_HWND };
+    let device_window = unsafe { *(p.add(hwnd_index).cast::<usize>()) } as P;
     unsafe {
         log!(
             "{api}: device {}x{} windowed {}, focus window {}, device window {}",
             *p, *p.add(1), *p.add(windowed_index), describe_window(window), describe_window(device_window)
         );
     }
+}
+
+
+struct BorderSurface {
+    device: usize,
+    size: (u32, u32, u32),
+    surface: usize,
+}
+static BORDER_SURFACE: Mutex<Option<BorderSurface>> = Mutex::new(None);
+fn border_reset() {
+    if let Some((_, tex, states)) = BORDER_BEZEL9.lock().unwrap().take() {
+        unsafe {
+            release(tex as P);
+            release(states as P);
+        }
+    }
+    if let Some(s) = BORDER_SURFACE.lock().unwrap().take() {
+        unsafe { release(s.surface as P) };
+    }
+}
+unsafe fn border_back(dev: P, chain: Option<P>) -> Option<P> {
+    let mut back: P = std::ptr::null_mut();
+    let hr = if let Some(chain) = chain {
+        let get: unsafe extern "system" fn(P, u32, u32, *mut P) -> HRESULT =
+            unsafe { std::mem::transmute(method(chain, 5)) };
+        unsafe { get(chain, 0, 0, &mut back) }
+    } else {
+        let get: unsafe extern "system" fn(P, u32, u32, u32, *mut P) -> HRESULT =
+            unsafe { std::mem::transmute(method(dev, DEV_GET_BACK_BUFFER)) };
+        unsafe { get(dev, 0, 0, 0, &mut back) }
+    };
+    (hr >= 0 && !back.is_null()).then_some(back)
+}
+unsafe fn border_begin(dev: P, chain: Option<P>) -> bool {
+    if crate::border::config().is_none() {
+        return false;
+    }
+    let Some(back) = (unsafe { border_back(dev, chain) }) else {
+        return false;
+    };
+    let desc_fn: unsafe extern "system" fn(P, *mut SurfaceDesc) -> HRESULT =
+        unsafe { std::mem::transmute(method(back, SURF_GET_DESC)) };
+    let mut desc = SurfaceDesc::default();
+    if unsafe { desc_fn(back, &mut desc) } < 0 {
+        unsafe { release(back) };
+        return false;
+    }
+    let Some((rect, bx, by, rgb)) = crate::border::geometry(desc.width, desc.height) else {
+        unsafe { release(back) };
+        return false;
+    };
+    let mut state = BORDER_SURFACE.lock().unwrap();
+    let size = (desc.width, desc.height, desc.format);
+    if state
+        .as_ref()
+        .is_some_and(|s| s.device != dev as usize || s.size != size)
+    {
+        unsafe { release(state.take().unwrap().surface as P) };
+    }
+    if state.is_none() {
+        let create: unsafe extern "system" fn(
+            P,
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            i32,
+            *mut P,
+            P,
+        ) -> HRESULT = unsafe { std::mem::transmute(method(dev, DEV_CREATE_RENDER_TARGET)) };
+        let mut surface: P = std::ptr::null_mut();
+        if unsafe {
+            create(
+                dev,
+                desc.width,
+                desc.height,
+                desc.format,
+                0,
+                0,
+                0,
+                &mut surface,
+                std::ptr::null_mut(),
+            )
+        } < 0
+        {
+            unsafe { release(back) };
+            return false;
+        }
+        *state = Some(BorderSurface {
+            device: dev as usize,
+            size,
+            surface: surface as usize,
+        });
+    }
+    let clean = state.as_ref().unwrap().surface as P;
+    let stretch: unsafe extern "system" fn(P, P, *const i32, P, *const i32, u32) -> HRESULT =
+        unsafe { std::mem::transmute(method(dev, DEV_STRETCH_RECT)) };
+    let fill: unsafe extern "system" fn(P, P, *const i32, u32) -> HRESULT =
+        unsafe { std::mem::transmute(method(dev, DEV_COLOR_FILL)) };
+    let ok = unsafe { stretch(dev, back, std::ptr::null(), clean, std::ptr::null(), 0) } >= 0;
+    if ok {
+        unsafe { fill(dev, back, std::ptr::null(), 0xff000000) };
+        let (ox, oy) = crate::border::outline(desc.width, desc.height);
+        for strip in crate::border::strips(desc.width as i32, desc.height as i32, bx, by, ox, oy) {
+            unsafe { fill(dev, back, strip.as_ptr(), 0xff000000 | rgb) };
+        }
+        unsafe {
+            stretch(
+                dev,
+                clean,
+                std::ptr::null(),
+                back,
+                rect.as_ptr(),
+                D3DTEXF_LINEAR,
+            )
+        };
+    }
+    unsafe { release(back) };
+    ok
+}
+unsafe fn border_end(dev: P, chain: Option<P>, saved: bool) {
+    if !saved {
+        return;
+    }
+    let Some(back) = (unsafe { border_back(dev, chain) }) else {
+        return;
+    };
+    if let Some(clean) = BORDER_SURFACE.lock().unwrap().as_ref() {
+        let stretch: unsafe extern "system" fn(P, P, *const i32, P, *const i32, u32) -> HRESULT =
+            unsafe { std::mem::transmute(method(dev, DEV_STRETCH_RECT)) };
+        unsafe {
+            stretch(
+                dev,
+                clean.surface as P,
+                std::ptr::null(),
+                back,
+                std::ptr::null(),
+                0,
+            )
+        };
+    }
+    unsafe { release(back) };
+}
+
+static BORDER_BEZEL9: Mutex<Option<(usize, usize, usize)>> = Mutex::new(None);
+unsafe fn border_bezel9(dev: P, target: P, rect: [i32; 4]) {
+    let Some(image) = crate::border::backdrop() else {
+        return;
+    };
+    let mut state = BORDER_BEZEL9.lock().unwrap();
+    if state.as_ref().is_some_and(|s| s.0 != dev as usize) {
+        let (_, tex, states) = state.take().unwrap();
+        unsafe {
+            release(tex as P);
+            release(states as P);
+        }
+    }
+    if state.is_none() {
+        let image = crate::d3d9_quads::Image {
+            w: image.w,
+            h: image.h,
+            bgra: image.bgra.clone(),
+        };
+        let tex = unsafe { crate::d3d9_quads::texture(dev, &image) };
+        let states = unsafe { crate::d3d9_quads::state_block(dev) };
+        if tex.is_null() || states.is_null() {
+            unsafe {
+                release(tex);
+                release(states);
+            };
+            return;
+        }
+        *state = Some((dev as usize, tex as usize, states as usize));
+    }
+    let (_, tex, states) = state.unwrap();
+    unsafe {
+        crate::d3d9_quads::draw_on(dev, states as P, target, |_, _| {
+            crate::d3d9_quads::quad(
+                dev,
+                tex as P,
+                (
+                    rect[0] as f32,
+                    rect[1] as f32,
+                    (rect[2] - rect[0]) as f32,
+                    (rect[3] - rect[1]) as f32,
+                ),
+            );
+        });
+    }
+}
+
+
+/// Returns a referenced resolved surface, releasing the original reference on success.
+/// Non-MSAA surfaces pass through without an extra GPU copy.
+unsafe fn border_resolve(dev:P,back:P)->P {
+    let get_desc:unsafe extern "system" fn(P,*mut SurfaceDesc)->HRESULT=unsafe { std::mem::transmute(method(back,SURF_GET_DESC)) };
+    let mut desc=SurfaceDesc::default();
+    if unsafe { get_desc(back,&mut desc) }<0 || desc.multisample==0 { return back; }
+    let mut state=BORDER_SURFACE.lock().unwrap();
+    let size=(desc.width,desc.height,desc.format);
+    if state.as_ref().is_some_and(|s|s.device!=dev as usize||s.size!=size) {
+        unsafe { release(state.take().unwrap().surface as P); }
+    }
+    if state.is_none() {
+        let create:unsafe extern "system" fn(P,u32,u32,u32,u32,u32,i32,*mut P,P)->HRESULT=unsafe { std::mem::transmute(method(dev,DEV_CREATE_RENDER_TARGET)) };
+        let mut surface=std::ptr::null_mut();
+        if unsafe { create(dev,desc.width,desc.height,desc.format,0,0,0,&mut surface,std::ptr::null_mut()) }<0 { return back; }
+        *state=Some(BorderSurface { device:dev as usize,size,surface:surface as usize });
+    }
+    let resolved=state.as_ref().unwrap().surface as P;
+    let stretch:unsafe extern "system" fn(P,P,*const i32,P,*const i32,u32)->HRESULT=unsafe { std::mem::transmute(method(dev,DEV_STRETCH_RECT)) };
+    if unsafe { stretch(dev,back,std::ptr::null(),resolved,std::ptr::null(),0) }<0 { return back; }
+    let addref:unsafe extern "system" fn(P)->u32=unsafe { std::mem::transmute(method(resolved,1)) };
+    unsafe { addref(resolved);release(back); }
+    resolved
 }

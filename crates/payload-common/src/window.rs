@@ -69,10 +69,10 @@ pub fn init() {
     if std::env::var("WAL_HIDE_CURSOR").is_ok_and(|v| v.trim() == "1") {
         hide_cursor();
     }
-    if std::env::var("WAL_NO_MODE_CHANGE").is_ok_and(|v| v.trim() == "1") {
+    if crate::border::config().is_some() || std::env::var("WAL_NO_MODE_CHANGE").is_ok_and(|v| v.trim() == "1") {
         no_mode_change();
     }
-    if std::env::var("WAL_WINDOW_POPUP").is_ok_and(|v| v.trim() == "1") {
+    if crate::border::config().is_some() || std::env::var("WAL_WINDOW_POPUP").is_ok_and(|v| v.trim() == "1") {
         POPUP.store(true, Ordering::Relaxed);
         hook_create();
         unsafe {
@@ -92,7 +92,7 @@ pub fn init() {
         }
         log!("window: top-level windows created as popups");
     }
-    let Some((w, h)) = std::env::var("WAL_WINDOW_SIZE").ok().and_then(|v| {
+    let Some((w, h)) = std::env::var("WAL_WINDOW_SIZE").ok().or_else(|| crate::border::config().map(|_| "screen".into())).and_then(|v| {
         if v.trim() == "screen" {
             // primary monitor size (no display mode change in window mode)
             let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
@@ -123,6 +123,12 @@ pub fn init() {
     }) else {
         return;
     };
+    let (w,h) = if crate::border::config().is_some() {
+        LEFT.store(0, Ordering::Relaxed);
+        TOP.store(0, Ordering::Relaxed);
+        let (w,h) = crate::desktop::screen_size();
+        (w as u32,h as u32)
+    } else { (w,h) };
     WIDTH.store(w, Ordering::Relaxed);
     HEIGHT.store(h, Ordering::Relaxed);
     hook_create();

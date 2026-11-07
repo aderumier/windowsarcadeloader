@@ -72,6 +72,7 @@ mod gamewax;
 mod interface;
 mod jxboard;
 mod jxcamera;
+mod topgun2_landscape;
 mod pads;
 #[cfg(target_arch = "x86")]
 mod sdc2;
@@ -98,12 +99,13 @@ pub use zombiecrisis::GetInstance;
 #[unsafe(no_mangle)]
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
-        // a portrait game in landscape (WAL_UNITY_LANDSCAPE): its portrait setup undone
-        // before the common start reads it
-        wal_payload_common::unity_landscape::prepare();
+        // Only Top Gun 2 changes its portrait setup and draws a dynamic landscape bezel.
+        let board = std::env::var("WAL_ARCADEPC_BOARD").unwrap_or_default();
+        if board.trim() == "jxcamera" {
+            topgun2_landscape::prepare();
+        }
         wal_payload_common::start("arcadepc");
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
-        let board = std::env::var("WAL_ARCADEPC_BOARD").unwrap_or_default();
         // the common crosshair option: player 1's gun on the picture (Direct3D 11)
         if (matches!(board.trim(), "syfire" | "jxboard" | "jxcamera" | "bullseye") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
             wal_payload_common::pointer_d3d11::init(wal_payload_common::pointer_d3d11::Dot {

@@ -16,6 +16,8 @@
 
 use std::io::{self, Read, Write};
 
+pub mod border;
+
 pub const VERSION: u16 = 1;
 pub const DEFAULT_PORT: u16 = 33700;
 pub const MAX_PLAYERS: usize = 4;

@@ -95,6 +95,9 @@ fn fit() -> (f64, f64, f64) {
 /// A window of the game's desktop on the real screen: its size scaled, centered (one game
 /// window; the positions callers pass back may come from `GetWindowRect`, real ones).
 fn to_screen(x: i32, y: i32, w: i32, h: i32) -> (i32, i32, i32, i32) {
+    // With the native border the presentation surface covers the monitor. The compositor
+    // fits the desktop's portrait/landscape picture into it; logical desktop units stay intact.
+    if crate::border::config().is_some() { let (sw,sh)=screen(); return (0,0,sw,sh); }
     let (s, _, _) = fit();
     let (sw, sh) = screen();
     let (nw, nh) = ((w as f64 * s).round() as i32, (h as f64 * s).round() as i32);
@@ -176,7 +179,14 @@ unsafe extern "system" fn move_window(hwnd: P, x: i32, y: i32, cx: i32, cy: i32,
 unsafe extern "system" fn client_to_screen(hwnd: P, point: *mut windows_sys::Win32::Foundation::POINT) -> i32 {
     let orig: unsafe extern "system" fn(P, *mut windows_sys::Win32::Foundation::POINT) -> i32 =
         unsafe { std::mem::transmute(ORIG_CLIENT_TO_SCREEN.load(Ordering::Relaxed)) };
+    let logical = if crate::border::config().is_some() && is_top_level(hwnd) && !point.is_null() {
+        Some(unsafe { ((*point).x,(*point).y) })
+    } else { None };
     let ok = unsafe { orig(hwnd, point) };
+    if ok != 0 && let Some((x,y))=logical {
+        unsafe { (*point).x=x;(*point).y=y; }
+        return ok;
+    }
     if ok != 0 && !point.is_null() {
         let p = unsafe { &mut *point };
         let (x, y) = from_screen(p.x as f64, p.y as f64);
@@ -190,6 +200,10 @@ unsafe extern "system" fn client_rect(hwnd: P, rect: *mut RECT) -> i32 {
     let orig: unsafe extern "system" fn(P, *mut RECT) -> i32 = unsafe { std::mem::transmute(ORIG_CLIENT_RECT.load(Ordering::Relaxed)) };
     let ok = unsafe { orig(hwnd, rect) };
     if ok != 0 && !rect.is_null() && is_top_level(hwnd) {
+        if crate::border::config().is_some() && let Some((w,h))=size() {
+            unsafe { *rect=RECT { left:0,top:0,right:w,bottom:h }; }
+            return ok;
+        }
         let (s, _, _) = fit();
         let r = unsafe { &mut *rect };
         r.right = r.left + (f64::from(r.right - r.left) / s).round() as i32;
@@ -203,6 +217,10 @@ unsafe extern "system" fn window_rect(hwnd: P, rect: *mut RECT) -> i32 {
     let orig: unsafe extern "system" fn(P, *mut RECT) -> i32 = unsafe { std::mem::transmute(ORIG_WINDOW_RECT.load(Ordering::Relaxed)) };
     let ok = unsafe { orig(hwnd, rect) };
     if ok != 0 && !rect.is_null() && is_top_level(hwnd) {
+        if crate::border::config().is_some() && let Some((w,h))=size() {
+            unsafe { *rect=RECT { left:0,top:0,right:w,bottom:h }; }
+            return ok;
+        }
         let r = unsafe { &mut *rect };
         let (left, top) = from_screen(r.left as f64, r.top as f64);
         let (right, bottom) = from_screen(r.right as f64, r.bottom as f64);
