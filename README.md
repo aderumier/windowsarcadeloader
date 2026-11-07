@@ -215,7 +215,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `goonya-fighter` | Goonya Fighter | apm3 | user 100% (2026-11-06); headless: Aime cards, play, test mode | not in the test |  |
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | not in the test |  |
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | not in the test |  |
-| `cotton-rock-n-roll` | Cotton Rock 'n' Roll | apm3 | works headless (2026-11-07): Aime cards, story, play, game over saved (ranking), test mode | not in the test |  |
+| `cotton-rock-n-roll` | Cotton Rock 'n' Roll | apm3 | user 100% (2026-11-07); headless: Aime cards, story, play, game over saved (ranking), test mode | not in the test |  |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | not in the test |  |
 | `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen | not in the test |  |
 | `guilty-gear-strive` | Guilty Gear -Strive- | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen; LOCAL plays alone against a still P2, no network versus | not in the test |  |
