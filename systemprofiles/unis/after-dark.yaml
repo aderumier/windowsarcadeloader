@@ -32,6 +32,8 @@ env:
   WAL_UNIS_FREEPLAY: "1"
   # the fourth stage (Arena of Terror) open from the start ("0": after the first three)
   WAL_UNIS_AFTERDARK_STAGE4: "1"
+  # the sound level: its sounds and music are mastered at full scale (common Volume option)
+  WAL_VOLUME: "60"
 
 options:
   - title: Game

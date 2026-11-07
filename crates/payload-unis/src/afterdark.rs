@@ -27,7 +27,7 @@
 //! Natives: `start trigger platform test plus minus coin` (each gun).
 
 use std::ffi::c_void;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -306,6 +306,193 @@ unsafe extern "system" fn create_file_a(name: *const u8, access: u32, share: u32
     unsafe { orig(name, access, share, security, disposition, flags, template) }
 }
 
+// CoFramework.dll's sound device: its looping 8-bit buffer of zeros (full-scale DC)
+
+/// The originals: `GetProcAddress` (CoFramework.dll's import), `DirectSoundCreate8`.
+static GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
+static DS_CREATE8: AtomicUsize = AtomicUsize::new(0);
+
+const DSBCAPS_PRIMARYBUFFER: u32 = 0x1;
+const DSBCAPS_CTRLVOLUME: u32 = 0x80;
+const DSBVOLUME_MIN: i32 = -10000;
+
+/// The device given to CoFramework.dll: ours in front of DirectSound's.
+#[repr(C)]
+struct Device8 {
+    vtable: &'static [usize; 12],
+    real: P,
+}
+
+unsafe fn real_method(this: P, index: usize) -> (P, usize) {
+    let real = unsafe { (*(this as *const Device8)).real };
+    (real, unsafe { *(*(real as *const *const usize)).add(index) })
+}
+
+unsafe extern "system" fn ds_query(this: P, iid: P, out: *mut P) -> i32 {
+    let (real, f) = unsafe { real_method(this, 0) };
+    unsafe { std::mem::transmute::<usize, unsafe extern "system" fn(P, P, *mut P) -> i32>(f)(real, iid, out) }
+}
+
+unsafe extern "system" fn ds_0(this: P, index: usize) -> i32 {
+    let (real, f) = unsafe { real_method(this, index) };
+    unsafe { std::mem::transmute::<usize, unsafe extern "system" fn(P) -> i32>(f)(real) }
+}
+
+unsafe extern "system" fn ds_add_ref(this: P) -> i32 {
+    unsafe { ds_0(this, 1) }
+}
+
+unsafe extern "system" fn ds_release(this: P) -> i32 {
+    unsafe { ds_0(this, 2) }
+}
+
+unsafe extern "system" fn ds_compact(this: P) -> i32 {
+    unsafe { ds_0(this, 7) }
+}
+
+unsafe fn ds_1(this: P, index: usize, a: usize) -> i32 {
+    let (real, f) = unsafe { real_method(this, index) };
+    unsafe { std::mem::transmute::<usize, unsafe extern "system" fn(P, usize) -> i32>(f)(real, a) }
+}
+
+unsafe extern "system" fn ds_get_caps(this: P, a: usize) -> i32 {
+    unsafe { ds_1(this, 4, a) }
+}
+
+unsafe extern "system" fn ds_get_speaker(this: P, a: usize) -> i32 {
+    unsafe { ds_1(this, 8, a) }
+}
+
+unsafe extern "system" fn ds_set_speaker(this: P, a: usize) -> i32 {
+    unsafe { ds_1(this, 9, a) }
+}
+
+unsafe extern "system" fn ds_initialize(this: P, a: usize) -> i32 {
+    unsafe { ds_1(this, 10, a) }
+}
+
+unsafe extern "system" fn ds_verify(this: P, a: usize) -> i32 {
+    unsafe { ds_1(this, 11, a) }
+}
+
+unsafe extern "system" fn ds_duplicate(this: P, a: usize, b: usize) -> i32 {
+    let (real, f) = unsafe { real_method(this, 5) };
+    unsafe { std::mem::transmute::<usize, unsafe extern "system" fn(P, usize, usize) -> i32>(f)(real, a, b) }
+}
+
+unsafe extern "system" fn ds_cooperative(this: P, a: usize, b: usize) -> i32 {
+    let (real, f) = unsafe { real_method(this, 6) };
+    unsafe { std::mem::transmute::<usize, unsafe extern "system" fn(P, usize, usize) -> i32>(f)(real, a, b) }
+}
+
+/// `CreateSoundBuffer(desc, out, outer)`: a secondary buffer made with a volume control, at
+/// the minimum. CoFramework.dll fills its 8-bit buffer with 0x00 (8-bit silence is 0x80) and
+/// loops it for ever: a constant -1.0 summed with the game's sound clipped every loud sound
+/// (no capacitor on a sound card's output under Wine).
+unsafe extern "system" fn ds_create_buffer(this: P, desc: *const u32, out: *mut P, outer: P) -> i32 {
+    let (real, f) = unsafe { real_method(this, 3) };
+    let create: unsafe extern "system" fn(P, *const u32, *mut P, P) -> i32 = unsafe { std::mem::transmute(f) };
+    // DSBUFFERDESC: dwSize, dwFlags, dwBufferBytes, dwReserved, lpwfxFormat (+ guid3DAlgorithm)
+    if desc.is_null() || unsafe { *desc.add(1) } & DSBCAPS_PRIMARYBUFFER != 0 {
+        return unsafe { create(real, desc, out, outer) };
+    }
+    let size = (unsafe { *desc } as usize).clamp(20, 36);
+    let mut copy = [0u32; 9];
+    unsafe { std::ptr::copy_nonoverlapping(desc.cast::<u8>(), copy.as_mut_ptr().cast::<u8>(), size) };
+    copy[1] |= DSBCAPS_CTRLVOLUME;
+    let hr = unsafe { create(real, copy.as_ptr(), out, outer) };
+    if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
+        let buffer = unsafe { *out };
+        // IDirectSoundBuffer::SetVolume (vtable index 15)
+        let set_volume: unsafe extern "system" fn(P, i32) -> i32 = unsafe { std::mem::transmute(*(*(buffer as *const *const usize)).add(15)) };
+        let r = unsafe { set_volume(buffer, DSBVOLUME_MIN) };
+        log!("afterdark: CoFramework.dll's sound buffer ({} bytes) muted ({r:#x})", copy[2]);
+    }
+    hr
+}
+
+fn device8_vtable() -> &'static [usize; 12] {
+    static VTABLE: OnceLock<[usize; 12]> = OnceLock::new();
+    VTABLE.get_or_init(|| {
+        [
+            ds_query as *const () as usize,
+            ds_add_ref as *const () as usize,
+            ds_release as *const () as usize,
+            ds_create_buffer as *const () as usize,
+            ds_get_caps as *const () as usize,
+            ds_duplicate as *const () as usize,
+            ds_cooperative as *const () as usize,
+            ds_compact as *const () as usize,
+            ds_get_speaker as *const () as usize,
+            ds_set_speaker as *const () as usize,
+            ds_initialize as *const () as usize,
+            ds_verify as *const () as usize,
+        ]
+    })
+}
+
+/// `DirectSoundCreate8(guid, out, outer)` for CoFramework.dll: DirectSound's device behind ours.
+unsafe extern "system" fn ds_create8(guid: P, out: *mut P, outer: P) -> i32 {
+    let create: unsafe extern "system" fn(P, *mut P, P) -> i32 = unsafe { std::mem::transmute(DS_CREATE8.load(Ordering::Relaxed)) };
+    let hr = unsafe { create(guid, out, outer) };
+    if hr >= 0 && !out.is_null() && !unsafe { *out }.is_null() {
+        let device = Box::leak(Box::new(Device8 { vtable: device8_vtable(), real: unsafe { *out } }));
+        unsafe { *out = device as *mut Device8 as P };
+    }
+    hr
+}
+
+/// CoFramework.dll's `GetProcAddress`: its `DirectSoundCreate8` is ours.
+unsafe extern "system" fn get_proc_address(module: P, name: *const u8) -> usize {
+    let orig: unsafe extern "system" fn(P, *const u8) -> usize = unsafe { std::mem::transmute(GET_PROC_ADDRESS.load(Ordering::Relaxed)) };
+    let f = unsafe { orig(module, name) };
+    if f != 0 && name as usize > 0xFFFF && unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_bytes() == b"DirectSoundCreate8" {
+        DS_CREATE8.store(f, Ordering::Relaxed);
+        return ds_create8 as *const () as usize;
+    }
+    f
+}
+
+fn hook_coframework_sound() -> bool {
+    let module = unsafe { GetModuleHandleW(windows_sys::w!("CoFramework.dll")) } as usize;
+    if module == 0 {
+        return false;
+    }
+    match unsafe { wal_payload_common::iat::hook_module(module, "kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) } {
+        Some(o) => {
+            GET_PROC_ADDRESS.store(o, Ordering::Relaxed);
+            true
+        }
+        None => false,
+    }
+}
+
+/// 2.3's operator menu settings that the dumps' `coin.ini` (1.1's) lacks, at the values the
+/// menu shows: without them the menu opens but never takes a button (its script stops on the
+/// empty value).
+const MENU_SETTINGS: [(&str, &str); 2] = [("CoinContinue", "Coin=5"), ("VideoVolume", "Volume=2")];
+
+/// `coin.ini` (beside the executable, the game's `.\coin.ini`) completed with
+/// [`MENU_SETTINGS`]' missing sections; the game keeps the file up to date after.
+fn complete_coin_ini() {
+    let Some(path) = std::env::current_exe().ok().map(|exe| exe.with_file_name("coin.ini")) else { return };
+    let Ok(text) = std::fs::read_to_string(&path) else { return };
+    let mut missing = String::new();
+    for (section, line) in MENU_SETTINGS {
+        if !text.lines().any(|l| l.trim().eq_ignore_ascii_case(&format!("[{section}]"))) {
+            missing.push_str(&format!("[{section}]\r\n{line}\r\n"));
+        }
+    }
+    if missing.is_empty() {
+        return;
+    }
+    let sep = if text.is_empty() || text.ends_with('\n') { "" } else { "\r\n" };
+    match std::fs::OpenOptions::new().append(true).open(&path).and_then(|mut f| std::io::Write::write_all(&mut f, format!("{sep}{missing}").as_bytes())) {
+        Ok(()) => log!("afterdark: coin.ini completed ({})", missing.replace("\r\n", " ").trim()),
+        Err(e) => log!("afterdark: coin.ini not completed: {e}"),
+    }
+}
+
 pub fn init() {
     // the MFC message loop's keyboard and mouse filtered too: the PC keyboard's F1 was MFC's
     // help (WinHelp, the game hung)
@@ -316,6 +503,10 @@ pub fn init() {
         && let Some(o) = unsafe { wal_payload_common::iat::hook("kernel32.dll", "CreateFileA", create_file_a as *const () as usize) }
     {
         CREATE_FILE_A.store(o, Ordering::Relaxed);
+    }
+    complete_coin_ini();
+    if !hook_coframework_sound() {
+        log!("afterdark: CoFramework.dll's GetProcAddress not found, its sound buffer kept");
     }
     let hid = replace_board_init();
     log!("afterdark: board on {PORT}, HID board {}", if hid { "emulated" } else { "not found (unknown executable)" });

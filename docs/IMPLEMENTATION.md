@@ -4415,9 +4415,20 @@ profile, another `main.vmo`): a Virtools 3.5 player linked into
   unpacked sizes), the zlib object table (id, class, data offset, GBK name per object), the
   zlib data (per object a state chunk: size, header, dwords; a boolean local's value dword 6, a
   parameter output's destinations from dword 9, object indices).
-- **Operator menu.** F2; + / - change the selected item's value. The menu (`1.vmo`) moves
-  between items with Virtools key waiters (DirectInput keyboard) and the mouse: not emulated
-  yet (no key of a 78-key sweep on the fake keyboard moved it).
+- **Operator menu.** F2; F2 again opens the selected item, + / - change its value. 2.3's menu
+  (`1.vmo`) has two more settings than 1.1's, in `coin.ini`: `[CoinContinue] Coin` and
+  `[VideoVolume] Volume`. The dumps' `coin.ini` (1.1's) has neither: the menu opened but took
+  no button (its script stops on the empty value; it queries no key, gun or HID input). The
+  payload appends the missing sections at the menu's values (5, 2) when absent; the game keeps
+  the file after (`complete_coin_ini`).
+- **Sound.** `CoFramework.dll` (UNIS's framework) opens its own DirectSound device
+  (`DirectSoundCreate8` through `GetProcAddress`), sets its primary format to 8-bit mono and
+  loops a 4 s 8-bit buffer filled with 0x00 (8-bit silence is 0x80): a constant -1.0 on its own
+  stream, summed with the game's by the sound server, clipped every loud sound (1.1 and 2.3;
+  2.3's louder sounds the most). The payload hooks the module's `GetProcAddress`: its device is
+  ours in front of DirectSound's, its secondary buffers made with a volume control and set to
+  the minimum. The profiles' volume (the common option, §6.7) is 60%: the sounds and music are
+  mastered at full scale.
 - **Play.** Coins, start; the game draws its own gun cursors (the crosshair option off). The
   game has no free play (its coin setting 0 does not give one): `WAL_UNIS_FREEPLAY` (default
   on, a profile option) makes a start press a coin, then the start.
@@ -5538,6 +5549,17 @@ apm3 (`Credit_isFreePlay`), Konami (ARK settings, Bishi Bashi's system), Sega Sh
 terminal. The GUI shows it in the Common options of these systems' games
 (`config::FREEPLAY_SYSTEMS`); Batocera's FREE PLAY (`wal_freeplay`) writes it.
 
+### 6.7 Common volume option (`WAL_VOLUME`)
+
+`WAL_VOLUME` (0 to 100 percent; `defaults.yaml`: `100`) is the game's sound level, for every
+game: payload-common's `volume.rs` sets the process's default audio session volume (mmdevapi's
+`IAudioSessionManager::GetSimpleAudioVolume(GUID_NULL)` -> `ISimpleAudioVolume::SetMasterVolume`,
+from a thread at the payload's start; under 100 only). Wine applies it to every stream of the
+session (DirectSound and the DirectShow renderer on it, XAudio2, WASAPI) before the sound
+leaves the process: the stream's volume in the sound server stays at 100%. A profile sets its
+default (After Dark: 60); the GUI shows it in every game's Common options
+(`config::VOLUME_ENV`).
+
 ## 7. Adding a system
 
 1. Payload crate `crates/payload-<system>` (cdylib, depends on `wal-protocol`,
@@ -5945,7 +5967,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | `GamePlayer.exe` (Virtools 3.5, 32-bit, §6.3j) started by wal-loader with the payload: COM1 gun board (guns, triggers, start, coins, operator keys), the HID board's device object replaced (dongle), `GameConfig` (composition, folders, 1920x1080 full screen), fake DirectInput (COM-created) |
-| `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns; operator menu items not selectable | as `after-dark` (the same executable and profile), Microsoft's `d3dx9_41` (not in the dump) |
+| `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns; 2026-11-07 user: operator menu, sound without saturation | as `after-dark` (the same executable and profile), Microsoft's `d3dx9_41` (not in the dump) |
 | `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns | UNIS's qumo guns (Unity 5.5, 64-bit, §6.3j): the payload (`xinput1_3.dll`) emulates the USB HID board (`SetupDi`, `HidD_GetAttributes`, overlapped reads and writes: Mono `DllImport`s) and the Sense4 dongle; identity gun calibration file; Wine's `winhttp` (no BepInEx) |
 | `night-hunter-after-dark-chapter-ii-3-0-2` | Night Hunter: After Dark Chapter II (3.0.2) | unis | user 100% (2026-11-03), 2 guns, 4 missions selectable (Lost Trails) | as `night-hunter-after-dark-chapter-ii` (the same board code), four missions: the mission select at the start and the fourth open (profile config), the fourth island on the select (patched `level0` copy) |
 | `raccoon-rampage` | Raccoon Rampage | unis | user 100% (2026-11-05), 4 guns | UE4 4.26 (§6.3j): the payload (`xinput1_3.dll`) answers `UsbPluginsDll.dll`'s I/O, coin and dongle functions through the executable's `GetProcAddress`; `GunDataToScreen` replaced (aim without calibration), `IsGunCalibrate` true |
