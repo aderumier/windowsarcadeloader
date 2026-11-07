@@ -25,7 +25,8 @@
 //!   `TestModeApp.exe`, the dump's `gametest.bat`), whose exit starts the game again.
 //!
 //! Options (profile `env`): `WAL_APM3_FREEPLAY`, `WAL_APM3_ONLINE`, `WAL_APM3_TEST` (and
-//! `WAL_APM3_TEST_ARGS`: its arguments, a test mode of the game's exe),
+//! `WAL_APM3_TEST_ARGS`: its arguments, a test mode of the game's exe; `WAL_APM3_TEST_CWD`: its
+//! working folder),
 //! `WAL_APM3_ACCESS_CODE`, `WAL_APM3_AIME_ID` (the card), `WAL_APM3_APMS_TRACE=1` (the title
 //! server's AES key and plain bodies in the log),
 //! `WAL_APM3_KEYCHIP` (keychip id), `WAL_APM3_BOARD` (main board id), `WAL_APM3_GAME_ID`,
@@ -277,8 +278,10 @@ pub extern "system" fn Core_exitGame(flag: u32) -> u32 {
         } else if TEST_REQUESTED.load(Ordering::Relaxed) {
             let test = env("WAL_APM3_TEST").unwrap_or_else(|| "TestModeApp.exe".into());
             let args = env("WAL_APM3_TEST_ARGS").unwrap_or_default();
-            log!("apm3: the test menu: {test} {args}");
-            wal_payload_common::request_relaunch(format!("exe={test} {args}").trim_end());
+            // its working folder (`WAL_APM3_TEST_CWD`, the batch file's pushd), else the game's
+            let cwd = env("WAL_APM3_TEST_CWD").map(|d| format!("cwd={d} ")).unwrap_or_default();
+            log!("apm3: the test menu: {test} {cwd}{args}");
+            wal_payload_common::request_relaunch(format!("exe={test} {cwd}{args}").trim_end());
         }
         // the game waits for the system to close it
         std::thread::spawn(|| {

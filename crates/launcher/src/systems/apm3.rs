@@ -16,7 +16,8 @@
 //!   it `WAL_APM3_NO_LINK_PATCHES` apply (the game no longer waits for its link)
 //! - `WAL_APM3_FREEPLAY=0`: coins, 1 credit per game (default: free play)
 //! - `WAL_APM3_TEST`: the test program the game's test switch starts (default `TestModeApp.exe`);
-//!   `WAL_APM3_TEST_ARGS`: its arguments (a test mode of the game's own program: `-t`)
+//!   `WAL_APM3_TEST_ARGS`: its arguments (a test mode of the game's own program: `-t`);
+//!   `WAL_APM3_TEST_CWD`: its working folder in the game directory (default: the game's)
 //! - `WAL_APM3_LINK_READY=0`: `abaaslink.dll`'s link left unavailable (default: reported
 //!   available, no "matching unavailable" warning)
 //! - `WAL_APM3_TOUCH=1`: a touch screen game (player 1's gun and `touch` input)

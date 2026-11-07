@@ -1,0 +1,32 @@
+# Virtua Fighter eSports (Sega ALLS, APM3; 64-bit, Direct3D 11): eve.exe (the dump's game.bat).
+# Override values in userprofiles/apm3/virtua-fighter-esports.yaml.
+system: apm3
+# the test program (the dump's gametest.bat) is the VF5FS core's own loader: our apm.dll there too
+payload_install: [apm.dll, vf5fs/apm.dll]
+name: Virtua Fighter eSports
+
+env:
+  WAL_APM3_TEST: vf5fs/vfes.exe
+  # its test mode: marked by an argument it ignores
+  WAL_APM3_TEST_ARGS: "-wal-test"
+  # run from vf5fs\ (gametest.bat's pushd): from the game folder it boots the game instead
+  WAL_APM3_TEST_CWD: vf5fs
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+  # the ABAAS game server client: in the VF5FS core eve.exe loads (vf5fs\)
+  WAL_APM3_GS_MODULE: vf5fs-pxd-w64-Retail_APM3.dll
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  b1: Guard
+  b2: Punch
+  b3: Kick
+  b4: Escape
+  b5: none
+  b6: none
+  b7: none
+  b8: none
+  card: Aime card (take off / put back)

@@ -671,14 +671,23 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             if let Some(args) = server.take_relaunch().filter(|_| !killing) {
                 eprintln!("launcher: game exited ({status}), started again: {args}");
                 let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stderr(std::process::Stdio::null()).status();
-                // `exe=<file> args`: that executable of the game directory, with only these
-                // arguments (the test menu program); otherwise the game with its own plus these
+                // `exe=<file> [cwd=<dir>] args`: that executable of the game directory, with only
+                // these arguments (the test menu program), run from that folder of the game
+                // directory (its batch file's pushd: Virtua Fighter eSports' vf5fs\vfes.exe);
+                // otherwise the game with its own plus these
                 let words: Vec<&str> = args.split(' ').filter(|a| !a.is_empty()).collect();
-                let (exe, args): (Option<&str>, Vec<String>) = match words.first().and_then(|w| w.strip_prefix("exe=")) {
-                    Some(exe) => (Some(exe), words[1..].iter().map(|a| a.to_string()).collect()),
-                    None => (None, profile.args.iter().cloned().chain(words.iter().map(|a| a.to_string())).collect()),
+                let (exe, cwd, args): (Option<&str>, Option<&str>, Vec<String>) = match words.first().and_then(|w| w.strip_prefix("exe=")) {
+                    Some(exe) => {
+                        let cwd = words.get(1).and_then(|w| w.strip_prefix("cwd="));
+                        (Some(exe), cwd, words[1 + cwd.is_some() as usize..].iter().map(|a| a.to_string()).collect())
+                    }
+                    None => (None, None, profile.args.iter().cloned().chain(words.iter().map(|a| a.to_string())).collect()),
                 };
-                child = game_command(&args, true, exe).spawn().context("starting wine")?;
+                let mut cmd = game_command(&args, true, exe);
+                if let Some(cwd) = cwd {
+                    cmd.current_dir(run_exe_dir.join(cwd));
+                }
+                child = cmd.spawn().context("starting wine")?;
                 focus = if opts.headless { None } else { focus::Focus::new(child.id()) };
                 continue;
             }
