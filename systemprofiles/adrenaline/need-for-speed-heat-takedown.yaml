@@ -17,8 +17,11 @@ args: [-screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
 env:
   # the steering board (its presence) and its force feedback strength, percent (0: off)
   WAL_NFS_FFB: "100"
-  # the 3D picture's resolution in the screen's (HDRP's dynamic resolution, FSR upscaling)
+  # the 3D picture's resolution in the screen's (HDRP's dynamic resolution, Catmull-Rom upscaling)
   WAL_HDRP_RENDER_SCALE: "0.67"
+  # the game's own post-processing effects: the speed (radial) blur, the grayscale vignette
+  WAL_NFS_RADIAL_BLUR: "1"
+  WAL_NFS_VIGNETTE: "1"
 
 # The wheel (lx), the gas (accel) and brake pedals; b1 nitro. The game starts on the gas
 # pedal (no start button). The operator's keypad: up / down / select.
@@ -72,10 +75,20 @@ options:
         kind: choice
         choices: ["1", "0.8", "0.67", "0.5"]
         description: >-
-          The 3D picture's resolution in the screen's, upscaled with AMD FSR (the menus and HUD
-          stay sharp). 1 is the game's own; 0.67 (the default) is lighter on small GPUs (Radeon
+          The 3D picture's resolution in the screen's, upscaled (the menus and HUD stay
+          sharp). 1 is the game's own; 0.67 (the default) is lighter on small GPUs (Radeon
           860M at 1920x1080 in a race: 27 frames per second at 1, 38-48 at 0.8, about 50 at
           0.67; the game aims at 60).
+      - key: WAL_NFS_RADIAL_BLUR
+        label: Speed blur
+        kind: bool
+        description: >-
+          The game's radial blur around the screen's edges at speed. On (the default).
+      - key: WAL_NFS_VIGNETTE
+        label: Grayscale vignette
+        kind: bool
+        description: >-
+          The game's darkened, grayed screen edges. On (the default).
   - title: Game
     options:
       - key: WAL_NFS_FFB
