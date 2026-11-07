@@ -25,6 +25,13 @@ env:
   WAL_DINPUT_WHEEL_Z_AXIS: accel
   WAL_NAMCOES3_FFB_SPRING: "0"
   WAL_NAMCOES3_FFB_MODE: "custom"
+  # the custom effects' strengths in percent (the payload's defaults, shown by the GUI)
+  WAL_NAMCOES3_FFB_STEER: "25"
+  WAL_NAMCOES3_FFB_SHAKE: "80"
+  WAL_NAMCOES3_FFB_BOOST: "60"
+  WAL_NAMCOES3_FFB_DRIFT: "50"
+  WAL_NAMCOES3_FFB_TERRAIN: "45"
+  WAL_NAMCOES3_FFB_PICKUP: "50"
   # The game's auto-accelerate assist (full throttle while the pedal is released): off.
   WAL_NAMCOES3_AUTO_ACCEL: "0"
   WAL_NAMCOES3_JVS_PORT: COM1,COM3
