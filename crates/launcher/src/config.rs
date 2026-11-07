@@ -15,6 +15,9 @@ pub const USER_PROFILES: &str = "userprofiles";
 /// The common crosshair option (`1`/`0`), in `env`: a game profile setting it (its default)
 /// can show crosshairs; the GUI's Common options and Batocera's CROSSHAIRS change it.
 pub const CROSSHAIR_ENV: &str = "WAL_CROSSHAIR";
+/// The game's sound level in percent (every game: the payload's audio session volume); the
+/// GUI's Common options change it.
+pub const VOLUME_ENV: &str = "WAL_VOLUME";
 /// The common free play option (`1`/`0`, default `1`: `defaults.yaml`), for the systems whose
 /// payload can set free play ([`FREEPLAY_SYSTEMS`]).
 pub const FREEPLAY_ENV: &str = "WAL_FREEPLAY";
@@ -353,7 +356,8 @@ impl Profile {
 
     /// The common options of the games able to use them, for the GUI's Options tab (unless the
     /// game declares the option itself, with its own label): the crosshairs of the games whose
-    /// profile sets [`CROSSHAIR_ENV`] (their default), free play for [`FREEPLAY_SYSTEMS`].
+    /// profile sets [`CROSSHAIR_ENV`] (their default), free play for [`FREEPLAY_SYSTEMS`], the
+    /// volume ([`VOLUME_ENV`]) for every game.
     fn add_common_options(&mut self) {
         let declared = |key: &str| self.options.iter().flat_map(|g| &g.options).any(|o| o.key == key);
         let option = |key: &str, label: &str, description: &str| GameOption {
@@ -381,6 +385,14 @@ impl Profile {
                 "Games start without coins (off: insert coins). Batocera: FREE PLAY in the game's advanced \
                  settings.",
             ));
+        }
+        if !declared(VOLUME_ENV) {
+            common.push(GameOption {
+                kind: OptionKind::Number,
+                min: Some(0),
+                max: Some(100),
+                ..option(VOLUME_ENV, "Volume", "The game's sound level in percent (all its sounds, music and videos).")
+            });
         }
         if !common.is_empty() {
             self.options.insert(0, OptionGroup { title: Some("Common".into()), options: common });
@@ -646,10 +658,12 @@ options:
         let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
         merge(&mut v, serde_yaml_ng::from_str(yaml).unwrap());
         let p = Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap();
-        assert_eq!(p.options.len(), 2);
-        assert_eq!(p.options[0].title.as_deref(), Some("Force feedback"));
-        assert_eq!(p.options[1].title, None);
-        let [mode, steer, trace] = p.options[0].options.as_slice() else {
+        // the common group (the volume) first
+        assert_eq!(p.options.len(), 3);
+        assert_eq!(p.options[0].title.as_deref(), Some("Common"));
+        assert_eq!(p.options[1].title.as_deref(), Some("Force feedback"));
+        assert_eq!(p.options[2].title, None);
+        let [mode, steer, trace] = p.options[1].options.as_slice() else {
             panic!("options");
         };
         assert_eq!(mode.kind, OptionKind::Choice);
@@ -657,15 +671,22 @@ options:
         assert_eq!((steer.kind, steer.min, steer.max), (OptionKind::Number, Some(0), Some(100)));
         assert_eq!((trace.kind, trace.label.as_deref()), (OptionKind::Bool, Some("Trace")));
         // the kind defaults to a text field (the untitled group's option)
-        let [device] = p.options[1].options.as_slice() else {
+        let [device] = p.options[2].options.as_slice() else {
             panic!("options");
         };
         assert_eq!(device.kind, OptionKind::Text);
-        // a profile without an options key has none
+        // a profile without an options key has the common volume alone
         let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
         merge(&mut v, serde_yaml_ng::from_str("system: test\n").unwrap());
         let p = Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap();
-        assert!(p.options.is_empty());
+        assert_eq!(common_keys(&p), [VOLUME_ENV]);
+        assert_eq!(p.env.get(VOLUME_ENV).map(String::as_str), Some("100"));
+    }
+
+    /// The keys of the profile's Common group (first).
+    fn common_keys(p: &Profile) -> Vec<&str> {
+        assert_eq!(p.options[0].title.as_deref(), Some("Common"));
+        p.options[0].options.iter().map(|o| o.key.as_str()).collect()
     }
 
     #[test]
@@ -682,10 +703,11 @@ options:
         assert_eq!((p.options[0].options[0].key.as_str(), p.options[0].options[0].kind), (CROSSHAIR_ENV, OptionKind::Bool));
         // declared by the game itself (its own label): not added again
         let p = load("system: test\nenv: {WAL_CROSSHAIR: \"1\"}\noptions: [{options: [{key: WAL_CROSSHAIR, label: Pointer, kind: bool}]}]\n");
-        assert_eq!(p.options.len(), 1);
-        assert_eq!(p.options[0].options[0].label.as_deref(), Some("Pointer"));
-        // a game without crosshairs: none
-        assert!(load("system: test\n").options.is_empty());
+        assert_eq!(p.options.len(), 2);
+        assert_eq!(common_keys(&p), [VOLUME_ENV]);
+        assert_eq!(p.options[1].options[0].label.as_deref(), Some("Pointer"));
+        // a game without crosshairs: the volume alone
+        assert_eq!(common_keys(&load("system: test\n")), [VOLUME_ENV]);
     }
 
     #[test]
@@ -700,9 +722,9 @@ options:
         assert_eq!(p.env.get(FREEPLAY_ENV).map(String::as_str), Some("1"));
         assert_eq!(p.options.len(), 1);
         let keys: Vec<&str> = p.options[0].options.iter().map(|o| o.key.as_str()).collect();
-        assert_eq!(keys, [CROSSHAIR_ENV, FREEPLAY_ENV]);
+        assert_eq!(keys, [CROSSHAIR_ENV, FREEPLAY_ENV, VOLUME_ENV]);
         // another system: not shown
-        assert!(load("system: typex\n").options.is_empty());
+        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV]);
     }
 
     #[test]

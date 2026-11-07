@@ -132,6 +132,9 @@ env:
   # namcoes3's WMMT5 terminal): the common option ("0": coins; a system's own variable,
   # WAL_KONAMI_FREEPLAY..., wins). The GUI's Common options, Batocera's FREE PLAY.
   WAL_FREEPLAY: "1"
+  # The game's sound level in percent (its process's audio session volume, every audio API):
+  # the common option, the GUI's Common options.
+  WAL_VOLUME: "100"
 # The game's own options, for the GUI's Options tab (only games declaring any show it):
 # its environment variables with a label, a control (text, a bool 1/0 checkbox, a number
 # (slider when min and max are set), a choice among the values), a range and a hover

@@ -91,6 +91,8 @@ pub mod sdl;
 #[cfg(windows)]
 pub mod vfw;
 #[cfg(windows)]
+pub mod volume;
+#[cfg(windows)]
 pub mod wasapi;
 #[cfg(windows)]
 pub mod wcase;
@@ -174,6 +176,7 @@ pub fn start(name: &'static str) {
             joystick::init();
             wcase::init();
             wasapi::init();
+            volume::init();
         }
         std::thread::spawn(move || connection_loop(name, port));
     });
