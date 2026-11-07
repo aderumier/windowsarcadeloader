@@ -5469,8 +5469,10 @@ whole stack under the real amdaemon; here the payload replaces the library inste
     block unlocked (checksums updated).
   - Play: the card's player (left for YES, button A) then buys points with credits (100 points =
     1 credit; free play gives the credit; a card or not); a national "winner stays" room (50
-    points) is a 300 s practice against a still opponent while waiting for a challenger: no
-    network versus (no ABAAS server), the play ends when the points run out. English: only 144
+    points) is a 300 s practice while waiting for a challenger: no network versus (no ABAAS
+    server), the play ends when the points run out. Its opponent's state (START's SPARRING SETUP
+    menu, `SPA_EnemyStatus`: 0 DUMMY, standing still, 1 Lv.1, 2 Lv.2; the player's `+0x680`) is
+    set to DUMMY when a room starts (`0x5f6b94`, every room): the profile makes it 1, a CPU. English: only 144
     of the 664 arcade texts are in `localizeAC/eng_idlist.txt`, Japanese stays.
 
 ### 6.4 Batocera integration
