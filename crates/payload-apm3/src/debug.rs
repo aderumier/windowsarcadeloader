@@ -1,6 +1,7 @@
 //! Debugging options: the P/Invoke functions a Unity IL2CPP game resolves
 //! (`WAL_APM3_TRACE_PINVOKE=1`, `GameAssembly.dll`'s `GetProcAddress`), bytes of the game's
-//! memory logged when they change (`WAL_APM3_PEEK`).
+//! memory logged when they change (`WAL_APM3_PEEK`), the callers of the system's functions
+//! (`WAL_APM3_TRACE_CALLERS=1`).
 
 use std::time::Duration;
 
@@ -67,4 +68,30 @@ pub(crate) fn peek() {
             }
         }
     });
+}
+
+/// `WAL_APM3_TRACE_CALLERS=1`: each new caller of a system function logged (`module+offset` of
+/// the return addresses of the 3 frames above the export): finds the game code behind a state (Virtua
+/// Fighter eSports' network icon).
+pub(crate) fn trace_caller(name: &'static str) {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if !*ON.get_or_init(|| crate::env("WAL_APM3_TRACE_CALLERS").is_some_and(|v| v == "1")) {
+        return;
+    }
+    unsafe extern "system" {
+        fn RtlCaptureStackBackTrace(skip: u32, count: u32, frames: *mut *mut std::ffi::c_void, hash: *mut u32) -> u16;
+    }
+    // this function skipped
+    let mut frames = [std::ptr::null_mut(); 4];
+    let n = unsafe { RtlCaptureStackBackTrace(1, 4, frames.as_mut_ptr(), std::ptr::null_mut()) } as usize;
+    static SEEN: std::sync::Mutex<Vec<(&'static str, usize)>> = std::sync::Mutex::new(Vec::new());
+    // frame 0 is in the export itself: the caller is frame 1
+    let Some(&first) = frames.get(1).filter(|_| n > 1) else { return };
+    let mut seen = SEEN.lock().unwrap();
+    if seen.contains(&(name, first as usize)) {
+        return;
+    }
+    seen.push((name, first as usize));
+    let chain: Vec<String> = frames[1..n].iter().map(|&f| wal_payload_common::crash::symbolize(f as usize).unwrap_or_else(|| format!("{f:p}"))).collect();
+    log!("caller: {name} <- {}", chain.join(" <- "));
 }

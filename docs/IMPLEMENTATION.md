@@ -5438,7 +5438,12 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   loader (`gametest.bat`: `pushd ...\vf5fs`, `vfes.exe`): `-wal-test`, run from `vf5fs\`
   (`WAL_APM3_TEST_CWD`, the launcher's relaunch `exe=<file> cwd=<dir>`; from the game folder it
   boots eve's content instead), our `apm.dll` installed there too. National / in-store / password
-  versus unavailable (no link server).
+  versus unavailable (no link server). The network icon: the core builds a status word for eve.exe
+  each frame (`0x180219180`: 1 ALL.Net, 2 Aime server, 4 the link object's alive flag, 8 its
+  connection); `WAL_APM3_NO_LINK_PATCHES` (`<module>!` patches of the core DLL) set the link bits:
+  green icon, no "versus unavailable" banner, a MATCHING SELECT screen whose versus modes stay
+  greyed ("play alone"). Found with `WAL_APM3_TRACE_CALLERS=1` (each new caller of a system
+  function logged, `module+offset`): the callers of `AllnetAuth_isGood` / `Aime_isDBAlive`.
 * **Guilty Gear Xrd REV 2 (APM3)** (`Binaries\Win32\GuiltyGearXrd.exe`, 32-bit Unreal Engine 3,
   Direct3D 9): the dump's `game.bat` arguments (`-FULLSCREEN -ResX=1920 -ResY=1080 -APM3 ...`);
   test mode = the same program with `-TESTMODE` (`gametest.bat`). Its ABAAS link client is built
@@ -5885,7 +5890,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `cotton-rock-n-roll` | Cotton Rock 'n' Roll | apm3 | user 100% (2026-11-07); headless: Aime cards, story, play, game over saved (ranking), test mode | Sega ALLS APM3 (§6.3k): 32-bit OpenGL, test program `gametest.exe` (.NET) |
 | `virtua-fighter-3tb-online` | Virtua Fighter 3tb Online | apm3 | user 100% (2026-11-07), network icon green; headless: Aime cards (terms, user data, saved), team battle play, test mode and back | Sega ALLS APM3 (§6.3k): 64-bit Direct3D 11, Model 3 game in `pre3`, same-program test mode |
-| `virtua-fighter-esports` | Virtua Fighter eSports | apm3 | headless (2026-11-07): Aime cards (terms, new player saved), guest and Aime arcade play, test mode (`vf5fs\vfes.exe`) and back; no network versus | Sega ALLS APM3 (§6.3k): Dragon Engine front end + VF5FS core DLL (ABAAS client), test program in `vf5fs\` |
+| `virtua-fighter-esports` | Virtua Fighter eSports | apm3 | headless (2026-11-07): Aime cards (terms, new player saved), guest and Aime arcade play, test mode (`vf5fs\vfes.exe`) and back, network icon green; no network versus | Sega ALLS APM3 (§6.3k): Dragon Engine front end + VF5FS core DLL (ABAAS client), test program in `vf5fs\` |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |
 | `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen | Sega ALLS APM3 (§6.3k): 32-bit Unreal Engine 3, Direct3D 9, built-in link client not started, title server by `gethostbyname` |
 | `guilty-gear-strive` | Guilty Gear -Strive- | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen; LOCAL plays alone against a still P2, no network versus | Sega ALLS APM3 (§6.3k): Unreal Engine 4, 64-bit, Direct3D 11, Arc System Works' own game server (`tl.rs`, WinINet) |

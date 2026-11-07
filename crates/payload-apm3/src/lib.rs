@@ -125,6 +125,7 @@ fn env_on(name: &str) -> bool {
 
 /// Logs the first call of each function (what the game uses).
 pub(crate) fn first_call(name: &'static str) {
+    debug::trace_caller(name);
     static SEEN: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
     let mut seen = SEEN.lock().unwrap();
     if !seen.contains(&name) {

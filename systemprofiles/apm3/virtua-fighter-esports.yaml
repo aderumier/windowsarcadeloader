@@ -15,6 +15,11 @@ env:
   WAL_APM3_CARD_AUTO: "1"
   # the ABAAS game server client: in the VF5FS core eve.exe loads (vf5fs\)
   WAL_APM3_GS_MODULE: vf5fs-pxd-w64-Retail_APM3.dll
+  # no ABAAS link server: the network status word the core gives eve.exe each frame (0x180219180:
+  # 1 ALL.Net, 2 Aime server, 4 the link object's alive flag, 8 its connection) has the link bits
+  # set: green network icon, no "versus unavailable" banner. National / in-store / password
+  # versus stay greyed (a MATCHING SELECT screen with "play alone" comes first)
+  WAL_APM3_NO_LINK_PATCHES: "vf5fs-pxd-w64-Retail_APM3.dll!0x21921d:66BA04009090909090,vf5fs-pxd-w64-Retail_APM3.dll!0x219252:B00190"
 
 input:
   gamepad:
