@@ -21,6 +21,10 @@ env:
   # Wine's full screen mode emulation scales a lower mode to the screen with AMD FSR 1
   WINE_FULLSCREEN_FSR: "1"
   WAL_TOMBRAIDER_SHADOWS: "off"
+  # the GUI's checkboxes show these (the payload's own default when unset: on)
+  WAL_TOMBRAIDER_POSTPROCESS: "1"
+  WAL_TOMBRAIDER_FOG: "1"
+  WAL_TOMBRAIDER_REFLECTION: "1"
 
 # An integrated Radeon 860M (15 W) holds 60 frames per second at 1280x720 + FSR without the
 # shadows; the frame's costs at 1920x1080 (game mode screen, 22.6 ms): shadows 4.4 ms,
