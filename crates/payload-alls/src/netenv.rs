@@ -267,6 +267,20 @@ unsafe extern "system" fn icmp_send_echo2(
     1
 }
 
+/// `IcmpSendEcho` (the game's own router ping): [`icmp_send_echo2`] without its event.
+unsafe extern "system" fn icmp_send_echo(
+    handle: usize,
+    dest: u32,
+    data: *const u8,
+    size: u16,
+    options: *const u8,
+    reply: *mut u8,
+    reply_size: u32,
+    timeout: u32,
+) -> u32 {
+    unsafe { icmp_send_echo2(handle, std::ptr::null_mut(), 0, 0, dest, data, size, options, reply, reply_size, timeout) }
+}
+
 // DNS (segatools' `platform/dns.c`): the store's router (`tenporouter.loc`, `bbrouter.loc`) and
 // the ALL.Net hosts are the virtual router (ALL.Net: the payload's server behind it); the
 // mobile and DSL routers must not resolve (the check then takes the store router's line).
@@ -406,12 +420,13 @@ pub(crate) fn init(subnet: [u8; 4]) {
 /// The iphlpapi imports answered with the cabinet's adapter.
 fn hook_adapters() {
     unsafe {
-        let hooks: [(&str, usize); 5] = [
+        let hooks: [(&str, usize); 6] = [
             ("GetAdaptersAddresses", get_adapters_addresses as *const () as usize),
             ("GetAdaptersInfo", get_adapters_info as *const () as usize),
             ("GetIfEntry", get_if_entry as *const () as usize),
             ("GetBestRoute", get_best_route as *const () as usize),
             ("IcmpSendEcho2", icmp_send_echo2 as *const () as usize),
+            ("IcmpSendEcho", icmp_send_echo as *const () as usize),
         ];
         for (name, f) in hooks {
             if iat::hook("iphlpapi.dll", name, f).is_none() {

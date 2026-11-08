@@ -123,6 +123,8 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
                 // the game server (Aime card players), the cabinet's Windows (segatools' indrun)
                 idac::init();
                 indrun::init();
+                // the game server's echo servers (its NAT check)
+                udp::init_echo();
                 // COM1: the force feedback board (Sega World Drivers Championship's), COM2 the
                 // 837-15070 LED board
                 ffb::init();
