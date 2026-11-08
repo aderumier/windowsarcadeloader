@@ -5702,6 +5702,47 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     applied at start like its installer (originals checked by SHA-256, moved to
     `Content\WAL-English-backup`, the 26 files copied: `Todoroki-English_P.pak`, voice banks,
     the movie), put back when off.
+- Mario & Sonic at the Rio 2016 Olympic Games (SDCH, Nu 1.1 `AAV1`, 64-bit D3D11, portrait;
+  amdaemon Dec 2015): a Nu game with amdaemon, profile in `systemprofiles/seganu/` with
+  `system: alls`. The Nu's amdaemon is the ALLS one (keychip driver, registry values, ICF,
+  ALL.Net) but reads the JVS I/O board through the AMEX board: `WAL_ALLS_JVS=1` starts
+  payload-common's `amex.rs` (Sonic Dash Extreme's AMEX devices, §6.3m: SetupDi classes, JVS,
+  DS, GPIO DIP switches, EEPROM / SRAM in `Y:\amex`) in amdaemon instead of `io4.rs`.
+  - `config_wal.json`: video off, DHCP; this amdaemon needs `"save"` beside `"dhcp"` (else
+    `No "save" key.` at start); LAN install off (cabinet 1's config makes it the store's
+    install server). Error 8114 (RTC):
+    `amRtcIsServerSync` at 0xed890 patched (the same function as SWDC's, found by its bytes).
+  - ALL.Net accepted (`WAL_ALLS_ALLNET`); the Aime reader on COM1 as the cabinet's 837-15286
+    (`WAL_AIME_READER=15286`: firmware 0x92, the dump's file; as a 837-15396 amdaemon tries a
+    firmware update, then never polls it), `WAL_ALLS_AUTO_CARD` (option, default on).
+  - GAME SERVER: Sega's CTS (`cts.rs`, `WAL_ALLS_CTS=1`): libcts 2.51 posts to
+    `/apms-api/<request>` on ALL.Net's host; bodies: a 16-byte header (the IV), then
+    MessagePack, zlib, AES-128-CBC with a fixed key (found by logging CryptImportKey). Answers
+    need the message's CRC-32 in the header (else result -201 and the request retried: the
+    ranking polled 20 times a second, StartGame "failed to get data"). StartGame returns the
+    card's player (name, 2 save slots of 1 KB; a new card: no name, blank slots: the game asks
+    for the name and resets the save); EndGame / ContinueGame / UpdateUser carry the name and
+    the changed slot, kept in `Y:\cts\`. Rankings answered empty (EndGame's results not used).
+    Found with a breakpoint probe on libcts' result conversion (0x49f090) and its own error
+    log (its level checks patched, stderr printed through a `vfprintf_s` hook).
+  - Open: CONNECT MAIN CABINET (the game's own check: cabinet 1 searched with UDP broadcasts on
+    port 20199; without a cabinet id: error 3002 "Cabinet ID 1 Not Found") waits about 30 s,
+    then BAD, the game then plays. The broadcasts are heard (`WAL_ALLS_UDP=1`, `udp.rs`); not
+    changed by the game's `Config.csv` (`BOOT_CHECK_NETWORK`) or `NetConfig.csv`
+    (`NET_USE_LAN`), nor by amdaemon's LAN install.
+  - Language: the region (`WAL_ALLS_REGION` option): 1 Japan (default), 4 export: English text,
+    but the export game has no Aime screens, no mode select, no game server (amdaemon's Aime
+    can be forced on, unused). The English texts (`TxtMessage/data_us`) over the Japanese ones
+    change little: the menus are images (`flash/data_jp`, `_us` variants only for the export
+    screens).
+  - The 15093 LED board on COM12 (`WAL_ALLS_LED_PORT`; else error 3001 "LED Board Not Found").
+  - Controls (the game's input test): one player, two levers, each read by 8 photo sensors
+    around it (`LLEV-PHO-1..8` clockwise from up: JVS right, left, up, down, buttons 1-4; the
+    right lever on player 2's switches), a button on each lever (start), a foot sensor on each
+    side (button 5) and six jump sensors (buttons 6-8 of both players). JVS layout `levers`
+    (`jvs_board.rs`): the left lever from player 1's directions, the right lever from player
+    2's directions or player 1's right stick. Run: the feet in turn (b3 / b4); start dash: both
+    levers up; jump (b5): all six jump sensors.
 
 ### 6.3m Sega Nu (`crates/payload-seganu`)
 
@@ -6168,6 +6209,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `lets-go-safari` | Let's Go Safari | ringedge | works (user: 100%) | RingWide (platform AAM) kids' driving game: `GameSampR_RingWide.exe` (test menu program `GameTestR_RingWide.exe`); JVS on COM4, the board 837-14895 in "FE MODE" (`WAL_TYPEX_JVS_IDENTIFIER`, 1 player x 22 switches, 20 outputs; else error 6402); amStorage on mxstorage 40114 (else a minute's wait, error 1001); region 04 (English; 08 Chinese; keychip and board), credit record; challenge file `SDAX_Table.dat` generated; course buttons 1-4 = JVS buttons 3-6 (pad A B X Y), wheel = HANDLE R / L (buttons 9 / 10), a rotary encoder pulsed while left / right are held (`WAL_TYPEX_JVS_PULSE`); no analog channel read |
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) | RingWide (platform AAM) medal slot machine satellite (game id SBXF), `App_Release.exe` alone (game.bat's `mbcom.exe`, the network medal bank, and `AimeReader.exe` not needed); 1280x1024 (DIP DF), region 01, credit record, challenge file `Data/amFile/SBXF_Table.dat`; its boards from `Data/script/game_conf.lua` (`IOBoardComPort` 3, `TouchPanelComPort` 1, `CPBoardComPort` 5; 0 = unused, debug): the I/O board on COM3 is Medal no Gunman's protocol with its own switches (`WAL_RINGEDGE_MEDAL_IO`, `satellite.rs`: selector panel / main door closed, reset key = service, transfer; medals counted by `66 0C`, coin = 10 medals), the control panel board on COM5 (`WAL_RINGEDGE_CP_BOARD`: buttons select 1-5, start, payout through command `81`), a 3M MicroTouch EX II on COM1 (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`: the mouse, its left button = b8; format tablet reports streamed through the serial layer's idle callback, Y up; the game's default calibration fits). A fresh backup shows error 3001 until the reset key (service) is turned. The game saves the I/O board's last command list in backup RAM and restores it at boot, then reads the `74` handshake reply against it (its checksum as a report: error 3105 at every boot once a payout saved the list): patched to restore it empty (`WAL_PATCHES` 0x2deac). Payout (b6) pays the medals out |
 | `sonic-dash-extreme` | Sonic Dash Extreme | seganu | headless tests (2026-11-08): attract, coins, start, character select, play, tickets dispensed during play and at the end, back to attract, test menu and back; not user-verified | Sega Nu SX (§6.3m): AMEX board devices, keychip driver, registry values, JVS with 24 outputs and the ticket dispenser (`WAL_TYPEX_JVS_TICKETS`), portrait window in the dump's bezel |
+| `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept | Nu 1.1 with amdaemon (§6.3l): AMEX board JVS in amdaemon (`WAL_ALLS_JVS`), LED board on COM12, levers layout, amRtc sync patch, Aime (837-15286) and the CTS game server (player names and saves kept) |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide |

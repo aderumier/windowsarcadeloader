@@ -68,9 +68,18 @@ fn block(code: &[u8; 10], n: u8) -> [u8; 16] {
     b
 }
 
-/// The reader (generation 3): hardware and firmware versions, the LED board's info.
-const HW_VERSION: &[u8] = b"837-15396";
-const FW_VERSION: &[u8] = b"\x94";
+/// The reader's hardware and firmware versions: generation 3 (837-15396), or generation 2
+/// (`WAL_AIME_READER=15286`: 837-15286, firmware 0x92; Mario & Sonic at Rio 2016's amdaemon
+/// updates another one's firmware, then never polls it).
+fn versions() -> (&'static [u8], &'static [u8]) {
+    static GEN2: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *GEN2.get_or_init(|| std::env::var("WAL_AIME_READER").is_ok_and(|v| v.trim() == "15286")) {
+        (b"837-15286", b"\x92")
+    } else {
+        (b"837-15396", b"\x94")
+    }
+}
+/// The LED board's info.
 const LED_INFO: &[u8] = b"000-00000\xFF\x11\x40";
 
 const NFC: u8 = 0x00;
@@ -124,8 +133,8 @@ fn nfc(req: &[u8]) -> Option<Vec<u8>> {
     Some(match cmd {
         // reset: status 3
         0x62 => answer(req, 3, &[]),
-        0x30 => answer(req, 0, FW_VERSION),
-        0x32 => answer(req, 0, HW_VERSION),
+        0x30 => answer(req, 0, versions().1),
+        0x32 => answer(req, 0, versions().0),
         // poll: a MIFARE target (type 0x10, its 4-byte UID) or none
         0x42 => match {
             if let Some(code) = ARMED.lock().unwrap().clone()

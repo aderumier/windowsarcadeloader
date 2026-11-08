@@ -6,6 +6,9 @@
 
 // the ABAAS game server (player data, rankings) of Sega's APM3 and ALLS games
 pub mod abaas_gs;
+// Sega Nu's AMEX board (JVS, DS, EEPROM, SRAM, GPIO) found by its device interface classes
+#[cfg(windows)]
+pub mod amex;
 // AVPro Video's uGUI display played by Unity's VideoPlayer (Android builds without AVPro's backend)
 #[cfg(windows)]
 pub mod avpro;

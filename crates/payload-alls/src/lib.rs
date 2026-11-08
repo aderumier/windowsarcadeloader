@@ -25,6 +25,12 @@
 //!   cabinet's LAN announcements, `udp.rs`, the English translation, `english.rs`)
 //! - `WAL_ALLS_AIME_PORT` (`COM3`...): the Aime card reader amdaemon opens there (`aime.rs`),
 //!   `WAL_ALLS_ACCESS_CODE` the player's card
+//! - `WAL_ALLS_JVS=1`: a Nu cabinet: amdaemon reads the JVS I/O board on the AMEX board
+//!   (payload-common's `amex`, its EEPROM and SRAM in `Y:\amex`) instead of the USB I/O board
+//! - `WAL_ALLS_LED_PORT`: the LED board's serial port (default `COM1`)
+//! - `WAL_ALLS_UDP=1`: the game hears its own datagrams to the subnet (`udp.rs`; `swdc` sets it)
+//! - `WAL_ALLS_CTS=1`: Sega's CTS game server (`cts.rs`: rankings, the Aime players' names and
+//!   saves; Mario & Sonic at Rio 2016)
 //! - `WAL_ALLS_DAEMON_PATCHES`: amdaemon's patches (`<rva>:<hex bytes>,...`)
 //! - `WAL_PATCHES`: game code patches (same format)
 //!
@@ -35,6 +41,7 @@ mod aime;
 mod aimedb;
 mod allnet;
 mod clock;
+mod cts;
 mod daemon;
 mod dashboard;
 mod english;
@@ -104,7 +111,16 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
                 led::init("COM2");
                 dashboard::init();
             } else {
-                led::init("COM1");
+                // the LED board's port (Mario & Sonic at Rio 2016: COM12)
+                led::init(std::env::var("WAL_ALLS_LED_PORT").as_deref().map_or("COM1", str::trim));
+            }
+            if std::env::var("WAL_ALLS_CTS").is_ok_and(|v| v.trim() == "1") {
+                cts::init();
+            }
+            // the cabinet's own LAN announcements heard (Mario & Sonic at Rio 2016's main cabinet
+            // on UDP 20199)
+            if std::env::var("WAL_ALLS_UDP").is_ok_and(|v| v.trim() == "1") {
+                udp::init();
             }
             netenv::init_game();
             allnet::init_redirect();

@@ -47,6 +47,9 @@
 //! `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 and the
 //! general purpose outputs (see [`Dispenser`]).
 //!
+//! `WAL_TYPEX_JVS_LAYOUT=levers`: Mario & Sonic at the Rio 2016 Olympic Games' two levers, each
+//! 8 direction sensors (see [`levers`]).
+//!
 //! `WAL_TYPEX_JVS_LAYOUT=battle-gear` / `battle-gear-pro`: Battle Gear 4's key reader (Taito
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
 //! presence makes the game use the wide monitor & clutch mode) and the H shifter (see
@@ -174,6 +177,8 @@ struct Board {
     cyber_diver: bool,
     /// Pleasant Goat: the dispenser-ready signal is switch byte 3 bit 0x40.
     happy_playground: bool,
+    /// `WAL_TYPEX_JVS_LAYOUT=levers`: see [`levers`].
+    levers: bool,
     /// `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 (ready
     /// 0x80, jam 0x40, empty 0x20) and output byte 1 (dispense pulse 0x08): see [`Dispenser`].
     dispenser: Option<Dispenser>,
@@ -218,6 +223,45 @@ struct Board {
     battle_gear: Option<BattleGear>,
     /// Addresses assigned since the last bus reset (2 boards with `battle-gear-pro`).
     addresses: u8,
+}
+
+/// The sensors of a lever's 8 directions, clockwise from up (switch byte 1, 2): right, left, up,
+/// down, buttons 1-4 (Mario & Sonic at Rio 2016's input test).
+const LEVER_SENSORS: [(u8, u8); 8] = [(0x04, 0), (0x08, 0), (0x20, 0), (0x10, 0), (0x02, 0), (0x01, 0), (0, 0x80), (0, 0x40)];
+
+/// Direction (0 up, clockwise in eighths) of a stick position (y down), `None` near the center.
+fn lever_direction(x: f32, y: f32) -> Option<usize> {
+    if x.hypot(y) < 0.5 {
+        return None;
+    }
+    let turns = x.atan2(-y) / std::f32::consts::TAU;
+    Some(((turns * 8.0).round() as i32).rem_euclid(8) as usize)
+}
+
+/// `WAL_TYPEX_JVS_LAYOUT=levers`: Mario & Sonic at the Rio 2016 Olympic Games' cabinet, one
+/// player holding two levers (player 1's and player 2's switches), each read by 8 photo sensors
+/// around it, one per direction ([`LEVER_SENSORS`]). The left lever is player 1's directions
+/// (its d-pad, keys, its left stick through `stick_as_dpad`), the right lever player 2's
+/// directions or player 1's right stick. Their buttons, the foot and jump sensors are
+/// `native_map` entries (`start`, `btn5`-`btn8`, `p2start`, `p2btn5`-`p2btn8`).
+fn levers(players: &mut [(u8, u8, bool, bool, u8)], p1: &StickState) {
+    let digital = |b: u8| {
+        let axis = |neg: u8, pos: u8| (b & pos != 0) as i32 as f32 - (b & neg != 0) as i32 as f32;
+        (axis(0x08, 0x04), axis(0x20, 0x10))
+    };
+    let (lx, ly) = digital(players[0].0);
+    let (mut rx, mut ry) = digital(players[1].0);
+    if (rx, ry) == (0.0, 0.0) {
+        (rx, ry) = (p1.axis(Axis::RightX) as f32 / 32767.0, p1.axis(Axis::RightY) as f32 / 32767.0);
+    }
+    for (p, dir) in players.iter_mut().zip([lever_direction(lx, ly), lever_direction(rx, ry)]) {
+        p.0 &= !0x3F;
+        p.1 &= !0xC0;
+        if let Some((b0, b1)) = dir.map(|d| LEVER_SENSORS[d]) {
+            p.0 |= b0;
+            p.1 |= b1;
+        }
+    }
 }
 
 /// Analog channel source: player 1's axis, inverted (`-axis`) or its positive half only
@@ -413,6 +457,7 @@ pub fn init(default_port: &str) {
         elevator_action,
         cyber_diver: std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v == "cyber-diver"),
         happy_playground: layout == "happy-playground",
+        levers: layout.trim() == "levers",
         dispenser: (layout.trim() == "k-on").then(Dispenser::default),
         tickets: std::env::var("WAL_TYPEX_JVS_TICKETS").ok().and_then(|v| Tickets::parse(&v)),
         wontertainment: layout.trim() == "wontertainment",
@@ -698,6 +743,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
     players[0].0 |= board.held.0;
     players[0].1 |= board.held.1;
     players[0].4 |= board.held.2;
+    if board.levers {
+        levers(&mut players, &sticks[0]);
+    }
     if board.happy_playground {
         players[0].4 |= 0x40;
     }

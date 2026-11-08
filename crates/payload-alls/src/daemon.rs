@@ -395,7 +395,14 @@ pub(crate) fn init() {
         }
         iat::hook("kernel32.dll", "GetComputerNameA", get_computer_name_a as *const () as usize);
     }
-    io4::init();
+    if std::env::var("WAL_ALLS_JVS").is_ok_and(|v| v.trim() == "1") {
+        // a Nu cabinet: the AMEX board (its JVS I/O board, the system DIP switches, EEPROM and
+        // SRAM in Y:\amex)
+        let dip_switches = std::env::var("WAL_ALLS_DIPSW").ok().and_then(|v| u32::from_str_radix(v.trim(), 16).ok()).unwrap_or(0x01);
+        wal_payload_common::amex::init(wal_payload_common::amex::Board { save: "Y:\\amex".into(), region: cabinet.region as u8, serial: "AAVE-01A99999999", dip_switches });
+    } else {
+        io4::init();
+    }
     // amdaemon's own patches (the profile's: its clock's server sync)
     if let Ok(spec) = std::env::var("WAL_ALLS_DAEMON_PATCHES") {
         wal_payload_common::patches::apply_list(&spec);
