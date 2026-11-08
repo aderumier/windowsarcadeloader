@@ -30,6 +30,12 @@
 //! settings (free play off) and use them for that session: `WAL_SEGANU_FREEPLAY_DEFAULT=<rva>`,
 //! the free play byte of those defaults in the executable, set too (Sonic Dash Extreme:
 //! `0x5a51da`, in its default game data, whose credit record it copies to the EEPROM).
+//! A game that writes the record from its own coin settings instead (Luigi's Mansion Arcade:
+//! its EEPROM record at 0x1200, free play at +0x18): `WAL_SEGANU_FREEPLAY_BYTE=<offset>`, that
+//! settings byte in the EEPROM (0 or 1), set at each start; `WAL_SEGANU_FREEPLAY_RECORD=
+//! <offset>:<hex>,...`: the records of a backup the game already set up (its id, its default
+//! settings), written first in a blank one (else the game sets it up on its first boot, free play
+//! off).
 //!
 //! The test menu: on TEST the game creates `C:\Users\AppUser\gametest` (the save folder's
 //! `gametest`) and exits, its `game.bat` then runs the test menu program (`TestMode_x86.exe`,
@@ -173,6 +179,7 @@ fn write_free_play() {
     use std::io::{Read, Seek, SeekFrom, Write};
     let Some(free_play) = wal_payload_common::free_play("WAL_SEGANU_FREEPLAY") else { return };
     free_play_default(free_play);
+    free_play_byte(free_play);
     let (at, copy, size) = CREDIT_RECORD;
     let path = &files()[0].0;
     let Ok(mut f) = std::fs::OpenOptions::new().read(true).write(true).open(path) else { return };
@@ -225,6 +232,50 @@ fn free_play_default(free_play: bool) {
         VirtualProtect(byte as *const c_void, 1, old, &mut old);
     }
     log!("devices: free play {free_play} in the default credit settings (+{rva:#x})");
+}
+
+/// `WAL_SEGANU_FREEPLAY_BYTE`: the game's own free play setting in the EEPROM (its byte checked:
+/// 0 or 1).
+fn free_play_byte(free_play: bool) {
+    use std::io::{Read, Seek, SeekFrom, Write};
+    let Some(at) = std::env::var("WAL_SEGANU_FREEPLAY_BYTE").ok().and_then(|v| u64::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()) else {
+        return;
+    };
+    let path = &files()[0].0;
+    let Ok(mut f) = std::fs::OpenOptions::new().read(true).write(true).open(path) else { return };
+    let records: Vec<(u64, Vec<u8>)> = std::env::var("WAL_SEGANU_FREEPLAY_RECORD")
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|item| {
+            let (at, hex) = item.trim().split_once(':')?;
+            let at = u64::from_str_radix(at.trim_start_matches("0x"), 16).ok()?;
+            let bytes: Option<Vec<u8>> = (0..hex.len() / 2).map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()).collect();
+            Some((at, bytes?))
+        })
+        .collect();
+    let blank = |f: &mut std::fs::File, at: u64, len: usize| {
+        let mut current = vec![0u8; len];
+        f.seek(SeekFrom::Start(at)).and_then(|_| f.read_exact(&mut current)).is_ok() && current.iter().all(|&b| b == 0)
+    };
+    if !records.is_empty() && records.iter().all(|(at, bytes)| blank(&mut f, *at, bytes.len())) {
+        for (at, bytes) in &records {
+            if f.seek(SeekFrom::Start(*at)).and_then(|_| f.write_all(bytes)).is_err() {
+                log!("devices: cannot write the record at EEPROM {at:#x}");
+                return;
+            }
+        }
+        log!("devices: blank backup: the game's {} record(s) written", records.len());
+    }
+    let mut byte = [0u8];
+    if f.seek(SeekFrom::Start(at)).and_then(|_| f.read_exact(&mut byte)).is_err() || byte[0] > 1 {
+        log!("devices: free play setting at EEPROM {at:#x}: unexpected byte {:02x}, not set", byte[0]);
+        return;
+    }
+    if byte[0] != free_play as u8 && f.seek(SeekFrom::Start(at)).and_then(|_| f.write_all(&[free_play as u8])).is_err() {
+        log!("devices: cannot write the free play setting");
+        return;
+    }
+    log!("devices: free play {free_play} in the game's settings (EEPROM {at:#x})");
 }
 
 // ── files ─────────────────────────────────────────────────────────────────────────────────

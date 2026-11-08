@@ -5804,6 +5804,36 @@ payload is loaded by `wal-loader` (no driver DLL imported).
   `0x5d2d10`, is not the one it uses). Verified: FREE PLAY from a blank backup, START alone
   starts a game; off: coins and credits again.
 
+- Luigi's Mansion Arcade (SDCF, Nu `AAV0`, Capcom 2015, 64-bit Direct3D 11, two vacuum guns):
+  the payload's 64-bit build (`wal_seganu64.dll`, started by `wal-loader64`: profile
+  `payload_loader`), the game run from `exe\x64` (its data `..\..\DataGlobal`). The executable
+  is packed by Capcom's protector (`.capcom0` / `.capcom1`): it decrypts the game's sections and
+  fills its imports, then checks its environment and ends the process under Wine (exit code
+  `0xFD605820`, also without the payload; the process list, the kernel modules and the parent's
+  name made like Windows' did not pass it). Its first `NtQuerySystemInformation(
+  SystemProcessInformation)` comes after the decryption: `unpack.rs` (`WAL_SEGANU_UNPACK=
+  0x30fb70`) hooks ntdll's system call stub and, at that call, writes `WAL_SEGANU_UNPACK_PATCHES`
+  (the five functions the protector replaced by jumps into its virtual machine, the calls to the
+  first one, the data path string `..\..\DataGlobal\EN\Data\` it decrypts after its checks;
+  found by comparing the decrypted memory with an unpacked executable) and calls the entry point
+  on the protector's stack. Its exception tables stay encrypted (an exception would end the
+  game). I/O board on COM1 (`lmaio.rs`, `WAL_SEGANU_LMAIO`, 115200 bauds, the firmware
+  `LMAIO.bin` `game.bat` flashes): ASCII packets every 28 ms, the game's `/s CO: SW: SO: MO: ST:
+  /e` (`CO:T,<n>`: the coins taken, repeated until the board reports none), the board's lines up
+  to an ETX: `G1:<a1>,<b1>,<a2>,<b2>` the guns (a: x reading, 0x1000 start, 0x2000 action,
+  0x4000 trigger, 0x8000 off the screen; b: y reading from the bottom, 0x8000 valid), `CO:` the
+  coins, `SW:` three switch words (first: 0x4 test, 0x2 service), `ST:` the vacuum guns' board
+  status (not 0: error 3002 "communication error (Poltergust board)"). The game maps the readings
+  with the guns' calibration in its board object (`[[exe + 0x4f6c98]]` +0x5c..+0x68, x = (a -
+  256 - min) / (max - min) * 1920, y = (1535 - b - 256 - min) / (max - min) * 1080), set to
+  0..1024 at each answer (`WAL_SEGANU_LMAIO_OBJECT`): the readings span the picture. Start is the
+  gun word's 0x1000 (a rising edge, the join check), the trigger also presses it. COM10 / COM2
+  (its LED board, 45 RGB lamps, written only) is absent. Free play: the game writes amLib's credit
+  record from its own coin settings (EEPROM record 0x1200, free play at +0x18):
+  `WAL_SEGANU_FREEPLAY_BYTE=0x1218`, and in a blank backup the records of a set up one first
+  (`WAL_SEGANU_FREEPLAY_RECORD`: its id record at 0x1f0 / 0x9f0, its default coin settings; else
+  its first boot sets the backup up, free play off).
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -6209,6 +6239,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `lets-go-safari` | Let's Go Safari | ringedge | works (user: 100%) | RingWide (platform AAM) kids' driving game: `GameSampR_RingWide.exe` (test menu program `GameTestR_RingWide.exe`); JVS on COM4, the board 837-14895 in "FE MODE" (`WAL_TYPEX_JVS_IDENTIFIER`, 1 player x 22 switches, 20 outputs; else error 6402); amStorage on mxstorage 40114 (else a minute's wait, error 1001); region 04 (English; 08 Chinese; keychip and board), credit record; challenge file `SDAX_Table.dat` generated; course buttons 1-4 = JVS buttons 3-6 (pad A B X Y), wheel = HANDLE R / L (buttons 9 / 10), a rotary encoder pulsed while left / right are held (`WAL_TYPEX_JVS_PULSE`); no analog channel read |
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) | RingWide (platform AAM) medal slot machine satellite (game id SBXF), `App_Release.exe` alone (game.bat's `mbcom.exe`, the network medal bank, and `AimeReader.exe` not needed); 1280x1024 (DIP DF), region 01, credit record, challenge file `Data/amFile/SBXF_Table.dat`; its boards from `Data/script/game_conf.lua` (`IOBoardComPort` 3, `TouchPanelComPort` 1, `CPBoardComPort` 5; 0 = unused, debug): the I/O board on COM3 is Medal no Gunman's protocol with its own switches (`WAL_RINGEDGE_MEDAL_IO`, `satellite.rs`: selector panel / main door closed, reset key = service, transfer; medals counted by `66 0C`, coin = 10 medals), the control panel board on COM5 (`WAL_RINGEDGE_CP_BOARD`: buttons select 1-5, start, payout through command `81`), a 3M MicroTouch EX II on COM1 (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`: the mouse, its left button = b8; format tablet reports streamed through the serial layer's idle callback, Y up; the game's default calibration fits). A fresh backup shows error 3001 until the reset key (service) is turned. The game saves the I/O board's last command list in backup RAM and restores it at boot, then reads the `74` handshake reply against it (its checksum as a report: error 3105 at every boot once a payout saved the list): patched to restore it empty (`WAL_PATCHES` 0x2deac). Payout (b6) pays the medals out |
 | `sonic-dash-extreme` | Sonic Dash Extreme | seganu | headless tests (2026-11-08): attract, coins, start, character select, play, tickets dispensed during play and at the end, back to attract, test menu and back; not user-verified | Sega Nu SX (§6.3m): AMEX board devices, keychip driver, registry values, JVS with 24 outputs and the ticket dispenser (`WAL_TYPEX_JVS_TICKETS`), portrait window in the dump's bezel |
+| `luigis-mansion-arcade` | Luigi's Mansion Arcade | seganu | user (2026-11-08): "game is working perfect" (aim, start, play); headless tests: attract, coins, service, free play from a blank backup | Sega Nu (§6.3m), 64-bit: the Capcom protector's game started once unpacked (`WAL_SEGANU_UNPACK`), the I/O board on COM1 (guns, coins, switches; `WAL_SEGANU_LMAIO`), free play in the game's coin settings |
 | `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept | Nu 1.1 with amdaemon (§6.3l): AMEX board JVS in amdaemon (`WAL_ALLS_JVS`), LED board on COM12, levers layout, amRtc sync patch, Aime (837-15286) and the CTS game server (player names and saves kept) |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |

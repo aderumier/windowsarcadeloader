@@ -22,6 +22,7 @@ unsafe extern "C" {
 }
 
 // (function, line, format, ...): each `push [esp + 16]` takes the next argument back to front.
+#[cfg(target_arch = "x86")]
 core::arch::global_asm!(
     ".globl {name}",
     "{name}:",
@@ -41,7 +42,24 @@ unsafe extern "C" {
     fn amlog_stub();
 }
 
+// 64-bit: the first variable argument (r9) stored in its home slot, the others follow it on
+// the stack: the list starts there.
+#[cfg(target_arch = "x86_64")]
+core::arch::global_asm!(
+    ".globl {name}",
+    "{name}:",
+    "mov [rsp + 32], r9",
+    "sub rsp, 40",
+    "lea r9, [rsp + 72]",
+    "call {log}",
+    "add rsp, 40",
+    "ret",
+    name = sym amlog_stub,
+    log = sym amlog_va,
+);
+
 // (format, ...): format at [esp + 4], arguments after it.
+#[cfg(target_arch = "x86")]
 core::arch::global_asm!(
     ".globl {name}",
     "{name}:",
@@ -50,6 +68,23 @@ core::arch::global_asm!(
     "push dword ptr [esp + 8]",
     "call {log}",
     "add esp, 8",
+    "ret",
+    name = sym gamelog_stub,
+    log = sym gamelog_va,
+);
+
+// 64-bit: the variable arguments in rdx, r8, r9 stored in their home slots.
+#[cfg(target_arch = "x86_64")]
+core::arch::global_asm!(
+    ".globl {name}",
+    "{name}:",
+    "mov [rsp + 16], rdx",
+    "mov [rsp + 24], r8",
+    "mov [rsp + 32], r9",
+    "sub rsp, 40",
+    "lea rdx, [rsp + 56]",
+    "call {log}",
+    "add rsp, 40",
     "ret",
     name = sym gamelog_stub,
     log = sym gamelog_va,
