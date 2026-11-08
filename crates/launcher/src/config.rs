@@ -41,6 +41,9 @@ pub struct Profile {
     pub args: Vec<String>,
     /// Windows executables to run from the game directory before the game starts.
     pub pre_launch: Vec<String>,
+    /// Programs started before the game and left running beside it (`<exe> [args]`).
+    pub background: Vec<String>,
+    pub background_wait_ms: u64,
     pub runner: String,
     pub runners_dir: PathBuf,
     pub prefix: PathBuf,

@@ -48,6 +48,30 @@ fn wide(s: &str) -> Vec<u16> {
     std::ffi::OsStr::new(s).encode_wide().chain([0]).collect()
 }
 
+/// `WAL_DESKTOP_UNMANAGED=1`: the game's X11 `Managed=N` option (`AppDefaults\<exe>\X11 Driver`)
+/// set before it starts. The payload sets it too, at its start, but Wine's X11 driver may
+/// already have read it then: Mario & Sonic at Tokyo 2020's DLLs start the driver before its
+/// entry point, GNOME then placed its full-height window below the top bar. The payload removes
+/// the option at the game's first window.
+fn unmanaged(exe: &str) {
+    use windows_sys::Win32::System::Registry::{
+        HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ, RegCloseKey, RegCreateKeyExW, RegSetValueExW,
+    };
+    if !std::env::var("WAL_DESKTOP_UNMANAGED").is_ok_and(|v| v.trim() == "1") {
+        return;
+    }
+    let name = exe.rsplit(['\\', '/']).next().unwrap_or(exe);
+    let path = wide(&format!("Software\\Wine\\AppDefaults\\{name}\\X11 Driver"));
+    let value = wide("N");
+    unsafe {
+        let mut key = std::ptr::null_mut();
+        if RegCreateKeyExW(HKEY_CURRENT_USER, path.as_ptr(), 0, std::ptr::null(), REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, std::ptr::null(), &mut key, std::ptr::null_mut()) == 0 {
+            RegSetValueExW(key, wide("Managed").as_ptr(), 0, REG_SZ, value.as_ptr().cast(), (value.len() * 2) as u32);
+            RegCloseKey(key);
+        }
+    }
+}
+
 /// Windows command line quoting.
 fn quote(arg: &str) -> String {
     if !arg.is_empty() && !arg.contains([' ', '\t', '"']) {
@@ -209,6 +233,7 @@ fn main() {
     let payload = std::path::absolute(&args[0]).map(|p| p.display().to_string()).unwrap_or_else(|_| args[0].clone());
     let cmdline: Vec<String> = args[1..].iter().map(|a| quote(a)).collect();
     let mut cmdline = wide(&cmdline.join(" "));
+    unmanaged(&args[1]);
 
     unsafe {
         let mut si: STARTUPINFOW = std::mem::zeroed();

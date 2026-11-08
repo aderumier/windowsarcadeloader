@@ -637,6 +637,31 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             bail!("pre-launch helper {helper} failed: {status}");
         }
     }
+    // programs left running beside the game (Sega ALLS's amdaemon.exe), with the game's payload
+    // when the system starts it through wal-loader; ended with the game's leftovers
+    for program in &profile.background {
+        let words: Vec<String> = screen_args(&program.split(' ').filter(|w| !w.is_empty()).map(String::from).collect::<Vec<_>>());
+        let Some((exe, args)) = words.split_first() else { continue };
+        let exe_path = wine.windows_path(&run_exe_dir.join(exe));
+        let mut cmd = match loader {
+            Some(payload) => {
+                let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));
+                let at = if payload.contains(['/', '\\']) { run_dir.join(payload) } else { run_exe_dir.join(payload) };
+                cmd.arg(wine.windows_path(&at)).arg(&exe_path);
+                cmd
+            }
+            None => wine.command(&exe_path),
+        };
+        cmd.args(args).current_dir(&run_exe_dir);
+        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+        eprintln!("launcher: starting background program {exe}");
+        cmd.spawn().with_context(|| format!("starting background program {exe}"))?;
+    }
+    if !profile.background.is_empty() {
+        std::thread::sleep(Duration::from_millis(profile.background_wait_ms));
+        // the payload log the background program created: the game's lines appended to it
+        cmd.env("WAL_LOG_APPEND", "1");
+    }
     let mut child = cmd.spawn().context("starting wine")?;
     // its window to the front (a frontend keeping the focus hid it)
     let mut focus = if opts.headless { None } else { focus::Focus::new(child.id()) };

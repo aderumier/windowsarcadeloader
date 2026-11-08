@@ -16,6 +16,11 @@ name: null
 args: []
 # Windows executables to run from the game directory before the game starts.
 pre_launch: []
+# Programs of the game directory ("<exe> [args]") started before the game and left running
+# beside it (Sega ALLS's amdaemon.exe), with the system's payload when it is started through
+# wal-loader; the game starts background_wait_ms later.
+background: []
+background_wait_ms: 3000
 
 runner: GE-Proton11-10-x86_64
 runners_dir: wine-runners

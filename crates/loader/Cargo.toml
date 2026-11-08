@@ -29,4 +29,5 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Memory",
     "Win32_System_LibraryLoader",
     "Win32_System_Time",
+    "Win32_System_Registry",
 ] }

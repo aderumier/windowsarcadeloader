@@ -50,6 +50,7 @@ crates/
   payload-rawthrills/      Raw Thrills PC payload (JAMMA USB board reports), loaded by wal-loader
   payload-ringedge/        Sega RingEdge payload (amLib devices, keychip/master PCP services), loaded by wal-loader
   payload-segashell/       Sega Amusements Shell payload (the Shell's TCP service, the I/O board), loaded by wal-loader
+  payload-alls/            Sega ALLS payload (amdaemon's keychip, USB I/O board, network; the LED board), loaded by wal-loader in amdaemon and the game
   payload-nesica/          NESiCAxLive payload = replacement iDmacDrv32.dll
     iDmacDrv32.def         export ordinals of the original driver (see §6.2)
     src/news.png           NESYS news picture
@@ -5519,6 +5520,51 @@ whole stack under the real amdaemon; here the payload replaces the library inste
     menu, `SPA_EnemyStatus`: 0 DUMMY, standing still, 1 Lv.1, 2 Lv.2; the player's `+0x680`) is
     set to DUMMY when a room starts (`0x5f6b94`, every room): the profile makes it 1, a CPU. English: only 144
     of the 664 arcade texts are in `localizeAC/eng_idlist.txt`, Japanese stays.
+
+### 6.3l Sega ALLS with amdaemon (`crates/payload-alls`)
+
+System `alls`: the ALLS games that run beside the cabinet's own `amdaemon.exe` (keychip,
+ALL.Net, the "Type 4" USB I/O board, credits) instead of linking APM3 (§6.3k). First game:
+Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). segatools
+(public domain, `games/tokyohook` + `common/platform`, `common/board`) was the reference.
+
+- Launch: the profile's `background` list starts `amdaemon.exe -c <config files>` (game.bat's
+  list plus the profile's `config_wal.json`: video setup off, DHCP), `background_wait_ms`
+  later the game; both through `wal-loader64` with `wal_alls.dll` (`payload_loader: true`).
+  The game appends to amdaemon's payload log (`WAL_LOG_APPEND`).
+- amdaemon (`daemon.rs`): `HKLM\SYSTEM\SEGA\SystemProperty` values written at start
+  (`registry.rs`: keychip ids, region, subnet; mounts E: AMFS, Y: app data; `amVideo\name` =
+  the payload, which exports `amDllVideo*`); `\??\FddDriver` keychip ioctls (play counters,
+  trace log, billing CA/public key: segatools' dummy PKI in `pki.rs`); `\\.\sghwmonitor`,
+  `sghwreset`; the IO4 HID board (`io4.rs`: SetupDi/HidD hooks, overlapped 64-byte input reports
+  completed by a thread); `sysfile.rs` sets the DIP switches and free play in `E:\sysfile.dat`.
+- Network (`netenv.rs`): one adapter at .205 of the keychip's subnet, router/DNS at .1, pings
+  answered; DNS: `tenporouter.loc`, `bbrouter.loc` and the ALL.Net hosts resolve to the router,
+  `mobirouter.loc` / `dslrouter.loc` do not (else the DNS check waits over a minute; a
+  loopback address is refused as ALL.Net's). Connections to port 80 of the router go to the
+  payload's server (`allnet.rs`, 127.0.0.1:`WAL_PORT`+102: PowerOn / DownloadOrder, DFI = zlib +
+  base64, ARTEMiS formats). PowerOn is refused by default (offline); `WAL_ALLS_ALLNET=1`
+  accepts it (no title server: the game's ABAAS GS `/api/...` is not emulated yet).
+- Clock (`clock.rs`, both programs): Japan's time zone, clock setting refused quietly.
+- Keychip billing type 1 (`nearfull` high word; type 0 gives error 8113 "MODE"). Offline the
+  RTC is never synced with ALL.Net and billing stops the game with error 8114 "ALL.Net System
+  error (RTC)": the profile patches amRtc's sync test (`WAL_ALLS_DAEMON_PATCHES`
+  `0x28f100:B801000000C3`). Found with crash probes (`8B0C2500000000`) on the sites setting
+  error 0x1fb2 / 0x1fb1.
+- The game (`app.exe`): `-windowed` (its full screen draws the portrait picture for the real
+  screen's size, off center), a 1080x1920 desktop fitted on the screen with the dump's
+  `Bezel.png`; its window a borderless popup, not managed by the window manager (GNOME placed
+  it below its top bar: a black band on top, the picture cut at the bottom). Wine's X11 driver
+  read the `Managed` option before the payload set it (app.exe's DLLs start it before its entry
+  point): `wal-loader` now sets it for the game's executable before starting it
+  (`WAL_DESKTOP_UNMANAGED=1`); real keyboard/pads filtered; the LED board 837-15093-04 on COM1 (`led.rs`). The
+  power-on test screens are laid out for 1920 wide: clipped on the left in portrait (the
+  game's own layout).
+- Controls (tokyo board): b1/left blue, b2/up/start yellow, b3/right red, b4/b5 the left/right
+  foot (run: alternate), b6 jump (every jump beam, both feet off); test = test menu, service =
+  its cursor.
+- Debug: amdaemon's error numbers are in `am_resources/error.english.dll`; a landscape
+  `WAL_DESKTOP_SIZE: 1920x1080` layer shows the power-on test screens whole.
 
 ### 6.4 Batocera integration
 

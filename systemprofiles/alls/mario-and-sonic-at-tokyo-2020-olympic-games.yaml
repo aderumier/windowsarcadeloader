@@ -1,0 +1,79 @@
+# Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (Sega, ALLS HX2, 2020; game id SDFV):
+# 64-bit Direct3D 11, a portrait 1080x1920 screen. One player on a floor panel: three buttons
+# (blue, yellow, red), two foot sensors (run: step left and right in turn) and six jump
+# sensors (one jump input breaks them all).
+# amdaemon.exe (the cabinet's system service) is started first, then the game (package\app.exe),
+# both with the payload: the keychip, the USB I/O board and the LED board are emulated.
+# Override values in userprofiles/alls/mario-and-sonic-at-tokyo-2020-olympic-games.yaml.
+system: alls
+name: Mario & Sonic at the Tokyo 2020 Olympic Games
+
+# both programs started by wal-loader64 with the payload
+payload_loader: true
+# the game's window at the desktop's size (its full screen mode takes the real screen's size:
+# its portrait picture drawn off center)
+args: [-windowed]
+
+# game.bat's amdaemon command line (its configuration files merged in this order)
+background:
+  - >-
+    amdaemon.exe -c config_common.json config_ch.json config_ex.json config_jp.json
+    config_st1_ch.json config_st1_ex.json config_st1_jp.json config_st2_ch.json
+    config_st2_ex.json config_st2_jp.json config_st3_ch.json config_st3_ex.json config_st3_jp.json
+    config_st4_ch.json config_st4_ex.json config_st4_jp.json config_laninstall_server_ch.json
+    config_laninstall_client1_ch.json config_laninstall_client2_ch.json
+    config_laninstall_client3_ch.json config_laninstall_server_ex.json
+    config_laninstall_client1_ex.json config_laninstall_client2_ex.json
+    config_laninstall_client3_ex.json config_laninstall_server_jp.json
+    config_laninstall_client1_jp.json config_laninstall_client2_jp.json
+    config_laninstall_client3_jp.json config_wal.json -l Y:\amdaemon.log
+background_wait_ms: 5000
+
+# merged last by amdaemon: its video setup off (it rotates the cabinet's monitor; the
+# launcher fits the portrait picture instead), the network address from DHCP
+files:
+  package/config_wal.json: systemprofiles/alls/files/mario-and-sonic-at-tokyo-2020-olympic-games/config_wal.json
+
+# The cabinet's drives: E: the AMFS (the ICF1/ICF2 files, the system backup amdaemon keeps),
+# Y: the game's data (its logs, backup)
+drives:
+  e: AMFS
+  y: AppData
+# the option data (events, characters) amdaemon mounts at C:\Mount\Option
+c_folders:
+  Mount/Option: package/Option
+
+env:
+  WAL_ALLS_GAME_ID: SDFV
+  WAL_ALLS_PLATFORM_ID: ACA1
+  # amdaemon's clock reported synced with ALL.Net's (amRtc's server sync test: mov eax,1; ret).
+  # Offline it never is, and the keychip's billing then stops the game at the power-on test:
+  # error 8114 "ALL.Net System error (RTC)".
+  WAL_ALLS_DAEMON_PATCHES: "0x28f100:B801000000C3"
+  # The cabinet's portrait monitor: a 1080x1920 desktop for the game, its window fitted onto
+  # the real screen (aspect kept, centered), the cabinet art (in the dump) on both sides
+  WAL_DESKTOP_SIZE: 1080x1920
+  WAL_BEZEL: Bezel.png
+  WAL_BEZEL_FIT: stretch
+  # -windowed opens a captioned window: made a borderless popup. Not managed by the window manager
+  # (WAL_DESKTOP_UNMANAGED, set by wal-loader before app.exe starts): GNOME placed the
+  # full-height window below its top bar (a black band on top, the picture cut at the bottom).
+  WAL_EXE_ENV: "app.exe: WAL_WINDOW_POPUP=1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+
+controls:
+  up: Yellow button
+  left: Blue button
+  right: Red button
+  down: none
+  b1: Blue button (left)
+  b2: Yellow button (center)
+  b3: Red button (right)
+  b4: Left foot (run)
+  b5: Right foot (run)
+  b6: Jump
+  start: Yellow button
+  coin: Coin
+  service: Service
+  test: Test

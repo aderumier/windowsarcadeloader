@@ -1,0 +1,13 @@
+{
+	"video" :
+	{
+		"enable" : false
+	},
+	"network" :
+	{
+		"property" :
+		{
+			"dhcp" : true
+		}
+	}
+}

@@ -1,0 +1,23 @@
+[package]
+name = "wal-payload-alls"
+description = "Sega ALLS payload: the cabinet amdaemon.exe and the game run on (keychip, I/O board, LED board)"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "wal_alls"
+crate-type = ["cdylib"]
+
+[dependencies]
+wal-payload-common = { path = "../payload-common" }
+wal-protocol = { path = "../protocol" }
+miniz_oxide = "0.8"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_IO",
+] }
