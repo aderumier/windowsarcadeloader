@@ -72,7 +72,7 @@ games/, wine-runners/, wine-prefix/   local data (git-ignored)
   for future 64-bit games.
 * `./build.sh` (env `PROFILE=dev` for debug builds) produces `dist/arcade-launcher` and
   `dist/payloads/wal_nesica.dll`. A new payload must be added to `build.sh`.
-* Wine runner: the default runner is `GE-Proton11-10-x86_64` (`wine-runners/`); **all game
+* Wine runner: the default runner is `GE-Proton11-12-x86_64` (`wine-runners/`); **all game
   tests must run on it**. When rebuilding a wine DLL (e.g. `quartz.dll` hotfixes), build from
   the GE-Proton source tree (local clone `~/code/protonge`, GE patch set applied) — never from
   plain upstream wine: the GE video stack (`quartz` + `winedmo`/`msdmo`, GStreamer-backed) only
@@ -349,7 +349,28 @@ game that cannot share the prefix sets its own `prefix` (and `prefix_tricks`).
 
 Runner hotfixes: `tools/runner-hotfixes.py [runner...]` patches known bugs of runner builds in
 place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships in a release.
-GE-Proton11-10 (default runner since 2026-10-19) ships every fix of the GE-Proton11-7 list below
+
+GE-Proton11-12 (default runner since 2026-11-08) is the GitHub release (`GE-Proton11-12-x86_64.tar.gz`,
+sha512 checked) plus `bin/winetricks`, with the PE DLLs `winedmo`, `quartz`, `mfreadwrite`,
+`mfsrcsnk`, `mfasfsrcsnk`, `mfmp4srcsnk` (i386 and x86_64) rebuilt from the GE-Proton11-12 tree
+(`~/code/wal-wine-build-1112`: the wine section of the tag's `protonprep-valve-staging.sh`, the
+same `configure` as below, `make dlls/<dll>/all`, `strip --strip-debug`; originals in
+`hotfix-backups/<arch>-windows/`). 11-12 ships every earlier fix up to GE patch 0109; added:
+0110/0111 (Pokkén Tournament movies), 0112 (Wasteland Racers 2071 attract movie), and from
+`~/code/protonge` branch `winedmo-video-decoder-system-memory-fallback`:
+* 0113: the MPEG-4 Part 2 decoder's YUY2 D3D11 samples, which DXVK cannot create, replaced by
+  system memory samples (`init_allocator` failed with `E_INVALIDARG`, every frame lost).
+* 0114: the video processor converts system memory input on the CPU into its D3D output sample
+  (its re-enabled D3D11 path failed and fell back to a memory sample: Unity's VideoPlayer wants
+  `IMFDXGIBuffer`).
+* 0115: a video decoder takes input again once its drain completed (the source reader drained it
+  a second time when a sample request raced the seek back to 0: a looped movie stopped on its last
+  frame after one to a few loops, 11-10 too).
+Big Foot Crush's attract video needs all three. The release's unix `winedmo.so` is kept (same
+24-entry unix call table as the tree's build).
+
+GE-Proton11-10 (default runner 2026-10-19 to 2026-11-08, still in rgs for the winebat games pinned
+to it) ships every fix of the GE-Proton11-7 list below
 (GE patches 0072-0075, 0080, 0091, the upstream demuxer-destroy fix, no mountmgr serial probe);
 it only carries `winedmo-sws-padded-output`:
 * `winedmo-sws-padded-output` (GE-Proton11-10 `winedmo.so`, x86_64 and i386, rebuilt from the
@@ -4787,8 +4808,15 @@ bridge (`Framework_Call_JNI`) is empty, nothing comes from the MCU.
   the editor does. `Mono::replace` has a 32-bit jump for this game.
 - **Picture.** Portrait (the logo, truck select and counters are laid out on 9:16): a 1080x1920
   fake desktop, fitted on the screen, black around.
-- **Not in the dump.** AVPro's Windows backend (the attract video's area stays empty) and the
-  maps' `SLFramework/Inis` tools (`IniManager`'s initializer also fails on `AndroidJavaObject`: the
+- **Attract video.** AVPro Video has only its Android backend here (no native plugin): its
+  `DisplayUGUI` stayed grey. `payload-common`'s `avpro.rs` replaces `DisplayUGUI.get_mainTexture`:
+  a Unity `VideoPlayer` added to the `MediaPlayer`'s object plays its `m_VideoPath` from the
+  streaming assets (`m_Loop`, no sound, `APIOnly`), its texture is the display's (black until the
+  first frame; `LateUpdate` sees the change). The movie is MPEG-4 Part 2: the runner's winedmo
+  needs GE patches 0113-0115 (GE-Proton11-12 runner, §5.3).
+  The payload attaches to Mono only once `Assembly-CSharp` is loaded (attaching while Mono
+  started crashed the game).
+- **Not in the dump.** The maps' `SLFramework/Inis` tools (`IniManager`'s initializer also fails on `AndroidJavaObject`: the
   update check and these tools are skipped, harmlessly).
 
 ### 6.3k Adrenaline Amusements (`crates/payload-adrenaline`)

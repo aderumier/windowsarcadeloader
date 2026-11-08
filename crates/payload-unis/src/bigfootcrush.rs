@@ -18,6 +18,8 @@
 //! - **The arrows.** Out of the menu the left arrow is the operator's free coin
 //!   (`Framework_Main`): the wheel is `A` / `D` there, the arrows only in the menu
 //!   (`GlobalSetting.isInMenu`).
+//! - **The attract video.** AVPro's Android backend only, no Windows one: its display's picture
+//!   from Unity's `VideoPlayer` (`avpro`).
 //! - **The settings.** The dump lacks the APK's `StreamingAssets/Setting`, read from
 //!   `C:\mnt\sdcard\UNIS_GameData\Setting`: the profile's files. The common free play is set in
 //!   the saved settings before the game reads them.
@@ -243,10 +245,11 @@ fn answer_link() {
     for _ in 0..1200 {
         std::thread::sleep(Duration::from_millis(100));
         let Some(m) = mono() else { continue };
-        if !m.attach() {
+        // attached once the game's assembly is loaded: Mono still starting, attaching crashed
+        let image = if m.domain().is_null() { std::ptr::null_mut() } else { m.image("Assembly-CSharp") };
+        if image.is_null() || !m.attach() {
             continue;
         }
-        let image = m.image("Assembly-CSharp");
         let manager = m.class(image, "", "Framework_UART_Manager");
         if manager.is_null() {
             continue;
@@ -263,6 +266,7 @@ fn answer_link() {
         let replaced = replaced && m.replace(m.method(polling, "MoveNext", 0), no_polling as *const () as usize);
         log!("bigfootcrush: the cabinets' link answered ({replaced})");
         menu_exit(m, image);
+        wal_payload_common::avpro::play_with_unity(m);
         return;
     }
     log!("bigfootcrush: the board manager not found");

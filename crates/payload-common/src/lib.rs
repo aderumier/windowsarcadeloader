@@ -4,6 +4,9 @@
 //! virtual arcade sticks with [`input`] from the game threads (lock free) and
 //! reports game outputs with [`send_output`].
 
+// AVPro Video's uGUI display played by Unity's VideoPlayer (Android builds without AVPro's backend)
+#[cfg(windows)]
+pub mod avpro;
 #[cfg(windows)]
 pub mod codepage;
 #[cfg(windows)]
