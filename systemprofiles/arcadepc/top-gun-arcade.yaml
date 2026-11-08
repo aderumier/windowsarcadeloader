@@ -26,6 +26,9 @@ env:
   WAL_CROSSHAIR: "1"
   # the cabinet art around the picture
   WAL_BEZEL: Layer.png
+  # its opening (wider than the game's picture) fitted to the game's window, the art on each
+  # side stretched to the screen's edge (kept at its aspect, it left black bars beside the game)
+  WAL_BEZEL_FIT: stretch
 
 input:
   # the gun (or mouse) aims, its trigger shoots
