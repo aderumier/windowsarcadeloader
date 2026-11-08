@@ -440,6 +440,8 @@ fn gun_label(src: &str) -> String {
         "X" => "Aim X".into(),
         "Y" => "Aim Y".into(),
         "OFFSCREEN" => "Pointing off screen".into(),
+        "WHEEL_UP" => "Wheel up".into(),
+        "WHEEL_DOWN" => "Wheel down".into(),
         "BTN_LEFT" => "Trigger (left button)".into(),
         "BTN_RIGHT" => "Right button".into(),
         "BTN_MIDDLE" => "Middle button".into(),

@@ -23,6 +23,7 @@
 //! * test menu: the game handles the test switch itself and ends (`Core_exitGame`): the payload
 //!   then asks the launcher to start the cabinet's test program (`WAL_APM3_TEST`, default
 //!   `TestModeApp.exe`, the dump's `gametest.bat`), whose exit starts the game again.
+//! * switches read as a joystick: `WAL_APM3_JOYSTICK=1` (`joystick.rs`).
 //!
 //! Options (profile `env`): `WAL_APM3_FREEPLAY`, `WAL_APM3_ONLINE`, `WAL_APM3_TEST` (and
 //! `WAL_APM3_TEST_ARGS`: its arguments, a test mode of the game's exe; `WAL_APM3_TEST_CWD`: its
@@ -44,6 +45,7 @@ mod cts;
 mod debug;
 mod emoney;
 mod gs;
+mod joystick;
 mod link;
 mod tl;
 mod touch;
@@ -60,6 +62,8 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 /// Native inputs: the APM3 switch ids, plus the coin slot.
 const COIN: u32 = 16;
 const TOUCH: u32 = 17;
+const PINCH_IN: u32 = 18;
+const PINCH_OUT: u32 = 19;
 
 const NATIVES: &[(&str, u32)] = &[
     ("test", 0),
@@ -81,6 +85,9 @@ const NATIVES: &[(&str, u32)] = &[
     ("coin", COIN),
     // a touch screen's touch (touch.rs), not an APM3 switch
     ("touch", TOUCH),
+    // a touch screen's two finger pinch (touch.rs: mouse wheel steps), not APM3 switches
+    ("pinch_in", PINCH_IN),
+    ("pinch_out", PINCH_OUT),
 ];
 
 const DEFAULT_MAP: &[(&str, &str)] = &[
@@ -167,8 +174,19 @@ pub(crate) fn touch_held() -> bool {
     read_switches() & bit(TOUCH) != 0
 }
 
-/// Player 1's switches now (bit = APM3 id).
-fn read_switches() -> u32 {
+/// Player 1's `pinch_in` / `pinch_out` inputs held (touch.rs): -1 (in), 1 (out) or 0.
+pub(crate) fn pinch_held() -> i32 {
+    let bits = read_switches();
+    (bits & bit(PINCH_OUT) != 0) as i32 - (bits & bit(PINCH_IN) != 0) as i32
+}
+
+/// The APM3 id of native input `name` (`push01`...).
+pub(crate) fn native_id(name: &str) -> Option<u32> {
+    NATIVES.iter().find(|(n, _)| *n == name).map(|&(_, id)| id)
+}
+
+/// Player 1's switches now (bit = APM3 id: [`native_id`]).
+pub(crate) fn read_switches() -> u32 {
     let stick = wal_payload_common::input(0);
     let mut bits = 0u32;
     MAP.get().unwrap().for_each_pressed(&stick, |id| bits |= 1 << id);
@@ -198,6 +216,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let is_test = patches::exe_name().eq_ignore_ascii_case(test_name)
             && test_args.split_whitespace().all(|a| args.iter().any(|b| b.eq_ignore_ascii_case(a)));
         IS_TEST_PROGRAM.store(is_test, Ordering::Relaxed);
+        // the game and its test program
+        if joystick::enabled() {
+            joystick::start();
+        }
         // the game's patches, not the test program's
         if !IS_TEST_PROGRAM.load(Ordering::Relaxed) {
             emoney::start();

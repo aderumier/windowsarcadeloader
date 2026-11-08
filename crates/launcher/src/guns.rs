@@ -16,8 +16,9 @@
 //!   trackball's counters.
 //!
 //! Each device reports its position as the `x`/`y` sources (-32768 left/top..32767), its
-//! buttons as evdev key sources (`BTN_LEFT`...) and `offscreen` while a gun points off the
-//! screen. The devices are not grabbed: the game still gets them as X11 mice.
+//! buttons as evdev key sources (`BTN_LEFT`...), `offscreen` while a gun points off the
+//! screen, and a mouse's wheel as `wheel_up` / `wheel_down`, each notch held
+//! [`WHEEL_NOTCH`] (one notch a press the game's payload sees: Tapping Skill Test's pinch). The devices are not grabbed: the game still gets them as X11 mice.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
@@ -31,6 +32,11 @@ use crate::mapping::RawKey;
 /// Consecutive reports at the edge before a gun counts as off-screen: a Sinden emits isolated
 /// 0 / max samples when it briefly loses the border.
 const OFFSCREEN_DEBOUNCE: u32 = 3;
+
+/// How long a mouse wheel notch holds its `wheel_up` / `wheel_down` source; notches in a row
+/// add up (the input hub samples the sources: a press and its release sent together would be
+/// lost).
+const WHEEL_NOTCH: std::time::Duration = std::time::Duration::from_millis(64);
 
 /// A device update: (pointer index, input, value).
 pub type PointerEvent = (usize, RawKey, i32);
@@ -203,13 +209,52 @@ fn read_gun(index: usize, mut dev: Device, tx: Sender<PointerEvent>) {
     eprintln!("input: gun {} disconnected", index + 1);
 }
 
+/// A wheel direction's source held until its notches' time is over (`None`: released).
+type WheelHold = Arc<Mutex<Option<std::time::Instant>>>;
+
+/// One notch of wheel direction `dir`: pressed now (released [`WHEEL_NOTCH`] later), or held
+/// one notch longer.
+fn wheel_notch(index: usize, dir: u8, hold: &WheelHold, tx: &Sender<PointerEvent>) -> Result<(), std::sync::mpsc::SendError<PointerEvent>> {
+    use std::time::Instant;
+    let mut until = hold.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(t) = until.as_mut() {
+        *t = (*t).max(Instant::now()) + WHEEL_NOTCH;
+        return Ok(());
+    }
+    *until = Some(Instant::now() + WHEEL_NOTCH);
+    tx.send((index, RawKey::GunWheel(dir), 1))?;
+    let (hold, tx) = (hold.clone(), tx.clone());
+    std::thread::spawn(move || {
+        loop {
+            let left = {
+                let mut until = hold.lock().unwrap_or_else(|e| e.into_inner());
+                match until.map(|t| t.saturating_duration_since(Instant::now())) {
+                    Some(left) if !left.is_zero() => left,
+                    _ => {
+                        *until = None;
+                        break;
+                    }
+                }
+            };
+            std::thread::sleep(left);
+        }
+        let _ = tx.send((index, RawKey::GunWheel(dir), 0));
+    });
+    Ok(())
+}
+
 fn read_mouse(index: usize, mut dev: Device, screen: [u32; 2], tx: Sender<PointerEvent>) {
     let size = screen.map(|s| s.max(1) as i32);
     // starts mid-screen
     let mut pos = size.map(|s| s / 2);
+    let wheel: [WheelHold; 2] = Default::default();
     while let Ok(events) = dev.fetch_events() {
         for ev in events {
             let sent = match ev.destructure() {
+                EventSummary::RelativeAxis(_, RelativeAxisCode::REL_WHEEL, value) if value != 0 => {
+                    let dir = (value < 0) as u8;
+                    (0..value.unsigned_abs()).try_for_each(|_| wheel_notch(index, dir, &wheel[dir as usize], &tx))
+                }
                 EventSummary::RelativeAxis(_, code, value) => {
                     let axis = match code {
                         RelativeAxisCode::REL_X => 0,

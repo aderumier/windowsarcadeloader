@@ -26,7 +26,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::{iat, log};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows_sys::Win32::UI::WindowsAndMessaging::{MSG, WM_KEYFIRST, WM_KEYLAST, WM_KEYUP, WM_LBUTTONDOWN, WM_MOUSEHWHEEL, WM_NULL};
+use windows_sys::Win32::UI::WindowsAndMessaging::{MSG, WM_KEYFIRST, WM_KEYLAST, WM_KEYUP, WM_LBUTTONDOWN, WM_MOUSEHWHEEL, WM_MOUSEWHEEL, WM_NULL};
 
 type P = *mut c_void;
 
@@ -53,6 +53,9 @@ const RAWMOUSE: usize = 24;
 const MARK: isize = 0x0A00_0000;
 /// `wParam` bits above the button flags of the mouse messages [`post_mouse`] posts.
 const MOUSE_MARK: usize = 0x0A00_0000;
+/// `wParam` low word bits above the key flags of the wheel messages [`post_wheel`] posts (its
+/// high word is the wheel's delta).
+const WHEEL_MARK: usize = 0x0A00;
 
 /// A virtual key reported down.
 fn key_held(vk: i32) -> bool {
@@ -156,7 +159,11 @@ unsafe extern "system" fn get_raw_input_data(raw: P, command: u32, data: *mut u8
 fn filtered(msg: &MSG) -> bool {
     use windows_sys::Win32::UI::WindowsAndMessaging::WM_MOUSEMOVE;
     let key = (WM_KEYFIRST..=WM_KEYLAST).contains(&msg.message);
-    let ours = msg.wParam & MOUSE_MARK == MOUSE_MARK;
+    let ours = if msg.message == WM_MOUSEWHEEL {
+        msg.wParam & 0xFF00 == WHEEL_MARK
+    } else {
+        msg.wParam & MOUSE_MARK == MOUSE_MARK
+    };
     let mouse = (WM_LBUTTONDOWN..=WM_MOUSEHWHEEL).contains(&msg.message)
         || msg.message == WM_MOUSEMOVE && OWN_MOUSE.load(Ordering::Relaxed);
     (key && msg.lParam & MARK != MARK) || (mouse && !ours)
@@ -200,6 +207,18 @@ pub fn post_mouse(hwnd: P, message: u32, x: i32, y: i32, buttons: usize) {
     unsafe { ClientToScreen(hwnd, &mut at) };
     CURSOR.store((at.x as u32 as u64) << 32 | at.y as u32 as u64, Ordering::Relaxed);
     unsafe { PostMessageW(hwnd, message, buttons | MOUSE_MARK, lparam) };
+}
+
+/// Posts a mouse wheel turn of `delta` (120 a notch, positive away from the player) at client
+/// point (`x`, `y`) of the game window `hwnd`: the filter lets it through.
+pub fn post_wheel(hwnd: P, delta: i16, x: i32, y: i32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::PostMessageW;
+    use windows_sys::Win32::Foundation::POINT;
+    use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
+    let mut at = POINT { x, y };
+    unsafe { ClientToScreen(hwnd, &mut at) };
+    let lparam = ((at.y as u16 as isize) << 16) | at.x as u16 as isize;
+    unsafe { PostMessageW(hwnd, WM_MOUSEWHEEL, (delta as u16 as usize) << 16 | WHEEL_MARK, lparam) };
 }
 
 unsafe fn scrub(msg: *mut MSG) {

@@ -5456,6 +5456,20 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   `apm3_input.bin`) is replaced by the payload. On the stage list START opens the controls
   settings, button 1 decides. Jump (push05, b5 by default: Z) on b1 (left Ctrl, pad A), b1's
   push01 on b5 (the profile's `native_map`, user's choice).
+* **Tapping Skill Test** (`GL_pc.exe`: the dump is the FJ11 update `SDFJ_FJ11_..._1_FJ10`
+  flattened, the FJ10 dump's `GS3.PAR` plus `GS3_V10100.PAR`; 64-bit Direct3D 11, game id SDFJ). A touch screen game
+  (tap, swipe, pinch): its window procedure takes `WM_POINTER*` (`GetPointerInfo`) and the plain
+  mouse messages alike (`WAL_APM3_TOUCH`), and the mouse wheel as the two finger pinch
+  (`WM_MOUSEWHEEL` at the cursor: the `pinch_in` / `pinch_out` natives post wheel notches,
+  `input_filter::post_wheel`, its mark in `wParam`'s low word, the high word being the delta;
+  the launcher's mouse wheel sources `wheel_up` / `wheel_down`, a notch held 64 ms, on them).
+  The game zooms the word under the cursor by 15% a notch (its box hit-tested, 0x14015b7e0).
+  The game and its test program `GL_pc_test.exe` never call the switch API: they read the I/O
+  board as winmm joystick 0 (`joyGetPosEx` buttons, `WAL_APM3_JOYSTICK=1`, `joystick.rs`: the
+  IO4's two button words, test bit 9, service 6, home 28, start 7, up 5 down 4 left 3 right 2,
+  push01..08 bits 1, 0, 15..10; segatools' `apm3hook/io4.c`). No ABAAS link: the network status
+  functions' reads of the link-ready flags patched (`WAL_APM3_NO_LINK_PATCHES`, no "Aime /
+  versus unavailable" banner).
 * **Virtua Fighter 3tb Online** (`App\runtime\media\arashi.exe`, 64-bit Direct3D 11, game id
   SDJQ from the dump's `app.json`; the Model 3 game runs in `pre3\pre3-pxd-w64-Retail.dll`): no
   patch. Test mode = the same program (`gametest.bat`): `-wal-test`. The ABAAS game server holds
@@ -6004,6 +6018,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `cotton-rock-n-roll` | Cotton Rock 'n' Roll | apm3 | user 100% (2026-11-07); headless: Aime cards, story, play, game over saved (ranking), test mode | Sega ALLS APM3 (§6.3k): 32-bit OpenGL, test program `gametest.exe` (.NET) |
 | `umihara-kawase-fresh` | Umihara Kawase Fresh! for AC | apm3 | user 100% (2026-11-08), jump on b1 (left Ctrl); headless: Aime cards (player loaded, rankings), Time Attack stage start, test mode | Sega ALLS APM3 (§6.3k): 32-bit OpenGL, game id SDGU, test program `gametest.exe` (.NET) |
+| `tapping-skill-test` | Tapping Skill Test | apm3 | user ok (2026-11-08): touch (mouse / gun), pinch = mouse wheel on the word (b2 / b3); headless: Aime cards (player loaded), minigames, test mode | Sega ALLS APM3 (§6.3k): 64-bit D3D11 touch game, I/O read as a winmm joystick (`WAL_APM3_JOYSTICK`), pinch = mouse wheel |
 | `virtua-fighter-3tb-online` | Virtua Fighter 3tb Online | apm3 | user 100% (2026-11-07), network icon green; headless: Aime cards (terms, user data, saved), team battle play, test mode and back | Sega ALLS APM3 (§6.3k): 64-bit Direct3D 11, Model 3 game in `pre3`, same-program test mode |
 | `virtua-fighter-esports` | Virtua Fighter eSports | apm3 | headless (2026-11-07): Aime cards (terms, new player saved), guest and Aime arcade play, test mode (`vf5fs\vfes.exe`) and back, network icon green; no network versus | Sega ALLS APM3 (§6.3k): Dragon Engine front end + VF5FS core DLL (ABAAS client), test program in `vf5fs\` |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |

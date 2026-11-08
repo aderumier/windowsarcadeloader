@@ -30,6 +30,8 @@ pub enum RawKey {
     GunAxis(u8),
     /// Gun pointing off the screen (0/1).
     GunOffscreen,
+    /// Mouse wheel: 0 = up (away from the player), 1 = down; held a while per notch (guns.rs).
+    GunWheel(u8),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -174,12 +176,15 @@ pub fn parse_key_source(name: &str) -> Option<Source> {
     Some(Source { key: RawKey::Key(code.code()), range: Range::Digital(1) })
 }
 
-/// Gun and mouse source names: `x`, `y` (position), `offscreen`, evdev buttons (`BTN_LEFT`).
+/// Gun and mouse source names: `x`, `y` (position), `offscreen`, `wheel_up`, `wheel_down`,
+/// evdev buttons (`BTN_LEFT`).
 pub fn parse_gun_source(name: &str) -> Option<Source> {
     Some(match name.to_ascii_lowercase().as_str() {
         "x" => Source { key: RawKey::GunAxis(0), range: Range::Full },
         "y" => Source { key: RawKey::GunAxis(1), range: Range::Full },
         "offscreen" => Source { key: RawKey::GunOffscreen, range: Range::Digital(1) },
+        "wheel_up" => Source { key: RawKey::GunWheel(0), range: Range::Digital(1) },
+        "wheel_down" => Source { key: RawKey::GunWheel(1), range: Range::Digital(1) },
         _ => return parse_key_source(name),
     })
 }

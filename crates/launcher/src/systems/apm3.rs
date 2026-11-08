@@ -18,9 +18,12 @@
 //! - `WAL_APM3_TEST`: the test program the game's test switch starts (default `TestModeApp.exe`);
 //!   `WAL_APM3_TEST_ARGS`: its arguments (a test mode of the game's own program: `-t`);
 //!   `WAL_APM3_TEST_CWD`: its working folder in the game directory (default: the game's)
+//! - `WAL_APM3_JOYSTICK=1`: the switches read as winmm joystick 0, the I/O board's buttons (Tapping
+//!   Skill Test); `WAL_APM3_JOY_MAP` `<native>:<bit>,...` over the default map
 //! - `WAL_APM3_LINK_READY=0`: `abaaslink.dll`'s link left unavailable (default: reported
 //!   available, no "matching unavailable" warning)
-//! - `WAL_APM3_TOUCH=1`: a touch screen game (player 1's gun and `touch` input)
+//! - `WAL_APM3_TOUCH=1`: a touch screen game (player 1's gun and `touch` input; `pinch_in` /
+//!   `pinch_out`: mouse wheel notches, the pinch of Tapping Skill Test's window)
 //! - `WAL_APM3_GS_KEY`, `WAL_APM3_GS_MODULE`: the ABAAS game server's key (default: learnt),
 //!   the DLL of its client (default `abaasgs.dll`)
 //! - `WAL_APM3_KEYCHIP`, `WAL_APM3_BOARD`, `WAL_APM3_GAME_ID`, `WAL_APM3_LOCATION`,
