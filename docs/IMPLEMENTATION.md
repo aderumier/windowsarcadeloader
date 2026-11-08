@@ -5676,6 +5676,23 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     START on "Yes"), team, round, race. Debug: amdaemon's ALL.Net library prints its log on
     stderr with its level globals set (`WAL_ALLS_DAEMON_PATCHES` `0x8a2480:05000000,
     0x8a2490:FFFFFFFF`).
+  - Online (default, `WAL_ALLS_ALLNET=1`): ALL.Net accepted, its `uri` the game server's bare
+    host name (`WAL_ALLS_TITLE_URI`: the game posts to `http://<uri>:80/api/...`); `aimedb.rs`
+    answers amdaemon's AimeDB (TCP 22345, AES-128-ECB `Copyright(C)SEGA`, ARTEMiS formats; the
+    Aime id 1000000000 + the access code's last 9 digits: a user id under 9 characters ends the
+    play); `gs.rs` runs the game's ABAAS game server in its process (payload-common
+    `abaas_gs.rs`, shared with apm3; title key from `BCryptGenerateSymmetricKey`; players in
+    `Y:\gs\gs-<aime id>.json`, saves merged: the game's two end-of-play saves). The title data
+    its servers held (`free_buckets`, `title_data` in `gs.rs`): JSON strings holding JSON,
+    numbers as strings, lists plain (the game turns `[` `]` into Unreal text lists), learnt from
+    the game's `UpdatePropertyFromJson` messages: `season_setting` (`NetSeasonSettingData`;
+    without it the power-on test crashes), `season_recommend_setting` (`update_time`: the time
+    sale period in minutes, a division by zero at the top menu without it), `event_setting1`
+    (event base) / `2` (event dates) / `5` (point rules), the penalty limits. Profile patches:
+    the main cabinet's LAN announcement every second instead of 30 s (0x43bebc), the matching
+    server's connection test reported good (0x303190: `tdrserver.exe` is not in the dumps).
+    Verified: power-on test all GOOD, card registration (name entry), a race, the save, the
+    returning player's licence.
   - English (`english.rs`, `WAL_SWDC_ENGLISH`, default on): the community "SWDC ENGLISH v2.1"
     release folder copied into the game's folder (any name, found by its `manifest.json`):
     applied at start like its installer (originals checked by SHA-256, moved to

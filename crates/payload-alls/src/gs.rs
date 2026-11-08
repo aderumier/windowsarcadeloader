@@ -4,6 +4,13 @@
 //! to its port 80 go to this server in the game's own process, 127.0.0.1:`WAL_PORT`+104
 //! (`allnet.rs`), answered by payload-common's `abaas_gs` (the players' files in `Y:\gs\`).
 //! The title key comes from the game's `BCryptGenerateSymmetricKey` call.
+//!
+//! The title data its servers held (`data/load`'s `free_buckets`, [`title_data`]): each value a
+//! JSON string holding JSON, its numbers as strings, its lists of numbers plain (the game turns
+//! `[` `]` into Unreal's text lists), its fields the game's reflected structures'. Without a
+//! season the power-on test crashes (an event's empty round list), without the time sale period
+//! the top menu (a division by zero), without the penalty limits a new player gets the
+//! "inconsistent play records" warning.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -69,8 +76,31 @@ fn serve() {
     }
 }
 
+/// One season running from 2019 to 2100 (`NetSeasonSettingData`: four rounds), its time sale
+/// (the bonus course) changing every hour.
+const SEASON: &str = r#"{"ID":"1","year":"2019","no":"1","primary_year":"2019","primary_no":"1","time_start":"1546300800","time_end":"4102444800","rounds":[1,2,3,4],"primary_rounds":[1,2,3,4]}"#;
+const RECOMMEND: &str = r#"{"scale_percent":"150","update_time":"60"}"#;
+/// One closed event, ended in 2019 (`event_setting1`: `NetEventSettingBaseData`,
+/// `event_setting2`: `NetEventSettingDateTimeData`).
+const EVENT_BASE: &str = r#"{"ID":"1","year":"2019","rounds":[1],"primary_rounds":[1],"grid_sort_rule":"0","car_class":"0","team_category":"0","teams_num":"0","is_close":"1"}"#;
+const EVENT_TIME: &str = r#"{"view_time_start":"1546300800","view_time_end":"1548979200","time_start":"1546300800","time_end":"1548979200","time_exec":"1548979200","ranking_id":"0"}"#;
+
+/// Sega World Drivers Championship's title data, as JSON values.
+fn title_data(key: &str) -> Option<String> {
+    let json_string = |v: &str| format!("\"{}\"", v.replace('"', "\\\""));
+    Some(match key {
+        "season_setting" => json_string(SEASON),
+        "season_recommend_setting" => json_string(RECOMMEND),
+        "event_setting1" => json_string(EVENT_BASE),
+        "event_setting2" => json_string(EVENT_TIME),
+        "penalty_apply_limit_count" | "penalty_recovery_limit_count" => r#""100""#.into(),
+        _ => return None,
+    })
+}
+
 pub(crate) fn init() {
     abaas_gs::configure("Y:\\gs", "WAL_ALLS");
+    abaas_gs::set_title_data(title_data);
     match unsafe { iat::hook("bcrypt.dll", "BCryptGenerateSymmetricKey", generate_key as *const () as usize) } {
         Some(orig) => GENERATE_KEY.store(orig, Ordering::Relaxed),
         None => log!("gs: BCryptGenerateSymmetricKey not imported"),

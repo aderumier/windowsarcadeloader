@@ -26,6 +26,16 @@ pub fn configure(dir: &str, env_prefix: &str) {
     let _ = CONFIG.set((dir.to_string(), env_prefix.to_string()));
 }
 
+/// The title's own data (`data/load`'s `free_buckets` the cabinet has not saved): a key's JSON
+/// value, from the system's payload.
+static TITLE_DATA: OnceLock<fn(&str) -> Option<String>> = OnceLock::new();
+
+/// Sets the title data the server gives for the keys never saved (Sega World Drivers
+/// Championship's seasons and events, which its servers held).
+pub fn set_title_data(data: fn(&str) -> Option<String>) {
+    let _ = TITLE_DATA.set(data);
+}
+
 fn dir() -> &'static str {
     CONFIG.get().map_or("gs", |c| c.0.as_str())
 }
@@ -418,18 +428,26 @@ fn answer(api: &str, request: &str) -> Option<String> {
         // the end of a game: the name and all values (a second save without them: nothing),
         // the scores
         ("user/save", Some(id)) => {
-            let name = value(request, "name").unwrap_or(r#""""#);
+            // the values sent merged into the saved ones, the saved name kept when none is sent
+            // (Sega World Drivers Championship ends a play with two saves: the name and 9 values,
+            // then 129 other values without the name)
+            let old = std::fs::read_to_string(path(id)).unwrap_or_default();
+            let name = value(request, "name").or_else(|| value(&old, "name")).unwrap_or(r#""""#).to_string();
             if let Some(data) = value(request, "savedata") {
+                let mut merged: Vec<(String, String)> = value(&old, "savedata").map(members).unwrap_or_default().into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+                for (k, v) in members(data) {
+                    match merged.iter_mut().find(|(m, _)| m == k) {
+                        Some(entry) => entry.1 = v.to_string(),
+                        None => merged.push((k.to_string(), v.to_string())),
+                    }
+                }
+                let data = format!("{{{}}}", merged.iter().map(|(k, v)| format!(r#""{k}":{v}"#)).collect::<Vec<_>>().join(","));
                 let _ = std::fs::create_dir_all(dir());
                 match std::fs::write(path(id), format!(r#"{{"name":{name},"savedata":{data}}}"#)) {
-                    Ok(()) => log!("gs: player {id}: data saved ({} bytes)", data.len()),
+                    Ok(()) => log!("gs: player {id}: data saved ({} values)", merged.len()),
                     Err(e) => log!("gs: player {id}: {e}"),
                 }
             }
-            let name = match value(request, "name") {
-                Some(n) => n.to_string(),
-                None => std::fs::read_to_string(path(id)).ok().and_then(|f| value(&f, "name").map(str::to_string)).unwrap_or(r#""""#.into()),
-            };
             save_rankings(id.parse().unwrap_or(0), &name, request);
             Some(format!(r#"{{"user":{{"user_id":{id}}}}}"#))
         }
@@ -439,8 +457,16 @@ fn answer(api: &str, request: &str) -> Option<String> {
             let saved = std::fs::read_to_string(data_path()).unwrap_or_default();
             let saved = members(if saved.is_empty() { "{}" } else { &saved }).into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect::<Vec<_>>();
             let patterns = key_patterns(request);
-            let data: Vec<String> =
+            let mut data: Vec<String> =
                 saved.iter().filter(|(k, _)| patterns.iter().any(|p| matches(p, k))).map(|(k, v)| format!(r#""{k}":{v}"#)).collect();
+            // the title's data for the keys (no wildcard) never saved
+            if let Some(title) = TITLE_DATA.get() {
+                for key in patterns.iter().filter(|p| !p.contains(['*', '?']) && !saved.iter().any(|(k, _)| k == *p)) {
+                    if let Some(v) = title(key) {
+                        data.push(format!(r#""{key}":{v}"#));
+                    }
+                }
+            }
             Some(format!(r#"{{"free_buckets":{{{}}}}}"#, data.join(",")))
         }
         ("data/save", _) => {

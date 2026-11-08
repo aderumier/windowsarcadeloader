@@ -8,8 +8,9 @@
 //! then the command's body. The answer's command is the request's answer code, status 1 (good).
 //! - 0x64 hello, 0x07 status log, 0x09 log: a header
 //! - 0x04 lookup / 0x05 register (access code, 10 BCD bytes at 0x20): the Aime id, 0x0F lookup
-//!   ex the same with an empty auth key: the id is made from the access code's last 9 digits
-//!   (`WAL_ALLS_AIME_ID` instead); 0x01 / 0x11 FeliCa lookups: the card's IDm as access code
+//!   ex the same with an empty auth key: the id is 1000000000 plus the access code's last 9
+//!   digits (`WAL_ALLS_AIME_ID` instead; ten digits: Sega World Drivers Championship ends the
+//!   play of a user id under nine characters, "user id is invalid"); 0x01 / 0x11 FeliCa lookups: the card's IDm as access code
 //! - 0x0B campaigns: none; 0x0D campaign clear status: none; 0x13 log ex: every log accepted
 //! - 0x66 goodbye: the connection closed
 
@@ -35,12 +36,13 @@ fn crypt(data: &mut [u8], encrypt: bool) {
     }
 }
 
-/// The card's Aime id: `WAL_ALLS_AIME_ID`, else the access code's last 9 digits (at least 1).
+/// The card's Aime id: `WAL_ALLS_AIME_ID`, else 1000000000 plus the access code's last 9
+/// digits (ten digits, a positive 32-bit number).
 pub(crate) fn aime_id(access_code: &str) -> i32 {
     if let Some(id) = std::env::var("WAL_ALLS_AIME_ID").ok().and_then(|v| v.trim().parse::<i32>().ok()) {
         return id;
     }
-    access_code.get(11..).and_then(|d| d.parse::<i32>().ok()).unwrap_or(1).max(1)
+    1_000_000_000 + access_code.get(11..).and_then(|d| d.parse::<i32>().ok()).unwrap_or(1)
 }
 
 /// An answer: the request's header with the answer's command, length and status good, then

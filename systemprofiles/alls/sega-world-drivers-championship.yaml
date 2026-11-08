@@ -39,13 +39,21 @@ env:
   WAL_ALLS_BOARD: swdc
   # the Aime card reader (config.json's aime unit)
   WAL_ALLS_AIME_PORT: COM3
-  # the game server's name for online play (ALL.Net's uri, a bare host, resolved to the virtual
-  # router: payload gs.rs). Online (WAL_ALLS_ALLNET=1) is not usable yet: the game needs the
-  # server's title data (seasons...) and crashes at the power-on test without it
+  # online: ALL.Net accepted, the Aime cards (AimeDB) and the player data (the ABAAS game
+  # server and its title data: seasons, events) answered by the payload (aimedb.rs, gs.rs); the
+  # game server's name (ALL.Net's uri, a bare host) resolved to the virtual router. "0": offline
+  # (guests only).
+  WAL_ALLS_ALLNET: "1"
   WAL_ALLS_TITLE_URI: SDDS.gs.sys-all.net
   # amdaemon's clock reported synced with ALL.Net's (amRtcIsServerSync: mov eax,1; ret).
   # Offline it never is: error 8114 "ALL.Net System error (RTC)".
   WAL_ALLS_DAEMON_PATCHES: "0x271a70:B801000000C3"
+  # the main cabinet's LAN announcement every second (its timer compared with a 1.0 constant
+  # instead of 30.0: the power-on test's CONNECT MAIN CABINET waited 30 s for the first one)
+  # The matching server's connection test reported good (UNetBattleClient::ReceiveConnectTest:
+  # mov al,1; ret): the cabinet's matching server (tdrserver.exe, started by StartApp.bat on the
+  # main cabinet) is not in the dumps; else GAME SERVER BAD and the test retries for 40 s.
+  WAL_PATCHES: "0x43bebc:0F2F0DB9F6AC02,0x303190:B001C3"
   # the community English translation, when its release folder is in the game's folder
   # (payload english.rs)
   WAL_SWDC_ENGLISH: "1"
