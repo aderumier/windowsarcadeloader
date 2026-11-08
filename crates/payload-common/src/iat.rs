@@ -156,14 +156,18 @@ unsafe fn find_slot(base: usize, dll: &str, function: Import) -> Option<(*mut us
             _ => return None,
         };
         let import_rva = read::<u32>(data_dirs, IMAGE_DIRECTORY_ENTRY_IMPORT * 8) as usize;
-        if import_rva == 0 {
+        // SizeOfImage: the names read only inside the image (a packed DLL's lookup table holds
+        // garbage once loaded: Hot Shots Fire Rescue's SuperDog api_dsp_windows.dll, scanned
+        // by the late hooks)
+        let size = read::<u32>(optional, 56) as usize;
+        if import_rva == 0 || import_rva >= size {
             return None;
         }
         let ptr_size = size_of::<usize>();
         let mut desc = base + import_rva;
         loop {
             let name_rva = read::<u32>(desc, 12) as usize;
-            if name_rva == 0 {
+            if name_rva == 0 || name_rva >= size || desc + 20 > base + size {
                 return None;
             }
             if c_str_eq(base + name_rva, dll) {
@@ -181,6 +185,10 @@ unsafe fn find_slot(base: usize, dll: &str, function: Import) -> Option<(*mut us
                 } else {
                     Vec::new()
                 };
+                if lookup_rva >= size || iat - base >= size {
+                    desc += 20;
+                    continue;
+                }
                 let mut i = 0;
                 loop {
                     let entry = if lookup_rva == 0 { read::<usize>(iat, i * ptr_size) } else { read::<usize>(base + lookup_rva, i * ptr_size) };
@@ -192,7 +200,7 @@ unsafe fn find_slot(base: usize, dll: &str, function: Import) -> Option<(*mut us
                     } else {
                         match function {
                             // IMAGE_IMPORT_BY_NAME: u16 hint, then the name
-                            Import::Name(name) => entry & ORDINAL_FLAG == 0 && c_str_eq(base + entry + 2, name),
+                            Import::Name(name) => entry & ORDINAL_FLAG == 0 && entry + 2 < size && c_str_eq(base + entry + 2, name),
                             Import::Ordinal(o) => entry & ORDINAL_FLAG != 0 && entry & 0xFFFF == o as usize,
                         }
                     };
