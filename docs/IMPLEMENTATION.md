@@ -5732,7 +5732,9 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     Bayshore_sdgt_legacy reimplemented): ALL.Net's host field is the server URL
     (`WAL_ALLS_TITLE_HOST`, as ARTEMiS answers), JSON POSTs to `<host>initiald/<Category>/<Endpoint>`
     (requests without the URL's folders routed by their endpoint name); players in
-    `Y:\idac\<aime id>.json`. Alive/Get's `force_reboot_time` a day ago (a later one reboots the
+    `Y:\idac\<aime id>.json`. ALL.Net accounting off (`config_wal.json`: a fresh cabinet's
+    attract showed "It's being processed now", the `Reporting` message, and refused START: no
+    billing server on 8443). Alive/Get's `force_reboot_time` a day ago (a later one reboots the
     game). Automatic card 3 s after start (`WAL_ALLS_AUTO_CARD_DELAY_MS`: a card read on the
     attract is dropped). Verified headless: new card (terms, registration, name, car), returning
     card ("play with this data"), Story race, result saved (story, mileage, cash), continue.
