@@ -9,6 +9,10 @@
 //! disabled (the game's cinematics turn the gameplay camera's on again).
 //! On the integrated Radeon 860M, the game mode screen at 1920x1080: 22.6 ms a frame, 4.4 ms
 //! of shadows, 3.6 ms of post-processing, 1.2 ms of fog, 0.4 ms of water reflection.
+//!
+//! Free play (`WAL_ADRENALINE_FREEPLAY`, else the common `WAL_FREEPLAY`): the game's free mode
+//! is its operator setting credits per game at 0 (`OperatorMenu.IsFreeGameMode`); set in the
+//! loaded settings every second (off: 0 made 1).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
@@ -93,6 +97,46 @@ fn crosshairs(m: &Mono, core: mono::P) {
     }
 }
 
+/// The operator settings' credits per game: 0 with free play, 1 instead of 0 without.
+fn free_play(m: &Mono, core: mono::P) {
+    let Some(on) = wal_payload_common::free_play("WAL_ADRENALINE_FREEPLAY") else { return };
+    let menu = m.class(m.image("Assembly-CSharp"), "", "OperatorMenu");
+    if menu.is_null() {
+        return;
+    }
+    let save = m.field(menu, "m_SaveInfo");
+    if save.is_null() {
+        return;
+    }
+    // the operator menu's object stays inactive until opened: not found by FindObjectOfType
+    let find = m.method(m.class(core, "UnityEngine", "Resources"), "FindObjectsOfTypeAll", 1);
+    let Some(array) = m.invoke(find, std::ptr::null_mut(), &mut [m.type_object(menu)]).filter(|a| !a.is_null()) else { return };
+    if unsafe { mono::read::<usize>(array as *const u8, mono::ARRAY_DATA - size_of::<usize>()) } == 0 {
+        return;
+    }
+    let menu = unsafe { mono::read::<usize>(array as *const u8, mono::ARRAY_DATA) } as *const u8;
+    let save = unsafe { mono::read::<usize>(menu, m.offset(save)) } as *mut u8;
+    if save.is_null() {
+        return;
+    }
+    // OperatorMenuSaveInfo, nested in the operator menu's class: found from its object
+    let credits = m.field(m.class_of(save.cast()), "m_CreditsPerGame");
+    if credits.is_null() {
+        return;
+    }
+    let offset = m.offset(credits);
+    let was = unsafe { mono::read::<i32>(save, offset) };
+    let want = match (on, was) {
+        (true, _) => 0,
+        (false, 0) => 1,
+        (false, n) => n,
+    };
+    if was != want {
+        unsafe { mono::write::<i32>(save, offset, want) };
+        log!("tombraider: credits per game {was} -> {want} (free play {})", if on { "on" } else { "off" });
+    }
+}
+
 /// The main thread's call (every frame).
 pub fn frame(m: &Mono) {
     static LAST: Mutex<Option<Instant>> = Mutex::new(None);
@@ -105,6 +149,7 @@ pub fn frame(m: &Mono) {
     }
     let core = m.image("UnityEngine.CoreModule");
     crosshairs(m, core);
+    free_play(m, core);
     if std::env::var("WAL_TOMBRAIDER_SHADOWS").is_ok_and(|v| v.trim() == "low") {
         let quality = m.class(core, "UnityEngine", "QualitySettings");
         let get = |name| match m.invoke(m.method(quality, name, 0), std::ptr::null_mut(), &mut []) {

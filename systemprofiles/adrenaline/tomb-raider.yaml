@@ -33,6 +33,14 @@ env:
 # shadows; the frame's costs at 1920x1080 (game mode screen, 22.6 ms): shadows 4.4 ms,
 # post-processing 3.6 ms, fog 1.2 ms, water reflection 0.4 ms.
 options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins (the operator setting credits per game at 0); off: insert
+          coins. Batocera: FREE PLAY in the game's advanced settings.
   - title: Display
     options:
       - key: WAL_RESOLUTION
