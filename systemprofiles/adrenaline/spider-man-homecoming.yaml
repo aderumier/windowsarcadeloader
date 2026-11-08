@@ -23,8 +23,9 @@ env:
   WAL_DESKTOP_SIZE: 1080x1920
   # the cabinet art around the picture (added to the dump)
   WAL_BEZEL: bezel.png
-  # its opening (wider than the game's picture) fitted to the game's window
-  WAL_BEZEL_FIT: "1"
+  # its opening (wider than the game's picture) fitted to the game's window, the art on each
+  # side stretched to the screen's edge (kept at its aspect, it left black bars on a 16:9 screen)
+  WAL_BEZEL_FIT: stretch
 
 # the start size too (else Unity's last one, saved in the registry)
 args: [-screen-fullscreen, "1", -screen-width, "1080", -screen-height, "1920"]
