@@ -39,6 +39,8 @@ env:
   WAL_ALLS_BOARD: swdc
   # the Aime card reader (config.json's aime unit)
   WAL_ALLS_AIME_PORT: COM3
+  # the card touched by itself at the card prompt after start (payload aime.rs)
+  WAL_ALLS_AUTO_CARD: "1"
   # online: ALL.Net accepted, the Aime cards (AimeDB) and the player data (the ABAAS game
   # server and its title data: seasons, events) answered by the payload (aimedb.rs, gs.rs); the
   # game server's name (ALL.Net's uri, a bare host) resolved to the virtual router. "0": offline
@@ -59,6 +61,14 @@ env:
   WAL_SWDC_ENGLISH: "1"
 
 options:
+  - title: Aime card
+    options:
+      - key: WAL_ALLS_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself when the game asks for it (online).
+          Off: touch it with the card button.
   - title: Language
     options:
       - key: WAL_SWDC_ENGLISH

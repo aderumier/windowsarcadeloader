@@ -5693,6 +5693,10 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     server's connection test reported good (0x303190: `tdrserver.exe` is not in the dumps).
     Verified: power-on test all GOOD, card registration (name entry), a race, the save, the
     returning player's licence.
+  - Automatic card (default, `WAL_ALLS_AUTO_CARD=1`, `aime.rs`): after START, sgreader puts the
+    card on the reader at amdaemon's polls until it is read (amdaemon polls only while the game
+    asks for a card), not again for 3 minutes; START on the attract goes straight to the
+    licence.
   - English (`english.rs`, `WAL_SWDC_ENGLISH`, default on): the community "SWDC ENGLISH v2.1"
     release folder copied into the game's folder (any name, found by its `manifest.json`):
     applied at start like its installer (originals checked by SHA-256, moved to

@@ -1,7 +1,9 @@
 //! The Aime card reader (837-15396) amdaemon talks to on a serial port (config.json's
 //! `aime.unit[].port`, `WAL_ALLS_AIME_PORT`): `wal_payload_common::sgreader`. Player 1's `card`
 //! input touches the reader with the player's card (`WAL_ALLS_ACCESS_CODE`, 20 digits, default
-//! `50000000000000000001`) for 3 seconds, until amdaemon reads it.
+//! `50000000000000000001`) for 3 seconds, until amdaemon reads it. `WAL_ALLS_AUTO_CARD=1`: after
+//! start, the card is on the reader whenever amdaemon polls it, until read (not again for 3
+//! minutes: a game's length).
 
 use std::time::Duration;
 
@@ -21,6 +23,9 @@ pub(crate) fn init() {
     sgreader::init(&port, &[exe]);
     let code = access_code();
     log!("aime: card {code}");
+    if std::env::var("WAL_ALLS_AUTO_CARD").is_ok_and(|v| v.trim() == "1") {
+        sgreader::card_on_poll_after(&code, button::START);
+    }
     std::thread::spawn(move || {
         let mut held = false;
         loop {

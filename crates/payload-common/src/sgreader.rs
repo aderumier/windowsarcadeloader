@@ -28,6 +28,29 @@ pub fn insert(access_code: &str, time: Duration) {
     *CARD.lock().unwrap() = Some((bcd, Instant::now() + time));
 }
 
+/// The card [`card_on_poll_after`] puts on the reader at the polls, until it is read.
+static ARMED: Mutex<Option<String>> = Mutex::new(None);
+/// When the armed card was last read: the button does not put it back for a game's length.
+static READ_AT: Mutex<Option<Instant>> = Mutex::new(None);
+const REARM_AFTER: Duration = Duration::from_secs(180);
+
+/// After player 1 presses `button`, puts the card of `access_code` on the reader whenever it is
+/// polled, until it is read (an automatic card: the card prompt after start).
+pub fn card_on_poll_after(access_code: &str, button: u32) {
+    let code = access_code.to_string();
+    std::thread::spawn(move || {
+        let mut held = false;
+        loop {
+            let pressed = crate::input(0).pressed(button);
+            if pressed && !held && READ_AT.lock().unwrap().is_none_or(|t| t.elapsed() >= REARM_AFTER) {
+                *ARMED.lock().unwrap() = Some(code.clone());
+            }
+            held = pressed;
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    });
+}
+
 fn card() -> Option<[u8; 10]> {
     CARD.lock().unwrap().filter(|(_, until)| Instant::now() < *until).map(|(c, _)| c)
 }
@@ -104,7 +127,14 @@ fn nfc(req: &[u8]) -> Option<Vec<u8>> {
         0x30 => answer(req, 0, FW_VERSION),
         0x32 => answer(req, 0, HW_VERSION),
         // poll: a MIFARE target (type 0x10, its 4-byte UID) or none
-        0x42 => match card() {
+        0x42 => match {
+            if let Some(code) = ARMED.lock().unwrap().clone()
+                && card().is_none()
+            {
+                insert(&code, Duration::from_secs(3));
+            }
+            card()
+        } {
             Some(code) => answer(req, 0, &[1, 0x10, 4, code[0], code[1], code[2], code[3]]),
             None => answer(req, 0, &[0]),
         },
@@ -114,6 +144,9 @@ fn nfc(req: &[u8]) -> Option<Vec<u8>> {
                 // the access code read: the card leaves the reader (a touch)
                 if n == 2 {
                     *CARD.lock().unwrap() = None;
+                    if ARMED.lock().unwrap().take().is_some() {
+                        *READ_AT.lock().unwrap() = Some(Instant::now());
+                    }
                     log!("sgreader: card read");
                 }
                 answer(req, 0, &block(&code, n))
