@@ -21,7 +21,9 @@
 //! down otherwise) may never get the focus: Unity minimized its full screen window (Shooty
 //! Skies, Flappy Tickets); shown, a window is told it is active and has the focus (Unity
 //! ignored the keys posted to it otherwise). The game's input is the launcher's, not the
-//! window's focus.
+//! window's focus. Without `WAL_DESKTOP_SIZE` it applies alone: the process's windows are
+//! subclassed as they appear (Tomb Raider on Batocera's Wayland: the focus lost on a reload,
+//! Unity paused its full screen window).
 //!
 //! `WAL_DESKTOP_CLIENT=1`: the top-level windows' client areas answer in desktop units too
 //! (`GetClientRect`: the fitted window's client size unscaled, `GetWindowRect`, `ClientToScreen`:
@@ -366,6 +368,22 @@ unsafe extern "system" fn window_proc(hwnd: P, msg: u32, wparam: usize, lparam: 
     r
 }
 
+/// `WAL_DESKTOP_ACTIVE` without a desktop size: the windows of this process subclassed as they
+/// appear (no window creation hooks then), for the deactivation `window_proc` hides.
+fn active_only() {
+    if !std::env::var("WAL_DESKTOP_ACTIVE").is_ok_and(|v| v.trim() == "1") {
+        return;
+    }
+    ACTIVE.store(true, Ordering::Relaxed);
+    std::thread::spawn(|| {
+        loop {
+            subclass_existing();
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+    });
+    log!("desktop: the windows never see their deactivation");
+}
+
 /// The top-level windows of this process already created: subclassed.
 fn subclass_existing() {
     use windows_sys::Win32::Foundation::{HWND, LPARAM};
@@ -571,6 +589,7 @@ pub fn init() {
         let (w, h) = v.trim().split_once('x')?;
         Some((w.trim().parse::<i32>().ok()?, h.trim().parse::<i32>().ok()?))
     }) else {
+        active_only();
         return;
     };
     if w <= 0 || h <= 0 {

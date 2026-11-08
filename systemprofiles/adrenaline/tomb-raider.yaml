@@ -21,6 +21,9 @@ env:
   # Wine's full screen mode emulation scales a lower mode to the screen with AMD FSR 1
   WINE_FULLSCREEN_FSR: "1"
   WAL_TOMBRAIDER_SHADOWS: "off"
+  # the window never sees its deactivation (Batocera's Wayland: the focus lost on a reload,
+  # Unity paused its full screen window); the game's input is the launcher's
+  WAL_DESKTOP_ACTIVE: "1"
   # the GUI's checkboxes show these (the payload's own default when unset: on)
   WAL_TOMBRAIDER_POSTPROCESS: "1"
   WAL_TOMBRAIDER_FOG: "1"
