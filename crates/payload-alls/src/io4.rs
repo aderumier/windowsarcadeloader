@@ -19,6 +19,11 @@
 //!   `config.json`: 8 bits); player 1's up/down/left/right/start, b1 the view change; player 2's
 //!   word the wheel's buttons: b2 blue, b3 green, b4 red, b5 yellow, b6 / b7 the paddles
 //!   (left / right).
+//! - `idac` (Initial D THE ARCADE): the wheel, gas and brake as `swdc`, player 1's
+//!   up/down/left/right/start and b1 the view change as `swdc`; player 2's word the 6-speed H
+//!   shifter's gate (up 5, down 4, left 3, right 2: 1st up + left, 2nd down + left, 3rd up, 4th
+//!   down, 5th up + right, 6th down + right), its gear moved by b7 (up) / b6 (down), neutral 0,
+//!   or held on kp1-kp6 (an H shifter's positions).
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -62,6 +67,7 @@ enum Board {
     Tokyo,
     Hotd,
     Swdc,
+    Idac,
 }
 
 fn board() -> Board {
@@ -69,6 +75,7 @@ fn board() -> Board {
     *BOARD.get_or_init(|| match std::env::var("WAL_ALLS_BOARD").unwrap_or_default().trim() {
         "hotd" => Board::Hotd,
         "swdc" => Board::Swdc,
+        "idac" => Board::Idac,
         _ => Board::Tokyo,
     })
 }
@@ -94,6 +101,15 @@ fn switches() -> [u16; 2] {
                 sw[1] |= 1 << bit;
             }
         }
+        return sw;
+    }
+    if board() == Board::Idac {
+        for (button, bit) in [(b::UP, 5), (b::DOWN, 4), (b::LEFT, 3), (b::RIGHT, 2), (b::START, 7), (b::B1, 1)] {
+            if p1 & button != 0 {
+                sw[0] |= 1 << bit;
+            }
+        }
+        sw[1] = gate(gear(p1));
         return sw;
     }
     if board() == Board::Hotd {
@@ -138,6 +154,53 @@ fn switches() -> [u16; 2] {
     sw
 }
 
+static GEAR: AtomicU8 = AtomicU8::new(0);
+static GEAR_HELD: AtomicU8 = AtomicU8::new(0);
+
+static POSITIONAL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The H shifter's gear (0 neutral, 1-6), moved one gear by each press of b7 (up) / b6 (down);
+/// an H shifter's positions on kp1-kp6 (segatools' positional shifter): that gear while held,
+/// neutral when released.
+fn gear(buttons: u32) -> u8 {
+    if let Some(n) = (1..=6u8).find(|&n| buttons & (b::KP0 << n) != 0) {
+        POSITIONAL.store(true, Ordering::Relaxed);
+        GEAR.store(n, Ordering::Relaxed);
+        return n;
+    }
+    if POSITIONAL.swap(false, Ordering::Relaxed) {
+        GEAR.store(0, Ordering::Relaxed);
+    }
+    let held = (buttons & b::B7 != 0) as u8 | ((buttons & b::B6 != 0) as u8) << 1;
+    let pressed = held & !GEAR_HELD.swap(held, Ordering::Relaxed);
+    let mut g = GEAR.load(Ordering::Relaxed);
+    if pressed & 1 != 0 && g < 6 {
+        g += 1;
+    }
+    if pressed & 2 != 0 && g > 0 {
+        g -= 1;
+    }
+    GEAR.store(g, Ordering::Relaxed);
+    g
+}
+
+/// The shifter's gate switches for a gear (player 2's word: up 5, down 4, left 3, right 2).
+fn gate(gear: u8) -> u16 {
+    const UP: u16 = 1 << 5;
+    const DOWN: u16 = 1 << 4;
+    const LEFT: u16 = 1 << 3;
+    const RIGHT: u16 = 1 << 2;
+    match gear {
+        1 => UP | LEFT,
+        2 => DOWN | LEFT,
+        3 => UP,
+        4 => DOWN,
+        5 => UP | RIGHT,
+        6 => DOWN | RIGHT,
+        _ => 0,
+    }
+}
+
 static COIN_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 fn report() -> [u8; 64] {
@@ -153,7 +216,7 @@ fn report() -> [u8; 64] {
     }
     let coins = (COINS.load(Ordering::Relaxed) as u16) << 8;
     r[25..27].copy_from_slice(&coins.to_le_bytes());
-    if board() == Board::Swdc {
+    if matches!(board(), Board::Swdc | Board::Idac) {
         // adc 0-2 (offset 1): the wheel (center 0x8000), gas, brake
         let p1 = input(0);
         let adc = [p1.axis_u16(Axis::LeftX), p1.axis_u16(Axis::Accel), p1.axis_u16(Axis::Brake)];

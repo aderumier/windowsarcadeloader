@@ -5702,6 +5702,40 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     applied at start like its installer (originals checked by SHA-256, moved to
     `Content\WAL-English-backup`, the 26 files copied: `Todoroki-English_P.pak`, voice banks,
     the movie), put back when off.
+- Initial D THE ARCADE Season 3 (SDGT 2.30, UE 4.24, `WAL_ALLS_BOARD: idac`, amdaemon 2023):
+  the dump's `App\DAC` exe, amdaemon and `IndRun.dll` are the decrypted ones (`*.original` and
+  the top `DAC\` folder: still encrypted, `.text` 0x1000 bytes). segatools' `idachook` and
+  `platform` (public domain, TeamTofuShop / Dniel97 forks) were the reference; a working
+  install's game log (another loader, NVIDIA) was the comparison.
+  - Black attract = the cabinets' nightly maintenance hours, Japan 02:00-07:00 (every test ran
+    in them, the payload's clock being Japan's): the game holds its logo sequence for the reboot.
+    `WAL_ALLS_TIMEWARP=1` (`clock.rs`, segatools' `timewarp`): each day's 24 hours shown as 19,
+    the hours never reached; ALL.Net's and the game server's times from the same warped clock
+    (`clock::unix_now`), else the game's auto reboot check fires at the attract.
+  - Cabinet: DIP 0x07 (main, SWDC cabinet: Aime 837-15396 on COM3, single seat), the single
+    seat's address 192.168.158.5 with its router .254 (`WAL_ALLS_HOST`, `WAL_ALLS_ROUTER`, the
+    game's own iphlpapi too: `WAL_ALLS_GAME_ADAPTER`), platform ACA4 named "ALLS UX"
+    (`WAL_ALLS_PLATFORM_NAME`). Error 3002 "Single Seat Setting Failed" (BP_BootCheck: a single
+    seat not the LAN server): `UXeLanWrap::FIsCabinetSever` patched true (0x71bcc0). 8114 (RTC):
+    `amRtcIsServerSync` 0x288350. amdaemon reaches ALL.Net through ws2's `connect` imported by
+    name (`allnet.rs` hooks it by name too); system reboot (`ExitWindowsEx`) blocked, optical
+    drives hidden (`QueryDosDeviceW`).
+  - The game (`indrun.rs`, segatools' `indrun.c`, in the exe and `IndRun.dll` when loaded): no
+    process list, computer `ACAE01A99999999`, user `AppUser`, Windows 10 1809, no mouse buttons,
+    current directory `X`. Boards: COM1 the force feedback board (SWDC's `ffb.rs`), COM2 the
+    837-15070 LED board (`led.rs`: ack on/off, board info `15070-04`, EEPROM in
+    `Y:\idac\led15070.eeprom`; unanswered, the game polled it and GNOME showed "not
+    responding"). I/O: SWDC's wheel and pedals, the 6-speed H shifter's gate on player 2's word
+    (b6/b7 sequential, kp1-kp6 an H shifter's positions). Option data `C:\Mount\Option` (profile
+    `c_folders`). No `-UserDir` on the command line: the game then posts to `/Get`.
+  - Game server (`idac.rs` + `idac/`: ARTEMiS Dniel97 `titles/idac` season 2/3 and
+    Bayshore_sdgt_legacy reimplemented): ALL.Net's host field is the server URL
+    (`WAL_ALLS_TITLE_HOST`, as ARTEMiS answers), JSON POSTs to `<host>initiald/<Category>/<Endpoint>`
+    (requests without the URL's folders routed by their endpoint name); players in
+    `Y:\idac\<aime id>.json`. Alive/Get's `force_reboot_time` a day ago (a later one reboots the
+    game). Automatic card 3 s after start (`WAL_ALLS_AUTO_CARD_DELAY_MS`: a card read on the
+    attract is dropped). Verified headless: new card (terms, registration, name, car), returning
+    card ("play with this data"), Story race, result saved (story, mileage, cash), continue.
 - Mario & Sonic at the Rio 2016 Olympic Games (SDCH, Nu 1.1 `AAV1`, 64-bit D3D11, portrait;
   amdaemon Dec 2015): a Nu game with amdaemon, profile in `systemprofiles/seganu/` with
   `system: alls`. The Nu's amdaemon is the ALLS one (keychip driver, registry values, ICF,

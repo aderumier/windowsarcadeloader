@@ -65,7 +65,7 @@ fn value<'a>(form: &'a [(String, String)], key: &str) -> &'a str {
 
 /// UTC now as (year, month, day, hour, minute, second).
 fn utc_now() -> (i64, u32, u32, u32, u32, u32) {
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+    let secs = crate::clock::unix_now() as i64;
     let (days, rest) = (secs.div_euclid(86400), secs.rem_euclid(86400));
     // days to civil date (Howard Hinnant's algorithm)
     let z = days + 719_468;
@@ -85,7 +85,7 @@ fn utc_now() -> (i64, u32, u32, u32, u32, u32) {
 fn http_date() -> String {
     let (y, mo, d, h, mi, s) = utc_now();
     // day of the week: Zeller-like, from the days since 1970-01-01 (a Thursday)
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |t| t.as_secs());
+    let secs = crate::clock::unix_now();
     let weekday = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"][(secs / 86400 % 7) as usize];
     let month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][mo as usize - 1];
     format!("{weekday}, {d:02} {month} {y} {h:02}:{mi:02}:{s:02} GMT")
@@ -97,7 +97,10 @@ fn power_on(req: &[(String, String)]) -> String {
     let host = format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]);
     // the title server's URI (`WAL_ALLS_TITLE_URI`: an ABAAS game's GS server name, a bare host)
     let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
-    let mut resp = format!("stat=1&uri={}&host={host}&place_id=0123", uri.trim());
+    // the title server's host (`WAL_ALLS_TITLE_HOST`: Initial D THE ARCADE's game server URL,
+    // `<host>initiald/...`, https:// when it has no scheme)
+    let title_host = std::env::var("WAL_ALLS_TITLE_HOST").map_or(host.clone(), |h| h.trim().to_string());
+    let mut resp = format!("stat=1&uri={}&host={title_host}&place_id=0123", uri.trim());
     resp += "&name=WindowsArcadeLoader&nickname=WAL&region0=1&region_name0=W&region_name1=X&region_name2=Y&region_name3=Z&setting=1";
     let (y, mo, d, h, mi, s) = utc_now();
     if format.starts_with('3') {
@@ -272,6 +275,16 @@ unsafe extern "system" fn wsa_connect(socket: usize, address: *const u8, length:
     }
 }
 
+/// ws2_32's `connect`, imported by ordinal (4) or by name (Initial D THE ARCADE's amdaemon and
+/// game).
+unsafe fn hook_socket_connect() {
+    let orig = unsafe { iat::hook_ordinal(iat::game_module(), "WS2_32.dll", 4, socket_connect as *const () as usize) }
+        .or_else(|| unsafe { iat::hook("ws2_32.dll", "connect", socket_connect as *const () as usize) });
+    if let Some(orig) = orig {
+        SOCKET_CONNECT.store(orig, Ordering::Relaxed);
+    }
+}
+
 /// The game's process: its connections to the router's port 80 go to its game server (`gs.rs`).
 static IN_GAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -280,9 +293,7 @@ static IN_GAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::n
 pub(crate) fn init_redirect() {
     IN_GAME.store(true, Ordering::Relaxed);
     unsafe {
-        if let Some(orig) = iat::hook_ordinal(iat::game_module(), "WS2_32.dll", 4, socket_connect as *const () as usize) {
-            SOCKET_CONNECT.store(orig, Ordering::Relaxed);
-        }
+        hook_socket_connect();
         if let Some(orig) = iat::hook("ws2_32.dll", "WSAConnect", wsa_connect as *const () as usize) {
             WSA_CONNECT.store(orig, Ordering::Relaxed);
         }
@@ -291,9 +302,7 @@ pub(crate) fn init_redirect() {
 
 pub(crate) fn init() {
     unsafe {
-        if let Some(orig) = iat::hook_ordinal(iat::game_module(), "WS2_32.dll", 4, socket_connect as *const () as usize) {
-            SOCKET_CONNECT.store(orig, Ordering::Relaxed);
-        }
+        hook_socket_connect();
         if let Some(orig) = iat::hook("ws2_32.dll", "WSAConnect", wsa_connect as *const () as usize) {
             WSA_CONNECT.store(orig, Ordering::Relaxed);
         }

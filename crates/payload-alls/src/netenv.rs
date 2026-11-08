@@ -1,7 +1,8 @@
 //! The cabinet's network as amdaemon checks it (segatools' `platform/netenv.c`, public
 //! domain): one Ethernet adapter in the keychip's subnet (`WAL_ALLS_SUBNET`, the cabinet at
-//! .205, the router and DNS server at .1), every ping answered. Its iphlpapi imports are
-//! answered with that adapter; the real network is not used for it.
+//! `WAL_ALLS_HOST`, default .205, the router and DNS server at `WAL_ALLS_ROUTER`, default .1),
+//! every ping answered. Its iphlpapi imports are answered with that adapter (the game's too
+//! with `WAL_ALLS_GAME_ADAPTER=1`); the real network is not used for it.
 //!
 //! The structures are written by offset (64-bit layouts of iphlpapi's
 //! `IP_ADAPTER_ADDRESSES_LH`, `IP_ADAPTER_INFO`, `MIB_IFROW`, `MIB_IPFORWARDROW`,
@@ -22,6 +23,19 @@ struct Net {
     prefix: [u8; 4],
     iface: [u8; 4],
     router: [u8; 4],
+}
+
+impl Net {
+    /// The cabinet at `WAL_ALLS_HOST` (default .205) of the subnet, the router at
+    /// `WAL_ALLS_ROUTER` (default .1).
+    fn new(prefix: [u8; 4]) -> Net {
+        let byte = |name: &str, default: u8| std::env::var(name).ok().and_then(|v| v.trim().parse::<u8>().ok()).unwrap_or(default);
+        let mut iface = prefix;
+        iface[3] = byte("WAL_ALLS_HOST", 205);
+        let mut router = prefix;
+        router[3] = byte("WAL_ALLS_ROUTER", 1);
+        Net { prefix, iface, router }
+    }
 }
 
 static NET: OnceLock<Net> = OnceLock::new();
@@ -362,24 +376,35 @@ unsafe extern "system" fn dns_free(data: usize, kind: u32) {
 /// The game's process: the addresses only (its connections to ALL.Net's hosts redirected).
 pub(crate) fn init_game() {
     let subnet = crate::registry::Cabinet::from_env().subnet;
-    let mut router = subnet;
-    router[3] = 1;
-    let mut iface = subnet;
-    iface[3] = 205;
-    let _ = NET.set(Net { prefix: subnet, iface, router });
+    let _ = NET.set(Net::new(subnet));
     unsafe {
         if let Some(orig) = iat::hook("ws2_32.dll", "getaddrinfo", getaddrinfo as *const () as usize) {
             GETADDRINFO.store(orig, std::sync::atomic::Ordering::Relaxed);
         }
     }
+    // the game's own view of the adapter (Initial D THE ARCADE: its seat from its address)
+    if std::env::var("WAL_ALLS_GAME_ADAPTER").is_ok_and(|v| v.trim() == "1") {
+        hook_adapters();
+    }
 }
 
 pub(crate) fn init(subnet: [u8; 4]) {
-    let mut iface = subnet;
-    iface[3] = 205;
-    let mut router = subnet;
-    router[3] = 1;
-    let _ = NET.set(Net { prefix: subnet, iface, router });
+    let _ = NET.set(Net::new(subnet));
+    hook_adapters();
+    unsafe {
+        iat::hook("dnsapi.dll", "DnsQuery_A", dns_query_a as *const () as usize);
+        if let Some(orig) = iat::hook("ws2_32.dll", "getaddrinfo", getaddrinfo as *const () as usize) {
+            GETADDRINFO.store(orig, std::sync::atomic::Ordering::Relaxed);
+        }
+        iat::hook("dnsapi.dll", "DnsQueryEx", dns_query_ex as *const () as usize);
+        if let Some(orig) = iat::hook("dnsapi.dll", "DnsFree", dns_free as *const () as usize) {
+            DNS_FREE.store(orig, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+}
+
+/// The iphlpapi imports answered with the cabinet's adapter.
+fn hook_adapters() {
     unsafe {
         let hooks: [(&str, usize); 5] = [
             ("GetAdaptersAddresses", get_adapters_addresses as *const () as usize),
@@ -394,15 +419,5 @@ pub(crate) fn init(subnet: [u8; 4]) {
             }
         }
     }
-    unsafe {
-        iat::hook("dnsapi.dll", "DnsQuery_A", dns_query_a as *const () as usize);
-        if let Some(orig) = iat::hook("ws2_32.dll", "getaddrinfo", getaddrinfo as *const () as usize) {
-            GETADDRINFO.store(orig, std::sync::atomic::Ordering::Relaxed);
-        }
-        iat::hook("dnsapi.dll", "DnsQueryEx", dns_query_ex as *const () as usize);
-        if let Some(orig) = iat::hook("dnsapi.dll", "DnsFree", dns_free as *const () as usize) {
-            DNS_FREE.store(orig, std::sync::atomic::Ordering::Relaxed);
-        }
-    }
-    log!("alls: network {} (router {})", dotted(iface), dotted(router));
+    log!("alls: network {} (router {})", dotted(net().iface), dotted(net().router));
 }

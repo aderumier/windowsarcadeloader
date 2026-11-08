@@ -3,7 +3,7 @@
 //! input touches the reader with the player's card (`WAL_ALLS_ACCESS_CODE`, 20 digits, default
 //! `50000000000000000001`) for 3 seconds, until amdaemon reads it. `WAL_ALLS_AUTO_CARD=1`: after
 //! start, the card is on the reader whenever amdaemon polls it, until read (not again for 3
-//! minutes: a game's length).
+//! minutes: a game's length), `WAL_ALLS_AUTO_CARD_DELAY_MS` after start (default 0).
 
 use std::time::Duration;
 
@@ -24,7 +24,8 @@ pub(crate) fn init() {
     let code = access_code();
     log!("aime: card {code}");
     if std::env::var("WAL_ALLS_AUTO_CARD").is_ok_and(|v| v.trim() == "1") {
-        sgreader::card_on_poll_after(&code, button::START);
+        let delay = std::env::var("WAL_ALLS_AUTO_CARD_DELAY_MS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0);
+        sgreader::card_on_poll_after_delay(&code, button::START, Duration::from_millis(delay));
     }
     std::thread::spawn(move || {
         let mut held = false;

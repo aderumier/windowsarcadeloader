@@ -48,6 +48,8 @@ pub(crate) struct Cabinet {
     pub keychip: String,
     pub region: u32,
     pub subnet: [u8; 4],
+    /// The platform's name the games read (`WAL_ALLS_PLATFORM_NAME`, default `ALLS HX2`)
+    pub platform_name: String,
 }
 
 impl Cabinet {
@@ -64,6 +66,7 @@ impl Cabinet {
             keychip: var("WAL_ALLS_KEYCHIP", "A69E-01A88888888"),
             region: var("WAL_ALLS_REGION", "1").parse().unwrap_or(1),
             subnet,
+            platform_name: var("WAL_ALLS_PLATFORM_NAME", "ALLS HX2"),
         }
     }
 }
@@ -95,7 +98,7 @@ pub(crate) fn write(cab: &Cabinet, video_dll: &str) {
             ("CpuTempError", Value::Dword(100)),
             ("CpuTempWarning", Value::Dword(95)),
             ("PlatformId", Value::Str(&cab.platform_id)),
-            ("PlatformName", Value::Str("ALLS HX2")),
+            ("PlatformName", Value::Str(&cab.platform_name)),
         ],
     );
     set("Master", &[("AppLoaderCount", Value::Dword(1)), ("NextProcess", Value::Str("")), ("SystemError", Value::Str(""))]);

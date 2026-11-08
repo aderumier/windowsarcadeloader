@@ -1,6 +1,7 @@
 //! The cabinet's LED board (837-15093-04) on COM1: the game drives the cabinet's lights
 //! through it. Answered as a board without lights (segatools' `board/led15093.c`, public
-//! domain).
+//! domain). Initial D THE ARCADE's 837-15070-04 ([`init_15070`]): the same frames, its own
+//! commands (segatools' `board/led15070.h` for their numbers).
 //!
 //! Frame: `E0 dest src len data... sum` (sum of the bytes after E0; E0 / D0 in the rest are
 //! escaped as `D0 byte-1`). Request data: the command, its parameters; answer data: status
@@ -13,15 +14,33 @@ use wal_payload_common::{log, serial};
 
 const SYNC: u8 = 0xE0;
 const ESC: u8 = 0xD0;
-/// The board's and the host's addresses (one board).
+/// The board's address when the host broadcasts (one board).
 const BOARD: u8 = 1;
-const HOST: u8 = 2;
 
 static RX: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 static RESPONSES: AtomicBool = AtomicBool::new(true);
+/// An 837-15070 board (Initial D THE ARCADE), in its boot loader.
+static BOARD_15070: AtomicBool = AtomicBool::new(false);
+static BOOT_15070: AtomicBool = AtomicBool::new(false);
 
-fn encode(cmd: u8, values: &[u8], src: u8) -> Vec<u8> {
-    let mut plain = vec![HOST, src, 3 + values.len() as u8, 1, cmd, 1];
+const EEPROM: &str = "Y:\\idac\\led15070.eeprom";
+
+/// The 15070's EEPROM byte at `addr` (0-7), written first when `value` is given.
+fn eeprom(addr: u8, value: Option<u8>) -> u8 {
+    let mut data = std::fs::read(EEPROM).unwrap_or_default();
+    data.resize(8, 0);
+    let i = (addr & 7) as usize;
+    if let Some(v) = value {
+        data[i] = v;
+        let _ = std::fs::create_dir_all("Y:\\idac");
+        let _ = std::fs::write(EEPROM, &data);
+    }
+    data[i]
+}
+
+/// An answer from `src` to `host` (the request's source).
+fn encode(cmd: u8, values: &[u8], src: u8, host: u8) -> Vec<u8> {
+    let mut plain = vec![host, src, 3 + values.len() as u8, 1, cmd, 1];
     plain.extend_from_slice(values);
     let sum = plain.iter().fold(0u8, |s, b| s.wrapping_add(*b));
     plain.push(sum);
@@ -76,10 +95,65 @@ fn next_frame(rx: &mut Vec<u8>) -> Option<Vec<u8>> {
 fn answer(frame: &[u8]) -> Vec<u8> {
     let dest = frame[1];
     let src = if dest == 0 { BOARD } else { dest };
+    let host = frame[2];
+    let encode = |cmd: u8, values: &[u8], src: u8| encode(cmd, values, src, host);
     let data = &frame[4..frame.len() - 1];
     let Some(&cmd) = data.first() else { return Vec::new() };
     let args = &data[1..];
     let responses = RESPONSES.load(Ordering::Relaxed);
+    if BOARD_15070.load(Ordering::Relaxed) {
+        return match cmd {
+            0x10 => {
+                RESPONSES.store(true, Ordering::Relaxed);
+                encode(cmd, &[], src)
+            }
+            // ack on / off: the lights' commands answered or not
+            0x7D | 0x7E => {
+                RESPONSES.store(cmd == 0x7D, Ordering::Relaxed);
+                encode(cmd, &[], src)
+            }
+            // EEPROM (8 bytes, kept in Y:\idac\led15070.eeprom): read (address) / write
+            // (address, value)
+            0x7C => encode(cmd, &[eeprom(args.first().copied().unwrap_or(0), None)], src),
+            0x7B => {
+                eeprom(args.first().copied().unwrap_or(0), args.get(1).copied());
+                encode(cmd, &[], src)
+            }
+            // inputs, the lights (12/8 bit, flash, fade, palettes, dot correction, FETs...)
+            0x28 | 0x30..=0x3F => {
+                if responses {
+                    encode(cmd, &[], src)
+                } else {
+                    Vec::new()
+                }
+            }
+            // board info: number, end code, firmware 0x90
+            0xF0 => {
+                let mut v = b"15070-04".to_vec();
+                v.extend([0xFF, 0x90]);
+                encode(cmd, &v, src)
+            }
+            // status: timeouts, PWM, FET timeout
+            0xF1 => encode(cmd, &[0, 0, 0, 0], src),
+            0xF2 => encode(cmd, &[0, 0], src),
+            // protocol: application mode 1.4, the boot loader 1.1 after "to boot mode"
+            0xF3 => {
+                if BOOT_15070.load(Ordering::Relaxed) {
+                    encode(cmd, &[0, 1, 1], src)
+                } else {
+                    encode(cmd, &[1, 1, 4], src)
+                }
+            }
+            0xFD => {
+                BOOT_15070.store(true, Ordering::Relaxed);
+                encode(cmd, &[], src)
+            }
+            _ => {
+                log!("led: 15070 command {cmd:#04x}");
+                encode(cmd, &[], src)
+            }
+        };
+    }
     match cmd {
         // reset
         0x10 => {
@@ -142,5 +216,11 @@ fn packet(data: &[u8]) -> Vec<u8> {
 
 /// The board on `port` (`COM1`; Sega World Drivers Championship's indicator LEDs: `COM2`).
 pub(crate) fn init(port: &str) {
+    serial::install(port, packet);
+}
+
+/// An 837-15070 board on `port` (Initial D THE ARCADE: `COM2`).
+pub(crate) fn init_15070(port: &str) {
+    BOARD_15070.store(true, Ordering::Relaxed);
     serial::install(port, packet);
 }

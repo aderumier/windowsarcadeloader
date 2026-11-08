@@ -366,6 +366,27 @@ unsafe extern "system" fn get_computer_name_a(buf: *mut u8, size: *mut u32) -> i
     1
 }
 
+/// The cabinet never reboots from amdaemon (segatools' `misc.c`).
+unsafe extern "system" fn exit_windows_ex(_flags: u32, _reason: u32) -> i32 {
+    log!("alls: system reboot blocked");
+    1
+}
+
+static QUERY_DOS_DEVICE_W: AtomicUsize = AtomicUsize::new(0);
+
+/// The machine's optical drives hidden (segatools' `dvd.c`).
+unsafe extern "system" fn query_dos_device_w(name: *const u16, target: *mut u16, max: u32) -> u32 {
+    let real: unsafe extern "system" fn(*const u16, *mut u16, u32) -> u32 = unsafe { std::mem::transmute(QUERY_DOS_DEVICE_W.load(Ordering::Relaxed)) };
+    let n = unsafe { real(name, target, max) };
+    if n > 0 && !target.is_null() {
+        let first = unsafe { std::slice::from_raw_parts(target, (0..max as usize).take_while(|&i| *target.add(i) != 0).count()) };
+        if String::from_utf16_lossy(first).contains("CdRom") {
+            return 0;
+        }
+    }
+    n
+}
+
 pub(crate) fn init() {
     let cabinet = registry::Cabinet::from_env();
     registry::write(&cabinet, &module_path());
@@ -394,6 +415,10 @@ pub(crate) fn init() {
             }
         }
         iat::hook("kernel32.dll", "GetComputerNameA", get_computer_name_a as *const () as usize);
+        iat::hook("user32.dll", "ExitWindowsEx", exit_windows_ex as *const () as usize);
+        if let Some(orig) = iat::hook("kernel32.dll", "QueryDosDeviceW", query_dos_device_w as *const () as usize) {
+            QUERY_DOS_DEVICE_W.store(orig, Ordering::Relaxed);
+        }
     }
     if std::env::var("WAL_ALLS_JVS").is_ok_and(|v| v.trim() == "1") {
         // a Nu cabinet: the AMEX board (its JVS I/O board, the system DIP switches, EEPROM and

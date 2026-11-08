@@ -1,6 +1,6 @@
 //! Sega ALLS payload: the cabinet system the game and `amdaemon.exe` run on (Mario & Sonic at
 //! the Tokyo 2020 Olympic Games Arcade, House of the Dead: Scarlet Dawn, Sega World Drivers
-//! Championship).
+//! Championship, Initial D THE ARCADE).
 //!
 //! An ALLS game talks to `amdaemon.exe` (keychip, ALL.Net, the USB I/O board, credits), which
 //! talks to the hardware. Both programs are started by `wal-loader` with this payload (the
@@ -12,19 +12,26 @@
 //! Payload options (profile `env`):
 //! - `WAL_ALLS_GAME_ID` (4 letters), `WAL_ALLS_PLATFORM_ID` (default `ACA1`),
 //!   `WAL_ALLS_KEYCHIP` (default `A69E-01A88888888`), `WAL_ALLS_REGION` (1 Japan, 4 export,
-//!   8 China; default 1), `WAL_ALLS_SUBNET` (default `192.168.149.0`): the keychip's values
+//!   8 China; default 1), `WAL_ALLS_SUBNET` (default `192.168.149.0`): the keychip's values;
+//!   `WAL_ALLS_PLATFORM_NAME` (default `ALLS HX2`): the platform's name
 //! - `WAL_ALLS_DIPSW`: the system DIP switches 1-8 (bits 0-7, hex; default 01: cabinet 1),
 //!   `WAL_ALLS_FREEPLAY` (else the common `WAL_FREEPLAY`, default on): in the system backup
 //!   (`sysfile.rs`, from amdaemon's second start)
 //! - `WAL_ALLS_ALLNET=1`: ALL.Net authentication accepted (`allnet.rs`; default refused: the game
 //!   plays offline)
-//! - `WAL_ALLS_CLOCK=0`: the real time zone (default Japan's, `clock.rs`)
+//! - `WAL_ALLS_CLOCK=0`: the real time zone (default Japan's, `clock.rs`); `WAL_ALLS_TIMEWARP=1`:
+//!   the nightly maintenance hours (Japan 02:00-07:00) skipped
 //! - `WAL_ALLS_BOARD`: the game's controls (`io4.rs`; `hotd`: also the gun sensor board on
 //!   COM1, `gunsensor.rs`, instead of the LED board; `swdc`: the force feedback board on COM1,
 //!   `ffb.rs`, the LED board on COM2, the dashboard on COM20, `dashboard.rs`, the main
-//!   cabinet's LAN announcements, `udp.rs`, the English translation, `english.rs`)
+//!   cabinet's LAN announcements, `udp.rs`, the English translation, `english.rs`; `idac`: the
+//!   force feedback board on COM1, the 837-15070 LED board on COM2, the game server, `idac.rs`)
 //! - `WAL_ALLS_AIME_PORT` (`COM3`...): the Aime card reader amdaemon opens there (`aime.rs`),
-//!   `WAL_ALLS_ACCESS_CODE` the player's card
+//!   `WAL_ALLS_ACCESS_CODE` the player's card, `WAL_ALLS_AUTO_CARD=1` touched by itself after
+//!   start (`WAL_ALLS_AUTO_CARD_DELAY_MS` later)
+//! - `WAL_ALLS_HOST`, `WAL_ALLS_ROUTER`: the cabinet's and the router's last address bytes
+//!   (default .205, .1), `WAL_ALLS_GAME_ADAPTER=1`: the game sees that adapter too (`netenv.rs`)
+//! - `WAL_ALLS_TITLE_URI`, `WAL_ALLS_TITLE_HOST`: ALL.Net's uri and host for the game server
 //! - `WAL_ALLS_JVS=1`: a Nu cabinet: amdaemon reads the JVS I/O board on the AMEX board
 //!   (payload-common's `amex`, its EEPROM and SRAM in `Y:\amex`) instead of the USB I/O board
 //! - `WAL_ALLS_LED_PORT`: the LED board's serial port (default `COM1`)
@@ -51,6 +58,8 @@ mod gs;
 mod gunsensor;
 mod hotd;
 mod icf;
+mod idac;
+mod indrun;
 mod io4;
 mod led;
 mod netenv;
@@ -110,6 +119,14 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
                 ffb::init();
                 led::init("COM2");
                 dashboard::init();
+            } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "idac") {
+                // the game server (Aime card players), the cabinet's Windows (segatools' indrun)
+                idac::init();
+                indrun::init();
+                // COM1: the force feedback board (Sega World Drivers Championship's), COM2 the
+                // 837-15070 LED board
+                ffb::init();
+                led::init_15070("COM2");
             } else {
                 // the LED board's port (Mario & Sonic at Rio 2016: COM12)
                 led::init(std::env::var("WAL_ALLS_LED_PORT").as_deref().map_or("COM1", str::trim));

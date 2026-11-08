@@ -28,8 +28,9 @@ pub fn insert(access_code: &str, time: Duration) {
     *CARD.lock().unwrap() = Some((bcd, Instant::now() + time));
 }
 
-/// The card [`card_on_poll_after`] puts on the reader at the polls, until it is read.
-static ARMED: Mutex<Option<String>> = Mutex::new(None);
+/// The card [`card_on_poll_after`] puts on the reader at the polls, until it is read, and from
+/// when.
+static ARMED: Mutex<Option<(String, Instant)>> = Mutex::new(None);
 /// When the armed card was last read: the button does not put it back for a game's length.
 static READ_AT: Mutex<Option<Instant>> = Mutex::new(None);
 const REARM_AFTER: Duration = Duration::from_secs(180);
@@ -37,13 +38,19 @@ const REARM_AFTER: Duration = Duration::from_secs(180);
 /// After player 1 presses `button`, puts the card of `access_code` on the reader whenever it is
 /// polled, until it is read (an automatic card: the card prompt after start).
 pub fn card_on_poll_after(access_code: &str, button: u32) {
+    card_on_poll_after_delay(access_code, button, Duration::ZERO);
+}
+
+/// [`card_on_poll_after`], the card on the reader `delay` after the press (Initial D THE
+/// ARCADE drops the card read on its attract: it reads it again at its card prompt).
+pub fn card_on_poll_after_delay(access_code: &str, button: u32, delay: Duration) {
     let code = access_code.to_string();
     std::thread::spawn(move || {
         let mut held = false;
         loop {
             let pressed = crate::input(0).pressed(button);
             if pressed && !held && READ_AT.lock().unwrap().is_none_or(|t| t.elapsed() >= REARM_AFTER) {
-                *ARMED.lock().unwrap() = Some(code.clone());
+                *ARMED.lock().unwrap() = Some((code.clone(), Instant::now() + delay));
             }
             held = pressed;
             std::thread::sleep(Duration::from_millis(50));
@@ -137,7 +144,8 @@ fn nfc(req: &[u8]) -> Option<Vec<u8>> {
         0x32 => answer(req, 0, versions().0),
         // poll: a MIFARE target (type 0x10, its 4-byte UID) or none
         0x42 => match {
-            if let Some(code) = ARMED.lock().unwrap().clone()
+            if let Some((code, from)) = ARMED.lock().unwrap().clone()
+                && Instant::now() >= from
                 && card().is_none()
             {
                 insert(&code, Duration::from_secs(3));
