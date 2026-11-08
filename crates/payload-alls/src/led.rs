@@ -140,6 +140,7 @@ fn packet(data: &[u8]) -> Vec<u8> {
     out
 }
 
-pub(crate) fn init() {
-    serial::install("COM1", packet);
+/// The board on `port` (`COM1`; Sega World Drivers Championship's indicator LEDs: `COM2`).
+pub(crate) fn init(port: &str) {
+    serial::install(port, packet);
 }

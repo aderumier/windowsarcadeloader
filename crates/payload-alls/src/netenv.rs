@@ -276,6 +276,11 @@ fn address(_name: &str) -> [u8; 4] {
     net().router
 }
 
+/// The adapter's own address.
+pub(crate) fn iface() -> [u8; 4] {
+    net().iface
+}
+
 /// The virtual router's address (ALL.Net's hosts in the payload's DNS).
 pub(crate) fn router() -> [u8; 4] {
     net().router
@@ -327,6 +332,23 @@ unsafe extern "system" fn dns_query_ex(request: *const u8, result: *mut u8, _can
     status
 }
 
+static GETADDRINFO: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// `getaddrinfo`: a name of the network (not an address, not `localhost`) resolved as
+/// `DnsQuery` resolves it, the real function given its address.
+unsafe extern "system" fn getaddrinfo(node: *const u8, service: *const u8, hints: *const c_void, result: *mut usize) -> i32 {
+    type F = unsafe extern "system" fn(*const u8, *const u8, *const c_void, *mut usize) -> i32;
+    let real: F = unsafe { std::mem::transmute(GETADDRINFO.load(std::sync::atomic::Ordering::Relaxed)) };
+    let name = if node.is_null() { String::new() } else { unsafe { std::ffi::CStr::from_ptr(node.cast()) }.to_string_lossy().into_owned() };
+    let numeric = name.parse::<std::net::Ipv4Addr>().is_ok() || name.contains(':');
+    if name.is_empty() || numeric || name.eq_ignore_ascii_case("localhost") || !resolves(&name) {
+        return unsafe { real(node, service, hints, result) };
+    }
+    let addr = std::ffi::CString::new(dotted(address(&name))).unwrap();
+    log!("netenv: getaddrinfo {name}: {}", addr.to_string_lossy());
+    unsafe { real(addr.as_ptr().cast(), service, hints, result) }
+}
+
 static DNS_FREE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 unsafe extern "system" fn dns_free(data: usize, kind: u32) {
@@ -345,6 +367,11 @@ pub(crate) fn init_game() {
     let mut iface = subnet;
     iface[3] = 205;
     let _ = NET.set(Net { prefix: subnet, iface, router });
+    unsafe {
+        if let Some(orig) = iat::hook("ws2_32.dll", "getaddrinfo", getaddrinfo as *const () as usize) {
+            GETADDRINFO.store(orig, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
 }
 
 pub(crate) fn init(subnet: [u8; 4]) {
@@ -369,6 +396,9 @@ pub(crate) fn init(subnet: [u8; 4]) {
     }
     unsafe {
         iat::hook("dnsapi.dll", "DnsQuery_A", dns_query_a as *const () as usize);
+        if let Some(orig) = iat::hook("ws2_32.dll", "getaddrinfo", getaddrinfo as *const () as usize) {
+            GETADDRINFO.store(orig, std::sync::atomic::Ordering::Relaxed);
+        }
         iat::hook("dnsapi.dll", "DnsQueryEx", dns_query_ex as *const () as usize);
         if let Some(orig) = iat::hook("dnsapi.dll", "DnsFree", dns_free as *const () as usize) {
             DNS_FREE.store(orig, std::sync::atomic::Ordering::Relaxed);

@@ -285,6 +285,35 @@ fn stretched(conf: &config::GamescopeConfig, stretch: bool) -> config::Gamescope
 }
 
 /// `cmd` run inside gamescope, with its environment and directory.
+/// `cmd` started by a shell after the `background` programs (left running) and `wait_ms`.
+fn with_background(cmd: Command, background: Vec<Command>, wait_ms: u64) -> Command {
+    let quote = |s: &std::ffi::OsStr| format!("'{}'", s.to_string_lossy().replace('\'', "'\\''"));
+    let mut script = String::new();
+    for bg in &background {
+        if let Some(dir) = bg.get_current_dir() {
+            script += &format!("(cd {} && ", quote(dir.as_os_str()));
+        } else {
+            script += "(";
+        }
+        script += &std::iter::once(bg.get_program()).chain(bg.get_args()).map(quote).collect::<Vec<_>>().join(" ");
+        script += ") & ";
+    }
+    // the game's lines appended to the payload log the background program created
+    script += &format!("sleep {}; WAL_LOG_APPEND=1 exec \"$@\"", wait_ms as f64 / 1000.0);
+    let mut sh = Command::new("sh");
+    sh.arg("-c").arg(script).arg("sh").arg(cmd.get_program()).args(cmd.get_args());
+    for (k, v) in cmd.get_envs() {
+        match v {
+            Some(v) => sh.env(k, v),
+            None => sh.env_remove(k),
+        };
+    }
+    if let Some(dir) = cmd.get_current_dir() {
+        sh.current_dir(dir);
+    }
+    sh
+}
+
 fn gamescope(conf: &config::GamescopeConfig, cmd: Command) -> Command {
     let mut gs = Command::new(&conf.bin);
     if conf.width > 0 && conf.height > 0 {
@@ -564,6 +593,23 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     }
     let game_exe = wine.windows_path(&run_exe_dir.join(exe_name));
     let screen_args = |args: &[String]| -> Vec<String> { args.iter().map(|a| screen_placeholders(a, screen, &profile.env)).collect() };
+    // a program of the profile's `background` list (its command line from the game directory)
+    let background_command = |program: &str| -> Option<Command> {
+        let words: Vec<String> = screen_args(&program.split(' ').filter(|w| !w.is_empty()).map(String::from).collect::<Vec<_>>());
+        let (exe, args) = words.split_first()?;
+        let exe_path = wine.windows_path(&run_exe_dir.join(exe));
+        let mut cmd = match loader {
+            Some(payload) => {
+                let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));
+                let at = if payload.contains(['/', '\\']) { run_dir.join(payload) } else { run_exe_dir.join(payload) };
+                cmd.arg(wine.windows_path(&at)).arg(&exe_path);
+                cmd
+            }
+            None => wine.command(&exe_path),
+        };
+        cmd.args(args).current_dir(&run_exe_dir);
+        Some(cmd)
+    };
     // the game command with these arguments; `relaunched`: started again at the payload's
     // request (WAL_RELAUNCH=1)
     // `exe`: another executable of the game directory (a relaunch to the test menu program)
@@ -596,6 +642,11 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         // KEEP ASPECT RATIO off: gamescope's fit scaler stretches instead
         let stretch = profile.env.get("WAL_KEEP_ASPECT_RATIO").is_some_and(|v| v.trim() == "0");
         if opts.headless {
+            // the background programs in the same gamescope (one X display: a Wine call crossing
+            // two, e.g. ClipCursor, ends the game with an X BadWindow error)
+            if !relaunched && !profile.background.is_empty() {
+                cmd = with_background(cmd, profile.background.iter().filter_map(|p| background_command(p)).collect(), profile.background_wait_ms);
+            }
             cmd = gamescope(&stretched(&headless_gamescope(&profile.gamescope), stretch), cmd);
         } else if profile.gamescope.enabled {
             cmd = gamescope(&stretched(&profile.gamescope, stretch), cmd);
@@ -638,26 +689,16 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         }
     }
     // programs left running beside the game (Sega ALLS's amdaemon.exe), with the game's payload
-    // when the system starts it through wal-loader; ended with the game's leftovers
-    for program in &profile.background {
-        let words: Vec<String> = screen_args(&program.split(' ').filter(|w| !w.is_empty()).map(String::from).collect::<Vec<_>>());
-        let Some((exe, args)) = words.split_first() else { continue };
-        let exe_path = wine.windows_path(&run_exe_dir.join(exe));
-        let mut cmd = match loader {
-            Some(payload) => {
-                let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));
-                let at = if payload.contains(['/', '\\']) { run_dir.join(payload) } else { run_exe_dir.join(payload) };
-                cmd.arg(wine.windows_path(&at)).arg(&exe_path);
-                cmd
-            }
-            None => wine.command(&exe_path),
-        };
-        cmd.args(args).current_dir(&run_exe_dir);
-        std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
-        eprintln!("launcher: starting background program {exe}");
-        cmd.spawn().with_context(|| format!("starting background program {exe}"))?;
+    // when the system starts it through wal-loader; ended with the game's leftovers (headless:
+    // started inside the game's gamescope instead)
+    if !opts.headless {
+        for mut cmd in profile.background.iter().filter_map(|p| background_command(p)) {
+            std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
+            eprintln!("launcher: starting background program {:?}", cmd.get_program());
+            cmd.spawn().with_context(|| format!("starting background program {:?}", cmd.get_program()))?;
+        }
     }
-    if !profile.background.is_empty() {
+    if !profile.background.is_empty() && !opts.headless {
         std::thread::sleep(Duration::from_millis(profile.background_wait_ms));
         // the payload log the background program created: the game's lines appended to it
         cmd.env("WAL_LOG_APPEND", "1");

@@ -1,0 +1,109 @@
+# Sega World Drivers Championship (Sega, ALLS UX, 2018; game id SDDS): Unreal Engine 4, 64-bit
+# Direct3D 11, 1920x1080. One player: a wheel with four colored buttons and two paddles, gas and
+# brake pedals, the cabinet's up/down/left/right, start and view change buttons.
+# amdaemon.exe (the cabinet's system service) is started first, then the game, both with the
+# payload: the keychip and the USB I/O board (wheel, pedals, buttons, coins, test) are emulated
+# in amdaemon.
+# Override values in userprofiles/alls/sega-world-drivers-championship.yaml.
+system: alls
+name: Sega World Drivers Championship
+
+# both programs started by wal-loader64 with the payload
+payload_loader: true
+# StartApp.bat's cabinet launch; its settings (Saved\) in the game's folder (-NotInstalled), no
+# splash window
+args: [-launch=Cabinet, -NotInstalled, -UNATTENDED, -nosplash]
+
+# StartApp.bat's amdaemon command line (from the game's folder) for the main cabinet (LanServer:
+# a LanClient waits for one), the profile's configuration merged last
+background:
+  - >-
+    ../../../AMDaemon/amdaemon.exe -c ..\..\..\AMDaemon\config.json
+    ..\..\..\AMDaemon\config_LanServer.json ..\..\..\AMDaemon\config_wal.json -l Y:\amdaemon.log
+background_wait_ms: 5000
+
+# amdaemon's video setup off (the launcher sets the screen), the e-money terminal absent, the
+# Aime reader's firmware from the game's folder (amdaemon runs there, not in App\Todoroki)
+files:
+  App/Todoroki/WindowsNoEditor/AMDaemon/config_wal.json: systemprofiles/alls/files/sega-world-drivers-championship/config_wal.json
+
+# The cabinet's drives: E: the AMFS (the system backup amdaemon keeps), Y: the game's data
+# (its backup, logs)
+drives:
+  e: AMFS
+  y: AppData
+
+env:
+  WAL_ALLS_GAME_ID: SDDS
+  WAL_ALLS_PLATFORM_ID: ACA1
+  WAL_ALLS_BOARD: swdc
+  # the Aime card reader (config.json's aime unit)
+  WAL_ALLS_AIME_PORT: COM3
+  # the game server's name for online play (ALL.Net's uri, a bare host, resolved to the virtual
+  # router: payload gs.rs). Online (WAL_ALLS_ALLNET=1) is not usable yet: the game needs the
+  # server's title data (seasons...) and crashes at the power-on test without it
+  WAL_ALLS_TITLE_URI: SDDS.gs.sys-all.net
+  # amdaemon's clock reported synced with ALL.Net's (amRtcIsServerSync: mov eax,1; ret).
+  # Offline it never is: error 8114 "ALL.Net System error (RTC)".
+  WAL_ALLS_DAEMON_PATCHES: "0x271a70:B801000000C3"
+  # the community English translation, when its release folder is in the game's folder
+  # (payload english.rs)
+  WAL_SWDC_ENGLISH: "1"
+
+options:
+  - title: Language
+    options:
+      - key: WAL_SWDC_ENGLISH
+        label: English translation
+        kind: bool
+        description: >-
+          The community English translation (SWDC ENGLISH v2.1: menus, messages, textures,
+          English voices), when its release folder (manifest.json, payload) is copied into the
+          game's folder. On (the default); off: the Japanese original (its files put back).
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    y: b1
+    x: b2
+    a: b3
+    b: b4
+    l1: b6
+    r1: b7
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      # the arrows steer and drive, and move in the menus (the cabinet's buttons)
+      KEY_LEFT: -lx,left
+      KEY_RIGHT: lx,right
+      KEY_UP: accel,up
+      KEY_DOWN: brake,down
+      KEY_LEFTCTRL: b1
+      KEY_A: b6
+      KEY_S: b7
+      KEY_Q: b2
+      KEY_W: b3
+      KEY_E: b4
+      KEY_R: b5
+
+controls:
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: View change
+  b2: Wheel blue button
+  b3: Wheel green button
+  b4: Wheel red button
+  b5: Wheel yellow button
+  b6: Left paddle (shift down)
+  b7: Right paddle (shift up)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

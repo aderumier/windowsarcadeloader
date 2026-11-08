@@ -14,6 +14,7 @@ wal-payload-common = { path = "../payload-common" }
 wal-protocol = { path = "../protocol" }
 aes = "0.8"
 sha1_smol = "1"
+sha2 = "0.10"
 miniz_oxide = "0.8"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",

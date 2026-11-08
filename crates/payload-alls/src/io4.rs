@@ -15,6 +15,10 @@
 //!   jump (every jump sensor's beam broken, both feet off).
 //! - `hotd` (House of the Dead: Scarlet Dawn): each player's start, b3 the gun's front button,
 //!   b4 its side button (the triggers and the aim: the gun sensor board, `gunsensor.rs`).
+//! - `swdc` (Sega World Drivers Championship): the wheel on adc 0, gas 1, brake 2 (amdaemon's
+//!   `config.json`: 8 bits); player 1's up/down/left/right/start, b1 the view change; player 2's
+//!   word the wheel's buttons: b2 blue, b3 green, b4 red, b5 yellow, b6 / b7 the paddles
+//!   (left / right).
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -23,6 +27,7 @@ use std::sync::{Condvar, Mutex};
 use std::time::Duration;
 
 use wal_payload_common::{iat, input, log};
+use wal_protocol::Axis;
 use wal_protocol::button as b;
 
 use crate::daemon::{IO4, Overlapped, complete, pending};
@@ -56,12 +61,14 @@ static WAKE: Condvar = Condvar::new();
 enum Board {
     Tokyo,
     Hotd,
+    Swdc,
 }
 
 fn board() -> Board {
     static BOARD: std::sync::OnceLock<Board> = std::sync::OnceLock::new();
     *BOARD.get_or_init(|| match std::env::var("WAL_ALLS_BOARD").unwrap_or_default().trim() {
         "hotd" => Board::Hotd,
+        "swdc" => Board::Swdc,
         _ => Board::Tokyo,
     })
 }
@@ -75,6 +82,19 @@ fn switches() -> [u16; 2] {
     }
     if p1 & b::SERVICE != 0 {
         sw[0] |= SERVICE;
+    }
+    if board() == Board::Swdc {
+        for (button, bit) in [(b::UP, 5), (b::DOWN, 4), (b::LEFT, 3), (b::RIGHT, 2), (b::START, 7), (b::B1, 1)] {
+            if p1 & button != 0 {
+                sw[0] |= 1 << bit;
+            }
+        }
+        for (button, bit) in [(b::B2, 15), (b::B3, 14), (b::B4, 13), (b::B5, 12), (b::B6, 1), (b::B7, 0)] {
+            if p1 & button != 0 {
+                sw[1] |= 1 << bit;
+            }
+        }
+        return sw;
     }
     if board() == Board::Hotd {
         // House of the Dead: Scarlet Dawn: each player's start (bit 7) and the gun's two
@@ -133,6 +153,14 @@ fn report() -> [u8; 64] {
     }
     let coins = (COINS.load(Ordering::Relaxed) as u16) << 8;
     r[25..27].copy_from_slice(&coins.to_le_bytes());
+    if board() == Board::Swdc {
+        // adc 0-2 (offset 1): the wheel (center 0x8000), gas, brake
+        let p1 = input(0);
+        let adc = [p1.axis_u16(Axis::LeftX), p1.axis_u16(Axis::Accel), p1.axis_u16(Axis::Brake)];
+        for (i, v) in adc.iter().enumerate() {
+            r[1 + i * 2..3 + i * 2].copy_from_slice(&v.to_le_bytes());
+        }
+    }
     let sw = switches();
     r[29..31].copy_from_slice(&sw[0].to_le_bytes());
     r[31..33].copy_from_slice(&sw[1].to_le_bytes());

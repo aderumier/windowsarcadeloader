@@ -36,7 +36,7 @@ mod lla;
 mod patches;
 mod pokken;
 mod projector;
-mod sgreader;
+use wal_payload_common::sgreader;
 mod tc5;
 mod tekken7;
 mod usio;

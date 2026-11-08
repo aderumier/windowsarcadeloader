@@ -4,6 +4,8 @@
 //! virtual arcade sticks with [`input`] from the game threads (lock free) and
 //! reports game outputs with [`send_output`].
 
+// the ABAAS game server (player data, rankings) of Sega's APM3 and ALLS games
+pub mod abaas_gs;
 // AVPro Video's uGUI display played by Unity's VideoPlayer (Android builds without AVPro's backend)
 #[cfg(windows)]
 pub mod avpro;
@@ -90,6 +92,9 @@ pub mod pointer_d3d11;
 pub mod port_ffb;
 #[cfg(windows)]
 pub mod serial;
+// Sega's Aime NFC card reader on a serial port
+#[cfg(windows)]
+pub mod sgreader;
 #[cfg(windows)]
 pub mod screenshot;
 #[cfg(windows)]

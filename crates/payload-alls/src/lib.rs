@@ -1,5 +1,6 @@
 //! Sega ALLS payload: the cabinet system the game and `amdaemon.exe` run on (Mario & Sonic at
-//! the Tokyo 2020 Olympic Games Arcade, House of the Dead: Scarlet Dawn).
+//! the Tokyo 2020 Olympic Games Arcade, House of the Dead: Scarlet Dawn, Sega World Drivers
+//! Championship).
 //!
 //! An ALLS game talks to `amdaemon.exe` (keychip, ALL.Net, the USB I/O board, credits), which
 //! talks to the hardware. Both programs are started by `wal-loader` with this payload (the
@@ -19,17 +20,27 @@
 //!   plays offline)
 //! - `WAL_ALLS_CLOCK=0`: the real time zone (default Japan's, `clock.rs`)
 //! - `WAL_ALLS_BOARD`: the game's controls (`io4.rs`; `hotd`: also the gun sensor board on
-//!   COM1, `gunsensor.rs`, instead of the LED board)
+//!   COM1, `gunsensor.rs`, instead of the LED board; `swdc`: the force feedback board on COM1,
+//!   `ffb.rs`, the LED board on COM2, the dashboard on COM20, `dashboard.rs`, the main
+//!   cabinet's LAN announcements, `udp.rs`, the English translation, `english.rs`)
+//! - `WAL_ALLS_AIME_PORT` (`COM3`...): the Aime card reader amdaemon opens there (`aime.rs`),
+//!   `WAL_ALLS_ACCESS_CODE` the player's card
 //! - `WAL_ALLS_DAEMON_PATCHES`: amdaemon's patches (`<rva>:<hex bytes>,...`)
 //! - `WAL_PATCHES`: game code patches (same format)
 //!
 //! Network (`netenv.rs`, `allnet.rs`): one adapter in the keychip's subnet, the store router's
 //! names resolved, ALL.Net answered by the payload's server.
 
+mod aime;
+mod aimedb;
 mod allnet;
 mod clock;
 mod daemon;
+mod dashboard;
+mod english;
+mod ffb;
 mod gore;
+mod gs;
 mod gunsensor;
 mod hotd;
 mod icf;
@@ -39,6 +50,7 @@ mod netenv;
 mod pki;
 mod registry;
 mod sysfile;
+mod udp;
 
 use std::ffi::c_void;
 
@@ -76,8 +88,23 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
                 hotd::init();
                 gore::init();
                 wal_payload_common::serial::install_sink("!COM22");
+            } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "swdc") {
+                // the main cabinet (StartApp.bat's marker, read by the game too: else it waits
+                // for a main cabinet's announcement on the LAN)
+                let _ = std::fs::create_dir_all("Y:\\SDDS");
+                if !std::path::Path::new("Y:\\SDDS\\LanServer.dat").exists() {
+                    let _ = std::fs::write("Y:\\SDDS\\LanServer.dat", b"");
+                }
+                // the main cabinet's announcements on the LAN, which it must hear itself
+                udp::init();
+                english::init();
+                gs::init();
+                // COM1: the force feedback board, COM2 the LED board, COM20 the dashboard
+                ffb::init();
+                led::init("COM2");
+                dashboard::init();
             } else {
-                led::init();
+                led::init("COM1");
             }
             netenv::init_game();
             allnet::init_redirect();

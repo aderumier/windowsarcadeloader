@@ -1,6 +1,6 @@
-//! Sega's Aime NFC reader (837-15396, the reader of Bandai Namco's BNA1 cabinets, through Sega's
-//! `libamw.dll`) on a serial port, ported from bananatools' `board/sg-frame.c`, `sg-cmd.c`,
-//! `sg-nfc.c` and `sg-led.c` (public domain).
+//! Sega's Aime NFC reader (837-15396: Sega ALLS cabinets through amdaemon, Bandai Namco's BNA1
+//! cabinets through Sega's `libamw.dll`) on a serial port, ported from bananatools'
+//! `board/sg-frame.c`, `sg-cmd.c`, `sg-nfc.c` and `sg-led.c` (public domain).
 //!
 //! Frames: `E0`, then the escaped bytes (`D0 x` is `x + 1`) of `len addr seq cmd ...` and a
 //! checksum (the sum of the unescaped bytes from `len`). A request's body is a payload length
@@ -10,13 +10,13 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use wal_payload_common::log;
+use crate::log;
 
 /// The card on the reader (an Aime card's access code, 10 BCD bytes), until when.
 static CARD: Mutex<Option<([u8; 10], Instant)>> = Mutex::new(None);
 
 /// Puts the card of `access_code` (20 digits) on the reader for `time`.
-pub(crate) fn insert(access_code: &str, time: Duration) {
+pub fn insert(access_code: &str, time: Duration) {
     let d = access_code.as_bytes();
     if d.len() != 20 || !d.iter().all(u8::is_ascii_digit) {
         return log!("sgreader: access code {access_code:?} is not 20 digits");
@@ -169,7 +169,7 @@ fn handle(bytes: &[u8]) -> Vec<u8> {
 }
 
 /// The reader on `port`, for the serial calls of `modules`.
-pub(crate) fn init(port: &str, modules: &[usize]) {
-    wal_payload_common::serial::install_in(port, handle, modules);
+pub fn init(port: &str, modules: &[usize]) {
+    crate::serial::install_in(port, handle, modules);
     log!("sgreader: Aime reader on {port}");
 }

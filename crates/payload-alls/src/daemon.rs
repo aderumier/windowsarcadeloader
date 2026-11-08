@@ -373,6 +373,8 @@ pub(crate) fn init() {
     crate::sysfile::apply();
     crate::netenv::init(cabinet.subnet);
     crate::allnet::init();
+    crate::aimedb::init();
+    crate::aime::init();
     unsafe {
         let hooks: [(&str, &str, usize, &AtomicUsize); 9] = [
             ("kernel32.dll", "CreateFileW", create_file_w as *const () as usize, &CREATE_FILE_W),

@@ -1,0 +1,17 @@
+{
+	"video" :
+	{
+		"enable" : false
+	},
+	"aime" :
+	{
+		"firmware_path" :
+		[
+			"..\\..\\..\\AMDaemon\\aime_firm\\update_15396_6728_94.bin"
+		]
+	},
+	"emoney" :
+	{
+		"enable" : false
+	}
+}

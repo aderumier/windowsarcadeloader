@@ -5646,6 +5646,41 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
   - `--headless` runs: the background amdaemon.exe is not inside gamescope (it opens the
     desktop's display); a Wine call crossing the two displays (ClipCursor's grab, a display
     mode change) ends the game with an X BadWindow error (one display outside headless runs).
+    The launcher now starts the `background` programs inside the game's headless gamescope
+    (a shell starts them, waits `background_wait_ms`, then runs the game).
+- Sega World Drivers Championship (SDDS, UE 4.17, `WAL_ALLS_BOARD: swdc`, amdaemon Nov 2018):
+  StartApp.bat's main cabinet (`config_LanServer.json`, `-launch=Cabinet`), no ICF in the dump
+  (`icf.rs`). segatools' `swdchook`/`board/ffb.c` (GPL-3, read for the protocols only) helped.
+  - amdaemon: `config_wal.json` sets the video off, the e-money terminal off and the Aime
+    firmware's path from the game's folder (amdaemon runs from `Binaries\Win64`, not
+    `App\Todoroki`: else error 6506 "firmware update failed"). The Aime reader (837-15396) on
+    COM3 (`aime.rs`, `WAL_ALLS_AIME_PORT`): namcoes3's `sgreader.rs` moved to payload-common;
+    player 1's `card` touches it for 3 s. Error 8114 (RTC): `amRtcIsServerSync` at 0x271a70
+    patched (`mov eax,1; ret`).
+  - I/O board: wheel adc 0, gas 1, brake 2; player 1 word: up 5, down 4, left 3, right 2,
+    start 7, view change 1; player 2 word: the wheel's blue 15, green 14, red 13, yellow 12,
+    paddles left 1 / right 0 (amdaemon's `config.json`).
+  - The game's boards: COM1 the force feedback board (`ffb.rs`: 4-byte `cmd p1 p2 xor&0x7f`
+    commands, never answered; `80` motor on/off, `84` constant force, `85` vibration, `86`
+    damper, sent as the launcher's FFB outputs), COM2 the 15093 LED board (`led.rs`), COM20
+    the dashboard (`dashboard.rs`, the `BP_DashBoard` Blueprint through Unreal's SerialPort
+    plugin, first of COM20-29: `pr\r\n` answered `ps` + ten `0` flags, else error 3003
+    "indicator LED board").
+  - Main cabinet: the game reads `Y:\SDDS\LanServer.dat` too (the payload creates it; else it
+    waits for a main cabinet). Its `MainDetector` broadcasts to 192.168.149.255:40257 and must
+    hear itself, else the game reports 8404 "LAN install server not found" (the
+    `BP_InitializeTestController` Blueprint's, not amdaemon's; a "reset in test mode" error
+    amdaemon keeps): `udp.rs` sends the subnet's datagrams to lo (broadcast 127.255.255.255),
+    received ones come from the adapter's address.
+  - Offline: the attract shows the offline banner; guest play (Aime prompt: START, then left +
+    START on "Yes"), team, round, race. Debug: amdaemon's ALL.Net library prints its log on
+    stderr with its level globals set (`WAL_ALLS_DAEMON_PATCHES` `0x8a2480:05000000,
+    0x8a2490:FFFFFFFF`).
+  - English (`english.rs`, `WAL_SWDC_ENGLISH`, default on): the community "SWDC ENGLISH v2.1"
+    release folder copied into the game's folder (any name, found by its `manifest.json`):
+    applied at start like its installer (originals checked by SHA-256, moved to
+    `Content\WAL-English-backup`, the 26 files copied: `Todoroki-English_P.pak`, voice banks,
+    the movie), put back when off.
 
 ### 6.3m Sega Nu (`crates/payload-seganu`)
 

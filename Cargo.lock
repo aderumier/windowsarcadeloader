@@ -3831,6 +3831,7 @@ dependencies = [
  "aes",
  "miniz_oxide 0.8.9",
  "sha1_smol",
+ "sha2",
  "wal-payload-common",
  "wal-protocol",
  "windows-sys 0.61.2",
@@ -3860,6 +3861,8 @@ dependencies = [
 name = "wal-payload-common"
 version = "0.1.0"
 dependencies = [
+ "aes",
+ "miniz_oxide 0.8.9",
  "png 0.17.16",
  "wal-protocol",
  "windows-sys 0.61.2",
