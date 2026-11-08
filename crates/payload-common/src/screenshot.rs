@@ -633,12 +633,28 @@ unsafe fn override_size_at(params: P, windowed_index: usize) {
         return;
     }
     let p = params as *mut u32;
+    let hwnd_index = if windowed_index == d3d8::WINDOWED { 6 } else { D3D9_HWND };
+    if crate::border::config().is_some() && unsafe { *p == 0 || *p.add(1) == 0 } {
+        // a back buffer of the window's size, the window forced to the screen for the Sinden
+        // frame: the size the game gave its window (SEGA Golden Gun: 0x0 in a 1360x768 window,
+        // its picture drawn at that size in a corner of a screen-sized back buffer otherwise)
+        let window = match unsafe { *(p.add(hwnd_index).cast::<usize>()) } {
+            0 => FOCUS_WINDOW.load(Ordering::Relaxed),
+            hwnd => hwnd,
+        };
+        if let Some((w, h)) = crate::window::requested(window as P) {
+            unsafe {
+                *p = w;
+                *p.add(1) = h;
+            }
+            log!("d3d: back buffer 0x0 -> {w}x{h} (the game's window size, Sinden frame)");
+        }
+    }
     if FORCE_FULLSCREEN.load(Ordering::Relaxed) && unsafe { *p.add(windowed_index) } != 0 {
         let (mut w, mut h) = unsafe { (*p, *p.add(1)) };
         if w == 0 || h == 0 {
             // a back buffer of the window's size (SEGA Golden Gun: 0x0 in a 1360x768 window):
             // fullscreen needs it explicit
-            let hwnd_index=if windowed_index==d3d8::WINDOWED { 6 } else { D3D9_HWND };
             let window = match unsafe { *(p.add(hwnd_index).cast::<usize>()) } {
                 0 => FOCUS_WINDOW.load(Ordering::Relaxed),
                 hwnd => hwnd,

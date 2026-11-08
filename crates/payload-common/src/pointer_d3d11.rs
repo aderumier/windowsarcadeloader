@@ -286,9 +286,11 @@ pub(crate) fn capture(swap: P) {
     com!(back, 3, fn(*mut P) -> (), &mut device);
     let mut context: P = std::ptr::null_mut();
     com!(device, 40, fn(*mut P) -> (), &mut context);
-    // R8G8B8A8 (28, 29 sRGB) or B8G8R8A8 (87, 91 sRGB), not multisampled
+    // R8G8B8A8 (28, 29 sRGB), B8G8R8A8 (87, 91 sRGB) or R10G10B10A2 (24: Unreal Engine 4),
+    // not multisampled
     let rgba = matches!(desc.format, 28 | 29);
-    if (rgba || matches!(desc.format, 87 | 91)) && desc.sample_count == 1 {
+    let rgb10 = desc.format == 24;
+    if (rgba || rgb10 || matches!(desc.format, 87 | 91)) && desc.sample_count == 1 {
         let staging_desc = Texture2DDesc {
             mip_levels: 1,
             array_size: 1,
@@ -309,7 +311,11 @@ pub(crate) fn capture(swap: P) {
                 for row in 0..h {
                     let line = unsafe { std::slice::from_raw_parts((mapped[0] as *const u8).add(row * pitch), w * 4) };
                     for px in line.chunks_exact(4) {
-                        pixels.extend_from_slice(&if rgba { [px[2], px[1], px[0], 0xFF] } else { [px[0], px[1], px[2], 0xFF] });
+                        let v = u32::from_le_bytes([px[0], px[1], px[2], px[3]]);
+                        let c = |shift: u32| ((v >> shift & 0x3FF) >> 2) as u8;
+                        pixels.extend_from_slice(&if rgb10 {
+                            [c(20), c(10), c(0), 0xFF]
+                        } else if rgba { [px[2], px[1], px[0], 0xFF] } else { [px[0], px[1], px[2], 0xFF] });
                     }
                 }
                 com!(context, 15, fn(P, u32) -> (), staging, 0);

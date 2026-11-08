@@ -246,6 +246,8 @@ struct Resources {
     frame_size: (u32, u32, u32),
     saved: bool,
     backdrop: Option<(P, P)>,
+    /// The frame's geometry logged for the current back buffer size.
+    logged: bool,
 }
 
 unsafe impl Send for Resources {}
@@ -337,6 +339,7 @@ impl Resources {
             frame_size: (0, 0, 0),
             saved: false,
             backdrop: None,
+            logged: false,
         };
         let mut device1: P = std::ptr::null_mut();
         if com!(
@@ -696,6 +699,7 @@ fn compose(swap: P) {
             }
             r.textures.push((tex, srv));
             r.frame_size = size;
+            r.logged = false;
         }
         let clean = r.textures[2].0;
         if desc.sample_count > 1 {
@@ -715,6 +719,10 @@ fn compose(swap: P) {
         let Some((rect, bx, by, _)) = crate::border::geometry(desc.width, desc.height) else {
             return;
         };
+        if !r.logged {
+            r.logged = true;
+            log!("sinden: back buffer {}x{} (format {}), picture {:?}", desc.width, desc.height, desc.format, rect);
+        }
         let (w, h) = (desc.width as f32, desc.height as f32);
         let q = |image, [l, t, r, b]: [i32; 4]| Quad {
             image,

@@ -118,20 +118,26 @@ unsafe extern "system" fn create_a(
     ex: u32, class: *const u8, title: *const u8, style: u32, x: i32, y: i32, w: i32, h: i32, parent: P, menu: P, inst: P, param: P,
 ) -> P {
     let orig: CreateWindow<u8> = unsafe { std::mem::transmute(ORIG_CREATE_A.load(Ordering::Relaxed)) };
+    let (asked_w, asked_h, asked_style) = (w, h, style);
     let (x, y, w, h) = window_geometry(style, parent, x, y, w, h);
     // the window options (WAL_WINDOW_POPUP / _SIZE) for windows the game's DLLs create
     let (ex, style, x, y, w, h) = crate::window::created(ex, style, x, y, w, h, parent);
-    unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) }
+    let hwnd = unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) };
+    crate::window::remember_created(hwnd, parent, asked_style, asked_w, asked_h, (w, h));
+    hwnd
 }
 
 unsafe extern "system" fn create_w(
     ex: u32, class: *const u16, title: *const u16, style: u32, x: i32, y: i32, w: i32, h: i32, parent: P, menu: P, inst: P, param: P,
 ) -> P {
     let orig: CreateWindow<u16> = unsafe { std::mem::transmute(ORIG_CREATE_W.load(Ordering::Relaxed)) };
+    let (asked_w, asked_h, asked_style) = (w, h, style);
     let (x, y, w, h) = window_geometry(style, parent, x, y, w, h);
     // the window options (WAL_WINDOW_POPUP / _SIZE) for windows the game's DLLs create
     let (ex, style, x, y, w, h) = crate::window::created(ex, style, x, y, w, h, parent);
-    unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) }
+    let hwnd = unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) };
+    crate::window::remember_created(hwnd, parent, asked_style, asked_w, asked_h, (w, h));
+    hwnd
 }
 
 fn screen() -> (i32, i32) {
