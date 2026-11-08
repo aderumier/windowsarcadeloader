@@ -587,7 +587,10 @@ pub fn init() {
             modules.push(base);
         }
     }
-    let client = std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1");
+    // with the native border the window covers the screen: its rectangles always answer in
+    // desktop units (Elevator Action Invasion's Unreal Engine laid out its portrait picture in
+    // the real, screen-wide window otherwise: the left part of a 1920x1080 swap chain)
+    let client = crate::border::config().is_some() || std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1");
     ACTIVE.store(std::env::var("WAL_DESKTOP_ACTIVE").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
     let hooks: [(&str, usize, &AtomicUsize); 20] = [
         ("GetWindowRect", if client { window_rect as *const () as usize } else { 0 }, &ORIG_WINDOW_RECT),

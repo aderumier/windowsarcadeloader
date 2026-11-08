@@ -189,11 +189,43 @@ fn hook_present() {
             VirtualProtect(slot.cast(), 8, old, &mut old);
         }
     }
+    // the frame is drawn for the whole window: the back buffer always stretched to it
+    let mut factory: P = std::ptr::null_mut();
+    if com!(swap, 6, fn(*const GUID, *mut P) -> HRESULT, &IID_FACTORY, &mut factory) >= 0 && !factory.is_null() {
+        let factory_vtable = unsafe { *(factory as *const *mut usize) };
+        let slot = unsafe { factory_vtable.add(15) };
+        let mut old = 0;
+        unsafe {
+            VirtualProtect(slot.cast(), 8, PAGE_READWRITE, &mut old);
+            CREATE_SWAP_CHAIN_HWND.store(*slot, Ordering::Relaxed);
+            *slot = create_swap_chain_hwnd as *const () as usize;
+            VirtualProtect(slot.cast(), 8, old, &mut old);
+        }
+        release(factory);
+    }
     release(context);
     release(device);
     release(swap);
     unsafe { DestroyWindow(window) };
     log!("dxgi: native presentation hook enabled");
+}
+
+static CREATE_SWAP_CHAIN_HWND: AtomicUsize = AtomicUsize::new(0);
+/// IID_IDXGIFactory
+const IID_FACTORY: GUID = GUID::from_u128(0x7b7166ec_21c7_44ae_b21a_c9ae321ae369);
+
+/// `IDXGIFactory2::CreateSwapChainForHwnd`: `DXGI_SCALING_NONE` made `DXGI_SCALING_STRETCH`
+/// (DXGI_SWAP_CHAIN_DESC1's Scaling, dword 8). Elevator Action Invasion's Unreal Engine asks
+/// for no scaling: its 1080x1920 back buffer, frame included, was shown unscaled in the
+/// top-left corner of the screen-wide window.
+unsafe extern "system" fn create_swap_chain_hwnd(factory: P, device: P, hwnd: P, desc: *mut u32, fullscreen: P, output: P, out: *mut P) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, P, P, *mut u32, P, P, *mut P) -> HRESULT =
+        unsafe { std::mem::transmute(CREATE_SWAP_CHAIN_HWND.load(Ordering::Relaxed)) };
+    if !desc.is_null() && unsafe { *desc.add(8) } == 1 {
+        unsafe { *desc.add(8) = 0 };
+        log!("dxgi: swap chain {}x{} stretched to its window (Sinden frame)", unsafe { *desc }, unsafe { *desc.add(1) });
+    }
+    unsafe { orig(factory, device, hwnd, desc, fullscreen, output, out) }
 }
 
 unsafe extern "system" fn present(swap: P, sync: u32, flags: u32) -> HRESULT {
