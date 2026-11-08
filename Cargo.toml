@@ -12,6 +12,7 @@ members = [
     "crates/payload-tsunami",
     "crates/payload-rawthrills",
     "crates/payload-ringedge",
+    "crates/payload-seganu",
     "crates/payload-segashell",
     "crates/payload-wahlap",
     "crates/payload-europar",

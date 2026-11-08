@@ -20,6 +20,8 @@
 //!   dropped: whole back buffer to the whole window (Yatagarasu presents to 0,0 1280x720).
 //!   A fullscreen game's window left hidden or without a size (fullscreen Direct3D would have
 //!   shown and sized it: Street Fighter IV) is shown borderless over the whole screen.
+//!   `WAL_D3D9_KEEP_WINDOW=1`: a hidden window that has a size is shown where it is (a portrait
+//!   window `WAL_WINDOW_SIZE` sized, in a bezel: Sonic Dash Extreme).
 //!   The adapter's display modes also list that size (60 Hz) when the monitor has none: games
 //!   checking for their mode before creating the device run on any screen (Music GunGun! 2:
 //!   1920x1080, "Direct3D device enumeration failed" on a 1280x720 screen).
@@ -162,6 +164,8 @@ static FULLSCREEN_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 /// only offers the output's real modes, a TV has no 1280x800): devices are windowed from then on.
 static WINDOWED_FALLBACK: AtomicBool = AtomicBool::new(false);
 static WINDOWED_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
+/// `WAL_D3D9_KEEP_WINDOW=1`: see [`show_device_window`].
+static KEEP_WINDOW: AtomicBool = AtomicBool::new(false);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static ASPECT: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static SOURCE: Mutex<Option<[i32; 4]>> = Mutex::new(None);
@@ -279,6 +283,7 @@ pub fn init() {
     *FULLSCREEN_SIZE.lock().unwrap() = size;
     let windowed_size = parse_size("WAL_D3D9_WINDOWED_SIZE");
     *WINDOWED_SIZE.lock().unwrap() = windowed_size;
+    KEEP_WINDOW.store(std::env::var("WAL_D3D9_KEEP_WINDOW").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
     let aspect = d3d9_aspect();
     *ASPECT.lock().unwrap() = aspect;
     let source = std::env::var("WAL_D3D9_SOURCE").ok().and_then(|v| {
@@ -1043,7 +1048,7 @@ unsafe fn show_device_window() {
     use windows_sys::Win32::Foundation::RECT;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GWL_STYLE, GetSystemMetrics, GetWindowLongW, GetWindowRect, HWND_TOP, IsWindowVisible, SM_CXSCREEN, SM_CYSCREEN,
-        SWP_FRAMECHANGED, SWP_SHOWWINDOW, SetWindowLongW, SetWindowPos, WS_CAPTION, WS_POPUP, WS_THICKFRAME,
+        SWP_FRAMECHANGED, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetWindowLongW, SetWindowPos, WS_CAPTION, WS_POPUP, WS_THICKFRAME,
     };
     if WINDOWED_SIZE.lock().unwrap().is_none() && crate::border::config().is_none() {
         return;
@@ -1054,7 +1059,13 @@ unsafe fn show_device_window() {
     }
     let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
     unsafe { GetWindowRect(hwnd, &mut r) };
-    if unsafe { IsWindowVisible(hwnd) } != 0 && r.right > r.left && r.bottom > r.top {
+    let sized = r.right > r.left && r.bottom > r.top;
+    if sized && unsafe { IsWindowVisible(hwnd) } != 0 {
+        return;
+    }
+    if sized && KEEP_WINDOW.load(Ordering::Relaxed) {
+        unsafe { SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE) };
+        log!("d3d9: device window {hwnd:?} shown at its size {}x{}", r.right - r.left, r.bottom - r.top);
         return;
     }
     let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };

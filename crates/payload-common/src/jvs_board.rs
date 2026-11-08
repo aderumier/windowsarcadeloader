@@ -39,6 +39,11 @@
 //! `WAL_TYPEX_JVS_LAYOUT=wontertainment`: Won!Tertainment Music Channel's cabinet switches
 //! (see `Board::wontertainment`).
 //!
+//! `WAL_TYPEX_JVS_TICKETS=<output>,btn<n>`: a ticket dispenser: while general purpose output
+//! `<output>` (1-24: output 1 is the first byte's 0x80) runs its motor, player 1's switch
+//! `btn<n>` (as `WAL_TYPEX_JVS_HELD`) pulses once per ticket, its notch sensor (see
+//! [`Tickets`]; Sonic Dash Extreme: `8,btn4`).
+//!
 //! `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 and the
 //! general purpose outputs (see [`Dispenser`]).
 //!
@@ -172,6 +177,8 @@ struct Board {
     /// `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 (ready
     /// 0x80, jam 0x40, empty 0x20) and output byte 1 (dispense pulse 0x08): see [`Dispenser`].
     dispenser: Option<Dispenser>,
+    /// `WAL_TYPEX_JVS_TICKETS`: a ticket dispenser (see [`Tickets`]).
+    tickets: Option<Tickets>,
     /// `WAL_TYPEX_JVS_LAYOUT=wontertainment`: Won!Tertainment Music Channel's cabinet for
     /// `20 02 02` (found with its I/O test): system byte SELECT 0x80; player 1's first byte
     /// ENTER 0x40, door 0x20, the card dispenser's ENABLE 0x10 (on: without it error 100,
@@ -248,6 +255,52 @@ impl Dispenser {
 
     fn ready(&self) -> bool {
         self.dispensed.is_none_or(|t| t.elapsed() >= Self::OUT)
+    }
+}
+
+/// A ticket dispenser (`WAL_TYPEX_JVS_TICKETS`): its motor on a general purpose output, its
+/// notch sensor on a switch, off at rest, on for the second half of each ticket's time while
+/// the motor runs (10 tickets per second, a real dispenser's pace; the game counts the
+/// pulses and stops the motor). Never empty, never jammed.
+struct Tickets {
+    /// The motor's output: byte index of the `32` data, bit mask.
+    output: (usize, u8),
+    /// The notch sensor: player 1's switch bytes 1, 2, 3 masks.
+    notch: (u8, u8, u8),
+    /// Since when the motor runs.
+    running: Option<std::time::Instant>,
+}
+
+impl Tickets {
+    const TICKET: std::time::Duration = std::time::Duration::from_millis(100);
+
+    fn parse(spec: &str) -> Option<Tickets> {
+        let (output, switch) = spec.split_once(',')?;
+        let output: usize = output.trim().parse().ok().filter(|o| (1..=24).contains(o))?;
+        let notch = held(switch);
+        log!("jvs: ticket dispenser, motor on output {output}, notch sensor {}", switch.trim());
+        Some(Tickets { output: ((output - 1) / 8, 0x80 >> ((output - 1) % 8)), notch, running: None })
+    }
+
+    /// The `32` data written: the motor started or stopped.
+    fn output(&mut self, data: &[u8]) {
+        let on = data.get(self.output.0).is_some_and(|b| b & self.output.1 != 0);
+        match (on, self.running) {
+            (true, None) => self.running = Some(std::time::Instant::now()),
+            (false, Some(t)) => {
+                log!("jvs: ticket motor ran {} ms", t.elapsed().as_millis());
+                self.running = None;
+            }
+            _ => {}
+        }
+    }
+
+    /// The notch sensor now: on during the second half of each ticket's time.
+    fn notch(&self) -> (u8, u8, u8) {
+        match self.running {
+            Some(t) if (t.elapsed().as_millis() % Self::TICKET.as_millis()) >= Self::TICKET.as_millis() / 2 => self.notch,
+            _ => (0, 0, 0),
+        }
     }
 }
 
@@ -361,6 +414,7 @@ pub fn init(default_port: &str) {
         cyber_diver: std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v == "cyber-diver"),
         happy_playground: layout == "happy-playground",
         dispenser: (layout.trim() == "k-on").then(Dispenser::default),
+        tickets: std::env::var("WAL_TYPEX_JVS_TICKETS").ok().and_then(|v| Tickets::parse(&v)),
         wontertainment: layout.trim() == "wontertainment",
         won_output: 0,
         won_dispensed: None,
@@ -651,6 +705,12 @@ fn process(packet: &[u8]) -> Vec<u8> {
         // the dispenser's lines replace buttons 3-5 (a held button would read as a jam)
         players[0].1 = (players[0].1 & !0xE0) | if d.ready() { 0x80 } else { 0 };
     }
+    if let Some(t) = &board.tickets {
+        let notch = t.notch();
+        players[0].0 |= notch.0;
+        players[0].1 |= notch.1;
+        players[0].4 |= notch.2;
+    }
     let test = players.iter().any(|p| p.2);
     if let Some((masks, half)) = board.pulse {
         static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
@@ -835,6 +895,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 (4, vec![])
             }
             0x32 => {
+                if let Some(t) = &mut board.tickets {
+                    t.output(cmds.get(i + 2..(i + 2 + arg(1) as usize).min(cmds.len())).unwrap_or(&[]));
+                }
                 if let Some(d) = &mut board.dispenser {
                     d.output(arg(2));
                 }

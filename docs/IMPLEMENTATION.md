@@ -51,6 +51,7 @@ crates/
   payload-ringedge/        Sega RingEdge payload (amLib devices, keychip/master PCP services), loaded by wal-loader
   payload-segashell/       Sega Amusements Shell payload (the Shell's TCP service, the I/O board), loaded by wal-loader
   payload-alls/            Sega ALLS payload (amdaemon's keychip, USB I/O board, network; the LED board), loaded by wal-loader in amdaemon and the game
+  payload-seganu/          Sega Nu payload (amLib's AMEX board devices, keychip driver, system registry values; JVS), loaded by wal-loader
   payload-nesica/          NESiCAxLive payload = replacement iDmacDrv32.dll
     iDmacDrv32.def         export ordinals of the original driver (see §6.2)
     src/news.png           NESYS news picture
@@ -5646,6 +5647,59 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     desktop's display); a Wine call crossing the two displays (ClipCursor's grab, a display
     mode change) ends the game with an X BadWindow error (one display outside headless runs).
 
+### 6.3m Sega Nu (`crates/payload-seganu`)
+
+System `seganu`: Nu / Nu SX games linking Sega's amLib, whose "amy" layer talks to the AMEX
+board's drivers instead of RingEdge's `mx*` devices (segatools' `common/amex` and
+`common/platform`, public domain, were the reference; Project DIVA Arcade is its Nu example).
+First game: Sonic Dash Extreme (SDBX, Nu SX `AAW0`, 2015, 32-bit Direct3D 9, portrait). The
+payload is loaded by `wal-loader` (no driver DLL imported).
+
+- Devices (`devices.rs`, IAT hooks: `CreateFileA/W`, `DeviceIoControl`, `CloseHandle`,
+  `SetupDiGetClassDevsW` / `EnumDeviceInterfaces` / `GetDeviceInterfaceDetailW`): one device
+  per AMEX interface class, its path ours. DS (`279a9f67`: the 32-byte board record, CRC-32,
+  region, serial), EEPROM (`b7970f0c`, 8 KB) and SRAM (`741b5fca`, 512 KB) as files of the save
+  folder (`sv/EEPROM.bin`, `sv/SRAM.bin`, the game's own overlapped reads and writes; version
+  and `IOCTL_DISK_GET_DRIVE_GEOMETRY` answered), GPIO (`e9a26688`: DIP switches
+  `WAL_SEGANU_DIPSW`, push switches test / service, LEDs), JVS (`db6bbb45`: payload-common's
+  board on port `amex_jvs`, `CTL_CODE(0x8000, 0x802)` one packet each, `0x803` the sense line
+  3 / 2, the bus reset completed with `STATUS_NO_DATA_DETECTED`). `\??\FddDriver`: the keychip
+  (play counters, trace log, as alls' amdaemon). `\\.\sghwmonitor`: the CPU temperature.
+- `HKLM\SYSTEM\SEGA\SystemProperty` written at start: keychip (`WAL_SEGANU_GAME_ID`,
+  `WAL_SEGANU_PLATFORM_ID`, `WAL_SEGANU_REGION`, the machine's /24 as its network), `Static`
+  (platform id, CPU temperature limits), `Master`, `mount` (Y: application data).
+- Logs: `WAL_SEGANU_AMLOG` / `_LEVELS` (amLib's log function and module levels, as RingEdge's),
+  `WAL_SEGANU_GAMELOG` (the game's printf-like log: Sonic Dash Extreme `0x2e2b20`, its
+  managers' init only). Sonic Dash Extreme's amLib log: `0x1ddb60`, levels `0x76fa78,
+  0x76fd08,0x770120,0x782ef0,0x7830ec,0x783128,0x783134,0x783bac,0x783bb0,0x788ac4,0x788ac8,
+  0x78aac8,0x78af0c`.
+- Sonic Dash Extreme: runs from the dump root (`WAL_SEGANU_CWD=..`, `game.bat`), Y: a dump
+  folder. Its DirectInput blocked at boot on a synchronous read of Wine's virtual HID mouse:
+  `WAL_DINPUT_DISABLE`. JVS: 24 general purpose outputs (none: error 6402 "JVS I/O board does
+  not fulfill the game spec"); output 8 (byte 1, 0x01) is the ticket dispenser's motor, its
+  notch sensor player 1's btn4 (byte 2, 0x40), its empty sensor btn2 (byte 1, 0x01; found in
+  `TestMode_x86.exe`'s dispenser test: the switch words byte swapped per player, current at
+  +0x964, rising edges at +0x968): `WAL_TYPEX_JVS_TICKETS=8,btn4` (payload-common's board:
+  notch pulses at 10 tickets/s while the motor runs). Without pulses: TICKET JAM, kept in the
+  backup (the next boots resume the payout and stop on it) until the RELEASE button. COM2 is
+  the cabinet's lighting controller (a command per game state): absent. Display: its
+  1080x1920 windowed device in a 9:16 borderless window (`WAL_WINDOW_SIZE=aspect`) with a
+  1080x1920 back buffer (`WAL_D3D9_WINDOWED_SIZE`: sized from the window its 2D screens were
+  cut) and `WAL_D3D9_KEEP_WINDOW` (the window, not shown yet at the device's creation, stays
+  where it is instead of over the whole screen), in the dump's `bezel.png`
+  (`WAL_BEZEL_FIT=1`, a 3:4 opening).
+- Test menu: on TEST the game creates `C:\Users\AppUser\gametest` and exits (`game.bat` then
+  runs `TestMode_x86.exe` and deletes the file). The marker goes to the save folder and its
+  creation asks the launcher to relaunch with `exe=TestMode_x86.exe` (`WAL_SEGANU_TEST_EXE`);
+  in the test menu the payload removes it and asks for the game's relaunch, so EXIT starts the
+  game again (the cabinet's `game.bat` loop). The test menu accepts only a board with 4 analog
+  channels at least ("JVSNode[0] does not satisfies function", then NO JVS NODE in its input
+  test): `WAL_TYPEX_JVS_ANALOG_INPUTS=,,,` (declared, fixed). Its input test names the
+  switches: the DASH button is START, btn1 the ticket RELEASE button (profile: `b1` start,
+  `b2` release). Its amLib log: `0x2d760`, levels `0x770cc 0x770d0 0x77700 0x77708 0x8ad60
+  0x8ad70 0x8ad78` (through `WAL_EXE_ENV`: the level list takes spaces there).
+- Not done: free play (amLib's credit record).
+
 ### 6.4 Batocera integration
 
 A configgen generator (`windows-arcade-loader`, kept in the rgs Batocera tree, not in this
@@ -6050,6 +6104,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `super-monkey-ball-ticket-blitz` | Super Monkey Ball Ticket Blitz | ringedge | works (user: 100%) | RingWide (platform AAM) ticket game, trackball: `prjMonkey_tv_final.exe` (game.bat: `-noerror -fullscreen`, test menu `-t`); the executable's drive letter selects its mode (X: product: amLib, JVS, `SBVJ_Table.dat.product`; Z: development; else a PC build without I/O), patched to always X:; JVS with 20 outputs (it wants 16 at least: "JVSNode[0] does not satisfies function"); the trackball is DirectInput's system mouse (relative), the left stick / keyboard arrows added to it (`WAL_DINPUT_MOUSE_STICK`); its check for 2 mice in the raw input list (else error 1001) patched; the dump's exe is a 1920x1080 hack whose attract mode 2D stays at 1280x720 positions: the original 1280x720 restored (4 immediates), windowed in a screen-sized popup, 16:9; free play by default (amCreditInit returns -5, defaults) |
 | `lets-go-safari` | Let's Go Safari | ringedge | works (user: 100%) | RingWide (platform AAM) kids' driving game: `GameSampR_RingWide.exe` (test menu program `GameTestR_RingWide.exe`); JVS on COM4, the board 837-14895 in "FE MODE" (`WAL_TYPEX_JVS_IDENTIFIER`, 1 player x 22 switches, 20 outputs; else error 6402); amStorage on mxstorage 40114 (else a minute's wait, error 1001); region 04 (English; 08 Chinese; keychip and board), credit record; challenge file `SDAX_Table.dat` generated; course buttons 1-4 = JVS buttons 3-6 (pad A B X Y), wheel = HANDLE R / L (buttons 9 / 10), a rotary encoder pulsed while left / right are held (`WAL_TYPEX_JVS_PULSE`); no analog channel read |
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) | RingWide (platform AAM) medal slot machine satellite (game id SBXF), `App_Release.exe` alone (game.bat's `mbcom.exe`, the network medal bank, and `AimeReader.exe` not needed); 1280x1024 (DIP DF), region 01, credit record, challenge file `Data/amFile/SBXF_Table.dat`; its boards from `Data/script/game_conf.lua` (`IOBoardComPort` 3, `TouchPanelComPort` 1, `CPBoardComPort` 5; 0 = unused, debug): the I/O board on COM3 is Medal no Gunman's protocol with its own switches (`WAL_RINGEDGE_MEDAL_IO`, `satellite.rs`: selector panel / main door closed, reset key = service, transfer; medals counted by `66 0C`, coin = 10 medals), the control panel board on COM5 (`WAL_RINGEDGE_CP_BOARD`: buttons select 1-5, start, payout through command `81`), a 3M MicroTouch EX II on COM1 (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`: the mouse, its left button = b8; format tablet reports streamed through the serial layer's idle callback, Y up; the game's default calibration fits). A fresh backup shows error 3001 until the reset key (service) is turned. The game saves the I/O board's last command list in backup RAM and restores it at boot, then reads the `74` handshake reply against it (its checksum as a report: error 3105 at every boot once a payout saved the list): patched to restore it empty (`WAL_PATCHES` 0x2deac). Payout (b6) pays the medals out |
+| `sonic-dash-extreme` | Sonic Dash Extreme | seganu | headless tests (2026-11-08): attract, coins, start, character select, play, tickets dispensed during play and at the end, back to attract, test menu and back; not user-verified | Sega Nu SX (§6.3m): AMEX board devices, keychip driver, registry values, JVS with 24 outputs and the ticket dispenser (`WAL_TYPEX_JVS_TICKETS`), portrait window in the dump's bezel |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide |

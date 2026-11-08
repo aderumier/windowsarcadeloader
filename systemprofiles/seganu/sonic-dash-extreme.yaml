@@ -1,0 +1,63 @@
+# Sonic Dash Extreme (Sega Nu SX, 2015), vertical ticket redemption game (game id SDBX).
+# Runs exe/SonicDash_R_Ring.exe from the dump root (game.bat).
+# Override values in userprofiles/seganu/sonic-dash-extreme.yaml.
+system: seganu
+name: Sonic Dash Extreme
+
+# a Windows dinput8.dll shipped in the dump
+hide: [exe/dinput8.dll]
+
+# the cabinet's Y: drive (application data: Y:\SDBX, its log and records): a folder of the dump
+drives:
+  y: Y
+
+# the JVS switches (the test menu's input test): the DASH button is the START switch, btn1 the
+# ticket RELEASE button (clears a ticket error); btn2 is the ticket dispenser's empty sensor
+# (on: TICKET EMPTY), no button there
+native_map:
+  b1: start
+  b2: btn1
+
+env:
+  # its working directory is the dump root (fs\, its data), not exe/
+  WAL_SEGANU_CWD: ".."
+  WAL_SEGANU_GAME_ID: SDBX
+  WAL_SEGANU_PLATFORM_ID: AAW0
+  # the game reads the keyboard and joysticks through DirectInput (a blocking read of Wine's
+  # virtual HID mouse at boot): no input there, the JVS board only
+  WAL_DINPUT_DISABLE: "1"
+  # the cabinet's lamps and ticket dispenser on the JVS board's outputs (it writes 3 bytes;
+  # without outputs: error 6402 "JVS I/O board does not fulfill the game spec")
+  WAL_TYPEX_JVS_OUTPUTS: "24"
+  # the ticket dispenser: its motor on output 8 (output byte 1, 0x01), its notch sensor on
+  # player 1's switch btn4 (the test menu's "NOTCH SENSOR"; its "EMPTY SENSOR" is btn2, never
+  # on). Without notch pulses: TICKET JAM, kept in the backup until the RELEASE button
+  WAL_TYPEX_JVS_TICKETS: "8,btn4"
+  # the test menu accepts only a board with 4 analog channels at least ("JVSNode[0] does not
+  # satisfies function", then NO JVS NODE): channels declared, unused (fixed values)
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,"
+  # its 1080x1920 windowed device in a borderless 9:16 window centered on the screen, in the
+  # dump's bezel.png (its 3:4 opening fitted to the picture). The back buffer stays 1080x1920
+  # (sized from the window, the 2D screens laid out for 1080 wide were cut); the window, not
+  # shown yet at the device's creation, keeps its size (not put over the whole screen)
+  WAL_D3D9_WINDOWED_SIZE: 1080x1920
+  WAL_D3D9_KEEP_WINDOW: "1"
+  WAL_D3D9_ASPECT: "9:16"
+  WAL_WINDOW_SIZE: aspect
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+  WAL_BEZEL: bezel.png
+  WAL_BEZEL_FIT: "1"
+
+controls:
+  left: Left (lane)
+  right: Right (lane)
+  up: Jump
+  down: Roll
+  b1: Dash / Start
+  b2: Ticket release
+  start: Start / Dash
+  coin: Coin
+  service: Service
+  test: Test menu
