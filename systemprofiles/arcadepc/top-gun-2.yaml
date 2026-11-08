@@ -27,9 +27,10 @@ env:
   WAL_DESKTOP_SIZE: 1080x1920
   # where the gun points (the cabinet's camera gun has no sight): the common crosshair option's default
   WAL_CROSSHAIR: "1"
-  # the cabinet art around the picture, its opening fitted to the game
+  # the cabinet art around the picture, its opening fitted to the game, the art on each side
+  # stretched to the screen's edge (kept at its aspect, it left black bars on a 16:9 screen)
   WAL_BEZEL: bezel.png
-  WAL_BEZEL_FIT: "1"
+  WAL_BEZEL_FIT: stretch
   # "1": a 16:9 screen, the levels full screen (not stretched), the menus, attract and
   # loading in the bezel (the portrait setup above undone by the payload); "0": the cabinet's
   # portrait picture

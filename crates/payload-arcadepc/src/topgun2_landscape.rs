@@ -17,7 +17,8 @@
 //! - **Bezel.** Drawn on the game's picture (`images_d3d11.rs`): the image's parts left and
 //!   right of its opening against the portrait column (9:16 of the height) at the screen's
 //!   middle, the image's scale the screen's height (the portrait setup's `WAL_BEZEL_FIT`), black
-//!   beyond; hidden while the game's `in_level` says a level plays (full screen).
+//!   beyond (`WAL_BEZEL_FIT=stretch`: those parts stretched to the screen's edges); hidden while
+//!   the game's `in_level` says a level plays (full screen).
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -46,6 +47,7 @@ pub fn prepare() {
     if let Ok(bezel) = std::env::var("WAL_BEZEL") {
         let _ = BEZEL.set(bezel.trim().to_string());
     }
+    let _ = STRETCH.set(std::env::var("WAL_BEZEL_FIT").is_ok_and(|v| v.trim() == "stretch"));
     for var in ["WAL_DESKTOP_SIZE", "WAL_BEZEL", "WAL_BEZEL_FIT"] {
         unsafe { std::env::remove_var(var) };
     }
@@ -152,6 +154,9 @@ fn ui_by_height() {
     }
 }
 
+/// `WAL_BEZEL_FIT=stretch`: the bezel's parts stretched to the screen's edges.
+static STRETCH: OnceLock<bool> = OnceLock::new();
+
 /// The bezel's parts' widths, in the image's heights.
 static GEOMETRY: OnceLock<(f32, f32)> = OnceLock::new();
 
@@ -200,6 +205,9 @@ fn bezel_quads() -> Vec<Quad> {
     let aspect = sh / sw;
     let column = aspect * 9.0 / 16.0;
     let (gl, gr) = (0.5 - column / 2.0, 0.5 + column / 2.0);
+    if STRETCH.get().is_some_and(|s| *s) {
+        return vec![Quad { image: 0, rect: [0.0, 0.0, gl, 1.0] }, Quad { image: 1, rect: [gr, 0.0, 1.0 - gr, 1.0] }];
+    }
     let (lw, rw) = (left * aspect, right * aspect);
     vec![
         Quad { image: 2, rect: [0.0, 0.0, (gl - lw).max(0.0), 1.0] },
