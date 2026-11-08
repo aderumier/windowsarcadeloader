@@ -23,6 +23,14 @@
 //!
 //! Save folder: `WAL_SEGANU_SAVE` (default `sv`, relative to the working directory).
 //!
+//! Free play (`WAL_SEGANU_FREEPLAY`, else the common `WAL_FREEPLAY`): amLib's credit record
+//! (backup record 1, in the EEPROM at 0x40, its copy at 0x840, 0x50 bytes: CRC-32 of the bytes
+//! after it, the free play flag at +0x0A; the ALLS credit block's place) set at each start
+//! ([`write_free_play`]). A blank backup makes the game rebuild the record from its default
+//! settings (free play off) and use them for that session: `WAL_SEGANU_FREEPLAY_DEFAULT=<rva>`,
+//! the free play byte of those defaults in the executable, set too (Sonic Dash Extreme:
+//! `0x5a51da`, in its default game data, whose credit record it copies to the EEPROM).
+//!
 //! The test menu: on TEST the game creates `C:\Users\AppUser\gametest` (the save folder's
 //! `gametest`) and exits, its `game.bat` then runs the test menu program (`TestMode_x86.exe`,
 //! `WAL_SEGANU_TEST_EXE`) and deletes the file: the payload asks the launcher to relaunch with
@@ -133,6 +141,7 @@ pub(crate) fn init() {
             Err(e) => log!("devices: cannot open {path}: {e}"),
         }
     }
+    write_free_play();
     write_registry();
     let hooks: [(&str, &str, usize); 8] = [
         ("kernel32.dll", "CreateFileA", create_file_a as *const () as usize),
@@ -151,6 +160,71 @@ pub(crate) fn init() {
         }
     }
     log!("devices: AMEX board, keychip and system values; EEPROM and SRAM in {} (DIP switches {:02X})", cfg.save, cfg.dip_switches);
+}
+
+/// amLib's credit record in the EEPROM (record 1): its place, copy, size and free play byte.
+const CREDIT_RECORD: (u64, u64, usize) = (0x40, 0x840, 0x50);
+const CREDIT_FREE_PLAY: usize = 0x0A;
+
+/// Free play in the credit record: the option set (game settings otherwise untouched). A new
+/// EEPROM gets the record the game writes as its default (Sonic Dash Extreme's: coin chutes, 1
+/// credit per game). A record that is not valid (another layout) is left alone.
+fn write_free_play() {
+    use std::io::{Read, Seek, SeekFrom, Write};
+    let Some(free_play) = wal_payload_common::free_play("WAL_SEGANU_FREEPLAY") else { return };
+    free_play_default(free_play);
+    let (at, copy, size) = CREDIT_RECORD;
+    let path = &files()[0].0;
+    let Ok(mut f) = std::fs::OpenOptions::new().read(true).write(true).open(path) else { return };
+    let mut record = vec![0u8; size];
+    if f.seek(SeekFrom::Start(at)).and_then(|_| f.read_exact(&mut record)).is_err() {
+        return;
+    }
+    let crc = u32::from_le_bytes(record[..4].try_into().unwrap());
+    if record.iter().all(|&b| b == 0) {
+        // amLib's default credit settings
+        record[8..23].copy_from_slice(&[0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    } else if crc != crc32(&record[4..]) {
+        log!("devices: credit record not valid: free play not set");
+        return;
+    }
+    if record[CREDIT_FREE_PLAY] == free_play as u8 && crc == crc32(&record[4..]) {
+        log!("devices: free play {free_play}");
+        return;
+    }
+    record[CREDIT_FREE_PLAY] = free_play as u8;
+    let crc = crc32(&record[4..]);
+    record[..4].copy_from_slice(&crc.to_le_bytes());
+    for place in [at, copy] {
+        if f.seek(SeekFrom::Start(place)).and_then(|_| f.write_all(&record)).is_err() {
+            log!("devices: cannot write the credit record");
+            return;
+        }
+    }
+    log!("devices: free play {free_play} (credit record written)");
+}
+
+/// `WAL_SEGANU_FREEPLAY_DEFAULT`: the game's default credit record made with free play too (its
+/// byte checked: 0 or 1).
+fn free_play_default(free_play: bool) {
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+    let Some(rva) = std::env::var("WAL_SEGANU_FREEPLAY_DEFAULT").ok().and_then(|v| usize::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()) else {
+        return;
+    };
+    let at = unsafe { GetModuleHandleW(std::ptr::null()) } as usize + rva;
+    let byte = at as *mut u8;
+    if unsafe { *byte } > 1 {
+        log!("devices: free play default at +{rva:#x}: unexpected byte {:02x}, not set", unsafe { *byte });
+        return;
+    }
+    let mut old = 0;
+    unsafe {
+        VirtualProtect(byte as *const c_void, 1, PAGE_EXECUTE_READWRITE, &mut old);
+        *byte = free_play as u8;
+        VirtualProtect(byte as *const c_void, 1, old, &mut old);
+    }
+    log!("devices: free play {free_play} in the default credit settings (+{rva:#x})");
 }
 
 // ── files ─────────────────────────────────────────────────────────────────────────────────

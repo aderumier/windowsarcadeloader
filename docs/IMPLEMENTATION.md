@@ -5698,7 +5698,14 @@ payload is loaded by `wal-loader` (no driver DLL imported).
   switches: the DASH button is START, btn1 the ticket RELEASE button (profile: `b1` start,
   `b2` release). Its amLib log: `0x2d760`, levels `0x770cc 0x770d0 0x77700 0x77708 0x8ad60
   0x8ad70 0x8ad78` (through `WAL_EXE_ENV`: the level list takes spaces there).
-- Not done: free play (amLib's credit record).
+- Free play (`WAL_SEGANU_FREEPLAY`, else the common `WAL_FREEPLAY`; `seganu` is in the GUI's
+  free play systems): amLib's credit record (backup record 1: EEPROM 0x40, copy 0x840, 0x50
+  bytes, CRC-32 of the bytes after it) has the free play flag at +0x0A (the ALLS credit
+  block's place; +0x08 = 1 gives error 1000 "Wrong Coin Setting"), set at each start. A blank
+  backup makes the game copy the record from its default game data, used for that session:
+  `WAL_SEGANU_FREEPLAY_DEFAULT=0x5a51da` sets the flag there too (amLib's own default,
+  `0x5d2d10`, is not the one it uses). Verified: FREE PLAY from a blank backup, START alone
+  starts a game; off: coins and credits again.
 
 ### 6.4 Batocera integration
 

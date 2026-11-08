@@ -21,7 +21,7 @@ pub const VOLUME_ENV: &str = "WAL_VOLUME";
 /// The common free play option (`1`/`0`, default `1`: `defaults.yaml`), for the systems whose
 /// payload can set free play ([`FREEPLAY_SYSTEMS`]).
 pub const FREEPLAY_ENV: &str = "WAL_FREEPLAY";
-pub const FREEPLAY_SYSTEMS: &[&str] = &["apm3", "konami", "segashell", "europar", "unis", "namcoes3"];
+pub const FREEPLAY_SYSTEMS: &[&str] = &["apm3", "konami", "segashell", "europar", "unis", "namcoes3", "seganu"];
 const DEFAULTS: &str = include_str!("defaults.yaml");
 
 /// Graphics stack for old DirectDraw/D3D games.

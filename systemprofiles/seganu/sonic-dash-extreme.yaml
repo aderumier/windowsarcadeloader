@@ -23,6 +23,9 @@ env:
   WAL_SEGANU_CWD: ".."
   WAL_SEGANU_GAME_ID: SDBX
   WAL_SEGANU_PLATFORM_ID: AAW0
+  # free play (the common option) also in the game's default settings, which a blank backup
+  # gets on its first boot (their credit record's free play byte)
+  WAL_SEGANU_FREEPLAY_DEFAULT: "0x5a51da"
   # the game reads the keyboard and joysticks through DirectInput (a blocking read of Wine's
   # virtual HID mouse at boot): no input there, the JVS board only
   WAL_DINPUT_DISABLE: "1"
