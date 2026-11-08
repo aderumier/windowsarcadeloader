@@ -22,8 +22,9 @@ fi
 cp tools/batocera/arcade-launcher-gui tools/batocera/icon.png "$DEST/"
 # prefixes ready to unpack: the shared one (tools/prefix-archive.sh) and games' own
 # (wine-prefix/dotnet11.tar.gz: the .NET 1.1 prefix of Need for Speed Underground and Carbon), if built
+# (not the test prefixes: links to full.tar.gz, a full copy each)
 for archive in wine-prefix/*.tar.gz; do
-    [ -f "$archive" ] || continue
+    [ -f "$archive" ] && [ ! -L "$archive" ] || continue
     mkdir -p "$DEST/wine-prefix"
     cp "$archive" "$DEST/wine-prefix/"
     # its version: prefixes unpacked from an older archive are updated
