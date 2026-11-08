@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (303)
+## Games (304)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -216,6 +216,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | not in the test |  |
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | not in the test |  |
 | `cotton-rock-n-roll` | Cotton Rock 'n' Roll | apm3 | user 100% (2026-11-07); headless: Aime cards, story, play, game over saved (ranking), test mode | not in the test |  |
+| `umihara-kawase-fresh` | Umihara Kawase Fresh! for AC | apm3 | user 100% (2026-11-08), jump on b1 (left Ctrl); headless: Aime cards (player loaded, rankings), Time Attack stage start, test mode | not in the test |  |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | not in the test |  |
 | `guilty-gear-xrd-rev2-apm3` | Guilty Gear Xrd REV 2 (APM3) | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen | not in the test |  |
 | `guilty-gear-strive` | Guilty Gear -Strive- | apm3 | user 100% (2026-11-06): Aime cards, the player saved and reloaded, test menu, full screen; LOCAL plays alone against a still P2, no network versus | not in the test |  |

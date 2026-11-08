@@ -1,0 +1,29 @@
+# Umihara Kawase Fresh! for AC (Sega ALLS, APM3 edition; 32-bit). Runs App\umifresh.exe; the
+# test switch starts gametest.exe (.NET), whose exit starts the game again.
+# Aime card: always on the reader; the card input (F4, pad guide) takes it off. The player's
+# data in apms/ of the game folder (the payload's servers).
+# Override values in userprofiles/apm3/umihara-kawase-fresh.yaml.
+system: apm3
+name: Umihara Kawase Fresh! for AC
+
+# jump (push05, Z by default) on b1 (left Ctrl, pad A); b1's push01 (menus: decide) on b5
+native_map:
+  b1: push05
+  b5: push01
+
+env:
+  # the dump's app.json subGameId
+  WAL_APM3_GAME_ID: SDGU
+  WAL_APM3_TEST: gametest.exe
+  # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  b1: Jump
+  b5: Decide (menus)
+  card: Aime card (take off / put back)

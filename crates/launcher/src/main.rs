@@ -669,6 +669,8 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     let mut last = InputFrame::default();
     let mut last_sent = Instant::now();
     let mut killing = false;
+    // when the exit was asked, until the game's process group is killed itself
+    let mut kill_asked: Option<Instant> = None;
     let mut last_check = Instant::now();
     let status = loop {
         hub.poll(Duration::from_millis(4));
@@ -697,7 +699,16 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         if (hub.exit_requested || stop.load(Ordering::SeqCst)) && !killing {
             eprintln!("launcher: stopping the game");
             killing = true;
+            kill_asked = Some(Instant::now());
             let _ = wine.wineserver("-k");
+        }
+        // the game still there: `wineserver -k` found another server (the prefix extracted
+        // again while the game ran: the server folder is named after the prefix directory's
+        // inode, the game's server stayed in the old one)
+        if kill_asked.is_some_and(|t| t.elapsed() > Duration::from_secs(5)) {
+            eprintln!("launcher: the game still runs 5 s after wineserver -k: its processes killed");
+            kill_asked = None;
+            let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stderr(std::process::Stdio::null()).status();
         }
         if let Some(status) = child.try_wait()? {
             // a game ending to be started again with other arguments (The Swarm: each stage

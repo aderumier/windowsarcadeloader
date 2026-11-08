@@ -493,7 +493,10 @@ The game is started from there (cwd + `C:\wal\...\game.exe`).
 `run()`: load profile → system → `Wine::new` → resolve exe → check payload files → prefix +
 graphics → run dir → payload env → print summary → (dry run stops here) → TCP server →
 input hub → spawn wine (in gamescope when enabled) → loop { poll input 4 ms, broadcast on change / 100 ms, exit combo or
-Ctrl-C/SIGTERM → `wineserver -k`, child exit → break } → `wineserver -k` for leftovers.
+Ctrl-C/SIGTERM → `wineserver -k` (the game still running 5 s later: its process group killed;
+the shared prefix extracted again during the run gave the game's server another folder, the
+server folder being named after the prefix directory's inode), child exit → break } →
+`wineserver -k` for leftovers.
 
 Subcommands: `run` (default), `input-test` (prints the merged sticks; works without a game
 profile), `show` (merged profile).
@@ -5447,6 +5450,12 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   client built in): no patch. Test program `gametest.exe` (.NET WPF, 32-bit). The Aime prompt's
   default is neither button (left then button 1 plays with the card); button 1 held on the title
   shows the card's access code.
+* **Umihara Kawase Fresh! for AC** (`App\umifresh.exe`, 32-bit OpenGL, game id SDGU, the
+  profile's `WAL_APM3_GAME_ID`; the ABAAS game server client built in): no patch. Test program
+  `gametest.exe` (.NET WPF). The dump's own `apm_x86.dll` (with `apm3_config.exe`,
+  `apm3_input.bin`) is replaced by the payload. On the stage list START opens the controls
+  settings, button 1 decides. Jump (push05, b5 by default: Z) on b1 (left Ctrl, pad A), b1's
+  push01 on b5 (the profile's `native_map`, user's choice).
 * **Virtua Fighter 3tb Online** (`App\runtime\media\arashi.exe`, 64-bit Direct3D 11, game id
   SDJQ from the dump's `app.json`; the Model 3 game runs in `pre3\pre3-pxd-w64-Retail.dll`): no
   patch. Test mode = the same program (`gametest.bat`): `-wal-test`. The ABAAS game server holds
@@ -5994,6 +6003,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `cotton-rock-n-roll` | Cotton Rock 'n' Roll | apm3 | user 100% (2026-11-07); headless: Aime cards, story, play, game over saved (ranking), test mode | Sega ALLS APM3 (§6.3k): 32-bit OpenGL, test program `gametest.exe` (.NET) |
+| `umihara-kawase-fresh` | Umihara Kawase Fresh! for AC | apm3 | user 100% (2026-11-08), jump on b1 (left Ctrl); headless: Aime cards (player loaded, rankings), Time Attack stage start, test mode | Sega ALLS APM3 (§6.3k): 32-bit OpenGL, game id SDGU, test program `gametest.exe` (.NET) |
 | `virtua-fighter-3tb-online` | Virtua Fighter 3tb Online | apm3 | user 100% (2026-11-07), network icon green; headless: Aime cards (terms, user data, saved), team battle play, test mode and back | Sega ALLS APM3 (§6.3k): 64-bit Direct3D 11, Model 3 game in `pre3`, same-program test mode |
 | `virtua-fighter-esports` | Virtua Fighter eSports | apm3 | headless (2026-11-07): Aime cards (terms, new player saved), guest and Aime arcade play, test mode (`vf5fs\vfes.exe`) and back, network icon green; no network versus | Sega ALLS APM3 (§6.3k): Dragon Engine front end + VF5FS core DLL (ABAAS client), test program in `vf5fs\` |
 | `dengeki-bunko-fighting-climax-apm3` | Dengeki Bunko: Fighting Climax (APM3) | apm3 | user 100% (2026-11-06); headless: online, Aime cards, CPU fights | Sega ALLS APM3 (§6.3k): 32-bit Direct3D 9, network state patches, `Aime_getConfirm` AimeDB |
