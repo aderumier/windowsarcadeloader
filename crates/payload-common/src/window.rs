@@ -218,8 +218,13 @@ pub(crate) fn forced(hwnd: HWND, x: i32, y: i32, cx: i32, cy: i32) -> Option<(i3
         return None; // no WAL_WINDOW_SIZE
     }
     if cx == 0 && cy == 0 {
-        // collapsed on purpose (Time Crisis 5 entering its operator menu): left so
-        return None;
+        // collapsed on purpose (Time Crisis 5 entering its operator menu): left so. A window
+        // not shown yet is sized: Mach Storm sizes its new window from the work area less the
+        // screen, 0x0 on the Batocera box (Wine's work area 18 pixels taller than the screen)
+        if unsafe { windows_sys::Win32::UI::WindowsAndMessaging::IsWindowVisible(hwnd) } != 0 {
+            log!("window: {hwnd:?} collapsed to 0x0 at {x},{y}: left so");
+            return None;
+        }
     }
     let (l, t) = (LEFT.load(Ordering::Relaxed), TOP.load(Ordering::Relaxed));
     if (x, y, cx, cy) != (l, t, w, h) {

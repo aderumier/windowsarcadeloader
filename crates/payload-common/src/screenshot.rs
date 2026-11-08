@@ -973,12 +973,46 @@ fn count_present() {
     }
 }
 
+/// The game's frames in the log (the first one, then every 30 s): their count and the window
+/// they go to (its size, visible or not), to tell a game rendering behind the screen from a
+/// stuck one.
+fn log_presents(window: P) {
+    use windows_sys::Win32::Foundation::RECT;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowRect, IsWindowVisible};
+    static STATS: Mutex<Option<(Instant, u64)>> = Mutex::new(None);
+    let mut stats = STATS.lock().unwrap();
+    let first = stats.is_none();
+    let (last, n) = stats.get_or_insert((Instant::now(), 0));
+    *n += 1;
+    if !first && last.elapsed() < Duration::from_secs(30) {
+        return;
+    }
+    *last = Instant::now();
+    let hwnd = if window.is_null() { DEVICE_WINDOW.load(Ordering::Relaxed) as P } else { window };
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    let visible = unsafe {
+        GetWindowRect(hwnd, &mut r);
+        IsWindowVisible(hwnd) != 0
+    };
+    let foreground = unsafe { GetForegroundWindow() } == hwnd;
+    log!(
+        "d3d9: {n} frame(s) presented, window {hwnd:?} {}x{} at {},{}, visible {}, foreground {}",
+        r.right - r.left,
+        r.bottom - r.top,
+        r.left,
+        r.top,
+        visible as u8,
+        foreground as u8
+    );
+}
+
 unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
     if std::env::var_os("WAL_HANG_REPORT").is_some() {
         crate::crash::heartbeat();
     }
     pace_present();
     count_present();
+    log_presents(window);
     let composed = unsafe { draw_overlay(dev, window) };
     if composed.is_none() {
         unsafe { maybe_capture(dev) };
