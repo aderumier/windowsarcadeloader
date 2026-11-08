@@ -369,6 +369,7 @@ unsafe extern "system" fn get_computer_name_a(buf: *mut u8, size: *mut u32) -> i
 pub(crate) fn init() {
     let cabinet = registry::Cabinet::from_env();
     registry::write(&cabinet, &module_path());
+    crate::icf::ensure(&cabinet);
     crate::sysfile::apply();
     crate::netenv::init(cabinet.subnet);
     crate::allnet::init();

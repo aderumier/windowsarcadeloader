@@ -1,5 +1,5 @@
 //! Sega ALLS payload: the cabinet system the game and `amdaemon.exe` run on (Mario & Sonic at
-//! the Tokyo 2020 Olympic Games Arcade).
+//! the Tokyo 2020 Olympic Games Arcade, House of the Dead: Scarlet Dawn).
 //!
 //! An ALLS game talks to `amdaemon.exe` (keychip, ALL.Net, the USB I/O board, credits), which
 //! talks to the hardware. Both programs are started by `wal-loader` with this payload (the
@@ -18,6 +18,8 @@
 //! - `WAL_ALLS_ALLNET=1`: ALL.Net authentication accepted (`allnet.rs`; default refused: the game
 //!   plays offline)
 //! - `WAL_ALLS_CLOCK=0`: the real time zone (default Japan's, `clock.rs`)
+//! - `WAL_ALLS_BOARD`: the game's controls (`io4.rs`; `hotd`: also the gun sensor board on
+//!   COM1, `gunsensor.rs`, instead of the LED board)
 //! - `WAL_ALLS_DAEMON_PATCHES`: amdaemon's patches (`<rva>:<hex bytes>,...`)
 //! - `WAL_PATCHES`: game code patches (same format)
 //!
@@ -27,6 +29,10 @@
 mod allnet;
 mod clock;
 mod daemon;
+mod gore;
+mod gunsensor;
+mod hotd;
+mod icf;
 mod io4;
 mod led;
 mod netenv;
@@ -64,7 +70,15 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             // never reach the game
             wal_payload_common::input_filter::init(exe, |_| false);
             wal_payload_common::patches::apply();
-            led::init();
+            if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "hotd") {
+                // COM1: the gun sensor board; COM22 the LED controller, absent
+                gunsensor::init();
+                hotd::init();
+                gore::init();
+                wal_payload_common::serial::install_sink("!COM22");
+            } else {
+                led::init();
+            }
             netenv::init_game();
             allnet::init_redirect();
         }

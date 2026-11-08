@@ -91,6 +91,7 @@ pub mod serial;
 pub mod screenshot;
 #[cfg(windows)]
 pub mod sdl;
+pub mod unreal_ini;
 #[cfg(windows)]
 pub mod vfw;
 #[cfg(windows)]

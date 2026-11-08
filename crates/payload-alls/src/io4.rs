@@ -13,6 +13,8 @@
 //!   (blue), b2 / up / start = PUSH CENTER (yellow), b3 / right = PUSH RIGHT (red); b4 / b5 the
 //!   left / right foot on the floor panel (the game's run: step left and right in turn), b6 a
 //!   jump (every jump sensor's beam broken, both feet off).
+//! - `hotd` (House of the Dead: Scarlet Dawn): each player's start, b3 the gun's front button,
+//!   b4 its side button (the triggers and the aim: the gun sensor board, `gunsensor.rs`).
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -49,6 +51,21 @@ struct Read {
 static PENDING: Mutex<VecDeque<Read>> = Mutex::new(VecDeque::new());
 static WAKE: Condvar = Condvar::new();
 
+/// The game's controls (`WAL_ALLS_BOARD`).
+#[derive(Clone, Copy, PartialEq)]
+enum Board {
+    Tokyo,
+    Hotd,
+}
+
+fn board() -> Board {
+    static BOARD: std::sync::OnceLock<Board> = std::sync::OnceLock::new();
+    *BOARD.get_or_init(|| match std::env::var("WAL_ALLS_BOARD").unwrap_or_default().trim() {
+        "hotd" => Board::Hotd,
+        _ => Board::Tokyo,
+    })
+}
+
 /// The switches of players 1 and 2 from the virtual sticks.
 fn switches() -> [u16; 2] {
     let p1 = input(0).buttons;
@@ -58,6 +75,20 @@ fn switches() -> [u16; 2] {
     }
     if p1 & b::SERVICE != 0 {
         sw[0] |= SERVICE;
+    }
+    if board() == Board::Hotd {
+        // House of the Dead: Scarlet Dawn: each player's start (bit 7) and the gun's two
+        // buttons, front (gun_select, bit 4) and side (gun_special, bit 1); the triggers and the
+        // aim come from the gun sensor board (`gunsensor.rs`)
+        for (p, s) in sw.iter_mut().enumerate() {
+            let buttons = input(p).buttons;
+            for (button, bit) in [(b::START, 7), (b::B3, 4), (b::B4, 1)] {
+                if buttons & button != 0 {
+                    *s |= 1 << bit;
+                }
+            }
+        }
+        return sw;
     }
     // Mario & Sonic (tokyo): the three buttons, the floor panel's sensors
     if p1 & (b::B1 | b::LEFT) != 0 {
@@ -92,8 +123,9 @@ static COIN_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool:
 fn report() -> [u8; 64] {
     let mut r = [0u8; 64];
     r[0] = 0x01;
-    // coin chute 1 (offset 1 + 16 + 8 = 25): counts up on each press
-    let coin = input(0).buttons & b::COIN != 0;
+    // coin chute 1 (offset 1 + 16 + 8 = 25): counts up on each press (either player's coin:
+    // the games share the chutes)
+    let coin = (input(0).buttons | input(1).buttons) & b::COIN != 0;
     if coin && !COIN_HELD.swap(true, Ordering::Relaxed) {
         COINS.fetch_add(1, Ordering::Relaxed);
     } else if !coin {

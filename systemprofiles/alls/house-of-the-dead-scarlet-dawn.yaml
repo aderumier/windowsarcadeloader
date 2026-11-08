@@ -1,0 +1,161 @@
+# The House of the Dead: Scarlet Dawn (Sega, ALLS UX, 2018; game id SDET): Unreal Engine 4.18,
+# 64-bit Direct3D 11, 1920x1080. Two players, each a gun (trigger, front and side buttons) and a
+# start button.
+# amdaemon.exe (the cabinet's system service) is started first, then the game, both with the
+# payload: the keychip and the USB I/O board (start buttons, the guns' buttons, coins, test)
+# are emulated in amdaemon; the guns' sensor board (aim, triggers) on COM1 in the game.
+# Override values in userprofiles/alls/house-of-the-dead-scarlet-dawn.yaml.
+system: alls
+name: "The House of the Dead: Scarlet Dawn"
+
+# both programs started by wal-loader64 with the payload
+payload_loader: true
+# StartApp.bat's cabinet launch; its settings (Saved\) in the game's folder (-NotInstalled), no
+# splash window; the exclusive full screen mode's size: the Resolution option
+args: [-launch=cabinet, -NotInstalled, -UNATTENDED, -nosplash, -fullscreen, "-ResX={WAL_RESOLUTION.width}", "-ResY={WAL_RESOLUTION.height}"]
+
+# StartApp.bat's amdaemon command line (from the game's folder), the profile's configuration
+# merged last
+background:
+  - >-
+    ../../../AMDaemon/amdaemon.exe -c ..\..\..\AMDaemon\config.json
+    ..\..\..\AMDaemon\config_wal.json -l Y:\amdaemon.log
+background_wait_ms: 5000
+
+# amdaemon's video setup off (the launcher sets the screen), the network address from DHCP
+files:
+  App/Hodzero/WindowsNoEditor/AMDaemon/config_wal.json: systemprofiles/alls/files/house-of-the-dead-scarlet-dawn/config_wal.json
+
+# The cabinet's drives: E: the AMFS (the system backup amdaemon keeps), Y: the game's data
+# (its backup, logs)
+drives:
+  e: AMFS
+  y: AppData
+
+env:
+  WAL_ALLS_GAME_ID: SDET
+  WAL_ALLS_PLATFORM_ID: ACA1
+  WAL_ALLS_BOARD: hotd
+  # Graphics (payload hotd.rs: Unreal's console variables in the game's Engine.ini). The
+  # cabinet's settings are too heavy for a small GPU (Radeon 860M, 1920x1200 screen, in game):
+  # every effect 13 frames per second; shadows off 26; every effect off 43; shadows low + 70%
+  # 30; shadows off + 70% 47; shadows off + 60% (the defaults) 56-62; AO, reflections, depth of
+  # field and motion blur off add little (70%: 50-54).
+  WAL_HOTD_RENDER_SCALE: "60"
+  WAL_HOTD_SHARPEN: "0.5"
+  WAL_HOTD_SHADOWS: "off"
+  WAL_HOTD_AA: taa
+  WAL_HOTD_AO: "1"
+  WAL_HOTD_SSR: "1"
+  WAL_HOTD_MOTION_BLUR: "1"
+  WAL_HOTD_DOF: "1"
+  WAL_HOTD_BLOOM: "1"
+  # the gore cut before release (payload gore.rs: a patch pak beside the game's)
+  WAL_HOTD_GORE: "1"
+  # the exclusive full screen mode (off: the borderless window, the desktop's size)
+  WAL_HOTD_EXCLUSIVE: "0"
+  WAL_RESOLUTION: 1920x1080
+  # Wine's full screen mode emulation scales a lower mode to the screen with AMD FSR 1
+  WINE_FULLSCREEN_FSR: "1"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_HOTD_RENDER_SCALE
+        label: Render scale
+        kind: choice
+        choices: ["100", "85", "70", "60", "50"]
+        description: >-
+          The 3D picture's resolution in percent of the screen's, upscaled by the game (the
+          menus, HUD and crosshairs stay sharp). 100 is the cabinet's; 60 (the default) holds
+          about 60 frames per second on a Radeon 860M with the shadows off.
+      - key: WAL_HOTD_SHARPEN
+        label: Sharpening
+        kind: choice
+        choices: ["0", "0.5", "1"]
+        description: >-
+          The game's sharpening of its picture (useful under a render scale of 100). 0.5 (the
+          default).
+      - key: WAL_HOTD_EXCLUSIVE
+        label: Exclusive full screen
+        kind: bool
+        description: >-
+          The game in a full screen mode of the Resolution below, scaled to the screen (FSR
+          upscaling). Off (the default): a borderless window the screen's size, the render
+          scale lowering the 3D picture's resolution.
+      - key: WAL_RESOLUTION
+        label: Resolution
+        kind: choice
+        choices: [1280x720, 1600x900, 1920x1080]
+        description: >-
+          The full screen mode with Exclusive full screen. 1920x1080 is the cabinet's.
+      - key: WINE_FULLSCREEN_FSR
+        label: FSR upscaling
+        kind: bool
+        description: >-
+          With Exclusive full screen, a resolution under the screen's upscaled with AMD FSR 1
+          (sharper than a plain stretch). On (the default).
+  - title: Effects
+    options:
+      - key: WAL_HOTD_GORE
+        label: Gore
+        kind: bool
+        description: >-
+          The gore Sega cut before release (Michel Denizob's restoration): enemies' burned
+          flesh seen through the bullet holes, their skeleton's bones ejected at death. On
+          (the default); off: the arcade release.
+      - key: WAL_HOTD_SHADOWS
+        label: Shadows
+        kind: choice
+        choices: ["on", low, "off"]
+        description: >-
+          The real-time shadows, the heaviest effect (half the frame's time on a Radeon 860M):
+          on (the cabinet's), low (low resolution, one cascade) or off (the default: the
+          scenes' baked lighting stays).
+      - key: WAL_HOTD_AA
+        label: Anti-aliasing
+        kind: choice
+        choices: [taa, fxaa, "off"]
+        description: >-
+          Temporal anti-aliasing (the cabinet's and the default; it also smooths a render scale
+          under 100), FXAA (lighter, blurrier) or none.
+      - key: WAL_HOTD_AO
+        label: Ambient occlusion
+        kind: bool
+        description: The screen space ambient occlusion. On (the default).
+      - key: WAL_HOTD_SSR
+        label: Reflections
+        kind: bool
+        description: The screen space reflections. On (the default).
+      - key: WAL_HOTD_MOTION_BLUR
+        label: Motion blur
+        kind: bool
+        description: On (the default).
+      - key: WAL_HOTD_DOF
+        label: Depth of field
+        kind: bool
+        description: On (the default).
+      - key: WAL_HOTD_BLOOM
+        label: Bloom
+        kind: bool
+        description: The bloom and lens flares. On (the default).
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # middle button: start, and the gun's front button (switch the item in game)
+  gun:
+    BTN_MIDDLE: start,b3
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Reload (gun off the screen)
+  b3: Switch item (front button; mouse middle click)
+  b4: Side button
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

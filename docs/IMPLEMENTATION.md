@@ -5565,6 +5565,35 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
   its cursor.
 - Debug: amdaemon's error numbers are in `am_resources/error.english.dll`; a landscape
   `WAL_DESKTOP_SIZE: 1920x1080` layer shows the power-on test screens whole.
+- House of the Dead: Scarlet Dawn (SDET, UE 4.18, `WAL_ALLS_BOARD: hotd`): an older (2018)
+  amdaemon. Its dump has no ICF: `icf.rs` writes `E:\ICF1`/`ICF2` (system + game entries;
+  AES-128-CBC, key/IV built by amdaemon from three obfuscated tables at 0x140268d80; header
+  CRC-32 of the bytes after it, then the XOR of the entries' CRC-32s), else the game id stays
+  unset ("Game ID is invalid", "Disconnect dongle"). Platform `ACA1` (ACA0, model 0: the dongle
+  is refused). `config_wal.json` sets only the video off (this amdaemon requires
+  `network.property.save` with a network section).
+  - I/O board: per player start (bit 7), the gun's front (4) and side (1) buttons.
+  - Gun sensor board on COM1 (`gunsensor.rs`): one byte `08` per frame, answered with both
+    guns' 10-bit x/y (y from the bottom), triggers and off-screen flags, the complement of the
+    sum; `04` reset, `S P2\r\n` / `S Fn\r\n` settings answered `75 8A`. The LED controller
+    (COM22) is absent. The aim's update (0x1401ded89) is hooked: identity calibrations for
+    both guns (the factory's targets are inset from the edges) and the screen size: the menus'
+    canvas (1920 wide) or the 3D view's in game (DemulShooter's method).
+  - Graphics (`hotd.rs`, `unreal_ini.rs`): `[SystemSettings]` console variables in the game's
+    `Saved\Config\WindowsNoEditor\Engine.ini` (render scale, sharpening, shadows, AA, AO,
+    SSR, motion blur, DoF, bloom; `WAL_HOTD_EXCLUSIVE=1`: exclusive full screen at
+    `WAL_RESOLUTION`, Wine's FSR). Radeon 860M, 1920x1080 in game: 13 fps with every effect,
+    shadows off 26, everything off 43.
+  - Gore (`gore.rs`, `WAL_HOTD_GORE`, default on): Michel Denizob's gore restoration (MIT,
+    github.com/MichelDenizob/hotdsd_gorepatch) ported: the 5 edited assets (3 `bGoreFlag`
+    flips, `BP_EnemyNormal`'s burned body bound, visible, hidden at death) rebuilt at the
+    game's start from the untouched pak into `Content\Paks\Hodzero-WindowsNoEditor_Gore_P.pak`
+    (stored entries, the base pak's mount point; `_P`: read before the base pak), removed when
+    the option is off. The assets' SHA-1s match the original tool's; Unreal registers the pak
+    at the first gameplay load.
+  - `--headless` runs: the background amdaemon.exe is not inside gamescope (it opens the
+    desktop's display); a Wine call crossing the two displays (ClipCursor's grab, a display
+    mode change) ends the game with an X BadWindow error (one display outside headless runs).
 
 ### 6.4 Batocera integration
 
