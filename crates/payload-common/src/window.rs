@@ -391,7 +391,16 @@ fn remember(hwnd: HWND, w: i32, h: i32) {
 }
 
 /// The size the top-level window `hwnd` asked for (Sinden frame: its real one is the screen's).
+/// The profile's `WAL_WINDOW_SIZE` (`WxH`) first: the size the game draws at (Gundam Spirits of
+/// Zeon asks for a screen-sized window, its 640x480 picture then in a corner of the back buffer).
 pub fn requested(hwnd: HWND) -> Option<(u32, u32)> {
+    let profile = std::env::var("WAL_WINDOW_SIZE").ok().and_then(|v| {
+        let (w, h) = v.trim().split_once('x')?;
+        Some((w.trim().parse::<u32>().ok()?, h.trim().parse::<u32>().ok()?))
+    });
+    if profile.is_some_and(|(w, h)| w > 0 && h > 0) {
+        return profile;
+    }
     let requested = REQUESTED.lock().unwrap();
     requested.iter().find(|r| r.0 == hwnd as usize).map(|r| (r.1 as u32, r.2 as u32))
 }
