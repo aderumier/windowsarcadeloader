@@ -18,9 +18,14 @@
 //!   argument).
 //! * Input: no XInput pads (the game reads them besides the I/O board), the real keyboard
 //!   and mouse filtered.
+//! * Camera: the cabinet's player camera (`nbamMfCapture.dll`, Media Foundation) is hidden:
+//!   a camera the game finds but gets no frames from (a Sinden lightgun's, held by its own
+//!   software) keeps the loading screen up forever. Without one the game only queues a
+//!   camera error, never shown (see Errors).
 
 use wal_payload_common::log;
 use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleA;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
@@ -61,6 +66,7 @@ pub(crate) fn init() {
         flatten_dome();
     }
     hide_xinput();
+    hide_cameras();
     wal_payload_common::input_filter::init(game_base(), |_| false);
     crate::jvs::init_flight(&[game_base()]);
 }
@@ -136,4 +142,37 @@ fn hide_xinput() {
         }
         wal_payload_common::iat::hook_ordinal(base, "XINPUT1_3.dll", 4, xinput_caps_none as *const () as usize);
     }
+}
+
+/// `MFEnumDeviceSources`: no capture device.
+unsafe extern "system" fn enum_device_sources_none(
+    _attributes: *mut core::ffi::c_void,
+    sources: *mut *mut core::ffi::c_void,
+    count: *mut u32,
+) -> i32 {
+    unsafe {
+        if !sources.is_null() {
+            *sources = std::ptr::null_mut();
+        }
+        if !count.is_null() {
+            *count = 0;
+        }
+    }
+    0
+}
+
+/// `nbamMfCapture.dll`'s device list (`MFEnumDeviceSources`) is always empty.
+fn hide_cameras() {
+    let module = unsafe { GetModuleHandleA(c"nbamMfCapture.dll".as_ptr().cast()) } as usize;
+    let hooked = module != 0
+        && unsafe {
+            wal_payload_common::iat::hook_module(
+                module,
+                "MF.dll",
+                "MFEnumDeviceSources",
+                enum_device_sources_none as *const () as usize,
+            )
+        }
+        .is_some();
+    log!("machstorm: cameras {}", if hooked { "hidden" } else { "not hidden (nbamMfCapture.dll import not found)" });
 }
