@@ -9,5 +9,8 @@
 		"firmware_path": [
 			"..\\..\\..\\..\\AMDaemon\\aime_firm\\update_15396_6728_94.bin"
 		]
+	},
+	"allnet_accounting": {
+		"enable": false
 	}
 }

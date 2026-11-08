@@ -24,7 +24,9 @@ background:
 background_wait_ms: 5000
 
 # amdaemon's video setup off (the launcher sets the screen), the e-money terminal absent, the
-# Aime reader's firmware from the game's folder (amdaemon runs there)
+# Aime reader's firmware from the game's folder (amdaemon runs there), ALL.Net accounting off
+# (its billing server is absent: a fresh cabinet's attract says "It's being processed now"
+# and refuses START until its play report is sent)
 files:
   App/DAC/AMDaemon/config_wal.json: systemprofiles/alls/files/initial-d-the-arcade-season-3/config_wal.json
 
@@ -79,6 +81,25 @@ env:
   # the LAN library's server role reads off whatever the DIP switches, and BP_BootCheck stops a
   # single seat that is not the server with error 3002 "Single Seat Setting Failed"
   WAL_PATCHES: "0x71bcc0:B001C3"
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_ALLS_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself at the card prompt (the player's
+          data saved on the game server). Off: touch it with the card button, or play as a
+          guest.
+  - title: Clock
+    options:
+      - key: WAL_ALLS_TIMEWARP
+        label: Skip the maintenance hours
+        kind: bool
+        description: >-
+          The cabinets close from 2:00 to 7:00 in Japan (the attract stays black, the game waits
+          for its reboot): on (the default), the game's clock never reaches those hours.
 
 input:
   stick_as_dpad: false
