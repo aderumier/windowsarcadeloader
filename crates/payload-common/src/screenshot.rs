@@ -1321,9 +1321,11 @@ fn letterbox_window(parent: P) -> P {
             lpszClassName: class.as_ptr(),
         };
         unsafe { RegisterClassW(&wc) };
-        // disabled: the mouse goes to the game's window
+        // disabled: the mouse goes to the game's window. No WM_PARENTNOTIFY: a parent of
+        // another thread (Unity 3.5's render thread presents, its main thread owns the window
+        // and waits for that frame: Happy Water Sprite II) would never answer it.
         let style = WS_CHILD | WS_CLIPSIBLINGS | WS_DISABLED;
-        hwnd = unsafe { CreateWindowExW(0, class.as_ptr(), class.as_ptr(), style, 0, 0, 1, 1, parent, std::ptr::null_mut(), instance, std::ptr::null()) };
+        hwnd = unsafe { CreateWindowExW(windows_sys::Win32::UI::WindowsAndMessaging::WS_EX_NOPARENTNOTIFY, class.as_ptr(), class.as_ptr(), style, 0, 0, 1, 1, parent, std::ptr::null_mut(), instance, std::ptr::null()) };
         log!("d3d9: letterbox window {hwnd:?}");
         LETTERBOX_WINDOW.store(hwnd as usize, Ordering::Relaxed);
     }
@@ -1348,7 +1350,18 @@ fn letterbox_place(hwnd: P, w: i32, h: i32) {
     let parent = unsafe { GetParent(hwnd) };
     let style = unsafe { GetWindowLongW(parent, GWL_STYLE) } as u32;
     if !parent.is_null() && style & WS_CLIPCHILDREN != 0 {
-        unsafe { SetWindowLongW(parent, GWL_STYLE, (style & !WS_CLIPCHILDREN) as i32) };
+        // a parent of another thread is sent WM_STYLECHANGING/WM_STYLECHANGED: changed from a
+        // thread of its own, the presenting thread not waiting for that thread's next message
+        // loop (Happy Water Sprite II: Unity's main thread waits for the render thread's frame)
+        let other = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(parent, std::ptr::null_mut()) }
+            != unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() };
+        let (window, clipped) = (parent as usize, (style & !WS_CLIPCHILDREN) as i32);
+        let change = move || unsafe { SetWindowLongW(window as _, GWL_STYLE, clipped) };
+        if other {
+            std::thread::spawn(change);
+        } else {
+            change();
+        }
         log!("d3d9: letterbox parent {parent:?} no longer clips its children (style {style:#x})");
     }
     let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
