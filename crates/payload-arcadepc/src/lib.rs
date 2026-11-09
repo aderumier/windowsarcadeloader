@@ -54,6 +54,9 @@
 //! Space Warp 66 (`WAL_ARCADEPC_BOARD=spacewarp`): `spacewarp.rs` emulates its two serial boards
 //! (coins, the spinner: mouse, stick or keys) and answers its Linux commands.
 //!
+//! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
+//! devices (a keyboard and the players' guns, from the virtual sticks).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -72,6 +75,7 @@ mod gamewax;
 mod interface;
 mod jxboard;
 mod jxcamera;
+mod mame;
 mod topgun2_landscape;
 mod pads;
 #[cfg(target_arch = "x86")]
@@ -203,6 +207,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 unrealio::init();
+            }
+            _ if board.trim() == "mame" => {
+                pads::disconnect();
+                mame::init();
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();

@@ -4359,6 +4359,32 @@ build (`spacewarp.rs`, `WAL_ARCADEPC_BOARD=spacewarp`):
   at the entry point instead stops Unity before its first frame); the payload tells it it has the focus (Unity ignores posted keys otherwise).
 - **Operator menu.** `test` posts `C`, the arrows and `service` / `b1` (Enter) drive it.
 
+#### Galaxian 3
+
+Namco's Theater 6 game (two LaserDisc players, six gunners) in the dump's patched MAME 0.289
+(`mame.exe gal3`): the laserdiscs play from H.264 (`media\gal3\video-hd.mkv`, decoded to BGRA by
+`media\gal3\decoder\reader.exe` into shared memory), the ROMs in `roms\` (`gal3.zip`,
+`namcoc67.zip`). The payload is loaded at the entry point (`payload_loader`, `xinput1_3` native),
+board `mame` (`mame.rs`):
+
+- **Raw input.** MAME's keyboard and lightgun providers are `rawinput` (no mouse, no joysticks: the
+  profile's arguments). The executable's `GetRawInputDeviceList` lists the payload's keyboard and
+  one absolute mouse per player (MAME adds them from the list's end: player 1's is gun 1); the real
+  devices are not listed, so MAME drops their reports. A thread posts `WM_INPUT` to the window of
+  MAME's `RegisterRawInputDevices`, with marked handles `GetRawInputData` answers: each gun's
+  position (0..65535 over the window) and buttons, the `key_*` natives' scan codes.
+- **Mapping.** `ctrlr\wal.cfg` (the profile's `files`, `-ctrlr wal`): gun n is player n, its buttons
+  1-4 trigger 1, trigger 2, start (any player's: the game's single attendant start), coin n; test is
+  F2 (the build's default, 5, is coin 1's key too). MAME's menus: the arrows, `b3` Enter (popups),
+  `service` Tab. Players 5 and 6 are unmapped (four virtual sticks).
+- **Startup popups.** The warnings screen is never skipped while the ROM load reports a missing file
+  (the optional `gal3.chd`, replaced by the H.264 media): `WAL_PATCHES` removes the `first_time` test
+  of `mame_ui_manager::display_startup_screens` (its later runs' path: no info, no warnings).
+- **Display.** DXVK's Direct3D 9; the dump's ReShade (`d3d9.dll`) is off by default (`reshade:
+  false`: the game ran far below full speed with its effects). Under wined3d the laserdisc picture
+  was green stripes (the emulation's own snapshots were right). `WAL_MAME_STRETCH=1` (GUI option)
+  writes `keepaspect 0` to `ini\gal3.ini` at each start: the picture stretched to the screen.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6377,6 +6403,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | JxSoftWare's "RobotDragon" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump; the payload emulates the JX COM1 board (`jxboard.rs`) |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 | `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | JXCompany's "ShotRedLight" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump without BepInEx/ReShade (`TopGun2.exe`); the payload emulates the JX COM1 board (`jxboard.rs`, `jxcamera`), the SoftKey HID dongle and the camera tracker's positions; landscape by default (levels full screen, not stretched; menus, attract and loading in the bezel), portrait 1080x1920 fitted as an option, crosshair |
+| `galaxian-3` | Galaxian 3 | arcadepc | user 100% (2026-11-09), 4 guns (of the cabinet's 6) | Namco's Theater 6 LaserDisc game in the dump's patched MAME (`mame.exe gal3`, H.264 laserdiscs, §6.3i): the payload is MAME's raw input devices (a keyboard and one absolute mouse per player, `mame.rs`), `ctrlr\wal.cfg` maps them; startup popups patched out; ReShade off by default; stretch option (`keepaspect`) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

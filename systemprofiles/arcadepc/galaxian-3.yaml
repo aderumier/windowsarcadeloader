@@ -1,0 +1,74 @@
+# Galaxian 3: Project Dragoon (Namco Theater 6, two LaserDisc players) - template, override
+# values in userprofiles/arcadepc/galaxian-3.yaml.
+# A patched MAME 0.289 (mame.exe, driver gal3) plays the laserdiscs from H.264 (media\gal3:
+# video-hd.mkv decoded by media\gal3\decoder\reader.exe into shared memory) with the ROMs in
+# roms\ (gal3.zip, namcoc67.zip). Six gunners on the cabinet, four virtual sticks: players 1-4.
+system: arcadepc
+name: Galaxian 3
+
+# MAME's input only from the payload's raw input devices (mame.rs): its keyboard and its guns
+# (rawinput providers), no mouse, no joysticks; their mapping in ctrlr\wal.cfg
+args:
+  - gal3
+  - -ctrlr
+  - wal
+  - -keyboardprovider
+  - rawinput
+  - -lightgunprovider
+  - rawinput
+  - -mouseprovider
+  - none
+  - -joystickprovider
+  - none
+  - -lightgun
+  - -nomouse
+  - -nojoystick
+
+# the payload loaded at the start (wal-loader64.exe): MAME lists its raw input devices at boot
+payload_loader: true
+# the payload's name (xinput1_3.dll): Wine's own otherwise
+dll_overrides:
+  xinput1_3: "n,b"
+
+# the dump's ReShade (d3d9.dll, ReShade.ini, reshade-shaders\) before DXVK: off by default (the
+# game ran far below full speed with its effects; the frontend's ReShade option turns it on)
+reshade: false
+reshade_files: [d3d9.dll]
+
+files:
+  ctrlr/wal.cfg: systemprofiles/arcadepc/files/galaxian-3/wal.cfg
+
+env:
+  WAL_ARCADEPC_BOARD: mame
+  # MAME's startup popups (the game info, the warnings: never skipped while a ROM load reports
+  # a missing file, the optional gal3.chd the H.264 media replaces) skipped:
+  # mame_ui_manager::display_startup_screens takes its later runs' path (no screens), its
+  # first_time test (jne) removed
+  WAL_PATCHES: "0x1107873:660F1F440000"
+  WAL_PATCHES_EXE: mame.exe
+  # "1": the picture stretched to the screen (keepaspect off), "0": its aspect kept
+  WAL_MAME_STRETCH: "0"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_MAME_STRETCH
+        label: Stretch to the screen
+        kind: bool
+        description: >-
+          On: the picture fills the whole screen (stretched vertically, MAME's keep aspect
+          off). Off: the picture keeps its aspect, black bars above and below.
+
+input:
+  # each player's gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Trigger 2
+  start: Start (attendant)
+  coin: Coin
+  test: Test menu
