@@ -4452,6 +4452,36 @@ buttons and a start button. The payload is loaded at the entry point (`payload_l
 - **Protection.** `0x412790` compares `c:\windows\win386p.swp` with C:'s volume serial number:
   `WAL_PATCHES` returns 1.
 
+#### Come On Baby! 2 Winter Championship
+
+The sequel (ExtraLine / Expotato, 2003, `Cob2.exe`, 32-bit, DirectDraw / Direct3D 7 HAL at
+640x480, 16-bit), same cabinet: two players with a stick, two buttons (green A, blue B) and a
+start button (red). Payload at the entry point (`payload_loader`, `xinput1_3` native),
+`graphics: d7vk`, board `comeonbaby` (`comeonbaby.rs`, its `BUILDS` table: each game's
+addresses, the build picked by the bytes at its reader and settings jump):
+
+- **Board.** The same parallel port reader (`0x41f6c0`, the same groups and bits), whose `in` /
+  `out` are real here (privileged instructions under Wine): the payload's jump replaces the
+  reader, `WAL_PATCHES` makes the lamps' writers (`0x41f640`, `0x41f690`) return. The coins are
+  counted by a thread of the game (`0x41d300`, every 30 ms): the payload's 150 ms coin pulse.
+  The operator menu's service select has its own edge state (`0x753470`): no menu hook needed.
+- **Settings.** `eep.rom` (`COB 2.1`, 0x5c bytes, read at `0x41fb20` through the jump at
+  `0x41fd00`): byte 0x0c the coins to start (`0x953664`), 0x0d to continue (`0x951e50`), as in
+  the first game; `WAL_FREEPLAY` overrides both after the read (0 / 1). The operator menu's coin
+  page shows 자유 게임 (free play).
+- **Protection.** `0x41f6f0` compares bytes of a file with C:'s volume serial number:
+  `WAL_PATCHES` returns 1.
+- **Movie.** The attract's `movie/title.mpg` (MPEG, DirectShow's video renderer as a child of the
+  game's window, `put_Owner`) plays through the runner's decoders (winedmo); the game first asked
+  the renderer for `IDirectDrawVideo` (not in Wine: a `pBF->QueryInterface ERROR` box, then calls
+  through a null pointer): that setup (`0x41e1e6`) jumps to its end.
+- **Operator menu.** Test (F2) enters / moves, service selects (or the green button), 끝내기 /
+  저장 및 끝내기 restart the game. Its texts are Korean (CP949 through `MultiByteToWideChar` on
+  the ANSI code page, GDI `TextOutW`, font 굴림체 in `HANGEUL_CHARSET`): `WAL_ANSI_CODEPAGE` and
+  `WAL_FONT_CODEPAGE` 949 (Wine's font fallback for Hangul: a CJK font on the system).
+- **Picture.** The 640x480 exclusive full screen, scaled to the screen by Wine's emulated mode
+  (d7vk then wined3d), `WAL_DESKTOP_ACTIVE` / `WAL_DESKTOP_UNMANAGED` as Burning Striker's.
+
 #### Robin Hood
 
 ICE's ticket redemption crossbow game (`data\game.exe`, Direct3D 9, 32-bit, 1280x720), one
@@ -6722,6 +6752,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `galaxian-3` | Galaxian 3 | arcadepc | user 100% (2026-11-09), 4 guns (of the cabinet's 6) | Namco's Theater 6 LaserDisc game in the dump's patched MAME (`mame.exe gal3`, H.264 laserdiscs, §6.3i): the payload is MAME's raw input devices (a keyboard and one absolute mouse per player, `mame.rs`), `ctrlr\wal.cfg` maps them; startup popups patched out; ReShade off by default; stretch option (`keepaspect`) |
 | `burning-striker` | Burning Striker | arcadepc | user 100% (2026-11-09), 2 players (stick, 3 buttons) | Eolith's football game (DirectDraw / D3D7, 32-bit, §6.3i): COM1 board and DIP switches emulated (free play option), the protection's 3ddata.pak key from the dump's `eolith.key`; intro movie needs GE patches 0116/0117 (qasf DMO wrapper); focus loss no longer minimizes (wined3d behind d7vk) |
 | `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) | ExtraLine's party game (Glide 2, 32-bit, §6.3i): the parallel port board's reader replaced (sticks, buttons, operator keys), the menu's service select given its own edge detection, free play option over `eep.rom`'s coins, the C: serial check patched; the runner's gxvk (a build after 0.1: chroma key) in a payload window with its own message loop, 4:3, black bezel |
+| `come-on-baby-2` | Come On Baby! 2 Winter Championship | arcadepc | headless-tested, awaiting user (2026-11-09), 2 players (stick, 2 buttons, start) | The sequel (DirectDraw / Direct3D 7 on d7vk, §6.3i): `comeonbaby.rs`'s second build (the parallel port reader, free play over `eep.rom`), the lamps' `out` writers and the C: serial check patched, the attract movie's `IDirectDrawVideo` setup skipped (the MPEG plays), the Korean operator menu in code page 949 |
 | `robin-hood` | Robin Hood | arcadepc | user 100% (2026-11-09), 1 gun | ICE's ticket redemption crossbow game (Direct3D 9, 32-bit, §6.3i): the serial board emulated (switches, coins, tickets paid at once), the crossbow's DirectInput joystick X from the gun's X position, the linked HASP HL API patched, free play option over `coinfree`, the dump's root as working directory |
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | Lightgun game (Direct3D 9, 32-bit, §6.3i): the parallel port gun board emulated (`inpout32`'s `Inp32` / `Out32`: aim, triggers, switches, a gun sample per shot), the Dinkey dongle's checks patched, free play option, crosshairs, the dump's bezel |
 | `dcop` | DCOP | arcadepc | headless-tested, awaiting user (2026-11-09), 1 gun | Klockworks' live-action police shooter (Unity 2020.3, 64-bit, §6.3i): the game plays with the mouse (left shoots, right reloads, any key starts / continues: free play by design), played by the gun (`dcop.rs`: `post_mouse`, `GetCursorPos`); the dump's DemulShooter plugin kept (Uduino serial off, NVRAM saves, pause menu on 0), told to hide the game's cursor; common crosshair, 16:9 borderless window |

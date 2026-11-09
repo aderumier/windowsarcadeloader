@@ -1,5 +1,7 @@
-//! Come on Baby! (ExtraLine, 2000; `COBDEMO.exe`, Glide 2, 32-bit):
-//! `WAL_ARCADEPC_BOARD=comeonbaby`, x86 build.
+//! Come on Baby! (ExtraLine, 2000; `COBDEMO.exe`, Glide 2, 32-bit) and Come On Baby! 2 Winter
+//! Championship (2003; `Cob2.exe`, DirectDraw / Direct3D 7, 32-bit):
+//! `WAL_ARCADEPC_BOARD=comeonbaby`, x86 build. The addresses below are the first game's; the
+//! sequel's same board and settings are at its own (`BUILDS`, picked by the code there).
 //!
 //! - **Board.** The cabinet's I/O is on the parallel port: the reader (`0x4126d0`, cdecl, a byte
 //!   argument) writes the group to the data port (0x378), strobes the control port (0x37a) and
@@ -29,6 +31,11 @@
 //! - **Protection.** The boot compares `c:\windows\win386p.swp` with the volume serial number of
 //!   C: (`0x412790`): it returns 1 (the profile's patch).
 //!
+//! - **Come On Baby! 2.** The reader `0x41f6c0` (the same groups; its `in` / `out` are real,
+//!   the profile makes the lamps' writers return), the settings reader `0x41fb20` (the jump at
+//!   `0x41fd00`; `eep.rom` `COB 2.1`, the coins at the same offsets: `0x953664`, `0x951e50`).
+//!   Its operator menu has an edge detector of its own (`0x753470`): no menu hook.
+//!
 //! Natives: `up down left right a b start` (each player), `coin service test`.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -40,20 +47,43 @@ use wal_payload_common::{iat, input, log};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
 
-/// The parallel port reader, relative to the executable.
-const READER: usize = 0x126D0;
-/// Its first bytes (`mov dx, [0x532744]`).
+/// A build's addresses, relative to the executable.
+struct Build {
+    name: &'static str,
+    /// The parallel port reader (cdecl, a group byte), starting with `mov dx, [port]`.
+    reader: usize,
+    /// The operator menu's call of the service edge detector, and its bytes.
+    menu_select: Option<(usize, [u8; 5])>,
+    /// The boot's jump to the settings reader, its bytes and the reader.
+    settings_jump: (usize, [u8; 5], usize),
+    /// The coins per credit to start and to continue (0: free play).
+    start_coins: usize,
+    continue_coins: usize,
+}
+
+const BUILDS: &[Build] = &[
+    // Come on Baby! (COBDEMO.exe): the boot's tail `jmp 0x412a30`, the menu's `call 0x4112f0`
+    Build {
+        name: "Come on Baby!",
+        reader: 0x126D0,
+        menu_select: Some((0x6FB10, [0xE8, 0xDB, 0x17, 0xFA, 0xFF])),
+        settings_jump: (0x12C4A, [0xE9, 0xE1, 0xFD, 0xFF, 0xFF], 0x12A30),
+        start_coins: 0x130840,
+        continue_coins: 0x1307DC,
+    },
+    // Come On Baby! 2 Winter Championship (Cob2.exe): the settings reader's `jmp 0x41fb20`
+    Build {
+        name: "Come On Baby! 2",
+        reader: 0x1F6C0,
+        menu_select: None,
+        settings_jump: (0x1FD00, [0xE9, 0x1B, 0xFE, 0xFF, 0xFF], 0x1FB20),
+        start_coins: 0x553664,
+        continue_coins: 0x551E50,
+    },
+];
+
+/// The reader's first bytes (`mov dx, [port]`).
 const READER_CODE: [u8; 3] = [0x66, 0x8B, 0x15];
-/// The operator menu's call of the service edge detector (`call 0x4112f0`).
-const MENU_SELECT: usize = 0x6FB10;
-const MENU_SELECT_CODE: [u8; 5] = [0xE8, 0xDB, 0x17, 0xFA, 0xFF];
-/// The boot's tail jump to the settings reader (`jmp 0x412a30`).
-const SETTINGS_JUMP: usize = 0x12C4A;
-const SETTINGS_JUMP_CODE: [u8; 5] = [0xE9, 0xE1, 0xFD, 0xFF, 0xFF];
-const SETTINGS_READER: usize = 0x12A30;
-/// The coins per credit to start and to continue (0: free play).
-const START_COINS: usize = 0x130840;
-const CONTINUE_COINS: usize = 0x1307DC;
 /// Group 8's answer: the board is there.
 const IO_OK: u32 = 5;
 
@@ -158,6 +188,7 @@ extern "C" fn menu_select() -> u32 {
 }
 
 static EXE: AtomicUsize = AtomicUsize::new(0);
+static BUILD: OnceLock<&'static Build> = OnceLock::new();
 static FREE_PLAY: Mutex<Option<bool>> = Mutex::new(None);
 
 /// The coins per credit for the free play option (`None`: the file's).
@@ -168,12 +199,13 @@ fn coins(free_play: Option<bool>) -> Option<i32> {
 /// The boot's settings reader, then the free play option over the file's coins.
 extern "C" fn read_settings() {
     let exe = EXE.load(Ordering::Relaxed);
-    let reader: extern "C" fn() = unsafe { std::mem::transmute(exe + SETTINGS_READER) };
+    let Some(build) = BUILD.get() else { return };
+    let reader: extern "C" fn() = unsafe { std::mem::transmute(exe + build.settings_jump.2) };
     reader();
     if let Some(coins) = coins(*FREE_PLAY.lock().unwrap()) {
         unsafe {
-            *((exe + START_COINS) as *mut i32) = coins;
-            *((exe + CONTINUE_COINS) as *mut i32) = coins;
+            *((exe + build.start_coins) as *mut i32) = coins;
+            *((exe + build.continue_coins) as *mut i32) = coins;
         }
         log!("comeonbaby: {coins} coin(s) per credit");
     }
@@ -286,29 +318,31 @@ fn branch(at: usize, opcode: u8, to: usize) {
 
 pub fn init() {
     let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
-    let at = exe + READER;
+    let code = |rva: usize, len: usize| unsafe { std::slice::from_raw_parts((exe + rva) as *const u8, len) };
     // the original reader, or the dump's `cob_patch.dll` jump (the real keyboard)
-    let code = unsafe { std::slice::from_raw_parts(at as *const u8, 3) };
-    if code != READER_CODE && code[0] != 0xE9 {
-        log!("comeonbaby: unknown COBDEMO.exe build ({code:02x?} at {at:#x}), no board");
+    let Some(build) = BUILDS.iter().find(|b| {
+        let c = code(b.reader, 3);
+        (c == READER_CODE || c[0] == 0xE9) && code(b.settings_jump.0, 5) == b.settings_jump.1
+    }) else {
+        log!("comeonbaby: unknown build, no board");
         return;
-    }
+    };
+    let _ = BUILD.set(build);
+    let at = exe + build.reader;
     branch(at, 0xE9, read as *const () as usize);
-    let select = exe + MENU_SELECT;
-    if unsafe { std::slice::from_raw_parts(select as *const u8, 5) } == MENU_SELECT_CODE {
-        branch(select, 0xE8, menu_select as *const () as usize);
+    if let Some((select, bytes)) = build.menu_select
+        && code(select, 5) == bytes
+    {
+        branch(exe + select, 0xE8, menu_select as *const () as usize);
     }
     EXE.store(exe, Ordering::Relaxed);
     *FREE_PLAY.lock().unwrap() = wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY");
-    let settings = exe + SETTINGS_JUMP;
-    if unsafe { std::slice::from_raw_parts(settings as *const u8, 5) } == SETTINGS_JUMP_CODE {
-        branch(settings, 0xE9, read_settings as *const () as usize);
-    }
+    branch(exe + build.settings_jump.0, 0xE9, read_settings as *const () as usize);
     match unsafe { iat::hook("glide2x.dll", "_grSstWinOpen@28", sst_win_open as *const () as usize) } {
         Some(o) => GR_SST_WIN_OPEN.store(o, Ordering::Relaxed),
         None => log!("comeonbaby: no grSstWinOpen import, the Glide DLL picks the window"),
     }
-    log!("comeonbaby: parallel port board at {at:#x}");
+    log!("comeonbaby: {}, parallel port board at {at:#x}", build.name);
 }
 
 #[cfg(test)]
@@ -327,6 +361,16 @@ mod tests {
         assert_eq!(picture_rect(1920, 1080), (240, 0, 1440, 1080));
         assert_eq!(picture_rect(1600, 1200), (0, 0, 1600, 1200));
         assert_eq!(picture_rect(1280, 1024), (0, 32, 1280, 960));
+    }
+
+    #[test]
+    fn builds() {
+        // each build's settings jump is a `jmp` to its settings reader
+        for b in BUILDS {
+            let (at, code, to) = b.settings_jump;
+            let rel = i32::from_le_bytes(code[1..].try_into().unwrap());
+            assert_eq!((code[0], (at as i64 + 5 + i64::from(rel)) as usize), (0xE9, to), "{}", b.name);
+        }
     }
 
     #[test]

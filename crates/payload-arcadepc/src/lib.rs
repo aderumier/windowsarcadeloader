@@ -57,8 +57,8 @@
 //! Burning Striker (`WAL_ARCADEPC_BOARD=eolith`, x86 build): `eolith.rs` emulates its COM1 board
 //! and hands it its protection's key.
 //!
-//! Come on Baby! (`WAL_ARCADEPC_BOARD=comeonbaby`, x86 build): `comeonbaby.rs` is its parallel
-//! port board's reader.
+//! Come on Baby! and Come On Baby! 2 (`WAL_ARCADEPC_BOARD=comeonbaby`, x86 build):
+//! `comeonbaby.rs` is their parallel port board's reader.
 //!
 //! Xtom 3D (`WAL_ARCADEPC_BOARD=dosbox`, x86 build, a Glide DOSBox): `dosbox.rs` is DOSBox's
 //! SDL keyboard (the virtual sticks' keys) and gives the guest's Glide a window of its own.

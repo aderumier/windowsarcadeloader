@@ -1,0 +1,54 @@
+# Come On Baby! 2 Winter Championship (ExtraLine, Cob2.exe, DirectDraw / Direct3D 7, 32-bit) -
+# template, override values in userprofiles/arcadepc/come-on-baby-2.yaml.
+# The sequel of Come on Baby!: two players, a stick, two buttons and a start button each, on the
+# same parallel port board (payload comeonbaby.rs, docs §6.3i).
+system: arcadepc
+name: Come On Baby! 2 Winter Championship
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+graphics: d7vk
+
+env:
+  WAL_ARCADEPC_BOARD: comeonbaby
+  # The lamps' writers (0x41f640, 0x41f690: `out` to the parallel port, privileged under Wine)
+  # return at once; the boot's protection (0x41f6f0: a file's bytes against C:'s volume serial
+  # number) returns 1 (xor eax, eax; inc eax; ret).
+  # The attract's movie (movie/title.mpg, DirectShow's video renderer in a child window of the
+  # game's) asked the renderer for IDirectDrawVideo, which Wine's has not (a "pBF->QueryInterface
+  # ERROR" box, then calls through a null pointer): that setup (0x41e1e6) jumps to its end, the
+  # movie plays in the renderer's window.
+  WAL_PATCHES: "0x1F640:C3,0x1F690:C3,0x1F6F0:31C040C3,0x1E1E6:E9E1000000"
+  # The 640x480 exclusive full screen as Burning Striker's (d7vk, Wine's emulated mode scaling
+  # it to the screen): its window never sees its deactivation, is never minimized.
+  WAL_DESKTOP_ACTIVE: "1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_HIDE_CURSOR: "1"
+  # The operator menu's texts are Korean (CP949, GDI's TextOutW after MultiByteToWideChar on
+  # the ANSI code page, the font 굴림체 in HANGEUL_CHARSET)
+  WAL_ANSI_CODEPAGE: "949"
+  WAL_FONT_CODEPAGE: "949"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: one coin per credit (to start and to continue).
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Button A
+  b2: Button B
+  start: Start
+  coin: Coin
+  service: Service (credit)
+  test: Test menu
