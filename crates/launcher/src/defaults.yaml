@@ -104,7 +104,8 @@ gamescope:
 # <name in the run directory>: <source, relative to the root> (e.g. a missing config file).
 # A name with a folder ("dir/file") is a path from the game root. A source "{dump}/<path>" is
 # a file of the dump, from its root (a DLL the dump keeps in another folder), "{payloads}/<file>"
-# a program built with the payloads.
+# a program built with the payloads, "{runner}/<path>" a file of the wine runner (a component it
+# ships: "{runner}/lib/wine/gxvk/i386-windows/glide2x.dll").
 files: {}
 # Files copied into the dump only when it does not have them yet (default settings or
 # calibration the game then keeps updating): <path from the dump root>: <source> (a source
