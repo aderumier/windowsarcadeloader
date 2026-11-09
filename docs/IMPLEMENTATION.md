@@ -5582,6 +5582,17 @@ whole stack under the real amdaemon; here the payload replaces the library inste
   client built in): no patch. Test program `gametest.exe` (.NET WPF, 32-bit). The Aime prompt's
   default is neither button (left then button 1 plays with the card); button 1 held on the title
   shows the card's access code.
+* **Dead or Alive 6** (`App\muscle_apm3.exe`, 64-bit Direct3D 11, game id SDFM; the ABAAS game
+  server and link clients built in; test program `gametest.exe`, .NET WPF). The game reads the
+  switches as an Xbox pad's bits (0x140120140) and maps those to its actions by a pad config
+  (default at 0x1418c6d00: X Hold, Y Punch, B Kick, LT Special, A H+P, LB P+K, RT H+K, RB
+  H+P+K); the profile's `native_map` puts H P K S on b1-b4, the shortcuts on b5-b8. The card
+  player is saved only when `user/load` answers `control.online` 1 (`WAL_APM3_GS_ONLINE`, as
+  parsed at 0x1401402e3): with 0 the game sends no `user/heartbeat` and no `user/save`. Without a
+  link server the network state (0x141731b50: 4 no ALL.Net, 1-2 no Aime / game server, 3 no
+  link, 0 all up) is 3: a "network play unavailable" banner and a grey icon;
+  `WAL_APM3_NO_LINK_PATCHES` turn that 3 into 0, the default mode becomes in-store versus, the
+  CPU fights the player while the game waits for a challenger.
 * **Umihara Kawase Fresh! for AC** (`App\umifresh.exe`, 32-bit OpenGL, game id SDGU, the
   profile's `WAL_APM3_GAME_ID`; the ABAAS game server client built in): no patch. Test program
   `gametest.exe` (.NET WPF). The dump's own `apm_x86.dll` (with `apm3_config.exe`,
@@ -6500,6 +6511,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `shanghai-iv-ryuumon-hiyaku` | Shanghai IV Ryuumon Hiyaku | apm3 | user 100% (2026-11-06); headless: Aime cards (player saved), play, test mode | Sega ALLS APM3 (§6.3k): Unity 64-bit, `X:\lib\apm.dll` (`run_drives`) |
 | `rolling-gunner` | Rolling Gunner | apm3 | user 100% (2026-11-06), full screen (-f); headless: Aime cards, tutorial, test mode | Sega ALLS APM3 (§6.3k): 32-bit SDL2, `C:\SDGW\sound` (`c_folders`) |
 | `cotton-rock-n-roll` | Cotton Rock 'n' Roll | apm3 | user 100% (2026-11-07); headless: Aime cards, story, play, game over saved (ranking), test mode | Sega ALLS APM3 (§6.3k): 32-bit OpenGL, test program `gametest.exe` (.NET) |
+| `dead-or-alive-6` | Dead or Alive 6 | apm3 | works headless (2026-11-09): Aime cards (player saved at game over, reloaded), solo and in-store versus against the CPU, test mode and back, network icon green; no network versus | Sega ALLS APM3 (§6.3k): 64-bit Direct3D 11, game id SDFM, `WAL_APM3_GS_ONLINE`, test program `gametest.exe` (.NET) |
 | `umihara-kawase-fresh` | Umihara Kawase Fresh! for AC | apm3 | user 100% (2026-11-08), jump on b1 (left Ctrl); headless: Aime cards (player loaded, rankings), Time Attack stage start, test mode | Sega ALLS APM3 (§6.3k): 32-bit OpenGL, game id SDGU, test program `gametest.exe` (.NET) |
 | `tapping-skill-test` | Tapping Skill Test | apm3 | user ok (2026-11-08): touch (mouse / gun), pinch = mouse wheel on the word (b2 / b3); headless: Aime cards (player loaded), minigames, test mode | Sega ALLS APM3 (§6.3k): 64-bit D3D11 touch game, I/O read as a winmm joystick (`WAL_APM3_JOYSTICK`), pinch = mouse wheel |
 | `virtua-fighter-3tb-online` | Virtua Fighter 3tb Online | apm3 | user 100% (2026-11-07), network icon green; headless: Aime cards (terms, user data, saved), team battle play, test mode and back | Sega ALLS APM3 (§6.3k): 64-bit Direct3D 11, Model 3 game in `pre3`, same-program test mode |

@@ -3,7 +3,7 @@
 //! name>/api/...` (user/load, user/save, user/heartbeat, ranking/list|archive|aggregate,
 //! data/load|save, server/alive, log/upload, code/convert|create), served by the system's
 //! payload ([`reply`] to each `/api/` request). [`configure`] sets the folder of the saved data
-//! and the prefix of the options (`<prefix>_GS_KEY`, `<prefix>_GS_SEQ`).
+//! and the prefix of the options (`<prefix>_GS_KEY`, `<prefix>_GS_SEQ`, `<prefix>_GS_ONLINE`).
 //!
 //! Bodies: a 16-byte header that is also the IV (`01 01 01 00`, the game id, 8 random bytes),
 //! then the zlib-compressed JSON, AES-256-CBC encrypted (PKCS#7) with the title key the game gives
@@ -513,11 +513,14 @@ pub fn reply(path: &str, body: &[u8]) -> Vec<u8> {
             static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
             let starts = value(&request, "start_game").is_some_and(|v| v.trim() == "1")
                 && env("GS_SEQ").is_none_or(|v| v != "0");
+            // `<prefix>_GS_ONLINE=1`: the player's `online` 1 in `user/load` (Dead or Alive 6: the
+            // card player then online, else no heartbeat and no `user/save` at the end of play)
+            let online = u8::from(api == "user/load" && env("GS_ONLINE").is_some_and(|v| v == "1"));
             let control = if starts {
                 let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                format!(r#""control":{{"online":0,"seq_id":"{seq}","token":"{seq:08x}"}}"#)
+                format!(r#""control":{{"online":{online},"seq_id":"{seq}","token":"{seq:08x}"}}"#)
             } else {
-                r#""control":{"online":0}"#.to_string()
+                format!(r#""control":{{"online":{online}}}"#)
             };
             let json = match json.strip_suffix('}') {
                 Some(body) if body.len() > 1 => format!("{body},{control}}}"),

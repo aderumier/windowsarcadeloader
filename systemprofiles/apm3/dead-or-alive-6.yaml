@@ -1,0 +1,48 @@
+# Dead or Alive 6 (Sega ALLS, APM3 edition; 64-bit, Direct3D 11). Runs muscle_apm3.exe (the dump's
+# game.bat); the test switch starts gametest.exe (.NET), whose exit starts the game again.
+# Aime card: always on the reader; the card input (F4, pad guide) takes it off.
+# Override values in userprofiles/apm3/dead-or-alive-6.yaml.
+system: apm3
+name: Dead or Alive 6
+
+# the game's switches are an Xbox pad's (0x140120140: push01 Y, push02 B, push03 RB, push04 RT,
+# push05 X, push06 A, push07 LB, push08 LT), its default actions (0x1418c6d00) X Hold, Y Punch,
+# B Kick, LT Special, A Throw (H+P), LB P+K, RT H+K, RB H+P+K: top row H P K S, bottom row the
+# shortcuts
+native_map:
+  b1: push05
+  b2: push01
+  b3: push02
+  b4: push08
+  b5: push06
+  b6: push07
+  b7: push04
+  b8: push03
+
+env:
+  WAL_APM3_GAME_ID: SDFM
+  WAL_APM3_TEST: gametest.exe
+  # ALL.Net, the Aime server and the ABAAS game server up: Aime cards ("0" boots offline)
+  WAL_APM3_ONLINE: "1"
+  WAL_APM3_CARD_AUTO: "1"
+  # the card player loaded online (else no heartbeat and no save at the end of play)
+  WAL_APM3_GS_ONLINE: "1"
+  # no ABAAS matching server: the network state (0x141731b50) answers 0 (all up), not 3 (the
+  # link down: "network play unavailable" banner, network icon not green); in-store versus then
+  # plays the CPU while it waits for a challenger
+  WAL_APM3_NO_LINK_PATCHES: "0x1731bb3:00"
+
+input:
+  gamepad:
+    guide: card
+
+controls:
+  b1: Hold (H)
+  b2: Punch (P)
+  b3: Kick (K)
+  b4: Special (S)
+  b5: Throw (H+P)
+  b6: P+K
+  b7: H+K
+  b8: H+P+K
+  card: Aime card (take off / put back)
