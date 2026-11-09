@@ -35,6 +35,11 @@
 //! `DIPROP_INSTANCENAME`) are its product name.
 //! `WAL_DINPUT_WHEEL_VIDPID=<vid>:<pid>` (hex): the USB ids in its product GUID (Blazing Angels
 //! picks its controls layout by the vendor id: the cabinet board's, 1ab7).
+//! `WAL_DINPUT_WHEEL_BUTTON_BASE=0`: its buttons named from `Button 0` (Windows' names), else
+//! from `Button 1`. `WAL_DINPUT_WHEEL_JOYSTICK=1`: a joystick, not a driving device.
+//! `WAL_DINPUT_WHEEL_SYSTEM=1`: the system keyboard and mouse of
+//! [`set_keyboard`] listed and created next to it (Ballistics binds its cabinet's GameFrame by
+//! its product name and buttons' names, and stops without a keyboard device).
 //!
 //! `WAL_DINPUT_PADS=<n>`: the same fake DirectInput, with `n` joysticks (players 1 to `n`, at
 //! most 4): X and Y from the player's d-pad, else its left stick, and the buttons
@@ -630,6 +635,16 @@ mod wheel {
     const AXIS_NAMES: [&str; AXIS_COUNT] = ["X Axis", "Y Axis", "Z Axis", "X Rotation", "Y Rotation", "Z Rotation"];
     /// DI8DEVTYPE_DRIVING, DI8DEVTYPEDRIVING_DUALPEDALS, DIDEVTYPE_HID
     const DEV_TYPE: u32 = 0x16 | 3 << 8 | 0x1_0000;
+    /// `WAL_DINPUT_WHEEL_JOYSTICK=1`: DI8DEVTYPE_JOYSTICK, DI8DEVTYPEJOYSTICK_STANDARD, HID (a
+    /// game taking only joysticks and gamepads: Ballistics' cabinet GameFrame).
+    fn dev_type() -> u32 {
+        static JOYSTICK: OnceLock<bool> = OnceLock::new();
+        if *JOYSTICK.get_or_init(|| std::env::var("WAL_DINPUT_WHEEL_JOYSTICK").is_ok_and(|v| v.trim() == "1")) {
+            0x14 | 2 << 8 | 0x1_0000
+        } else {
+            DEV_TYPE
+        }
+    }
     /// DIDFT_ABSAXIS
     const ABS_AXIS: u32 = 2;
     const DIPROP_RANGE: usize = 4;
@@ -708,6 +723,20 @@ mod wheel {
         NAME.get().map_or("", |n| n.as_str())
     }
 
+    /// `WAL_DINPUT_WHEEL_BUTTON_BASE=0`: the buttons named from `Button 0` (Windows' names of a
+    /// HID device's buttons; Ballistics binds its cabinet's buttons by name), else `Button 1`.
+    fn button_base() -> usize {
+        static BASE: OnceLock<usize> = OnceLock::new();
+        *BASE.get_or_init(|| std::env::var("WAL_DINPUT_WHEEL_BUTTON_BASE").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(1))
+    }
+
+    /// `WAL_DINPUT_WHEEL_SYSTEM=1`: the system keyboard and mouse of [`super::set_keyboard`]
+    /// listed and created next to the wheel (Ballistics stops without a keyboard device).
+    fn system_devices() -> bool {
+        static ON: OnceLock<bool> = OnceLock::new();
+        *ON.get_or_init(|| std::env::var("WAL_DINPUT_WHEEL_SYSTEM").is_ok_and(|v| v.trim() == "1"))
+    }
+
     /// Copies `s` into a fixed string field of `len` characters, ANSI or UTF-16.
     unsafe fn put_str(dst: *mut u8, len: usize, s: &str, wide: bool) {
         unsafe {
@@ -734,7 +763,7 @@ mod wheel {
             std::ptr::copy_nonoverlapping(INSTANCE.as_ptr(), out.add(4), 16);
             let product = guid(VIDPID.load(Ordering::Relaxed), 0, 0, *b"\0\0PIDVID");
             std::ptr::copy_nonoverlapping(product.as_ptr(), out.add(20), 16);
-            (out.add(36) as *mut u32).write_unaligned(DEV_TYPE);
+            (out.add(36) as *mut u32).write_unaligned(dev_type());
             put_str(out.add(40), 260, name(), wide);
             put_str(out.add(40 + 260 * chars), 260, name(), wide);
             // HID usage page 1 (generic desktop), usage 4 (joystick)
@@ -750,10 +779,13 @@ mod wheel {
     /// Whether an `EnumDevices` type filter takes the wheel: all devices, game controllers
     /// (DI8DEVCLASS_GAMECTRL), driving devices.
     fn listed(filter: u32) -> bool {
-        matches!(filter & 0xFF, 0 | 4 | 0x16)
+        matches!(filter & 0xFF, 0 | 4) || filter & 0xFF == dev_type() & 0xFF
     }
 
     unsafe fn enum_devices(filter: u32, cb: EnumCallback, context: P, wide: bool) -> i32 {
+        if system_devices() && !wide {
+            unsafe { super::enum_devices(std::ptr::null_mut(), filter, cb as P, context, 0) };
+        }
         if listed(filter) {
             let mut instance = [0u8; 0x44C];
             let r = unsafe {
@@ -783,6 +815,9 @@ mod wheel {
             return super::DIERR_DEVICENOTREG;
         }
         let is_wheel = !guid.is_null() && unsafe { std::slice::from_raw_parts(guid, 16) } == INSTANCE;
+        if !is_wheel && system_devices() && !wide {
+            return unsafe { super::create_device(std::ptr::null_mut(), guid.cast(), out, std::ptr::null_mut()) };
+        }
         log!("dinput: CreateDevice({})", if is_wheel { "the wheel" } else { "another device" });
         let device: &Object = match (is_wheel, wide) {
             (true, false) => &WHEEL_A,
@@ -831,7 +866,7 @@ mod wheel {
                 // dwFlags, dwDevType, dwAxes, dwButtons, dwPOVs, then the FFB timing fields.
                 let axes = LISTED_AXES.load(Ordering::Relaxed) as u32;
                 let flags = if ffb() { CAPS_FLAGS } else { CAPS_FLAGS & !0x100 };
-                for (i, v) in [flags, DEV_TYPE, axes, 32, 0, 10_000, 1, 1, 1, 0x0001_0000].into_iter().enumerate() {
+                for (i, v) in [flags, dev_type(), axes, 32, 0, 10_000, 1, 1, 1, 0x0001_0000].into_iter().enumerate() {
                     if 4 * (i + 2) <= size {
                         *caps.add(i + 1) = v;
                     }
@@ -876,7 +911,7 @@ mod wheel {
                     std::ptr::copy_nonoverlapping(button_guid.as_ptr(), o.add(4), 16);
                     (o.add(20) as *mut u32).write_unaligned(0x30 + i as u32);
                     (o.add(24) as *mut u32).write_unaligned(4 | (i as u32) << 8);
-                    let label = format!("Button {}", i + 1);
+                    let label = format!("Button {}", i + button_base());
                     put_str(o.add(32), 260, &label, wide);
                     if super::enum_callback(cb, o, context) == 0 { break; }
                 }

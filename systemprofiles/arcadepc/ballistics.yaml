@@ -1,0 +1,67 @@
+# Ballistics (Grin, 2001, arcade version: Ballistics.exe, Direct3D 8, 32-bit) - template,
+# override values in userprofiles/arcadepc/ballistics.yaml.
+# A tube racer, one player. The cabinet's controls are a USB "HAPP UGCI Driving GameFrame"
+# DirectInput joystick (the game binds it by name: steering X, throttle Y, buttons by their
+# names) and the coin program's window messages; the payload gives both (docs §6.3i). The
+# D-Box motion seat's library is not loaded.
+system: arcadepc
+name: Ballistics
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+# wined3d: DXVK's Direct3D 8 drew Sky Town's buildings and sky white
+dxvk: false
+
+env:
+  WAL_ARCADEPC_BOARD: ballistics
+  # the cabinet's GameFrame, a joystick of that name: X the steering (pitch, roll right: the
+  # game's bindings), Y the throttle (its rest at the top of the range: full throttle), the
+  # buttons named from Button 0: 0 select / start, 1 and 7 flip, 2 brake, 3 throttle,
+  # 4 roll right, 9 booster
+  WAL_DINPUT_WHEEL: "HAPP UGCI(tm) USB Driving GameFrame v2.02"
+  WAL_DINPUT_WHEEL_JOYSTICK: "1"
+  WAL_DINPUT_WHEEL_BUTTON_BASE: "0"
+  WAL_DINPUT_WHEEL_Y_AXIS: "-accel"
+  WAL_DINPUT_WHEEL_BUTTONS: "start,b3,b2,b1,none,none,none,b3,none,b4"
+  WAL_DINPUT_WHEEL_FFB: "0"
+  # the game stops without a DirectInput keyboard (none of its keys used)
+  WAL_DINPUT_WHEEL_SYSTEM: "1"
+  # its 800x600 full screen device (the display settings, accepted at the first start):
+  # windowed in a borderless window, the screen's centered 4:3 rectangle, black around
+  WAL_D3D9_WINDOWED_SIZE: 800x600
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  WAL_BEZEL: black
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  stick_as_dpad: false
+  # keyboard throttle: full in 0.3 s
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the coins per credit of Common\Options.txt (4).
+
+controls:
+  lx: Steering
+  accel: Throttle
+  b1: Throttle (button)
+  b2: Brake
+  b3: Flip
+  b4: Booster
+  start: Start / select
+  coin: Coin

@@ -4591,6 +4591,51 @@ DemulShooter plugin (`BepInEx\plugins\DCOP_BepInEx_DemulShooter_Plugin.dll` + `.
 - Verified headless (2026-11-09): attract, start, shots scoring (241, 567, 1134), reload,
   continue / game over, the service menu opened and resumed with the gun; 1280x1024 letterboxed.
 
+#### Ballistics
+
+Grin's tube racer, arcade version (2001, `Ballistics.exe`, Direct3D 8, 32-bit; the dump also
+has `Ballistics_NOHUD.exe`, debug builds `*d.exe`, `BallisticsLauncher.exe`, and the D-Box
+motion seat's `dbox*.dll`). `.windowsloader`: `Ballistics.exe`. Board `ballistics`
+(`ballistics.rs`), loaded at the entry point:
+
+- **Controls.** The cabinet's controls are a USB "HAPP UGCI(tm) USB Driving GameFrame v2.02":
+  the input setup (`0x42c920`) takes the DirectInput joystick of that exact name (joystick or
+  gamepad type: the enumeration's callback skips driving devices) or throws "Could not find
+  HAPP UGCI..." and quits. It binds its axes by their names' first letter: `X` (pitch and roll
+  right: the steering), `Y` (roll left: the throttle, full at the top of the axis' range), and
+  its buttons by name: `Button 0` select / thrust, `1` and `7` flip, `2` brake, `3` throttle,
+  `4` roll right, `9` booster (all but 4 also the menus' "any button"). A DirectInput keyboard
+  must exist too ("Could not find Keyboard input device!"; only W and F5 bound). The common fake
+  DirectInput's wheel is that joystick, with new opt-in variables in `dinput.rs`:
+  `WAL_DINPUT_WHEEL_JOYSTICK=1` (joystick device type), `WAL_DINPUT_WHEEL_BUTTON_BASE=0`
+  (`Button 0`.., Windows' names), `WAL_DINPUT_WHEEL_SYSTEM=1` (the system keyboard and mouse
+  listed and created next to it). Profile: X `lx`, Y `-accel` (released: no throttle), buttons
+  start (select), `b1` throttle, `b2` brake, `b3` flip, `b4` booster; keyboard arrows steer and
+  throttle. `Common\Bindings.txt` (the PC version's keyboard / mouse layout, a Swedish keyboard)
+  is still parsed; it binds nothing that exists.
+- **Coins.** The cabinet's coin program posts the registered message `BALLISTICS ARCADE
+  COINDROP` to the game's window (class `Diesel default rendering window`) with the count of
+  coins since it started: the window procedure adds the difference to the coin counter, a
+  credit per `Price` coins (`Common\Options.txt`: 4). The payload posts it at each coin press
+  (the readme's Escape coin is not in this build). Free play (`WAL_FREEPLAY`): the loaded price
+  made 0, the game's own free play ("PRESS ANY BUTTON TO PLAY", a button gives a credit).
+- **Restart.** After `Restart Time` (3600 s) in the attract loop the game broadcasts `SET OUTPUT`
+  and quits (the cabinet's `start.bat` restarted it): the loaded time is made a year.
+- **Display settings.** `display_settings.txt` holds the adapter and mode of the settings dialog;
+  when it does not match the adapter the boot shows the dialog (the dump's came from another PC): the
+  payload's dialog procedure presses OK after the game's set it up (full screen 800x600, 32-bit)
+  and the game writes the file into the dump (the SquashFS overlay on Batocera). The device is
+  made windowed 800x600 in a borderless window, the screen's centered 4:3 rectangle, black
+  around (`WAL_D3D9_WINDOWED_SIZE`, `WAL_D3D9_ASPECT`, `WAL_WINDOW_SIZE=aspect`).
+- **Direct3D 8.** wined3d (`dxvk: false`): DXVK's Direct3D 8 drew Sky Town's buildings and sky
+  white (textures missing); wined3d draws them.
+- **Motion seat.** `dbox.dll` (loaded with `LoadLibraryA`, its functions optional) is not loaded:
+  its `programInit` crashed on its absent COM server.
+- No operator menu (the settings are `Common\Options.txt`, all of whose entries must exist).
+- Verified headless (2026-11-09): attract, coins (credits 4/4, the name entry), free play's
+  "PRESS ANY BUTTON TO PLAY", name / track / speeder selection, a Sky Town race (throttle,
+  steering off a wall, brake, flip, booster).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6756,6 +6801,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `robin-hood` | Robin Hood | arcadepc | user 100% (2026-11-09), 1 gun | ICE's ticket redemption crossbow game (Direct3D 9, 32-bit, §6.3i): the serial board emulated (switches, coins, tickets paid at once), the crossbow's DirectInput joystick X from the gun's X position, the linked HASP HL API patched, free play option over `coinfree`, the dump's root as working directory |
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | Lightgun game (Direct3D 9, 32-bit, §6.3i): the parallel port gun board emulated (`inpout32`'s `Inp32` / `Out32`: aim, triggers, switches, a gun sample per shot), the Dinkey dongle's checks patched, free play option, crosshairs, the dump's bezel |
 | `dcop` | DCOP | arcadepc | headless-tested, awaiting user (2026-11-09), 1 gun | Klockworks' live-action police shooter (Unity 2020.3, 64-bit, §6.3i): the game plays with the mouse (left shoots, right reloads, any key starts / continues: free play by design), played by the gun (`dcop.rs`: `post_mouse`, `GetCursorPos`); the dump's DemulShooter plugin kept (Uduino serial off, NVRAM saves, pause menu on 0), told to hide the game's cursor; common crosshair, 16:9 borderless window |
+| `ballistics` | Ballistics | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (steering, throttle, buttons) | Grin's tube racer, arcade version (Direct3D 8 on wined3d, §6.3i): the cabinet's HAPP UGCI GameFrame as the common fake DirectInput joystick (by name, X steering, Y throttle, buttons by name) next to a DirectInput keyboard, coins as the coin program's `COINDROP` window messages, free play as the game's price 0, no hourly restart, the display settings dialog accepted, the D-Box seat's library not loaded, 4:3 window |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
