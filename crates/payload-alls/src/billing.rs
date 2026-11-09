@@ -4,7 +4,8 @@
 //! `core/allnet.py` billing servlet (WTFPL).
 //!
 //! TLS: the game's OpenSSL 1.0.2 offers RSA key exchange only (`TLS_RSA_WITH_AES_*_CBC_SHA`,
-//! which TLS libraries no longer serve): a TLS 1.2 server of these suites alone, with
+//! which TLS libraries no longer serve): a TLS server of these suites alone (1.2, and 1.0 / 1.1
+//! for the clients offering no more: CHUNITHM PLUS's OpenSSL), with
 //! segatools' dummy PKI (public domain): the certificate `ib.naominet.jp`, signed by the CA the
 //! keychip gives the game (`pki.rs`), and its RSA key.
 //!
@@ -144,7 +145,7 @@ fn sign(data: &[u8]) -> String {
     rsa_private(&em, BILLING_N, BILLING_D).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-// ── TLS 1.2, RSA key exchange, AES-CBC with HMAC-SHA1 ──────────────────────────────────────
+// ── TLS 1.0-1.2, RSA key exchange, AES-CBC with HMAC-SHA1 ──────────────────────────────────
 
 fn sha256(data: &[u8]) -> Vec<u8> {
     Sha256::digest(data).to_vec()
@@ -152,6 +153,50 @@ fn sha256(data: &[u8]) -> Vec<u8> {
 
 fn sha1(data: &[u8]) -> Vec<u8> {
     sha1_smol::Sha1::from(data).digest().bytes().to_vec()
+}
+
+fn md5_digest(data: &[u8]) -> [u8; 16] {
+    const S: [u32; 64] = [
+        7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+        4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
+    ];
+    let k: Vec<u32> = (0..64).map(|i| ((i as f64 + 1.0).sin().abs() * 4294967296.0) as u32).collect();
+    let mut msg = data.to_vec();
+    msg.push(0x80);
+    while msg.len() % 64 != 56 {
+        msg.push(0);
+    }
+    msg.extend_from_slice(&((data.len() as u64) * 8).to_le_bytes());
+    let mut h = [0x67452301u32, 0xefcdab89, 0x98badcfe, 0x10325476];
+    for chunk in msg.chunks(64) {
+        let m: Vec<u32> = chunk.chunks(4).map(|w| u32::from_le_bytes(w.try_into().unwrap())).collect();
+        let [mut a, mut b, mut c, mut d] = h;
+        for i in 0..64 {
+            let (f, g) = match i / 16 {
+                0 => ((b & c) | (!b & d), i),
+                1 => ((d & b) | (!d & c), (5 * i + 1) % 16),
+                2 => (b ^ c ^ d, (3 * i + 5) % 16),
+                _ => (c ^ (b | !d), (7 * i) % 16),
+            };
+            let t = d;
+            d = c;
+            c = b;
+            b = b.wrapping_add(a.wrapping_add(f).wrapping_add(k[i]).wrapping_add(m[g]).rotate_left(S[i]));
+            a = t;
+        }
+        for (x, y) in h.iter_mut().zip([a, b, c, d]) {
+            *x = x.wrapping_add(y);
+        }
+    }
+    let mut out = [0u8; 16];
+    for (i, v) in h.iter().enumerate() {
+        out[4 * i..4 * i + 4].copy_from_slice(&v.to_le_bytes());
+    }
+    out
+}
+
+fn md5(data: &[u8]) -> Vec<u8> {
+    md5_digest(data).to_vec()
 }
 
 fn hmac(hash: fn(&[u8]) -> Vec<u8>, key: &[u8], msg: &[u8]) -> Vec<u8> {
@@ -162,17 +207,33 @@ fn hmac(hash: fn(&[u8]) -> Vec<u8>, key: &[u8], msg: &[u8]) -> Vec<u8> {
     hash(&outer)
 }
 
-/// TLS 1.2's PRF (P_SHA256).
-fn prf(secret: &[u8], label: &str, seed: &[u8], len: usize) -> Vec<u8> {
-    let seed = [label.as_bytes(), seed].concat();
+/// P_hash: `len` bytes of HMAC expansion.
+fn p_hash(hash: fn(&[u8]) -> Vec<u8>, secret: &[u8], seed: &[u8], len: usize) -> Vec<u8> {
     let mut out = Vec::new();
-    let mut a = hmac(sha256, secret, &seed);
+    let mut a = hmac(hash, secret, seed);
     while out.len() < len {
-        out.extend(hmac(sha256, secret, &[&a[..], &seed].concat()));
-        a = hmac(sha256, secret, &a);
+        out.extend(hmac(hash, secret, &[&a[..], seed].concat()));
+        a = hmac(hash, secret, &a);
     }
     out.truncate(len);
     out
+}
+
+/// The PRF of TLS 1.`minor - 1`: 1.2's P_SHA256; 1.0's and 1.1's P_MD5 over the secret's first
+/// half xored with P_SHA1 over its second half.
+fn prf(minor: u8, secret: &[u8], label: &str, seed: &[u8], len: usize) -> Vec<u8> {
+    let seed = [label.as_bytes(), seed].concat();
+    if minor >= 3 {
+        return p_hash(sha256, secret, &seed, len);
+    }
+    let half = secret.len().div_ceil(2);
+    let (a, b) = (p_hash(md5, &secret[..half], &seed, len), p_hash(sha1, &secret[secret.len() - half..], &seed, len));
+    a.iter().zip(&b).map(|(x, y)| x ^ y).collect()
+}
+
+/// The handshake's hash for the finished messages: 1.2's SHA-256, else MD5 and SHA-1.
+fn transcript_hash(minor: u8, transcript: &[u8]) -> Vec<u8> {
+    if minor >= 3 { sha256(transcript) } else { [md5(transcript), sha1(transcript)].concat() }
 }
 
 #[link(name = "bcrypt")]
@@ -219,20 +280,24 @@ struct Cipher {
     aes: Aes,
     mac_key: Vec<u8>,
     seq: u64,
+    minor: u8,
+    /// TLS 1.0's CBC chain: the key block's IV, then each record's last cipher block (1.1 and
+    /// 1.2: an explicit IV in each record).
+    chain: Vec<u8>,
 }
 
 impl Cipher {
     fn mac(&self, kind: u8, data: &[u8]) -> Vec<u8> {
-        let header = [&self.seq.to_be_bytes()[..], &[kind, 3, 3], &(data.len() as u16).to_be_bytes()].concat();
+        let header = [&self.seq.to_be_bytes()[..], &[kind, 3, self.minor], &(data.len() as u16).to_be_bytes()].concat();
         hmac(sha1, &self.mac_key, &[&header[..], data].concat())
     }
 
-    /// A record's fragment: explicit IV, then data, MAC and padding encrypted (CBC).
+    /// A record's fragment: explicit IV (1.1, 1.2), then data, MAC and padding encrypted (CBC).
     fn seal(&mut self, kind: u8, data: &[u8]) -> Vec<u8> {
         let mut plain = [data, &self.mac(kind, data)].concat();
         let pad = 15 - plain.len() % 16;
         plain.extend(std::iter::repeat_n(pad as u8, pad + 1));
-        let iv = random(16);
+        let iv = if self.minor >= 2 { random(16) } else { self.chain.clone() };
         let mut prev = iv.clone();
         for block in plain.chunks_mut(16) {
             block.iter_mut().zip(&prev).for_each(|(b, p)| *b ^= p);
@@ -240,15 +305,18 @@ impl Cipher {
             prev = block.to_vec();
         }
         self.seq += 1;
-        [iv, plain].concat()
+        self.chain = prev;
+        if self.minor >= 2 { [iv, plain].concat() } else { plain }
     }
 
     fn open(&mut self, kind: u8, fragment: &[u8]) -> Result<Vec<u8>, String> {
-        if fragment.len() < 48 || fragment.len() % 16 != 0 {
+        let iv_len = if self.minor >= 2 { 16 } else { 0 };
+        if fragment.len() < iv_len + 32 || fragment.len() % 16 != 0 {
             return Err("bad record size".into());
         }
-        let mut prev = fragment[..16].to_vec();
-        let mut plain = fragment[16..].to_vec();
+        let mut prev = if iv_len > 0 { fragment[..16].to_vec() } else { self.chain.clone() };
+        self.chain = fragment[fragment.len() - 16..].to_vec();
+        let mut plain = fragment[iv_len..].to_vec();
         for block in plain.chunks_mut(16) {
             let saved = block.to_vec();
             self.aes.decrypt(block);
@@ -268,6 +336,8 @@ impl Cipher {
 
 struct Tls {
     tcp: TcpStream,
+    /// The protocol's minor version (3: TLS 1.2), the client's highest up to 1.2.
+    minor: u8,
     read: Option<Cipher>,
     write: Option<Cipher>,
     /// Handshake messages read and not consumed.
@@ -298,7 +368,7 @@ impl Tls {
                 Some(c) => c.seal(kind, chunk),
                 None => chunk.to_vec(),
             };
-            let record = [&[kind, 3, 3][..], &(fragment.len() as u16).to_be_bytes(), &fragment].concat();
+            let record = [&[kind, 3, self.minor][..], &(fragment.len() as u16).to_be_bytes(), &fragment].concat();
             self.tcp.write_all(&record).map_err(|e| e.to_string())?;
         }
         Ok(())
@@ -341,10 +411,15 @@ impl Tls {
         }
         let suite = [0x002Fu16, 0x0035].into_iter().find(|s| suites.contains(s)).ok_or_else(|| format!("no RSA AES-CBC-SHA suite in {suites:04x?}"))?;
         let key_len = if suite == 0x002F { 16 } else { 32 };
-        log!("billing: TLS {:04x}, suite {suite:04x}", u16::from_be_bytes([hello[4], hello[5]]));
+        if hello[4] != 3 || hello[5] < 1 {
+            return Err(format!("client version {:02x}{:02x}", hello[4], hello[5]));
+        }
+        self.minor = hello[5].min(3);
+        let minor = self.minor;
+        log!("billing: TLS 1.{}, suite {suite:04x}", minor - 1);
         let server_random = random(32);
         // server hello (the renegotiation extension, empty), certificate, done
-        let mut body = vec![3, 3];
+        let mut body = vec![3, minor];
         body.extend(&server_random);
         body.push(0);
         body.extend(suite.to_be_bytes());
@@ -365,25 +440,28 @@ impl Tls {
         transcript.extend(&exchange);
         let block = rsa_private(&exchange[6..], SERVER_N, SERVER_D);
         let premaster = block.iter().skip(2).position(|&b| b == 0).map(|z| block[z + 3..].to_vec()).filter(|p| p.len() == 48).ok_or("bad premaster secret")?;
-        let master = prf(&premaster, "master secret", &[&client_random[..], &server_random].concat(), 48);
-        let keys = prf(&master, "key expansion", &[&server_random[..], &client_random].concat(), 40 + 2 * key_len);
+        let master = prf(minor, &premaster, "master secret", &[&client_random[..], &server_random].concat(), 48);
+        // MAC keys, cipher keys, then (TLS 1.0) the CBC IVs
+        let keys = prf(minor, &master, "key expansion", &[&server_random[..], &client_random].concat(), 40 + 2 * key_len + 32);
         let (client_mac, server_mac) = (keys[..20].to_vec(), keys[20..40].to_vec());
         let (client_key, server_key) = (&keys[40..40 + key_len], &keys[40 + key_len..40 + 2 * key_len]);
+        let ivs = &keys[40 + 2 * key_len..];
+        let (client_iv, server_iv) = (ivs[..16].to_vec(), ivs[16..].to_vec());
         // change cipher spec, the client's finished message
         match self.record()? {
             (20, _) => {}
             (kind, _) => return Err(format!("record {kind} instead of change cipher spec")),
         }
-        self.read = Some(Cipher { aes: Aes::new(client_key), mac_key: client_mac, seq: 0 });
-        let expected = prf(&master, "client finished", &sha256(&transcript), 12);
+        self.read = Some(Cipher { aes: Aes::new(client_key), mac_key: client_mac, seq: 0, minor, chain: client_iv });
+        let expected = prf(minor, &master, "client finished", &transcript_hash(minor, &transcript), 12);
         let (kind, finished) = self.handshake()?;
         if kind != 20 || finished[4..] != expected[..] {
             return Err("bad client finished".into());
         }
         transcript.extend(&finished);
         self.send(20, &[1])?;
-        self.write = Some(Cipher { aes: Aes::new(server_key), mac_key: server_mac, seq: 0 });
-        let verify = prf(&master, "server finished", &sha256(&transcript), 12);
+        self.write = Some(Cipher { aes: Aes::new(server_key), mac_key: server_mac, seq: 0, minor, chain: server_iv });
+        let verify = prf(minor, &master, "server finished", &transcript_hash(minor, &transcript), 12);
         self.send(22, &handshake_message(20, &verify))
     }
 
@@ -440,7 +518,7 @@ fn answer(body: &[u8]) -> String {
 }
 
 fn client(tcp: TcpStream) -> Result<(), String> {
-    let mut tls = Tls { tcp, read: None, write: None, pending: Vec::new(), data: Vec::new() };
+    let mut tls = Tls { tcp, minor: 3, read: None, write: None, pending: Vec::new(), data: Vec::new() };
     tls.accept()?;
     let header_end = loop {
         if let Some(i) = tls.data.windows(4).position(|w| w == b"\r\n\r\n") {

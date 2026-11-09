@@ -6169,7 +6169,8 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
   install's game log (another loader, NVIDIA) was the comparison.
   - Black attract = the cabinets' nightly maintenance hours, Japan 02:00-07:00 (every test ran
     in them, the payload's clock being Japan's): the game holds its logo sequence for the reboot.
-    `WAL_ALLS_TIMEWARP=1` (`clock.rs`, segatools' `timewarp`): each day's 24 hours shown as 19,
+    `WAL_ALLS_TIMEWARP=1` (`clock.rs`, segatools' `timewarp`): each day's 24 hours shown as
+    Japan's 07:00 to 23:00 (CHUNITHM PLUS closes before midnight: "本日のプレイ受付は終了しました"),
     the hours never reached; ALL.Net's and the game server's times from the same warped clock
     (`clock::unix_now`), else the game's auto reboot check fires at the attract.
   - Cabinet: DIP 0x07 (main, SWDC cabinet: Aime 837-15396 on COM3, single seat), the single
@@ -6323,7 +6324,9 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     `data\A000` and `C:\mount\Option\*`).
   - Billing (`billing.rs`): the game's OpenSSL 1.0.2h checks in at `ib.naominet.jp:8443` (the
     router's port 8443 to 127.0.0.1:`WAL_PORT`+105) offering RSA key exchange only: a TLS 1.2
-    server of `TLS_RSA_WITH_AES_128/256_CBC_SHA` (Montgomery RSA, AES-CBC, HMAC-SHA1, PRF SHA-256)
+    server of `TLS_RSA_WITH_AES_128/256_CBC_SHA` (Montgomery RSA, AES-CBC, HMAC-SHA1, PRF SHA-256;
+    TLS 1.0 / 1.1 for older clients: CHUNITHM PLUS's OpenSSL offers 1.0 only, PRF MD5 / SHA-1,
+    1.0's chained CBC IVs)
     with segatools' dummy PKI (`server.pem` for `ib.naominet.jp`, signed by the CA the keychip
     gives); answers as ARTEMiS's billing servlet (play limit and near-full signed with
     `billing.key`, RSA PKCS#1 v1.5 SHA-1). `OPENSSL_ia32cap=~0x20000000` (segatools'
@@ -6332,6 +6335,16 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     warp also hooks the C runtime's clock (msvcr110: the RTC check compares both).
   - CHUNITHM STAR PLUS (SDBT 1.25.00, `chunithm-star-plus`): the same profile with the title
     uri `/SDBT/125/` (the server's data version from the uri's version: `1.25.00`).
+  - CHUNITHM PLUS (SDBT 1.06.00, `chunithm-plus`): the same profile with the title uri
+    `/SDBT/106/`; billing over TLS 1.0, the time warp's day ending at Japan's 23:00.
+  - CHUNITHM PARADISE LOST (SDBT 1.50.00, `chunithm-paradise-lost`): NOT RUNNING. Its
+    `chuniApp.exe` and `aimeReaderHost.exe` are protected (SUPERSTAR's family: a stub at
+    +0x196c, sections decrypted at start, VMware / VirtualPC probes, trap flag checks). Under
+    Wine, with or without the payload, the protector unpacks, then reports an error to
+    `\\.\mailslot\ErrLog-Pec7679` (date, code, path, an encrypted block; read by a mailslot the
+    payload created for the test) and calls `ExitProcess(0)`: `chuniApp.exe` `023-01F-000`,
+    `aimeReaderHost.exe` `042-023-004`, with no API call between the unpacking and the error (an
+    internal check). The profile is the others' with the title uri `/SDBT/150/`.
   - Debug: `WAL_CHUNI_DEBUG=1` (STAR 1.20 only: the ALL.Net library's log, its level, categories
     and callback globals set; EEPROM writes; the TLS client hello), `WAL_ALLS_AMLOG=0x7e53d0` with
     `WAL_ALLS_AMLOG_LEVELS` (amLib's log, payload-common's `amlog`), `WAL_ALLS_AIMEDB_DEBUG=1`.
@@ -6868,6 +6881,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept | Nu 1.1 with amdaemon (§6.3l): AMEX board JVS in amdaemon (`WAL_ALLS_JVS`), LED board on COM12, levers layout, amRtc sync patch, Aime (837-15286) and the CTS game server (player names and saves kept) |
 | `chunithm-star` | CHUNITHM STAR | alls | user (2026-11-09): "working 100%" (Aime login, play, audio, touchpad slider); headless tests: power-on test, card registration, name entry, tutorial | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=chuni`): slider COM1, air sensors on JVS, LED boards COM10/11, Aime reader in aimeReaderHost, distribution server in the EEPROM, title server, billing TLS server, RTC privileges, WASAPI shared (CRI 24-in-32), windowed device, touchpad slider (`input.touch`) |
 | `chunithm-star-plus` | CHUNITHM STAR PLUS | alls | user (2026-11-09): "working 100%"; headless tests: card login, registration, name entry | as CHUNITHM STAR, title uri `/SDBT/125/` |
+| `chunithm-plus` | CHUNITHM PLUS | alls | headless tests (2026-11-09): attract, card login, tutorial with the slider, billing over TLS 1.0 | as CHUNITHM STAR, title uri `/SDBT/106/` |
+| `chunithm-paradise-lost` | CHUNITHM PARADISE LOST | alls | not running (2026-11-09): protected executables exit under Wine (error 023-01F-000) | as CHUNITHM STAR, title uri `/SDBT/150/` |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |

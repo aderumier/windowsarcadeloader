@@ -4,8 +4,9 @@
 //! the game.
 //!
 //! `WAL_ALLS_TIMEWARP=1` (segatools' `timewarp`): the cabinets' nightly maintenance hours, Japan
-//! 02:00-07:00, never seen: each day's 24 hours pass as its 19 others. Initial D THE ARCADE's
-//! attract stays black during them (a closed cabinet waiting for its reboot).
+//! 02:00-07:00 (CHUNITHM PLUS closes before midnight), never seen: each day's 24 hours pass as
+//! Japan's 07:00 to 23:00. Initial D THE ARCADE's attract stays black during them (a closed
+//! cabinet waiting for its reboot), CHUNITHM's says play is over for the day.
 
 use wal_payload_common::iat;
 
@@ -24,8 +25,8 @@ const DAY: u64 = 24 * HOUR;
 static TIMEWARP: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// The current UTC time (FILETIME units), the maintenance hours skipped with the time warp:
-/// the day biased 2 hours forward (Japan's 02:00-07:00 = UTC 17:00-22:00 becomes its last five
-/// hours), its time scaled by 19/24, the bias removed.
+/// the day biased 2 hours forward (Japan's 23:00-07:00 = UTC 14:00-22:00 becomes its last eight
+/// hours), its time scaled by 16/24, the bias removed.
 fn now() -> u64 {
     let mut now = 0u64;
     unsafe { GetSystemTimeAsFileTime(&mut now) };
@@ -34,7 +35,7 @@ fn now() -> u64 {
     }
     let biased = now + 2 * HOUR;
     let (day, time) = (biased / DAY, biased % DAY);
-    day * DAY + time * 19 / 24 - 2 * HOUR
+    day * DAY + time * 16 / 24 - 2 * HOUR
 }
 
 /// The cabinet's current time in Unix seconds (time-warped too: ALL.Net's and the game
