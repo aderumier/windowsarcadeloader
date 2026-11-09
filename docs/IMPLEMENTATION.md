@@ -4681,10 +4681,21 @@ first. `.windowsloader`: `BBPC.exe`. Loaded at the entry point, board `bugbuster
   1920x1080 black sides, 1280x1024 black bands; the guns aimed at the picture's corners and
   center put the game's pointer there). A 4:3 window instead (`WAL_NO_MODE_CHANGE`,
   `WAL_WINDOW_SIZE`) showed the exclusive picture unscaled at the screen's corner.
-- **Sinden border.** Not supported (profile `WAL_SINDEN_BORDER: "0"`; a `1` is turned off by the
-  payload before `payload-common` starts): its window path keeps the game's mode and a
-  screen-sized window, the 640x480 picture was drawn unscaled in the top left corner, and no
-  frame is drawn over DirectDraw.
+- **Sinden border** (`WAL_SINDEN_BORDER`, the launcher's `auto`): `payload-common`'s border is
+  turned off before it starts (its window path keeps the game's mode and a screen-sized window:
+  the 640x480 picture was drawn unscaled in the top left corner, and it draws nothing over
+  DirectDraw). The payload draws it into the game's back buffer before each present (the
+  present function `0x401a18` jumps to the payload, a trampoline runs its moved instructions):
+  the back buffer copied to an offscreen surface of its format, cleared, the copy stretched into
+  the frame's picture, the colored ring (and the outer black outline of `big`) color-filled at
+  its edges. Wine then scales the framed 640x480 to the screen: the ring frames the 4:3 picture
+  (black sides beyond). The picture's place in the surface is the launcher's aim picture
+  (`Border::picture` of the screen, as fractions: on 1920x1080 `[68, 38, 1784, 1004]` -> 23,17 -
+  617,463 of 640x480), the ring's thickness the screen's (2 % of 1920 = 38 screen pixels, 17
+  surface pixels shown 1440 wide): the Sinden's position over its frame, mapped by the launcher
+  into that picture, is the place in the game's surface, which the payload then uses whole.
+  Verified on Xvfb 1920x1080: the white ring around the 4:3 picture (title, menus, movies, in
+  game), the pointers at the picture's corners and center where aimed.
 - Verified headless (2026-11-09): title, free play and coins ("CREDIT"), both players' starts,
   story / free select, movies, both guns' aim and shots scoring, the tank emptied and reloaded
   (`b2` and off screen), test into the setup menu, its items and exit, crosshair option off.
@@ -6953,7 +6964,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | Lightgun game (Direct3D 9, 32-bit, §6.3i): the parallel port gun board emulated (`inpout32`'s `Inp32` / `Out32`: aim, triggers, switches, a gun sample per shot), the Dinkey dongle's checks patched, free play option, crosshairs, the dump's bezel |
 | `dcop` | DCOP | arcadepc | headless-tested, awaiting user (2026-11-09), 1 gun | Klockworks' live-action police shooter (Unity 2020.3, 64-bit, §6.3i): the game plays with the mouse (left shoots, right reloads, any key starts / continues: free play by design), played by the gun (`dcop.rs`: `post_mouse`, `GetCursorPos`); the dump's DemulShooter plugin kept (Uduino serial off, NVRAM saves, pause menu on 0), told to hide the game's cursor; common crosshair, 16:9 borderless window |
 | `ballistics` | Ballistics | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (steering, throttle, buttons) | Grin's tube racer, arcade version (Direct3D 8 on wined3d, §6.3i): the cabinet's HAPP UGCI GameFrame as the common fake DirectInput joystick (by name, X steering, Y throttle, buttons by name) next to a DirectInput keyboard, coins as the coin program's `COINDROP` window messages, free play as the game's price 0, no hourly restart, the display settings dialog accepted, the D-Box seat's library not loaded, 4:3 window |
-| `bug-busters` | Bug Busters | arcadepc | headless-tested, awaiting user (2026-11-09), 2 guns | MIZI Production's spray gun game, PC release (DirectDraw on wined3d, 32-bit, §6.3i): the guns and the dead serial I/O board's switches written into the game (`bugbusters.rs`: records, tank reloads, start / test / service flags, coins with their sounds), the CD check patched, free play as the game's price 0, test opens the setup menu from the title, the game's own pointers as the crosshair option, 4:3 centered by Wine's mode scaling (aim checked on 16:9 and 5:4), no Sinden border |
+| `bug-busters` | Bug Busters | arcadepc | headless-tested, awaiting user (2026-11-09), 2 guns | MIZI Production's spray gun game, PC release (DirectDraw on wined3d, 32-bit, §6.3i): the guns and the dead serial I/O board's switches written into the game (`bugbusters.rs`: records, tank reloads, start / test / service flags, coins with their sounds), the CD check patched, free play as the game's price 0, test opens the setup menu from the title, the game's own pointers as the crosshair option, 4:3 centered by Wine's mode scaling (aim checked on 16:9 and 5:4), the Sinden border drawn into the game's back buffer before each present |
 | `arctic-thunder` | Arctic Thunder | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (handlebar, throttle, attack) | Midway's snowmobile racer (Glide 3 on the dump's nGlide, 32-bit, goose library, §6.3i): the payload is the coin and security manager wincsm whose memory goose reads (switches, handlebar / throttle, credits, coin lock), the textures' disk-serial RC4 key (0x0a6a209a, base provider) and their read-only + hidden marks, FP exceptions kept masked, free play as `COIN_FREE_ONLY`, no feedback calibration, 4:3; operator diagnostics (separate `diag.exe`) not done |
 | `hydro-thunder` | Hydro Thunder | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder runtime (Glide, 32-bit, §6.3i): its keys and the fake DirectInput wheel from the virtual sticks, constant force to the launcher's wheel, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
 | `offroad-thunder` | Offroad Thunder | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder runtime (same dump as Hydro Thunder, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload |

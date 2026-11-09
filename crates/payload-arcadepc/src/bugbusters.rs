@@ -32,9 +32,10 @@
 //! - **Crosshair.** The game draws each player's own pointer (`Image\Setup\pointer.dds`); the
 //!   common crosshair option off (`WAL_CROSSHAIR=0`) hides it in the game (`0x4263c1`, as the
 //!   game does for a joystick player), the menus keep it.
-//! - **Sinden border.** Not supported: `WAL_SINDEN_BORDER=1` is turned off before
-//!   `payload-common` starts ([`prepare`]); its window path left the exclusive 640x480 picture
-//!   unscaled in a corner, and no frame is drawn over DirectDraw.
+//! - **Sinden border** (`WAL_SINDEN_BORDER`): drawn by the payload into the game's back buffer
+//!   before each present, around the 4:3 picture Wine scales to the screen ([`frame`]);
+//!   `payload-common`'s own border is turned off before it starts ([`prepare`]: its window path
+//!   left the exclusive 640x480 picture unscaled in a corner).
 //! - `WAL_BUGBUSTERS_TRACE=1`: the mode, coins, players' records and tanks logged each second.
 //!
 //! Natives: `trigger reload offscreen start coin` (each player), `test service`.
@@ -159,7 +160,9 @@ fn gun(player: usize) -> Option<(f32, f32)> {
     let stick = input(player);
     let f = |v: i16| (v as f32 + 32768.0) / 65535.0;
     let screen = SCREEN.load(Ordering::Relaxed);
-    let [px, py, w, h] = picture((screen >> 16) as f32, (screen & 0xFFFF) as f32);
+    // the Sinden frame: the launcher maps the gun into the frame's picture, the game's whole
+    // 640x480 surface shrunk inside it
+    let [px, py, w, h] = if frame::on() { [0.0, 0.0, 1.0, 1.0] } else { picture((screen >> 16) as f32, (screen & 0xFFFF) as f32) };
     let (x, y) = ((f(stick.axis(Axis::LeftX)) - px) / w, (f(stick.axis(Axis::LeftY)) - py) / h);
     ((0.0..1.0).contains(&x) && (0.0..1.0).contains(&y)).then_some((x, y))
 }
@@ -321,25 +324,19 @@ fn patch(offset: usize, expected: &[u8], code: &[u8]) -> bool {
     true
 }
 
-/// Set by [`prepare`]: the Sinden border was asked for.
-static NO_BORDER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// Before `payload-common` starts: no Sinden border (`WAL_SINDEN_BORDER=1`). Its window path
-/// keeps the game's mode (no mode change, a screen-sized window): the 640x480 exclusive
-/// DirectDraw picture was then drawn unscaled in the screen's top left corner, and nothing
-/// draws the frame over DirectDraw.
+/// Before `payload-common` starts: the Sinden border (`WAL_SINDEN_BORDER=1`) is drawn by
+/// [`frame`], not by `payload-common`, whose window path keeps the game's mode (no mode change,
+/// a screen-sized window): the 640x480 exclusive DirectDraw picture was then drawn unscaled in
+/// the screen's top left corner, and it draws no frame over DirectDraw.
 pub fn prepare() {
     if std::env::var("WAL_SINDEN_BORDER").is_ok_and(|v| v.trim() == "1") {
         // SAFETY: at the payload's load, before its threads
         unsafe { std::env::set_var("WAL_SINDEN_BORDER", "0") };
-        NO_BORDER.store(true, Ordering::Relaxed);
+        frame::want();
     }
 }
 
 pub fn init() {
-    if NO_BORDER.load(Ordering::Relaxed) {
-        log!("bugbusters: no Sinden border on DirectDraw (the picture would not be scaled)");
-    }
     let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
     EXE.store(exe, Ordering::Relaxed);
     let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
@@ -366,11 +363,242 @@ pub fn init() {
         }
     }
     log!("bugbusters: the guns and the I/O board's switches");
+    if frame::on() {
+        frame::init();
+    }
+}
+
+/// The Sinden border over Wine's DirectDraw. Wine scales the game's 640x480 mode to the screen
+/// (4:3, centered): the frame is drawn into the game's back buffer before each present (the
+/// present function `0x401a18`: the primary's `Flip`, or its `Blt` windowed), around the 4:3
+/// picture. The back buffer is copied to a surface of the same format, cleared, the copy
+/// stretched into the frame's picture, the ring filled around it. The picture's place in the
+/// back buffer is the launcher's for its aim (`Border::picture` of the screen, as fractions):
+/// the Sinden camera's position over the frame, mapped by the launcher into that picture,
+/// is then the place in the game's whole surface.
+mod frame {
+    use std::ffi::c_void;
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    use wal_payload_common::log;
+    use wal_protocol::border::Border;
+    use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAlloc, VirtualProtect};
+
+    type P = *mut c_void;
+
+    /// The present function, its first instructions (10 bytes, moved to the trampoline).
+    const PRESENT: usize = 0x1A18;
+    const PRESENT_CODE: [u8; 10] = [0x55, 0x8B, 0xEC, 0x83, 0x3D, 0x60, 0x50, 0x45, 0x00, 0x00];
+    /// The DirectDraw object and the back buffer.
+    const DIRECTDRAW: usize = 0x5B018;
+    const BACK_BUFFER: usize = 0x5B028;
+
+    const DDSD_CAPS: u32 = 0x1;
+    const DDSD_HEIGHT: u32 = 0x2;
+    const DDSD_WIDTH: u32 = 0x4;
+    const DDSD_PIXELFORMAT: u32 = 0x1000;
+    const DDSCAPS_OFFSCREENPLAIN: u32 = 0x40;
+    const DDBLT_COLORFILL: u32 = 0x400;
+    const DDBLT_WAIT: u32 = 0x0100_0000;
+
+    static WANT: AtomicBool = AtomicBool::new(false);
+    static TRAMPOLINE: AtomicUsize = AtomicUsize::new(0);
+
+    pub fn want() {
+        WANT.store(true, Ordering::Relaxed);
+    }
+
+    pub fn on() -> bool {
+        WANT.load(Ordering::Relaxed)
+    }
+
+    /// The border's settings and the screen it is computed on (`WAL_SINDEN_SCREEN`, else the
+    /// screen before the game's mode change).
+    fn border() -> Option<(Border, u32, u32)> {
+        static B: std::sync::OnceLock<Option<(Border, u32, u32)>> = std::sync::OnceLock::new();
+        *B.get_or_init(|| {
+            let border = Border::parse(
+                &std::env::var("WAL_SINDEN_BORDER_SIZE").unwrap_or_else(|_| "medium".into()),
+                &std::env::var("WAL_SINDEN_BORDER_COLOR").unwrap_or_else(|_| "white".into()),
+            )
+            .ok()?;
+            let screen = super::SCREEN.load(Ordering::Relaxed);
+            let (sw, sh) = std::env::var("WAL_SINDEN_SCREEN")
+                .ok()
+                .and_then(|v| {
+                    let (w, h) = v.split_once('x')?;
+                    Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
+                })
+                .filter(|&(w, h): &(u32, u32)| w > 0 && h > 0)
+                .unwrap_or((screen >> 16, screen & 0xFFFF));
+            Some((border, sw, sh))
+        })
+    }
+
+    /// In a `w` x `h` surface: the picture's rectangle (left, top, right, bottom), the ring's
+    /// colored thickness and its outer black outline (x, y), the color.
+    pub(super) fn geometry(border: Border, sw: u32, sh: u32, w: u32, h: u32) -> ([i32; 4], (i32, i32), (i32, i32)) {
+        let [px, py, pw, ph] = border.picture(sw, sh);
+        let (color, black) = border.thickness(sw, sh);
+        let fx = |v: u32| (v as f64 * w as f64 / sw as f64).round() as i32;
+        let fy = |v: u32| (v as f64 * h as f64 / sh as f64).round() as i32;
+        // the ring's thickness on the screen's width, over the 4:3 picture's width (w pixels
+        // shown sh * 4 / 3 wide)
+        let shown = (sh as f64 * w as f64 / h as f64).max(1.0);
+        let tx = |v: u32| ((v as f64 * w as f64 / shown).round() as i32).max(if v > 0 { 1 } else { 0 });
+        let ty = |v: u32| ((v as f64 * h as f64 / sh as f64).round() as i32).max(if v > 0 { 1 } else { 0 });
+        ([fx(px), fy(py), fx(px + pw), fy(py + ph)], (tx(color), ty(color)), (tx(black), ty(black)))
+    }
+
+    macro_rules! com {
+        ($obj:expr, $slot:expr, fn($($t:ty),*) -> $ret:ty $(, $arg:expr)*) => {{
+            let obj = $obj;
+            let f: unsafe extern "system" fn(P $(, $t)*) -> $ret = unsafe { std::mem::transmute(*(*(obj as *const *const usize)).add($slot)) };
+            unsafe { f(obj $(, $arg)*) }
+        }};
+    }
+
+    /// The back buffer's copy: (back buffer, copy, width, height, white, black).
+    struct Copy {
+        back: usize,
+        copy: usize,
+        w: u32,
+        h: u32,
+        color: u32,
+    }
+
+    static COPY: Mutex<Option<Copy>> = Mutex::new(None);
+
+    /// `rgb` in a surface's pixel format (its red, green, blue masks).
+    fn pixel(rgb: u32, masks: [u32; 3]) -> u32 {
+        let mut v = 0u32;
+        for (i, mask) in masks.into_iter().enumerate() {
+            let c = (rgb >> (16 - 8 * i)) & 0xFF;
+            v |= ((c as u64 * mask as u64 / 255) as u32) & mask;
+        }
+        v
+    }
+
+    fn fill(back: P, rect: [i32; 4], color: u32) {
+        if rect[2] <= rect[0] || rect[3] <= rect[1] {
+            return;
+        }
+        // DDBLTFX: dwSize, ..., dwFillColor at 80
+        let mut fx = [0u32; 25];
+        fx[0] = 100;
+        fx[20] = color;
+        com!(back, 5, fn(*const [i32; 4], P, *const [i32; 4], u32, *const [u32; 25]) -> i32, &rect, std::ptr::null_mut(), std::ptr::null(), DDBLT_COLORFILL | DDBLT_WAIT, &fx);
+    }
+
+    fn draw() {
+        let Some((border, sw, sh)) = border() else { return };
+        let back = unsafe { *super::at::<usize>(BACK_BUFFER) };
+        if back == 0 {
+            return;
+        }
+        let mut copy = COPY.lock().unwrap();
+        if copy.as_ref().is_some_and(|c| c.back != back) {
+            let c = copy.take().unwrap();
+            com!(c.copy as P, 2, fn() -> u32);
+        }
+        if copy.is_none() {
+            // DDSURFACEDESC2 (124 bytes): flags 4, height 8, width 12, pixel format 72, caps 104
+            let mut desc = [0u32; 31];
+            desc[0] = 124;
+            if com!(back as P, 22, fn(*mut [u32; 31]) -> i32, &mut desc) < 0 {
+                return;
+            }
+            let (w, h) = (desc[3], desc[2]);
+            let masks = [desc[18 + 4], desc[18 + 5], desc[18 + 6]];
+            let mut new = [0u32; 31];
+            new[0] = 124;
+            new[1] = DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
+            new[2] = h;
+            new[3] = w;
+            new[18..26].copy_from_slice(&desc[18..26]);
+            new[26] = DDSCAPS_OFFSCREENPLAIN;
+            let dd = unsafe { *super::at::<usize>(DIRECTDRAW) };
+            let mut surface: P = std::ptr::null_mut();
+            let hr = com!(dd as P, 6, fn(*mut [u32; 31], *mut P, P) -> i32, &mut new, &mut surface, std::ptr::null_mut());
+            if hr < 0 || surface.is_null() {
+                log!("bugbusters: Sinden border: no {w}x{h} surface ({hr:#x})");
+                return;
+            }
+            let color = pixel(border.rgb, masks);
+            log!("bugbusters: Sinden border over the {w}x{h} back buffer (masks {masks:x?}, color {color:#x})");
+            *copy = Some(Copy { back, copy: surface as usize, w, h, color });
+        }
+        let c = copy.as_ref().unwrap();
+        let (back, surface) = (c.back as P, c.copy as P);
+        let (w, h) = (c.w as i32, c.h as i32);
+        let (picture, (bx, by), (ox, oy)) = geometry(border, sw, sh, c.w, c.h);
+        let all = [0, 0, w, h];
+        if com!(surface, 5, fn(*const [i32; 4], P, *const [i32; 4], u32, P) -> i32, &all, back, &all, DDBLT_WAIT, std::ptr::null_mut()) < 0 {
+            return;
+        }
+        fill(back, all, 0);
+        com!(back, 5, fn(*const [i32; 4], P, *const [i32; 4], u32, P) -> i32, &picture, surface, &all, DDBLT_WAIT, std::ptr::null_mut());
+        // the ring inside its black outline
+        let (ix, iy) = (ox + bx, oy + by);
+        for strip in [[ox, oy, w - ox, iy], [ox, h - iy, w - ox, h - oy], [ox, iy, ix, h - iy], [w - ix, iy, w - ox, h - iy]] {
+            fill(back, strip, c.color);
+        }
+    }
+
+    /// The present function's replacement: the frame, then the game's present.
+    extern "C" fn present() -> u32 {
+        draw();
+        let f: extern "C" fn() -> u32 = unsafe { std::mem::transmute(TRAMPOLINE.load(Ordering::Relaxed)) };
+        f()
+    }
+
+    pub fn init() {
+        let exe = super::EXE.load(Ordering::Relaxed);
+        let at = exe + PRESENT;
+        if unsafe { std::slice::from_raw_parts(at as *const u8, PRESENT_CODE.len()) } != PRESENT_CODE {
+            log!("bugbusters: unknown present code, no Sinden border");
+            return;
+        }
+        // the trampoline: the moved instructions, then a jump to the rest
+        let t = unsafe { VirtualAlloc(std::ptr::null(), 32, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) } as usize;
+        if t == 0 {
+            return;
+        }
+        let back = at + PRESENT_CODE.len();
+        let mut code = PRESENT_CODE.to_vec();
+        code.push(0xE9);
+        code.extend_from_slice(&(back.wrapping_sub(t + code.len() + 4) as u32).to_le_bytes());
+        unsafe { std::ptr::copy_nonoverlapping(code.as_ptr(), t as *mut u8, code.len()) };
+        TRAMPOLINE.store(t, Ordering::Relaxed);
+        let mut jmp = [0xE9u8, 0, 0, 0, 0];
+        jmp[1..].copy_from_slice(&((present as *const () as usize).wrapping_sub(at + 5) as u32).to_le_bytes());
+        unsafe {
+            let mut old = 0;
+            VirtualProtect(at as *const _, 5, PAGE_EXECUTE_READWRITE, &mut old);
+            std::ptr::copy_nonoverlapping(jmp.as_ptr(), at as *mut u8, 5);
+            VirtualProtect(at as *const _, 5, old, &mut old);
+        }
+        if let Some((border, sw, sh)) = border() {
+            let (picture, ring, outline) = geometry(border, sw, sh, 640, 480);
+            log!("bugbusters: Sinden border ({sw}x{sh} screen): picture {picture:?} of 640x480, ring {ring:?}, outline {outline:?}");
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::picture;
+
+    #[test]
+    fn frame_geometry() {
+        let border = wal_protocol::border::Border::parse("medium", "white").unwrap();
+        // 1920x1080: the launcher's picture [68, 38, 1784, 1004], the ring 38 screen pixels
+        let (picture, ring, outline) = super::frame::geometry(border, 1920, 1080, 640, 480);
+        assert_eq!(picture, [23, 17, 617, 463]);
+        assert_eq!(ring, (17, 17));
+        assert_eq!(outline, (0, 0));
+    }
 
     #[test]
     fn picture_rect() {
