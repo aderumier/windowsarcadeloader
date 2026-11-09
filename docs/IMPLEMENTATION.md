@@ -5872,6 +5872,42 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     game). Automatic card 3 s after start or the gas pedal (the game starts on either;
     `WAL_ALLS_AUTO_CARD_DELAY_MS`: a card read on the attract is dropped). Verified headless: new card (terms, registration, name, car), returning
     card ("play with this data"), Story race, result saved (story, mileage, cash), continue.
+- Initial D THE ARCADE Season 5 (SDGT 3.10, season 3's update): season 3's profile, the same
+  amdaemon (its RTC patch), the same game server. The dump's exe and `IndRun.dll` are decrypted
+  memory dumps (Scylla's `.SCY` import section; `.data` and code clean).
+  - Not needed any more: the `FIsCabinetSever` patch (the single seat is the LAN server by
+    itself, "S" beside the network icon; error 3002 does not appear).
+  - The first race crashed ("Fatal error!", an access violation in `IndRun.dll`, the race
+    engine) and, past that, the player's car drove itself (steering ignored, the pedals barely
+    felt; the input test was fine). The race settings the game hands IndRun carry 3 check values
+    (+0x22c/+0x230/+0x234, copied to IndRun's +0x4bc/+0x4c0/+0x4c4): the constants
+    0xf5fcfbfa / 0x79 / 0x59 when a flag of the race's manager is set (+0x81, read by
+    0x37fa60), else values from a data object, unset here (-1, 0xff, 0x30). IndRun flags the
+    player's car with wrong ones (driven by IndRun) and its race start state (2 -> 3) falls back
+    each frame: the cars added again into a 4-entry list counted on (8), the next step read
+    garbage pointers. Patch: both flag tests at 0x6e23af / 0x6e241d made true (mov al,1).
+    Found by a caller-logging hook on IndRun's race start, then a DR0 watchpoint on the field
+    (written by IndRun's settings copy at +0x65fe8), back to the game's writer.
+  - `IndRun.dll`'s date limit: it compares the local date, packed as
+    `(year-2022)<<16 | (month+4)<<8 | day+5`, to 0x4091f (2026-06-26, a year after its
+    build). Past it, a check value of its race settings (+0x1014) is spoiled, the check at
+    +0x7c8b0 answers 0x8c instead of 0 and every car's physics step adds a penalty term.
+    Patch: its `ja` at `IndRun.dll+0x74c98` removed.
+  - IndRun steps its race once per frame (`cUE4Interface::OnTick` ignores the frame time):
+    the cabinet's 60 fps assumed. Below it the race runs in slow motion while the menus keep
+    real time (season 3 too): a Radeon 860M laptop reached 33-36 fps in races, the same at
+    1280x720.
+  - IndRun's other cabinet checks (computer and user names starting with `A`, the current
+    directory starting with `X`, no mouse buttons, the Windows build, crack marker files under
+    `Y:\SDGT\`) are passed by `indrun.rs` or do not matter here.
+  - Game server: three new endpoints; `User/CheckNgWords` (the name entry's word check: without
+    `ng_flag` the name screen waits for its timeout) answered `ng_flag: 0`;
+    `User/UpdateExpansionModeResult` and `Team/CustomizeTeamItem` answer the generic OK.
+  - The attract reads a card too ("login preview": the player's data shown, then back to the
+    attract): the automatic card after a START pressed before the attract is up is spent there
+    (not again for 3 minutes). START on the card prompt chooses guest play.
+  - Verified headless: new card (terms, registration, name, maker and car), returning card,
+    story race driven by the inputs (gas, brake), result saved (UpdateStoryResult).
 - Mario & Sonic at the Rio 2016 Olympic Games (SDCH, Nu 1.1 `AAV1`, 64-bit D3D11, portrait;
   amdaemon Dec 2015): a Nu game with amdaemon, profile in `systemprofiles/seganu/` with
   `system: alls`. The Nu's amdaemon is the ALLS one (keychip driver, registry values, ICF,

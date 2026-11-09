@@ -648,6 +648,8 @@ pub(super) fn reply(ctx: &Ctx, endpoint: &str) -> Option<Json> {
             store::save(ctx.user, &doc);
             return Some(ok());
         }
+        // season 5's name entry: the driver name never refused
+        "checkngwords" => return Some(ok().with("ng_flag", 0u32)),
         _ => {}
     }
     let known = matches!(
