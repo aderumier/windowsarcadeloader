@@ -30,6 +30,11 @@
 //! places on the desktop). Harikiri Professional Baseball's test menu makes its back buffer and then its window
 //! the client size it reads (scaled again on each turn otherwise), its game subtracts its
 //! window's origin from its touch position, already in desktop coordinates.
+//!
+//! `WAL_DESKTOP_STRETCH=1`: with `WAL_KEEP_ASPECT_RATIO=0` (Batocera ES's KEEP ASPECT RATIO off)
+//! the desktop is stretched over the whole screen instead (each axis its own scale): a wide game
+//! filling a 4:3 screen (DCOP: Unity's 1920x1080 full screen, which letterboxes in a window of
+//! another shape).
 
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
@@ -86,12 +91,24 @@ pub fn screen_size() -> (i32, i32) {
     screen()
 }
 
-/// The game's desktop on the real screen: scale, left and top offsets.
-fn fit() -> (f64, f64, f64) {
+/// `WAL_DESKTOP_STRETCH=1` with `WAL_KEEP_ASPECT_RATIO=0`: the desktop stretched over the screen.
+fn stretched() -> bool {
+    static STRETCH: OnceLock<bool> = OnceLock::new();
+    *STRETCH.get_or_init(|| {
+        std::env::var("WAL_DESKTOP_STRETCH").is_ok_and(|v| v.trim() == "1") && std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0")
+    })
+}
+
+/// The game's desktop on the real screen: horizontal and vertical scales (the same unless
+/// stretched), left and top offsets.
+fn fit() -> (f64, f64, f64, f64) {
     let (dw, dh) = size().unwrap_or(screen());
     let (sw, sh) = screen();
+    if stretched() {
+        return (sw as f64 / dw as f64, sh as f64 / dh as f64, 0.0, 0.0);
+    }
     let scale = (sw as f64 / dw as f64).min(sh as f64 / dh as f64);
-    (scale, (sw as f64 - dw as f64 * scale) / 2.0, (sh as f64 - dh as f64 * scale) / 2.0)
+    (scale, scale, (sw as f64 - dw as f64 * scale) / 2.0, (sh as f64 - dh as f64 * scale) / 2.0)
 }
 
 /// A window of the game's desktop on the real screen: its size scaled, centered (one game
@@ -100,9 +117,9 @@ fn to_screen(x: i32, y: i32, w: i32, h: i32) -> (i32, i32, i32, i32) {
     // With the native border the presentation surface covers the monitor. The compositor
     // fits the desktop's portrait/landscape picture into it; logical desktop units stay intact.
     if crate::border::config().is_some() { let (sw,sh)=screen(); return (0,0,sw,sh); }
-    let (s, _, _) = fit();
+    let (sx, sy, _, _) = fit();
     let (sw, sh) = screen();
-    let (nw, nh) = ((w as f64 * s).round() as i32, (h as f64 * s).round() as i32);
+    let (nw, nh) = ((w as f64 * sx).round() as i32, (h as f64 * sy).round() as i32);
     let (nx, ny) = ((sw - nw) / 2, (sh - nh) / 2);
     log!("desktop: window {w}x{h} at {x},{y} -> {nw}x{nh} at {nx},{ny}");
     (nx, ny, nw, nh)
@@ -206,10 +223,10 @@ unsafe extern "system" fn client_rect(hwnd: P, rect: *mut RECT) -> i32 {
             unsafe { *rect=RECT { left:0,top:0,right:w,bottom:h }; }
             return ok;
         }
-        let (s, _, _) = fit();
+        let (sx, sy, _, _) = fit();
         let r = unsafe { &mut *rect };
-        r.right = r.left + (f64::from(r.right - r.left) / s).round() as i32;
-        r.bottom = r.top + (f64::from(r.bottom - r.top) / s).round() as i32;
+        r.right = r.left + (f64::from(r.right - r.left) / sx).round() as i32;
+        r.bottom = r.top + (f64::from(r.bottom - r.top) / sy).round() as i32;
     }
     ok
 }
@@ -354,14 +371,14 @@ unsafe extern "system" fn window_proc(hwnd: P, msg: u32, wparam: usize, lparam: 
         }
     }
     if msg == WM_GETMINMAXINFO && lparam != 0 {
-        let (s, _, _) = fit();
+        let (sx, sy, _, _) = fit();
         let (sw, sh) = screen();
         // MINMAXINFO: reserved, max size (+8), max position, min track size (+24), max track (+32)
         for offset in [8, 24, 32] {
             let point = (lparam as usize + offset) as *mut [i32; 2];
             let [x, y] = unsafe { point.read_unaligned() };
             if x > sw || y > sh {
-                unsafe { point.write_unaligned([(x as f64 * s).round() as i32, (y as f64 * s).round() as i32]) };
+                unsafe { point.write_unaligned([(x as f64 * sx).round() as i32, (y as f64 * sy).round() as i32]) };
             }
         }
     }
@@ -674,6 +691,6 @@ pub fn init() {
 
 /// A point of the game's desktop from a point of the real screen (the gun).
 pub fn from_screen(x: f64, y: f64) -> (f64, f64) {
-    let (s, ox, oy) = fit();
-    ((x - ox) / s, (y - oy) / s)
+    let (sx, sy, ox, oy) = fit();
+    ((x - ox) / sx, (y - oy) / sy)
 }

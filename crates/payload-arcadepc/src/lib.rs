@@ -160,6 +160,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         if board.trim() == "jxcamera" {
             topgun2_landscape::prepare();
         }
+        // DCOP on a screen other than 1920x1080: its 1920x1080 desktop
+        if board.trim() == "dcop" {
+            dcop::prepare();
+        }
         #[cfg(target_arch = "x86")]
         if board.trim() == "bugbusters" {
             bugbusters::prepare();

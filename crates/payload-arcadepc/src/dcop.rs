@@ -22,6 +22,19 @@
 //! the fields sorted by name); the common crosshair option (`WAL_CROSSHAIR`, `pointer_d3d11`)
 //! draws the gun's.
 //!
+//! Unity takes the cursor's client coordinates as its 1920x1080 pixels (the plugin's `.ini`)
+//! whatever its window's size: the mouse is posted in those units (the gun's fraction of the
+//! window's picture).
+//!
+//! A screen of another size than 1920x1080: Unity's 1920x1080 window, sized to the screen's 16:9
+//! rectangle (or the whole screen with KEEP ASPECT RATIO off), letterboxes its picture inside
+//! (not even the window's own 16:9: the gun and the crosshair were off what it showed). The game
+//! sees a 1920x1080 desktop instead (`payload-common`'s `desktop.rs`, set by [`prepare`]), fitted
+//! on the screen (aspect kept, centered), stretched over it with `WAL_KEEP_ASPECT_RATIO=0`
+//! (`WAL_DESKTOP_STRETCH`: a wide game filling a 4:3 cabinet), and the plugin's
+//! `Screen.SetResolution(1920, 1080, false)` is made full screen on it (`bullseye.rs`'s
+//! replacement): a 1920x1080 swap chain DXVK scales into the window.
+//!
 //! Natives: `trigger reload offscreen` (player 1), `key_<name>` keys (as `demul.rs`: `key_0`
 //! the pause menu, `key_up` / `key_down` / `key_return` its navigation, `key_5` a start key).
 
@@ -34,10 +47,28 @@ use std::time::Duration;
 use wal_payload_common::input_filter::{own_mouse, post_key, post_mouse};
 use wal_payload_common::mapping::ButtonMap;
 use wal_payload_common::{desktop, gun, input, log};
-use windows_sys::Win32::Foundation::RECT;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    GetClientRect, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_RBUTTONDOWN, WM_RBUTTONUP,
+    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE, WM_RBUTTONDOWN, WM_RBUTTONUP,
 };
+
+/// The game's resolution (the plugin's `.ini`: `FORCE_RESOLUTION`, 1920x1080).
+const GAME_SIZE: (i32, i32) = (1920, 1080);
+
+/// A screen of another size than 1920x1080 (before `payload-common` starts): a 1920x1080
+/// desktop fitted on it, stretched with KEEP ASPECT RATIO off (`WAL_DESKTOP_SIZE`,
+/// `WAL_DESKTOP_STRETCH`), instead of the profile's 16:9 window rectangle; `init` makes the
+/// game's resolution full screen on it.
+pub fn prepare() {
+    let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+    if (sw, sh) == GAME_SIZE {
+        return;
+    }
+    unsafe {
+        std::env::set_var("WAL_DESKTOP_SIZE", format!("{}x{}", GAME_SIZE.0, GAME_SIZE.1));
+        std::env::set_var("WAL_DESKTOP_STRETCH", "1");
+        std::env::remove_var("WAL_WINDOW_SIZE");
+    }
+}
 
 /// `wParam`'s button flags.
 const MK_LBUTTON: usize = 0x0001;
@@ -119,18 +150,12 @@ fn input_thread() {
             }
         }
         keys_was = keys;
-        // the gun: the mouse on the window's picture, in the game's own pixels (Unity takes the
-        // cursor's client coordinates as its screen's pixels)
-        let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        match desktop::size() {
-            Some((w, h)) => (r.right, r.bottom) = (w, h),
-            None => {
-                unsafe { GetClientRect(hwnd, &mut r) };
-            }
-        }
+        // the gun: the mouse on the window's picture, in the game's own 1920x1080 pixels, whatever
+        // the window's size (Unity takes the cursor's client coordinates as its pixels)
+        let (gw, gh) = desktop::size().unwrap_or(GAME_SIZE);
         let picture = gun::gun_of_player_in_picture(0);
         let at = match picture {
-            Some((x, y)) => ((x * r.right as f32) as i32, (y * r.bottom as f32) as i32),
+            Some((x, y)) => ((x * gw as f32) as i32, (y * gh as f32) as i32),
             None => last,
         };
         // off the picture (or the screen): the trigger reloads
@@ -172,6 +197,11 @@ fn plugin_thread(port: u16) {
 pub fn init(unity: usize) {
     wal_payload_common::input_filter::init(unity, key_held);
     own_mouse(unity);
+    // another screen: the plugin's 1920x1080 window made full screen on the 1920x1080 desktop
+    if desktop::size().is_some() {
+        std::thread::spawn(crate::bullseye::replace_set_resolution);
+        log!("dcop: the 1920x1080 picture full screen on a 1920x1080 desktop");
+    }
     std::thread::spawn(input_thread);
     if let Some(port) = std::env::var("WAL_DEMUL_PORT").ok().and_then(|p| p.trim().parse().ok()) {
         std::thread::spawn(move || plugin_thread(port));

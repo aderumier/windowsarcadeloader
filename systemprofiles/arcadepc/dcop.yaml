@@ -24,7 +24,8 @@ env:
   # the gun's crosshair (the game's own is the hidden system cursor): the common option's default
   WAL_CROSSHAIR: "1"
   # the plugin's .ini plays in a 1920x1080 window: a borderless one, the largest 16:9 rectangle
-  # of the screen (the whole screen with WAL_KEEP_ASPECT_RATIO=0)
+  # of the screen; on a screen other than 1920x1080 the payload gives the game a 1920x1080
+  # desktop instead (fitted; stretched over the screen with WAL_KEEP_ASPECT_RATIO=0)
   WAL_D3D9_ASPECT: "16:9"
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: picture
