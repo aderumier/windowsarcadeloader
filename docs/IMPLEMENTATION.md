@@ -6010,6 +6010,35 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     `oC0`: `sm3_io_map.cpp` `getColorValue`), the game aborts at boot: the profile uses
     wined3d (`dxvk: false`).
 
+- CHUNITHM SUPERSTAR (SDGS 1.00.00, international, ALLS `ACA1`; `chunithm-superstar`): WORK IN
+  PROGRESS, not running. amdaemon (64-bit, `App\amdaemon`, game.bat's `pushd amdaemon`) runs the
+  IO4 board (`WAL_ALLS_BOARD=chusan`: the air sensors on players 1 / 2 bits 13, 12, 11, `chuni::hand`)
+  and the Aime reader on COM4; the game (32-bit) the slider on COM1 and the LED boards on COM2 /
+  COM3 (DIP switches 07: delivery server, 60 FPS, CVT; segatools' chusanhook); its title
+  connections (sockets, WinHTTP to the router) go to amdaemon's ALL.Net server, where the title
+  and billing servers run (`allnet::init_title_redirect`, `chuni::init_daemon`). The launcher
+  starts a background program of the other architecture with that architecture's loader and
+  payload (`wal-loader64.exe`, `wal_payload64.dll`) from its own folder.
+  - Blocker: both executables are protected. `chuniApp.exe`: a stub (entry 0x40196c ->
+    0x401000: `pop eax; pushal; call 0x401030; popal; test eax,eax; ... push eax; ret`) maps the
+    file and decrypts a second stage into `.tls` (RVA 0x200be00, obfuscated protector code),
+    which unpacks the program later; its anti-VM check (`0F 3F 07 0B`, Virtual PC) is caught by
+    its own SEH frame. `amdaemon.exe` (64-bit): its sections encrypted in the file, the protector
+    in `.pdata`'s range (RVA 0xa5xxxx), single-step (trap flag) checks with a handler at
+    0x140a5fdd0, then direct system calls (its own copies of the Windows stubs: `test byte
+    [7FFE0308h],1; jne; syscall; ret`): under Wine they return garbage, execution lands in the
+    next stub (illegal instruction at 0x140a5d488), Wine's unwinder reads -1 (ntdll+0x10efb):
+    amdaemon dies at once, also without the payload. The exception directory in memory is empty
+    then (the protector's temporary copy freed). Needs either Wine handling of foreign direct
+    syscalls (syscall user dispatch, Windows call numbers) or patching every stub; segatools users
+    run unpacked executables (none in SEGAguide's packages for SDGS).
+  - Tools made for it: payload-common's `packed.rs` (`WAL_PACKED_JUMP=0x100d`: the stub's last
+    jump caught, the payload started after it; `WAL_PACKED_DUMP`: the image written then),
+    `crash.rs` (`WAL_CRASH_DUMP`: the image at the first illegal instruction or access violation,
+    the faulting code bytes logged), `WAL_PACKED_IMPORTS` (existing: hooks as hot patches).
+  - CHUNITHM SUPERSTAR PLUS (SDGS 1.05.00): the same protected `chuniApp.exe`; its dump has no
+    `App\amdaemon` folder.
+
 ### 6.3m Sega Nu (`crates/payload-seganu`)
 
 System `seganu`: Nu / Nu SX games linking Sega's amLib, whose "amy" layer talks to the AMEX
@@ -6509,6 +6538,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept | Nu 1.1 with amdaemon (§6.3l): AMEX board JVS in amdaemon (`WAL_ALLS_JVS`), LED board on COM12, levers layout, amRtc sync patch, Aime (837-15286) and the CTS game server (player names and saves kept) |
 | `chunithm-star` | CHUNITHM STAR | alls | user (2026-11-09): "working 100%" (Aime login, play, audio, touchpad slider); headless tests: power-on test, card registration, name entry, tutorial | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=chuni`): slider COM1, air sensors on JVS, LED boards COM10/11, Aime reader in aimeReaderHost, distribution server in the EEPROM, title server, billing TLS server, RTC privileges, WASAPI shared (CRI 24-in-32), windowed device, touchpad slider (`input.touch`) |
 | `chunithm-star-plus` | CHUNITHM STAR PLUS | alls | user (2026-11-09): "working 100%"; headless tests: card login, registration, name entry | as CHUNITHM STAR, title uri `/SDBT/125/` |
+| `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide |

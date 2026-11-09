@@ -1,0 +1,18 @@
+{
+	"video" :
+	{
+		"enable" : false
+	},
+	"network" :
+	{
+		"property" :
+		{
+			"save" : true,
+			"dhcp" : true
+		}
+	},
+	"lan_install" :
+	{
+		"enable" : false
+	}
+}

@@ -238,7 +238,7 @@ static CONNECT: AtomicUsize = AtomicUsize::new(0);
 fn is_allnet(host: &str) -> bool {
     let host = host.to_ascii_lowercase();
     let r = crate::netenv::router();
-    let router = TITLE.get().is_some() && host == format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]);
+    let router = (TITLE.get().is_some() || TITLE_IN_DAEMON.load(Ordering::Relaxed)) && host == format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]);
     host.ends_with("naominet.jp") || host.ends_with("sys-all.net") || host == "127.0.0.1" || host == "localhost" || router
 }
 
@@ -321,6 +321,23 @@ unsafe fn hook_socket_connect() {
 
 /// The game's process: its connections to the router's port 80 go to its game server (`gs.rs`).
 static IN_GAME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The title server is in amdaemon's ALL.Net server (CHUNITHM SUPERSTAR): the game's
+/// connections to the router's port 80, its WinHTTP ones to the router too, go there.
+static TITLE_IN_DAEMON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn init_title_redirect() {
+    TITLE_IN_DAEMON.store(true, Ordering::Relaxed);
+    unsafe {
+        hook_socket_connect();
+        if let Some(orig) = iat::hook("ws2_32.dll", "WSAConnect", wsa_connect as *const () as usize) {
+            WSA_CONNECT.store(orig, Ordering::Relaxed);
+        }
+        if let Some(orig) = iat::hook("winhttp.dll", "WinHttpConnect", win_http_connect as *const () as usize) {
+            CONNECT.store(orig, Ordering::Relaxed);
+        }
+    }
+}
 
 /// The redirection of ALL.Net's connections only (the game's process: the server is
 /// amdaemon's; port 80: the game's own game server, `gs.rs`).

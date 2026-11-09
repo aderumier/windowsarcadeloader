@@ -184,15 +184,22 @@ static HAND: AtomicU8 = AtomicU8::new(0);
 /// Each beam's switch (player 1's, player 2's switch byte 2), from the lowest beam.
 const BEAMS: [(u8, u8); 6] = [(0x20, 0), (0, 0x20), (0x10, 0), (0, 0x10), (0x08, 0), (0, 0x08)];
 
-/// The JVS switches the game reads: test, service and the air sensors only (the other
-/// buttons touch the slider). The hand rises (or falls) one beam per read, as segatools'.
-fn switches(players: &mut [jvs_board::Switches]) {
+/// The hand's height after one more read of the air sensors: it rises (or falls) one beam per
+/// read, as segatools'.
+pub(crate) fn hand() -> u8 {
     let p1 = wal_payload_common::input(0);
     let raised = [button::B3, button::B4, button::B7, button::B8].into_iter().any(|b| p1.pressed(b))
         || wal_payload_common::touches().iter().any(|&(_, y)| y < AIR_ZONE);
     let hand = HAND.load(Ordering::Relaxed);
     let hand = if raised { (hand + 1).min(6) } else { hand.saturating_sub(1) };
     HAND.store(hand, Ordering::Relaxed);
+    hand
+}
+
+/// The JVS switches the game reads: test, service and the air sensors only (the other
+/// buttons touch the slider).
+fn switches(players: &mut [jvs_board::Switches]) {
+    let hand = hand();
     for p in players.iter_mut().take(2) {
         // service stays (switch byte 1's 0x40)
         p.0 &= 0x40;
@@ -371,6 +378,20 @@ fn alib_debug() {
             std::thread::sleep(Duration::from_millis(200));
         }
     });
+}
+
+/// CHUNITHM SUPERSTAR's game (amdaemon has the IO4 board, its air sensors, and the Aime reader):
+/// the slider on COM1, the LED boards on COM2 / COM3 (a CVT cabinet).
+pub(crate) fn init_chusan() {
+    serial::install_streaming("COM1", slider, slider_scan);
+    crate::led::init_pair("COM2", "COM3");
+    log!("chuni: slider on COM1, LED boards on COM2 / COM3");
+}
+
+/// CHUNITHM SUPERSTAR's amdaemon: the title server and the billing server beside its ALL.Net
+/// server (the game's data from its working directory, `App\amdaemon`: `..\data\A000`).
+pub(crate) fn init_daemon() {
+    server::init();
 }
 
 /// The game's devices, before the system's hooks (`daemon.rs`, which pass the serial calls on

@@ -43,6 +43,8 @@
 //!   game's own process with its slider, air sensors, LED boards and title server (`chuni.rs`);
 //!   in `aimeReaderHost.exe` the Aime reader only (`WAL_ALLS_AIME_PORT`, set for that program
 //!   with `WAL_EXE_ENV`)
+//! - `WAL_ALLS_BOARD=chusan`: CHUNITHM SUPERSTAR (amdaemon, IO4: the air sensors; the game:
+//!   slider, LED boards; the title server in amdaemon's ALL.Net server, `chuni.rs`)
 //! - `WAL_ALLS_LED_BOARD`: the LED boards' identity (`led.rs`)
 //! - `WAL_ALLS_AMLOG`, `WAL_ALLS_AMLOG_LEVELS`: the game's linked amLib's log (CHUNITHM;
 //!   payload-common's `amlog`)
@@ -100,6 +102,17 @@ fn is_daemon() -> bool {
 pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         unsafe { MODULE = module };
+        // a packed program (CHUNITHM SUPERSTAR): started once it is decrypted
+        if !wal_payload_common::packed::defer(start) {
+            start();
+        }
+    }
+    1
+}
+
+/// The payload's start: the system's hooks in amdaemon or the game.
+fn start() {
+    {
         wal_payload_common::start("alls");
         if std::env::var("WAL_ALLS_CLOCK").map_or(true, |v| v.trim() != "0") { clock::init(); }
         if is_daemon() {
@@ -144,6 +157,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
                 // 837-15070 LED board
                 ffb::init();
                 led::init_15070("COM2");
+            } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chusan") {
+                // CHUNITHM SUPERSTAR (amdaemon's IO4 and Aime reader): the slider on COM1, the
+                // LED boards on COM2 / COM3 (a CVT cabinet)
+                chuni::init_chusan();
             } else {
                 // the LED board's port (Mario & Sonic at Rio 2016: COM12)
                 led::init(std::env::var("WAL_ALLS_LED_PORT").as_deref().map_or("COM1", str::trim));
@@ -157,10 +174,14 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
                 udp::init();
             }
             netenv::init_game();
-            allnet::init_redirect();
+            if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chusan") {
+                // its title server is amdaemon's (in ALL.Net's server)
+                allnet::init_title_redirect();
+            } else {
+                allnet::init_redirect();
+            }
         }
     }
-    1
 }
 
 /// CHUNITHM's programs: the game (its devices first: the system's hooks pass the serial calls

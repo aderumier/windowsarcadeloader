@@ -16,9 +16,11 @@ name: null
 args: []
 # Windows executables to run from the game directory before the game starts.
 pre_launch: []
-# Programs of the game directory ("<exe> [args]") started before the game and left running
-# beside it (Sega ALLS's amdaemon.exe), with the system's payload when it is started through
-# wal-loader; the game starts background_wait_ms later.
+# Programs of the game directory ("<exe> [args]", a path from it: "../amdaemon/amdaemon.exe")
+# started before the game and left running beside it (Sega ALLS's amdaemon.exe), from their own
+# folder, with the system's payload when it is started through wal-loader (a program of the other
+# architecture: that architecture's loader and payload); the game starts background_wait_ms
+# later.
 background: []
 background_wait_ms: 3000
 

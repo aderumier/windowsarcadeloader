@@ -1,0 +1,123 @@
+# CHUNITHM SUPERSTAR (Sega, 2018; game id SDGS, version 1.00.00): CHUNITHM's international
+# version on ALLS, a 32-bit Direct3D 9 rhythm game played on a touch slider (16 keys) under
+# infrared air sensors. amdaemon.exe (64-bit, App\amdaemon: game.bat's) runs the "Type 4" USB I/O
+# board (the air sensors, test, service, coins) and the Aime reader on COM4, then the game
+# (App\bin\chuniApp.exe, packed: it unpacks itself) with its slider on COM1 and LED boards on
+# COM2 / COM3 (a CVT cabinet), both with the ALLS payload (segatools' chusanhook).
+# Override values in userprofiles/seganu/chunithm-superstar.yaml.
+system: alls
+name: CHUNITHM SUPERSTAR
+
+# Wine's Direct3D: DXVK's SM3 shader compiler (dxbc-spirv) asserts on CHUNITHM's pixel shaders
+dxvk: false
+
+# game.bat's amdaemon command line (its folder's configuration files, merged in this order) and
+# the profile's last: its video setup off, the network address from DHCP, no LAN install
+background:
+  - ../amdaemon/amdaemon.exe -f -c config_common.json config_server.json config_client.json config_wal.json
+background_wait_ms: 5000
+files:
+  App/amdaemon/config_wal.json: systemprofiles/alls/files/chunithm-superstar/config_wal.json
+
+# The cabinet's drives: E: the AMFS (the image information, the system backup amdaemon keeps),
+# Y: the game's data (Y:\SDGS: its logs; the players in Y:\chuni)
+drives:
+  e: AMFS
+  y: AppData
+
+env:
+  WAL_ALLS_BOARD: chusan
+  WAL_ALLS_GAME_ID: SDGS
+  WAL_ALLS_PLATFORM_ID: ACA1
+  # the system DIP switches (segatools' chusanhook): 1 the store's delivery server (else it
+  # waits for one on the LAN), 2 a 60 FPS monitor, 3 a CVT cabinet (the LED boards on COM2 /
+  # COM3, the 837-15286 reader on COM4)
+  WAL_ALLS_DIPSW: "07"
+  # ALL.Net's authentication accepted, the title server (the players' data) in amdaemon
+  WAL_ALLS_ALLNET: "1"
+  WAL_ALLS_TITLE_URI: "http://{router}/SDGS/100/"
+  WAL_ALLS_LED_BOARD: "15093-06,6710,adf7"
+  # amdaemon's Aime unit on COM4 (a CVT cabinet's 837-15286, firmware 0x92)
+  WAL_ALLS_AIME_PORT: COM4
+  WAL_AIME_READER: "15286"
+  WAL_ALLS_AUTO_CARD: "1"
+  WAL_CHUNI_NEWS: "0"
+  WAL_ALLS_TIMEWARP: "1"
+  # its fullscreen device lost with the focus (the game quits): windowed, borderless, 16:9
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # CRI ADX2's exclusive-mode stream played in shared mode
+  WAL_WASAPI_SHARED: "1"
+  OPENSSL_ia32cap: "~0x20000000"
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_ALLS_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself when the game asks for it (the
+          player's name, scores and progress kept on the card). Off: touch it with the card
+          button.
+  - title: News
+    options:
+      - key: WAL_CHUNI_NEWS
+        label: Show the news at login
+        kind: bool
+        description: >-
+          The game's announcements (events, new songs, courses), one screen each after the
+          card login: a new player sees them all (each 30 s, or 次へ to skip).
+
+# the keyboard as segatools': S D F G H J K L the slider from the left (two keys each), Space the
+# air (raise the hand); 1 start, 5 coin, F1 service, F2 test, F4 card (the defaults). These keys
+# are player 2's and 3's by default: freed there.
+input:
+  # the touchpad (or a touchscreen) as the slider, finger by finger: each finger the key under it
+  # (16 across), a finger in its top third raises the hand (air)
+  touch: true
+  keyboard:
+    p1:
+      KEY_S: left
+      KEY_D: down
+      KEY_F: up
+      KEY_G: right
+      KEY_H: b1
+      KEY_J: b5
+      KEY_K: b2
+      KEY_L: b6
+      KEY_SPACE: b3
+    p2:
+      KEY_S: none
+      KEY_D: none
+      KEY_F: none
+      KEY_G: none
+    p3:
+      KEY_J: none
+      KEY_K: none
+      KEY_L: none
+
+controls:
+  lx: Slider, left half (direction picks the key)
+  ly: Slider, left half
+  rx: Slider, right half (direction picks the key)
+  ry: Slider, right half
+  left: Slider keys 1-2
+  down: Slider keys 3-4
+  up: Slider keys 5-6
+  right: Slider keys 7-8
+  b1: Slider keys 9-10
+  b5: Slider keys 11-12
+  b2: Slider keys 13-14
+  b6: Slider keys 15-16
+  b3: Air (raise the hand)
+  b4: Air (raise the hand)
+  b7: Air (raise the hand)
+  b8: Air (raise the hand)
+  start: Start (with the automatic card)
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

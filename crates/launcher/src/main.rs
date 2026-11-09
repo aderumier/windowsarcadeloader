@@ -428,6 +428,19 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         let file = if rundir::is_pe64(&exe) { "wal-loader64.exe" } else { "wal-loader.exe" };
         payloads.push((payload_dir.join(file), "wal-loader.exe"));
     }
+    // a background program of the other architecture (CHUNITHM SUPERSTAR: a 32-bit game, its
+    // 64-bit amdaemon): that architecture's loader and payload too, under their own names
+    let game64 = rundir::is_pe64(&exe);
+    let (other_loader, other_payload) = if game64 { ("wal-loader32.exe", "wal_payload32.dll") } else { ("wal-loader64.exe", "wal_payload64.dll") };
+    let other_arch = loader.is_some()
+        && profile.background.iter().any(|b| b.split_whitespace().next().is_some_and(|e| rundir::is_pe64(&game_dir.join(e)) != game64));
+    if other_arch {
+        let other_payloads = if game64 { system.payloads() } else { system.payloads64().unwrap_or(&[]) };
+        if let Some(p) = other_payloads.first() {
+            payloads.push((payload_dir.join(p.file), other_payload));
+            payloads.push((payload_dir.join(if game64 { "wal-loader.exe" } else { "wal-loader64.exe" }), other_loader));
+        }
+    }
     // a game DLL (Konami AVS): run by the system's host program
     let dll_host = if exe.extension().is_some_and(|e| e.eq_ignore_ascii_case("dll")) {
         let host = system.dll_host().with_context(|| format!("{}: a DLL, and system {} runs no game DLL", profile.exe, system.name()))?;
@@ -601,7 +614,14 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         let words: Vec<String> = screen_args(&program.split(' ').filter(|w| !w.is_empty()).map(String::from).collect::<Vec<_>>());
         let (exe, args) = words.split_first()?;
         let exe_path = wine.windows_path(&run_exe_dir.join(exe));
+        // the other architecture's loader and payload for a program of it
+        let other = other_arch && rundir::is_pe64(&run_exe_dir.join(exe)) != game64;
         let mut cmd = match loader {
+            Some(_) if other => {
+                let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join(other_loader)));
+                cmd.arg(wine.windows_path(&run_exe_dir.join(other_payload))).arg(&exe_path);
+                cmd
+            }
             Some(payload) => {
                 let mut cmd = wine.command(wine.windows_path(&run_exe_dir.join("wal-loader.exe")));
                 let at = if payload.contains(['/', '\\']) { run_dir.join(payload) } else { run_exe_dir.join(payload) };
@@ -610,7 +630,9 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             }
             None => wine.command(&exe_path),
         };
-        cmd.args(args).current_dir(&run_exe_dir);
+        // from its own folder (game.bat's `pushd amdaemon`: its configuration files there)
+        let cwd = run_exe_dir.join(exe).parent().map_or_else(|| run_exe_dir.clone(), |d| d.to_path_buf());
+        cmd.args(args).current_dir(cwd);
         Some(cmd)
     };
     // the game command with these arguments; `relaunched`: started again at the payload's

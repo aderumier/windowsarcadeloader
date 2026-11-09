@@ -393,6 +393,9 @@ pub(crate) fn init() {
     crate::icf::ensure(&cabinet);
     crate::sysfile::apply();
     crate::netenv::init(cabinet.subnet);
+    if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chusan") {
+        crate::chuni::init_daemon();
+    }
     crate::allnet::init();
     crate::aimedb::init();
     crate::aime::init();

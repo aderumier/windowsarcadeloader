@@ -10,6 +10,7 @@ pub mod abaas_gs;
 #[cfg(windows)]
 pub mod amex;
 pub mod amlog;
+pub mod packed;
 // AVPro Video's uGUI display played by Unity's VideoPlayer (Android builds without AVPro's backend)
 #[cfg(windows)]
 pub mod avpro;

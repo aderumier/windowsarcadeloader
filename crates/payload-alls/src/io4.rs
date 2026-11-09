@@ -24,6 +24,8 @@
 //!   shifter's gate (up 5, down 4, left 3, right 2: 1st up + left, 2nd down + left, 3rd up, 4th
 //!   down, 5th up + right, 6th down + right), its gear moved by b7 (up) / b6 (down), neutral 0,
 //!   or held on kp1-kp6 (an H shifter's positions).
+//! - `chusan` (CHUNITHM SUPERSTAR): the six air sensors (`chuni::hand`); the slider is the
+//!   game's (COM1).
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -68,6 +70,7 @@ enum Board {
     Hotd,
     Swdc,
     Idac,
+    Chusan,
 }
 
 fn board() -> Board {
@@ -76,6 +79,7 @@ fn board() -> Board {
         "hotd" => Board::Hotd,
         "swdc" => Board::Swdc,
         "idac" => Board::Idac,
+        "chusan" => Board::Chusan,
         _ => Board::Tokyo,
     })
 }
@@ -105,6 +109,18 @@ fn switches() -> [u16; 2] {
         for (button, bit) in [(b::B2, 15), (b::B3, 14), (b::B4, 13), (b::B5, 12), (b::B6, 1), (b::B7, 0)] {
             if p1 & button != 0 {
                 sw[1] |= 1 << bit;
+            }
+        }
+        return sw;
+    }
+    if board() == Board::Chusan {
+        // CHUNITHM SUPERSTAR's air sensors (amdaemon's photo_sensor_1..6: players 1 and 2's
+        // bits 13, 12, 11), on while their beam is clear, from the lowest (segatools'
+        // chusanhook): beam 0 player 1's bit 13, beam 1 player 2's bit 13...
+        let hand = crate::chuni::hand();
+        for (i, bit) in [13, 13, 12, 12, 11, 11].into_iter().enumerate() {
+            if hand as usize <= i {
+                sw[i % 2] |= 1 << bit;
             }
         }
         return sw;

@@ -56,6 +56,30 @@ fn max_reports() -> u32 {
 // real crash stack (the report quota was otherwise exhausted before the fatal AV).
 static AV_REPORTS: AtomicU32 = AtomicU32::new(0);
 static CPP_REPORTS: AtomicU32 = AtomicU32::new(0);
+static ILL_REPORTS: AtomicU32 = AtomicU32::new(0);
+const EXCEPTION_ILLEGAL_INSTRUCTION: i32 = 0xC000001Du32 as i32;
+
+/// `WAL_CRASH_DUMP=<file>`: the executable's image (`SizeOfImage` from its base, the unreadable
+/// pages zeros) written there at the first illegal instruction or access violation reported.
+fn dump_image() {
+    let Ok(path) = std::env::var("WAL_CRASH_DUMP") else { return };
+    static DONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if DONE.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    let size = unsafe { std::ptr::read_volatile((base + std::ptr::read_volatile((base + 0x3C) as *const u32) as usize + 0x50) as *const u32) } as usize;
+    let mut image = vec![0u8; size];
+    for page in (0..size).step_by(0x1000) {
+        if readable(base + page, 0x1000) {
+            unsafe { std::ptr::copy_nonoverlapping((base + page) as *const u8, image[page..].as_mut_ptr(), 0x1000.min(size - page)) };
+        }
+    }
+    match std::fs::write(path.trim(), &image) {
+        Ok(()) => log!("crash: image {base:#x} ({size:#x} bytes) written to {}", path.trim()),
+        Err(e) => log!("crash: {}: {e}", path.trim()),
+    }
+}
 
 pub fn init() {
     unsafe { AddVectoredExceptionHandler(1, Some(handler)) };
@@ -80,6 +104,21 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
     let code = record.ExceptionCode;
     let reports = if code == EXCEPTION_ACCESS_VIOLATION {
         &AV_REPORTS
+    } else if code == EXCEPTION_ILLEGAL_INSTRUCTION {
+        // a protector's code decrypted wrong (CHUNITHM SUPERSTAR's amdaemon): its bytes, the
+        // image (`WAL_CRASH_DUMP`)
+        let addr = record.ExceptionAddress as usize;
+        if ILL_REPORTS.fetch_add(1, Ordering::Relaxed) < 4 {
+            let bytes: String = if readable(addr.saturating_sub(16), 48) {
+                (0..48).map(|i| format!("{:02x}", unsafe { std::ptr::read_volatile((addr - 16 + i) as *const u8) })).collect()
+            } else {
+                String::new()
+            };
+            log!("crash: illegal instruction at {addr:#x} ({}), bytes from -16: {bytes}", symbolize(addr).unwrap_or_default());
+            log_context(info, false);
+            dump_image();
+        }
+        return EXCEPTION_CONTINUE_SEARCH;
     } else if code == EXCEPTION_MSVC_CPP {
         &CPP_REPORTS
     } else {
@@ -98,6 +137,7 @@ unsafe extern "system" fn handler(info: *mut EXCEPTION_POINTERS) -> i32 {
         log_cpp_exception(record);
     } else {
         log_access_violation(record, addr);
+        dump_image();
     }
     log_context(info, code == EXCEPTION_ACCESS_VIOLATION);
     EXCEPTION_CONTINUE_SEARCH
