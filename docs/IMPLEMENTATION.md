@@ -4813,11 +4813,21 @@ root) names `Artic Thunder\Midway games\Arctic Thunder\snow.exe`, and `c_folders
   Menus: up / down (or volume down / up) move, a player button (attack) or test enters. S2-1
   reads off there, so Exit ("to the default game") ends diag.exe and the payload asks the launcher
   for the game again, as wincsm did.
+  diag.exe's pages wait for a button in `SleepEx` / `Sleep` loops without handling messages:
+  Wine put nothing drawn there on the screen (the Monitor color screens stayed black, the switch
+  test lagged) until the thread looked at its queue, so its waits peek at the queue first
+  (`PM_NOREMOVE`). The Monitor submenu itself was fine (an earlier empty capture was taken
+  mid-redraw). Analog values move in the switch test (wheel 0 / 128 / 255, gas 0..255, start
+  lit). Its labels and values overlap: the values sit at fixed pixel offsets while the fonts
+  scale with the window (640x480 on the cabinet, the full screen here); cosmetic. Calibrate
+  Feedback runs (throttle step) but its wheel step needs the feedback motor (none; the game
+  takes the emulated, already scaled values and the profile turns the feedback off).
 - **Not done.** No feedback motor, lamps, fan, seat shaker.
 - Verified headless (2026-11-09): attract (demo races, high scores, tips), free play start,
   coin then start (1 credit used), driver and track select, a race with throttle and steering
   (left stick left turns left); test into the diagnostics, their menus (System Info, Diagnostics,
-  Switch Test, Volume Levels), Exit back to the game.
+  Switch Test with moving analog values, Volume Levels, Monitor color screens, Calibrate
+  Feedback's throttle step), Exit back to the game.
 
 ### 6.3j UNIS (`crates/payload-unis`)
 

@@ -55,6 +55,12 @@
 //!   down or volume up, enter = a player button (attack) or test, back = service. S2-1 reads off in
 //!   the diagnostics: Exit ("to the default game", else "turn off switch 1") ends them and the
 //!   payload asks the launcher for the game again, as wincsm.
+//!   Their pages wait for a button in `SleepEx` / `Sleep` loops without messages: Wine showed
+//!   nothing drawn there (the monitor's color screens, switch test values late) until the
+//!   thread looked at its queue: the waits peek at it first. The analog values come from the
+//!   same block (switch test: wheel 0 / 128 / 255, gas 0..255). The switch test draws its values
+//!   at fixed offsets from fonts sized to the window (640x480 on the cabinet): over the labels
+//!   on a large screen. The wheel calibration (Calibrate Feedback) needs the feedback motor.
 //!
 //! Natives: `start coin coin2 service test volume_down volume_up attack up down left right
 //! button_a button_b button_c throttle`; the left stick steers, `accel` is the throttle.
@@ -514,6 +520,30 @@ unsafe extern "system" fn diag_exit_windows(_flags: u32, _reason: u32) -> i32 {
 }
 
 static ORIG_CONNECT_REGISTRY: AtomicUsize = AtomicUsize::new(0);
+static ORIG_SLEEP_EX: AtomicUsize = AtomicUsize::new(0);
+static ORIG_SLEEP: AtomicUsize = AtomicUsize::new(0);
+
+/// Wine draws a window's GDI output to the screen when its thread handles messages: the
+/// diagnostics' pages wait for a button in `SleepEx` / `Sleep` loops without any, so a page drawn
+/// there (the monitor's color screens, the switch test's values) stayed off the screen. Their
+/// waits look at the message queue first (`PM_NOREMOVE`: nothing taken), which flushes it.
+fn flush_window() {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MSG, PM_NOREMOVE, PeekMessageA};
+    let mut msg: MSG = unsafe { std::mem::zeroed() };
+    unsafe { PeekMessageA(&mut msg, std::ptr::null_mut(), 0, 0, PM_NOREMOVE) };
+}
+
+unsafe extern "system" fn diag_sleep_ex(ms: u32, alertable: i32) -> u32 {
+    flush_window();
+    let f: unsafe extern "system" fn(u32, i32) -> u32 = unsafe { std::mem::transmute(ORIG_SLEEP_EX.load(Ordering::Relaxed)) };
+    unsafe { f(ms, alertable) }
+}
+
+unsafe extern "system" fn diag_sleep(ms: u32) {
+    flush_window();
+    let f: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(ORIG_SLEEP.load(Ordering::Relaxed)) };
+    unsafe { f(ms) }
+}
 
 /// The diagnostics' `RegConnectRegistryA` on this machine (`.`): Wine takes only its own name.
 unsafe extern "system" fn connect_registry(machine: *const u8, key: HKEY, result: *mut HKEY) -> u32 {
@@ -536,6 +566,12 @@ fn init_diag() {
         }
         if let Some(o) = wal_payload_common::iat::hook("USER32.dll", "ExitWindowsEx", diag_exit_windows as *const () as usize) {
             ORIG_EXIT_WINDOWS.store(o, Ordering::Relaxed);
+        }
+        for (name, f, orig) in [("SleepEx", diag_sleep_ex as *const () as usize, &ORIG_SLEEP_EX), ("Sleep", diag_sleep as *const () as usize, &ORIG_SLEEP)] {
+            match wal_payload_common::iat::hook("KERNEL32.dll", name, f) {
+                Some(o) => orig.store(o, Ordering::Relaxed),
+                None => log!("arcticthunder: no diag.exe {name} import"),
+            }
         }
         match wal_payload_common::iat::hook("ADVAPI32.dll", "RegConnectRegistryA", connect_registry as *const () as usize) {
             Some(o) => ORIG_CONNECT_REGISTRY.store(o, Ordering::Relaxed),
