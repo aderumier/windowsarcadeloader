@@ -1,0 +1,67 @@
+{
+    "debug" :
+    {
+        "debug_network" :
+        {
+           "game_server" :
+           {
+               "enable" : false,
+               "uri" : ""
+           },
+           "matching_server" :
+           {
+               "enable" : false,
+               "address" : "",
+               "port" : 50000,
+               "placeId" : 1
+           },
+           "terminal" :
+           {
+               "address" : "192.168.155.1",
+               "port" : 11000
+           }
+        },
+        "debug_model_type" : 2,
+        "debug_keychip_id" : "XXXX99A9999",
+        "debug_app_version" : "1.30.00",
+        "debug_auto_play" :
+        {
+            "enable" : false,
+            "select_com" : false,
+            "force_end_battle" : false,
+            "reboot_by_battle" : false,
+            "to_edit_deck" : false,
+            "to_shop" : false,
+            "logout_by_battle" : false,
+            "logout_battle_num" : 1
+        }
+    },
+    "common" :
+    {
+        "amdaemon" :
+        {
+            "enable" : true
+        },
+        "network":
+        {
+            "compression" : false
+        },
+        "cabinet":
+        {
+            "enable" : true
+        }
+    },
+    "satellite" :
+    {
+        "led" :
+        {
+            "enable" : false,
+            "port" : 3
+        },
+        "touchpanel" :
+        {
+            "enable" : false,
+            "port" : 1
+        }
+    }
+}

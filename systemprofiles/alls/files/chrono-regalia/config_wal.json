@@ -1,0 +1,21 @@
+{
+	"video" :
+	{
+		"enable" : false
+	},
+	"emoney" :
+	{
+		"enable" : false
+	},
+	"allnet_accounting" :
+	{
+		"enable" : false
+	},
+	"credit" :
+	{
+		"config" :
+		{
+			"freeplay" : true
+		}
+	}
+}

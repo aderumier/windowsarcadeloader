@@ -1,0 +1,56 @@
+# Chrono Regalia (Sega, ALLS, 2019; game id SDEC, version 1.30): a Unity card battle game,
+# 64-bit Direct3D 11, 1920x1080. One player at a satellite seat: the touch screen, the
+# cabinet's buttons, an Aime card reader.
+# amdaemon.exe (the cabinet's system service) is started first, then the game, both with the
+# payload: the keychip and the USB I/O board (coins, test, service) emulated in amdaemon.
+# Override values in userprofiles/alls/chrono-regalia.yaml.
+system: alls
+name: Chrono Regalia
+
+# both programs started by wal-loader64 with the payload
+payload_loader: true
+# game.bat's launch (its log in Y:\SDEC\log), the profile's configuration of the game
+# (HkbSystemConfig_wal.json: the touch panel and the LED board off, the game reads the mouse)
+args: [-c, HkbSystemConfig_wal.json, -logFile, "Y:\\SDEC\\log\\abaas\\output\\output_log.txt", -screen-fullscreen, "0", -screen-quality, Fantastic, -silent-crashes]
+
+# game.bat's amdaemon command line (from bin\), the satellite's configuration, the profile's
+# configuration last
+background:
+  - amdaemon.exe -c common.json satellite.json config_wal.json -l Y:\SDEC\log\amdaemon.log
+background_wait_ms: 3000
+
+# amdaemon's video setup off (the launcher sets the screen), the e-money terminal absent,
+# ALL.Net accounting off (its billing server is absent)
+files:
+  App/bin/config_wal.json: systemprofiles/alls/files/chrono-regalia/config_wal.json
+  App/bin/HkbSystemConfig_wal.json: systemprofiles/alls/files/chrono-regalia/HkbSystemConfig_wal.json
+
+# The cabinet's drives: E: the AMFS (the system backup amdaemon keeps), X: the game's image,
+# Y: the game's data (its backup, logs)
+drives:
+  e: amfs
+  x: App
+  y: AppData
+
+env:
+  WAL_ALLS_GAME_ID: SDEC
+  # the satellite seat (the keychip's model type 2; 4 is the store's terminal)
+  WAL_ALLS_PLATFORM_ID: ACA2
+  WAL_ALLS_SUBNET: 192.168.155.0
+  WAL_ALLS_HOST: "2"
+  WAL_ALLS_BOARD: hkb
+  # the Aime card reader (satellite.json's unit)
+  WAL_ALLS_AIME_PORT: COM3
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Touch screen (x)
+  ly: Touch screen (y)
+  b1: Touch
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
