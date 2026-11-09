@@ -1,0 +1,43 @@
+# Xtom 3D (Jamie System Development, 1999, DOS / DOS4GW, 3dfx Voodoo) - template, override
+# values in userprofiles/arcadepc/xtom-3d.yaml.
+# The dump runs the game in a Glide DOSBox build (dosbox.exe, DOSBox 0.74 with the Glide
+# pass-through: the guest's glide2x.ovl calls the host's glide2x.dll). Two players, a lever and
+# two buttons each (fire, bomb); the payload's keys are the game's keyboard alternatives of its
+# I/O card (Enter the coin: the readme's, the fire key starts). No sound: the dump has neither the game's samples (Sound\) nor
+# its audio setup (Info\Audio.cfg), DOSBox's sound card is off.
+system: arcadepc
+name: Xtom 3D
+
+# loaded at the executable's entry point (DOSBox imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+files:
+  # DOSBox's surface output, no wait on errors
+  dosbox.conf: systemprofiles/arcadepc/files/xtom-3d/dosbox.conf
+  # the runner's gxvk (Glide on Vulkan) in place of the dump's dgVoodoo
+  Glide2x.dll: "{runner}/lib/wine/gxvk/i386-windows/glide2x.dll"
+
+env:
+  WAL_ARCADEPC_BOARD: dosbox
+  # gxvk: the screen's mode (the 512x384 picture scaled to the payload's Glide window), no logo
+  DXVK_CONFIG: "glide.useMonitorResolution = True; glide.noSplash = True"
+  # the payload's Glide window keeps the picture's 4:3 at the screen's center: black around
+  WAL_BEZEL: black
+  # not managed by the window manager: GNOME's top bar pushed the full-height window down
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  stick_as_dpad: true
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Fire (start)
+  b2: Bomb
+  start: Start (fire)
+  coin: Coin
