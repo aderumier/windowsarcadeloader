@@ -6,7 +6,9 @@
 //!   profile's configuration (`HkbSystemConfig_wal.json`, the game's `-c`) disables the touch
 //!   panel and the LED board: the gun (`lx` / `ly`: the mouse or a lightgun) is posted as the
 //!   mouse over the picture, the touch on `b1`; the real mouse and keyboard never reach the game
-//!   (`input_filter`).
+//!   (`input_filter`). The common crosshair option (`WAL_CROSSHAIR`, on in the profile): a red
+//!   dot where the gun touches (`pointer_d3d11`; `WAL_CROSSHAIR_SIZE` its size in percent of the
+//!   screen height, 1.5, `WAL_CROSSHAIR_COLOR` its `RRGGBB`).
 //! * The game server (`server.rs`): the Aime card players' data, kept in `Y:\hkb\`.
 //! * The clock: the game's Mono (`mono.dll`, loaded by the Unity player) reads the time and time
 //!   zone itself; the cabinet's clock hooks (`clock.rs`: Japan's time, `WAL_ALLS_TIMEWARP`) go
@@ -20,7 +22,7 @@ mod user;
 use std::time::Duration;
 
 use wal_payload_common::input_filter::{own_mouse, post_mouse};
-use wal_payload_common::{gun, input, log, screenshot};
+use wal_payload_common::{gun, input, log, pointer_d3d11};
 use wal_protocol::button;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, RECT};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -36,6 +38,14 @@ pub(crate) fn init() {
     server::init();
     std::thread::spawn(mono_clock);
     std::thread::spawn(touch_thread);
+    if wal_payload_common::crosshairs(false) {
+        let env = |k: &str| std::env::var(k).ok().map(|v| v.trim().to_string());
+        let size = env("WAL_CROSSHAIR_SIZE").and_then(|v| v.parse::<f32>().ok()).unwrap_or(1.5);
+        let color = env("WAL_CROSSHAIR_COLOR")
+            .and_then(|v| u32::from_str_radix(&v, 16).ok().filter(|_| v.len() == 6))
+            .map_or([1.0, 0.125, 0.125], |n| [(n >> 16) as u8, (n >> 8) as u8, n as u8].map(|c| c as f32 / 255.0));
+        pointer_d3d11::init(pointer_d3d11::Dot { color, size: (size / 100.0).clamp(0.005, 0.2), position: gun::gun_in_picture, crosshair: false });
+    }
     log!("alls: hkb: touch screen from the gun (b1 touches)");
 }
 
@@ -96,11 +106,8 @@ fn touch_thread() {
         let stick = input(0);
         let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
         unsafe { GetClientRect(hwnd, &mut r) };
-        let (sw, sh) = gun::screen_size();
-        let (sx, sy) = gun::on_screen(&stick, (sw, sh));
-        // the picture's place on the screen (letterboxed): the game takes its client area for it
-        let (u, v) = screenshot::to_picture(sx / sw, sy / sh);
-        let at = ((u * r.right as f32) as i32, (v * r.bottom as f32) as i32);
+        // the gun's place on the game's picture (the crosshair's): its last place off it
+        let at = gun::gun_in_picture().map_or(last, |(u, v)| ((u * r.right as f32) as i32, (v * r.bottom as f32) as i32));
         let touch = stick.pressed(button::B1);
         let buttons = if touch { MK_LBUTTON } else { 0 };
         if at != last {

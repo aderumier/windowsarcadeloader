@@ -43,9 +43,12 @@ env:
   WAL_ALLS_SUBNET: 192.168.155.0
   WAL_ALLS_HOST: "2"
   WAL_ALLS_BOARD: hkb
+  # the touch pointer: a small red dot where the mouse or gun touches (payload hkb.rs)
+  WAL_CROSSHAIR: "1"
   # the Aime card reader (satellite.json's unit)
   WAL_ALLS_AIME_PORT: COM3
-  # the card touched by itself at the login screen after start (payload aime.rs)
+  # the card touched by itself at the login screen, 3 s after the touch that leaves the attract
+  # (payload aime.rs, io4.rs: the touch counts as start)
   WAL_ALLS_AUTO_CARD: "1"
   WAL_ALLS_AUTO_CARD_DELAY_MS: "3000"
   # online: ALL.Net accepted, the Aime cards (AimeDB) and the players' data (the game server,
@@ -71,15 +74,22 @@ controls:
   test: Test
 
 options:
+  - title: Touch screen
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun touches (the game shows no cursor).
   - title: Aime card
     options:
       - key: WAL_ALLS_AUTO_CARD
         label: Touch the card automatically
         kind: bool
         description: >-
-          After start, the Aime card is touched by itself at the login screen (the player's
-          data saved on the game server). Off: touch it with the card button, or play as a
-          guest.
+          After the touch that leaves the attract, the Aime card is touched by itself at the
+          login screen (the player's data saved on the game server). Off: touch it with the card
+          button, or play as a guest.
       - key: WAL_ALLS_ALLNET
         label: Card players' data (online)
         kind: bool

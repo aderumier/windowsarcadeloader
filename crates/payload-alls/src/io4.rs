@@ -85,9 +85,12 @@ fn board() -> Board {
 }
 
 /// Player 1 starting a game: Initial D THE ARCADE's gas pedal too (pressed past half: the game
-/// starts on it as on start), for the automatic Aime card.
+/// starts on it as on start), Chrono Regalia's touch (`b1`: its attract waits for a touch, its
+/// cabinet has no start button), for the automatic Aime card.
 pub(crate) fn start_pressed(p1: &wal_protocol::StickState) -> bool {
-    p1.pressed(b::START) || (board() == Board::Idac && p1.axis_u16(Axis::Accel) >= 0x8000)
+    static HKB: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let hkb = *HKB.get_or_init(|| std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "hkb"));
+    p1.pressed(b::START) || (board() == Board::Idac && p1.axis_u16(Axis::Accel) >= 0x8000) || (hkb && p1.pressed(b::B1))
 }
 
 /// The switches of players 1 and 2 from the virtual sticks.
