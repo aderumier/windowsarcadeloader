@@ -4417,6 +4417,41 @@ Eolith's two-player football game (2003, "Eoforce" PC, `ewcs.exe`, DirectDraw / 
   wined3d's minimizes; `WAL_DESKTOP_ACTIVE` / `WAL_DESKTOP_UNMANAGED`. A window of our size or a
   bezel broke the picture (3D unscaled, the bezel over the game in the emulated mode).
 
+#### Come on Baby!
+
+ExtraLine's party game (2000, `COBDEMO.exe`, 32-bit, Glide 2), two players with a stick, two
+buttons and a start button. The payload is loaded at the entry point (`payload_loader`,
+`xinput1_3` native), board `comeonbaby` (`comeonbaby.rs`):
+
+- **Board.** The cabinet's I/O is on the parallel port: the reader (`0x4126d0`, a group byte)
+  writes the group to the data port, strobes the control port and returns the status port's upper
+  nibble, active low: groups 0 / 2 the players' sticks, 1 / 3 their buttons (A, B, start), 4 the
+  operator's (test, service, coin), 8 the boot's I/O check (5, else `IO_ERROR!`). The dump's
+  `in` / `out` instructions are already NOPs and its dgVoodoo `Glide2x.dll` imports
+  `cob_patch.dll`, which hooks the reader with the real keyboard; the payload's jump replaces
+  either.
+- **Picture.** The runner's gxvk (`Glide2x.dll` in the profile's `files`, `useMonitorResolution`,
+  no logo) in place of the dump's dgVoodoo 2.53: always windowed at 640x480 (resized again every
+  2 s through calls resolved at run time), its full screen stretched to the screen; dgVoodoo
+  2.87 hangs at boot under Wine, its "Wine fix" build loses the large sprites and the texts.
+  gxvk 0.1 drew the sprites' chroma key (magenta boxes) and lost black texels: the runner has a
+  later build (`v0.2-WIP-6-gc6d68eae`). The game hands `grSstWinOpen` no window and runs no
+  message loop: gxvk took its 0x0 window (a few pixels on the desktop) and the picture went
+  black once gxvk needed its window's messages. As for Xtom 3D, `grSstWinOpen` gets a window of
+  the payload (the largest centered 4:3 rectangle of the screen, a thread and message loop of
+  its own, gxvk's `SetWindowPos` / `MoveWindow` keep it there), the game's hidden, the black
+  bezel around. The window's WM_MOVE no longer closes the game (`0x4121bc`: on a failed
+  `grSstControl(move)`, dgVoodoo's).
+- **Operator menu.** Test moves, service selects. The menu's select and the frame update (service:
+  a credit) shared one edge detector (`0x4112f0`, its state flipped at each call while held): the
+  frame update, called first, took a short press, only a long one selected. The menu's call
+  (`0x46fb10`) is the payload's own edge detector.
+- **Settings.** `eep.rom` (`COB 2.0`): byte 0x0c the coins per credit to start (1..9, 0 free play),
+  0x0d to continue. The dump's: 3 coins. `WAL_FREEPLAY` sets both after the boot reads the file
+  (its tail jump to the reader, `0x412c4a`, through the payload): 0 when on, 1 when off.
+- **Protection.** `0x412790` compares `c:\windows\win386p.swp` with C:'s volume serial number:
+  `WAL_PATCHES` returns 1.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6437,6 +6472,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | JXCompany's "ShotRedLight" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump without BepInEx/ReShade (`TopGun2.exe`); the payload emulates the JX COM1 board (`jxboard.rs`, `jxcamera`), the SoftKey HID dongle and the camera tracker's positions; landscape by default (levels full screen, not stretched; menus, attract and loading in the bezel), portrait 1080x1920 fitted as an option, crosshair |
 | `galaxian-3` | Galaxian 3 | arcadepc | user 100% (2026-11-09), 4 guns (of the cabinet's 6) | Namco's Theater 6 LaserDisc game in the dump's patched MAME (`mame.exe gal3`, H.264 laserdiscs, §6.3i): the payload is MAME's raw input devices (a keyboard and one absolute mouse per player, `mame.rs`), `ctrlr\wal.cfg` maps them; startup popups patched out; ReShade off by default; stretch option (`keepaspect`) |
 | `burning-striker` | Burning Striker | arcadepc | user 100% (2026-11-09), 2 players (stick, 3 buttons) | Eolith's football game (DirectDraw / D3D7, 32-bit, §6.3i): COM1 board and DIP switches emulated (free play option), the protection's 3ddata.pak key from the dump's `eolith.key`; intro movie needs GE patches 0116/0117 (qasf DMO wrapper); focus loss no longer minimizes (wined3d behind d7vk) |
+| `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) | ExtraLine's party game (Glide 2, 32-bit, §6.3i): the parallel port board's reader replaced (sticks, buttons, operator keys), the menu's service select given its own edge detection, free play option over `eep.rom`'s coins, the C: serial check patched; the runner's gxvk (a build after 0.1: chroma key) in a payload window with its own message loop, 4:3, black bezel |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

@@ -1,0 +1,51 @@
+# Come on Baby! (ExtraLine, 2000, COBDEMO.exe, Glide 2, 32-bit) - template, override values in
+# userprofiles/arcadepc/come-on-baby.yaml.
+# A party game of mini-games: two players, a stick, two buttons and a start button each. The
+# payload is the cabinet's parallel port board (docs §6.3i). Glide on gxvk (Vulkan).
+system: arcadepc
+name: Come on Baby!
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+files:
+  # gxvk (Glide on Vulkan) in place of the dump's dgVoodoo 2.53 (always windowed at 640x480,
+  # its full screen stretched to the screen). gxvk 0.1 drew the sprites' chroma key (magenta)
+  # and lost black texels: fixed in later gxvk.
+  Glide2x.dll: "{runner}/lib/wine/gxvk/i386-windows/glide2x.dll"
+
+env:
+  WAL_ARCADEPC_BOARD: comeonbaby
+  # The boot's protection (0x412790: c:\windows\win386p.swp against C:'s volume serial
+  # number) returns 1 (xor eax, eax; inc eax; ret). The window's WM_MOVE (0x4121b3) closed
+  # the game when Glide's grSstControl(move) returned 0 (dgVoodoo): never closes (jmp).
+  WAL_PATCHES: "0x12790:31C040C3,0x121BC:EB"
+  # gxvk: the Glide window in the screen's mode (the 640x480 picture scaled to it, 4:3 kept),
+  # no logo
+  DXVK_CONFIG: "glide.useMonitorResolution = True; glide.noSplash = True"
+  # the payload's Glide window keeps the picture's 4:3 at the screen's center: black around
+  WAL_BEZEL: black
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: one coin per credit (to start and to continue).
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Button A
+  b2: Button B
+  start: Start
+  coin: Coin
+  service: Service (credit)
+  test: Test menu
