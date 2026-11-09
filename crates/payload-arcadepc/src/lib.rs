@@ -60,6 +60,9 @@
 //! Come on Baby! (`WAL_ARCADEPC_BOARD=comeonbaby`, x86 build): `comeonbaby.rs` is its parallel
 //! port board's reader.
 //!
+//! Robin Hood (`WAL_ARCADEPC_BOARD=robinhood`, x86 build): `robinhood.rs` emulates its serial
+//! board (keys, coins, tickets); its crossbow is the common DirectInput joystick.
+//!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
@@ -86,6 +89,8 @@ mod interface;
 mod jxboard;
 mod jxcamera;
 mod mame;
+#[cfg(target_arch = "x86")]
+mod robinhood;
 mod topgun2_landscape;
 mod pads;
 #[cfg(target_arch = "x86")]
@@ -219,6 +224,15 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 comeonbaby::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "robinhood" => {
+                pads::disconnect();
+                // the dongle's API
+                wal_payload_common::patches::apply();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                robinhood::init();
             }
             _ if board.trim() == "spacewarp" => {
                 pads::disconnect();

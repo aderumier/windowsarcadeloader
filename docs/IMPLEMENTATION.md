@@ -4452,6 +4452,44 @@ buttons and a start button. The payload is loaded at the entry point (`payload_l
 - **Protection.** `0x412790` compares `c:\windows\win386p.swp` with C:'s volume serial number:
   `WAL_PATCHES` returns 1.
 
+#### Robin Hood
+
+ICE's ticket redemption crossbow game (`data\game.exe`, Direct3D 9, 32-bit, 1280x720), one
+player, a lightgun game (the gun's X position aims, `guns_enabled`). The payload is loaded at
+the entry point (`payload_loader`, `xinput1_3` native), board `robinhood` (`robinhood.rs`):
+
+- **Working directory.** The game reads `.\game.ini`, `log\PR*.CFG` (the operator settings) and
+  `data\game.bin` from the dump's root (the cabinet's `start.bat`); the launcher starts it in
+  `data`: the payload goes up one folder first.
+- **Board.** The first COM port that opens (COM1-COM4, 9600 bauds, thread `0x490650`). The game
+  sends 7-byte packets `cmd, timeGetTime (4 bytes), arg, sum` (sum of the first six) and reads
+  the board's packets until the echo of its command: one byte for `00`, `FF`, `94`-`98`, `#`,
+  `$`, `)`, `0`, else `cmd, d1-d5, sum`. Once per frame it polls with `%`: one packet per held
+  switch (`80` advance, `81` spare, `84` select, `C` admin, `83` start, `D` free credit: the I/O
+  check's names; bits 0x01, 0x02, 0x04, 0x08, 0x10, 0x20 of the frame's inputs), `@` per coin
+  (`A` the second coin slot), then `%`, which commits them (`0x48f8c0`). The game's other
+  commands: `00` / `#` at start, `)` the coin setting, `94` the I/O mode, `95` a lamp, `96`
+  tickets to pay (100 at most per command), `0` the dispenser's state every 128 frames while
+  tickets are owed: `Q` / `P` the tickets left (low / high byte), `B` a vending error
+  (`TICKET VENDING ERROR`). The payload pays at once: `0` gets `Q 0`, `P 0`.
+- **Crossbow.** A DirectInput 5 joystick (`jcontrol` 1): X (range -1000..1000, averaged over 16
+  frames, `iostlt` / `iostrt` the calibration) the aim across the screen, buttons `jtrigb` (0)
+  the trigger and `jstart` (1) start: the common `WAL_DINPUT_PADS=1` (player 1's `lx`, the
+  gun's X position, buttons `b1,start`). At the default calibration (`iostlt` -90, `iostrt` 90,
+  `iostct` 0) the picture's x is `(X / 0.99 + 1) / 2` of its width (`0x48fa10`): the gun's place.
+  The game draws its own sight (`sightmark`). The PC keyboard (`GetKeyboardState`: the mouse's
+  left button and space shoot, Enter starts, `T` / Escape admin, the arrows the menu) is hidden
+  (`WAL_KEYBOARD_STATE_DISABLE`).
+- **Dongle.** A HASP HL (vendor code at `0x61c808`, feature 1), its API linked in the
+  executable: at boot (`0x4913c0`, after `game.bin`'s CRC check) the game logs in and reads 32
+  bytes of its memory, which must start with `GWRH`; any failure ends the boot on error 12. The
+  profile's patches: `hasp_login` returns 0 with handle 1, `hasp_read` the tag, `hasp_logout` 0.
+- **Free play.** `coinfree` of the operator settings, loaded at `0x48f1d0` (the dump's: on):
+  `WAL_FREEPLAY` replaces the loaded value (`mov ecx, 0/1` at `0x48f1e5`).
+- Verified: free play and coins (`INSERT COIN(S)`, a credit), start, aim and shots (the targets
+  hit, tickets counted), the collect screen, the payout (`96`, then `0` answered), the admin
+  switch's I/O check (the switches' names above); the user played it with a gun.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`

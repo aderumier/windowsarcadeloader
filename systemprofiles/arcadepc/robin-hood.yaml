@@ -1,0 +1,48 @@
+# Robin Hood (data\game.exe, Direct3D 9, 32-bit) - template, override values in
+# userprofiles/arcadepc/robin-hood.yaml.
+# A ticket redemption crossbow game, one player: a lightgun game. The payload emulates the
+# cabinet's serial board (keys, coins, the ticket dispenser); the crossbow is a DirectInput
+# joystick whose X axis is the aim across the screen (linear at the default calibration):
+# the gun's X position (docs §6.3i).
+system: arcadepc
+name: Robin Hood
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: robinhood
+  # The HASP HL API linked in the executable: hasp_login (0x57a9e0) logs in (handle 1, status
+  # 0), hasp_read (0x57b350) returns the memory's GWRH tag, hasp_logout (0x57aa50) succeeds.
+  WAL_PATCHES: "0x17a9e0:8B44240CC7000100000031C0C20C00,0x17b350:8B442414C7004757524831C0C21400,0x17aa50:31C0C20400"
+  # the crossbow: X (aim) from the gun's position (lx), buttons 0 (trigger) and 1 (start)
+  WAL_DINPUT_PADS: "1"
+  WAL_DINPUT_PADS_BUTTONS: "b1,start"
+  # the PC keyboard's keys the game reads (mouse button, space, Enter, T...)
+  WAL_KEYBOARD_STATE_DISABLE: "1"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the operator settings' coins per credit.
+
+controls:
+  lx: Gun aim (x)
+  b1: Trigger
+  start: Start
+  coin: Coin
+  service: Free credit switch
+  test: Admin switch (test menu)
+  down: Select switch
+  left: Advance switch
+  right: Spare switch
