@@ -81,6 +81,11 @@ env:
   # the LAN library's server role reads off whatever the DIP switches, and BP_BootCheck stops a
   # single seat that is not the server with error 3002 "Single Seat Setting Failed"
   WAL_PATCHES: "0x71bcc0:B001C3"
+  # a borderless 16:9 window centered on the screen: the game lays its interface out for 16:9
+  # (on a 16:10 screen its right side was cut: the start prompt)
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: picture
+  WAL_D3D9_ASPECT: "16:9"
 
 options:
   - title: Aime card
@@ -120,13 +125,14 @@ input:
       KEY_LEFTCTRL: b1
       KEY_A: b6
       KEY_S: b7
-      # the H shifter's gears
-      KEY_1: kp1
-      KEY_2: kp2
-      KEY_3: kp3
-      KEY_4: kp4
-      KEY_5: kp5
-      KEY_6: kp6
+      # the H shifter's gears on the numpad (1 stays start, 5 coin: the automatic card waits
+      # for start)
+      KEY_KP1: kp1
+      KEY_KP2: kp2
+      KEY_KP3: kp3
+      KEY_KP4: kp4
+      KEY_KP5: kp5
+      KEY_KP6: kp6
 
 controls:
   lx: Wheel

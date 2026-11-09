@@ -44,11 +44,17 @@ pub fn card_on_poll_after(access_code: &str, button: u32) {
 /// [`card_on_poll_after`], the card on the reader `delay` after the press (Initial D THE
 /// ARCADE drops the card read on its attract: it reads it again at its card prompt).
 pub fn card_on_poll_after_delay(access_code: &str, button: u32, delay: Duration) {
+    card_on_poll_after_press(access_code, delay, move |p1| p1.pressed(button));
+}
+
+/// [`card_on_poll_after_delay`], player 1's press told by `pressed` (Initial D THE ARCADE: start
+/// or the gas pedal).
+pub fn card_on_poll_after_press(access_code: &str, delay: Duration, pressed: impl Fn(wal_protocol::StickState) -> bool + Send + 'static) {
     let code = access_code.to_string();
     std::thread::spawn(move || {
         let mut held = false;
         loop {
-            let pressed = crate::input(0).pressed(button);
+            let pressed = pressed(crate::input(0));
             if pressed && !held && READ_AT.lock().unwrap().is_none_or(|t| t.elapsed() >= REARM_AFTER) {
                 *ARMED.lock().unwrap() = Some((code.clone(), Instant::now() + delay));
             }

@@ -25,7 +25,7 @@ pub(crate) fn init() {
     log!("aime: card {code}");
     if std::env::var("WAL_ALLS_AUTO_CARD").is_ok_and(|v| v.trim() == "1") {
         let delay = std::env::var("WAL_ALLS_AUTO_CARD_DELAY_MS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0);
-        sgreader::card_on_poll_after_delay(&code, button::START, Duration::from_millis(delay));
+        sgreader::card_on_poll_after_press(&code, Duration::from_millis(delay), |p1| crate::io4::start_pressed(&p1));
     }
     std::thread::spawn(move || {
         let mut held = false;

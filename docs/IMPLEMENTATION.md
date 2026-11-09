@@ -5726,8 +5726,11 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     837-15070 LED board (`led.rs`: ack on/off, board info `15070-04`, EEPROM in
     `Y:\idac\led15070.eeprom`; unanswered, the game polled it and GNOME showed "not
     responding"). I/O: SWDC's wheel and pedals, the 6-speed H shifter's gate on player 2's word
-    (b6/b7 sequential, kp1-kp6 an H shifter's positions). Option data `C:\Mount\Option` (profile
-    `c_folders`). No `-UserDir` on the command line: the game then posts to `/Get`.
+    (b6/b7 sequential, kp1-kp6 an H shifter's positions; on the keyboard the numpad's 1-6, keys 1
+    and 5 kept for start and coin). Option data `C:\Mount\Option` (profile `c_folders`). No
+    `-UserDir` on the command line: the game then posts to `/Get`. A borderless 16:9 window
+    centered on the screen (`WAL_WINDOW_SIZE: picture`): on a 16:10 screen the interface's right
+    side (the start prompt) was cut.
   - Game server (`idac.rs` + `idac/`: ARTEMiS Dniel97 `titles/idac` season 2/3 and
     Bayshore_sdgt_legacy reimplemented): ALL.Net's host field is the server URL
     (`WAL_ALLS_TITLE_HOST`, as ARTEMiS answers), JSON POSTs to `<host>initiald/<Category>/<Endpoint>`
@@ -5735,8 +5738,8 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     `Y:\idac\<aime id>.json`. ALL.Net accounting off (`config_wal.json`: a fresh cabinet's
     attract showed "It's being processed now", the `Reporting` message, and refused START: no
     billing server on 8443). Alive/Get's `force_reboot_time` a day ago (a later one reboots the
-    game). Automatic card 3 s after start (`WAL_ALLS_AUTO_CARD_DELAY_MS`: a card read on the
-    attract is dropped). Verified headless: new card (terms, registration, name, car), returning
+    game). Automatic card 3 s after start or the gas pedal (the game starts on either;
+    `WAL_ALLS_AUTO_CARD_DELAY_MS`: a card read on the attract is dropped). Verified headless: new card (terms, registration, name, car), returning
     card ("play with this data"), Story race, result saved (story, mileage, cash), continue.
 - Mario & Sonic at the Rio 2016 Olympic Games (SDCH, Nu 1.1 `AAV1`, 64-bit D3D11, portrait;
   amdaemon Dec 2015): a Nu game with amdaemon, profile in `systemprofiles/seganu/` with

@@ -80,6 +80,12 @@ fn board() -> Board {
     })
 }
 
+/// Player 1 starting a game: Initial D THE ARCADE's gas pedal too (pressed past half: the game
+/// starts on it as on start), for the automatic Aime card.
+pub(crate) fn start_pressed(p1: &wal_protocol::StickState) -> bool {
+    p1.pressed(b::START) || (board() == Board::Idac && p1.axis_u16(Axis::Accel) >= 0x8000)
+}
+
 /// The switches of players 1 and 2 from the virtual sticks.
 fn switches() -> [u16; 2] {
     let p1 = input(0).buttons;
