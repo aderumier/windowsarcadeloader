@@ -24,7 +24,12 @@
 //! `WAL_UNIS_AFTERDARK_STAGE4` (default on; `0`: off): the fourth stage open from the start
 //! (`afterdark_stage4.rs`).
 //!
-//! Natives: `start trigger platform test plus minus coin` (each gun).
+//! Left / right: the Virtools input manager's DirectInput keyboard arrows (the fake one of
+//! `WAL_DINPUT_DISABLE`), from either player's left / right (d-pad, arrow keys, the gun's
+//! second and third buttons).
+//!
+//! Natives: `start trigger platform test plus minus coin` (each gun), `left right` (the
+//! keyboard's arrows).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -32,7 +37,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use wal_payload_common::mapping::ButtonMap;
-use wal_payload_common::{gun, input, log, serial};
+use wal_payload_common::{dinput, gun, input, log, serial};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
 
@@ -44,6 +49,8 @@ const RAW_MAX: f32 = 4095.0;
 enum Native {
     /// A bit of the gun's buttons byte.
     Button(u8),
+    /// A DirectInput keyboard key.
+    Key(u8),
 }
 
 const NATIVES: &[(&str, Native)] = &[
@@ -54,6 +61,8 @@ const NATIVES: &[(&str, Native)] = &[
     ("plus", Native::Button(0x10)),
     ("minus", Native::Button(0x20)),
     ("coin", Native::Button(COIN)),
+    ("left", Native::Key(DIK_LEFT)),
+    ("right", Native::Key(DIK_RIGHT)),
 ];
 
 const DEFAULTS: &[(&str, &str)] = &[
@@ -64,6 +73,11 @@ const DEFAULTS: &[(&str, &str)] = &[
     ("service", "plus"),
     ("up", "plus"),
     ("down", "minus"),
+    ("left", "left"),
+    ("right", "right"),
+    // the gun's second and third buttons (the game uses no other)
+    ("b2", "left"),
+    ("b3", "right"),
 ];
 
 fn map() -> &'static ButtonMap<Native> {
@@ -77,6 +91,19 @@ static FRAMES: AtomicU64 = AtomicU64::new(0);
 
 const START: u8 = 0x01;
 const COIN: u8 = 0x80;
+const DIK_LEFT: u8 = 0xCB;
+const DIK_RIGHT: u8 = 0xCD;
+
+/// The fake DirectInput keyboard's keys: both players' left / right.
+fn keyboard(keys: &mut [u8; 256]) {
+    for g in 0..GUNS {
+        map().for_each_pressed(&input(g), |n| {
+            if let Native::Key(dik) = n {
+                keys[dik as usize] = 0x80;
+            }
+        });
+    }
+}
 
 /// Free play (`WAL_UNIS_FREEPLAY`, default on): each gun's start key held, and when it was
 /// pressed.
@@ -136,7 +163,11 @@ fn idle() -> Vec<u8> {
     }
     let mut data = [0u8; 22];
     for g in 0..GUNS {
-        map().for_each_pressed(&input(g), |Native::Button(bit)| data[g] |= bit);
+        map().for_each_pressed(&input(g), |n| {
+            if let Native::Button(bit) = n {
+                data[g] |= bit;
+            }
+        });
         if free_play_on() {
             data[g] = free_play(g, data[g]);
         }
@@ -498,6 +529,7 @@ pub fn init() {
     // help (WinHelp, the game hung)
     wal_payload_common::input_filter::messages(unsafe { GetModuleHandleW(windows_sys::w!("mfc90.dll")) } as usize);
     serial::install_streaming(PORT, handler, idle);
+    dinput::set_keyboard(keyboard);
     // after the serial port's: its hook chained
     if std::env::var("WAL_UNIS_AFTERDARK_STAGE4").map_or(true, |v| v.trim() != "0")
         && let Some(o) = unsafe { wal_payload_common::iat::hook("kernel32.dll", "CreateFileA", create_file_a as *const () as usize) }

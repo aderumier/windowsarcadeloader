@@ -59,9 +59,13 @@ controls:
   lx: Gun aim (x)
   ly: Gun aim (y)
   b1: Trigger
+  b2: Left (gun button)
+  b3: Right (gun button)
   start: Start
   coin: Coin
   test: Operator menu
   service: Menu +
   up: Menu +
   down: Menu -
+  left: Left
+  right: Right
