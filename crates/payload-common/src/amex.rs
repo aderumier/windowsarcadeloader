@@ -89,7 +89,17 @@ const CLASS_DEVS: usize = 4;
 const ENUM_IF: usize = 5;
 const IF_DETAIL: usize = 6;
 const DESTROY: usize = 7;
-static ORIG: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
+const WRITE: usize = 8;
+static ORIG: [AtomicUsize; 9] = [const { AtomicUsize::new(0) }; 9];
+
+/// A game's own change to its EEPROM writes: (offset, the bytes written), changed in place.
+static EEPROM_WRITE_FILTER: OnceLock<fn(u64, &mut [u8])> = OnceLock::new();
+
+/// Changes the game's EEPROM writes (CHUNITHM: its settings record kept as the distribution
+/// server's), set before [`init`].
+pub fn set_eeprom_write_filter(filter: fn(u64, &mut [u8])) {
+    let _ = EEPROM_WRITE_FILTER.set(filter);
+}
 
 fn orig<F: Copy>(idx: usize) -> F {
     let p = ORIG[idx].load(Ordering::Relaxed);
@@ -110,7 +120,7 @@ pub fn init(b: Board) {
         }
     }
     crate::jvs_board::init(JVS_PORT);
-    let hooks: [(&str, &str, usize); 8] = [
+    let hooks: [(&str, &str, usize); 9] = [
         ("kernel32.dll", "CreateFileA", create_file_a as *const () as usize),
         ("kernel32.dll", "CreateFileW", create_file_w as *const () as usize),
         ("kernel32.dll", "DeviceIoControl", device_io_control as *const () as usize),
@@ -119,6 +129,7 @@ pub fn init(b: Board) {
         ("setupapi.dll", "SetupDiEnumDeviceInterfaces", enum_interfaces as *const () as usize),
         ("setupapi.dll", "SetupDiGetDeviceInterfaceDetailW", interface_detail as *const () as usize),
         ("setupapi.dll", "SetupDiDestroyDeviceInfoList", destroy_info_list as *const () as usize),
+        ("kernel32.dll", "WriteFile", write_file as *const () as usize),
     ];
     for (i, (dll, name, f)) in hooks.into_iter().enumerate() {
         match unsafe { iat::hook(dll, name, f) } {
@@ -181,6 +192,20 @@ unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P,
         }
     }
     unsafe { orig::<unsafe extern "system" fn(*const u16, u32, u32, P, u32, u32, P) -> P>(CREATE_W)(name, a, s, sa, d, f, t) }
+}
+
+/// The game's EEPROM writes through [`EEPROM_WRITE_FILTER`] (its buffer changed in place: an
+/// overlapped write may complete after the call).
+unsafe extern "system" fn write_file(h: P, buf: *const u8, n: u32, written: *mut u32, ov: *mut OVERLAPPED) -> i32 {
+    if let Some(filter) = EEPROM_WRITE_FILTER.get()
+        && h as usize == EEPROM_HANDLE.load(Ordering::Relaxed)
+        && !buf.is_null()
+        && !ov.is_null()
+    {
+        let offset = unsafe { (*ov).Anonymous.Anonymous.Offset as u64 | ((*ov).Anonymous.Anonymous.OffsetHigh as u64) << 32 };
+        filter(offset, unsafe { std::slice::from_raw_parts_mut(buf as *mut u8, n as usize) });
+    }
+    unsafe { orig::<unsafe extern "system" fn(P, *const u8, u32, *mut u32, *mut OVERLAPPED) -> i32>(WRITE)(h, buf, n, written, ov) }
 }
 
 unsafe extern "system" fn close_handle(h: P) -> i32 {

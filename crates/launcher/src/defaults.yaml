@@ -308,6 +308,9 @@ input:
   # The mouse position wraps around that virtual screen instead of stopping at its edges: a
   # trackball's counters (x/y wrap from 32767 to -32768), for the games reading a trackball.
   mouse_wrap: false
+  # A multi-touch touchpad or touchscreen read finger by finger (`touch.rs`), its fingers sent to
+  # the game as touch points (CHUNITHM's slider); grabbed: the desktop's cursor stays still.
+  touch: false
   # Gun/mouse -> virtual stick of its player. Sources: x y (position, -32768 left/top ..
   # 32767), offscreen (gun pointing off the screen), evdev buttons (BTN_LEFT...).
   # Lightgun buttons as batocera-wine-guns: BTN_LEFT trigger, BTN_RIGHT action, BTN_MIDDLE

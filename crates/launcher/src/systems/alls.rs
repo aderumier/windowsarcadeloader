@@ -7,6 +7,9 @@
 //!
 //! The cabinet's drives (profile `drives`): E: the AMFS (ICF files, the system backup
 //! `sysfile.dat`), Y: the game's application data.
+//!
+//! CHUNITHM (32-bit, Nu): no amdaemon; the payload emulates the system in the game's process
+//! (`WAL_ALLS_BOARD=chuni`).
 
 use super::{Payload, System};
 
@@ -17,8 +20,9 @@ impl System for Alls {
         "alls"
     }
 
+    // 32-bit: CHUNITHM (a Nu game without amdaemon, its devices in its own process)
     fn payloads(&self) -> &'static [Payload] {
-        &[]
+        &[Payload { file: "wal_alls32.dll", install_as: "wal_alls.dll" }]
     }
 
     fn payloads64(&self) -> Option<&'static [Payload]> {

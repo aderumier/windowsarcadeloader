@@ -6,6 +6,10 @@
 //! Frame: `E0 dest src len data... sum` (sum of the bytes after E0; E0 / D0 in the rest are
 //! escaped as `D0 byte-1`). Request data: the command, its parameters; answer data: status
 //! (1 ok), the command, report (1 ok), the command's values.
+//!
+//! CHUNITHM's two 837-15093-06 boards on COM10 and COM11 ([`init_pair`]): `WAL_ALLS_LED_BOARD`
+//! `<board number>,<chip number>,<firmware sum>` gives their identity (segatools' chunihook
+//! values `15093-06,6710,adf7`; default `15093-04,6704,aed9`).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -17,7 +21,8 @@ const ESC: u8 = 0xD0;
 /// The board's address when the host broadcasts (one board).
 const BOARD: u8 = 1;
 
-static RX: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+/// Each port's bytes not answered yet (CHUNITHM: two boards).
+static RX: [Mutex<Vec<u8>>; 2] = [Mutex::new(Vec::new()), Mutex::new(Vec::new())];
 static RESPONSES: AtomicBool = AtomicBool::new(true);
 /// An 837-15070 board (Initial D THE ARCADE), in its boot loader.
 static BOARD_15070: AtomicBool = AtomicBool::new(false);
@@ -187,13 +192,15 @@ fn answer(frame: &[u8]) -> Vec<u8> {
         }
         // board info: number, LF, chip, FF, firmware, receive buffer 204
         0xF0 => {
-            let mut v = b"15093-04\n6704 ".to_vec();
+            let (number, chip, _) = identity();
+            let mut v = format!("{number:<8.8}\n{chip:<5.5}").into_bytes();
             v.extend([0xFF, 0x90, 204, 0]);
             encode(cmd, &v, src)
         }
         // board status: board / UART / command flags, DIP switch 1 on
         0xF1 => encode(cmd, &[0, 0, 0, 1], src),
-        0xF2 => encode(cmd, &[0xAE, 0xD9], src),
+        // the firmware's sum
+        0xF2 => encode(cmd, &identity().2.to_be_bytes(), src),
         // protocol: application mode 1.4
         0xF3 => encode(cmd, &[1, 1, 4], src),
         0xFD => encode(cmd, &[0], src),
@@ -204,8 +211,18 @@ fn answer(frame: &[u8]) -> Vec<u8> {
     }
 }
 
-fn packet(data: &[u8]) -> Vec<u8> {
-    let mut rx = RX.lock().unwrap();
+/// The board's number, chip number and firmware sum (`WAL_ALLS_LED_BOARD`).
+fn identity() -> (String, String, u16) {
+    let spec = std::env::var("WAL_ALLS_LED_BOARD").unwrap_or_default();
+    let mut parts = spec.split(',').map(str::trim);
+    let number = parts.next().filter(|p| !p.is_empty()).unwrap_or("15093-04").to_string();
+    let chip = parts.next().filter(|p| !p.is_empty()).unwrap_or("6704").to_string();
+    let sum = parts.next().and_then(|p| u16::from_str_radix(p, 16).ok()).unwrap_or(0xAED9);
+    (number, chip, sum)
+}
+
+fn port_packet(port: usize, data: &[u8]) -> Vec<u8> {
+    let mut rx = RX[port].lock().unwrap();
     rx.extend_from_slice(data);
     let mut out = Vec::new();
     while let Some(frame) = next_frame(&mut rx) {
@@ -214,9 +231,23 @@ fn packet(data: &[u8]) -> Vec<u8> {
     out
 }
 
+fn packet(data: &[u8]) -> Vec<u8> {
+    port_packet(0, data)
+}
+
+fn packet_second(data: &[u8]) -> Vec<u8> {
+    port_packet(1, data)
+}
+
 /// The board on `port` (`COM1`; Sega World Drivers Championship's indicator LEDs: `COM2`).
 pub(crate) fn init(port: &str) {
     serial::install(port, packet);
+}
+
+/// Two boards (CHUNITHM: `COM10`, `COM11`).
+pub(crate) fn init_pair(first: &str, second: &str) {
+    serial::install(first, packet);
+    serial::install(second, packet_second);
 }
 
 /// An 837-15070 board on `port` (Initial D THE ARCADE: `COM2`).

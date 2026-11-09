@@ -6,7 +6,7 @@
 //!   `WAL_SEGANU_SAVE` (default `sv`).
 //! * The JVS I/O board (Sega 837-14572, payload-common's `jvs_board.rs`) on the AMEX JVS
 //!   device.
-//! * amLib's own log (`WAL_SEGANU_AMLOG`, `amlog.rs`).
+//! * amLib's own log (`WAL_SEGANU_AMLOG`, payload-common's `amlog`).
 //! * The test menu program (`TestMode_x86.exe`): started by a relaunch when the game hands over
 //!   to it (`devices.rs`); it asks for the game's relaunch, so leaving it starts the game again
 //!   (`game.bat`'s loop on the cabinet).
@@ -19,7 +19,6 @@
 
 #![allow(non_snake_case)]
 
-mod amlog;
 mod devices;
 mod lmaio;
 #[cfg(target_arch = "x86_64")]
@@ -44,7 +43,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         #[cfg(target_arch = "x86_64")]
         unpack::init();
         patches::apply();
-        amlog::init();
+        wal_payload_common::amlog::init("SEGANU");
         wal_payload_common::jvs_board::init(devices::JVS_PORT);
         devices::init();
         lmaio::init();

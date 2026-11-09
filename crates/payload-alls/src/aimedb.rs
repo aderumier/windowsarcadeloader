@@ -64,6 +64,9 @@ fn access_code(req: &[u8]) -> String {
 /// The answer to one decrypted request (`None`: goodbye).
 fn handle(req: &[u8]) -> Option<Vec<u8>> {
     let cmd = u16::from_le_bytes([req[4], req[5]]);
+    if std::env::var("WAL_ALLS_AIMEDB_DEBUG").is_ok() {
+        log!("aimedb: request {cmd:#x}");
+    }
     Some(match cmd {
         0x66 => return None,
         0x04 | 0x05 | 0x0F => {

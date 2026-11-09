@@ -38,6 +38,14 @@
 //! - `WAL_ALLS_UDP=1`: the game hears its own datagrams to the subnet (`udp.rs`; `swdc` sets it)
 //! - `WAL_ALLS_CTS=1`: Sega's CTS game server (`cts.rs`: rankings, the Aime players' names and
 //!   saves; Mario & Sonic at Rio 2016)
+//! - `WAL_ALLS_BOARD=chuni`: CHUNITHM, a Nu game with amLib linked in and no amdaemon: the
+//!   system's devices (`daemon.rs`: keychip, AMEX board with `WAL_ALLS_JVS=1`, ALL.Net) in the
+//!   game's own process with its slider, air sensors, LED boards and title server (`chuni.rs`);
+//!   in `aimeReaderHost.exe` the Aime reader only (`WAL_ALLS_AIME_PORT`, set for that program
+//!   with `WAL_EXE_ENV`)
+//! - `WAL_ALLS_LED_BOARD`: the LED boards' identity (`led.rs`)
+//! - `WAL_ALLS_AMLOG`, `WAL_ALLS_AMLOG_LEVELS`: the game's linked amLib's log (CHUNITHM;
+//!   payload-common's `amlog`)
 //! - `WAL_ALLS_DAEMON_PATCHES`: amdaemon's patches (`<rva>:<hex bytes>,...`)
 //! - `WAL_PATCHES`: game code patches (same format)
 //!
@@ -47,6 +55,8 @@
 mod aime;
 mod aimedb;
 mod allnet;
+mod billing;
+mod chuni;
 mod clock;
 mod cts;
 mod daemon;
@@ -55,6 +65,8 @@ mod english;
 mod ffb;
 mod gore;
 mod gs;
+// House of the Dead: Scarlet Dawn's (a 64-bit game: its hook is x86-64 code)
+#[cfg(target_arch = "x86_64")]
 mod gunsensor;
 mod hotd;
 mod icf;
@@ -92,6 +104,8 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if std::env::var("WAL_ALLS_CLOCK").map_or(true, |v| v.trim() != "0") { clock::init(); }
         if is_daemon() {
             daemon::init();
+        } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chuni") {
+            chuni_process();
         } else {
             let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
             // the cabinet's input comes from amdaemon's I/O board: the real keyboard and pads
@@ -100,6 +114,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             wal_payload_common::patches::apply();
             if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "hotd") {
                 // COM1: the gun sensor board; COM22 the LED controller, absent
+                #[cfg(target_arch = "x86_64")]
                 gunsensor::init();
                 hotd::init();
                 gore::init();
@@ -146,6 +161,26 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
     }
     1
+}
+
+/// CHUNITHM's programs: the game (its devices first: the system's hooks pass the serial calls
+/// on to them) and the Aime reader's host.
+fn chuni_process() {
+    let exe_name = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase())).unwrap_or_default();
+    if exe_name == "aimereaderhost.exe" {
+        aime::init();
+        // it reaches AimeDB itself (`aime.naominet.jp`: the router's port 22345, the game's
+        // AimeDB server)
+        netenv::init_game();
+        allnet::init_redirect();
+        return;
+    }
+    let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    wal_payload_common::input_filter::init(exe, |_| false);
+    wal_payload_common::patches::apply();
+    wal_payload_common::amlog::init("ALLS");
+    chuni::init();
+    daemon::init();
 }
 
 // amvideo: the cabinet's video driver library amdaemon loads (registry `amVideo\name`): the

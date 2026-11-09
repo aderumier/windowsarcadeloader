@@ -231,12 +231,20 @@ pub enum Message {
     /// Game -> launcher: when the game exits, start it again with the profile's arguments
     /// plus these (split on spaces, may be empty). The latest request wins.
     Relaunch { args: String },
+    /// Launcher -> game: the fingers on the player's touch surface (a multi-touch touchpad or
+    /// touchscreen, profile `input.touch`), each (x, y) from 0 (left / top) to 65535, at most
+    /// [`MAX_TOUCHES`]; sent on change (empty: none).
+    Touch(Vec<(u16, u16)>),
 }
+
+/// The touch points a [`Message::Touch`] carries at most.
+pub const MAX_TOUCHES: usize = 10;
 
 const KIND_HELLO: u8 = 1;
 const KIND_INPUT: u8 = 2;
 const KIND_OUTPUT: u8 = 3;
 const KIND_RELAUNCH: u8 = 4;
+const KIND_TOUCH: u8 = 5;
 
 impl Message {
     pub fn encode(&self) -> Vec<u8> {
@@ -254,6 +262,7 @@ impl Message {
                 (KIND_OUTPUT, p)
             }
             Message::Relaunch { args } => (KIND_RELAUNCH, args.as_bytes().to_vec()),
+            Message::Touch(points) => (KIND_TOUCH, points.iter().take(MAX_TOUCHES).flat_map(|(x, y)| [x.to_le_bytes(), y.to_le_bytes()].concat()).collect()),
         };
         let mut out = Vec::with_capacity(4 + payload.len());
         out.push(kind);
@@ -277,6 +286,9 @@ impl Message {
                 value: i32::from_le_bytes(payload[3..7].try_into().unwrap()),
             })),
             KIND_RELAUNCH => Some(Message::Relaunch { args: String::from_utf8_lossy(payload).into_owned() }),
+            KIND_TOUCH => Some(Message::Touch(
+                payload.chunks_exact(4).take(MAX_TOUCHES).map(|c| (u16::from_le_bytes([c[0], c[1]]), u16::from_le_bytes([c[2], c[3]]))).collect(),
+            )),
             _ => None,
         }
     }
@@ -315,6 +327,8 @@ mod tests {
             Message::Input(frame),
             Message::Output(Output { player: 1, id: 7, value: -5 }),
             Message::Relaunch { args: "-skiplogos -s levels\\metro\\metro.map 3 7".into() },
+            Message::Touch(vec![(0, 65535), (32768, 100)]),
+            Message::Touch(vec![]),
         ] {
             let bytes = msg.encode();
             assert_eq!(Message::read_from(&mut bytes.as_slice()).unwrap(), msg);

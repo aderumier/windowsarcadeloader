@@ -6,7 +6,15 @@
 //! * `Initialize` exclusive: shared, periodicity 0, `AUTOCONVERTPCM | SRC_DEFAULT_QUALITY`.
 //! * `GetBufferSize`: one device period (what an exclusive event-driven game fills per event).
 //! * The game's `GetBuffer` / `ReleaseBuffer` write into a FIFO, given to the device as its
-//!   shared buffer has room (a full-buffer write would fail with AUDCLNT_E_BUFFER_TOO_LARGE).
+//!   shared buffer has room (a full-buffer write would fail with AUDCLNT_E_BUFFER_TOO_LARGE),
+//!   also at each `GetCurrentPadding` (a game polling the padding without an event, CHUNITHM's
+//!   CRI ADX2, writes only when it is below the buffer: else the FIFO stayed full, silence).
+//!
+//! * 24 valid bits in 32-bit words: opened as 32-bit PCM (winepulse plays them as s24-32le, the
+//!   low bits: loud and distorted; Windows' samples are in the high bits).
+//!
+//! `WAL_WASAPI_DEBUG=1`: the stream's calls (buffer size, render client, start, event) and each
+//! second's released frames in the payload log.
 //!
 //! Wine's IAudioClient and IAudioRenderClient vtables are shared by all its streams: patched
 //! once, on the game's first device (`CoCreateInstance(MMDeviceEnumerator)` ->
@@ -37,6 +45,12 @@ const BUFFERFLAGS_SILENT: u32 = 0x2;
 const WAVE_FORMAT_PCM: u16 = 1;
 const WAVE_FORMAT_IEEE_FLOAT: u16 = 3;
 const WAVE_FORMAT_EXTENSIBLE: u16 = 0xfffe;
+
+/// `WAL_WASAPI_DEBUG` (read once: the stream's calls run many times a second).
+fn debug() -> bool {
+    static DEBUG: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *DEBUG.get_or_init(|| std::env::var("WAL_WASAPI_DEBUG").is_ok())
+}
 
 fn same(a: &Guid, b: &Guid) -> bool {
     (a.data1, a.data2, a.data3, a.data4) == (b.data1, b.data2, b.data3, b.data4)
@@ -91,6 +105,11 @@ fn with_stream<R>(client: usize, f: impl FnOnce(&mut Stream) -> R) -> Option<R> 
 
 fn client_of(render: usize) -> Option<usize> {
     RENDERS.lock().unwrap().as_ref()?.get(&render).copied()
+}
+
+/// The render client of a redirected stream.
+fn render_of(client: usize) -> Option<usize> {
+    RENDERS.lock().unwrap().as_ref()?.iter().find(|&(_, &c)| c == client).map(|(&r, _)| r)
 }
 
 /// Original functions: CoCreateInstance, GetDefaultAudioEndpoint, Activate, then the
@@ -172,6 +191,10 @@ unsafe extern "system" fn activate(this: P, iid: *const Guid, ctx: u32, params: 
             patch(client, 6, get_current_padding as *const () as usize, CLIENT + 6);
             patch(client, 7, is_format_supported as *const () as usize, CLIENT + 7);
             patch(client, 14, get_service as *const () as usize, CLIENT + 14);
+            if debug() {
+                patch(client, 10, debug_start as *const () as usize, CLIENT + 10);
+                patch(client, 13, debug_set_event as *const () as usize, CLIENT + 13);
+            }
         }
     }
     hr
@@ -195,8 +218,34 @@ unsafe extern "system" fn initialize(this: P, mode: i32, flags: u32, duration: i
         return unsafe { original(this, mode, flags, duration, period, fmt, session) };
     }
     let flags = flags | STREAMFLAGS_AUTOCONVERTPCM | STREAMFLAGS_SRC_DEFAULT_QUALITY;
+    // 24 valid bits in 32-bit words (CHUNITHM's CRI ADX2): Windows puts them in the words' high
+    // bits, winepulse plays the format as PulseAudio's s24-32le (the low bits: each sample 256
+    // times too loud, wrapped, distorted). The same words as 32-bit PCM.
+    let mut whole = [0u8; 40];
+    let mut fmt = fmt;
+    let f = unsafe { &*fmt };
+    if f.tag == WAVE_FORMAT_EXTENSIBLE && f.bits == 32 && f.extra >= 22 {
+        let p = fmt as *const u8;
+        let (valid, sub) = unsafe { ((p.add(18) as *const u16).read_unaligned(), (p.add(24) as *const u32).read_unaligned()) };
+        if valid < 32 && sub == WAVE_FORMAT_PCM as u32 {
+            unsafe { std::ptr::copy_nonoverlapping(p, whole.as_mut_ptr(), 40) };
+            whole[18..20].copy_from_slice(&32u16.to_le_bytes());
+            fmt = whole.as_ptr().cast();
+            log!("wasapi: {valid} valid bits in 32-bit words played as 32-bit PCM");
+        }
+    }
     let hr = unsafe { original(this, SHAREMODE_SHARED, flags, duration, 0, fmt, session) };
     let f = unsafe { &*fmt };
+    if debug() {
+        // WAVEFORMATEXTENSIBLE: valid bits, channel mask, sub format (its first 4 bytes: 1 PCM, 3 float)
+        let ext = if f.tag == WAVE_FORMAT_EXTENSIBLE && f.extra >= 22 {
+            let p = fmt as *const u8;
+            unsafe { format!(" valid bits {}, mask {:#x}, sub format {}", (p.add(18) as *const u16).read_unaligned(), (p.add(20) as *const u32).read_unaligned(), (p.add(24) as *const u32).read_unaligned()) }
+        } else {
+            String::new()
+        };
+        log!("wasapi: format tag {:#x}, block {}{ext}", f.tag, f.block_align);
+    }
     log!(
         "wasapi: exclusive stream ({} Hz, {} channels, {} bits, {} ms) opened shared: {hr:#x}",
         f.rate,
@@ -233,6 +282,9 @@ unsafe extern "system" fn get_buffer_size(this: P, frames: *mut u32) -> i32 {
     }
     let device = unsafe { *frames };
     let rate = with_stream(this as usize, |s| s.rate);
+    if debug() {
+        log!("wasapi: GetBufferSize: device {device} frames, period {:?}", rate.map(|r| unsafe { period_frames(this, r) }));
+    }
     if let Some(rate) = rate {
         let period = unsafe { period_frames(this, rate) };
         let reported = if period > 0 && period < device { period } else { device };
@@ -245,7 +297,25 @@ unsafe extern "system" fn get_buffer_size(this: P, frames: *mut u32) -> i32 {
     hr
 }
 
+/// `WAL_WASAPI_DEBUG`: a call count logged at its 1st, 10th, 100th... call.
+fn debug_count(name: &str, counter: &AtomicUsize, detail: impl FnOnce() -> String) {
+    if !debug() {
+        return;
+    }
+    let n = counter.fetch_add(1, Ordering::Relaxed) + 1;
+    if [1, 10, 100, 1000, 10000].contains(&n) {
+        log!("wasapi: {name} call {n}: {}", detail());
+    }
+}
+
 unsafe extern "system" fn get_current_padding(this: P, padding: *mut u32) -> i32 {
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    debug_count("GetCurrentPadding", &CALLS, || format!("{:?}", with_stream(this as usize, |s| (s.fifo.len() / s.frame_bytes, s.reported))));
+    // a game polling the padding (CHUNITHM's CRI ADX2, no event) writes only when it is below
+    // the buffer: the FIFO goes to the device here too, else it stays full
+    if let Some(render) = render_of(this as usize) {
+        unsafe { drain(render as P, this as usize) };
+    }
     let virtual_padding = with_stream(this as usize, |s| {
         let pending = (s.fifo.len() / s.frame_bytes) as u32;
         if s.reported > 0 { pending.min(s.reported) } else { pending }
@@ -268,6 +338,9 @@ unsafe extern "system" fn get_service(this: P, iid: *const Guid, out: *mut P) ->
         unsafe {
             patch(render, 3, get_buffer as *const () as usize, GET_BUFFER);
             patch(render, 4, release_buffer as *const () as usize, RELEASE_BUFFER);
+        }
+        if debug() {
+            log!("wasapi: GetService(IAudioRenderClient): {hr:#x}");
         }
         if with_stream(this as usize, |_| ()).is_some()
             && let Some(renders) = RENDERS.lock().unwrap().as_mut()
@@ -320,6 +393,8 @@ unsafe fn drain(render: P, client: usize) {
 }
 
 unsafe extern "system" fn get_buffer(this: P, frames: u32, data: *mut *mut u8) -> i32 {
+    static CALLS: AtomicUsize = AtomicUsize::new(0);
+    debug_count("GetBuffer", &CALLS, || format!("{frames} frames, ours {}", client_of(this as usize).is_some()));
     let Some(client) = client_of(this as usize) else {
         let original: unsafe extern "system" fn(P, u32, *mut *mut u8) -> i32 = unsafe { std::mem::transmute(orig(GET_BUFFER)) };
         return unsafe { original(this, frames, data) };
@@ -340,6 +415,48 @@ unsafe extern "system" fn get_buffer(this: P, frames: u32, data: *mut *mut u8) -
     }
 }
 
+unsafe extern "system" fn debug_start(this: P) -> i32 {
+    let original: unsafe extern "system" fn(P) -> i32 = unsafe { std::mem::transmute(orig(CLIENT + 10)) };
+    let hr = unsafe { original(this) };
+    log!("wasapi: Start: {hr:#x}");
+    hr
+}
+
+unsafe extern "system" fn debug_set_event(this: P, event: P) -> i32 {
+    let original: unsafe extern "system" fn(P, P) -> i32 = unsafe { std::mem::transmute(orig(CLIENT + 13)) };
+    let hr = unsafe { original(this, event) };
+    log!("wasapi: SetEventHandle: {hr:#x}");
+    hr
+}
+
+/// `WAL_WASAPI_DEBUG`: the frames the game released each second, its non-zero bytes, its
+/// silent-flagged releases.
+static PEAK_I: AtomicUsize = AtomicUsize::new(0);
+static PEAK_F: AtomicUsize = AtomicUsize::new(0);
+
+fn debug_release(frames: u32, flags: u32, data: &[u8]) {
+    static STATS: Mutex<(Option<std::time::Instant>, u64, u64, u64)> = Mutex::new((None, 0, 0, 0));
+    let mut st = STATS.lock().unwrap();
+    let start = *st.0.get_or_insert_with(std::time::Instant::now);
+    st.1 += frames as u64;
+    st.2 += data.iter().filter(|&&b| b != 0).count() as u64;
+    st.3 += (flags & BUFFERFLAGS_SILENT != 0) as u64;
+    // the loudest sample, read as 32-bit integers and as floats
+    for c in data.chunks_exact(4) {
+        let v = i32::from_le_bytes(c.try_into().unwrap());
+        PEAK_I.fetch_max(v.unsigned_abs() as usize, Ordering::Relaxed);
+        let f = f32::from_le_bytes(c.try_into().unwrap()).abs();
+        if f.is_finite() {
+            PEAK_F.fetch_max((f * 1000.0) as usize, Ordering::Relaxed);
+        }
+    }
+    if start.elapsed().as_secs() >= 1 {
+        log!("wasapi: peak as int32 {:#x}, as float {}", PEAK_I.swap(0, Ordering::Relaxed), PEAK_F.swap(0, Ordering::Relaxed) as f32 / 1000.0);
+        log!("wasapi: released {} frames, {} non-zero bytes, {} silent releases", st.1, st.2, st.3);
+        *st = (Some(std::time::Instant::now()), 0, 0, 0);
+    }
+}
+
 unsafe extern "system" fn release_buffer(this: P, frames: u32, flags: u32) -> i32 {
     let Some(client) = client_of(this as usize) else {
         let original: unsafe extern "system" fn(P, u32, u32) -> i32 = unsafe { std::mem::transmute(orig(RELEASE_BUFFER)) };
@@ -349,6 +466,9 @@ unsafe extern "system" fn release_buffer(this: P, frames: u32, flags: u32) -> i3
         let end = (s.pending + frames as usize * s.frame_bytes).min(s.fifo.len());
         if flags & BUFFERFLAGS_SILENT != 0 {
             s.fifo[s.pending..end].fill(0);
+        }
+        if debug() {
+            debug_release(frames, flags, &s.fifo[s.pending..end]);
         }
         s.fifo.truncate(end);
     });

@@ -33,6 +33,9 @@
 //! (`screenshot::to_picture`: letterboxed, or the game desktop fitted), between the corners; the touch switch is a `native_map`
 //! entry (Harikiri Professional Baseball: `b4: btn12`).
 //!
+//! `WAL_TYPEX_JVS_ROTARY=<n>`: rotary channels in the features, read as 0 (CHUNITHM checks the
+//! cabinet board's 4).
+//!
 //! `WAL_TYPEX_JVS_HELD=btn<n>,...`: player 1 switches always on (buttons 1-16): Usagi Online's
 //! touch panel line, without which the game never sees the touch released.
 //!
@@ -214,6 +217,9 @@ struct Board {
     held: (u8, u8, u8),
     /// `WAL_TYPEX_JVS_OUTPUTS=<n>`: general purpose outputs declared in the features (0: none).
     outputs: u8,
+    /// `WAL_TYPEX_JVS_ROTARY=<n>`: rotary channels declared in the features (0: none), read as
+    /// 0.
+    rotary: u8,
     /// `WAL_TYPEX_JVS_IDENTIFIER`: the identification string (default [`IDENTIFIER`]).
     identifier: Vec<u8>,
     /// `WAL_TYPEX_JVS_SWITCHES=<players>x<switches>`: the features' switch layout.
@@ -236,6 +242,16 @@ fn lever_direction(x: f32, y: f32) -> Option<usize> {
     }
     let turns = x.atan2(-y) / std::f32::consts::TAU;
     Some(((turns * 8.0).round() as i32).rem_euclid(8) as usize)
+}
+
+/// The players' switch bytes (switch byte 1, byte 2, test held, coin held, byte 3).
+pub type Switches = (u8, u8, bool, bool, u8);
+
+static SWITCHES_HOOK: std::sync::OnceLock<fn(&mut [Switches])> = std::sync::OnceLock::new();
+
+/// A game's own switches over the players' (CHUNITHM's air sensors), set at each switch read.
+pub fn set_switches_hook(hook: fn(&mut [Switches])) {
+    let _ = SWITCHES_HOOK.set(hook);
 }
 
 /// `WAL_TYPEX_JVS_LAYOUT=levers`: Mario & Sonic at the Rio 2016 Olympic Games' cabinet, one
@@ -476,6 +492,7 @@ pub fn init(default_port: &str) {
         }),
         held: std::env::var("WAL_TYPEX_JVS_HELD").map(|v| held(&v)).unwrap_or_default(),
         outputs: std::env::var("WAL_TYPEX_JVS_OUTPUTS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0),
+        rotary: std::env::var("WAL_TYPEX_JVS_ROTARY").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(0),
         identifier: std::env::var("WAL_TYPEX_JVS_IDENTIFIER")
             .map(|v| [v.trim().as_bytes(), b"\0"].concat())
             .unwrap_or_else(|_| IDENTIFIER.to_vec()),
@@ -746,6 +763,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
     if board.levers {
         levers(&mut players, &sticks[0]);
     }
+    if let Some(hook) = SWITCHES_HOOK.get() {
+        hook(&mut players);
+    }
     if board.happy_playground {
         players[0].4 |= 0x40;
     }
@@ -803,11 +823,20 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 if !board.analog_inputs.is_empty() {
                     f.extend_from_slice(&[0x03, 0x08, 0x0A, 0x00]);
                 }
+                if board.rotary > 0 {
+                    f.extend_from_slice(&[0x04, board.rotary, 0x00, 0x00]);
+                }
                 if board.outputs > 0 {
                     // general purpose outputs (lamps, gun recoil): `32` writes
                     f.extend_from_slice(&[0x12, board.outputs, 0x00, 0x00]);
                 }
-                f.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+                // the end code; padded to a whole entry when nothing follows (a game asking more
+                // in the packet, CHUNITHM's `14 11 12 13`, reads their answers right after it)
+                if i + 1 < cmds.len() {
+                    f.push(0x00);
+                } else {
+                    f.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+                }
                 (1, f)
             }
             0x15 => (cmds[i..].iter().position(|b| *b == 0).map_or(cmds.len() - i, |p| p + 1), vec![0x01, 0x01, 0x05]),
@@ -965,7 +994,8 @@ fn process(packet: &[u8]) -> Vec<u8> {
             0x05 => (3, vec![]),
             // watchdog kick (New Super Mario Bros. Wii Coin World polls it with `01 01`)
             0x08 => (1, vec![0x00]),
-            0x23 => (2, vec![]),
+            // rotary channels: 2 bytes each
+            0x23 => (2, vec![0; 2 * arg(1) as usize]),
             // Screen position: each requested channel is a pair of 16-bit coordinates.
             // Cyber Diver's XIO parser consumes report+4 bytes even without a touch device;
             // omitting them rejects the complete combined switch/coin/analog report.

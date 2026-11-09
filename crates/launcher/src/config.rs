@@ -134,6 +134,7 @@ pub struct InputConfig {
     pub guns_mice: usize,
     pub mouse_screen: [u32; 2],
     pub mouse_wrap: bool,
+    pub touch: bool,
     pub gun: MapTable,
     pub devices: BTreeMap<String, DeviceConfig>,
     pub ffb: FfbConfig,

@@ -11,6 +11,10 @@
 //!   payload has no title server, and the keychip's billing then stops the game with error
 //!   8114, "ALL.Net System error (RTC)")
 //! - `DownloadOrder`: no update (`uri=null`)
+//!
+//! A title server in this process ([`set_title`]: CHUNITHM's, a game with no amdaemon): the
+//! requests outside `/sys/servlet/` are its, the game reaching the title uri's host (the router,
+//! `{router}` in `WAL_ALLS_TITLE_URI`) through WinHTTP too.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -96,7 +100,7 @@ fn power_on(req: &[(String, String)]) -> String {
     let r = crate::netenv::router();
     let host = format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]);
     // the title server's URI (`WAL_ALLS_TITLE_URI`: an ABAAS game's GS server name, a bare host)
-    let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
+    let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).map(|u| u.replace("{router}", &host)).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
     // the title server's host (`WAL_ALLS_TITLE_HOST`: Initial D THE ARCADE's game server URL,
     // `<host>initiald/...`, https:// when it has no scheme)
     let title_host = std::env::var("WAL_ALLS_TITLE_HOST").map_or(host.clone(), |h| h.trim().to_string());
@@ -149,6 +153,13 @@ fn handle(stream: &mut TcpStream) -> std::io::Result<()> {
         data.extend_from_slice(&buf[..n]);
     }
     let body = &data[header_end..(header_end + length).min(data.len())];
+    let path = head.split_whitespace().nth(1).unwrap_or("").to_string();
+    if let Some(title) = TITLE.get().filter(|_| !path.contains("/sys/servlet/")) {
+        let body = title(&path, body);
+        let mut r = format!("HTTP/1.1 200 OK\r\nDate: {}\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", http_date(), body.len()).into_bytes();
+        r.extend_from_slice(&body);
+        return stream.write_all(&r);
+    }
     let dfi = header("Pragma").is_some_and(|v| v.eq_ignore_ascii_case("DFI"));
     let text = if dfi {
         let packed = base64_decode(body);
@@ -156,7 +167,6 @@ fn handle(stream: &mut TcpStream) -> std::io::Result<()> {
     } else {
         String::from_utf8_lossy(body).into_owned()
     };
-    let path = head.split_whitespace().nth(1).unwrap_or("").to_string();
     let req = form(&text);
     log!("allnet: {path} {}", text.trim());
     let online = std::env::var("WAL_ALLS_ALLNET").is_ok_and(|v| v.trim() == "1");
@@ -202,12 +212,34 @@ fn serve() {
     }
 }
 
+/// The billing server runs in this process (`billing.rs`).
+static BILLING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The billing server in this process (a game without amdaemon checks in itself).
+pub(crate) fn serve_billing() {
+    BILLING.store(true, Ordering::Relaxed);
+    crate::billing::init();
+}
+
+/// The title server in this process: (request path, body) -> answer body.
+pub(crate) type Title = fn(&str, &[u8]) -> Vec<u8>;
+
+static TITLE: std::sync::OnceLock<Title> = std::sync::OnceLock::new();
+
+/// The title server answering in ALL.Net's server (a game without amdaemon: CHUNITHM).
+pub(crate) fn set_title(title: Title) {
+    let _ = TITLE.set(title);
+}
+
 static CONNECT: AtomicUsize = AtomicUsize::new(0);
 
-/// ALL.Net's hosts (and the addresses the payload's DNS gives them).
+/// ALL.Net's hosts (and the addresses the payload's DNS gives them; the router, the title
+/// server's host, with a title server here).
 fn is_allnet(host: &str) -> bool {
     let host = host.to_ascii_lowercase();
-    host.ends_with("naominet.jp") || host.ends_with("sys-all.net") || host == "127.0.0.1" || host == "localhost"
+    let r = crate::netenv::router();
+    let router = TITLE.get().is_some() && host == format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]);
+    host.ends_with("naominet.jp") || host.ends_with("sys-all.net") || host == "127.0.0.1" || host == "localhost" || router
 }
 
 unsafe extern "system" fn win_http_connect(session: usize, server: *const u16, port_: u16, reserved: u32) -> usize {
@@ -246,6 +278,8 @@ fn moved(address: *const u8, length: i32) -> Option<[u8; 16]> {
         80 if IN_GAME.load(Ordering::Relaxed) => crate::gs::port(),
         80 => port(),
         22345 => crate::aimedb::port(),
+        // the billing server (a game checking in itself: CHUNITHM)
+        8443 if BILLING.load(Ordering::Relaxed) => crate::billing::port(),
         other => {
             log!("allnet: connection to the router's port {other}");
             return None;

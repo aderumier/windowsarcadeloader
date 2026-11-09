@@ -5950,6 +5950,66 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     2's directions or player 1's right stick. Run: the feet in turn (b3 / b4); start dash: both
     levers up; jump (b5): all six jump sensors.
 
+- CHUNITHM STAR (SDBT 1.20.00, Nu 1.1 `AAV1`, 32-bit Direct3D 9; `wal_alls32.dll`): amLib and
+  the ALL.Net library are linked in `chuniApp.exe`, no amdaemon. `WAL_ALLS_BOARD=chuni`
+  (`lib.rs` `chuni_process`): the game's devices first (`chuni.rs`), then the system's
+  (`daemon.rs`: registry, keychip, AMEX board with `WAL_ALLS_JVS=1`, network, ALL.Net, AimeDB) in
+  the game's own process. segatools' `chunihook` (public domain) was the reference.
+  - Ground slider on COM1 (837-15330, `chuni.rs`): frames `FF cmd len data sum` (escape `FD`),
+    reset `10`, board info `F0`, auto scan `03` / `04` (32 pressures streamed through the serial
+    layer's idle callback, every 2 ms at most, numbered from the right: key 16's two sensors
+    first), lights `02` not answered. Air sensors: player 1 and 2's JVS switches 5-7 (beam 0
+    player 1's btn5, 1 player 2's btn5, 2 player 1's btn6...), on while clear
+    (`jvs_board::set_switches_hook`); a raised hand breaks them from the lowest up, one per read.
+  - Controls (player 1): left stick = keys 1-8 by its direction (left, up, right), right stick =
+    keys 9-16; d-pad left/down/up/right and b1/b5/b2/b6 (X, A, Y, B) = keys two by two from the
+    left; b3/b4/b7/b8 (shoulders) = air. Keyboard (the profiles' `input.keyboard`, segatools'
+    layout): S D F G H J K L = keys two by two from the left, Space = air (players 2 and 3's
+    default keys freed). Touchpad / touchscreen (`input.touch: true`, the launcher's `touch.rs`:
+    the kernel's multi-touch slots, the device grabbed, `Message::Touch` with up to 10 points
+    0..65535): each finger the key under it (16 across), a finger in the top third raises the
+    hand.
+  - JVS (837-14572 as segatools' io3): 24 outputs, 8 analog channels, 4 rotary channels
+    (`WAL_TYPEX_JVS_ROTARY`), else error 6402. The game sends `14 11 12 13` in one packet: the
+    features' end code is one byte when commands follow (`jvs_board.rs`).
+  - LED boards 837-15093-06 on COM10 / COM11 (`led::init_pair`, `WAL_ALLS_LED_BOARD` =
+    `15093-06,6710,adf7`: number, chip, firmware sum).
+  - Aime reader (837-15286) on COM12 in `aimeReaderHost.exe` (`background`, its options through
+    `WAL_EXE_ENV`): it reaches AimeDB itself (`aime.naominet.jp`: `netenv::init_game`,
+    `allnet::init_redirect`, the game's AimeDB server). A new card: the game asks to register it
+    (yes = left), then the new player's trial / name entry.
+  - Backup (AMEX EEPROM `Y:\amex`): the settings record (0x10F0 / copy 0x1558, `TBDS`, CRC-32)
+    made the store's distribution server (+0x80 = 0) without cabinet group (+0x81 = 0): the
+    default client waits for a server cabinet on the LAN ("配信サーバーを探しています"). Set at
+    start and in the game's writes (`amex::set_eeprom_write_filter`); a blank backup gets the
+    game's id record (0x1F0 / 0x9F0) and default settings first. Free play: amLib's credit record
+    (0x40 / 0x840, +0x0A; `WAL_ALLS_FREEPLAY`, else `WAL_FREEPLAY`, default on).
+  - Network: `netenv.rs`'s structures in their 32-bit layouts (`IP_ADAPTER_ADDRESSES`,
+    `IP_ADAPTER_INFO`, `DNS_RECORD`) and `GetIfTable`, else "IP ADDRESS CHECKING" forever.
+    The title server (`chuni/server.rs`, ARTEMiS's `titles/chuni` base / STAR handlers, WTFPL):
+    `WAL_ALLS_TITLE_URI=http://{router}/SDBT/120/`, zlib JSON to `ChuniServlet/<Api>` answered in
+    ALL.Net's server (`allnet::set_title`; the router's port 80 and WinHTTP to the router), the
+    players in `Y:\chuni\<Aime id>.json` (the game's records merged by their ids), events and
+    charge items listed from the data (`event*/Event.xml`, `chargeItem*/ChargeItem.xml` of
+    `data\A000` and `C:\mount\Option\*`).
+  - Billing (`billing.rs`): the game's OpenSSL 1.0.2h checks in at `ib.naominet.jp:8443` (the
+    router's port 8443 to 127.0.0.1:`WAL_PORT`+105) offering RSA key exchange only: a TLS 1.2
+    server of `TLS_RSA_WITH_AES_128/256_CBC_SHA` (Montgomery RSA, AES-CBC, HMAC-SHA1, PRF SHA-256)
+    with segatools' dummy PKI (`server.pem` for `ib.naominet.jp`, signed by the CA the keychip
+    gives); answers as ARTEMiS's billing servlet (play limit and near-full signed with
+    `billing.key`, RSA PKCS#1 v1.5 SHA-1). `OPENSSL_ia32cap=~0x20000000` (segatools'
+    `openssl.c`). Error 8114 "ALL.Net System error (RTC)" was amRtc's `LookupPrivilegeValue`
+    (no `SeTimeZonePrivilege` in Wine, 1313): `clock.rs` grants the time privileges; the time
+    warp also hooks the C runtime's clock (msvcr110: the RTC check compares both).
+  - CHUNITHM STAR PLUS (SDBT 1.25.00, `chunithm-star-plus`): the same profile with the title
+    uri `/SDBT/125/` (the server's data version from the uri's version: `1.25.00`).
+  - Debug: `WAL_CHUNI_DEBUG=1` (STAR 1.20 only: the ALL.Net library's log, its level, categories
+    and callback globals set; EEPROM writes; the TLS client hello), `WAL_ALLS_AMLOG=0x7e53d0` with
+    `WAL_ALLS_AMLOG_LEVELS` (amLib's log, payload-common's `amlog`), `WAL_ALLS_AIMEDB_DEBUG=1`.
+  - Graphics: DXVK's SM3 compiler (dxbc-spirv) asserts on one of the game's pixel shaders (no
+    `oC0`: `sm3_io_map.cpp` `getColorValue`), the game aborts at boot: the profile uses
+    wined3d (`dxvk: false`).
+
 ### 6.3m Sega Nu (`crates/payload-seganu`)
 
 System `seganu`: Nu / Nu SX games linking Sega's amLib, whose "amy" layer talks to the AMEX
@@ -6447,6 +6507,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `sonic-dash-extreme` | Sonic Dash Extreme | seganu | headless tests (2026-11-08): attract, coins, start, character select, play, tickets dispensed during play and at the end, back to attract, test menu and back; not user-verified | Sega Nu SX (§6.3m): AMEX board devices, keychip driver, registry values, JVS with 24 outputs and the ticket dispenser (`WAL_TYPEX_JVS_TICKETS`), portrait window in the dump's bezel |
 | `luigis-mansion-arcade` | Luigi's Mansion Arcade | seganu | user (2026-11-08): "game is working perfect" (aim, start, play); headless tests: attract, coins, service, free play from a blank backup | Sega Nu (§6.3m), 64-bit: the Capcom protector's game started once unpacked (`WAL_SEGANU_UNPACK`), the I/O board on COM1 (guns, coins, switches; `WAL_SEGANU_LMAIO`), free play in the game's coin settings |
 | `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept | Nu 1.1 with amdaemon (§6.3l): AMEX board JVS in amdaemon (`WAL_ALLS_JVS`), LED board on COM12, levers layout, amRtc sync patch, Aime (837-15286) and the CTS game server (player names and saves kept) |
+| `chunithm-star` | CHUNITHM STAR | alls | user (2026-11-09): "working 100%" (Aime login, play, audio, touchpad slider); headless tests: power-on test, card registration, name entry, tutorial | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=chuni`): slider COM1, air sensors on JVS, LED boards COM10/11, Aime reader in aimeReaderHost, distribution server in the EEPROM, title server, billing TLS server, RTC privileges, WASAPI shared (CRI 24-in-32), windowed device, touchpad slider (`input.touch`) |
+| `chunithm-star-plus` | CHUNITHM STAR PLUS | alls | user (2026-11-09): "working 100%"; headless tests: card login, registration, name entry | as CHUNITHM STAR, title uri `/SDBT/125/` |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide |

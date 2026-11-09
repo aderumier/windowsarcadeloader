@@ -1,19 +1,19 @@
-//! `WAL_SEGANU_AMLOG=<rva>`: the messages of the game's amLib (Sega's system library, linked
+//! `WAL_<SYSTEM>_AMLOG=<rva>` (`WAL_SEGANU_AMLOG`, `WAL_ALLS_AMLOG`): the messages of the game's amLib (Sega's system library, linked
 //! in the executable), silent in a release build, written to the payload log. `<rva>` is its
 //! log function `(const char *function, int line, const char *format, ...)`, replaced by a
 //! stub that formats the message (found by the calls after `push <function name>`: amLib's
 //! error strings name every function).
 //!
 //! Each amLib module only logs when its own level variable is at least 1 (`cmp [level], 1;
-//! jl` before the call): `WAL_SEGANU_AMLOG_LEVELS=<rva>[=<level>],...` sets them (default
+//! jl` before the call): `WAL_<SYSTEM>_AMLOG_LEVELS=<rva>[=<level>],...` sets them (default
 //! level 1: errors; spaces also separate them, for `WAL_EXE_ENV`).
 //!
-//! `WAL_SEGANU_GAMELOG=<rva>`: the same for the game's own printf-like log function
+//! `WAL_<SYSTEM>_GAMELOG=<rva>`: the same for the game's own printf-like log function
 //! `(const char *format, ...)` (Sonic Dash Extreme: its managers' init and state messages).
 
 use std::ffi::{c_char, c_void};
 
-use wal_payload_common::log;
+use crate::log;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
 
@@ -34,12 +34,12 @@ core::arch::global_asm!(
     "call {log}",
     "add esp, 16",
     "ret",
-    name = sym amlog_stub,
+    name = sym common_amlog_stub,
     log = sym amlog_va,
 );
 
 unsafe extern "C" {
-    fn amlog_stub();
+    fn common_amlog_stub();
 }
 
 // 64-bit: the first variable argument (r9) stored in its home slot, the others follow it on
@@ -54,7 +54,7 @@ core::arch::global_asm!(
     "call {log}",
     "add rsp, 40",
     "ret",
-    name = sym amlog_stub,
+    name = sym common_amlog_stub,
     log = sym amlog_va,
 );
 
@@ -69,7 +69,7 @@ core::arch::global_asm!(
     "call {log}",
     "add esp, 8",
     "ret",
-    name = sym gamelog_stub,
+    name = sym common_gamelog_stub,
     log = sym gamelog_va,
 );
 
@@ -86,12 +86,12 @@ core::arch::global_asm!(
     "call {log}",
     "add rsp, 40",
     "ret",
-    name = sym gamelog_stub,
+    name = sym common_gamelog_stub,
     log = sym gamelog_va,
 );
 
 unsafe extern "C" {
-    fn gamelog_stub();
+    fn common_gamelog_stub();
 }
 
 extern "C" fn gamelog_va(fmt: *const c_char, args: *const c_void) {
@@ -131,15 +131,17 @@ fn parse_hex(s: &str) -> Option<usize> {
     usize::from_str_radix(s.trim().trim_start_matches("0x"), 16).ok()
 }
 
-pub(crate) fn init() {
+/// The options `WAL_<system>_AMLOG`, `_AMLOG_LEVELS`, `_GAMELOG` (`system`: `SEGANU`, `ALLS`).
+pub fn init(system: &str) {
+    let var = |name: &str| std::env::var(format!("WAL_{system}_{name}")).ok();
     let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
-    if let Some(rva) = std::env::var("WAL_SEGANU_GAMELOG").ok().and_then(|v| parse_hex(&v)) {
-        unsafe { jump_to(base, rva, gamelog_stub as *const () as usize) };
+    if let Some(rva) = var("GAMELOG").and_then(|v| parse_hex(&v)) {
+        unsafe { jump_to(base, rva, common_gamelog_stub as *const () as usize) };
         log!("amlog: game log function at +{rva:#x}");
     }
-    let Some(rva) = std::env::var("WAL_SEGANU_AMLOG").ok().and_then(|v| parse_hex(&v)) else { return };
-    unsafe { jump_to(base, rva, amlog_stub as *const () as usize) };
-    let levels = std::env::var("WAL_SEGANU_AMLOG_LEVELS").unwrap_or_default();
+    let Some(rva) = var("AMLOG").and_then(|v| parse_hex(&v)) else { return };
+    unsafe { jump_to(base, rva, common_amlog_stub as *const () as usize) };
+    let levels = var("AMLOG_LEVELS").unwrap_or_default();
     let mut count = 0;
     // commas or spaces (spaces inside `WAL_EXE_ENV`, whose list takes the commas)
     for item in levels.split([',', ' ']).filter(|s| !s.trim().is_empty()) {

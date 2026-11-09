@@ -63,6 +63,12 @@ unsafe fn put_wide(base: *mut u8, offset: usize, s: &str) {
     }
 }
 
+/// A structure's field offset in the 32-bit and the 64-bit layouts (pointers 4 or 8 bytes:
+/// the 32-bit games, CHUNITHM, read the 32-bit structures).
+const fn w(x86: usize, x64: usize) -> usize {
+    if cfg!(target_pointer_width = "64") { x64 } else { x86 }
+}
+
 /// A `sockaddr_in` at `offset`.
 unsafe fn sockaddr(base: *mut u8, offset: usize, addr: [u8; 4]) {
     unsafe {
@@ -75,11 +81,12 @@ unsafe fn sockaddr(base: *mut u8, offset: usize, addr: [u8; 4]) {
 unsafe fn socket_address(base: *mut u8, offset: usize, sa: usize) {
     unsafe {
         put(base, offset, base.add(sa) as usize);
-        put(base, offset + 8, 16i32);
+        put(base, offset + w(4, 8), 16i32);
     }
 }
 
-// IP_ADAPTER_ADDRESSES_LH (448 bytes), then its records, then the strings
+// IP_ADAPTER_ADDRESSES_LH (448 bytes in 64-bit, 376 in 32-bit), then its records, then the
+// strings
 const HEAD: usize = 448;
 const UNICAST: usize = HEAD; // 64
 const DNS: usize = UNICAST + 64; // 32
@@ -104,49 +111,49 @@ unsafe extern "system" fn get_adapters_addresses(_family: u32, _flags: u32, rese
     let n = net();
     unsafe {
         std::ptr::write_bytes(out, 0, ADDRESSES_SIZE);
-        put(out, 0, HEAD as u32);
+        put(out, 0, w(376, HEAD) as u32);
         put(out, 4, 1u32); // IfIndex
-        put(out, 16, out.add(NAME) as usize);
-        put(out, 24, out.add(UNICAST) as usize);
-        put(out, 48, out.add(DNS) as usize);
-        put(out, 56, out.add(DNS_SUFFIX) as usize);
-        put(out, 64, out.add(DESCRIPTION) as usize);
-        put(out, 72, out.add(FRIENDLY) as usize);
-        put_bytes(out, 80, &MAC);
-        put(out, 88, MAC.len() as u32);
-        put(out, 92, 0x4 | 0x80u32); // DHCP enabled, IPv4 enabled
-        put(out, 96, 1500u32);
-        put(out, 100, 6u32); // IF_TYPE_ETHERNET_CSMACD
-        put(out, 104, 1u32); // IfOperStatusUp
-        put(out, 176, out.add(PREFIX) as usize);
-        put(out, 184, 1_000_000_000u64);
-        put(out, 192, 1_000_000_000u64);
-        put(out, 208, out.add(GATEWAY) as usize);
+        put(out, w(12, 16), out.add(NAME) as usize);
+        put(out, w(16, 24), out.add(UNICAST) as usize);
+        put(out, w(28, 48), out.add(DNS) as usize);
+        put(out, w(32, 56), out.add(DNS_SUFFIX) as usize);
+        put(out, w(36, 64), out.add(DESCRIPTION) as usize);
+        put(out, w(40, 72), out.add(FRIENDLY) as usize);
+        put_bytes(out, w(44, 80), &MAC);
+        put(out, w(52, 88), MAC.len() as u32);
+        put(out, w(56, 92), 0x4 | 0x80u32); // DHCP enabled, IPv4 enabled
+        put(out, w(60, 96), 1500u32);
+        put(out, w(64, 100), 6u32); // IF_TYPE_ETHERNET_CSMACD
+        put(out, w(68, 104), 1u32); // IfOperStatusUp
+        put(out, w(140, 176), out.add(PREFIX) as usize);
+        put(out, w(144, 184), 1_000_000_000u64);
+        put(out, w(152, 192), 1_000_000_000u64);
+        put(out, w(164, 208), out.add(GATEWAY) as usize);
         put_bytes(out, NAME, b"{00000000-0000-0000-0000-000000000000}\0");
         put_wide(out, DNS_SUFFIX, "local");
         put_wide(out, DESCRIPTION, "Interface Description");
         put_wide(out, FRIENDLY, "Fake Ethernet");
         // unicast address: the cabinet, from DHCP, /24
-        put(out, UNICAST, 64u32);
-        socket_address(out, UNICAST + 16, SOCKADDRS);
-        put(out, UNICAST + 32, 3u32); // IpPrefixOriginDhcp
-        put(out, UNICAST + 36, 3u32); // IpSuffixOriginDhcp
-        put(out, UNICAST + 40, 4u32); // IpDadStatePreferred
-        put(out, UNICAST + 44, u32::MAX);
-        put(out, UNICAST + 48, u32::MAX);
-        put(out, UNICAST + 52, 86400u32);
-        put(out, UNICAST + 56, 24u8);
+        put(out, UNICAST, w(48, 64) as u32);
+        socket_address(out, UNICAST + w(12, 16), SOCKADDRS);
+        put(out, UNICAST + w(20, 32), 3u32); // IpPrefixOriginDhcp
+        put(out, UNICAST + w(24, 36), 3u32); // IpSuffixOriginDhcp
+        put(out, UNICAST + w(28, 40), 4u32); // IpDadStatePreferred
+        put(out, UNICAST + w(32, 44), u32::MAX);
+        put(out, UNICAST + w(36, 48), u32::MAX);
+        put(out, UNICAST + w(40, 52), 86400u32);
+        put(out, UNICAST + w(44, 56), 24u8);
         sockaddr(out, SOCKADDRS, n.iface);
         // DNS server and gateway: the router
-        put(out, DNS, 32u32);
-        socket_address(out, DNS + 16, SOCKADDRS + 16);
+        put(out, DNS, w(24, 32) as u32);
+        socket_address(out, DNS + w(12, 16), SOCKADDRS + 16);
         sockaddr(out, SOCKADDRS + 16, n.router);
-        put(out, GATEWAY, 32u32);
-        socket_address(out, GATEWAY + 16, SOCKADDRS + 32);
+        put(out, GATEWAY, w(24, 32) as u32);
+        socket_address(out, GATEWAY + w(12, 16), SOCKADDRS + 32);
         sockaddr(out, SOCKADDRS + 32, n.router);
-        put(out, PREFIX, 40u32);
-        socket_address(out, PREFIX + 16, SOCKADDRS + 48);
-        put(out, PREFIX + 32, 24u32);
+        put(out, PREFIX, w(24, 40) as u32);
+        socket_address(out, PREFIX + w(12, 16), SOCKADDRS + 48);
+        put(out, PREFIX + w(20, 32), 24u32);
         sockaddr(out, SOCKADDRS + 48, n.prefix);
     }
     0
@@ -159,8 +166,8 @@ fn dotted(a: [u8; 4]) -> String {
 /// `IP_ADDR_STRING` at `offset`: an address and the /24 mask.
 unsafe fn addr_string(base: *mut u8, offset: usize, addr: [u8; 4]) {
     unsafe {
-        put_bytes(base, offset + 8, dotted(addr).as_bytes());
-        put_bytes(base, offset + 24, b"255.255.255.0");
+        put_bytes(base, offset + w(4, 8), dotted(addr).as_bytes());
+        put_bytes(base, offset + w(20, 24), b"255.255.255.0");
     }
 }
 
@@ -179,18 +186,18 @@ unsafe extern "system" fn get_adapters_info(out: *mut u8, size: *mut u32) -> u32
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
     unsafe {
         std::ptr::write_bytes(out, 0, INFO_SIZE);
-        put_bytes(out, 12, b"Fake Ethernet");
-        put_bytes(out, 272, b"Adapter Description");
-        put(out, 404, MAC.len() as u32);
-        put_bytes(out, 408, &MAC);
-        put(out, 416, 1u32); // Index
-        put(out, 420, 6u32); // MIB_IF_TYPE_ETHERNET
-        put(out, 424, 1u32); // DhcpEnabled
-        addr_string(out, 440, n.iface);
-        addr_string(out, 488, n.router);
-        addr_string(out, 536, n.router);
-        put(out, 688, now - 3600);
-        put(out, 696, now + 86400);
+        put_bytes(out, w(8, 12), b"Fake Ethernet");
+        put_bytes(out, w(268, 272), b"Adapter Description");
+        put(out, w(400, 404), MAC.len() as u32);
+        put_bytes(out, w(404, 408), &MAC);
+        put(out, w(412, 416), 1u32); // Index
+        put(out, w(416, 420), 6u32); // MIB_IF_TYPE_ETHERNET
+        put(out, w(420, 424), 1u32); // DhcpEnabled
+        addr_string(out, w(428, 440), n.iface);
+        addr_string(out, w(468, 488), n.router);
+        addr_string(out, w(508, 536), n.router);
+        put(out, w(632, 688), now - 3600);
+        put(out, w(640, 696), now + 86400);
     }
     0
 }
@@ -211,6 +218,23 @@ unsafe extern "system" fn get_if_entry(row: *mut u8) -> u32 {
         put_bytes(row, 532, &MAC);
         put(row, 540, 1u32); // admin status up
         put(row, 544, 5u32); // IF_OPER_STATUS_OPERATIONAL
+    }
+    0
+}
+
+/// `GetIfTable`: the adapter alone (`MIB_IFTABLE`: the count, then its `MIB_IFROW`).
+unsafe extern "system" fn get_if_table(table: *mut u8, size: *mut u32, _order: i32) -> u32 {
+    if size.is_null() {
+        return ERROR_INVALID_PARAMETER;
+    }
+    let (given, needed) = unsafe { (*size, 4 + 860) };
+    unsafe { *size = needed };
+    if table.is_null() || given < needed {
+        return ERROR_BUFFER_OVERFLOW;
+    }
+    unsafe {
+        put(table, 0, 1u32);
+        get_if_entry(table.add(4));
     }
     0
 }
@@ -318,12 +342,12 @@ fn record(addr: [u8; 4]) -> usize {
     let mut r = RECORD.lock().unwrap();
     let p = r.0.as_mut_ptr();
     unsafe {
-        put(p, 8, HOST.as_ptr() as usize);
-        put(p, 16, 1u16); // DNS_TYPE_A
-        put(p, 18, 4u16);
-        put(p, 20, 1u32 | (3 << 3)); // answer section, ANSI names
-        put(p, 24, 300u32);
-        put_bytes(p, 32, &addr);
+        put(p, w(4, 8), HOST.as_ptr() as usize);
+        put(p, w(8, 16), 1u16); // DNS_TYPE_A
+        put(p, w(10, 18), 4u16);
+        put(p, w(12, 20), 1u32 | (3 << 3)); // answer section, ANSI names
+        put(p, w(16, 24), 300u32);
+        put_bytes(p, w(24, 32), &addr);
     }
     p as usize
 }
@@ -342,7 +366,7 @@ unsafe extern "system" fn dns_query_ex(request: *const u8, result: *mut u8, _can
     let mut found = false;
     let mut host = String::new();
     if !request.is_null() {
-        let name = unsafe { *(request.add(8) as *const *const u16) };
+        let name = unsafe { (request.add(w(4, 8)) as *const *const u16).read_unaligned() };
         let len = if name.is_null() { 0 } else { (0..).take_while(|&i| unsafe { *name.add(i) } != 0).count() };
         let name = if name.is_null() { String::new() } else { String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(name, len) }) };
         found = resolves(&name);
@@ -420,10 +444,11 @@ pub(crate) fn init(subnet: [u8; 4]) {
 /// The iphlpapi imports answered with the cabinet's adapter.
 fn hook_adapters() {
     unsafe {
-        let hooks: [(&str, usize); 6] = [
+        let hooks: [(&str, usize); 7] = [
             ("GetAdaptersAddresses", get_adapters_addresses as *const () as usize),
             ("GetAdaptersInfo", get_adapters_info as *const () as usize),
             ("GetIfEntry", get_if_entry as *const () as usize),
+            ("GetIfTable", get_if_table as *const () as usize),
             ("GetBestRoute", get_best_route as *const () as usize),
             ("IcmpSendEcho2", icmp_send_echo2 as *const () as usize),
             ("IcmpSendEcho", icmp_send_echo as *const () as usize),

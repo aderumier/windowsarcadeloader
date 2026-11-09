@@ -1,0 +1,140 @@
+# CHUNITHM STAR PLUS (Sega, Nu 1.1, 2018; game id SDBT, version 1.25.00), STAR's update: a
+# 32-bit Direct3D 9 rhythm game played on a touch slider (16 keys) under infrared air sensors.
+# Runs App\bin\chuniApp.exe; amLib is linked in (no amdaemon): the ALLS payload emulates the
+# system (keychip, AMEX board and its JVS I/O board, ALL.Net, the title server) in the game's
+# process, beside its slider (COM1) and LED boards (COM10, COM11). aimeReaderHost.exe (game.bat
+# starts it first) reads the Aime cards on COM12 for the game.
+# Override values in userprofiles/seganu/chunithm-star-plus.yaml.
+system: alls
+name: CHUNITHM STAR PLUS
+
+# Wine's Direct3D: DXVK's SM3 shader compiler (dxbc-spirv) asserts on one of the game's pixel
+# shaders (one without a color output) and the game aborts at boot
+dxvk: false
+
+# game.bat's reader host (the cards' reader on COM12), with the payload
+background:
+  - aimeReaderHost.exe --no-print --port 12
+background_wait_ms: 3000
+
+# The cabinet's drives: E: the AMFS (the image information), Y: the game's data (Y:\SDBT: its
+# logs; the AMEX board's EEPROM and SRAM in Y:\amex, the players in Y:\chuni)
+drives:
+  e: amfs
+  y: AppData
+# project.conf's OptionDataPath: the options (A015-A020: songs, maps, events)
+c_folders:
+  mount/Option: Option
+
+env:
+  WAL_ALLS_BOARD: chuni
+  WAL_ALLS_GAME_ID: SDBT
+  WAL_ALLS_PLATFORM_ID: AAV1
+  # the Nu's AMEX board: the JVS I/O board (837-14572: test, service, coins, the air sensors),
+  # EEPROM and SRAM
+  WAL_ALLS_JVS: "1"
+  WAL_ALLS_DIPSW: "00"
+  # the board's features as the cabinet's (segatools' io3: general purpose outputs, 8 analog
+  # channels, 4 rotary channels, unused): else error 6402 "JVS I/O board does not fulfill the
+  # game spec"
+  WAL_TYPEX_JVS_OUTPUTS: "24"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,,,,,"
+  WAL_TYPEX_JVS_ROTARY: "4"
+  # ALL.Net's authentication accepted (the payload's server) and its title server (the players'
+  # data; without a server's answer once, the title screen waits forever)
+  WAL_ALLS_ALLNET: "1"
+  WAL_ALLS_TITLE_URI: "http://{router}/SDBT/125/"
+  # the LED boards (837-15093-06, firmware 0x90: segatools' chunihook values)
+  WAL_ALLS_LED_BOARD: "15093-06,6710,adf7"
+  # the Aime reader in aimeReaderHost.exe only; the cabinet's reader (837-15286, its firmware 0x92
+  # in App\firm)
+  WAL_EXE_ENV: "aimeReaderHost.exe: WAL_ALLS_AIME_PORT=COM12"
+  WAL_AIME_READER: "15286"
+  # after start, the card touched by itself when the game asks for it
+  WAL_ALLS_AUTO_CARD: "1"
+  # its fullscreen 1920x1080 device lost with the focus (the game then quits: exit code 1, the
+  # window gone): a windowed device in a borderless window over the screen, the picture kept 16:9
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # CRI ADX2's 5.1 stream in WASAPI exclusive mode (none in Wine: silent) played in shared mode,
+  # downmixed by the system
+  WAL_WASAPI_SHARED: "1"
+  # the game's OpenSSL 1.0.2h computes wrong SHA values on CPUs with the SHA extensions (its
+  # TLS to the billing server): that code path off (segatools' platform/openssl.c)
+  OPENSSL_ia32cap: "~0x20000000"
+  # the news screens at login (the game data's information events, each 30 s or 次へ): off
+  WAL_CHUNI_NEWS: "0"
+  # the nightly hours Japan's arcades close (play refused from 01:30 to 07:00 JST) skipped
+  WAL_ALLS_TIMEWARP: "1"
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_ALLS_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself when the game asks for it (the
+          player's name, scores and progress kept on the card). Off: touch it with the card
+          button.
+  - title: News
+    options:
+      - key: WAL_CHUNI_NEWS
+        label: Show the news at login
+        kind: bool
+        description: >-
+          The game's announcements (events, new songs, courses), one screen each after the
+          card login: a new player sees them all (each 30 s, or 次へ to skip).
+
+# the keyboard as segatools': S D F G H J K L the slider from the left (two keys each), Space the
+# air (raise the hand); 1 start, 5 coin, F1 service, F2 test, F4 card (the defaults). These keys
+# are player 2's and 3's by default: freed there.
+input:
+  # the touchpad (or a touchscreen) as the slider, finger by finger: each finger the key under it
+  # (16 across), a finger in its top third raises the hand (air)
+  touch: true
+  keyboard:
+    p1:
+      KEY_S: left
+      KEY_D: down
+      KEY_F: up
+      KEY_G: right
+      KEY_H: b1
+      KEY_J: b5
+      KEY_K: b2
+      KEY_L: b6
+      KEY_SPACE: b3
+    p2:
+      KEY_S: none
+      KEY_D: none
+      KEY_F: none
+      KEY_G: none
+    p3:
+      KEY_J: none
+      KEY_K: none
+      KEY_L: none
+
+controls:
+  lx: Slider, left half (direction picks the key)
+  ly: Slider, left half
+  rx: Slider, right half (direction picks the key)
+  ry: Slider, right half
+  left: Slider keys 1-2
+  down: Slider keys 3-4
+  up: Slider keys 5-6
+  right: Slider keys 7-8
+  b1: Slider keys 9-10
+  b5: Slider keys 11-12
+  b2: Slider keys 13-14
+  b6: Slider keys 15-16
+  b3: Air (raise the hand)
+  b4: Air (raise the hand)
+  b7: Air (raise the hand)
+  b8: Air (raise the hand)
+  start: Start (with the automatic card)
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

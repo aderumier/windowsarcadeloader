@@ -49,6 +49,12 @@ impl Server {
         self.clients.lock().unwrap().retain_mut(|c| c.write_all(&bytes).is_ok());
     }
 
+    /// The touch points to the game (`input.touch`).
+    pub fn broadcast_touch(&self, points: &[(u16, u16)]) {
+        let bytes = Message::Touch(points.to_vec()).encode();
+        self.clients.lock().unwrap().retain_mut(|c| c.write_all(&bytes).is_ok());
+    }
+
     /// Outputs received from the game since the last call.
     pub fn outputs(&self) -> Vec<Output> {
         self.outputs.try_iter().collect()
@@ -76,7 +82,7 @@ fn read_client(mut stream: TcpStream, outputs: Sender<Output>, relaunch: Arc<Mut
                 eprintln!("server: relaunch requested: {args}");
                 *relaunch.lock().unwrap() = Some(args);
             }
-            Message::Input(_) => {}
+            Message::Input(_) | Message::Touch(_) => {}
         }
     }
     eprintln!("server: payload disconnected");

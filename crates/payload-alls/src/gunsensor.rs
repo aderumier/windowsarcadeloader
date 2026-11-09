@@ -131,7 +131,7 @@ extern "C" fn aim_fields(this: *mut u8) {
         None => (1920, 1080),
     };
     static LAST: AtomicUsize = AtomicUsize::new(0);
-    let key = ((w as usize) << 32) | ((h as usize) << 1) | playing as usize;
+    let key = ((w as usize) << 16 << 16 | (h as usize) << 1) ^ playing as usize;
     if LAST.swap(key, Ordering::Relaxed) != key {
         log!("gunsensor: aim over {w}x{h} ({})", if playing { "game" } else { "menus" });
     }

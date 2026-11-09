@@ -7,7 +7,7 @@ PROFILE=${PROFILE:-release}
 
 # LAUNCHER_FEATURES: extra launcher features (CI: sdl3/build-from-source, no SDL3 package there)
 cargo build --profile "$PROFILE" -p wal-launcher ${LAUNCHER_FEATURES:+--features "$LAUNCHER_FEATURES"}
-cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-seganu -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-adrenaline -p wal-payload-apm3 -p wal-loader
+cargo build --profile "$PROFILE" --target i686-pc-windows-gnu -p wal-payload-nesica -p wal-payload-typex -p wal-payload-globalvr -p wal-payload-tsunami -p wal-payload-rawthrills -p wal-payload-ringedge -p wal-payload-seganu -p wal-payload-segashell -p wal-payload-wahlap -p wal-payload-europar -p wal-payload-konami -p wal-payload-namcoes3x -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-adrenaline -p wal-payload-apm3 -p wal-payload-alls -p wal-loader
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-payload-namcoes3 -p wal-payload-nesica -p wal-payload-arcadepc -p wal-payload-unis -p wal-payload-konami -p wal-payload-adrenaline -p wal-payload-apm3 -p wal-payload-alls -p wal-payload-seganu
 # the AVS boot of the 64-bit Konami game DLLs (Bishi Bashi Channel)
 cargo build --profile "$PROFILE" --target x86_64-pc-windows-gnu -p wal-loader --bin wal-avs-boot
@@ -33,6 +33,7 @@ install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_konami.dll" dist/payload
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_adrenaline.dll" dist/payloads/wal_adrenaline64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_apm3.dll" dist/payloads/wal_apm3_64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_alls.dll" dist/payloads/wal_alls.dll
+install_file "target/i686-pc-windows-gnu/$PROFILE/wal_alls.dll" dist/payloads/wal_alls32.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal_seganu.dll" dist/payloads/wal_seganu64.dll
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-avs-boot.exe" dist/payloads/wal-avs-boot64.exe
 install_file "target/x86_64-pc-windows-gnu/$PROFILE/wal-loader.exe" dist/payloads/wal-loader64.exe

@@ -22,6 +22,7 @@ mod server;
 mod sinden;
 mod squashfs;
 mod systems;
+mod touch;
 mod wheels;
 mod wine;
 
@@ -711,6 +712,9 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
 
     let mut last = InputFrame::default();
     let mut last_sent = Instant::now();
+    // the touch surface's fingers (`input.touch`)
+    let touches = (profile.input.touch && !opts.no_input).then(touch::start);
+    let mut last_touches: Vec<(u16, u16)> = Vec::new();
     let mut killing = false;
     // when the exit was asked, until the game's process group is killed itself
     let mut kill_asked: Option<Instant> = None;
@@ -738,6 +742,16 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             server.broadcast(&frame);
             last = frame;
             last_sent = Instant::now();
+            if touches.is_some() {
+                server.broadcast_touch(&last_touches);
+            }
+        }
+        if let Some(t) = &touches {
+            let points = t.get();
+            if points != last_touches {
+                server.broadcast_touch(&points);
+                last_touches = points;
+            }
         }
         if (hub.exit_requested || stop.load(Ordering::SeqCst)) && !killing {
             eprintln!("launcher: stopping the game");
