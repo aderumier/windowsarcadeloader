@@ -5,8 +5,8 @@
 # process, beside its slider (COM1) and LED boards (COM10, COM11). aimeReaderHost.exe (game.bat
 # starts it first) reads the Aime cards on COM12 for the game.
 # Override values in userprofiles/seganu/chunithm-paradise-lost.yaml.
-# NOT RUNNING: its protected chuniApp.exe and aimeReaderHost.exe exit under Wine (error
-# 023-01F-000, docs §6.3l).
+# NOT RUNNING: its protected chuniApp.exe and aimeReaderHost.exe need the protector's kernel
+# driver (Htsysm, a hardware lock; docs §6.3l): an unpacked chuniApp.exe would run here.
 system: alls
 name: CHUNITHM PARADISE LOST
 

@@ -6360,12 +6360,30 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     `/SDBT/106/`; billing over TLS 1.0, the time warp's day ending at Japan's 23:00.
   - CHUNITHM PARADISE LOST (SDBT 1.50.00, `chunithm-paradise-lost`): NOT RUNNING. Its
     `chuniApp.exe` and `aimeReaderHost.exe` are protected (SUPERSTAR's family: a stub at
-    +0x196c, sections decrypted at start, VMware / VirtualPC probes, trap flag checks). Under
-    Wine, with or without the payload, the protector unpacks, then reports an error to
-    `\\.\mailslot\ErrLog-Pec7679` (date, code, path, an encrypted block; read by a mailslot the
-    payload created for the test) and calls `ExitProcess(0)`: `chuniApp.exe` `023-01F-000`,
-    `aimeReaderHost.exe` `042-023-004`, with no API call between the unpacking and the error (an
-    internal check). The profile is the others' with the title uri `/SDBT/150/`.
+    +0x196c, sections decrypted at start into `.tls`, VMware / VirtualPC probes, trap flag
+    checks). Under Wine, with or without the payload, the protector reports an error to
+    `\\.\mailslot\ErrLog-Pec7679` (date, code, path, an encrypted block) and calls
+    `ExitProcess(0)`: `chuniApp.exe` `023-01F-000`, `aimeReaderHost.exe` `042-023-004`. Its
+    checks, found by hooking its status callback (+0x22257c0: `status = code << 4 | kind`, kind 5
+    a failure, the caller's frames logged, the image dumped at the failure):
+    - 0x01F, the parent: a parent holding the mutex `HtpecIt.dll::<name>` passes (the name from
+      the parent's id inverted, xored with the low half of its creation time, 0x12345678 when 0:
+      8 base 13 digits from the lowest, each a hex digit from a 4 x 13 table, row = digits left
+      & 3), else the parent's image must be in `<windows>\system32\` (the cabinet's `game.bat`,
+      `cmd.exe`), compared with `QueryDosDeviceW`'s device path. Wine's
+      `NtQueryInformationProcess(ProcessImageFileName)` answers `\??\C:\...` where Windows
+      answers `\Device\HarddiskVolume1\...`: a `cmd.exe` parent fails too. A loader holding
+      the mutex passed (tested).
+    - 0x017, the boot options: `HKLM\SYSTEM\CurrentControlSet\Control` `SystemStartOptions`
+      must be read (none in Wine) and hold no `TESTSIGNING` / `DISABLE_INTEGRITY_CHECKS`; set, it
+      passed (tested).
+    - 0x019, its kernel driver: `\\.\Htsysm7679` (`Global\HtsysmXX.sys::`) opened, then queried
+      with `DeviceIoControl` 0xaa012040 / 0xaa0120c0 / 0xaa0120c4 (hardware values), the
+      protector never installing it itself: the blocker (a hardware lock; emulating it would
+      need the driver's answers on a real Nu). The community runs patched / unpacked
+      `chuniApp.exe` builds.
+    Those experiments were reverted (none of them is in the code). The profile is the others'
+    with the title uri `/SDBT/150/`.
   - Debug: `WAL_CHUNI_DEBUG=1` (STAR 1.20 only: the ALL.Net library's log, its level, categories
     and callback globals set; EEPROM writes; the TLS client hello), `WAL_ALLS_AMLOG=0x7e53d0` with
     `WAL_ALLS_AMLOG_LEVELS` (amLib's log, payload-common's `amlog`), `WAL_ALLS_AIMEDB_DEBUG=1`.
@@ -6903,7 +6921,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chunithm-star` | CHUNITHM STAR | alls | user (2026-11-09): "working 100%" (Aime login, play, audio, touchpad slider); headless tests: power-on test, card registration, name entry, tutorial | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=chuni`): slider COM1, air sensors on JVS, LED boards COM10/11, Aime reader in aimeReaderHost, distribution server in the EEPROM, title server, billing TLS server, RTC privileges, WASAPI shared (CRI 24-in-32), windowed device, touchpad slider (`input.touch`) |
 | `chunithm-star-plus` | CHUNITHM STAR PLUS | alls | user (2026-11-09): "working 100%"; headless tests: card login, registration, name entry | as CHUNITHM STAR, title uri `/SDBT/125/` |
 | `chunithm-plus` | CHUNITHM PLUS | alls | headless tests (2026-11-09): attract, card login, tutorial with the slider, billing over TLS 1.0 | as CHUNITHM STAR, title uri `/SDBT/106/` |
-| `chunithm-paradise-lost` | CHUNITHM PARADISE LOST | alls | not running (2026-11-09): protected executables exit under Wine (error 023-01F-000) | as CHUNITHM STAR, title uri `/SDBT/150/` |
+| `chunithm-paradise-lost` | CHUNITHM PARADISE LOST | alls | not running (2026-11-09): protected executables; parent and boot option checks passed in tests, blocked by its kernel driver (Htsysm, hardware lock): needs an unpacked chuniApp.exe | as CHUNITHM STAR, title uri `/SDBT/150/` |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
