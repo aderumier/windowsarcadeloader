@@ -1,0 +1,64 @@
+# Akuma Mortis Immortal (game.exe, Direct3D 9, 32-bit) - template, override values in
+# userprofiles/arcadepc/akuma-mortis-immortal.yaml.
+# A two-player lightgun game. Dump: the cabinet's data\ folder (the executable, expdat /
+# extdat: the settings; bin\, read as ..\data\bin\). The payload is the cabinet's parallel port
+# gun board (docs §6.3i): the guns' aim, triggers, start buttons, coin and operator switches.
+system: arcadepc
+name: Akuma Mortis Immortal
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: ngun
+  # The Dinkey dongle (DK2win32.dll): the boot's check (0x40147e, ordinal 4) is true (mov eax,1),
+  # the dongle's read at start (0x406e50) and its two periodic checks (0x406da0, 0x406a90: they
+  # set the "HARDWARE ERROR" code) return at once. The title's check of the dongle's cabinet
+  # flag against the dual screen mode (0x40de56: error 6 when they differ) never fails (jmp).
+  WAL_PATCHES: "0x147E:B801000000,0x6E50:B801000000C3,0x6DA0:31C0C3,0x6A90:C20400,0xDE56:EB"
+  # A 640x480 full screen device: windowed in a borderless window, the screen's centered 4:3
+  # rectangle (the guns aim over that picture), the dump's art around it (its opening 4:3).
+  WAL_D3D9_WINDOWED_SIZE: 640x480
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  # the window, hidden at the device's creation, shown at that size; not managed by the window
+  # manager (a desktop's top bar pushed it down, the picture cut at the bottom)
+  WAL_D3D9_KEEP_WINDOW: "1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+  # its 4:3 opening fitted to the picture, the sides stretched to the screen's edges and height
+  # (a 16:10 screen: no black bands above and below)
+  WAL_BEZEL: ../bezel.png
+  WAL_BEZEL_FIT: stretch
+  WAL_HIDE_CURSOR: "1"
+  # the common crosshair option, on: each player's gun on the picture (the game draws none)
+  WAL_CROSSHAIR: "1"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # a lightgun pointing off the screen reloads when it shoots (payload: b6 off screen)
+  gun:
+    offscreen: b6
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the operator settings' coins per credit.
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Reload
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test menu

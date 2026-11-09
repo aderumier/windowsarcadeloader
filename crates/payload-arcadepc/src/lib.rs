@@ -69,6 +69,10 @@
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
+//! Akuma Mortis Immortal (`WAL_ARCADEPC_BOARD=ngun`, x86 build): `ngun.rs` is its parallel port
+//! gun board (`inpout32.dll`'s `Inp32` / `Out32`); the common crosshair option draws the guns
+//! (Direct3D 9).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -94,6 +98,8 @@ mod interface;
 mod jxboard;
 mod jxcamera;
 mod mame;
+#[cfg(target_arch = "x86")]
+mod ngun;
 #[cfg(target_arch = "x86")]
 mod robinhood;
 mod topgun2_landscape;
@@ -238,6 +244,16 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 robinhood::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "ngun" => {
+                pads::disconnect();
+                // the dongle's checks
+                wal_payload_common::patches::apply();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                wal_payload_common::crosshair::init();
+                ngun::init();
             }
             _ if board.trim() == "spacewarp" => {
                 pads::disconnect();

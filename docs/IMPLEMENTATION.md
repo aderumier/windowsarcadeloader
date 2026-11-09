@@ -4490,6 +4490,44 @@ the entry point (`payload_loader`, `xinput1_3` native), board `robinhood` (`robi
   hit, tickets counted), the collect screen, the payout (`96`, then `0` answered), the admin
   switch's I/O check (the switches' names above); the user played it with a gun.
 
+#### Akuma Mortis Immortal
+
+A two-player lightgun game (`data\game.exe`, window class `NGUN`, Direct3D 9, 32-bit, 640x480).
+Dump: the cabinet's `data\` folder (the executable, `DK2win32.dll`, `expdat` / `extdat`, `bin\`:
+the game reads `..\data\bin\`). The payload is loaded at the entry point (`payload_loader`,
+`xinput1_3` native), board `ngun` (`ngun.rs`):
+
+- **Board.** A gun board on the parallel port, through `inpout32.dll` (`LoadLibraryA("inpout32")`,
+  `Inp32` / `Out32`, stdcall): the payload answers both, the dump's library (a driver installer)
+  is never loaded. A command is the data port's byte (0x378) strobed by the control port (0x37a:
+  0xd0, 0xd1, 0xd0), its answer read back from the data port in input mode (0xf8, 0xf9). 1 / 2
+  player 1's gun x / y, 3 / 4 player 2's, 5 the guns' bits (0 / 4 the triggers, 2 / 6 the gun on
+  the screen: a trigger off it is the reload), 6 the triggers alone (read at each frame), 7 / 8
+  the switches (bit 0 / 1 the start buttons, 2 test, 3 service, 4 coin). `x << 4 | 0xd` / `0xe`:
+  lamps and recoil, ignored. Status (0x379): bits 1-2 the board is there (else no reader
+  thread), bit 7 a gun sample (the reader asks 1..5).
+- **Flash.** Each gun sample makes the game draw one flash frame, the screen filled with the
+  settings' color (cyan) for the gun's sensor: the payload asks a sample at each trigger (or
+  reload) press. A sample every few milliseconds left the picture cyan.
+- **Aim.** The calibration (`0x590d24`, 0x20 per player: x min / max, y min / max, the
+  calibrated center byte -100 / +100, -115 / +115): x = (byte - min) * 3.1875, y = (byte - min)
+  * 2.0788 over 640x480. The payload sends the byte of the gun's place in the 4:3 picture
+  through the current calibration (the game's calibration keeps its center). The game draws no
+  crosshair: the common crosshair option, on (`WAL_CROSSHAIR`).
+- **Dongle.** A Dinkey (`DK2win32.dll`), its result an error code (`0x4edfc0`, "HARDWARE ERROR
+  (n)" drawn instead of the game): the profile's patches make the boot's check (`0x40147e`,
+  ordinal 4) true, the dongle's read (`0x406e50`) and its periodic checks (`0x406da0`,
+  `0x406a90`) return at once, and the check of its cabinet flag against the dual screen mode
+  (`0x40de56`, error 6) never fail.
+- **Settings.** `expdat` / `extdat` (each byte negated, check sums), read into `0x590f10`..:
+  free play is bit 0 of `0x590f2c`, copied by `0x418de0` (called at `0x4074ab`): `WAL_FREEPLAY`
+  sets the bit before that copy.
+- **Display.** Windowed 640x480 device in a borderless window, the screen's centered 4:3
+  rectangle (`WAL_WINDOW_SIZE=aspect`, `WAL_D3D9_KEEP_WINDOW`), not managed by the window
+  manager (`WAL_DESKTOP_UNMANAGED`: a top bar pushed it down), the dump's `bezel.png` around it
+  (its opening fitted, the sides stretched: `WAL_BEZEL_FIT=stretch`).
+- Verified: attract, free play, start, aim and shots scoring (headless); the user: 100%.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6652,6 +6690,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `burning-striker` | Burning Striker | arcadepc | user 100% (2026-11-09), 2 players (stick, 3 buttons) | Eolith's football game (DirectDraw / D3D7, 32-bit, §6.3i): COM1 board and DIP switches emulated (free play option), the protection's 3ddata.pak key from the dump's `eolith.key`; intro movie needs GE patches 0116/0117 (qasf DMO wrapper); focus loss no longer minimizes (wined3d behind d7vk) |
 | `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) | ExtraLine's party game (Glide 2, 32-bit, §6.3i): the parallel port board's reader replaced (sticks, buttons, operator keys), the menu's service select given its own edge detection, free play option over `eep.rom`'s coins, the C: serial check patched; the runner's gxvk (a build after 0.1: chroma key) in a payload window with its own message loop, 4:3, black bezel |
 | `robin-hood` | Robin Hood | arcadepc | user 100% (2026-11-09), 1 gun | ICE's ticket redemption crossbow game (Direct3D 9, 32-bit, §6.3i): the serial board emulated (switches, coins, tickets paid at once), the crossbow's DirectInput joystick X from the gun's X position, the linked HASP HL API patched, free play option over `coinfree`, the dump's root as working directory |
+| `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | Lightgun game (Direct3D 9, 32-bit, §6.3i): the parallel port gun board emulated (`inpout32`'s `Inp32` / `Out32`: aim, triggers, switches, a gun sample per shot), the Dinkey dongle's checks patched, free play option, crosshairs, the dump's bezel |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
