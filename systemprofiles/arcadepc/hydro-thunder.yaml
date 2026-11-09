@@ -1,8 +1,8 @@
 # Hydro Thunder (Midway, 1999: hydro\HYDRO.EXE, the Diego I/O board) on the VCThunder runtime
 # (VCThunder.exe hydro: its own Glide renderer vcglide.dll) - template, override values in
 # userprofiles/arcadepc/hydro-thunder.yaml.
-# A powerboat racer: wheel, throttle lever, boost button, three view buttons. The dump holds
-# Hydro Thunder and Offroad Thunder (offroad-thunder.yaml), one .windowsloader each. The
+# A powerboat racer: wheel, throttle lever, boost button, three view buttons. Dump: the runtime
+# beside hydro\ (Offroad Thunder: its own dump, offroad-thunder.yaml). The
 # payload feeds the runtime's keys and DirectInput wheel and sets free play (docs §6.3i).
 system: arcadepc
 name: Hydro Thunder
@@ -17,7 +17,7 @@ dll_overrides:
 args: [hydro]
 
 files:
-  # data_dir . (the dump's hydro\ and offroad\), saves in save\, DirectInput wheel, the
+  # data_dir . (the dump's game folder), saves in save\, DirectInput wheel, the
   # payload's keys; the payload sets [graphics] aspect / widescreen from the options
   vcthunder.ini: systemprofiles/arcadepc/files/vcthunder/vcthunder.ini
 
