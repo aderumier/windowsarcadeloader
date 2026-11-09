@@ -25,6 +25,8 @@
 //! (`none` for an unused one, `b1+start` pressed by either; default: b1-b8, start, coin,
 //! service, test).
 //! `WAL_DINPUT_WHEEL_FFB=0`: no force feedback (`CreateEffect` unsupported).
+//! `WAL_DINPUT_WHEEL_FFB_OUT=1`: the game's constant force effect (its magnitude, gain and
+//! direction, started / stopped) sent to the launcher's wheel (`output::FFB_CONSTANT`; VCThunder).
 //! The wheel's buffered data (`GetDeviceData`) reports its objects' changes;
 //! `WAL_DINPUT_WHEEL_HEARTBEAT_MS=<ms>` re-reports every axis that often (Visual Pinball takes
 //! an axis silent for 3 s as its nudge board unplugged).
@@ -521,6 +523,25 @@ unsafe extern "system" fn get_keyboard_state(keys: *mut u8) -> i32 {
         unsafe { std::ptr::write_bytes(keys, 0, 256) };
     }
     1
+}
+
+/// The fake DirectInput for one more module, loaded after the payload started and not from the
+/// game's directory at load time (VCThunder's `VCThunder.dll`, loaded by its stub executable,
+/// resolves `DirectInput8Create` at run time): its imports and `GetProcAddress`. After [`init`].
+pub fn hook_module(module: usize) {
+    if module == 0 {
+        return;
+    }
+    unsafe {
+        iat::hook_module(module, "dinput.dll", "DirectInputCreateA", create as *const () as usize);
+        iat::hook_module(module, "dinput.dll", "DirectInputCreateW", create_w as *const () as usize);
+        iat::hook_module(module, "dinput.dll", "DirectInputCreateEx", create_iid as *const () as usize);
+        iat::hook_module(module, "dinput8.dll", "DirectInput8Create", create_iid as *const () as usize);
+        let ours = get_proc_address as *const () as usize;
+        if let Some(o) = iat::hook_module(module, "kernel32.dll", "GetProcAddress", ours).filter(|&o| o != ours) {
+            let _ = ORIG_GET_PROC_ADDRESS.compare_exchange(0, o, std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
 }
 
 pub fn init() {
@@ -1381,14 +1402,112 @@ mod wheel {
         ok3 as *const (), // Initialize
         effect_get_guid as *const (),
         ok2 as *const (), // GetParameters: keep the game's values
-        ok2 as *const (), // SetParameters
-        ok2 as *const (), // Start
-        ok0 as *const (), // Stop
+        effect_set_parameters as *const (),
+        effect_start as *const (),
+        effect_stop as *const (),
         effect_status as *const (),
         ok0 as *const (), // Download
         ok0 as *const (), // Unload
         ok1 as *const (), // Escape
     ]);
+
+    /// `WAL_DINPUT_WHEEL_FFB_OUT=1`: the game's constant force sent to the launcher's wheel
+    /// (`output::FFB_CONSTANT`, positive to the right): its magnitude (`DICONSTANTFORCE`) times
+    /// its gain and its direction's sign on the one axis, 0 when stopped.
+    fn ffb_out() -> bool {
+        static ON: OnceLock<bool> = OnceLock::new();
+        *ON.get_or_init(|| std::env::var("WAL_DINPUT_WHEEL_FFB_OUT").is_ok_and(|v| v.trim() == "1"))
+    }
+    /// The constant force's magnitude, gain (0..10000) and direction sign; it plays.
+    static FORCE: AtomicI32 = AtomicI32::new(0);
+    static GAIN: AtomicI32 = AtomicI32::new(10000);
+    static SIGN: AtomicI32 = AtomicI32::new(1);
+    static PLAYING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    static SENT: AtomicI32 = AtomicI32::new(i32::MIN);
+
+    /// `DIEFFECT`
+    #[repr(C)]
+    struct DiEffect {
+        size: u32,
+        flags: u32,
+        duration: u32,
+        sample_period: u32,
+        gain: u32,
+        trigger_button: u32,
+        trigger_repeat_interval: u32,
+        axes: u32,
+        axis_ids: *const u32,
+        direction: *const i32,
+        envelope: P,
+        type_specific_size: u32,
+        type_specific: *const i32,
+    }
+    const DIEP_GAIN: u32 = 0x04;
+    const DIEP_DIRECTION: u32 = 0x40;
+    const DIEP_TYPESPECIFICPARAMS: u32 = 0x100;
+    const DIEP_START: u32 = 0x2000_0000;
+
+    fn send_force() {
+        let value = if PLAYING.load(Ordering::Relaxed) {
+            let v = FORCE.load(Ordering::Relaxed) as i64 * GAIN.load(Ordering::Relaxed) as i64 / 10000 * SIGN.load(Ordering::Relaxed) as i64;
+            v.clamp(-(wal_protocol::output::FFB_MAX as i64), wal_protocol::output::FFB_MAX as i64) as i32
+        } else {
+            0
+        };
+        if SENT.swap(value, Ordering::Relaxed) != value {
+            static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+            if value != 0 && !LOGGED.swap(true, Ordering::Relaxed) {
+                log!("dinput: the game's constant force to the launcher (first: {value})");
+            }
+            crate::send_output(0, wal_protocol::output::FFB_CONSTANT, value);
+        }
+    }
+
+    /// The parameters of a constant force effect (`flags`: those set).
+    unsafe fn take_parameters(effect: *const DiEffect, flags: u32) {
+        if effect.is_null() || !ffb_out() || EFFECT_GUID.lock().unwrap()[..4] != 0x1354_1C20u32.to_le_bytes() {
+            return;
+        }
+        let e = unsafe { &*effect };
+        if flags & DIEP_GAIN != 0 {
+            GAIN.store(e.gain.min(10000) as i32, Ordering::Relaxed);
+        }
+        if flags & DIEP_DIRECTION != 0 && !e.direction.is_null() && e.axes >= 1 {
+            let d = unsafe { e.direction.read_unaligned() };
+            SIGN.store(if d < 0 { -1 } else { 1 }, Ordering::Relaxed);
+        }
+        if flags & DIEP_TYPESPECIFICPARAMS != 0 && !e.type_specific.is_null() && e.type_specific_size >= 4 {
+            FORCE.store(unsafe { e.type_specific.read_unaligned() }, Ordering::Relaxed);
+        }
+        if flags & DIEP_START != 0 {
+            PLAYING.store(true, Ordering::Relaxed);
+        }
+        send_force();
+    }
+
+    /// `SetParameters(lpeff, dwFlags)`
+    unsafe extern "system" fn effect_set_parameters(_this: P, effect: *const DiEffect, flags: u32) -> i32 {
+        unsafe { take_parameters(effect, flags) };
+        DI_OK
+    }
+
+    /// `Start(dwIterations, dwFlags)`
+    unsafe extern "system" fn effect_start(_this: P, _iterations: u32, _flags: u32) -> i32 {
+        PLAYING.store(true, Ordering::Relaxed);
+        if ffb_out() {
+            send_force();
+        }
+        DI_OK
+    }
+
+    /// `Stop()`
+    unsafe extern "system" fn effect_stop(_this: P) -> i32 {
+        PLAYING.store(false, Ordering::Relaxed);
+        if ffb_out() {
+            send_force();
+        }
+        DI_OK
+    }
 
     unsafe extern "system" fn effect_get_guid(_this: P, out: P) -> i32 {
         if !out.is_null() {
@@ -1422,6 +1541,8 @@ mod wheel {
         } else {
             log!("dinput: fake FFB effect created");
         }
+        // the creation's parameters (all of them: those the structure holds)
+        unsafe { take_parameters(_effect as *const DiEffect, DIEP_GAIN | DIEP_DIRECTION | DIEP_TYPESPECIFICPARAMS) };
         unsafe { *out = &EFFECT as *const Object as P };
         DI_OK
     }

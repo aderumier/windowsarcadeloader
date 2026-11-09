@@ -76,6 +76,9 @@
 //! Bug Busters (`WAL_ARCADEPC_BOARD=bugbusters`, x86 build): `bugbusters.rs` writes its guns and
 //! its I/O board's switches into the game; the game draws its own pointers.
 //!
+//! Hydro Thunder, Offroad Thunder (`WAL_ARCADEPC_BOARD=vcthunder`, x86 build): `vcthunder.rs`
+//! feeds the VCThunder runtime's keys and its DirectInput wheel, and sets free play.
+//!
 //! DCOP (`WAL_ARCADEPC_BOARD=dcop`): `dcop.rs` plays its mouse with the gun (its DemulShooter
 //! plugin only hides the game's cursor).
 //!
@@ -126,6 +129,8 @@ mod spacewarp;
 mod topgun;
 mod uaf;
 mod unrealio;
+#[cfg(target_arch = "x86")]
+mod vcthunder;
 #[cfg(target_arch = "x86")]
 mod xio;
 mod zombiecrisis;
@@ -276,6 +281,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 bugbusters::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "vcthunder" => {
+                pads::disconnect();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, vcthunder::key_held);
+                vcthunder::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "ngun" => {

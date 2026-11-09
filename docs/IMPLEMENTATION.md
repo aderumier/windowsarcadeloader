@@ -4683,6 +4683,57 @@ first. `.windowsloader`: `BBPC.exe`. Loaded at the entry point, board `bugbuster
   story / free select, movies, both guns' aim and shots scoring, the tank emptied and reloaded
   (`b2` and off screen), test into the setup menu, its items and exit, crosshair option off.
 
+#### Hydro Thunder / Offroad Thunder (VCThunder)
+
+Midway's Hydro Thunder (1999, `hydro\HYDRO.EXE`, the Diego I/O board) and Offroad Thunder
+(2000, `offroad\offroad3.exe`), both 3dfx Glide cabinets, run by VCThunder 0.1: a third-party
+Windows runtime (`VCThunder.exe <hydro|offroad>`, 32-bit). Its stub executable reserves the
+games' span at 0x100000 and loads `VCThunder.dll`, which maps and unpacks the original
+executable there, binds its imports, emulates its board (keys, a DirectInput wheel), sound
+(WASAPI), timing, NVRAM (`save\`) and draws its Glide with `vcglide.dll` (SDL3; its GPU renderer
+asks for Direct3D 12, unavailable under Wine: its CPU rasteriser, presented with Direct3D 9).
+One dump holds both games: `hydro-thunder.windowsloader` and `offroad-thunder.windowsloader`
+(one per image for Batocera), profiles `hydro-thunder.yaml` / `offroad-thunder.yaml` (`args`:
+the title). Loaded at the entry point, board `vcthunder` (`vcthunder.rs`):
+
+- **Settings.** The profile's `vcthunder.ini` (`files/vcthunder/`) replaces the dump's, whose
+  `data_dir` was the author's PC: `data_dir = .`, `save_dir = save`, full screen, DirectInput
+  wheel, the payload's keys; the payload sets `[graphics]` `aspect` / `widescreen` from the
+  options at each start. Some of the runtime's readers (`[analog]`'s DirectInput axes, `[ffb]`)
+  call `GetPrivateProfileStringA` with the bare `vcthunder.ini` (the Windows directory: their
+  defaults, the Xbox pad's inverted axes): the payload gives them the run directory's. The
+  dump's logs are hidden (the runtime writes its own in the run directory).
+- **Inputs.** The runtime polls its `[digital]` keys (`GetAsyncKeyState`), the ini naming them by
+  virtual key code: coins 5 / 6, start 1, credit 9, test F2, boost / nitro A, views / cameras
+  B C D, Offroad's gears E F G, volume down / up J K (the operator menus' cursor); the payload
+  reports them from the virtual sticks (b1 boost, b2-b4 views, b5 / b6 shift up / down, b7 / b8
+  first / third gear, up / down the volume buttons), the real keyboard filtered. The wheel and
+  pedals are the common fake DirectInput wheel (`WAL_DINPUT_WHEEL`: X steering, Y gas, Z brake),
+  hooked into `VCThunder.dll` when it loads (`dinput::hook_module`: it resolves
+  `DirectInput8Create` at run time); XInput is disabled (`xinput1_4`), its pad buttons unused.
+  Offroad reads the gear whose key is held, neutral without one (the car does not move, even
+  with the automatic transmission): the payload latches the gear (first at start).
+- **Force feedback.** The runtime turns the game's motor DAC into a DirectInput constant force;
+  the fake wheel sends it to the launcher (`WAL_DINPUT_WHEEL_FFB_OUT=1`, new: magnitude x gain x
+  direction sign, 0 when stopped). Its sign on a real wheel is not verified (`[ffb] invert`).
+- **Operator menus.** Test (F2) enters them. Hydro's network stack cleans Winsock up when it
+  enters them (`WSACleanup` through the runtime): the payload's launcher connection closed and
+  could not reconnect (no input in the menus): the payload holds one more
+  Winsock reference. Volume up / down move, test selects, credit cancels.
+- **Free play** (`WAL_FREEPLAY`): Hydro's `_coins_CreditsToStart` / `_coins_CreditsToContinue`
+  (0x134508, 0x134518) answer 0 ("PRESS BOOST BUTTON TO START"); Offroad's free play flag
+  (`_money_GetFreePlay` 0x1c4f1c: `[0x410e74] == 0xfeed12f8`) is held set ("FREE PLAY"). The
+  code is patched once `VCThunder.dll` copied it, 1 s later (after its checksum of the unmodified
+  code). Off: the operator settings' pricing (coins).
+- **Display.** The runtime's full screen went back to a 512x400 window under gamescope: its
+  Direct3D 9 window is a borderless popup over the screen (`WAL_WINDOW_POPUP`,
+  `WAL_WINDOW_SIZE=screen`), the runtime's `aspect = 4:3` centers the cabinet's 4:3 picture.
+  Option `WAL_VCTHUNDER_WIDESCREEN`: the runtime's 16:9 hack (a wider frustum, the HUD kept).
+- Verified headless (2026-11-09): both games' attract, free play and coins, Hydro's track / boat
+  select and a race (throttle, steering, boost), Offroad's mode / track / truck / transmission
+  select and a race (gas, steering, shifts, nitro), both operator menus (navigation, Hydro's
+  volume menu, Offroad's calibration screen), Hydro's widescreen.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6850,6 +6901,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dcop` | DCOP | arcadepc | headless-tested, awaiting user (2026-11-09), 1 gun | Klockworks' live-action police shooter (Unity 2020.3, 64-bit, §6.3i): the game plays with the mouse (left shoots, right reloads, any key starts / continues: free play by design), played by the gun (`dcop.rs`: `post_mouse`, `GetCursorPos`); the dump's DemulShooter plugin kept (Uduino serial off, NVRAM saves, pause menu on 0), told to hide the game's cursor; common crosshair, 16:9 borderless window |
 | `ballistics` | Ballistics | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (steering, throttle, buttons) | Grin's tube racer, arcade version (Direct3D 8 on wined3d, §6.3i): the cabinet's HAPP UGCI GameFrame as the common fake DirectInput joystick (by name, X steering, Y throttle, buttons by name) next to a DirectInput keyboard, coins as the coin program's `COINDROP` window messages, free play as the game's price 0, no hourly restart, the display settings dialog accepted, the D-Box seat's library not loaded, 4:3 window |
 | `bug-busters` | Bug Busters | arcadepc | headless-tested, awaiting user (2026-11-09), 2 guns | MIZI Production's spray gun game, PC release (DirectDraw on wined3d, 32-bit, §6.3i): the guns and the dead serial I/O board's switches written into the game (`bugbusters.rs`: records, tank reloads, start / test / service flags, coins with their sounds), the CD check patched, free play as the game's price 0, test opens the setup menu from the title, the game's own pointers as the crosshair option, 4:3 |
+| `hydro-thunder` | Hydro Thunder | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder runtime (Glide, 32-bit, §6.3i): its keys and the fake DirectInput wheel from the virtual sticks, constant force to the launcher's wheel, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
+| `offroad-thunder` | Offroad Thunder | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder runtime (same dump as Hydro Thunder, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

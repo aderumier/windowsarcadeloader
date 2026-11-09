@@ -1,0 +1,86 @@
+# Offroad Thunder (Midway, 2000: offroad\offroad3.exe) on the VCThunder runtime
+# (VCThunder.exe offroad: its own Glide renderer vcglide.dll) - template, override values in
+# userprofiles/arcadepc/offroad-thunder.yaml.
+# An off-road truck racer: wheel, gas and brake pedals, nitro button, three camera buttons, a
+# shifter (the payload latches its gear: first at start, shift up / down). The dump holds
+# Hydro Thunder (hydro-thunder.yaml) and Offroad Thunder, one .windowsloader each. The
+# payload feeds the runtime's keys and DirectInput wheel and sets free play (docs §6.3i).
+system: arcadepc
+name: Offroad Thunder
+
+# loaded at the executable's entry point (the runtime imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+  # the runtime's XInput pads (real pads): none, the wheel is the payload's DirectInput one
+  xinput1_4: ""
+
+args: [offroad]
+
+files:
+  # data_dir . (the dump's hydro\ and offroad\), saves in save\, DirectInput wheel, the
+  # payload's keys; the payload sets [graphics] aspect / widescreen from the options
+  vcthunder.ini: systemprofiles/arcadepc/files/vcthunder/vcthunder.ini
+
+# the dump's logs and old settings: the runtime writes its logs in the run directory
+hide: [vcthunder.log, vcglide.log, vcthunder.ini.bak]
+
+env:
+  WAL_ARCADEPC_BOARD: vcthunder
+  # the wheel: X steering, Y the gas, Z the brake, the game's constant force
+  # sent to the launcher's wheel
+  WAL_DINPUT_WHEEL: VCThunder Wheel
+  WAL_DINPUT_WHEEL_Y_AXIS: accel
+  WAL_DINPUT_WHEEL_Z_AXIS: brake
+  WAL_DINPUT_WHEEL_BUTTONS: none
+  WAL_DINPUT_WHEEL_FFB_OUT: "1"
+  # vcglide's Direct3D 9 window over the whole screen (its full screen: the 4:3 picture
+  # centered, black around); the runtime's own full screen went back to a 512x400 window
+  WAL_D3D9_MAX_FPS: "0"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
+  WAL_VCTHUNDER_WIDESCREEN: "0"
+
+input:
+  stick_as_dpad: false
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Races start without credits. Off: the operator settings' pricing.
+      - key: WAL_VCTHUNDER_WIDESCREEN
+        label: Widescreen
+        kind: bool
+        description: >-
+          The runtime's 16:9 hack (a wider view of the race). Off: the cabinet's 4:3 picture.
+
+controls:
+  lx: Steering wheel
+  accel: Gas
+  brake: Brake
+  b1: Nitro
+  b2: Slam cam
+  b3: Chase cam
+  b4: Chopper cam
+  b5: Shift up
+  b6: Shift down
+  b7: First gear
+  b8: Third gear
+  up: Volume up (menu up)
+  down: Volume down (menu down)
+  start: Start
+  coin: Coin
+  service: Service (credit)
+  test: Test menu
