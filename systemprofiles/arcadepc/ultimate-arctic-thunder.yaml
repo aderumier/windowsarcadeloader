@@ -1,0 +1,67 @@
+# Ultimate Arctic Thunder (Midway, 2004, snow.exe, Glide 3, 32-bit) - template, override values
+# in userprofiles/arcadepc/ultimate-arctic-thunder.yaml.
+# Arctic Thunder's later build (new tracks): handlebar steering, throttle, attack button, start.
+# Dump: the cabinet's `Midway games` folder (the game in `Arctic Thunder\`, `diagnostics\`,
+# `wincsm\`), run as C:\Midway Games. Same board as Arctic Thunder (its own texture key): the
+# payload is the cabinet's coin and security
+# manager (wincsm.exe) that goose.dll reads, the textures' disk serial key, the operator
+# diagnostics (diagnostics\diag.exe, started on test) (docs §6.3i).
+system: arcadepc
+name: Ultimate Arctic Thunder
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# the cabinet's paths (exception logs, diagnostics: C:\Midway Games)
+c_folders:
+  Midway Games: .
+
+env:
+  WAL_ARCADEPC_BOARD: arcticthunder
+  # game.env settings (the game reads its environment first): no force feedback motor, its
+  # power-on calibration skipped (it waits for the handlebar to follow the motor); no 60 s
+  # DHCP wait for the link network
+  FEEDBACK_ENABLE: "0"
+  FEEDBACK_DISABLE_CALIBRATION: "1"
+  USE_DHCP_TIMEOUT: "0"
+  # the dump's Glide (nGlide): no logo, the desktop's resolution, the 640x480 picture 4:3 at the
+  # screen's full height (black bars). The runner's gxvk showed a white screen (headless).
+  NGLIDE_SPLASH: "0"
+  NGLIDE_RESOLUTION: "1"
+  NGLIDE_ASPECT: "1"
+
+input:
+  # the keyboard's arrows: left / right the handlebar, up the throttle (ramped: the analog values
+  # the game reads), down the diagnostics' down
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins (the game's own free play). Off: one coin per credit, one
+          credit to start and to continue.
+
+controls:
+  lx: Handlebar (steering)
+  accel: Throttle
+  b1: Attack
+  b2: Throttle (full)
+  b5: Volume down
+  b6: Volume up
+  start: Start
+  coin: Coin
+  service: Service (credit)
+  up: Diagnostics up
+  down: Diagnostics down
+  test: Test (the operator diagnostics; in them, enter)

@@ -86,7 +86,7 @@
 //! program's coin messages, accepts its display settings dialog and sets free play; its
 //! cabinet's GameFrame is the common DirectInput wheel (as a joystick of that name).
 //!
-//! Arctic Thunder (`WAL_ARCADEPC_BOARD=arcticthunder`, x86 build): `arcticthunder.rs` is the
+//! Arctic Thunder, Ultimate Arctic Thunder (`WAL_ARCADEPC_BOARD=arcticthunder`, x86 build): `arcticthunder.rs` is the
 //! cabinet's coin and security manager (`wincsm.exe`) that `goose.dll` reads and writes: the
 //! switches, the handlebar and throttle, the credits; and the same for its operator diagnostics
 //! (`diag.exe`, started by the test button through the launcher).

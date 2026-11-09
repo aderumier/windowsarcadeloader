@@ -1,5 +1,6 @@
-//! Arctic Thunder (Midway, 2001, `snow.exe`, Glide 3, 32-bit): `WAL_ARCADEPC_BOARD=arcticthunder`,
-//! x86 build.
+//! Arctic Thunder (Midway, 2001) and Ultimate Arctic Thunder (2004) (`snow.exe`, Glide 3, 32-bit):
+//! `WAL_ARCADEPC_BOARD=arcticthunder`, x86 build. `BUILDS`: each `snow.exe` (its PE time stamp),
+//! its textures' password, Ultimate's dongle.
 //!
 //! - **Board.** The game runs on Midway's `goose.dll` (processes, CMOS, I/O). The cabinet's I/O
 //!   board (on a serial port, `magicbus.dll`) belongs to the coin and security manager
@@ -31,12 +32,17 @@
 //!   `winio.sys` or the SCSI miniport, its digits a number modulo 2^28; MD5 of its 4 bytes, the
 //!   base provider's 40-bit RC4 key), and marked read-only and hidden (`gobj.dll` decrypts only
 //!   those, else it reads them as they are: the header check fails, the fonts were blank boxes and
-//!   the first track texture an assertion). The dump's serial number gives 0x0a6a209a (found by
+//!   the first track texture an assertion). The dumps' serial numbers give 0x0a6a209a (Arctic
+//!   Thunder) and 0x0cc4cc8d (Ultimate) (found by
 //!   trying the 2^28 numbers against the textures' known first bytes, `05 80 00 00`): goose's
 //!   serial reader returns it, and gobj's `GetFileAttributesA` reports an encrypted texture (its
 //!   first dword not `0x8005`) read-only and hidden. goose asks the default RSA provider
 //!   (`CryptAcquireContextA` without a name): Windows 2000's was the base provider (40-bit RC4
 //!   keys), Wine's is the enhanced one (128-bit): goose's calls get the base provider.
+//! - **Ultimate's dongle.** Ultimate's `snow.exe` adds a parallel port dongle (`\\.\KeyDongle0`,
+//!   `kfunc` at `0x401030`) and its monitor (`0x401620(0)` starts `ppmon.exe`, which has 10 s to
+//!   clear a cookie, else "Driver not found" and the game ends): `kfunc` is the payload's
+//!   (`dongle`), the session call returns 0 (no monitor).
 //! - **Floating point.** goose's process loop (`ploop_process`) unmasks the invalid operation and
 //!   divide by zero exceptions (`_control87`, its `goose.ini` defaults: the dump has none). Wine's
 //!   `_control87` unmasks them in SSE's MXCSR too (Windows 2000's msvcrt: the x87 only): SSE code
@@ -90,10 +96,77 @@ const DIAG_RELAUNCH: &str = "exe=../diagnostics/diag.exe cwd=../diagnostics";
 /// This process is the diagnostics.
 static DIAG: AtomicBool = AtomicBool::new(false);
 
-/// goose's disk serial reader (the textures' password) and its first bytes, the dump's password.
+/// goose's disk serial reader (the textures' password) and its first bytes.
 const GOOSE_DISK_SERIAL: usize = 0x8F60;
 const GOOSE_DISK_SERIAL_CODE: [u8; 4] = [0x57, 0x56, 0x55, 0x53];
-const PASSWORD: u32 = 0x0A6A_209A;
+
+/// A build of the game: its `snow.exe` (the PE header's time stamp), the textures' password (the
+/// number of its cabinet disk's serial). goose, gobj and diag.exe of both builds differ only in
+/// their version data: same addresses.
+struct Build {
+    name: &'static str,
+    timestamp: u32,
+    password: u32,
+    /// Ultimate's parallel port dongle call (`kfunc(command, a, b, c)`, cdecl) and its session
+    /// call (`(0)` starts `ppmon.exe <pid> <cookie>`, the dongle's monitor, which must clear the
+    /// cookie within 10 s or the game ends, "Driver not found"), relative to the executable.
+    dongle: Option<(usize, usize)>,
+}
+
+const BUILDS: &[Build] = &[
+    // Arctic Thunder 1.002, Dec 18 2000
+    Build { name: "Arctic Thunder", timestamp: 0x3A3E_5052, password: 0x0A6A_209A, dongle: None },
+    // Ultimate Arctic Thunder (2004)
+    Build { name: "Ultimate Arctic Thunder", timestamp: 0x4096_A14B, password: 0x0CC4_CC8D, dongle: Some((0x1030, 0x1620)) },
+];
+/// The dongle call's first bytes (`sub esp, 0x108`), the session call's (`sub esp, 4; call`).
+const DONGLE_CODE: [u8; 6] = [0x81, 0xEC, 0x08, 0x01, 0x00, 0x00];
+const DONGLE_SESSION_CODE: [u8; 5] = [0x83, 0xEC, 0x04, 0xFF, 0x15];
+
+/// The dongle's memory (words by address), "Play" at 0..6 as the boot writes it.
+static DONGLE_MEMORY: std::sync::Mutex<[u16; 64]> = std::sync::Mutex::new({
+    let mut m = [0u16; 64];
+    m[0] = 0x50;
+    m[2] = 0x6C;
+    m[4] = 0x61;
+    m[6] = 0x79;
+    m
+});
+
+static DONGLE_CHALLENGED: AtomicBool = AtomicBool::new(false);
+
+/// Ultimate Arctic Thunder's dongle (`\\.\KeyDongle0` on the parallel port, a KEYLOK-style
+/// `kfunc`): 1 the challenge (0xaaaa 0x9c88 0x162a; the next call, command and arguments built
+/// from its answer, must answer 0xb2e0 low or 0x7fe3 high, else the thread suspends itself), 4 read
+/// the word at `a` (the boot checks "Play" at 0, 2, 4, 6 and a random word it wrote), 6 write `b`
+/// at `a`, 3 a counter read twice that must match (else the game adds random drift), 2 / 5 the
+/// authorizations (no answer used).
+extern "C" fn dongle(command: u32, a: u32, b: u32, _c: u32) -> u32 {
+    let mut memory = DONGLE_MEMORY.lock().unwrap();
+    let at = (a as usize / 2) * 2 % 64;
+    match command {
+        _ if DONGLE_CHALLENGED.swap(false, Ordering::Relaxed) => 0x7FE3_B2E0,
+        1 if (a, b, _c) == (0xAAAA, 0x9C88, 0x162A) => {
+            DONGLE_CHALLENGED.store(true, Ordering::Relaxed);
+            0x1234_5678
+        }
+        3 => 0x0010,
+        4 => u32::from(memory[at]),
+        6 => {
+            memory[at] = b as u16;
+            0
+        }
+        _ => 0,
+    }
+}
+
+/// The game executable's PE time stamp.
+fn exe_timestamp(exe: usize) -> u32 {
+    unsafe {
+        let pe = *((exe + 0x3C) as *const u32) as usize;
+        *((exe + pe + 8) as *const u32)
+    }
+}
 /// A texture's first dword, decrypted.
 const WMS_MAGIC: u32 = 0x8005;
 
@@ -598,8 +671,30 @@ fn init_game() {
     GOOSE.store(goose, Ordering::Relaxed);
 
     // the textures' password: the cabinet disk's serial number
+    let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    let stamp = exe_timestamp(exe);
+    let Some(build) = BUILDS.iter().find(|b| b.timestamp == stamp) else {
+        log!("arcticthunder: unknown snow.exe build ({stamp:#x}), no board");
+        return;
+    };
+    log!("arcticthunder: {}", build.name);
+    if let Some((rva, session)) = build.dongle {
+        if unsafe { std::slice::from_raw_parts((exe + rva) as *const u8, 6) } == DONGLE_CODE
+            && unsafe { std::slice::from_raw_parts((exe + session) as *const u8, 5) } == DONGLE_SESSION_CODE
+        {
+            // jmp dongle
+            let mut code = [0xE9, 0, 0, 0, 0];
+            code[1..].copy_from_slice(&(dongle as *const () as usize).wrapping_sub(exe + rva + 5).to_le_bytes());
+            patch(exe + rva, &code);
+            // no monitor: xor eax, eax; ret
+            patch(exe + session, &[0x31, 0xC0, 0xC3]);
+            log!("arcticthunder: dongle emulated");
+        } else {
+            log!("arcticthunder: unknown dongle call, not emulated");
+        }
+    }
     let mut code = [0xB8, 0, 0, 0, 0, 0xC3];
-    code[1..5].copy_from_slice(&PASSWORD.to_le_bytes());
+    code[1..5].copy_from_slice(&build.password.to_le_bytes());
     patch(goose + GOOSE_DISK_SERIAL, &code);
     match unsafe { wal_payload_common::iat::hook_module(goose, "MSVCRT.dll", "_control87", control87 as *const () as usize) } {
         Some(o) => CONTROL87.store(o, Ordering::Relaxed),

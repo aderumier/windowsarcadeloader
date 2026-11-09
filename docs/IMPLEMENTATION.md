@@ -4842,6 +4842,31 @@ root) names `Artic Thunder\Midway games\Arctic Thunder\snow.exe`, and `c_folders
   Switch Test with moving analog values, Volume Levels, Monitor color screens, Calibrate
   Feedback's throttle step), Exit back to the game.
 
+#### Ultimate Arctic Thunder
+
+The 2004 build (new drivers and tracks, e.g. Haunted Forest), same cabinet and board
+(`arcticthunder`, `arcticthunder.rs`'s `BUILDS` table, by `snow.exe`'s PE time stamp). The dump is
+the cabinet's `Midway games` folder only: `ultimate-arctic-thunder.windowsloader` names
+`Arctic Thunder\snow.exe`, `c_folders` maps `C:\Midway Games` to the dump root (`.`). Its goose,
+gobj, diag.exe and wincsm differ from Arctic Thunder's only in their version data (same addresses);
+snow.exe is a new build. The profile is Arctic Thunder's (environment settings over the dump's own
+`game.env`, nGlide, keyboard mapping).
+
+- **Textures.** Encrypted as Arctic Thunder's with another cabinet disk's number: 0x0cc4cc8d
+  (found the same way against `05 80 00 00`).
+- **Dongle.** snow.exe adds a parallel port dongle (`\\.\KeyDongle0` / `PARCLASS0`, a KEYLOK-style
+  `kfunc(command, a, b, c)` at `0x401030`) and a monitor: `0x401620(0)` starts `ppmon.exe <pid>
+  <cookie>` (not in the dump), which has 10 s to clear the cookie, else "Driver not found" and
+  `FatalExit`. The payload is `kfunc`: 1 the challenge (0xaaaa 0x9c88 0x162a), the next call (its
+  command and arguments built from the answer) answers 0x7fe3b2e0 (checked: 0xb2e0 low or 0x7fe3
+  high, else the thread suspends itself and goose's watchdog ends the game, "PROCESSING LOOP
+  TIMEOUT"); 4 / 6 read / write a word of the dongle's memory ("Play" at 0..6, which the boot
+  checks, and a random word written then read back); 3 a value read twice that must match (else
+  the game adds random drift); 2 / 5 no answer used. `0x401620` returns 0 (no monitor).
+- Verified headless (2026-11-10): attract ("FREE PLAY"), free play start, coin ("1 CREDITS TO
+  START", "1 CREDIT", 1 credit used), driver and track select (Haunted Forest), a race, test into
+  the diagnostics, Exit back to the game (its title).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7050,6 +7075,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `ballistics` | Ballistics | arcadepc | user 100% (2026-11-09), 1 player (steering, throttle, buttons) | Grin's tube racer, arcade version (Direct3D 8 on wined3d, §6.3i): the cabinet's HAPP UGCI GameFrame as the common fake DirectInput joystick (by name, X steering, Y throttle, buttons by name) next to a DirectInput keyboard, coins as the coin program's `COINDROP` window messages, free play as the game's price 0, no hourly restart, the display settings dialog accepted, the D-Box seat's library not loaded, 4:3 window |
 | `bug-busters` | Bug Busters | arcadepc | user 100% (2026-11-09), 2 guns | MIZI Production's spray gun game, PC release (DirectDraw on wined3d, 32-bit, §6.3i): the guns and the dead serial I/O board's switches written into the game (`bugbusters.rs`: records, tank reloads, start / test / service flags, coins with their sounds), the CD check patched, free play as the game's price 0, test opens the setup menu from the title, the game's own pointers as the crosshair option, 4:3 centered by Wine's mode scaling (aim checked on 16:9 and 5:4), the Sinden border drawn into the game's back buffer before each present |
 | `arctic-thunder` | Arctic Thunder | arcadepc | user 100% (2026-11-09), 1 player (handlebar, throttle, attack) | Midway's snowmobile racer (Glide 3 on the dump's nGlide, 32-bit, goose library, §6.3i): the payload is the coin and security manager wincsm whose memory goose reads (switches, handlebar / throttle, credits, coin lock), the textures' disk-serial RC4 key (0x0a6a209a, base provider) and their read-only + hidden marks, FP exceptions kept masked, free play as `COIN_FREE_ONLY`, no feedback calibration, 4:3; test starts the operator diagnostics (`diag.exe`, payload as its wincsm too), Exit returns to the game |
+| `ultimate-arctic-thunder` | Ultimate Arctic Thunder | arcadepc | headless-tested, awaiting user (2026-11-10), 1 player (handlebar, throttle, attack) | Arctic Thunder's 2004 build (§6.3i): dump = the `Midway games` folder; same board by `snow.exe` build: its own texture key (0x0cc4cc8d), its parallel port dongle (`kfunc` answered by the payload, its `ppmon.exe` monitor not started), diagnostics and Exit as Arctic Thunder's |
 | `hydro-thunder` | Hydro Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder 0.5 runtime (Glide, 32-bit, §6.3i): the fake DirectInput wheel and its buttons from the virtual sticks, constant force to the launcher's wheel, GPU renderer on the runner's vkd3d-proton, 60 fps, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder 0.5 runtime (its own dump, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload (first gear at start) |
 
