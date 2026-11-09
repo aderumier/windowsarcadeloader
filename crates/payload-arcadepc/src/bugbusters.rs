@@ -32,6 +32,9 @@
 //! - **Crosshair.** The game draws each player's own pointer (`Image\Setup\pointer.dds`); the
 //!   common crosshair option off (`WAL_CROSSHAIR=0`) hides it in the game (`0x4263c1`, as the
 //!   game does for a joystick player), the menus keep it.
+//! - **Sinden border.** Not supported: `WAL_SINDEN_BORDER=1` is turned off before
+//!   `payload-common` starts ([`prepare`]); its window path left the exclusive 640x480 picture
+//!   unscaled in a corner, and no frame is drawn over DirectDraw.
 //! - `WAL_BUGBUSTERS_TRACE=1`: the mode, coins, players' records and tanks logged each second.
 //!
 //! Natives: `trigger reload offscreen start coin` (each player), `test service`.
@@ -318,7 +321,25 @@ fn patch(offset: usize, expected: &[u8], code: &[u8]) -> bool {
     true
 }
 
+/// Set by [`prepare`]: the Sinden border was asked for.
+static NO_BORDER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Before `payload-common` starts: no Sinden border (`WAL_SINDEN_BORDER=1`). Its window path
+/// keeps the game's mode (no mode change, a screen-sized window): the 640x480 exclusive
+/// DirectDraw picture was then drawn unscaled in the screen's top left corner, and nothing
+/// draws the frame over DirectDraw.
+pub fn prepare() {
+    if std::env::var("WAL_SINDEN_BORDER").is_ok_and(|v| v.trim() == "1") {
+        // SAFETY: at the payload's load, before its threads
+        unsafe { std::env::set_var("WAL_SINDEN_BORDER", "0") };
+        NO_BORDER.store(true, Ordering::Relaxed);
+    }
+}
+
 pub fn init() {
+    if NO_BORDER.load(Ordering::Relaxed) {
+        log!("bugbusters: no Sinden border on DirectDraw (the picture would not be scaled)");
+    }
     let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
     EXE.store(exe, Ordering::Relaxed);
     let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };

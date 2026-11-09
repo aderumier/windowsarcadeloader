@@ -26,6 +26,10 @@ env:
   # the game's DirectInput (keyboard, joysticks) sees no device: the guns are the payload's
   WAL_DINPUT_DISABLE: "1"
   WAL_HIDE_CURSOR: "1"
+  # No Sinden border: its window path keeps the game's mode, the 640x480 exclusive picture was
+  # drawn unscaled in the screen's corner (the payload also turns a user's 1 off); Wine scales
+  # the mode to the screen, 4:3 centered, black sides.
+  WAL_SINDEN_BORDER: "0"
   # the common crosshair option: the game's own pointers (off: hidden in the game)
   WAL_CROSSHAIR: "1"
 

@@ -160,6 +160,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         if board.trim() == "jxcamera" {
             topgun2_landscape::prepare();
         }
+        #[cfg(target_arch = "x86")]
+        if board.trim() == "bugbusters" {
+            bugbusters::prepare();
+        }
         wal_payload_common::start("arcadepc");
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
         // the common crosshair option: player 1's gun on the picture (Direct3D 11)
