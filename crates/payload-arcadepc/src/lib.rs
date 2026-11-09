@@ -86,6 +86,10 @@
 //! program's coin messages, accepts its display settings dialog and sets free play; its
 //! cabinet's GameFrame is the common DirectInput wheel (as a joystick of that name).
 //!
+//! Arctic Thunder (`WAL_ARCADEPC_BOARD=arcticthunder`, x86 build): `arcticthunder.rs` is the
+//! cabinet's coin and security manager (`wincsm.exe`) that `goose.dll` reads and writes: the
+//! switches, the handlebar and throttle, the credits.
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -93,6 +97,8 @@
 
 #![allow(non_snake_case)]
 
+#[cfg(target_arch = "x86")]
+mod arcticthunder;
 #[cfg(target_arch = "x86")]
 mod ballistics;
 mod boys;
@@ -264,6 +270,14 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 robinhood::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "arcticthunder" => {
+                pads::disconnect();
+                wal_payload_common::patches::apply();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                arcticthunder::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "ballistics" => {

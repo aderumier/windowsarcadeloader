@@ -4734,6 +4734,53 @@ the title). Loaded at the entry point, board `vcthunder` (`vcthunder.rs`):
   select and a race (gas, steering, shifts, nitro), both operator menus (navigation, Hydro's
   volume menu, Offroad's calibration screen), Hydro's widescreen.
 
+#### Arctic Thunder
+
+Midway's snowmobile racer (2001, `snow.exe`, Glide 3, 32-bit, the "goose" game library). The dump
+is the cabinet's Windows 2000 disk copied as files; `arctic-thunder.windowsloader` (at the dump
+root) names `Artic Thunder\Midway games\Arctic Thunder\snow.exe`, and `c_folders` maps
+`C:\Midway Games` to the disk's `Midway games` folder. Payload at the entry point
+(`payload_loader`, `xinput1_3` native), board `arcticthunder` (`arcticthunder.rs`):
+
+- **Board.** The I/O board (serial, `magicbus.dll`) belongs to the coin and security manager
+  `wincsm.exe`; `goose.dll` finds it by process name, reads
+  `HKLM\Software\Midway Games\WinCSM\IOBlock` (the address in wincsm of an I/O block pointer and
+  a control block pointer) and reads / writes wincsm's memory. The payload is wincsm: the blocks
+  are its memory, the registry value is written at start and goose's search (`0x1000c860`) returns
+  a handle of the game's own process. I/O block +8: the 0x330 bytes goose copies when the control
+  flag is 0 (switch words, active low; per switch press / release counts that drive the game's
+  handlers; four 10-bit analog values), +0x338 the pricing, +0x3cc the credits. Control block:
+  +0x18 credits to subtract, +0x24 a service credit, +0x28 the coin lock (1 asked, 2 granted).
+- **Inputs.** Players' word: bit 7 attack (the handlebar button), 0-6 directions and A-C. Coin /
+  operator word (the diagnostics' names): 0 start, 4 service credit, 5 / 6 volume, 7 test, 8-12
+  coins and bill. Analog 0 the handlebar (0..1020, the left stick), 1 the throttle (`accel`, or
+  `b2` full). One credit a coin, one to start and to continue (the cabinet's table: four).
+- **Free play.** `COIN_FREE_ONLY` of `game.env`: the game reads its settings through `getenv`
+  first, the payload sets it (msvcrt `_putenv`) from `WAL_FREEPLAY`. The profile's environment
+  also turns off the force feedback and its power-on calibration (it waited for the handlebar to
+  follow the motor) and the 60 s DHCP wait.
+- **Protection.** All 1741 textures (`*.wms`) are RC4-encrypted with a key from the cabinet's
+  hard disk serial number (goose `0x10008f60`, reads it through `winio.sys` / the SCSI miniport,
+  its digits a number modulo 2^28; MD5 of its 4 bytes, the base provider's salted 40-bit RC4 key)
+  and flagged read-only + hidden, the only files `gobj.dll` decrypts. Without them the fonts were
+  blank boxes and the first track texture an assertion. The dump's number, 0x0a6a209a, was found
+  by trying the 2^28 values against the known first bytes (`05 80 00 00`): goose's serial reader
+  returns it, gobj's `GetFileAttributesA` reports encrypted textures read-only + hidden, and
+  goose's `CryptAcquireContextA` without a provider name gets the base provider (Wine's default is
+  the enhanced one: 128-bit keys).
+- **Floating point.** goose's process loop unmasks invalid / divide by zero (`_control87`, no
+  `goose.ini`); Wine's `_control87` also unmasks them in MXCSR, and the Glide wrappers divide by
+  zero: goose's `_control87` keeps every exception masked and MXCSR untouched.
+- **Picture.** The dump's own `glide3x.dll` (nGlide 2, 2023): `NGLIDE_RESOLUTION=1` (desktop),
+  `NGLIDE_ASPECT=1` (4:3 at full height), no splash (values found by trying them with
+  `WAL_SCREENSHOT`, it draws through Direct3D 9). The runner's gxvk showed only a white screen
+  in headless runs (not investigated further).
+- **Not done.** The operator diagnostics: on the cabinet wincsm closes the game on the test
+  switch and runs `diagnostics\diag.exe` (with `diagdll.dll`); `test` only reaches the switch
+  word. No feedback motor, lamps, fan, seat shaker.
+- Verified headless (2026-11-09): attract (demo races, high scores, tips), free play start,
+  coin then start (1 credit used), driver and track select, a race with throttle and steering.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6901,6 +6948,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dcop` | DCOP | arcadepc | headless-tested, awaiting user (2026-11-09), 1 gun | Klockworks' live-action police shooter (Unity 2020.3, 64-bit, §6.3i): the game plays with the mouse (left shoots, right reloads, any key starts / continues: free play by design), played by the gun (`dcop.rs`: `post_mouse`, `GetCursorPos`); the dump's DemulShooter plugin kept (Uduino serial off, NVRAM saves, pause menu on 0), told to hide the game's cursor; common crosshair, 16:9 borderless window |
 | `ballistics` | Ballistics | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (steering, throttle, buttons) | Grin's tube racer, arcade version (Direct3D 8 on wined3d, §6.3i): the cabinet's HAPP UGCI GameFrame as the common fake DirectInput joystick (by name, X steering, Y throttle, buttons by name) next to a DirectInput keyboard, coins as the coin program's `COINDROP` window messages, free play as the game's price 0, no hourly restart, the display settings dialog accepted, the D-Box seat's library not loaded, 4:3 window |
 | `bug-busters` | Bug Busters | arcadepc | headless-tested, awaiting user (2026-11-09), 2 guns | MIZI Production's spray gun game, PC release (DirectDraw on wined3d, 32-bit, §6.3i): the guns and the dead serial I/O board's switches written into the game (`bugbusters.rs`: records, tank reloads, start / test / service flags, coins with their sounds), the CD check patched, free play as the game's price 0, test opens the setup menu from the title, the game's own pointers as the crosshair option, 4:3 |
+| `arctic-thunder` | Arctic Thunder | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (handlebar, throttle, attack) | Midway's snowmobile racer (Glide 3 on the dump's nGlide, 32-bit, goose library, §6.3i): the payload is the coin and security manager wincsm whose memory goose reads (switches, handlebar / throttle, credits, coin lock), the textures' disk-serial RC4 key (0x0a6a209a, base provider) and their read-only + hidden marks, FP exceptions kept masked, free play as `COIN_FREE_ONLY`, no feedback calibration, 4:3; operator diagnostics (separate `diag.exe`) not done |
 | `hydro-thunder` | Hydro Thunder | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder runtime (Glide, 32-bit, §6.3i): its keys and the fake DirectInput wheel from the virtual sticks, constant force to the launcher's wheel, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
 | `offroad-thunder` | Offroad Thunder | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder runtime (same dump as Hydro Thunder, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload |
 
