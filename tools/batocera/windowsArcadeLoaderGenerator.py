@@ -124,7 +124,9 @@ class WindowsArcadeLoaderGenerator(Generator):
 
         # ES options -> profile keys (top level or under input:), set ones only.
         top: dict[str, str] = {}
-        input_keys: dict[str, str] = {}
+        # Batocera quits the game itself (hotkey + start: the hotkeys context's exit), no
+        # internal pad combo (back + start: coin + start on arcade panels with coin on select)
+        input_keys: dict[str, str] = {'exit_combo': '[]'}
         reshade = system.config.get('wal_reshade')
         if reshade in ('0', '1'):
             # rotation / bezel of the dumps that ship a ReShade setup (vertical games)
