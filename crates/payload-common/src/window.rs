@@ -37,6 +37,13 @@
 //! window when it is deactivated. A game started while another fullscreen window keeps the
 //! focus (a terminal) was minimized at once, out of the taskbar, and stopped presenting. Their
 //! `ShowWindow` minimize requests are dropped: the game keeps running behind, switch to it.
+//!
+//! d7vk (`graphics: d7vk`: a native `ddraw.dll`, DXVK's d3d9 built in, no `d3d9.dll`) and the
+//! wined3d it loads later (Wine's ddraw, which d7vk hands the cooperative level and the display
+//! mode) get the same: their minimizes dropped, their mode changes not done
+//! (`WAL_NO_MODE_CHANGE`), their window sizing too (`WAL_WINDOW_SIZE`). Burning Striker's
+//! exclusive full screen window was minimized by wined3d when another window took the focus
+//! (a click outside, the bezel's window), and put back over the whole screen.
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
@@ -68,6 +75,13 @@ static ORIG_SET_MENU: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SET_WINDOW_LONG: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
 
 pub fn init() {
+    init_options();
+    if let Some(base) = d7vk() {
+        d7vk_hooks(base);
+    }
+}
+
+fn init_options() {
     keep_unminimized();
     if std::env::var("WAL_HIDE_CURSOR").is_ok_and(|v| v.trim() == "1") {
         hide_cursor();
@@ -137,6 +151,7 @@ pub fn init() {
     hook_create();
     hook_game("SetWindowPos", set_window_pos as *const () as usize, &ORIG_SET_WINDOW_POS);
     hook_game("MoveWindow", move_window as *const () as usize, &ORIG_MOVE_WINDOW);
+    SIZED.store(true, Ordering::Relaxed);
     log!("window: top-level windows sized {w}x{h}");
 }
 
@@ -193,6 +208,7 @@ fn no_mode_change() {
             unsafe { iat::hook_module(wined3d, "user32.dll", name, f) };
         }
     }
+    NO_MODE.store(true, Ordering::Relaxed);
     log!("window: display mode changes not done{}", if wined3d != 0 { " (wined3d's too)" } else { "" });
 }
 
@@ -264,16 +280,100 @@ const SW_MINIMIZE: i32 = 6;
 const SW_SHOWMINNOACTIVE: i32 = 7;
 const SW_FORCEMINIMIZE: i32 = 11;
 
+/// d7vk's `ddraw.dll` when loaded (statically imported by the game): a native DLL, not Wine's
+/// builtin one (whose DOS stub says "Wine builtin DLL"; its window work is wined3d's).
+fn d7vk() -> Option<usize> {
+    let base = unsafe { GetModuleHandleW(windows_sys::w!("ddraw.dll")) } as usize;
+    if base == 0 {
+        return None;
+    }
+    let stub = unsafe { std::slice::from_raw_parts((base + 0x40) as *const u8, 16) };
+    (stub != b"Wine builtin DLL").then_some(base)
+}
+
+/// `WAL_NO_MODE_CHANGE` / `WAL_WINDOW_SIZE` in effect (for the renderer modules hooked later).
+static NO_MODE: AtomicBool = AtomicBool::new(false);
+static SIZED: AtomicBool = AtomicBool::new(false);
+static WINED3D_HOOKED: AtomicBool = AtomicBool::new(false);
+static ORIG_LOAD_A: AtomicUsize = AtomicUsize::new(0);
+static ORIG_LOAD_W: AtomicUsize = AtomicUsize::new(0);
+
+/// A Direct3D module's window work made the game's: its minimizes dropped, its mode changes not
+/// done and its window sizing forced (with the options).
+fn hook_renderer(base: usize) {
+    hook_show_window(base);
+    if NO_MODE.load(Ordering::Relaxed) {
+        for (name, f) in [
+            ("ChangeDisplaySettingsA", change_display_settings as *const () as usize),
+            ("ChangeDisplaySettingsW", change_display_settings as *const () as usize),
+            ("ChangeDisplaySettingsExA", change_display_settings_ex as *const () as usize),
+            ("ChangeDisplaySettingsExW", change_display_settings_ex as *const () as usize),
+        ] {
+            unsafe { iat::hook_module(base, "user32.dll", name, f) };
+        }
+    }
+    if SIZED.load(Ordering::Relaxed) {
+        for (name, f, orig) in [
+            ("SetWindowPos", set_window_pos as *const () as usize, &ORIG_SET_WINDOW_POS),
+            ("MoveWindow", move_window as *const () as usize, &ORIG_MOVE_WINDOW),
+        ] {
+            if let Some(o) = unsafe { iat::hook_module(base, "user32.dll", name, f) }.filter(|&o| o != f) {
+                let _ = orig.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
+            }
+        }
+    }
+}
+
+/// d7vk's window work, and that of the wined3d it loads later (Wine's ddraw, which d7vk hands
+/// what it does not implement: the cooperative level, the display mode; wined3d minimized the
+/// full screen window when it lost the focus).
+fn d7vk_hooks(base: usize) {
+    hook_renderer(base);
+    for (name, f, orig) in [
+        ("LoadLibraryA", d7vk_load_a as *const () as usize, &ORIG_LOAD_A),
+        ("LoadLibraryW", d7vk_load_w as *const () as usize, &ORIG_LOAD_W),
+    ] {
+        if let Some(o) = unsafe { iat::hook_module(base, "kernel32.dll", name, f) }.filter(|&o| o != f) {
+            orig.store(o, Ordering::Relaxed);
+        }
+    }
+    log!("window: d7vk's window work hooked");
+    wined3d_loaded();
+}
+
+fn wined3d_loaded() {
+    let base = unsafe { GetModuleHandleW(windows_sys::w!("wined3d.dll")) } as usize;
+    if base != 0 && !WINED3D_HOOKED.swap(true, Ordering::Relaxed) {
+        hook_renderer(base);
+        log!("window: wined3d's window work hooked (loaded by d7vk)");
+    }
+}
+
+unsafe extern "system" fn d7vk_load_a(name: *const u8) -> *mut c_void {
+    let orig: unsafe extern "system" fn(*const u8) -> *mut c_void = unsafe { std::mem::transmute(ORIG_LOAD_A.load(Ordering::Relaxed)) };
+    let module = unsafe { orig(name) };
+    wined3d_loaded();
+    module
+}
+
+unsafe extern "system" fn d7vk_load_w(name: *const u16) -> *mut c_void {
+    let orig: unsafe extern "system" fn(*const u16) -> *mut c_void = unsafe { std::mem::transmute(ORIG_LOAD_W.load(Ordering::Relaxed)) };
+    let module = unsafe { orig(name) };
+    wined3d_loaded();
+    module
+}
+
+fn hook_show_window(base: usize) {
+    if let Some(o) = unsafe { iat::hook_module(base, "user32.dll", "ShowWindow", show_window as *const () as usize) }.filter(|&o| o != show_window as *const () as usize) {
+        ORIG_SHOW_WINDOW.store(o, Ordering::Relaxed);
+    }
+}
+
 /// Hooks `ShowWindow` in the Direct3D modules already loaded (statically imported by the game).
 fn keep_unminimized() {
-    for dll in [windows_sys::w!("d3d9.dll"), windows_sys::w!("wined3d.dll")] {
-        let base = unsafe { GetModuleHandleW(dll) } as usize;
-        if base == 0 {
-            continue;
-        }
-        if let Some(o) = unsafe { iat::hook_module(base, "user32.dll", "ShowWindow", show_window as *const () as usize) } {
-            ORIG_SHOW_WINDOW.store(o, Ordering::Relaxed);
-        }
+    let modules = [windows_sys::w!("d3d9.dll"), windows_sys::w!("wined3d.dll")].map(|dll| unsafe { GetModuleHandleW(dll) } as usize);
+    for base in modules.into_iter().filter(|&b| b != 0) {
+        hook_show_window(base);
     }
 }
 

@@ -1,0 +1,50 @@
+# Burning Striker (Eolith, 2003, ewcs.exe, DirectDraw / Direct3D 7, 32-bit) - template, override
+# values in userprofiles/arcadepc/burning-striker.yaml.
+# Two players, a stick and three buttons each. The payload emulates the cabinet's COM1 board
+# and stands in for its protection: vault.exe gave the game the key of 3ddata.pak, read from
+# the cabinet's BIOS; the payload reads it from the dump's eolith.key (docs §6.3i).
+system: arcadepc
+name: Burning Striker
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+graphics: d7vk
+
+env:
+  WAL_ARCADEPC_BOARD: eolith
+  # The protection check (0x40a5a0: runs vault.exe and waits for its key) returns 1 at once
+  # (mov eax, 1; ret); the payload hands the game the key.
+  WAL_PATCHES: "0xA5A0:B801000000C3"
+  # The 640x480 exclusive full screen (d7vk, and the wined3d it hands the display mode to):
+  # Wine's emulated mode scales it to the screen. Its window never sees its deactivation and is
+  # never minimized (window.rs): a click outside the game left it minimized, impossible to
+  # bring back. A window of our own size or a bezel broke the picture (the game's 3D unscaled,
+  # the bezel over it in the emulated mode).
+  WAL_DESKTOP_ACTIVE: "1"
+  WAL_DESKTOP_UNMANAGED: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: one coin per credit, the attract mode silent (the
+          cabinet's DIP switch setting).
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Shoot
+  b2: Pass
+  b3: Dash
+  start: Start
+  coin: Coin
+  service: Service (credit)
+  test: Test menu

@@ -54,6 +54,9 @@
 //! Space Warp 66 (`WAL_ARCADEPC_BOARD=spacewarp`): `spacewarp.rs` emulates its two serial boards
 //! (coins, the spinner: mouse, stick or keys) and answers its Linux commands.
 //!
+//! Burning Striker (`WAL_ARCADEPC_BOARD=eolith`, x86 build): `eolith.rs` emulates its COM1 board
+//! and hands it its protection's key.
+//!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
@@ -68,6 +71,8 @@ mod boys;
 mod bullseye;
 mod commking;
 mod demul;
+#[cfg(target_arch = "x86")]
+mod eolith;
 mod gameport;
 #[cfg(target_arch = "x86")]
 mod gamewax;
@@ -191,6 +196,15 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 gamewax::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "eolith" => {
+                pads::disconnect();
+                // the vault check skipped
+                wal_payload_common::patches::apply();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                eolith::init();
             }
             _ if board.trim() == "spacewarp" => {
                 pads::disconnect();

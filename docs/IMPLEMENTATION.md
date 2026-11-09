@@ -4385,6 +4385,38 @@ board `mame` (`mame.rs`):
   was green stripes (the emulation's own snapshots were right). `WAL_MAME_STRETCH=1` (GUI option)
   writes `keepaspect 0` to `ini\gal3.ini` at each start: the picture stretched to the screen.
 
+#### Burning Striker
+
+Eolith's two-player football game (2003, "Eoforce" PC, `ewcs.exe`, DirectDraw / Direct3D 7,
+32-bit). The payload is loaded at the entry point (`payload_loader`), board `eolith` (`eolith.rs`):
+
+- **Protection.** `0x40a5a0` creates the shared memory `_buring_shared_mem` and runs `vault.exe`
+  through `TWIMNET.DLL`, which copies 15 bytes of the cabinet's BIOS (physical 0xFE05E, read with
+  the absent `AccessHW.dll`) to its offset 8 and starts the game again; the second instance sets
+  the status to 6 and goes on. Those bytes are the IDEA key of `3ddata.pak`'s directory (each 8-byte
+  block decrypted, the key changed after each by the ciphertext; the files themselves are
+  plaintext). The check returns 1 (`WAL_PATCHES`), the payload's shared memory takes its place
+  (`0x565974`): status 6 and the key, read from the dump's `eolith.key` (not in our sources; taken
+  from a running cabinet emulation's memory).
+- **Board.** COM1, 9600 bauds, frames `00 b1 b2 b3 b4 50` read every 33 ms, active low: `b1` / `b2`
+  the players (stick, buttons A/B/C), `b3` the starts, coins (held two frames), service, test.
+  Bits kept released so a data byte is never `00` / `50`.
+- **DIP switches.** `b4 >> 1`, read once at boot right after the port is opened, before the
+  board's first frame: the getter (`0x403820`) is patched to return the payload's value. Level 2,
+  one coin per credit, play time 7, mode free play (common `WAL_FREEPLAY`; free play also gives
+  the attract its sound) or coins. `eoconfig.ini` is only written by the game, never read.
+- **Movies.** `DDrawXCLDLL.dll` plays `EPics\*.avi` (MS-MPEG4) with `IAMMultiMediaStream` into a
+  DirectDraw surface. Two GE-Proton qasf (DMO wrapper) fixes, patches 0116 / 0117 (runner
+  `qasf.dll` rebuilt): stopping the movie deadlocked (the allocators decommitted after taking the
+  streaming lock that the thread waiting in amstream's `GetBuffer` held: black screen, window not
+  responding); the movie was upside down (the DirectDraw stream's top-down type, asked through the
+  sample's `GetMediaType`, was ignored).
+- **Display.** d7vk; the game's 640x480 exclusive full screen in Wine's emulated mode. d7vk hands
+  the cooperative level and display mode to Wine's ddraw, whose wined3d (loaded later) minimized
+  the window when another window took the focus: `window.rs` hooks d7vk's `LoadLibrary` and drops
+  wined3d's minimizes; `WAL_DESKTOP_ACTIVE` / `WAL_DESKTOP_UNMANAGED`. A window of our size or a
+  bezel broke the picture (3D unscaled, the bezel over the game in the emulated mode).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6404,6 +6436,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | JxSoftWare's "ShotZembies" (§6.3i): same board as Mech Dinosaur, up/down swapped |
 | `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | JXCompany's "ShotRedLight" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump without BepInEx/ReShade (`TopGun2.exe`); the payload emulates the JX COM1 board (`jxboard.rs`, `jxcamera`), the SoftKey HID dongle and the camera tracker's positions; landscape by default (levels full screen, not stretched; menus, attract and loading in the bezel), portrait 1080x1920 fitted as an option, crosshair |
 | `galaxian-3` | Galaxian 3 | arcadepc | user 100% (2026-11-09), 4 guns (of the cabinet's 6) | Namco's Theater 6 LaserDisc game in the dump's patched MAME (`mame.exe gal3`, H.264 laserdiscs, §6.3i): the payload is MAME's raw input devices (a keyboard and one absolute mouse per player, `mame.rs`), `ctrlr\wal.cfg` maps them; startup popups patched out; ReShade off by default; stretch option (`keepaspect`) |
+| `burning-striker` | Burning Striker | arcadepc | user 100% (2026-11-09), 2 players (stick, 3 buttons) | Eolith's football game (DirectDraw / D3D7, 32-bit, §6.3i): COM1 board and DIP switches emulated (free play option), the protection's 3ddata.pak key from the dump's `eolith.key`; intro movie needs GE patches 0116/0117 (qasf DMO wrapper); focus loss no longer minimizes (wined3d behind d7vk) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
