@@ -73,6 +73,9 @@
 //! gun board (`inpout32.dll`'s `Inp32` / `Out32`); the common crosshair option draws the guns
 //! (Direct3D 9).
 //!
+//! DCOP (`WAL_ARCADEPC_BOARD=dcop`): `dcop.rs` plays its mouse with the gun (its DemulShooter
+//! plugin only hides the game's cursor).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -85,6 +88,7 @@ mod bullseye;
 mod commking;
 #[cfg(target_arch = "x86")]
 mod comeonbaby;
+mod dcop;
 mod demul;
 #[cfg(target_arch = "x86")]
 mod dosbox;
@@ -137,7 +141,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         wal_payload_common::start("arcadepc");
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
         // the common crosshair option: player 1's gun on the picture (Direct3D 11)
-        if (matches!(board.trim(), "syfire" | "jxboard" | "jxcamera" | "bullseye") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
+        if (matches!(board.trim(), "syfire" | "jxboard" | "jxcamera" | "bullseye" | "dcop") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
             wal_payload_common::pointer_d3d11::init(wal_payload_common::pointer_d3d11::Dot {
                 color: [1.0, 0.15, 0.15],
                 size: 0.06,
@@ -263,6 +267,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "bullseye" => {
                 pads::disconnect();
                 bullseye::init(unity);
+            }
+            _ if board.trim() == "dcop" => {
+                pads::disconnect();
+                dcop::init(unity);
             }
             _ if board.trim() == "unrealio" => {
                 pads::disconnect();

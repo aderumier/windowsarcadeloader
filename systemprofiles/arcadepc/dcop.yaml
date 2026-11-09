@@ -1,0 +1,51 @@
+# DCOP (Klockworks, Unity 2020.3, Mono, 64-bit) - template, override values in
+# userprofiles/arcadepc/dcop.yaml.
+# One gun. The game plays with the mouse (left button shoots, right button reloads, any key or
+# button starts and continues: no coins); its cabinet Arduino (Uduino) only takes the lamps and
+# the recoil. The dump's DemulShooter BepInEx plugin keeps Uduino off the serial ports, saves to
+# NVRAM\, opens the pause menu on 0. The payload plays the mouse with the gun (docs §6.3i).
+system: arcadepc
+name: DCOP
+
+# Unity's own log beside the game
+args: [-logFile, Player.log]
+
+dll_overrides:
+  # Unity tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at start
+  xinput1_4: ""
+  xinput1_3: "n,b"
+  # Unity Doorstop's BepInEx loader (the plugin)
+  winhttp: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: dcop
+  # the plugin's TCP port: the payload asks it to hide the game's cursor (the real pointer's)
+  WAL_DEMUL_PORT: "33610"
+  # the gun's crosshair (the game's own is the hidden system cursor): the common option's default
+  WAL_CROSSHAIR: "1"
+  # the plugin's .ini plays in a 1920x1080 window: a borderless one, the largest 16:9 rectangle
+  # of the screen (the whole screen with WAL_KEEP_ASPECT_RATIO=0)
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: picture
+  # no system cursor over the game
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  # the gun (or mouse) aims, its trigger shoots; shooting off the screen reloads
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (reloads off screen)
+  b2: Reload
+  b6: Gun off screen
+  start: Start / continue
+  coin: Start / continue
+  test: Pause menu (operator)
+  up: Pause menu up
+  down: Pause menu down

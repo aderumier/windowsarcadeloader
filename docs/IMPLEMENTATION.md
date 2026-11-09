@@ -4528,6 +4528,39 @@ the game reads `..\data\bin\`). The payload is loaded at the entry point (`paylo
   (its opening fitted, the sides stretched: `WAL_BEZEL_FIT=stretch`).
 - Verified: attract, free play, start, aim and shots scoring (headless); the user: 100%.
 
+#### DCOP
+
+Klockworks' one-gun live-action police shooter (`DCOP.exe`, Unity 2020.3, Mono, 64-bit,
+Direct3D 11). The dump keeps BepInEx (Unity Doorstop's `winhttp.dll`, native) and Argonlefou's
+DemulShooter plugin (`BepInEx\plugins\DCOP_BepInEx_DemulShooter_Plugin.dll` + `.ini`), its
+`launch.bat` started DemulShooter first. `.windowsloader`: `DCOP.exe`. Board `dcop` (`dcop.rs`):
+
+- **Game input.** The game plays with the mouse: `GunScript` shoots at `Input.mousePosition` on
+  `Fire1` (left button, the machine gun while held), reloads on `Fire2` (right button); any key
+  or button starts a game in the attract mode (`AttractMode`: `Input.anyKeyDown`, the "insert
+  coin" screen) or continues one (`Continue`: `Input.anyKey`). There is no credit count: free
+  play by design (`WAL_FREEPLAY` has nothing to change). The payload plays the mouse with the
+  gun (`post_mouse`, Unity's `GetCursorPos` answered: `own_mouse`): its place on the window's
+  picture, trigger the left button, `b2` (or a shot off the picture / with the gun off the
+  screen) the right one; start, coin, test, up / down are posted keys (Return, 5, 0, arrows).
+- **Plugin.** Its TCP input packet (port 33610) is only two bytes here (`TcpData`'s fields sorted
+  by name: `EnableInputsHack`, `HideCrosshairs`); the game never reads the plugin's own aim or
+  buttons. Its Harmony patches: Uduino's serial port discovery given no port (the cabinet's
+  Arduino only drives lamps, recoil and the gun's light: outputs), `persistentDataPath` the
+  dump's `NVRAM\` (`SAVE_TO_GAME_FOLDER=1`), the pause menu's `Escape` made `0` (Escape is its
+  exit key), `SetMouseCursor` honoring the hidden crosshair, `Screen.SetResolution` from its
+  `.ini` (1920x1080 windowed). The payload (`WAL_DEMUL_PORT`) sends it `[0, 1]` once: the game's
+  cursor (the system cursor, at the real pointer) hidden; the common crosshair option draws the
+  gun (`WAL_CROSSHAIR`, `pointer_d3d11`).
+- **Operator menu.** `0` (test) opens "DCOP SERVICE MENU" (high scores, reset, Arduino pin test,
+  volume, resume, exit): its items are hovered and clicked with the gun, or the arrows and Return.
+- **Display.** The 1920x1080 window made a borderless popup, the screen's largest 16:9 rectangle
+  (`WAL_D3D9_ASPECT`, `WAL_WINDOW_SIZE=picture`), no system cursor (`WAL_HIDE_CURSOR`). Unity
+  letterboxes its 1920x1080 picture in any other window shape: with `WAL_KEEP_ASPECT_RATIO=0` on
+  a 4:3 screen the window is the whole screen but the picture is still 16:9 (not stretched).
+- Verified headless (2026-11-09): attract, start, shots scoring (241, 567, 1134), reload,
+  continue / game over, the service menu opened and resumed with the gun; 1280x1024 letterboxed.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6691,6 +6724,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) | ExtraLine's party game (Glide 2, 32-bit, §6.3i): the parallel port board's reader replaced (sticks, buttons, operator keys), the menu's service select given its own edge detection, free play option over `eep.rom`'s coins, the C: serial check patched; the runner's gxvk (a build after 0.1: chroma key) in a payload window with its own message loop, 4:3, black bezel |
 | `robin-hood` | Robin Hood | arcadepc | user 100% (2026-11-09), 1 gun | ICE's ticket redemption crossbow game (Direct3D 9, 32-bit, §6.3i): the serial board emulated (switches, coins, tickets paid at once), the crossbow's DirectInput joystick X from the gun's X position, the linked HASP HL API patched, free play option over `coinfree`, the dump's root as working directory |
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | Lightgun game (Direct3D 9, 32-bit, §6.3i): the parallel port gun board emulated (`inpout32`'s `Inp32` / `Out32`: aim, triggers, switches, a gun sample per shot), the Dinkey dongle's checks patched, free play option, crosshairs, the dump's bezel |
+| `dcop` | DCOP | arcadepc | headless-tested, awaiting user (2026-11-09), 1 gun | Klockworks' live-action police shooter (Unity 2020.3, 64-bit, §6.3i): the game plays with the mouse (left shoots, right reloads, any key starts / continues: free play by design), played by the gun (`dcop.rs`: `post_mouse`, `GetCursorPos`); the dump's DemulShooter plugin kept (Uduino serial off, NVRAM saves, pause menu on 0), told to hide the game's cursor; common crosshair, 16:9 borderless window |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
