@@ -99,8 +99,11 @@ fn power_on(req: &[(String, String)]) -> String {
     let format = value(req, "format_ver");
     let r = crate::netenv::router();
     let host = format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]);
-    // the title server's URI (`WAL_ALLS_TITLE_URI`: an ABAAS game's GS server name, a bare host)
-    let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).map(|u| u.replace("{router}", &host)).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
+    // the title server's URI (`WAL_ALLS_TITLE_URI`: an ABAAS game's GS server name, a bare host;
+    // `{gs}` the payload's game server itself, 127.0.0.1:`WAL_PORT`+104: Chrono Regalia's Mono
+    // sockets, not in the game module's imports, never reach the router's redirection)
+    let gs = format!("127.0.0.1:{}", crate::gs::port());
+    let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).map(|u| u.replace("{router}", &host).replace("{gs}", &gs)).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
     // the title server's host (`WAL_ALLS_TITLE_HOST`: Initial D THE ARCADE's game server URL,
     // `<host>initiald/...`, https:// when it has no scheme)
     let title_host = std::env::var("WAL_ALLS_TITLE_HOST").map_or(host.clone(), |h| h.trim().to_string());

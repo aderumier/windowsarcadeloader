@@ -26,7 +26,7 @@
 //!   `ffb.rs`, the LED board on COM2, the dashboard on COM20, `dashboard.rs`, the main
 //!   cabinet's LAN announcements, `udp.rs`, the English translation, `english.rs`; `idac`: the
 //!   force feedback board on COM1, the 837-15070 LED board on COM2, the game server, `idac.rs`;
-//!   `hkb`: Chrono Regalia's touch screen as the mouse, `hkb.rs`)
+//!   `hkb`: Chrono Regalia's touch screen as the mouse, its game server, `hkb.rs`)
 //! - `WAL_ALLS_AIME_PORT` (`COM3`...): the Aime card reader amdaemon opens there (`aime.rs`),
 //!   `WAL_ALLS_ACCESS_CODE` the player's card, `WAL_ALLS_AUTO_CARD=1` touched by itself after
 //!   start (`WAL_ALLS_AUTO_CARD_DELAY_MS` later)
@@ -161,7 +161,7 @@ fn start() {
                 led::init_15070("COM2");
             } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "hkb") {
                 // Chrono Regalia: the touch screen (the mouse), the touch panel and LED board
-                // off in its configuration
+                // off in its configuration; the game server (Aime card players), Mono's clock
                 hkb::init();
             } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chusan") {
                 // CHUNITHM SUPERSTAR (amdaemon's IO4 and Aime reader): the slider on COM1, the

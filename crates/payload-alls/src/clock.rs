@@ -121,23 +121,30 @@ pub(crate) fn init() {
         }
     }
     for base in modules {
-        unsafe {
-            if warp {
-                iat::hook_module(base, "kernel32.dll", "GetSystemTimeAsFileTime", get_system_time_as_file_time as *const () as usize);
-                iat::hook_module(base, "kernel32.dll", "GetSystemTimePreciseAsFileTime", get_system_time_as_file_time as *const () as usize);
-                iat::hook_module(base, "kernel32.dll", "GetSystemTime", get_system_time as *const () as usize);
-            }
-            iat::hook_module(base, "kernel32.dll", "GetLocalTime", get_local_time as *const () as usize);
-            iat::hook_module(base, "kernel32.dll", "GetTimeZoneInformation", get_time_zone_information as *const () as usize);
-            for name in ["SetLocalTime", "SetSystemTime", "SetTimeZoneInformation"] {
-                iat::hook_module(base, "kernel32.dll", name, set_time as *const () as usize);
-            }
-        }
+        hook_module(base);
     }
     unsafe {
         if let Some(orig) = iat::hook("advapi32.dll", "LookupPrivilegeValueA", lookup_privilege_value_a as *const () as usize) {
             LOOKUP_PRIVILEGE.store(orig, std::sync::atomic::Ordering::Relaxed);
             iat::hook("advapi32.dll", "AdjustTokenPrivileges", adjust_token_privileges as *const () as usize);
+        }
+    }
+}
+
+/// The clock's hooks in the module at `base` (a runtime the game loads later: Chrono Regalia's
+/// Mono, `mono.dll`, reading the time and time zone itself).
+pub(crate) fn hook_module(base: usize) {
+    let warp = TIMEWARP.load(std::sync::atomic::Ordering::Relaxed);
+    unsafe {
+        if warp {
+            iat::hook_module(base, "kernel32.dll", "GetSystemTimeAsFileTime", get_system_time_as_file_time as *const () as usize);
+            iat::hook_module(base, "kernel32.dll", "GetSystemTimePreciseAsFileTime", get_system_time_as_file_time as *const () as usize);
+            iat::hook_module(base, "kernel32.dll", "GetSystemTime", get_system_time as *const () as usize);
+        }
+        iat::hook_module(base, "kernel32.dll", "GetLocalTime", get_local_time as *const () as usize);
+        iat::hook_module(base, "kernel32.dll", "GetTimeZoneInformation", get_time_zone_information as *const () as usize);
+        for name in ["SetLocalTime", "SetSystemTime", "SetTimeZoneInformation"] {
+            iat::hook_module(base, "kernel32.dll", name, set_time as *const () as usize);
         }
     }
 }

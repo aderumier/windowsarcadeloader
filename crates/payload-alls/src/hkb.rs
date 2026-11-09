@@ -7,6 +7,15 @@
 //!   panel and the LED board: the gun (`lx` / `ly`: the mouse or a lightgun) is posted as the
 //!   mouse over the picture, the touch on `b1`; the real mouse and keyboard never reach the game
 //!   (`input_filter`).
+//! * The game server (`server.rs`): the Aime card players' data, kept in `Y:\hkb\`.
+//! * The clock: the game's Mono (`mono.dll`, loaded by the Unity player) reads the time and time
+//!   zone itself; the cabinet's clock hooks (`clock.rs`: Japan's time, `WAL_ALLS_TIMEWARP`) go
+//!   in its imports too, else the store's closing hours (the operator's setting, 24:00 to the
+//!   game day's 07:00 start by default) followed the PC's own time zone.
+
+mod master;
+mod server;
+mod user;
 
 use std::time::Duration;
 
@@ -24,8 +33,27 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 const MK_LBUTTON: usize = 0x0001;
 
 pub(crate) fn init() {
+    server::init();
+    std::thread::spawn(mono_clock);
     std::thread::spawn(touch_thread);
     log!("alls: hkb: touch screen from the gun (b1 touches)");
+}
+
+/// The clock hooks in Mono's imports, as soon as the Unity player loads it (before the game's
+/// scripts read the time zone: Mono keeps the first one).
+fn mono_clock() {
+    if std::env::var("WAL_ALLS_CLOCK").is_ok_and(|v| v.trim() == "0") {
+        return;
+    }
+    for _ in 0..30_000 {
+        let mono = unsafe { GetModuleHandleW(windows_sys::core::w!("mono.dll")) } as usize;
+        if mono != 0 {
+            crate::clock::hook_module(mono);
+            log!("alls: hkb: clock hooks in mono.dll");
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
 }
 
 /// The game's window: a visible top-level window of this process.

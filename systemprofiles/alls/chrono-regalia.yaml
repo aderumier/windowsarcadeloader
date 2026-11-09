@@ -34,6 +34,10 @@ drives:
 
 env:
   WAL_ALLS_GAME_ID: SDEC
+  # the store's closing hours never reached (the operator's setting, by default 24:00 to the
+  # game day's 07:00 start, the last hour limiting CP purchases and logins): each day passes as
+  # Japan's 07:00 to 23:00 (segatools' timewarp, payload clock.rs, in the game's Mono too)
+  WAL_ALLS_TIMEWARP: "1"
   # the satellite seat (the keychip's model type 2; 4 is the store's terminal)
   WAL_ALLS_PLATFORM_ID: ACA2
   WAL_ALLS_SUBNET: 192.168.155.0
@@ -41,6 +45,16 @@ env:
   WAL_ALLS_BOARD: hkb
   # the Aime card reader (satellite.json's unit)
   WAL_ALLS_AIME_PORT: COM3
+  # the card touched by itself at the login screen after start (payload aime.rs)
+  WAL_ALLS_AUTO_CARD: "1"
+  WAL_ALLS_AUTO_CARD_DELAY_MS: "3000"
+  # online: ALL.Net accepted, the Aime cards (AimeDB) and the players' data (the game server,
+  # payload hkb/server.rs, its players in AppData\hkb) answered by the payload. "0": offline
+  # (guests only, Story mode).
+  WAL_ALLS_ALLNET: "1"
+  # the game server's URI: the payload's server itself (the game's Mono sockets are not
+  # redirected)
+  WAL_ALLS_TITLE_URI: http://{gs}
 
 input:
   guns_enabled: true
@@ -50,7 +64,34 @@ controls:
   lx: Touch screen (x)
   ly: Touch screen (y)
   b1: Touch
+  card: Aime card
   start: Start
   coin: Coin
   service: Service
   test: Test
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_ALLS_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself at the login screen (the player's
+          data saved on the game server). Off: touch it with the card button, or play as a
+          guest.
+      - key: WAL_ALLS_ALLNET
+        label: Card players' data (online)
+        kind: bool
+        description: >-
+          The Aime card players and their data, kept by the payload's game server. Off: the
+          game is offline, guests only (Story mode, nothing saved).
+  - title: Clock
+    options:
+      - key: WAL_ALLS_TIMEWARP
+        label: Skip the store's closing hours
+        kind: bool
+        description: >-
+          The game closes the store at midnight until 7:00 (Japan's time), limiting CP purchases
+          and logins in its last hour: on (the default), the game's clock never reaches those
+          hours.
