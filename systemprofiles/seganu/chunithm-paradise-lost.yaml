@@ -5,8 +5,9 @@
 # process, beside its slider (COM1) and LED boards (COM10, COM11). aimeReaderHost.exe (game.bat
 # starts it first) reads the Aime cards on COM12 for the game.
 # Override values in userprofiles/seganu/chunithm-paradise-lost.yaml.
-# NOT RUNNING: its protected chuniApp.exe and aimeReaderHost.exe need the protector's kernel
-# driver (Htsysm, a hardware lock; docs §6.3l): an unpacked chuniApp.exe would run here.
+# The dump's own chuniApp.exe and aimeReaderHost.exe are protected (they need the protector's
+# kernel driver, Htsysm: docs §6.3l): this profile runs SEGAguide's unpacked ones (SDBT/150.zip,
+# with its amfs ICF1 / ICF2) in App\bin.
 system: alls
 name: CHUNITHM PARADISE LOST
 
@@ -46,6 +47,10 @@ env:
   # data; without a server's answer once, the title screen waits forever)
   WAL_ALLS_ALLNET: "1"
   WAL_ALLS_TITLE_URI: "http://{router}/SDBT/150/"
+  # the title server over plain HTTP (the game asks WinHTTP for HTTPS: its secure flag cleared,
+  # SEGAguide's "No TLS"); SEGAguide's executable has its encryption already off
+  WAL_PATCHES: "0xD04D09:31DB90909090"
+  WAL_PATCHES_EXE: chuniApp.exe
   # the LED boards (837-15093-06, firmware 0x90: segatools' chunihook values)
   WAL_ALLS_LED_BOARD: "15093-06,6710,adf7"
   # the Aime reader in aimeReaderHost.exe only; the cabinet's reader (837-15286, its firmware 0x92

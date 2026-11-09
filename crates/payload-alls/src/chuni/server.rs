@@ -177,10 +177,13 @@ fn game_setting(path: &str) -> Json {
 }
 
 fn game_events(req: &Json) -> Json {
+    // each option ships the earlier ones' events again (PARADISE LOST: 3065 files, 325 events;
+    // the game failed to read the answer listing every copy)
+    let mut seen = std::collections::HashSet::new();
     let events: Vec<Json> = data_files("event", "Event.xml")
         .iter()
         .filter_map(|xml| {
-            let id = xml_id(xml, "name")?;
+            let id = xml_id(xml, "name").filter(|&id| seen.insert(id))?;
             let kind = xml_value_after(xml, "substances", "type").unwrap_or(0);
             // the news (type 1, information): a screen each at login, unless `WAL_CHUNI_NEWS=1`
             if kind == 1 && std::env::var("WAL_CHUNI_NEWS").map_or(true, |v| v.trim() != "1") {
@@ -193,9 +196,11 @@ fn game_events(req: &Json) -> Json {
 }
 
 fn game_charges() -> Json {
+    let mut seen = std::collections::HashSet::new();
     let charges: Vec<Json> = data_files("chargeItem", "ChargeItem.xml")
         .iter()
         .filter_map(|xml| xml_id(xml, "name"))
+        .filter(|&id| seen.insert(id))
         .enumerate()
         .map(|(order, id)| {
             Json::obj()
