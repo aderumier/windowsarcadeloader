@@ -4636,6 +4636,53 @@ motion seat's `dbox*.dll`). `.windowsloader`: `Ballistics.exe`. Board `ballistic
   "PRESS ANY BUTTON TO PLAY", name / track / speeder selection, a Sky Town race (throttle,
   steering off a wall, brake, flip, booster).
 
+#### Bug Busters
+
+MIZI Production's two-player spray gun game (2001), its PC release (`BBPC.exe`, DirectDraw
+640x480, 32-bit; `Config.exe` its settings program, `config\BUSTER.CFG` the operator settings,
+`COLOR.CFG`, `score.cfg`). The dump's `BBPC.exe` is the community no-CD build, one byte from
+the original `BBPC.exe.old` (the CD check's loop `je` made `jne`); its `launch.bat` started
+DemulShooter (`-target=windows -rom=bugbust`: memory writes of the guns, used as the reference)
+first. `.windowsloader`: `BBPC.exe`. Loaded at the entry point, board `bugbusters`
+(`bugbusters.rs`):
+
+- **CD check.** `0x409f32` (a drive with the game's CD label, else a message box asking for it)
+  returns 1 (`WAL_PATCHES`): the original executable runs too.
+- **Inputs.** The PC build plays each player from the mouse (window messages, `0x4554e0`'s
+  player), the DirectInput keyboard or a joystick (`control.cfg`): all end in the players'
+  records (`0x45fba8` + 0x1c: x 0..640, y 0..480, trigger) and the spray's tank (`0x45509c`,
+  floats, 1.0 full; a reload press adds 0.25). The arcade cabinet's serial boards are dead code
+  (their reader is a `ret`), but each frame's switch check (`0x40a872`) still takes the I/O
+  board's flags: `0x49e880` / `0x49ea84` the start buttons, `0x49e870` the test switch, `0x49732c`
+  the setup menu's service switch; coins `0x460c1c` (+1 per coin, + the price per service
+  credit, with the board reader's coin / credit sounds). The payload writes them from the virtual
+  sticks in the game's thread before each frame (the main loop's `Sleep(0)`, an import hook):
+  each gun's place in the 4:3 picture (Wine scales the 640x480 mode to the screen, 4:3 kept), its
+  trigger (released off the picture), a reload (`b2`, or a trigger off the picture) fills the
+  tank, the flags at the presses. A start without a credit is dropped (the title's first phase
+  kept it until a coin, which then started a game). The real mouse and keyboard are filtered
+  (`Enter` is a start with a free coin, `Esc` the exit, `1` / `2` the starts); the game's
+  DirectInput is the fake one without devices (`WAL_DINPUT_DISABLE`). The title's free coins (9
+  at each title, `0x44091f`) are not given.
+- **Setup menu.** "BUSTER SETUP" (credit, lives, sounds, air compressor, difficulty, gun
+  operation, mode select, controller / gun tests, factory default, save / cancel): test enters
+  it at the next screen change; the title (which waits for a start, no attract cycle in free
+  play) is faded out by the payload as a start does, its exit opens the menu. In it test moves
+  to the next item, service changes the item's value or runs it (cancel and exit, the cursor's
+  first item).
+- **Free play** (`WAL_FREEPLAY`): the price read from `BUSTER.CFG` (`0x411faa`) and at the setup
+  menu's exit (`0x43e9b4`) is 0: the game's "FREE PLAY"; the setup keeps the operator's price.
+- **Crosshair.** The game draws the players' pointers; the common crosshair option off hides them
+  in the game (`0x4263c1`, as for a joystick player), the menus keep them.
+- **Display.** Wine's DirectDraw (`graphics: wine`): with d7vk the MPEG-1 movies (attract,
+  story intro and cut scenes: amstream's DirectDraw stream surfaces blitted to the game's) stayed
+  black ("Blt: Received an unwrapped source surface"). The 640x480 exclusive mode is scaled to
+  the screen by Wine (4:3 kept). A 4:3 window instead (`WAL_NO_MODE_CHANGE`, `WAL_WINDOW_SIZE`)
+  showed the exclusive picture unscaled at the screen's corner.
+- Verified headless (2026-11-09): title, free play and coins ("CREDIT"), both players' starts,
+  story / free select, movies, both guns' aim and shots scoring, the tank emptied and reloaded
+  (`b2` and off screen), test into the setup menu, its items and exit, crosshair option off.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -6802,6 +6849,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | Lightgun game (Direct3D 9, 32-bit, §6.3i): the parallel port gun board emulated (`inpout32`'s `Inp32` / `Out32`: aim, triggers, switches, a gun sample per shot), the Dinkey dongle's checks patched, free play option, crosshairs, the dump's bezel |
 | `dcop` | DCOP | arcadepc | headless-tested, awaiting user (2026-11-09), 1 gun | Klockworks' live-action police shooter (Unity 2020.3, 64-bit, §6.3i): the game plays with the mouse (left shoots, right reloads, any key starts / continues: free play by design), played by the gun (`dcop.rs`: `post_mouse`, `GetCursorPos`); the dump's DemulShooter plugin kept (Uduino serial off, NVRAM saves, pause menu on 0), told to hide the game's cursor; common crosshair, 16:9 borderless window |
 | `ballistics` | Ballistics | arcadepc | headless-tested, awaiting user (2026-11-09), 1 player (steering, throttle, buttons) | Grin's tube racer, arcade version (Direct3D 8 on wined3d, §6.3i): the cabinet's HAPP UGCI GameFrame as the common fake DirectInput joystick (by name, X steering, Y throttle, buttons by name) next to a DirectInput keyboard, coins as the coin program's `COINDROP` window messages, free play as the game's price 0, no hourly restart, the display settings dialog accepted, the D-Box seat's library not loaded, 4:3 window |
+| `bug-busters` | Bug Busters | arcadepc | headless-tested, awaiting user (2026-11-09), 2 guns | MIZI Production's spray gun game, PC release (DirectDraw on wined3d, 32-bit, §6.3i): the guns and the dead serial I/O board's switches written into the game (`bugbusters.rs`: records, tank reloads, start / test / service flags, coins with their sounds), the CD check patched, free play as the game's price 0, test opens the setup menu from the title, the game's own pointers as the crosshair option, 4:3 |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

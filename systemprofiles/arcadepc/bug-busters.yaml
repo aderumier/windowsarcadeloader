@@ -1,0 +1,57 @@
+# Bug Busters (MIZI Production, 2001, BBPC.exe: the PC release of the arcade game, DirectDraw
+# 640x480, 32-bit) - template, override values in userprofiles/arcadepc/bug-busters.yaml.
+# A two-player lightgun game (spray guns). The PC build plays with the mouse, the keyboard or
+# joysticks; the payload writes each player's gun and the cabinet I/O board's switches (coins,
+# start buttons, test / service) into the game (docs §6.3i).
+system: arcadepc
+name: Bug Busters
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# Wine's DirectDraw (wined3d): the game's MPEG-1 movies (the attract mode, the story's intro and
+# cut scenes; amstream's DirectDraw stream surfaces blitted to the game's) stayed black with
+# d7vk ("Blt: Received an unwrapped source surface").
+graphics: wine
+
+env:
+  WAL_ARCADEPC_BOARD: bugbusters
+  # The CD-ROM check (0x409f32: a drive with the game's CD volume label, else a message box
+  # asking for it) returns 1 (mov eax, 1; ret); the dump's BBPC.exe already skips it (the
+  # community no-CD build, one byte from the original BBPC.exe.old). The title screen's free
+  # coins (0x44091f: the coins set to 9 at each title) are not given.
+  WAL_PATCHES: "0x9F32:B801000000C3,0x4091F:90909090909090909090"
+  # the game's DirectInput (keyboard, joysticks) sees no device: the guns are the payload's
+  WAL_DINPUT_DISABLE: "1"
+  WAL_HIDE_CURSOR: "1"
+  # the common crosshair option: the game's own pointers (off: hidden in the game)
+  WAL_CROSSHAIR: "1"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # a lightgun pointing off the screen reloads when it shoots (payload: b6 off screen)
+  gun:
+    offscreen: b6
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the setup menu's coins per credit.
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (reloads off screen)
+  b2: Reload
+  b6: Gun off screen
+  start: Start
+  coin: Coin
+  service: Service (credit; setup menu select)
+  test: Test (setup menu; enter)

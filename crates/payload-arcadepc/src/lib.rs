@@ -73,6 +73,9 @@
 //! gun board (`inpout32.dll`'s `Inp32` / `Out32`); the common crosshair option draws the guns
 //! (Direct3D 9).
 //!
+//! Bug Busters (`WAL_ARCADEPC_BOARD=bugbusters`, x86 build): `bugbusters.rs` writes its guns and
+//! its I/O board's switches into the game; the game draws its own pointers.
+//!
 //! DCOP (`WAL_ARCADEPC_BOARD=dcop`): `dcop.rs` plays its mouse with the gun (its DemulShooter
 //! plugin only hides the game's cursor).
 //!
@@ -90,6 +93,8 @@
 #[cfg(target_arch = "x86")]
 mod ballistics;
 mod boys;
+#[cfg(target_arch = "x86")]
+mod bugbusters;
 mod bullseye;
 mod commking;
 #[cfg(target_arch = "x86")]
@@ -262,6 +267,15 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 ballistics::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "bugbusters" => {
+                pads::disconnect();
+                // the CD-ROM check
+                wal_payload_common::patches::apply();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                bugbusters::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "ngun" => {
