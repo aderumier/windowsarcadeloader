@@ -3,7 +3,8 @@
 # A snowmobile racer: handlebar steering, throttle, attack button, start. Dump: the cabinet's
 # Windows 2000 disk as files (`Artic Thunder\`): the game in `Midway games\Arctic Thunder`, run
 # with C:\Midway Games mapped to that folder. The payload is the cabinet's coin and security
-# manager (wincsm.exe) that goose.dll reads, the textures' disk serial key (docs §6.3i).
+# manager (wincsm.exe) that goose.dll reads, the textures' disk serial key, the operator
+# diagnostics (diagnostics\diag.exe, started on test) (docs §6.3i).
 system: arcadepc
 name: Arctic Thunder
 
@@ -50,4 +51,6 @@ controls:
   start: Start
   coin: Coin
   service: Service (credit)
-  test: Test (no effect, the diagnostics are a separate program)
+  up: Diagnostics up
+  down: Diagnostics down
+  test: Test (the operator diagnostics; in them, enter)

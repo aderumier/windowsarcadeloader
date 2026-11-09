@@ -88,7 +88,8 @@
 //!
 //! Arctic Thunder (`WAL_ARCADEPC_BOARD=arcticthunder`, x86 build): `arcticthunder.rs` is the
 //! cabinet's coin and security manager (`wincsm.exe`) that `goose.dll` reads and writes: the
-//! switches, the handlebar and throttle, the credits.
+//! switches, the handlebar and throttle, the credits; and the same for its operator diagnostics
+//! (`diag.exe`, started by the test button through the launcher).
 //!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
 //! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.

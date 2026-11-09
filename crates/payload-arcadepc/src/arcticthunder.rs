@@ -44,15 +44,23 @@
 //!   x87 code divides by zero (nGlide: goose's exception handler, the game closed). goose's
 //!   `_control87` keeps every exception masked and the MXCSR as it was.
 //!
-//! - **Operator menu.** On the cabinet wincsm watches the test switch, closes the game and runs
-//!   `diagnostics\diag.exe` (with the game's `diagdll.dll`): not done, `test` reaches the game's
-//!   switch word only.
+//! - **Operator menu.** On the cabinet the test mode is dip switch S2-1 (the dip word +6, bit 0,
+//!   active low): wincsm closes the game and runs `diagnostics\diag.exe` (GDI menus, the game's
+//!   `diagdll.dll` tests), which carries its own copy of goose's I/O code (wincsm search
+//!   `0x40ebf0`, the same blocks). Here `test` in the game asks the launcher for diag.exe
+//!   (relaunch `exe=`) and the game ends; this payload in diag.exe answers its search, sets its
+//!   working directory to `C:\Midway Games\diagnostics` (it reads `\Midway Games\...` on the
+//!   current drive), gives its `RegConnectRegistryA(".")` the local registry (Wine: own name only)
+//!   and registers the game (`WinCSM\Games`). Menus: up = player up or volume down, down = player
+//!   down or volume up, enter = a player button (attack) or test, back = service. S2-1 reads off in
+//!   the diagnostics: Exit ("to the default game", else "turn off switch 1") ends them and the
+//!   payload asks the launcher for the game again, as wincsm.
 //!
 //! Natives: `start coin coin2 service test volume_down volume_up attack up down left right
 //! button_a button_b button_c throttle`; the left stick steers, `accel` is the throttle.
 
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use wal_payload_common::mapping::ButtonMap;
@@ -67,6 +75,15 @@ use windows_sys::Win32::System::Threading::GetCurrentProcess;
 /// goose's wincsm search (returns its process handle, -1 when absent) and its first bytes.
 const GOOSE_FIND_WINCSM: usize = 0xC860;
 const GOOSE_FIND_WINCSM_CODE: [u8; 3] = [0x55, 0x8B, 0xEC];
+/// diag.exe's copy of the wincsm search and its first bytes.
+const DIAG_FIND_WINCSM: usize = 0xEBF0;
+const DIAG_FIND_WINCSM_CODE: [u8; 8] = [0x55, 0x8B, 0xEC, 0xB8, 0x30, 0x11, 0x00, 0x00];
+/// The diagnostics, relative to the game's folder.
+const DIAG_RELAUNCH: &str = "exe=../diagnostics/diag.exe cwd=../diagnostics";
+
+/// This process is the diagnostics.
+static DIAG: AtomicBool = AtomicBool::new(false);
+
 /// goose's disk serial reader (the textures' password) and its first bytes, the dump's password.
 const GOOSE_DISK_SERIAL: usize = 0x8F60;
 const GOOSE_DISK_SERIAL_CODE: [u8; 4] = [0x57, 0x56, 0x55, 0x53];
@@ -225,6 +242,15 @@ fn run() {
     loop {
         let stick = input(0);
         let (player, dip, held) = switches();
+        // the test button in the game: the test mode (S2 switch 1 on: wincsm closes the game and
+        // starts the diagnostics, the launcher here). In the diagnostics it is a button (the
+        // menus' enter) and S2 switch 1 reads off: their Exit goes back to the game at once.
+        if dip & (1 << 7) != 0 && last_dip & (1 << 7) == 0 && !DIAG.load(Ordering::Relaxed) {
+            log!("arcticthunder: test mode: the diagnostics (launcher: {DIAG_RELAUNCH})");
+            wal_payload_common::request_relaunch(DIAG_RELAUNCH);
+            std::thread::sleep(Duration::from_millis(300));
+            unsafe { windows_sys::Win32::System::Threading::ExitProcess(0) };
+        }
         for (k, (now, last)) in [(player, last_player), (dip, last_dip)].into_iter().enumerate() {
             for bit in 0..32 {
                 let m = 1u32 << bit;
@@ -418,7 +444,113 @@ fn publish_blocks() -> bool {
     }
 }
 
+/// The blocks, the registry, the wincsm thread; `find_wincsm`: the process search to answer.
+fn serve(find_wincsm: usize, diag: bool) {
+    unsafe {
+        let p = io().add(PRICING);
+        std::ptr::copy_nonoverlapping(pricing().as_ptr(), p, 0x94);
+    }
+    if !publish_blocks() {
+        log!("arcticthunder: the IOBlock registry value could not be written");
+    }
+    // wincsm: this process (a real handle: -1 is none)
+    let mut me: HANDLE = std::ptr::null_mut();
+    unsafe { DuplicateHandle(GetCurrentProcess(), GetCurrentProcess(), GetCurrentProcess(), &mut me, 0, 0, DUPLICATE_SAME_ACCESS) };
+    let mut code = [0xB8, 0, 0, 0, 0, 0xC3];
+    code[1..5].copy_from_slice(&(me as u32).to_le_bytes());
+    patch(find_wincsm, &code);
+    DIAG.store(diag, Ordering::Relaxed);
+    std::thread::spawn(run);
+    log!("arcticthunder: wincsm emulated (blocks at {:#x}){}", io() as usize, if diag { ", diagnostics" } else { "" });
+}
+
+/// The registry keys wincsm keeps and the diagnostics read: the installed games, the default one.
+fn register_games() {
+    unsafe {
+        for (path, value) in [(c"Software\\Midway Games\\WinCSM\\Games\\Arctic Thunder", None), (c"Software\\Midway Games\\WinCSM\\Games\\Default Game", Some(c"Arctic Thunder"))] {
+            let mut key: HKEY = std::ptr::null_mut();
+            if RegCreateKeyExA(HKEY_LOCAL_MACHINE, path.as_ptr().cast(), 0, std::ptr::null(), 0, KEY_WRITE, std::ptr::null(), &mut key, std::ptr::null_mut()) != 0 {
+                continue;
+            }
+            if let Some(v) = value {
+                let bytes = v.to_bytes_with_nul();
+                RegSetValueExA(key, std::ptr::null(), 0, windows_sys::Win32::System::Registry::REG_SZ, bytes.as_ptr(), bytes.len() as u32);
+            }
+            RegCloseKey(key);
+        }
+    }
+}
+
 pub fn init() {
+    register_games();
+    if wal_payload_common::patches::exe_name().eq_ignore_ascii_case("diag.exe") {
+        init_diag();
+    } else {
+        init_game();
+    }
+}
+
+static ORIG_EXIT: AtomicUsize = AtomicUsize::new(0);
+static ORIG_EXIT_WINDOWS: AtomicUsize = AtomicUsize::new(0);
+
+/// The game again (the launcher), as wincsm after the diagnostics.
+fn back_to_game() {
+    log!("arcticthunder: diagnostics closed: the game again");
+    wal_payload_common::request_relaunch("");
+    std::thread::sleep(Duration::from_millis(300));
+}
+
+unsafe extern "system" fn diag_exit(code: u32) {
+    log!("arcticthunder: diag.exe exits ({code})");
+    back_to_game();
+    let f: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(ORIG_EXIT.load(Ordering::Relaxed)) };
+    unsafe { f(code) }
+}
+
+/// The diagnostics' restart (after a software update / revert): the game again.
+unsafe extern "system" fn diag_exit_windows(_flags: u32, _reason: u32) -> i32 {
+    back_to_game();
+    unsafe { windows_sys::Win32::System::Threading::ExitProcess(0) }
+}
+
+static ORIG_CONNECT_REGISTRY: AtomicUsize = AtomicUsize::new(0);
+
+/// The diagnostics' `RegConnectRegistryA` on this machine (`.`): Wine takes only its own name.
+unsafe extern "system" fn connect_registry(machine: *const u8, key: HKEY, result: *mut HKEY) -> u32 {
+    let f: unsafe extern "system" fn(*const u8, HKEY, *mut HKEY) -> u32 = unsafe { std::mem::transmute(ORIG_CONNECT_REGISTRY.load(Ordering::Relaxed)) };
+    let local = machine.is_null() || matches!(unsafe { std::ffi::CStr::from_ptr(machine.cast()) }.to_bytes(), b"" | b"." | b"\\.");
+    unsafe { f(if local { std::ptr::null() } else { machine }, key, result) }
+}
+
+/// `diag.exe`, started by the game's test switch: its own copy of goose's I/O code reads wincsm.
+fn init_diag() {
+    let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+    if unsafe { std::slice::from_raw_parts((exe + DIAG_FIND_WINCSM) as *const u8, 8) } != DIAG_FIND_WINCSM_CODE {
+        log!("arcticthunder: unknown diag.exe, no board");
+        return;
+    }
+    unsafe {
+        match wal_payload_common::iat::hook("KERNEL32.dll", "ExitProcess", diag_exit as *const () as usize) {
+            Some(o) => ORIG_EXIT.store(o, Ordering::Relaxed),
+            None => log!("arcticthunder: no diag.exe ExitProcess import"),
+        }
+        if let Some(o) = wal_payload_common::iat::hook("USER32.dll", "ExitWindowsEx", diag_exit_windows as *const () as usize) {
+            ORIG_EXIT_WINDOWS.store(o, Ordering::Relaxed);
+        }
+        match wal_payload_common::iat::hook("ADVAPI32.dll", "RegConnectRegistryA", connect_registry as *const () as usize) {
+            Some(o) => ORIG_CONNECT_REGISTRY.store(o, Ordering::Relaxed),
+            None => log!("arcticthunder: no diag.exe RegConnectRegistryA import"),
+        }
+    }
+    // the cabinet's folder (the diagnostics read `\Midway Games\...` on the current drive: the
+    // launcher's working directory is the dump's folder, on Z:)
+    if std::env::set_current_dir("C:\\Midway Games\\diagnostics").is_err() {
+        log!("arcticthunder: no C:\\Midway Games\\diagnostics folder");
+    }
+    serve(exe + DIAG_FIND_WINCSM, true);
+}
+
+fn init_game() {
     let goose = unsafe { GetModuleHandleW(windows_sys::w!("goose.dll")) } as usize;
     if goose == 0
         || unsafe { std::slice::from_raw_parts((goose + GOOSE_FIND_WINCSM) as *const u8, 3) } != GOOSE_FIND_WINCSM_CODE
@@ -454,27 +586,12 @@ pub fn init() {
         }
     }
 
-    unsafe {
-        let p = io().add(PRICING);
-        std::ptr::copy_nonoverlapping(pricing().as_ptr(), p, 0x94);
-    }
-    if !publish_blocks() {
-        log!("arcticthunder: the IOBlock registry value could not be written");
-    }
-    // goose's wincsm: this process (a real handle: goose takes -1 for none)
-    let mut me: HANDLE = std::ptr::null_mut();
-    unsafe { DuplicateHandle(GetCurrentProcess(), GetCurrentProcess(), GetCurrentProcess(), &mut me, 0, 0, DUPLICATE_SAME_ACCESS) };
-    let mut code = [0xB8, 0, 0, 0, 0, 0xC3];
-    code[1..5].copy_from_slice(&(me as u32).to_le_bytes());
-    patch(goose + GOOSE_FIND_WINCSM, &code);
-
     match wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY") {
         Some(true) => put_env(c"COIN_FREE_ONLY=1"),
         Some(false) => put_env(c"COIN_FREE_ONLY=0"),
         None => {}
     }
-    std::thread::spawn(run);
-    log!("arcticthunder: wincsm emulated (blocks at {:#x})", io() as usize);
+    serve(goose + GOOSE_FIND_WINCSM, false);
 }
 
 #[cfg(test)]
