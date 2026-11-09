@@ -24,8 +24,8 @@ class SindenOptions(unittest.TestCase):
                 _logger=SimpleNamespace(debug=lambda *_: None),
             )
             exec(compile(ast.unparse(tree), '<generator>', 'exec', flags=__import__('__future__').annotations.compiler_flag), namespace)
-            generator = namespace['WindowsArcadeLoaderGenerator']()
-            generator.generate(SimpleNamespace(config=settings), 'game.windowsloader', [], {}, guns, {}, {})
+            self.generator = namespace['WindowsArcadeLoaderGenerator']()
+            self.generator.generate(SimpleNamespace(config=settings), 'game.windowsloader', [], {}, guns, {}, {})
             return (root / 'es-options.yaml').read_text()
 
     def test_system_settings_are_passed(self):
@@ -46,6 +46,14 @@ class SindenOptions(unittest.TestCase):
         self.assertIn('BORDER: "auto"', self.generate({}))
         self.assertIn('SIZE: "medium"', self.generate({}))
         self.assertIn('COLOR: "white"', self.generate({}))
+
+    def test_configgen_borders_skipped_for_gun_games(self):
+        class Config(dict):
+            use_guns = True
+        self.generate(Config())
+        self.assertTrue(self.generator.supportsInternalBezels())
+        self.generate({})
+        self.assertFalse(self.generator.supportsInternalBezels())
 
 
 if __name__ == '__main__':

@@ -100,6 +100,13 @@ class WindowsArcadeLoaderGenerator(Generator):
     def writesToRom(self, config) -> bool:
         return True
 
+    # Gun games: the payload draws the Sinden frame itself (WAL_SINDEN_BORDER), so configgen
+    # draws neither its gun border overlay nor a MangoHUD bezel. Read after generate().
+    _guns_borders_internal = False
+
+    def supportsInternalBezels(self) -> bool:
+        return self._guns_borders_internal
+
     def generate(self, system, rom, playersControllers, metadata, guns, wheels, gameResolution):
         if configure_emulator(rom):
             os.chdir(WAL_DIR)
@@ -113,6 +120,7 @@ class WindowsArcadeLoaderGenerator(Generator):
             )
 
         mkdir_if_not_exists(WAL_CONFIG)
+        self._guns_borders_internal = bool(getattr(system.config, 'use_guns', False))
 
         # ES options -> profile keys (top level or under input:), set ones only.
         top: dict[str, str] = {}
