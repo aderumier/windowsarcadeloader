@@ -1,29 +1,27 @@
-//! VCThunder (`VCThunder.exe hydro|offroad`): a third-party Windows runtime of Midway's Hydro
-//! Thunder (`hydro\HYDRO.EXE`, the Diego I/O board) and Offroad Thunder (`offroad\offroad3.exe`).
-//! Its stub executable reserves the games' address span at 0x100000 and loads `VCThunder.dll`,
-//! which maps the original executable there, unpacks it, emulates its hardware and draws its
-//! Glide through `vcglide.dll` (SDL3; under Wine its CPU rasteriser, presented with Direct3D 9).
-//! Settings: `vcthunder.ini` (the profile's copy in the run directory).
+//! VCThunder 0.5 (<https://github.com/mourix/VCThunder>, MIT: `VCThunder.exe hydro|offroad`): a
+//! Windows runtime of Midway's Hydro Thunder (`hydro\HYDRO.EXE`, the Diego I/O board) and
+//! Offroad Thunder (`offroad\offroad3.exe`). Its stub executable reserves the games' address
+//! span at 0x100000 and loads `VCThunder.dll`, which maps the original executable there, unpacks
+//! it, emulates its hardware and draws its Glide through `vcglide.dll` (SDL3 GPU on Direct3D 12:
+//! the runner's vkd3d-proton; else its CPU rasteriser). Settings: the profile's `vcthunder.ini`
+//! in the run directory (the runtime's own keys, its `docs/configuration.md`).
 //!
-//! * Inputs: the runtime polls its `[digital]` keys with `GetAsyncKeyState` (the profile's ini
-//!   names them by virtual key code: coin 5 / 6, start 1, credit 9, test F2, boost A, views
-//!   B C D, Offroad's gears E F G, volume down / up J K: the operator menus' cursor);
-//!   [`key_held`] reports them from the virtual sticks (`input_filter`: the real keyboard never
-//!   reaches the game). Offroad Thunder reads the gear whose key is held (neutral without
-//!   one, even with the automatic transmission): the payload latches a gear (first at start,
-//!   shift up / down buttons, or a gear's button) and holds its key.
-//! * The wheel and pedals: the common fake DirectInput wheel (`WAL_DINPUT_WHEEL`: X steering,
-//!   Y gas, Z brake), hooked into `VCThunder.dll` once it is loaded (it resolves
-//!   `DirectInput8Create` at run time); the game's constant force goes to the launcher
-//!   (`WAL_DINPUT_WHEEL_FFB_OUT`). XInput is disabled by the profile. Some of the runtime's
-//!   readers (`[analog]`'s DirectInput axes, `[ffb]`) name the bare `vcthunder.ini`, which
-//!   Windows looks for in its Windows directory: their `GetPrivateProfileStringA` reads the
-//!   one next to the executable.
+//! * Inputs: the common fake DirectInput wheel (`WAL_DINPUT_WHEEL`: X steering, Y gas, Z brake,
+//!   the virtual sticks' buttons as its buttons, bound by the ini's `[gamepad]`), hooked into
+//!   `VCThunder.dll` once it is loaded (it resolves `DirectInput8Create` at run time); the
+//!   game's constant force goes to the launcher (`WAL_DINPUT_WHEEL_FFB_OUT`). The real keyboard
+//!   is filtered, XInput disabled by the profile. The ini binds two kinds of keys, which
+//!   [`key_held`] reports: the second coin slot (`6`: player 2's coin), and Offroad's gears
+//!   (`E F G`): the runtime reads the gear whose key is held, neutral without one; its own
+//!   shift up / down latch starts in neutral (the truck stays on the grid until a shift, even
+//!   with the automatic transmission), the payload's starts in first gear.
 //! * Hydro Thunder's network stack cleans Winsock up (`WSACleanup`, through the runtime) when
 //!   it enters its operator menus: the launcher connection was closed and could not be opened
 //!   again (no input in the menus); the payload holds one more Winsock reference.
 //! * The ini's `[graphics]` from the profile's options at each start: `WAL_VCTHUNDER_WIDESCREEN=1`
-//!   the runtime's 16:9 hack (`aspect = 16:9`, `widescreen = true`), else the cabinet's 4:3.
+//!   the runtime's 16:9 hack (`aspect = 16:9`, `widescreen = true`), else the cabinet's 4:3;
+//!   `WAL_VCTHUNDER_60FPS` (`frame_rate = 60`: an interpolated picture between the game's own,
+//!   else 30).
 //! * Free play (`WAL_ARCADEPC_FREEPLAY`, else `WAL_FREEPLAY`): Hydro Thunder's credits to start
 //!   and to continue (`_coins_CreditsToStart` 0x134508, `_coins_CreditsToContinue` 0x134518:
 //!   the pricing table's) answer 0; Offroad Thunder's free play flag (`_money_GetFreePlay`
@@ -32,93 +30,39 @@
 //!   the original bytes, then 1 s (the runtime measures the unmodified code's checksum and
 //!   patches its hooks within milliseconds of the copy).
 
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
-use wal_payload_common::mapping::ButtonMap;
 use wal_payload_common::{input, log};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect, VirtualQuery, MEMORY_BASIC_INFORMATION, MEM_COMMIT};
 
-#[derive(Clone, Copy, PartialEq)]
-enum Native {
-    /// A key of the ini's `[digital]` section (its virtual key code).
-    Key(u8),
-    /// Offroad Thunder's shifter: one gear up / down (the latched gear's key held).
-    Shift(i8),
-    /// Offroad Thunder's shifter: that gear.
-    Gear(u8),
-}
-
-const VK_COIN1: u8 = b'5';
-const VK_COIN2: u8 = b'6';
-const VK_F2: u8 = 0x71;
-
-const NATIVES: &[(&str, Native)] = &[
-    ("coin1", Native::Key(VK_COIN1)),
-    ("coin2", Native::Key(VK_COIN2)),
-    ("start", Native::Key(b'1')),
-    ("service", Native::Key(b'9')),
-    ("test", Native::Key(VK_F2)),
-    ("boost", Native::Key(b'A')),
-    ("view1", Native::Key(b'B')),
-    ("view2", Native::Key(b'C')),
-    ("view3", Native::Key(b'D')),
-    ("gear1", Native::Gear(1)),
-    ("gear2", Native::Gear(2)),
-    ("gear3", Native::Gear(3)),
-    ("shift_up", Native::Shift(1)),
-    ("shift_down", Native::Shift(-1)),
-    ("volume_down", Native::Key(b'J')),
-    ("volume_up", Native::Key(b'K')),
-];
-
-const DEFAULTS: &[(&str, &str)] = &[
-    ("b1", "boost"),
-    ("b2", "view1"),
-    ("b3", "view2"),
-    ("b4", "view3"),
-    ("b5", "shift_up"),
-    ("b6", "shift_down"),
-    ("b7", "gear1"),
-    ("b8", "gear3"),
-    ("up", "volume_up"),
-    ("down", "volume_down"),
-    ("start", "start"),
-    ("coin", "coin1"),
-    ("service", "service"),
-    ("test", "test"),
-];
-
-fn map() -> &'static ButtonMap<Native> {
-    static MAP: OnceLock<ButtonMap<Native>> = OnceLock::new();
-    MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULTS))
-}
-
-/// The runtime's keys of Offroad Thunder's gears (`[digital]` `shift1`..`shift3`): it reads
-/// the gear whose key is held, neutral without one (the car does not move, automatic
-/// transmission too).
+/// The second coin slot's key (the ini's `[digital] coin2`).
+const VK_COIN2: i32 = b'6' as i32;
+/// Offroad Thunder's gear keys (the ini's `[digital] shift1`..`shift3`): the runtime reads the
+/// gear whose key is held, neutral without one.
 const VK_GEARS: [u8; 3] = [b'E', b'F', b'G'];
 /// The latched gear (1 to 3): first gear at start.
 static GEAR: AtomicU8 = AtomicU8::new(1);
 /// The shift buttons held at the last look (bit 0 up, bit 1 down).
 static SHIFTS: AtomicU8 = AtomicU8::new(0);
 
-/// The runtime's `GetAsyncKeyState`: the keys of player 1's mapped buttons (player 2's coin
-/// is the second coin slot), the latched gear's key.
+/// The runtime's `GetAsyncKeyState`: the second coin slot (player 2's coin) and Offroad's
+/// latched gear (b5 / b6 shift up / down on their press, b7 / b8 first / third gear); player 1's
+/// other inputs are the wheel's.
 pub fn key_held(vk: i32) -> bool {
-    if vk == VK_COIN2 as i32 && input(1).pressed(wal_protocol::button::COIN) {
-        return true;
+    use wal_protocol::button::{B5, B6, B7, B8, COIN};
+    if vk == VK_COIN2 {
+        return input(1).pressed(COIN);
     }
-    let mut held = false;
-    let mut shifts = 0u8;
-    map().for_each_pressed(&input(0), |n| match n {
-        Native::Key(k) => held |= k as i32 == vk,
-        Native::Shift(d) => shifts |= if d > 0 { 1 } else { 2 },
-        Native::Gear(g) => GEAR.store(g, Ordering::Relaxed),
-    });
-    // a shift button's press: one gear up / down
+    let Some(i) = VK_GEARS.iter().position(|&k| k as i32 == vk) else { return false };
+    let p1 = input(0);
+    if p1.pressed(B7) {
+        GEAR.store(1, Ordering::Relaxed);
+    } else if p1.pressed(B8) {
+        GEAR.store(3, Ordering::Relaxed);
+    }
+    let shifts = p1.pressed(B5) as u8 | (p1.pressed(B6) as u8) << 1;
     let pressed = shifts & !SHIFTS.swap(shifts, Ordering::Relaxed);
     if pressed & 1 != 0 {
         GEAR.store((GEAR.load(Ordering::Relaxed) + 1).min(3), Ordering::Relaxed);
@@ -126,10 +70,7 @@ pub fn key_held(vk: i32) -> bool {
     if pressed & 2 != 0 {
         GEAR.store(GEAR.load(Ordering::Relaxed).saturating_sub(1).max(1), Ordering::Relaxed);
     }
-    if let Some(i) = VK_GEARS.iter().position(|&k| k as i32 == vk) {
-        return GEAR.load(Ordering::Relaxed) as usize == i + 1;
-    }
-    held
+    GEAR.load(Ordering::Relaxed) as usize == i + 1
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -193,13 +134,15 @@ fn write_ini() {
     let wide = std::env::var("WAL_VCTHUNDER_WIDESCREEN").is_ok_and(|v| v.trim() == "1");
     let mut text = set_key(&text, "graphics", "aspect", if wide { "16:9" } else { "4:3" });
     text = set_key(&text, "graphics", "widescreen", if wide { "true" } else { "false" });
+    let fps60 = std::env::var("WAL_VCTHUNDER_60FPS").map_or(true, |v| v.trim() != "0");
+    text = set_key(&text, "graphics", "frame_rate", if fps60 { "60" } else { "30" });
     if let Ok(dips) = std::env::var("WAL_VCTHUNDER_DIPS") {
         if !dips.trim().is_empty() {
             text = set_key(&text, "controls", "dip_switches", dips.trim());
         }
     }
     match std::fs::write(&path, text) {
-        Ok(()) => log!("vcthunder: vcthunder.ini: {} picture", if wide { "16:9 widescreen" } else { "4:3" }),
+        Ok(()) => log!("vcthunder: vcthunder.ini: {} picture, {} fps", if wide { "16:9 widescreen" } else { "4:3" }, if fps60 { 60 } else { 30 }),
         Err(e) => log!("vcthunder: vcthunder.ini not written: {e}"),
     }
 }
@@ -294,26 +237,6 @@ fn free_play(title: Title) {
     });
 }
 
-static ORIG_GET_STRING: AtomicUsize = AtomicUsize::new(0);
-
-/// `GetPrivateProfileStringA(section, key, default, out, size, file)`: some of the runtime's
-/// readers (its `[analog]` DirectInput axes, `[ffb]`) name the bare `vcthunder.ini`, which
-/// Windows looks for in the Windows directory: the one next to the executable.
-unsafe extern "system" fn get_private_profile_string(section: *const u8, key: *const u8, default: *const u8, out: *mut u8, size: u32, file: *const u8) -> u32 {
-    static PATH: OnceLock<Vec<u8>> = OnceLock::new();
-    let f: unsafe extern "system" fn(*const u8, *const u8, *const u8, *mut u8, u32, *const u8) -> u32 =
-        unsafe { std::mem::transmute(ORIG_GET_STRING.load(Ordering::Relaxed)) };
-    let bare = !file.is_null() && unsafe { std::ffi::CStr::from_ptr(file.cast()) }.to_bytes().eq_ignore_ascii_case(b"vcthunder.ini");
-    if bare {
-        let path = PATH.get_or_init(|| {
-            let dir = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.to_string_lossy().into_owned())).unwrap_or_default();
-            format!("{dir}\\vcthunder.ini\0").into_bytes()
-        });
-        return unsafe { f(section, key, default, out, size, path.as_ptr()) };
-    }
-    unsafe { f(section, key, default, out, size, file) }
-}
-
 /// The fake DirectInput wheel in `VCThunder.dll`, as soon as the stub loaded it.
 fn hook_runtime() {
     std::thread::spawn(|| {
@@ -322,12 +245,6 @@ fn hook_runtime() {
             let m = unsafe { GetModuleHandleW(windows_sys::w!("VCThunder.dll")) } as usize;
             if m != 0 {
                 wal_payload_common::dinput::hook_module(m);
-                let ours = get_private_profile_string as *const () as usize;
-                if let Some(o) = unsafe { wal_payload_common::iat::hook_module(m, "kernel32.dll", "GetPrivateProfileStringA", ours) } {
-                    if o != ours {
-                        ORIG_GET_STRING.store(o, Ordering::Relaxed);
-                    }
-                }
                 log!("vcthunder: VCThunder.dll's DirectInput is the fake wheel");
                 return;
             }

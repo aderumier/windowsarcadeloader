@@ -1,9 +1,9 @@
-# Hydro Thunder (Midway, 1999: hydro\HYDRO.EXE, the Diego I/O board) on the VCThunder runtime
-# (VCThunder.exe hydro: its own Glide renderer vcglide.dll) - template, override values in
-# userprofiles/arcadepc/hydro-thunder.yaml.
+# Hydro Thunder (Midway, 1999: hydro\HYDRO.EXE, the Diego I/O board) on VCThunder 0.5
+# (https://github.com/mourix/VCThunder, MIT: VCThunder.exe hydro, its own Glide renderer
+# vcglide.dll) - template, override values in userprofiles/arcadepc/hydro-thunder.yaml.
 # A powerboat racer: wheel, throttle lever, boost button, three view buttons. Dump: the runtime
-# beside hydro\ (Offroad Thunder: its own dump, offroad-thunder.yaml). The
-# payload feeds the runtime's keys and DirectInput wheel and sets free play (docs §6.3i).
+# beside hydro\ (Offroad Thunder: its own dump, offroad-thunder.yaml). The payload's
+# DirectInput wheel drives it; free play (docs §6.3i).
 system: arcadepc
 name: Hydro Thunder
 
@@ -13,33 +13,42 @@ dll_overrides:
   xinput1_3: "n,b"
   # the runtime's XInput pads (real pads): none, the wheel is the payload's DirectInput one
   xinput1_4: ""
+  # the runner's vkd3d-proton: Direct3D 12 for the runtime's GPU renderer (SDL3 GPU); Wine's
+  # own d3d12 is "unsupported" for SDL, the CPU renderer then
+  d3d12: "n"
+  d3d12core: "n"
 
 args: [hydro]
 
 files:
-  # data_dir . (the dump's game folder), saves in save\, DirectInput wheel, the
-  # payload's keys; the payload sets [graphics] aspect / widescreen from the options
+  # VCThunder 0.5's settings: data_dir . (the dump's game folder), saves in save\, full screen,
+  # the DirectInput wheel and its buttons, no keyboard; the payload sets [graphics] aspect /
+  # widescreen / frame_rate from the options
   vcthunder.ini: systemprofiles/arcadepc/files/vcthunder/vcthunder.ini
+  d3d12.dll: "{runner}/lib/wine/vkd3d-proton/i386-windows/d3d12.dll"
+  d3d12core.dll: "{runner}/lib/wine/vkd3d-proton/i386-windows/d3d12core.dll"
 
 # the dump's logs and old settings: the runtime writes its logs in the run directory
 hide: [vcthunder.log, vcglide.log, vcthunder.ini.bak]
 
 env:
   WAL_ARCADEPC_BOARD: vcthunder
-  # the wheel: X steering, Y the throttle, Z the brake (reverse), the game's constant force
-  # sent to the launcher's wheel
+  # the wheel: X steering, Y the throttle, Z the brake, the game's constant force sent to the
+  # launcher's wheel; its buttons (the ini's [gamepad] numbers): b1 b2 b3 b4 b6 b5 coin start
+  # service test up down b7 b8
   WAL_DINPUT_WHEEL: VCThunder Wheel
   WAL_DINPUT_WHEEL_Y_AXIS: accel
   WAL_DINPUT_WHEEL_Z_AXIS: brake
-  WAL_DINPUT_WHEEL_BUTTONS: none
+  WAL_DINPUT_WHEEL_BUTTONS: "b1,b2,b3,b4,b6,b5,coin,start,service,test,up,down,b7,b8"
   WAL_DINPUT_WHEEL_FFB_OUT: "1"
-  # vcglide's Direct3D 9 window over the whole screen (its full screen: the 4:3 picture
-  # centered, black around); the runtime's own full screen went back to a 512x400 window
+  # the runtime's borderless full screen window over the screen (it went back to a 512x400
+  # window under gamescope), its aspect = 4:3 centering the cabinet's picture
   WAL_D3D9_MAX_FPS: "0"
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
   WAL_HIDE_CURSOR: "1"
   WAL_VCTHUNDER_WIDESCREEN: "0"
+  WAL_VCTHUNDER_60FPS: "1"
 
 input:
   stick_as_dpad: false
@@ -64,18 +73,26 @@ options:
         kind: bool
         description: >-
           The runtime's 16:9 hack (a wider view of the race). Off: the cabinet's 4:3 picture.
+      - key: WAL_VCTHUNDER_60FPS
+        label: 60 fps
+        kind: bool
+        description: >-
+          An interpolated picture between each two of the game's own (the game still runs at
+          30 ticks a second). Off: the cabinet's 30 fps.
 
 controls:
   lx: Steering wheel
   accel: Throttle
   brake: Reverse
   b1: Boost
-  b2: View 1
-  b3: View 2
-  b4: View 3
+  b2: High view
+  b3: Low view
+  b4: Pilot view
+  b5: Next item (select screens)
+  b6: Previous item (select screens)
+  up: Volume up (menu up)
+  down: Volume down (menu down)
   start: Start
   coin: Coin
   service: Service (credit)
-  up: Volume up (menu up)
-  down: Volume down (menu down)
   test: Test menu
