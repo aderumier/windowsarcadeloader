@@ -6614,6 +6614,18 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     loading with error 8304 (communication failed, GAME). `WAL_ALLS_BILLING=1` serves
     `billing.rs` in amdaemon (TLS 1.2, suite 002f).
   - Names: `WAL_ANSI_CODEPAGE=932` (the name entry's kana were saved as "?").
+  - English on the Japanese keychip (`WAL_ALLS_IDZ_ENGLISH=1`, option Language, `idzenglish.rs`):
+    the export region (4) has English texts but no Aime / game server. The game's opens under
+    `data\` are redirected: `TxtMessage\data_jp\txbn` to the export texts, the menus' picture
+    pairs `X.tcd` / `Xtex.pac` to `X_ex.tcd` / `X_extex.pac`, and the community "D0 English patch
+    0.85" (PockyWitch, Alexvgz...: made for the export version) in the dump's `english\` folder
+    over them. The TXBN text files (`idzenglish/txbn.rs`: entries of 23 u32, line table, UTF-16
+    pool; all 105 files round-trip) are rewritten at start into `Y:\idz_english\txbn` with the
+    2100 texts the export / patch left in Japanese translated (`idzenglish/strings_[a-d].rs`,
+    1824 strings: avatar parts, frames, stickers, titles, result lines, tips...). The font of the
+    dynamic texts (the cars' tuning parts, team names) has no half width Latin: the tuning files
+    are converted to full width (`Y:\idz_english\info_csv`, Shift-JIS and UTF-8), the server's
+    auto team names sent as full width "Speed Stars 001" (`idz/msg.rs`).
   - Its full screen mode exits (status 1) on a 1920x1200 desktop: windowed 1920x1080 in a
     borderless 16:9 window (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE=picture`).
   - User: 100% (2026-11-10). Verified headless: steering adjust, attract, guest story race to the result, new card

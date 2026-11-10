@@ -61,6 +61,10 @@ env:
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: picture
   WAL_D3D9_ASPECT: "16:9"
+  # English on the Japanese keychip (Aime cards and the game server kept): the export version's
+  # texts and pictures, and the community English patch in the dump's english\ folder (its
+  # data\ folder as it ships; payload idzenglish.rs)
+  WAL_ALLS_IDZ_ENGLISH: "1"
   # the players' names (the name entry's kana) converted in Shift-JIS: the western code page
   # gave "??????"
   WAL_ANSI_CODEPAGE: "932"
@@ -81,6 +85,14 @@ env:
   WAL_ALLS_AUTO_CARD: "1"
 
 options:
+  - title: Language
+    options:
+      - key: WAL_ALLS_IDZ_ENGLISH
+        label: English
+        kind: bool
+        description: >-
+          The texts and menus in English (the export version's, and the English patch in the
+          dump's english folder), the Aime cards and the game server kept. Off: Japanese.
   - title: Aime card
     options:
       - key: WAL_ALLS_AUTO_CARD

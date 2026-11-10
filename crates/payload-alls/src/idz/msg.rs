@@ -420,6 +420,43 @@ const AUTO_TEAMS: [&[u8]; 3] = [
     &[0x83, 0x69, 0x83, 0x43, 0x83, 0x67, 0x83, 0x4c, 0x83, 0x62, 0x83, 0x59],
 ];
 
+/// The auto teams' names shown in English (`WAL_ALLS_IDZ_ENGLISH=1`, `idzenglish.rs`), in
+/// full width Shift-JIS (the font of the game's names has no half width letters).
+const AUTO_TEAMS_EN: [&str; 3] = ["Speed Stars", "Red Suns", "Night Kids"];
+
+/// `text`'s letters, digits and spaces in full width Shift-JIS.
+fn full_width_sjis(text: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    for c in text.bytes() {
+        match c {
+            b'A'..=b'Z' => out.extend_from_slice(&[0x82, 0x60 + (c - b'A')]),
+            b'a'..=b'z' => out.extend_from_slice(&[0x82, 0x81 + (c - b'a')]),
+            b'0'..=b'9' => out.extend_from_slice(&[0x82, 0x4f + (c - b'0')]),
+            _ => out.extend_from_slice(&[0x81, 0x40]),
+        }
+    }
+    out
+}
+
+/// A team's name as shown: an auto team's (its Japanese name and full width serial) in English
+/// with the English texts, else as stored.
+fn team_name(team: &Json) -> Vec<u8> {
+    let name = bytes(team, "name", team.s("name").len() / 2);
+    if std::env::var("WAL_ALLS_IDZ_ENGLISH").is_ok_and(|v| v.trim() == "1") {
+        for (ja, en) in AUTO_TEAMS.iter().zip(AUTO_TEAMS_EN) {
+            if let Some(digits) = name.strip_prefix(*ja)
+                && digits.len() == 6
+                && digits.chunks(2).all(|c| c[0] == 0x82 && (0x4f..=0x58).contains(&c[1]))
+            {
+                let mut out = full_width_sjis(en);
+                out.extend_from_slice(digits);
+                return out;
+            }
+        }
+    }
+    name
+}
+
 const TEAM_SIZE: usize = 6;
 
 /// The team of `aime`: (its index in `teams`, member index).
@@ -545,7 +582,7 @@ fn team_answer(code: u16, team: Option<&Json>, players: &[Json]) -> Vec<u8> {
     let empty = Json::obj();
     let team = team.unwrap_or(&empty);
     out.u32(0x000c, team.u("id") as u32);
-    out.text(0x0024, &bytes(team, "name", team.s("name").len() / 2), 0x5c);
+    out.text(0x0024, &team_name(team), 0x5c);
     out.u32(0x00d8, team.u("name_bg") as u32);
     out.u32(0x00dc, team.u("name_fx") as u32);
     // the unlocked backgrounds and effects, probably
@@ -646,7 +683,7 @@ fn top_ten(p: &[u8], count: usize, times_at: usize, players: &[Json], teams: &Js
             out.text(inner + 0x14, &bytes(doc, "name", doc.s("name").len() / 2), 0x13);
             let team = find_team(teams, doc.u("aime_id") as u32).and_then(|(id, _)| team_index(teams, id)).map(|t| &teams.a("teams")[t]);
             if let Some(team) = team {
-                out.text(inner + 0x28, &bytes(team, "name", team.s("name").len() / 2), 0x1f);
+                out.text(inner + 0x28, &team_name(team), 0x1f);
             }
             out.text(inner + 0x48, STORE_NAME, 0x2b);
         }
@@ -1029,6 +1066,9 @@ pub(super) mod tests {
         assert_eq!(next, 2);
         let team = &teams.a("teams")[1];
         assert_eq!(team.s("name"), "838c83628368835483938359824f824f8250");
+        // SAFETY: tests of this module are the only readers of this variable
+        unsafe { std::env::set_var("WAL_ALLS_IDZ_ENGLISH", "1") };
+        assert_eq!(team_name(team), [&full_width_sjis("Red Suns")[..], &[0x82, 0x4f, 0x82, 0x4f, 0x82, 0x50]].concat());
         assert_eq!(team.u("name_bg"), 1);
         let docs: Vec<Json> = (1..=6).map(|a| new_profile(&create_request(a), 1)).collect();
         let out = team_answer(0x0078, Some(&teams.a("teams")[0]), &docs);

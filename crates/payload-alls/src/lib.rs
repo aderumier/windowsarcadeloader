@@ -31,6 +31,7 @@
 //!   LED board on COM11, the game server, `idz.rs`)
 //! - `WAL_ALLS_BILLING=1`: ALL.Net's billing server for amdaemon's accounting (`billing.rs`)
 //! - `WAL_ALLS_CHILDREN`: programs the game starts, started with the payload (`child.rs`)
+//! - `WAL_ALLS_IDZ_ENGLISH=1`: Initial D ARCADE STAGE Zero in English (`idzenglish.rs`)
 //! - `WAL_ALLS_INI_FILE`: a settings file read as an edited copy (`inifile.rs`)
 //! - `WAL_ALLS_STAT_BYPASS`: files whose C runtime `_stat64i32` succeeds (`stat.rs`)
 //! - `WAL_ALLS_AIME_PORT` (`COM3`...): the Aime card reader amdaemon opens there (`aime.rs`),
@@ -83,6 +84,7 @@ mod hotd;
 mod icf;
 mod idac;
 mod idz;
+mod idzenglish;
 mod indrun;
 mod inifile;
 mod io4;
@@ -188,8 +190,9 @@ fn start() {
                 // players), COM1 the force feedback board (Sega World Drivers Championship's),
                 // COM11 the 837-15070 LED board
                 idz::init();
-                // its settings file's screen size
+                // its settings file's screen size, the English texts and pictures
                 inifile::init();
+                idzenglish::init();
                 // its store server (cabinet 1) started with the payload
                 child::init();
                 // its store server found on the subnet, its game server's echo servers (minime's
