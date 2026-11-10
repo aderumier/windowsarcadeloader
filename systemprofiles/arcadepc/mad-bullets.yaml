@@ -1,0 +1,40 @@
+# Mad Bullets (Ironbird / isTom Games, 2016, the Steam release: bin_x86\game.exe, OpenGL, 32-bit,
+# its steam_api.dll a Steam emulator) - template, override values in
+# userprofiles/arcadepc/mad-bullets.yaml.
+# A one-player shooting game played with the mouse: the payload plays that mouse with the gun
+# (WAL_ARCADEPC_BOARD=madbullets, docs §6.3i) and draws its crosshair (the game's pointer is
+# the system cursor). A PC game: no coins, no credits.
+system: arcadepc
+name: Mad Bullets
+
+# The game does not load an XInput DLL: the payload is loaded at its entry point.
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# the game's sound library (OpenAL32.dll, not in the dump)
+tricks: [openal]
+
+env:
+  WAL_ARCADEPC_BOARD: madbullets
+  WAL_CROSSHAIR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_CROSSHAIR
+        label: Crosshair
+        kind: bool
+        description: >-
+          The gun's crosshair drawn over the picture (the game shows no pointer of its own).
+
+input:
+  # one lightgun (or mouse): the pointer aims, left button shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Pause / back (Escape)

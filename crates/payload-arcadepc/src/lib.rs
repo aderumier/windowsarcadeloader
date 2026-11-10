@@ -97,6 +97,9 @@
 //! The House of the Dead 2: Remake (`WAL_ARCADEPC_BOARD=hotd2`, x64 build): `hotd2.rs` plays
 //! player 1's mouse with the gun, player 2 on a pad, and puts the crosshairs on the guns (Mono).
 //!
+//! Mad Bullets (`WAL_ARCADEPC_BOARD=madbullets`, x86 build): `madbullets.rs` plays its mouse
+//! with the gun.
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
 //! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
@@ -137,6 +140,8 @@ mod gamewax;
 mod hotd2;
 #[cfg(target_arch = "x86")]
 mod interface;
+#[cfg(target_arch = "x86")]
+mod madbullets;
 mod jxboard;
 mod jxcamera;
 mod mame;
@@ -393,6 +398,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 teamplay::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "madbullets" => {
+                pads::disconnect();
+                madbullets::init();
             }
             _ if board.trim() == "mame" => {
                 pads::disconnect();

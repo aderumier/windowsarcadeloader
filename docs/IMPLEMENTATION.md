@@ -4909,6 +4909,25 @@ sticks' motion.
   gun (New Campaign, tutorial, character, chapter: the Original mode's trunk needs Tab to confirm,
   skipped by the quick start).
 
+#### Mad Bullets
+
+Ironbird's 2016 shooting game, the Steam release (`bin_x86\game.exe`, OpenGL legacy context,
+32-bit, OpenAL; `steam_api.dll` a Steam emulator, run directly). Board `madbullets`
+(`madbullets.rs`, x86 build), loaded by `payload_loader` (the game loads no XInput DLL; the
+`xinput1_3` override native so the loader's `LoadLibrary` takes the payload). The profile installs
+`openal` (OpenAL32.dll is not in the dump: the game did not start).
+
+- **Input.** The game reads the mouse from its own `PeekMessageA` loop (`WM_MOUSEMOVE`, left
+  button) and keys with `GetKeyState`: `input_filter::init(exe)` + `own_mouse`, the gun posted as
+  the mouse (client pixels of the window's picture, re-posted every half second), trigger = left
+  button, b2 = Escape (pause / back).
+- **Crosshair.** The game's pointer is the system cursor (`cursor.cur`, at the real mouse): the
+  executable's `gdi32!SwapBuffers` is hooked and a red cross drawn at the gun with the fixed
+  pipeline (attributes, matrices, program and draw framebuffer saved and put back);
+  `WAL_CROSSHAIR=0` turns it off.
+- Verified headless (2026-11-10): menu, PLAY clicked with the gun, boosts screen, gameplay with
+  shots scoring at the aimed enemies, the crosshair exactly at the gun.
+
 #### Bounty Hunter
 
 GCTECH's striking game (`bh.exe`, 2002, Power Render 4 on Direct3D 8, 32-bit, UPX-packed,
@@ -7273,6 +7292,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | headless-tested, awaiting user (2026-11-10), 1 trackball | Team Play's bowling game (Linux cabinet folder + Unity 5.4 Windows player, 64-bit, §6.3i): the dump's BepInEx loader disabled, the payload is the cabinet's `teamplayio` / `serialio` libraries for the game's DllImports (buttons, coins in cents, the trackball from the mouse's wrapping counters or the stick), free play in its `Adjustables` |
 | `bounty-hunter` | Bounty Hunter | arcadepc | headless-tested, awaiting user (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
+| `mad-bullets` | Mad Bullets | arcadepc | headless-tested, awaiting user (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture, OpenAL from winetricks, Escape on b2 |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
