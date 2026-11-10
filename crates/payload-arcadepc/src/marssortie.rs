@@ -76,5 +76,72 @@ pub fn init() {
                 _ => log!("marssortie: {class}.{name} not found"),
             }
         }
+        no_webcam(m, image);
+        if wal_payload_common::crosshairs(false) {
+            playing_crosshairs(m, image);
+        }
     });
+}
+
+/// The webcam never opened: `Photocamera.Awake`'s `Application.RequestUserAuthorization(WebCam)`
+/// made `null` (`pop`, `ldnull`), its `Update` then never creates the `WebCamTexture` (as on a PC
+/// without one: the players' photos stay blank). `TakePhoto` false did not keep a stage's photo
+/// screen from showing the camera.
+fn no_webcam(m: &wal_payload_common::mono::Mono, image: wal_payload_common::mono::P) {
+    const CALL: [u8; 7] = [0x17, 0x28, 0x77, 0x03, 0x00, 0x0a, 0x7d]; // ldc.i4.1, call, stfld
+    match m.il_code(m.method(m.class(image, "", "Photocamera"), "Awake", 0)) {
+        Some(il) if il.get(0x84..0x8b) == Some(&CALL[..]) => {
+            il[0x85..0x8a].copy_from_slice(&[0x26, 0x14, 0x00, 0x00, 0x00]);
+            log!("marssortie: webcam not opened");
+        }
+        _ => log!("marssortie: Photocamera.Awake not this build's: webcam opened"),
+    }
+}
+
+/// `Now.HairCrossManager.Update` as the game ships it: each station's cross placed at its gun.
+const HAIRCROSS_UPDATE: [u8; 62] = [
+    0x28, 0x2d, 0x02, 0x00, 0x06, // call GameData.get_DisplayHairCross
+    0x39, 0x33, 0x00, 0x00, 0x00, // brfalse ret
+    0x16, 0x0a, 0x38, 0x21, 0x00, 0x00, 0x00, // i = 0, br test
+    0x02, 0x7b, 0x54, 0x12, 0x00, 0x04, 0x06, 0x9a, // hairCrosses[i]
+    0x6f, 0x89, 0x00, 0x00, 0x0a, 0x75, 0x7e, 0x00, 0x00, 0x01, // .transform as RectTransform
+    0x06, 0x28, 0x7a, 0x05, 0x00, 0x06, // LaserLocator.GetPosition(i)
+    0x6f, 0x00, 0x02, 0x00, 0x0a, // .anchoredPosition =
+    0x06, 0x17, 0x58, 0x0a, 0x06, 0x7e, 0x1b, 0x03, 0x00, 0x04, 0x3f, 0xd4, 0xff, 0xff, 0xff, // i++, i < GameData.stations
+    0x2a,
+];
+
+/// Its replacement: a station's cross shown only once its player plays, from the player's first
+/// shot (`hairCrosses[i].SetActive(ScoreManager.IsPlaying(i) &&
+/// PropWeaponSpawner.IsDefaultWeaponMounted(i))`, every frame; none in attract), then placed as
+/// before (its `isinst` dropped: the transform is the cross's `RectTransform`). With free play
+/// (price 0) every station plays from a stage's start: the default weapon, given at a playing
+/// station's first shot, tells the players in. `DisplayHairCross` is the payload's (on), not
+/// tested again.
+const HAIRCROSS_PLAYING: [u8; 58] = [
+    0x16, 0x0a, // i = 0 (a station at least)
+    0x02, 0x7b, 0x54, 0x12, 0x00, 0x04, 0x06, 0x9a, // loop: hairCrosses[i]
+    0x25, 0x06, 0x28, 0xd3, 0x10, 0x00, 0x06, // dup, ScoreManager.IsPlaying(i)
+    0x06, 0x28, 0xb1, 0x10, 0x00, 0x06, 0x5f, // & PropWeaponSpawner.IsDefaultWeaponMounted(i)
+    0x6f, 0xb0, 0x00, 0x00, 0x0a, // .SetActive()
+    0x6f, 0x89, 0x00, 0x00, 0x0a, // .transform
+    0x06, 0x28, 0x7a, 0x05, 0x00, 0x06, // LaserLocator.GetPosition(i)
+    0x6f, 0x00, 0x02, 0x00, 0x0a, // .anchoredPosition =
+    0x06, 0x17, 0x58, 0x0a, 0x06, 0x7e, 0x1b, 0x03, 0x00, 0x04, 0x32, 0xc9, // i++, i < stations: loop
+    0x2a,
+];
+
+/// Idle stations' crosses hidden: the game shows every station's (`GameData.stations`), played
+/// or not. Its build checked by the original body (the tokens are this build's).
+fn playing_crosshairs(m: &wal_payload_common::mono::Mono, image: wal_payload_common::mono::P) {
+    match m.il_code(m.method(m.class(image, "Now", "HairCrossManager"), "Update", 0)) {
+        Some(il) if *il == HAIRCROSS_UPDATE => {
+            // nops first: the body keeps its size
+            let pad = il.len() - HAIRCROSS_PLAYING.len();
+            il[..pad].fill(0x00);
+            il[pad..].copy_from_slice(&HAIRCROSS_PLAYING);
+            log!("marssortie: crosshairs of the playing stations only");
+        }
+        _ => log!("marssortie: HairCrossManager.Update not this build's: every station's crosshair"),
+    }
 }

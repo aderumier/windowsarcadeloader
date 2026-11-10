@@ -5061,8 +5061,18 @@ next to the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
   run in a child domain, its static fields out of the payload's reach): free play
   (`WAL_FREEPLAY`) as the coins per game / per continue 0 (`GameDataBase.GetCoinsPerGame`,
   `GetCoinsPerGame2` and the instance getters), the crosshairs (`WAL_CROSSHAIR`) as
-  `GameData.DisplayHairCross` (the game's own crosses, every station's), no player photos at
-  a game's start (`GameData.TakePhoto` false: no camera).
+  `GameData.DisplayHairCross` (the game's own crosses), no player photos at a game's start
+  (`GameData.TakePhoto` false).
+- **Crosshairs of the players only.** The game shows every station's cross (`HairCrossManager`),
+  and with free play (price 0) every station plays from a stage's start: `HairCrossManager.Update`
+  is rewritten in place (same size) to `SetActive(ScoreManager.IsPlaying(i) &&
+  PropWeaponSpawner.IsDefaultWeaponMounted(i))` each frame, the default weapon being given at a
+  playing station's first shot: a cross appears from its player's first shot in a stage, none in
+  the attract or the stage select. Checked against the shipped body (this build's tokens).
+- **No webcam.** `Photocamera.Awake`'s `Application.RequestUserAuthorization(WebCam)` is made
+  `null` (`pop`, `ldnull`): its `Update` never creates the `WebCamTexture`, as on a PC without a
+  camera (blank photos). `TakePhoto` false alone still opened the camera and showed it on a
+  stage's photo screen.
 - **Operator menus.** Space (OK) in the attract opens them (Device, Account, Setup, License,
   Leaderboard). They are Unity UI driven by the keypad: `MRCQ.UIInputHelper` calls
   `keybd_event` (keypad 8 5 4 6 +) for the board's up / down / left / right / OK, messages the
