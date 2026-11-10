@@ -4970,6 +4970,33 @@ entry point (`payload_loader`, `xinput1_3` native), board `bountyhunter` (`bount
   (the picture sideways), wined3d is needed: DXVK's Direct3D 8 crashes in the game's state block
   calls at its device setup (`CaptureStateBlock` / `ApplyStateBlock`).
 
+#### Friction
+
+Venum Spyder's two-gun shooter (`Friction.exe`, 2006, Direct3D 9, 32-bit; the dump's game set to
+1920x1080). `.windowsloader`: `Friction.exe`. The game loads its gun board's library
+(`LoadLibraryA("vsIOBoard.dll")`, its functions by name, cdecl); the dump has a community
+replacement (keyboard / mouse / XInput, DemulShooter's target, its own patches of the game):
+the payload is the library instead (`payload_install: [VSIOBOARD.dll]`), board `vsioboard`
+(`vsioboard.rs`):
+
+- **Listener.** `vsIOBoard_AddListener` registers a C++ object; the board's thread calls its
+  methods (thiscall) every 16 ms: `[0](event)` each gun's state (`{u32 2, u32 player, u16 1,
+  u16 x, u16 y, u16 buttons}`: x 160..480 and y 120..360 the picture's width and height, mapped
+  by the game through `vsIOBoard_Calibrate`; buttons 5 the trigger, 2 reload), `[1](mech)` a coin
+  (1 / 2 the players' slots, 3 a service credit: one coin), `[2](1)` the service button (the
+  operator console: next item; start selects), `[3](player)` a start button.
+  `vsIOBoard_SetUpGun(player, auto, _, frames)`: auto fire, a held trigger reported every
+  `frames` events. The other functions answer as the community library did.
+- **Game patches.** The community library's `RebootDisable` / `DInputDisable` patches of the
+  game: the profile's `WAL_PATCHES` (the reboot skipped, the game's DirectInput mouse and keyboard
+  reading skipped); its DirectInput is the common fake one.
+- **Free play.** None in the game (coins per play / continue, `HKLM\Software\VenumSpyder`, read
+  at `0x44b680`, default 2): with `WAL_FREEPLAY`, a start press first gives that many service
+  credits (`CoinsPerContinue` when larger). Start presses during play bank credits.
+- **Crosshairs.** The game draws its own; the dump's ReShade (`d3d9.dll`, crosshair pictures) is
+  hidden. Off the screen, the trigger reloads (`gun.offscreen: b6`).
+- `WAL_VSIOBOARD_TRACE=1` logs the guns' events at each button change.
+
 #### Wild West Shoot Out
 
 Yingqi's two-gun western shooter (`CowBoy.exe`, Unity 5.6, Mono, 32-bit, Direct3D 11; the player
@@ -7291,6 +7318,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mars-sortie` | Mars Sortie | arcadepc | headless-tested, awaiting user (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play, the game's crosshairs and no player photos by IL patches of their getters, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
 | `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | headless-tested, awaiting user (2026-11-10), 1 trackball | Team Play's bowling game (Linux cabinet folder + Unity 5.4 Windows player, 64-bit, §6.3i): the dump's BepInEx loader disabled, the payload is the cabinet's `teamplayio` / `serialio` libraries for the game's DllImports (buttons, coins in cents, the trackball from the mouse's wrapping counters or the stick), free play in its `Adjustables` |
 | `bounty-hunter` | Bounty Hunter | arcadepc | headless-tested, awaiting user (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
+| `friction` | Friction | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play by service credits at start, the game's own crosshairs |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 | `mad-bullets` | Mad Bullets | arcadepc | headless-tested, awaiting user (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture, OpenAL from winetricks, Escape on b2 |
 

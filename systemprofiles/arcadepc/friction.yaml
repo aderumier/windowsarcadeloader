@@ -1,0 +1,48 @@
+# Friction (Venum Spyder, 2006, Friction.exe, Direct3D 9, 32-bit) - template, override values
+# in userprofiles/arcadepc/friction.yaml.
+# A two-gun shooter. The payload is the game's gun board library (vsIOBoard.dll: the guns,
+# coins, start and service buttons) and plays free play (docs §6.3i).
+system: arcadepc
+name: Friction
+
+# the game's vsIOBoard.dll (the gun board): the payload, in place of the dump's community one
+payload_install: [VSIOBOARD.dll]
+# the dump's ReShade setup (its crosshair pictures): not used, the game draws its own
+hide: [d3d9.dll]
+
+env:
+  WAL_ARCADEPC_BOARD: vsioboard
+  # The community library's game patches (its RebootDisable / DInputDisable options): the
+  # reboot skipped (0x44c000), the game's own DirectInput mouse and keyboard reading skipped
+  # (0x497958, 0x497ed0, 0x497d05, 0x44cf9b, 0x49793d).
+  WAL_PATCHES: "0x4C000:EB,0x97958:00,0x97ED0:EB58,0x97D05:E9AE1A0000,0x4CF9B:C3,0x9793D:E99D000000"
+  # its DirectInput: the payload's, without devices
+  WAL_DINPUT_DISABLE: "1"
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # a lightgun pointing off the screen reloads when it shoots (payload: b6 off screen)
+  gun:
+    offscreen: b6
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Start (and continue) without coins: a start press gives the coins of a play as
+          service credits. Off: the coin settings.
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Reload
+  start: Start
+  coin: Coin
+  service: Service credit
+  test: Operator console (next item)

@@ -69,6 +69,9 @@
 //! Bounty Hunter (`WAL_ARCADEPC_BOARD=bountyhunter`, x86 build): `bountyhunter.rs` emulates its
 //! COM1 board (the pads, coins), replaces its leak-tracking allocator and sets free play.
 //!
+//! Friction (`WAL_ARCADEPC_BOARD=vsioboard`, x86 build): `vsioboard.rs` is its gun board's
+//! `vsIOBoard.dll` (the guns, coins, start and service buttons, through the game's listener).
+//!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
@@ -162,6 +165,8 @@ mod uaf;
 mod unrealio;
 #[cfg(target_arch = "x86")]
 mod vcthunder;
+#[cfg(target_arch = "x86")]
+mod vsioboard;
 #[cfg(target_arch = "x86")]
 mod xio;
 mod xmlset;
@@ -318,6 +323,15 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 bountyhunter::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "vsioboard" => {
+                pads::disconnect();
+                // the community library's game patches (reboot, DirectInput reading)
+                wal_payload_common::patches::apply();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                vsioboard::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "arcticthunder" => {
