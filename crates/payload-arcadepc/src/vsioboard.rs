@@ -11,18 +11,19 @@
 //!   1's slot, 2 player 2's, 3 a service credit), `[2](1)` the service button, `[3](player)` a
 //!   start button (1, 2). `vsIOBoard_SetUpGun(player, auto, _, frames)`: with `auto` 1, a held
 //!   trigger is reported every `frames` events (the machine gun's rhythm).
-//! - **Free play.** The game has none (coins per play and per continue, at least 1; a service
-//!   credit is one coin): with the common `WAL_FREEPLAY`, a start press first gives the coins of
-//!   a play as service credits (`HKLM\Software\VenumSpyder` `CoinsPerPlay`, default 2, or
-//!   `CoinsPerContinue` when larger, as the game reads them at `0x44b680`), then starts (and
-//!   continues).
+//! - **Free play.** The game has none (coins per play and per continue, at least 1): with the
+//!   common `WAL_FREEPLAY`, its coin counter (the coin object `[0x5450c4]`: coins `+0`, a play's
+//!   price `+4`, at most 420) is kept at 99 plays, and the spend (`0x44ba47`: `sub` at
+//!   `0x44ba64`) takes nothing: starts and continues free, the game showing 99 credits.
+//! - **Start.** A trigger press is its player's start too (a shot starts, joins, continues: the
+//!   listener's start, `[3](players)`, a bit per player, acts in the attract and the game only).
 //! - **Game patches.** The community library also patched the game (its `RebootDisable` and
 //!   `DInputDisable` options): the profile's `WAL_PATCHES` (the reboot call skipped, the game's
 //!   own DirectInput mouse and keyboard reading skipped).
 //!
 //! Natives (each player): `trigger reload start coin`; `service test` (player 1's stick).
 
-use std::ffi::{CStr, c_void};
+use std::ffi::c_void;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::OnceLock;
@@ -30,7 +31,7 @@ use std::time::Duration;
 
 use wal_payload_common::mapping::ButtonMap;
 use wal_payload_common::{gun, input, log};
-use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RegGetValueA};
+use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
 
 const PLAYERS: usize = 2;
 /// The gun event's type.
@@ -111,21 +112,21 @@ fn notify(index: usize, arg: usize) {
     }
 }
 
-/// A setting of the game's (`HKLM\Software\VenumSpyder`, a DWORD).
-fn setting(name: &CStr) -> Option<u32> {
-    let mut value = 0u32;
-    let mut size = 4u32;
-    let status = unsafe {
-        RegGetValueA(HKEY_LOCAL_MACHINE, c"Software\\VenumSpyder".as_ptr().cast(), name.as_ptr().cast(), RRF_RT_REG_DWORD, std::ptr::null_mut(), (&mut value as *mut u32).cast(), &mut size)
-    };
-    (status == 0).then_some(value)
+/// The game's coin object (`Friction.exe`'s pointer at `0x5450c4`; null before it exists).
+fn coin_object() -> *mut u32 {
+    unsafe { *(0x5450c4 as *const *mut u32) }
 }
 
-/// The coins a play (or a continue) takes, at most 9.
-fn coins_per_play() -> u32 {
-    let play = setting(c"CoinsPerPlay").unwrap_or(2);
-    let cont = setting(c"CoinsPerContinue").unwrap_or(0);
-    play.max(cont).clamp(1, 9)
+/// Free play: the counter kept at 99 plays (the spend patched out by [`init`]).
+fn keep_credits() {
+    let coins = coin_object();
+    if coins.is_null() {
+        return;
+    }
+    let price = unsafe { coins.add(1).read_volatile() }.clamp(1, 4);
+    if unsafe { coins.read_volatile() } < 99 * price {
+        unsafe { coins.write_volatile(99 * price) };
+    }
 }
 
 /// The board's coordinates of `player`'s gun (its place in the game's picture; off it: the
@@ -157,12 +158,16 @@ fn pressed(before: &mut bool, now: bool) -> bool {
 
 fn board_thread() {
     let mut held = Held::default();
+    let mut trigger_held = [false; PLAYERS];
     let mut auto_count = [0u32; PLAYERS];
     let mut last_buttons = [0u16; PLAYERS];
     loop {
         std::thread::sleep(Duration::from_millis(16));
         let mut service = false;
         let mut test = false;
+        if FREE_PLAY.load(Ordering::Relaxed) {
+            keep_credits();
+        }
         for player in 0..PLAYERS {
             let (mut trigger, mut reload, mut start, mut coin) = (false, false, false, false);
             map().for_each_pressed(&input(player), |n| match n {
@@ -196,12 +201,9 @@ fn board_thread() {
             if pressed(&mut held.coin[player], coin) {
                 notify(1, player + 1);
             }
-            if pressed(&mut held.start[player], start) {
-                if FREE_PLAY.load(Ordering::Relaxed) {
-                    for _ in 0..coins_per_play() {
-                        notify(1, 3);
-                    }
-                }
+            // a shot is the player's start too
+            let shot = pressed(&mut trigger_held[player], trigger);
+            if pressed(&mut held.start[player], start) || shot {
                 notify(3, player + 1);
             }
         }
@@ -323,7 +325,20 @@ pub fn init() {
     let free_play = wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY") == Some(true);
     FREE_PLAY.store(free_play, Ordering::Relaxed);
     TRACE.store(std::env::var("WAL_VSIOBOARD_TRACE").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
-    log!("vsioboard: vsIOBoard.dll, free play {}", if free_play { "on" } else { "off" });
+    if free_play {
+        // the spend (`sub [esi], eax`): nothing taken
+        let spend = 0x44ba64 as *mut [u8; 2];
+        if unsafe { spend.read() } == [0x29, 0x06] {
+            let mut old = 0;
+            unsafe { VirtualProtect(spend.cast(), 2, PAGE_EXECUTE_READWRITE, &mut old) };
+            unsafe { spend.write([0x90, 0x90]) };
+            unsafe { VirtualProtect(spend.cast(), 2, old, &mut old) };
+        } else {
+            log!("vsioboard: the spend not this build's: free play off");
+            FREE_PLAY.store(false, Ordering::Relaxed);
+        }
+    }
+    log!("vsioboard: vsIOBoard.dll, free play {}", if FREE_PLAY.load(Ordering::Relaxed) { "on" } else { "off" });
 }
 
 #[cfg(test)]

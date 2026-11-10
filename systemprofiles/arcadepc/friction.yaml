@@ -1,7 +1,8 @@
 # Friction (Venum Spyder, 2006, Friction.exe, Direct3D 9, 32-bit) - template, override values
 # in userprofiles/arcadepc/friction.yaml.
 # A two-gun shooter. The payload is the game's gun board library (vsIOBoard.dll: the guns,
-# coins, start and service buttons) and plays free play (docs §6.3i).
+# coins, start and service buttons) and plays free play: 99 credits that a play never spends;
+# a shot is also its player's start (docs §6.3i).
 system: arcadepc
 name: Friction
 
@@ -36,8 +37,8 @@ options:
         label: Free play
         kind: bool
         description: >-
-          Start (and continue) without coins: a start press gives the coins of a play as
-          service credits. Off: the coin settings.
+          Start (and continue) without coins: the game's credits kept at 99, a play takes none.
+          Off: the coin settings.
       - key: WAL_CROSSHAIR
         label: Crosshairs
         kind: bool
@@ -48,7 +49,7 @@ options:
 controls:
   lx: Gun aim (x)
   ly: Gun aim (y)
-  b1: Trigger
+  b1: Trigger (also start / join / continue)
   b2: Reload
   start: Start
   coin: Coin
