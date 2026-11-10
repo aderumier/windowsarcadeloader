@@ -126,6 +126,10 @@
 //! The House of the Dead 3 (`WAL_ARCADEPC_BOARD=hotd3`, x86 build): `hotd3.rs` applies the
 //! community ArcadeMod's patches itself and writes both guns into the game's input blocks.
 //!
+//! Plants vs. Zombies: The Last Stand (`WAL_ARCADEPC_BOARD=pvz`, x86 build): `pvz.rs` patches
+//! its Shell as the community did and starts the game with the payload, which plays its mouse
+//! with the gun.
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
 //! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
@@ -190,6 +194,8 @@ mod pads;
 mod popmoto;
 #[cfg(target_arch = "x86")]
 mod pullthetrigger;
+#[cfg(target_arch = "x86")]
+mod pvz;
 #[cfg(target_arch = "x86")]
 mod sdc2;
 #[cfg(target_arch = "x86")]
@@ -478,6 +484,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "pullthetrigger" => {
                 pads::disconnect();
                 pullthetrigger::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "pvz" => {
+                pads::disconnect();
+                pvz::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "popmoto" => {

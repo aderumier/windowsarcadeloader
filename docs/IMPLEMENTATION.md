@@ -5065,6 +5065,44 @@ loaded by `payload_loader`.
 - Verified headless (2026-11-10): the arcade title (PRESS START, FREEPLAY), start and player 2's
   join, the intro's skip by start, gameplay. User 100% on the desktop (2026-11-10).
 
+#### Plants vs. Zombies: The Last Stand
+
+Sega Amusements / Hollywood Gaming's 2014 redemption gun game (one pea shooter, a portrait
+1080x1920 monitor). Two programs: `Shell.exe` (Hollywood Gaming's shell 1.4.4i, Direct3D 9,
+32-bit) runs the game, `pvz\Pvz.exe` (Unity 4.3, 32-bit) only draws it: the Shell sends every
+screen, wave and zombie on `127.0.0.1:18888`, the game answers with its events. The dump is the
+cabinet's `C:\sega` (`c_folders: sega: .`); `.windowsloader`: `shell\Shell.exe` (the community
+folder; the cabinet's own `Shell` 1.0.0 stops on "ERROR! UPDATE FAILED"). Board `pvz`
+(`pvz.rs`, x86 build), loaded by `payload_loader` (`xinput1_3` native: with Wine's own loaded
+instead the Shell ran unpatched, and its cleanup deleted the dump's `pvz` folder).
+
+- **The Shell.** The community `dk2win32.dll`'s patches, byte for byte (`WAL_PATCHES`): the
+  Dinkey dongle and security key, the install checksum, the encrypted game path, the I/O board,
+  the reboot / folder deletion / desktop changes (`0x135f0`), the update errors. The dongle
+  library is the cabinet's (`files:`; the community one remaps `C:\SEGA` for `C:\sega\shell`
+  only). `backup\pvz` stays: the Shell checks its `Install.ini` against the game's each start.
+  The Shell's `CreateProcessA` of `Pvz.exe` goes through `wal-loader`; its windows are hidden
+  while the game's (`UnityWndClass`) is shown.
+- **Start and coins.** The Shell leaves its attract loop only on a coin or the START button
+  (the I/O board's, patched out): the payload writes its board's start byte (`0x1120ca`) and
+  increments its coin meter (`u16` at `0x112131`, the main loop adds its increase to the
+  credits). The trigger is start too: from the attract, in free play (`ShellData.ini`), the
+  "SHOOT TO START" screen, whose button a shot presses.
+- **The gun: the mouse.** The community `Game.ini`'s `UseMouseController=1` makes the game aim
+  at `Input.mousePosition`, every shot `Fire1`. The payload posts the cursor (in the game's
+  1080x1920 pixels, Unity's `GetCursorPos` answered) and the left button (a message and a raw
+  report); the dump's BepInEx plugin is not loaded (`winhttp` builtin).
+- **Portrait.** `WAL_DESKTOP_SIZE=1080x1920` (fitted on the screen), the Direct3D 9 back
+  buffers at that size (`WAL_D3D9_WINDOWED_SIZE`), the dump's `bezel.png` around it.
+  `WAL_D3D9_KEEP_WINDOW=desktop` (new): Unity creates its device on its hidden 320x240 window;
+  shown at that size its render targets were that small (the background untextured), over the
+  whole screen the picture was stretched: shown over the fitted desktop instead.
+  `WAL_DESKTOP_ACTIVE` / `WAL_DESKTOP_UNMANAGED`: the Shell kept the focus, Unity then ignored
+  the gun.
+- Verified headless (2026-11-10): the attract, START, a game (waves, score, results), the aim.
+  User 100% on the desktop (2026-11-10). Test and service (the Shell's DirectInput keyboard)
+  are not mapped.
+
 #### Bounty Hunter
 
 GCTECH's striking game (`bh.exe`, 2002, Power Render 4 on Direct3D 8, 32-bit, UPX-packed,
@@ -7652,6 +7690,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `pull-the-trigger` | Pull The Trigger | arcadepc | user 100% (2026-11-10), 1 gun | Digital Silkroad's shooter (OpenGL, 32-bit, §6.3i): the dump's decrypted `PTW-BootTest.exe` + community `PttBootTest.dll` (MP4 videos, FREEPLAY), the gun plays its mouse and keys (COM2 board absent), free play = price 0, the library's window on the screen's 4:3 with the dump's bezel (unmanaged), crosshair, native DirectMusic |
 | `the-house-of-the-dead-3` | The House of the Dead 3 | arcadepc | user 100% (2026-11-10), 2 guns | SEGA's PC release (Direct3D 8, 32-bit, §6.3i) with the community ArcadeMod 7.0, whose patches the payload applies itself (its sprites read from the dump's .NET launcher); the guns written into the game's input blocks (DemulShooter's), start / coin as its window keys, saves beside the executable, the 4:3 picture windowed on the screen |
 | `the-house-of-the-dead-remake` | The House of the Dead: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity 2020.3 HDRP, Mono, 64-bit, §6.3i, board `hotdr`) with the community arcade plugin (BepInEx): the guns written into the plugin's DemulShooter shared memory, start / coin as its Unity keys (the trigger is start too, right button reload), its ini set at start (free play, crosshairs, difficulty, lives, credits, language), 1280x720 picture (an iGPU's reset at 1920x1080) |
+| `plants-vs-zombies-the-last-stand` | Plants vs. Zombies: The Last Stand | arcadepc | user 100% (2026-11-10), 1 gun | Hollywood Gaming's redemption game (Shell Direct3D 9 + Unity 4.3, 32-bit, §6.3i, board `pvz`): the Shell patched as the community did, the game started with the payload, the gun plays its mouse (no BepInEx plugin), the Shell's START button and coin meter from the sticks (the trigger is start too), portrait 1080x1920 fitted with the dump's bezel |
 | `pop-moto` | Pop Moto | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, item) | Tecway's motorbike racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `USB_board.dll` (handlebar, throttle lever, keys, coins) and patches the engine's scripts as the community library, no server, free play as the game's free mode |
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) | DiverBras' kart racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `bin\s_input.dll` in each of its engine programs (menus, races, operator menu), their hand-offs started by the launcher (relaunch), the record photo (webcam) skipped, free play as the game's own (JOGO LIVRE) |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |

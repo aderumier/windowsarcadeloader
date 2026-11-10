@@ -22,6 +22,11 @@
 //!   shown and sized it: Street Fighter IV) is shown borderless over the whole screen.
 //!   `WAL_D3D9_KEEP_WINDOW=1`: a hidden window that has a size is shown where it is (a portrait
 //!   window `WAL_WINDOW_SIZE` sized, in a bezel: Sonic Dash Extreme).
+//!   `WAL_D3D9_KEEP_WINDOW=desktop`: a hidden window is shown borderless over the game's desktop
+//!   (`WAL_DESKTOP_SIZE`) as fitted on the screen, whatever its size (Plants vs. Zombies: The
+//!   Last Stand's Unity 4 creates its device on its 320x240 window, hidden: shown at that size,
+//!   its render targets were made for it, the background without textures; over the whole
+//!   screen, its portrait picture stretched).
 //!   The adapter's display modes also list that size (60 Hz) when the monitor has none: games
 //!   checking for their mode before creating the device run on any screen (Music GunGun! 2:
 //!   1920x1080, "Direct3D device enumeration failed" on a 1280x720 screen).
@@ -166,6 +171,8 @@ static WINDOWED_FALLBACK: AtomicBool = AtomicBool::new(false);
 static WINDOWED_SIZE: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 /// `WAL_D3D9_KEEP_WINDOW=1`: see [`show_device_window`].
 static KEEP_WINDOW: AtomicBool = AtomicBool::new(false);
+/// `WAL_D3D9_KEEP_WINDOW=desktop`: see [`show_device_window`].
+static DESKTOP_WINDOW: AtomicBool = AtomicBool::new(false);
 static FORCE_FULLSCREEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static ASPECT: Mutex<Option<(u32, u32)>> = Mutex::new(None);
 static SOURCE: Mutex<Option<[i32; 4]>> = Mutex::new(None);
@@ -284,6 +291,7 @@ pub fn init() {
     let windowed_size = parse_size("WAL_D3D9_WINDOWED_SIZE");
     *WINDOWED_SIZE.lock().unwrap() = windowed_size;
     KEEP_WINDOW.store(std::env::var("WAL_D3D9_KEEP_WINDOW").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
+    DESKTOP_WINDOW.store(std::env::var("WAL_D3D9_KEEP_WINDOW").is_ok_and(|v| v.trim() == "desktop"), Ordering::Relaxed);
     let aspect = d3d9_aspect();
     *ASPECT.lock().unwrap() = aspect;
     let source = std::env::var("WAL_D3D9_SOURCE").ok().and_then(|v| {
@@ -1084,13 +1092,17 @@ unsafe fn show_device_window() {
         log!("d3d9: device window {hwnd:?} shown at its size {}x{}", r.right - r.left, r.bottom - r.top);
         return;
     }
-    let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+    // the game's desktop as fitted on the screen, else the whole screen
+    let (x, y, w, h) = match crate::desktop::screen_rect().filter(|_| DESKTOP_WINDOW.load(Ordering::Relaxed)) {
+        Some(rect) => rect,
+        None => unsafe { (0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) },
+    };
     unsafe {
         let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
         SetWindowLongW(hwnd, GWL_STYLE, ((style & !(WS_CAPTION | WS_THICKFRAME)) | WS_POPUP) as i32);
-        SetWindowPos(hwnd, HWND_TOP, 0, 0, w, h, SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+        SetWindowPos(hwnd, HWND_TOP, x, y, w, h, SWP_SHOWWINDOW | SWP_FRAMECHANGED);
     }
-    log!("d3d9: device window {hwnd:?} ({}x{}, hidden or empty) shown over the screen {w}x{h}", r.right - r.left, r.bottom - r.top);
+    log!("d3d9: device window {hwnd:?} ({}x{}, hidden or empty) shown at {x},{y} {w}x{h}", r.right - r.left, r.bottom - r.top);
 }
 
 /// Device window of D3DPRESENT_PARAMETERS (hDeviceWindow, dword 7), else the focus window.

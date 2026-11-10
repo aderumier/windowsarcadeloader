@@ -111,6 +111,13 @@ fn fit() -> (f64, f64, f64, f64) {
     (scale, scale, (sw as f64 - dw as f64 * scale) / 2.0, (sh as f64 - dh as f64 * scale) / 2.0)
 }
 
+/// The game's whole desktop on the real screen (left, top, width, height), `None` without one.
+pub fn screen_rect() -> Option<(i32, i32, i32, i32)> {
+    let (dw, dh) = size()?;
+    let (sx, sy, left, top) = fit();
+    Some((left.round() as i32, top.round() as i32, (dw as f64 * sx).round() as i32, (dh as f64 * sy).round() as i32))
+}
+
 /// A window of the game's desktop on the real screen: its size scaled, centered (one game
 /// window; the positions callers pass back may come from `GetWindowRect`, real ones).
 fn to_screen(x: i32, y: i32, w: i32, h: i32) -> (i32, i32, i32, i32) {

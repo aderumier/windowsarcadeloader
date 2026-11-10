@@ -1,0 +1,81 @@
+# Plants vs. Zombies: The Last Stand (Sega Amusements / Hollywood Gaming, 2014, a redemption
+# gun game) - template, override values in
+# userprofiles/arcadepc/plants-vs-zombies-the-last-stand.yaml.
+# One pea shooter gun. shell\Shell.exe (the cabinet's shell, Direct3D 9, 32-bit) runs the game
+# and starts pvz\Pvz.exe (Unity 4.3, 32-bit), which draws it. The payload patches the Shell as the
+# community did and starts the game with the payload, which plays the game's mouse with the gun
+# (WAL_ARCADEPC_BOARD=pvz, docs §6.3i).
+system: arcadepc
+name: Plants vs. Zombies The Last Stand
+
+# The Shell's paths are c:\sega\Shell, c:\sega\ShellData, c:\sega\pvz...: the dump root.
+c_folders:
+  sega: .
+# The community's shell folder (Shell 1.4.4i, its Game.ini's mouse controller and checks off),
+# the dump's executable; the cabinet's own Shell folder (1.0.0, its update refused: "UPDATE
+# FAILED") is left out by the run directory (the same name for Wine). The game's backup
+# (backup\pvz) is needed: the Shell checks its Install.ini against the game's at each start
+# (missing: "UPDATE FAILED"); its cleanup, which deleted both folders, is patched out.
+
+# the dongle library: the cabinet's (Microcosm's DK2WIN32.dll; its checks are patched), not the
+# community's, which patches the Shell for C:\sega\shell only and reads the real keyboard
+files:
+  DK2WIN32.dll: "{dump}/Shell/dk2win32.dll"
+
+# The payload is loaded at the entry point: the Shell's patches applied before its code runs.
+payload_loader: true
+dll_overrides:
+  # the payload (installed as xinput1_3.dll): Wine's own would be loaded instead, the Shell then
+  # unpatched (its cleanup deletes c:\sega\pvz and asks for a reboot)
+  xinput1_3: "n,b"
+  # Wine's winhttp: the dump's Unity Doorstop (pvz\winhttp.dll, its BepInEx plugin) not loaded,
+  # the payload plays the game's mouse itself
+  winhttp: "b"
+
+env:
+  WAL_ARCADEPC_BOARD: pvz
+  # The community dk2win32.dll's patches of the Shell: the dongle check returns 1 (0x2f250), the
+  # security error (0xf869), I/O board error (0xf908) and security key (0x803a) skipped, the
+  # install checksum (0x2258e), the encrypted game path left plain (0x10825, 0x10873), the game
+  # never closed by the Shell (0x8100), the dongle scan (0x2ec9f, 0x2eca5, 0x2ecae), the board
+  # disconnection (0x10aaf), no reboot, folder deletion or desktop changes (0x135f0), the update
+  # errors (0x2292c, 0x21e13, 0x21e35)
+  WAL_PATCHES: "0x2F250:B801000000C3,0xF869:EB4D,0xF908:9090,0x803A:9090,0x2258E:1B,0x10825:EB35,0x10873:90909090,0x8100:30C0C390,0x2EC9F:C605,0x2ECA5:01,0x2ECAE:9090,0x10AAF:EB,0x135F0:C3,0x2292C:08,0x21E13:08,0x21E35:08"
+  WAL_PATCHES_EXE: Shell.exe
+  # the cabinet's portrait monitor: the Shell and the game render 1080x1920 (Game.ini's window),
+  # fitted to the screen (Unity makes no window taller than the desktop: 1280x1024 otherwise)
+  WAL_DESKTOP_SIZE: 1080x1920
+  # their Direct3D 9 back buffers at that size, stretched to the fitted window (Unity's was the
+  # window's 608x1080: the 1080x1920 picture cut, the aim off)
+  WAL_D3D9_WINDOWED_SIZE: 1080x1920
+  # Unity's window, still hidden (320x240) at its device's creation, shown over the fitted
+  # portrait desktop: at its own size its render targets were that small (the background
+  # without textures), over the whole screen its picture stretched
+  WAL_D3D9_KEEP_WINDOW: desktop
+  # the game's window always active (the Shell's, hidden, had the focus: Unity 4 then ignored
+  # the gun) and not managed by the window manager (a desktop's panel pushed it down)
+  WAL_DESKTOP_ACTIVE: "1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  # the cabinet art around the portrait picture (bezel.png at the dump's root, beside the shell
+  # folder); its opening (wider than the game's picture) fitted to the game's window, the art on
+  # each side stretched to the screen's edge
+  WAL_BEZEL: ../bezel.png
+  WAL_BEZEL_FIT: stretch
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+# The trigger shoots (the game) and is the Shell's start button too (from the attract: the
+# start screen, then a shot at its button starts); start, coin: the Shell's I/O board's.
+native_map:
+  b1: trigger+start
+  start: start
+  coin: coin
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (also start - from the attract the start screen, shoot its button to play)
+  start: Start
+  coin: Coin
