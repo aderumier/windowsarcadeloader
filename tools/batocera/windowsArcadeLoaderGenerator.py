@@ -94,7 +94,7 @@ class WindowsArcadeLoaderGenerator(Generator):
         # Exit: the launcher stops the game and quits on SIGTERM. Coin: P1 coin (key 5).
         return {
             'name': 'windows-arcade-loader',
-            'keys': {'exit': '/usr/bin/pkill -TERM -x arcade-launcher', 'coin': 'KEY_5'},
+            'keys': {'exit': '/bin/pkill -TERM -x arcade-launcher', 'coin': 'KEY_5'},
         }
 
     def writesToRom(self, config) -> bool:
