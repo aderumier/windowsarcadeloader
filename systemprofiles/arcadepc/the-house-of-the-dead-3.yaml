@@ -1,0 +1,118 @@
+# The House of the Dead 3 (SEGA's PC release, exe\hod3pc.exe, Direct3D 8, 32-bit, the MYTH
+# release) with the community Hotd3pc ArcadeMod 7.0 - template, override values in
+# userprofiles/arcadepc/the-house-of-the-dead-3.yaml.
+# The mod's .NET launcher (Hotd3Arcade_Launcher.exe) is not run: the payload applies its
+# patches itself (arcade title and attract, coins and credits, free play, continue screen,
+# fast reload), its settings from the dump's Hod3Arcade.ini and the options below, its sprites
+# read from the launcher's resources. Two lightguns written into the game's input blocks (as
+# DemulShooter's hod3pc target) (WAL_ARCADEPC_BOARD=hotd3, docs §6.3i).
+system: arcadepc
+name: The House of the Dead 3
+
+# The game imports no DLL of ours: the payload is loaded at its entry point.
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: hotd3
+  # the payload's DirectInput: no real keyboard, mouse or joystick reaches the game
+  WAL_DINPUT_DISABLE: "1"
+  # the game's crosshairs at the guns (0: hidden)
+  WAL_CROSSHAIR: "1"
+  WAL_HOTD3_DIFFICULTY: "2"
+  WAL_HOTD3_LIFE: "4"
+  WAL_HOTD3_MAX_LIFE: "5"
+  WAL_HOTD3_CREDITS_TO_START: "1"
+  WAL_HOTD3_CREDITS_TO_CONTINUE: "1"
+  WAL_HOTD3_LANGUAGE: english
+  WAL_HOTD3_SCORE: "1"
+  # The game's full screen device (its display mode: this size) windowed in a borderless window,
+  # the screen's centered 4:3 rectangle (the guns aim over that picture), black around it; not
+  # managed by the window manager (a desktop's top bar pushed it down)
+  WAL_D3D9_WINDOWED_SIZE: 1280x960
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  WAL_D3D9_KEEP_WINDOW: "1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+  WAL_BEZEL: black
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Start begins a game without coins. Off: a coin is a credit.
+      - key: WAL_HOTD3_DIFFICULTY
+        label: Difficulty
+        kind: choice
+        choices: ["0", "1", "2", "3", "4"]
+        description: >-
+          0 very easy, 1 medium easy, 2 normal, 3 medium hard, 4 very hard.
+      - key: WAL_HOTD3_LIFE
+        label: Lives at start
+        kind: number
+        description: >-
+          The lives a player starts with (1 to 9).
+      - key: WAL_HOTD3_MAX_LIFE
+        label: Maximum lives
+        kind: number
+        description: >-
+          The most lives a player can have (1 to 9).
+      - key: WAL_HOTD3_CREDITS_TO_START
+        label: Credits to start
+        kind: number
+        description: >-
+          The credits a game costs without free play (1 to 9).
+      - key: WAL_HOTD3_CREDITS_TO_CONTINUE
+        label: Credits to continue
+        kind: number
+        description: >-
+          The credits a continue costs without free play (1 to 9).
+      - key: WAL_HOTD3_LANGUAGE
+        label: Language
+        kind: choice
+        choices: [english, french, italian, spanish]
+        description: >-
+          The game's texts and the arcade screens' sprites.
+      - key: WAL_HOTD3_SCORE
+        label: Score
+        kind: bool
+        description: >-
+          The players' scores shown during the game.
+      - key: WAL_CROSSHAIR
+        label: Crosshairs
+        kind: bool
+        description: >-
+          The game's crosshairs at the guns. Off: hidden (for lightguns with their own aim).
+      - key: WAL_D3D9_WINDOWED_SIZE
+        label: Resolution
+        kind: choice
+        choices: [640x480, 800x600, 1024x768, 1280x960]
+        description: >-
+          The game's display mode, shown in the screen's centered 4:3.
+
+input:
+  # two lightguns (or mice): the pointer aims, the trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # a shot off the screen reloads
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (reloads off screen; also start - game start, join, continue, cutscene skip)
+  b2: Reload
+  b3: Route change (the screen's side the gun points at)
+  b6: Gun off screen
+  left: Route left
+  right: Route right
+  start: Start
+  coin: Coin

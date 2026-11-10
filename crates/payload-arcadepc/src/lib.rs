@@ -119,6 +119,9 @@
 //! Pull The Trigger (`WAL_ARCADEPC_BOARD=pullthetrigger`, x86 build): `pullthetrigger.rs`
 //! plays its mouse and keys with the gun (the cabinet's COM2 gun board left absent).
 //!
+//! The House of the Dead 3 (`WAL_ARCADEPC_BOARD=hotd3`, x86 build): `hotd3.rs` applies the
+//! community ArcadeMod's patches itself and writes both guns into the game's input blocks.
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
 //! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
@@ -157,6 +160,8 @@ mod gameport;
 mod gamewax;
 #[cfg(target_arch = "x86_64")]
 mod hotd2;
+#[cfg(target_arch = "x86")]
+mod hotd3;
 #[cfg(target_arch = "x86")]
 mod hotdo;
 #[cfg(target_arch = "x86")]
@@ -451,6 +456,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "madbullets" => {
                 pads::disconnect();
                 madbullets::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "hotd3" => {
+                pads::disconnect();
+                hotd3::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "pullthetrigger" => {

@@ -4978,6 +4978,53 @@ patches the executable's IAT to play the `AVI\*.mp4` videos with MFPlay in place
 - Verified headless (2026-11-10): title, coin / start / shot to PLAYER SELECT, character and bonus
   screens, the aim at the gun, the operator menu. User 100% on the desktop (2026-11-10).
 
+#### The House of the Dead 3
+
+SEGA's PC release (`exe\hod3pc.exe`, Direct3D 8, 640x480 logic, 32-bit; the dump's executable
+is the MYTH release, MD5 0228818e…) with the community "Hotd3pc ArcadeMod" 7.0 (Argonlefou, the
+DemulShooter author). `.windowsloader`: `exe\hod3pc.exe`. Board `hotd3` (`hotd3.rs`, x86
+build), loaded by `payload_loader`.
+
+- **The mod, applied by the payload.** The mod is a .NET program (`Hotd3Arcade_Launcher.exe`):
+  it starts the game under its own debugger, and at the process's first breakpoint writes its
+  patches (NOPs, bytes, about 40 code caves: arcade title / attract sprites, coins and credits,
+  free play, the continue screen, the PC menu skipped, fast reload without auto reload, the
+  rankings and settings saves, its settings instead of the registry's), then detaches. The
+  prefix has no .NET: the payload, loaded at the entry point (after the loader, as the mod's
+  breakpoint), writes the same patches and caves, byte for byte, at the same RVAs (the mod's
+  defaults: the MYTH release). Its settings: the dump's `Hod3Arcade.ini`, then the profile's
+  `WAL_HOTD3_*` / `WAL_FREEPLAY` / `WAL_CROSSHAIR`; the display mode from
+  `WAL_D3D9_WINDOWED_SIZE`. Its sprite files (the arcade title's logo, the menu extras per
+  language: PRESS START, INSERT COIN, CREDITS, the digits, FREE PLAY, RELOAD) and default
+  rankings are the launcher's `byte[]` .NET resources, read at start from the dump's
+  `Hotd3Arcade_Launcher.exe` (`System.Resources` format, version 2): nothing of the mod in the
+  repository. Without the launcher file only the guns are set up.
+- **Guns (DemulShooter's `hod3pc` target).** The game's aim writes (0x46be70, 0x46be7b) and its
+  trigger / reload / left / right reads (0x4b4c8c, 0x4b4cb1, 0x4b4c54, 0x4b4c0e) removed, its
+  per-frame clear of the input block (0x4b4bc1) kept to the bits written by the payload. The
+  payload writes each player's aim (0x767aa4 / 0x767ad8: i16 x -320..320, y 240..-240 over the
+  window's picture) and buttons (0x7ecf88 / 0x7ed0f0: byte 2 bit 0 trigger, byte 3 bit 0
+  reload, byte 0 0x04 / 0x08 route left / right: b3 by the gun's side of the screen, or the
+  directions) every 8 ms. A shot off the screen reloads.
+- **Start and coin: window keys.** The game reads its keys from `WM_KEYDOWN` (its window
+  procedure 0x4b2950 compares the virtual key with each keyboard player's configured scan
+  code); both players are set to the keyboard. Start = `1` / `2` (`Keyboard1pStart` /
+  `Keyboard2pStart`), coin = `5` (the mod's key: a credit, the continue timers reset, its
+  sound). The real keyboard and mouse are filtered (`input_filter::init(exe)`); the mod's own
+  start key message at the title (its `PostMessageA`, lParam 0) gets the payload's key mark,
+  its cave's two short jumps over it 3 bytes longer. DirectInput is the payload's fake
+  (`WAL_DINPUT_DISABLE`).
+- **Saves.** The mod's `NVRAM\HOD3.DAT` / `SAVE.DAT` paths moved beside the executable (the run
+  directory: kept, the dump's `NVRAM` may be read-only).
+- **Display.** The full-screen device made windowed (`WAL_D3D9_WINDOWED_SIZE`, default 1280x960)
+  in a borderless window, the screen's centered 4:3 (`WAL_WINDOW_SIZE=aspect`), black around it;
+  the guns aim over that picture. The game's crosshairs at the guns (`WAL_CROSSHAIR`, off: the
+  mod's hidden crosshairs).
+- Verified headless (2026-11-10): the arcade title (PRESS START, FREEPLAY), attract, start and
+  player 2's join, the aim at the guns, shots, the score display. User 100% on the desktop
+  (2026-11-10); the trigger is start too (the title, joins, continues, the cutscenes' skip:
+  always, the in-game pause being disabled).
+
 #### Bounty Hunter
 
 GCTECH's striking game (`bh.exe`, 2002, Power Render 4 on Direct3D 8, 32-bit, UPX-packed,
@@ -7563,6 +7610,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 | `mad-bullets` | Mad Bullets | arcadepc | user 100% (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture (the game's cursor hidden), OpenAL from winetricks, reload = a click on the bullet belt (b2 or a shot off the screen), Escape on start |
 | `pull-the-trigger` | Pull The Trigger | arcadepc | user 100% (2026-11-10), 1 gun | Digital Silkroad's shooter (OpenGL, 32-bit, §6.3i): the dump's decrypted `PTW-BootTest.exe` + community `PttBootTest.dll` (MP4 videos, FREEPLAY), the gun plays its mouse and keys (COM2 board absent), free play = price 0, the library's window on the screen's 4:3 with the dump's bezel (unmanaged), crosshair, native DirectMusic |
+| `the-house-of-the-dead-3` | The House of the Dead 3 | arcadepc | user 100% (2026-11-10), 2 guns | SEGA's PC release (Direct3D 8, 32-bit, §6.3i) with the community ArcadeMod 7.0, whose patches the payload applies itself (its sprites read from the dump's .NET launcher); the guns written into the game's input blocks (DemulShooter's), start / coin as its window keys, saves beside the executable, the 4:3 picture windowed on the screen |
 | `pop-moto` | Pop Moto | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, item) | Tecway's motorbike racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `USB_board.dll` (handlebar, throttle lever, keys, coins) and patches the engine's scripts as the community library, no server, free play as the game's free mode |
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) | DiverBras' kart racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `bin\s_input.dll` in each of its engine programs (menus, races, operator menu), their hand-offs started by the launcher (relaunch), the record photo (webcam) skipped, free play as the game's own (JOGO LIVRE) |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
