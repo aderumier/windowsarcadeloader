@@ -1,7 +1,8 @@
 //! The texts' English translations, by their exact Japanese text (as the file has it: its
 //! line breaks `\n`, its full-width characters and spaces kept).
 //!
-//! Each translator's table is its own file, `strings_a.rs` to `strings_d.rs`, exporting
+//! Each translator's table is its own file, `strings_a.rs` to `strings_d.rs` (version 1.30),
+//! `strings_e.rs` to `strings_j.rs` (Ver.2's texts left, its cars' tuning texts), exporting
 //! `pub(super) const STRINGS: &[(&str, &str)] = &[("日本語", "English"), ...];` in any order. A
 //! translation's `\n`s are its line breaks (the lines' table is rebuilt from them). A Japanese
 //! text in several tables takes the first one's (a to d).
@@ -17,8 +18,20 @@ mod b;
 mod c;
 #[path = "strings_d.rs"]
 mod d;
+#[path = "strings_e.rs"]
+mod e;
+#[path = "strings_f.rs"]
+mod f;
+#[path = "strings_g.rs"]
+mod g;
+#[path = "strings_h.rs"]
+mod h;
+#[path = "strings_i.rs"]
+mod i;
+#[path = "strings_j.rs"]
+mod j;
 
-const TABLES: &[&[(&str, &str)]] = &[a::STRINGS, b::STRINGS, c::STRINGS, d::STRINGS];
+const TABLES: &[&[(&str, &str)]] = &[a::STRINGS, b::STRINGS, c::STRINGS, d::STRINGS, e::STRINGS, f::STRINGS, g::STRINGS, h::STRINGS, i::STRINGS, j::STRINGS];
 
 /// `japanese`'s English text, when a table has it.
 pub(super) fn translate(japanese: &str) -> Option<&'static str> {

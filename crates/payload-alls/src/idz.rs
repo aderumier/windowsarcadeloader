@@ -40,6 +40,57 @@ fn base_port() -> u16 {
 }
 
 /// The userdb's local port (the game's connections to the router's port 10000).
+/// The named event set once the game's configuration is answered (loadConfigB, 1.30's
+/// loadConfig2): amdaemon's JVS board keeps the start button off until then ([`hold_start`]).
+const READY_EVENT: &str = "WAL_IDZ_SERVER_READY";
+
+/// The game has its game server's configuration: cards can be read.
+pub(crate) fn mark_ready() {
+    use windows_sys::Win32::System::Threading::CreateEventW;
+    static DONE: std::sync::Once = std::sync::Once::new();
+    DONE.call_once(|| {
+        let name: Vec<u16> = READY_EVENT.encode_utf16().chain([0]).collect();
+        // kept open for the game's life (its existence is the signal)
+        let h = unsafe { CreateEventW(std::ptr::null(), 1, 1, name.as_ptr()) };
+        log!("idz: configuration loaded, cards accepted{}", if h.is_null() { " (no event)" } else { "" });
+    });
+}
+
+/// From another process (amdaemon): the game has its configuration.
+pub(crate) fn is_ready() -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenEventW, SYNCHRONIZATION_SYNCHRONIZE};
+    let name: Vec<u16> = READY_EVENT.encode_utf16().chain([0]).collect();
+    let h = unsafe { OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, 0, name.as_ptr()) };
+    if h.is_null() {
+        return false;
+    }
+    unsafe { CloseHandle(h) };
+    true
+}
+
+/// In amdaemon: the start button held off until the game has its game server's configuration.
+/// It asks for it in steps 30 s apart from its attract (about 90 s after it shows), pauses them
+/// once a player is in its entry screens, and a card read before it fails (error 6503,
+/// "[accessStep] FAILED" in the game's log, the player plays without data).
+pub(crate) fn hold_start() {
+    fn hold(players: &mut [wal_payload_common::jvs_board::Switches]) {
+        static READY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if READY.load(std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+        if is_ready() {
+            READY.store(true, std::sync::atomic::Ordering::Relaxed);
+            log!("idz: start button on (the game's configuration loaded)");
+            return;
+        }
+        for p in players.iter_mut() {
+            p.0 &= !0x80;
+        }
+    }
+    wal_payload_common::jvs_board::set_switches_hook(hold);
+}
+
 pub(crate) fn port() -> u16 {
     base_port() + 107
 }

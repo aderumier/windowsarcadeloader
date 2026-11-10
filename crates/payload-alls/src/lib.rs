@@ -137,6 +137,10 @@ fn start() {
             if std::env::var("WAL_ALLS_BILLING").is_ok_and(|v| v.trim() == "1") {
                 allnet::serve_billing();
             }
+            // Initial D ARCADE STAGE Zero: its start button waits for the game's configuration
+            if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "idz") {
+                idz::hold_start();
+            }
         } else if child::is_child() {
             // a program the game started (Initial D ARCADE STAGE Zero's store server): the
             // cabinet's network only, its windows hidden

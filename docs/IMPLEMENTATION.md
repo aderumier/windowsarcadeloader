@@ -6723,9 +6723,20 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
   - Framing: 2.30's unknown request lengths taken whole after 50 ms of quiet; the request sizes
     are logged. Ver.2's ServerBox opens userdb connections the server cannot decrypt ("bad
     magic", answered 0x00 as ARTEMiS does): the game plays without it.
-  - Verified headless: attract, guest story race, new Aime player (registration, name, auto
-    team, car, createProfile / saveProfile, Mako & Sayuki tutorial race, result), returning
-    player (licence card with name / team / car, story race). Not user-verified.
+  - The start button held off in amdaemon's JVS board until the game has its configuration
+    (`idz::hold_start`, the event `WAL_IDZ_SERVER_READY` set at loadConfigB): it asks for it in
+    steps 30 s apart from its attract (about 90 s), pauses them once a player is in its entry,
+    and a card read before fails (error 6503, "[accessStep] FAILED").
+  - English (`WAL_ALLS_IDZ_ENGLISH`, `WAL_ALLS_IDZ_ENGLISH_DIR=..\english`; no patch for Ver.2):
+    its export texts and pictures, the 6564 texts left in Japanese translated (1.30's tables for
+    3072, `strings_e-i.rs` for the 3234 others: titles, stamps, missions, story dialogue,
+    advice), the cars' tuning texts translated (`strings_j.rs`) and in full width (the files
+    UTF-8 or Shift-JIS whatever their name, via code page 932). The pictures the export left in
+    Japanese (headings, banners) stay so.
+  - User: 100% (2026-11-10), English included. Verified headless: attract, guest story race, new
+    Aime player (registration, name, auto team, car, createProfile / saveProfile, Mako & Sayuki
+    tutorial race, result), returning player (licence card with name / team / car, story
+    race).
 - CHUNITHM STAR (SDBT 1.20.00, Nu 1.1 `AAV1`, 32-bit Direct3D 9; `wal_alls32.dll`): amLib and
   the ALL.Net library are linked in `chuniApp.exe`, no amdaemon. `WAL_ALLS_BOARD=chuni`
   (`lib.rs` `chuni_process`): the game's devices first (`chuni.rs`), then the system's
@@ -7351,7 +7362,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `luigis-mansion-arcade` | Luigi's Mansion Arcade | seganu | user (2026-11-08): "game is working perfect" (aim, start, play); headless tests: attract, coins, service, free play from a blank backup | Sega Nu (§6.3m), 64-bit: the Capcom protector's game started once unpacked (`WAL_SEGANU_UNPACK`), the I/O board on COM1 (guns, coins, switches; `WAL_SEGANU_LMAIO`), free play in the game's coin settings |
 | `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept | Nu 1.1 with amdaemon (§6.3l): AMEX board JVS in amdaemon (`WAL_ALLS_JVS`), LED board on COM12, levers layout, amRtc sync patch, Aime (837-15286) and the CTS game server (player names and saves kept) |
 | `initial-d-arcade-stage-zero` | Initial D ARCADE STAGE Zero | alls | user 100% (2026-11-10), English option user OK; headless tests: attract, guest story race, new Aime player (registration, team, car, race, saved), returning player loaded, test menu network test | Nu 1.1 with amdaemon (§6.3l), segatools idzhook reimplemented: AMEX JVS with the H shifter layout, FFB COM1, LED 15070 COM11, its store server (ServerBox) started with the payload, the IDZ game server (ARTEMiS + minime protocol), billing for Aime |
-| `initial-d-arcade-stage-zero-ver-2` | Initial D ARCADE STAGE Zero Ver.2 | alls | headless tests (2026-11-10): guest race, new Aime player saved, returning player loaded; not user-verified | Version 2.30 (§6.3l): Ver.1's board and profile, the game server's 2.10 / 2.30 protocol (minime v016 + ARTEMiS + the game's own parser for the 2.30 profile) |
+| `initial-d-arcade-stage-zero-ver-2` | Initial D ARCADE STAGE Zero Ver.2 | alls | user 100% (2026-11-10), English; headless tests: guest race, new Aime player saved, returning player loaded | Version 2.30 (§6.3l): Ver.1's board and profile, the game server's 2.10 / 2.30 protocol (minime v016 + ARTEMiS + the game's own parser for the 2.30 profile) |
 | `chunithm-star` | CHUNITHM STAR | alls | user (2026-11-09): "working 100%" (Aime login, play, audio, touchpad slider); headless tests: power-on test, card registration, name entry, tutorial | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=chuni`): slider COM1, air sensors on JVS, LED boards COM10/11, Aime reader in aimeReaderHost, distribution server in the EEPROM, title server, billing TLS server, RTC privileges, WASAPI shared (CRI 24-in-32), windowed device, touchpad slider (`input.touch`) |
 | `chunithm-star-plus` | CHUNITHM STAR PLUS | alls | user (2026-11-09): "working 100%"; headless tests: card login, registration, name entry | as CHUNITHM STAR, title uri `/SDBT/125/` |
 | `chunithm-plus` | CHUNITHM PLUS | alls | headless tests (2026-11-09): attract, card login, tutorial with the slider, billing over TLS 1.0 | as CHUNITHM STAR, title uri `/SDBT/106/` |

@@ -1,14 +1,17 @@
-//! `WAL_ALLS_IDZ_ENGLISH=1`: Initial D ARCADE STAGE Zero in English on the Japanese keychip (its
-//! Aime cards and game server kept), from the export version's files and an English patch in
-//! the dump's `english\` folder (`..\..\english` from the game's `package\`; the community "D0
-//! English patch", made for the export version: its `data\` folder as it ships). The game's opens under
-//! `data\` are redirected, the dump unchanged:
-//! - `TxtMessage\data_jp\txbn\X`: the export texts (`data_ex\txbn\X`, the patch's when it has it)
+//! `WAL_ALLS_IDZ_ENGLISH=1`: Initial D ARCADE STAGE Zero (1.30, Ver.2) in English on the Japanese
+//! keychip (its Aime cards and game server kept), from the export version's files, an English
+//! patch in the dump's `english\` folder (`WAL_ALLS_IDZ_ENGLISH_DIR`, from the game's folder;
+//! default `..\..\english`, version 1.30's `app\package\`; the community "D0 English patch", made
+//! for version 1.30's export version: its `data\` folder as it ships) and the translation tables
+//! (`strings.rs`). The game's opens under `data\` are redirected, the dump unchanged:
+//! - `TxtMessage\data_jp\txbn\X`: the export texts (`data_ex\txbn\X`, the patch's when it has
+//!   it) with their texts left in Japanese translated (`Y:\idz_english\txbn`)
 //! - `flash\...\X.tcd` / `Xtex.pac`: the export pair (`X_ex.tcd` / `X_extex.pac`: the English
 //!   pictures and their layout) when the dump has it, the patch's file first
 //! - any other file the patch has: the patch's (`playertex.pac`...); the cars' tuning texts
-//!   (`CAR\info_csv\*_car_tuning_info.txt`, UTF-8 and Shift-JIS) as copies in `Y:\idz_english\info_csv` with their Latin
-//!   letters in full width (the font of these texts has no half width letters)
+//!   (`CAR\info_csv\*_car_tuning_info.txt`, UTF-8 or Shift-JIS; the patch's, else the dump's) as
+//!   copies in `Y:\idz_english\info_csv`, translated, their Latin letters in full width (the font
+//!   of these texts has no half width letters)
 //!
 //! The texts still in Japanese in those files are replaced by their English translation
 //! (`strings.rs`'s tables, by exact text): each `txbn` file, made at start in
@@ -220,75 +223,51 @@ fn full_width_tuning(text: &str) -> String {
             if line.starts_with("//") {
                 return line.to_string();
             }
-            line.split(',').enumerate().map(|(i, f)| if TEXTS.contains(&i) { full_width(f) } else { f.to_string() }).collect::<Vec<_>>().join(",")
+            line.split(',')
+                .enumerate()
+                .map(|(i, f)| {
+                    if !TEXTS.contains(&i) {
+                        return f.to_string();
+                    }
+                    // a Japanese text: its translation (Ver.2's files have no English)
+                    let english = if txbn::has_japanese(f) { strings::translate(f).unwrap_or(f) } else { f };
+                    full_width(english)
+                })
+                .collect::<Vec<_>>()
+                .join(",")
         })
         .collect()
 }
 
-/// A Shift-JIS tuning file's texts with their Latin letters in full width (its double byte
-/// characters kept whole: their second byte can be a letter's).
-fn full_width_tuning_sjis(data: &[u8]) -> Vec<u8> {
-    const TEXTS: [usize; 4] = [3, 4, 5, 6];
-    let mut out = Vec::with_capacity(data.len() * 2);
-    let (mut field, mut comment, mut line_start) = (0usize, false, true);
-    let mut i = 0;
-    while i < data.len() {
-        let b = data[i];
-        if line_start {
-            comment = data[i..].starts_with(b"//");
-            field = 0;
-            line_start = false;
-        }
-        if matches!(b, 0x81..=0x9f | 0xe0..=0xfc) && i + 1 < data.len() {
-            out.extend_from_slice(&data[i..i + 2]);
-            i += 2;
-            continue;
-        }
-        let text = !comment && TEXTS.contains(&field);
-        match b {
-            b'\n' => line_start = true,
-            b',' if !comment => field += 1,
-            // `$n` line breaks, `%s` format codes
-            b'$' | b'%' if text && data.get(i + 1).is_some_and(u8::is_ascii_alphabetic) => {
-                out.extend_from_slice(&data[i..i + 2]);
-                i += 2;
-                continue;
-            }
-            _ => {}
-        }
-        if text && b != b',' && (0x20..0x7f).contains(&b) {
-            let c = full_width(&(b as char).to_string());
-            out.extend_from_slice(&encode_sjis_full_width(c.chars().next().unwrap_or(' ')));
-        } else {
-            out.push(b);
-        }
-        i += 1;
+/// `data` as Shift-JIS text (the system's code page 932).
+fn from_sjis(data: &[u8]) -> String {
+    use windows_sys::Win32::Globalization::MultiByteToWideChar;
+    if data.is_empty() {
+        return String::new();
     }
+    let n = unsafe { MultiByteToWideChar(932, 0, data.as_ptr(), data.len() as i32, std::ptr::null_mut(), 0) };
+    let mut wide = vec![0u16; n.max(0) as usize];
+    let n = unsafe { MultiByteToWideChar(932, 0, data.as_ptr(), data.len() as i32, wide.as_mut_ptr(), n) };
+    String::from_utf16_lossy(&wide[..n.max(0) as usize])
+}
+
+/// `text` in Shift-JIS (the system's code page 932).
+fn to_sjis(text: &str) -> Vec<u8> {
+    use windows_sys::Win32::Globalization::WideCharToMultiByte;
+    let wide: Vec<u16> = text.encode_utf16().collect();
+    if wide.is_empty() {
+        return Vec::new();
+    }
+    let n = unsafe { WideCharToMultiByte(932, 0, wide.as_ptr(), wide.len() as i32, std::ptr::null_mut(), 0, std::ptr::null(), std::ptr::null_mut()) };
+    let mut out = vec![0u8; n.max(0) as usize];
+    let n = unsafe { WideCharToMultiByte(932, 0, wide.as_ptr(), wide.len() as i32, out.as_mut_ptr(), n, std::ptr::null(), std::ptr::null_mut()) };
+    out.truncate(n.max(0) as usize);
     out
 }
 
-/// A full width character's Shift-JIS bytes (letters, digits, the space and the ASCII marks).
-fn encode_sjis_full_width(c: char) -> [u8; 2] {
-    // JIS X 0208 row 1 marks for the full width ASCII marks
-    const MARKS: &[(char, [u8; 2])] = &[
-        ('！', [0x81, 0x49]), ('＂', [0x81, 0x68]), ('＃', [0x81, 0x94]), ('＄', [0x81, 0x90]), ('％', [0x81, 0x93]),
-        ('＆', [0x81, 0x95]), ('＇', [0x81, 0x66]), ('（', [0x81, 0x69]), ('）', [0x81, 0x6a]), ('＊', [0x81, 0x96]),
-        ('＋', [0x81, 0x7b]), ('，', [0x81, 0x43]), ('－', [0x81, 0x7c]), ('．', [0x81, 0x44]), ('／', [0x81, 0x5e]),
-        ('：', [0x81, 0x46]), ('；', [0x81, 0x47]), ('＜', [0x81, 0x83]), ('＝', [0x81, 0x81]), ('＞', [0x81, 0x84]),
-        ('？', [0x81, 0x48]), ('＠', [0x81, 0x97]), ('［', [0x81, 0x6d]), ('＼', [0x81, 0x5f]), ('］', [0x81, 0x6e]),
-        ('＾', [0x81, 0x4f]), ('＿', [0x81, 0x51]), ('｀', [0x81, 0x4d]), ('｛', [0x81, 0x6f]), ('｜', [0x81, 0x62]),
-        ('｝', [0x81, 0x70]), ('～', [0x81, 0x60]),
-    ];
-    match c {
-        'Ａ'..='Ｚ' => [0x82, 0x60 + (c as u32 - 'Ａ' as u32) as u8],
-        'ａ'..='ｚ' => [0x82, 0x81 + (c as u32 - 'ａ' as u32) as u8],
-        '０'..='９' => [0x82, 0x4f + (c as u32 - '０' as u32) as u8],
-        _ => MARKS.iter().find(|(m, _)| *m == c).map_or([0x81, 0x40], |(_, b)| *b),
-    }
-}
-
-/// Makes the cars' tuning texts the game reads (the patch's English, `utf8_jp_*` and the
-/// Shift-JIS ones) in full width (`TUNING_DIR`).
+/// Makes the cars' tuning texts the game reads (the patch's, else the dump's; UTF-8 or Shift-JIS,
+/// whatever their name says: some of Ver.2's `utf8_jp_*` are Shift-JIS) translated and in full
+/// width (`TUNING_DIR`).
 fn make_tuning() {
     let Ok(dir) = std::fs::read_dir(TUNING_JP) else { return };
     if std::fs::create_dir_all(TUNING_DIR).is_err() {
@@ -296,15 +275,11 @@ fn make_tuning() {
     }
     let mut made = HashMap::new();
     for name in dir.flatten().map(|f| f.file_name().to_string_lossy().into_owned()).filter(|n| n.to_ascii_lowercase().ends_with("_car_tuning_info.txt")) {
-        let Some(source) = PATCH.get().map(|p| p.join(TUNING_JP).join(&name)).filter(|p| p.is_file()) else { continue };
+        let source = PATCH.get().map(|p| p.join(TUNING_JP).join(&name)).filter(|p| p.is_file()).unwrap_or_else(|| Path::new(TUNING_JP).join(&name));
         let Ok(data) = std::fs::read(&source) else { continue };
-        let out = if name.to_ascii_lowercase().starts_with("utf8_jp_") {
-            match String::from_utf8(data) {
-                Ok(text) => full_width_tuning(&text).into_bytes(),
-                Err(_) => continue,
-            }
-        } else {
-            full_width_tuning_sjis(&data)
+        let out = match String::from_utf8(data) {
+            Ok(text) => full_width_tuning(&text).into_bytes(),
+            Err(e) => to_sjis(&full_width_tuning(&from_sjis(e.as_bytes()))),
         };
         let to = Path::new(TUNING_DIR).join(&name);
         if std::fs::read(&to).ok().as_ref() != Some(&out) && std::fs::write(&to, &out).is_err() {
@@ -320,7 +295,9 @@ pub(crate) fn init() {
     if std::env::var("WAL_ALLS_IDZ_ENGLISH").map_or(true, |v| v.trim() != "1") {
         return;
     }
-    let dir = PathBuf::from("..\\..\\english");
+    // the patch's folder (`WAL_ALLS_IDZ_ENGLISH_DIR`, from the game's folder): the dump's
+    // `english\` (`..\..\english` from version 1.30's `app\package\`)
+    let dir = PathBuf::from(std::env::var("WAL_ALLS_IDZ_ENGLISH_DIR").map_or_else(|_| "..\\..\\english".to_string(), |d| d.trim().to_string()));
     if !dir.join("data").is_dir() {
         log!("idz english: no data folder in {}: export texts and pictures only", dir.display());
     }
@@ -359,16 +336,6 @@ mod tests {
         let _ = TRANSLATED.set(made);
         assert_eq!(replacement("data/TxtMessage/data_jp/txbn/CMN.txbn", &files), Some(PathBuf::from("Y/cmn.txbn")));
         assert_eq!(data_relative("X:\\package\\data\\CAR\\a.txt").map(|r| r.1), Some("data/CAR/a.txt".into()));
-    }
-
-    #[test]
-    fn tuning_full_width_sjis() {
-        // ソ (0x83 0x5c: its second byte a backslash) kept whole
-        let line = b"1,0,10,Tower Bar,Stiff!$nOK,\x83\x5c,%s,210,,0xffff,08\n";
-        assert_eq!(
-            full_width_tuning_sjis(line),
-            [&b"1,0,10,"[..], &[0x82, 0x73, 0x82, 0x8f, 0x82, 0x97, 0x82, 0x85, 0x82, 0x92, 0x81, 0x40, 0x82, 0x61, 0x82, 0x81, 0x82, 0x92], b",", &[0x82, 0x72, 0x82, 0x94, 0x82, 0x89, 0x82, 0x86, 0x82, 0x86, 0x81, 0x49], b"$n", &[0x82, 0x6e, 0x82, 0x6a], b",\x83\x5c,%s,210,,0xffff,08\n"].concat()
-        );
     }
 
     #[test]

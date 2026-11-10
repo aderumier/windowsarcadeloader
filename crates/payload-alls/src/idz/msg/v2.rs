@@ -394,6 +394,7 @@ pub(super) fn handle(proto: Proto, code: u16, p: &[u8]) -> Vec<u8> {
             out.done()
         }
         0x00a0 => {
+            super::super::mark_ready();
             let mut out = Out::new(0x0240, 0x00a1);
             out.u8(0x0002, 1);
             out.done()
