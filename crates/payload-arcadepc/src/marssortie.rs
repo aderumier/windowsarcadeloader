@@ -10,7 +10,8 @@
 //!   `get_CoinsPerGame`) 0: a shot starts without credits;
 //! - the crosshairs (`WAL_CROSSHAIR`): `GameData.DisplayHairCross` (each gun's cross, from the
 //!   laser locator: the guns' place);
-//! - the players' photos are the game's: its webcam when present, blank photos without one.
+//! - the players' photos are the game's: its webcam when present (not a Sinden gun's camera,
+//!   [`webcam::skip_sinden`](wal_payload_common::webcam::skip_sinden)), blank photos without one.
 //!
 //! The operator menus are Unity UI driven by the keypad: `MRCQ.UIInputHelper` turns the board's
 //! up / down / left / right / OK into `keybd_event` calls (keypad 8 5 4 6 +), whose messages the
@@ -38,6 +39,7 @@ unsafe extern "system" fn keybd_event(vk: u8, _scan: u8, flags: u32, _extra: usi
 /// The settings, once Mono has the game's assembly (a thread of the payload's: not from
 /// `DllMain`).
 pub fn init() {
+    wal_payload_common::webcam::skip_sinden();
     let mut patches: Vec<(&str, &str, &str, u8)> = Vec::new();
     if wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY") == Some(true) {
         for name in ["GetCoinsPerGame", "GetCoinsPerGame2", "_GetCoinsPerGame", "_GetCoinsPerGame2", "get_CoinsPerGame"] {

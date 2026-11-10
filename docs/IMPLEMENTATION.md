@@ -5062,7 +5062,10 @@ next to the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
   (`WAL_FREEPLAY`) as the coins per game / per continue 0 (`GameDataBase.GetCoinsPerGame`,
   `GetCoinsPerGame2` and the instance getters), the crosshairs (`WAL_CROSSHAIR`) as
   `GameData.DisplayHairCross` (the game's own crosses); the players' photos are the
-  game's (its webcam when present, blank photos without one: both work).
+  game's (its webcam when present, blank photos without one: both work). The Sinden lightguns'
+  cameras are hidden from its webcams (`webcam::skip_sinden`, payload-common: the DirectShow
+  device list's `IEnumMoniker::Next` skips a `FriendlyName` containing "sinden"): the game takes
+  the first webcam, on the box a gun's (held by the Sinden software).
 - **Crosshairs of the players only.** The game shows every station's cross (`HairCrossManager`),
   and with free play (price 0) every station plays from a stage's start: `HairCrossManager.Update`
   is rewritten in place (same size) to `SetActive(ScoreManager.IsPlaying(i) &&

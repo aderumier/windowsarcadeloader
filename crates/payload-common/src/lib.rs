@@ -116,6 +116,8 @@ pub mod wasapi;
 #[cfg(windows)]
 pub mod wcase;
 #[cfg(windows)]
+pub mod webcam;
+#[cfg(windows)]
 pub mod window;
 #[cfg(windows)]
 pub mod workarea;
