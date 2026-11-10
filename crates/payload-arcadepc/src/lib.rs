@@ -113,9 +113,6 @@
 //! The House of the Dead: Overkill (`WAL_ARCADEPC_BOARD=hotdo`, x86 build): `hotdo.rs` plays its
 //! mouse (the cursor, DirectInput's buttons) and its DirectInput keyboard with the gun.
 //!
-//! Wii static recompilations' SDL2 Windows builds (`WAL_ARCADEPC_BOARD=wiirecomp`): `wiirecomp.rs`
-//! plays their Wii Remote's mouse with the gun.
-//!
 //! Mad Bullets (`WAL_ARCADEPC_BOARD=madbullets`, x86 build): `madbullets.rs` plays its mouse
 //! with the gun.
 //!
@@ -197,7 +194,6 @@ mod unrealio;
 mod vcthunder;
 #[cfg(target_arch = "x86")]
 mod vsioboard;
-mod wiirecomp;
 #[cfg(target_arch = "x86")]
 mod xio;
 mod xmlset;
@@ -443,9 +439,6 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "hotdo" => {
                 pads::disconnect();
                 hotdo::init();
-            }
-            _ if board.trim() == "wiirecomp" => {
-                wiirecomp::init();
             }
             _ if board.trim() == "teamplay" => {
                 pads::disconnect();
