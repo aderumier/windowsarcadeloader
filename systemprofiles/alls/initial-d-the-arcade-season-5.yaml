@@ -93,7 +93,16 @@ env:
   # IndRun.dll's date limit: after 2026-06-26 (localtime packed as ((year-2022)<<16 |
   # (month+4)<<8 | day+5) > 0x4091f) a check value of its race settings is spoiled, the check
   # (+0x7c8b0) answers 0x8c and every car's physics step adds a penalty. Its jump (ja) removed.
-  WAL_PATCHES: "0x6e23af:B001909090,0x6e241d:B001909090,IndRun.dll!0x74c98:9090"
+  # IndRun's anti-tamper verdict (+0x75050, Season 3 has none) grades the player's car from
+  # the check values (+0x4bc/+0x4c0/+0x4c4); a fail marks it tampered (car-data flags +0x7c8/
+  # +0x7cc/+0x7d0) and holds the race in its start state: the car stuck on the line, or the race
+  # short. Its span (+0x750ba..+0x7520b) replaced with the clean outcome: tamper flags 0, +0x1120
+  # = 10 (keeps the race update from resetting the car to the start state), the other counters
+  # (+0x1124/+0x1000/+0x10f0/+0x1128/+0x10f4) 0 (10 ended the race at TIME UP in ~37 s); jmp
+  # +0x7520b. Guards against the race start fill's 4-slot car table overflow (+0xf20, 0x18-byte
+  # entries from +0x128) kept: the count capped at 4 by a jump to the .text tail (+0x87f00), set
+  # rather than added (+0x7605e), the in-race refill skipped (+0x766d5 je -> jmp).
+  WAL_PATCHES: "0x6e23af:B001909090,0x6e241d:B001909090,IndRun.dll!0x74c98:9090,IndRun.dll!0x750ba:498B88B808000031C08981C80700008981CC0700008981D00700008986241100008986001000008986F01000008986281100008986F4100000B80A000000898620110000E908010000,IndRun.dll!0x87f00:4983FE600F832EE2FEFF488B73304885F6E9D7E0FEFF,IndRun.dll!0x75fe6:E9151F01009090,IndRun.dll!0x7605e:41FFC445892041C70701000000,IndRun.dll!0x766d5:EB"
   # a borderless 16:9 window centered on the screen: the game lays its interface out for 16:9
   # (on a 16:10 screen its right side was cut: the start prompt)
   WAL_WINDOW_POPUP: "1"
