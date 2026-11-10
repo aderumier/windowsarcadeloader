@@ -73,6 +73,9 @@
 //! `vsIOBoard.dll` (the guns, coins, start and service buttons, through the game's listener); the
 //! common crosshair option draws the guns (Direct3D 9).
 //!
+//! Subway Surfers Arcade (`WAL_ARCADEPC_BOARD=subway`): `subway.rs` posts its cabinet's keys and
+//! the hoverboard's double tap, and is its lamps' silent Arduino.
+//!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
@@ -160,6 +163,7 @@ mod pads;
 mod sdc2;
 mod softkey;
 mod spacewarp;
+mod subway;
 mod teamplay;
 mod topgun;
 mod uaf;
@@ -420,6 +424,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "madbullets" => {
                 pads::disconnect();
                 madbullets::init();
+            }
+            _ if board.trim() == "subway" => {
+                pads::disconnect();
+                subway::init();
             }
             _ if board.trim() == "mame" => {
                 pads::disconnect();

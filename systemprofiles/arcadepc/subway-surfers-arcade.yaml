@@ -1,0 +1,48 @@
+# Subway Surfers Arcade (an arcade conversion of Kiloo / SYBO's game: SubwaySurfers.exe,
+# Unity 2022.3, Mono, 64-bit) - template, override values in
+# userprofiles/arcadepc/subway-surfers-arcade.yaml.
+# The cabinet's controls are keys (the arrows run, 1 starts, 5 inserts a coin) and its lamps an
+# Arduino on COM5: the payload posts the keys from the virtual sticks, the hoverboard's double
+# tap (the game's only one: the touch screen's) and is the lamps' silent Arduino
+# (WAL_ARCADEPC_BOARD=subway, docs §6.3i).
+system: arcadepc
+name: Subway Surfers Arcade
+
+# loaded at the executable's entry point; Unity's own XInput (xinput1_4) off, its xinput1_3 the
+# payload
+payload_loader: true
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+  # the dump's mod loader (winhttp.dll, BepInEx: a stub of the cabinet's I/O): Wine's own, the
+  # game unmodified (the payload is its Arduino)
+  winhttp: "b"
+
+env:
+  WAL_ARCADEPC_BOARD: subway
+
+input:
+  # the left stick presses the arrows once per tilt (the payload reads it): not held as the
+  # d-pad
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Start inserts a coin and starts. Off: a coin per run.
+
+controls:
+  lx: Left / right lane
+  ly: Jump / roll
+  up: Jump
+  down: Roll
+  left: Left lane (character select)
+  right: Right lane (character select)
+  b1: Jump
+  b2: Hoverboard
+  start: Start
+  coin: Coin

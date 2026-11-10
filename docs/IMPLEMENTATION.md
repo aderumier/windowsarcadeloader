@@ -5130,6 +5130,34 @@ libteamplayio.so`, `libserialio.so`) with Unity's Windows player added, and a Be
   trackball's x, back swing and throws (pins down), coins (25 cents each) with free play off,
   the operator menu (test) navigated by the trackball, System Information entered.
 
+#### Subway Surfers Arcade
+
+An arcade conversion of Kiloo / SYBO's Subway Surfers (`SubwaySurfers.exe`, Unity 2022.3, Mono
+BleedingEdge, 64-bit; Portuguese class names). The dump carries a BepInEx loader
+(`winhttp.dll`) with a community stub of the cabinet's I/O (`CabinetIOStub`: COM5 disabled):
+the profile disables it (`winhttp: b`). `.windowsloader`: `SubwaySurfers.exe`. Board `subway`
+(`subway.rs`), loaded at the entry point (`payload_loader`; `xinput1_4` off, `xinput1_3` the
+payload), the input filter installed once `UnityPlayer.dll` is loaded:
+
+- **Keys.** The cabinet's controls are keys read with `Input.GetKeyDown`: `Game.Update` calls
+  `HandleDebugControls`, where the arrows (or the keypad's 8 / 2 / 4 / 6) are swipes
+  (`CharacterState.HandleSwipe`: up jumps, down rolls, left / right change lanes; its letter
+  keys are cheats, never posted); `TrocaModeloPersonagem` (character select) left / right;
+  `InsiraCreditos`: `5` released (or keypad 5, the `COIN:` button) adds a credit, `1` (keypad
+  1, the `Start` button) starts a run with one, Escape quits (never posted). The payload posts
+  them (`input_filter::post_key`) from the virtual sticks; the left stick presses an arrow once
+  per tilt past half way (again once back near the middle).
+- **Hoverboard.** Only the touch screen's double tap (`Game.HandleControls`: Unity's left mouse
+  button, `HandleTap`): b2 posts two taps in the picture's middle (mouse messages and raw
+  reports).
+- **Free play** (the common `WAL_FREEPLAY`): start posts a coin (`5` pressed and released), then
+  `1`.
+- **Lamps.** `ArduinoController`: COM5 at 115200 bauds, `<pin>.1x` / `<pin>.0x` writes (pin 3:
+  the start lamp), nothing read. A silent device of the payload's (Mono's `SerialPort`
+  `DllImport`s through `mono_imports`): the port never reaches a real serial port.
+- Verified headless (2026-11-10): attract (INSERT CREDIT(S)), free play start, lane changes by
+  the d-pad and the stick, jumps, rolls, the hoverboard.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7422,6 +7450,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `friction` | Friction | arcadepc | user 100% (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play as 99 credits never spent, a shot is also its player's start, the payload's crosshairs (common option) |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 | `mad-bullets` | Mad Bullets | arcadepc | user 100% (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture (the game's cursor hidden), OpenAL from winetricks, reload = a click on the bullet belt (b2 or a shot off the screen), Escape on start |
+| `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | works (headless 2026-11-10: attract, free play start, lane changes by the d-pad and the stick, jumps, rolls, hoverboard), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
