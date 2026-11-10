@@ -8,7 +8,8 @@
 //!
 //! Initial D THE ARCADE ([`init_echo`]): only its echo servers (the game server's NAT check,
 //! ARTEMiS's `echo.py`): datagrams to the router's ports 20001 / 20002 go to echo sockets on
-//! 127.0.0.1:`WAL_PORT`+105 / +106 and come back from the router's port.
+//! 127.0.0.1:`WAL_PORT`+105 / +106 and come back from the router's port; Initial D ARCADE STAGE
+//! Zero's (minime's ping ports 10001, 10003, 10010, 10011: `idz.rs`) the same way.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -35,21 +36,29 @@ fn echo_target(address: *const u8, length: i32) -> Option<[u8; 16]> {
     }
     let a = unsafe { std::slice::from_raw_parts(address, 16) };
     let port = u16::from_be_bytes([a[2], a[3]]);
-    let i = ECHO_PORTS.iter().position(|&p| p == port)?;
+    // Initial D ARCADE STAGE Zero's echo ports (`idz.rs`)
+    let local = match ECHO_PORTS.iter().position(|&p| p == port) {
+        Some(i) => echo_port(i),
+        None => crate::idz::udp_echo_target(port)?,
+    };
     if a[0] != 2 || a[4..8] != crate::netenv::router() {
         return None;
     }
     let mut m = [0u8; 16];
     m.copy_from_slice(a);
-    m[2..4].copy_from_slice(&echo_port(i).to_be_bytes());
+    m[2..4].copy_from_slice(&local.to_be_bytes());
     m[4..8].copy_from_slice(&[127, 0, 0, 1]);
     Some(m)
 }
 
-/// The first redirections in the log.
+/// The redirections in the log, each kind once (the first 32).
 fn trace(args: std::fmt::Arguments) {
-    if TRACES.fetch_add(1, Ordering::Relaxed) < 8 {
-        log!("udp: {args}");
+    static SEEN: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    let text = args.to_string();
+    let mut seen = SEEN.lock().unwrap();
+    if !seen.contains(&text) && TRACES.fetch_add(1, Ordering::Relaxed) < 32 {
+        log!("udp: {text}");
+        seen.push(text);
     }
 }
 
@@ -126,6 +135,9 @@ unsafe extern "system" fn recv_from(socket: usize, buf: *mut u8, len: i32, flags
             if let Some(i) = (0..ECHO_PORTS.len()).find(|&i| echo_port(i) == port) {
                 a[2..4].copy_from_slice(&ECHO_PORTS[i].to_be_bytes());
                 a[4..8].copy_from_slice(&crate::netenv::router());
+            } else if let Some(origin) = crate::idz::udp_echo_origin(port) {
+                a[2..4].copy_from_slice(&origin.to_be_bytes());
+                a[4..8].copy_from_slice(&crate::netenv::router());
             } else if !ECHO_ONLY.load(Ordering::Relaxed) {
                 a[4..8].copy_from_slice(&crate::netenv::iface());
             }
@@ -156,6 +168,17 @@ pub(crate) fn init() {
 pub(crate) fn init_echo() {
     ECHO_ONLY.store(true, Ordering::Relaxed);
     init();
+    serve_echo();
+}
+
+/// The subnet's datagrams and the game server's echo servers (Initial D ARCADE STAGE Zero: its
+/// store server found by a broadcast to the subnet, its game server's echo ports).
+pub(crate) fn init_with_echo() {
+    init();
+    serve_echo();
+}
+
+fn serve_echo() {
     for i in 0..ECHO_PORTS.len() {
         std::thread::spawn(move || match std::net::UdpSocket::bind(("127.0.0.1", echo_port(i))) {
             Ok(socket) => {

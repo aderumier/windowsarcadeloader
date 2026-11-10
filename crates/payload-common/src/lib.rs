@@ -61,6 +61,8 @@ pub(crate) mod late_hooks;
 // where the players' guns point in the game's window
 #[cfg(windows)]
 pub mod gun;
+// Initial D's 6-speed H shifter from the virtual stick
+pub mod hshifter;
 #[cfg(windows)]
 pub mod iat;
 // Unity IL2CPP games' compiled code (GameAssembly.dll's embedding API)

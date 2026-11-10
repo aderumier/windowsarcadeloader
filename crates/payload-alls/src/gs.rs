@@ -54,6 +54,12 @@ fn client(stream: TcpStream) -> std::io::Result<()> {
     }
     let mut body = vec![0; length];
     reader.read_exact(&mut body)?;
+    // Initial D ARCADE STAGE Zero's news and error pages (`idz.rs`)
+    if let Some(text) = crate::idz::news(&path) {
+        let mut out = stream;
+        out.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", text.len()).as_bytes())?;
+        return out.write_all(text.as_bytes());
+    }
     // `/api/...` (after any prefix)
     let api = path.find("/api/").map_or(path.as_str(), |at| &path[at..]);
     let reply = abaas_gs::reply(api, &body);
@@ -105,5 +111,10 @@ pub(crate) fn init() {
         Some(orig) => GENERATE_KEY.store(orig, Ordering::Relaxed),
         None => log!("gs: BCryptGenerateSymmetricKey not imported"),
     }
+    std::thread::spawn(serve);
+}
+
+/// The server only (Initial D ARCADE STAGE Zero's news pages, no ABAAS title).
+pub(crate) fn init_plain() {
     std::thread::spawn(serve);
 }

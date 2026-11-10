@@ -134,7 +134,7 @@ fn switches() -> [u16; 2] {
                 sw[0] |= 1 << bit;
             }
         }
-        sw[1] = gate(gear(p1));
+        sw[1] = wal_payload_common::hshifter::gate(wal_payload_common::hshifter::gear(p1)) as u16;
         return sw;
     }
     if board() == Board::Hotd {
@@ -177,53 +177,6 @@ fn switches() -> [u16; 2] {
         sw[1] |= (1 << 12) | (1 << 11) | (1 << 10);
     }
     sw
-}
-
-static GEAR: AtomicU8 = AtomicU8::new(0);
-static GEAR_HELD: AtomicU8 = AtomicU8::new(0);
-
-static POSITIONAL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// The H shifter's gear (0 neutral, 1-6), moved one gear by each press of b7 (up) / b6 (down);
-/// an H shifter's positions on kp1-kp6 (segatools' positional shifter): that gear while held,
-/// neutral when released.
-fn gear(buttons: u32) -> u8 {
-    if let Some(n) = (1..=6u8).find(|&n| buttons & (b::KP0 << n) != 0) {
-        POSITIONAL.store(true, Ordering::Relaxed);
-        GEAR.store(n, Ordering::Relaxed);
-        return n;
-    }
-    if POSITIONAL.swap(false, Ordering::Relaxed) {
-        GEAR.store(0, Ordering::Relaxed);
-    }
-    let held = (buttons & b::B7 != 0) as u8 | ((buttons & b::B6 != 0) as u8) << 1;
-    let pressed = held & !GEAR_HELD.swap(held, Ordering::Relaxed);
-    let mut g = GEAR.load(Ordering::Relaxed);
-    if pressed & 1 != 0 && g < 6 {
-        g += 1;
-    }
-    if pressed & 2 != 0 && g > 0 {
-        g -= 1;
-    }
-    GEAR.store(g, Ordering::Relaxed);
-    g
-}
-
-/// The shifter's gate switches for a gear (player 2's word: up 5, down 4, left 3, right 2).
-fn gate(gear: u8) -> u16 {
-    const UP: u16 = 1 << 5;
-    const DOWN: u16 = 1 << 4;
-    const LEFT: u16 = 1 << 3;
-    const RIGHT: u16 = 1 << 2;
-    match gear {
-        1 => UP | LEFT,
-        2 => DOWN | LEFT,
-        3 => UP,
-        4 => DOWN,
-        5 => UP | RIGHT,
-        6 => DOWN | RIGHT,
-        _ => 0,
-    }
 }
 
 static COIN_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);

@@ -57,6 +57,10 @@
 //! commands `6A`-`70`); `-pro` adds the professional cabinet's second board (node 2, its
 //! presence makes the game use the wide monitor & clutch mode) and the H shifter (see
 //! [`BattleGear`]).
+//!
+//! `WAL_TYPEX_JVS_LAYOUT=h-shifter`: Initial D ARCADE STAGE Zero's 6-speed H shifter on player
+//! 2's directions (its gate switches, payload-common's `hshifter`: b7 / b6 shift up / down,
+//! kp1-kp6 the positions).
 
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
@@ -182,6 +186,8 @@ struct Board {
     happy_playground: bool,
     /// `WAL_TYPEX_JVS_LAYOUT=levers`: see [`levers`].
     levers: bool,
+    /// `WAL_TYPEX_JVS_LAYOUT=h-shifter`: the H shifter's gate on player 2's directions.
+    h_shifter: bool,
     /// `WAL_TYPEX_JVS_LAYOUT=k-on`: K-On!'s card dispenser on player 1's switch byte 2 (ready
     /// 0x80, jam 0x40, empty 0x20) and output byte 1 (dispense pulse 0x08): see [`Dispenser`].
     dispenser: Option<Dispenser>,
@@ -474,6 +480,7 @@ pub fn init(default_port: &str) {
         cyber_diver: std::env::var("WAL_TYPEX_JVS_LAYOUT").is_ok_and(|v| v == "cyber-diver"),
         happy_playground: layout == "happy-playground",
         levers: layout.trim() == "levers",
+        h_shifter: layout.trim() == "h-shifter",
         dispenser: (layout.trim() == "k-on").then(Dispenser::default),
         tickets: std::env::var("WAL_TYPEX_JVS_TICKETS").ok().and_then(|v| Tickets::parse(&v)),
         wontertainment: layout.trim() == "wontertainment",
@@ -762,6 +769,9 @@ fn process(packet: &[u8]) -> Vec<u8> {
     players[0].4 |= board.held.2;
     if board.levers {
         levers(&mut players, &sticks[0]);
+    }
+    if board.h_shifter {
+        players[1].0 = (players[1].0 & !0x3C) | crate::hshifter::gate(crate::hshifter::gear(sticks[0].buttons));
     }
     if let Some(hook) = SWITCHES_HOOK.get() {
         hook(&mut players);

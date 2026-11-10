@@ -6575,6 +6575,41 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     2's directions or player 1's right stick. Run: the feet in turn (b3 / b4); start dash: both
     levers up; jump (b5): all six jump sensors.
 
+- Initial D ARCADE STAGE Zero (SDDF 1.30, Nu 1.1 `AAV2`, 64-bit D3D11; `initial-d-arcade-stage-zero`,
+  `WAL_ALLS_BOARD=idz`): segatools' idzhook (public domain) reimplemented. amdaemon reads the JVS
+  I/O board on the AMEX board (`WAL_ALLS_JVS`): wheel / gas / brake on analog channels 0-2, the
+  6-speed H shifter's gate on player 2's directions (new JVS layout `h-shifter`, payload-common's
+  `hshifter.rs`, shared with IDAC's io4: b7 / b6 shift up / down, kp1-kp6 the positions); the
+  game: FFB board on COM1 (SWDC's), 837-15070 LED board on COM11, Aime 837-15286 on COM10
+  (amdaemon), `_stat64i32` passed for the unpacked programs (`stat.rs`, idzhook's `crt.c`).
+  - amRtcIsServerSync at 0x2479a0 (found by its "amRtcIsServerSync" error string): error 8114.
+  - `initialD.ini` says 2560x1440: read as an edited copy in `Y:\` (`inifile.rs`,
+    `WAL_ALLS_INI_FILE`: 1920x1080 full screen), else the picture is cut.
+  - The store server: cabinet 1 (DIP 1) starts `ServerBoxD8_Nu_x64.exe` itself (CreateProcessA);
+    without it error 8306 ("server machine") forever. `child.rs` (`WAL_ALLS_CHILDREN`) starts it
+    through wal-loader with the payload: its full screen status window hidden (it covered the
+    game: "PC MODE DUMMY" is printed unconditionally, not a state), the subnet's datagrams
+    (`udp::init_with_echo`: the game finds it by a broadcast to UDP 51457), TCP to the cabinet's
+    own address (.205:51783) sent to the loopback (`allnet.rs`), its accepted peers shown as the
+    cabinet's address.
+  - Game server (`idz.rs` + `idz/{msg,store}.rs`, by a subagent): ARTEMiS's `titles/idz`
+    (handshake, AES, codes per version; WTFPL) completed with the dump's minime v005 layouts for
+    1.30 (create / load / save profile, cars, stocker, settings, teams, time attack, top ten):
+    TCP router:10000 (ALL.Net host `{router}:10000`, `WAL_ALLS_TITLE_HOST`), RSA-encrypted
+    session key then AES-128-ECB, 0x30-byte header + fixed-size message per code; players in
+    `Y:\idz\<aime>.json`. UDP echo ports 10001/10003/10009/10010/11 (minime's ping; 10009 the
+    game's too), news text on router:80 (`gs::init_plain`).
+  - Aime only after ALL.Net accounting checked in: with accounting off (IDAC's config) the attract
+    says "national battle mode, Aime unavailable" and a registered card's game stops at the race
+    loading with error 8304 (communication failed, GAME). `WAL_ALLS_BILLING=1` serves
+    `billing.rs` in amdaemon (TLS 1.2, suite 002f).
+  - Names: `WAL_ANSI_CODEPAGE=932` (the name entry's kana were saved as "?").
+  - Its full screen mode exits (status 1) on a 1920x1200 desktop: windowed 1920x1080 in a
+    borderless 16:9 window (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE=picture`).
+  - User: 100% (2026-11-10). Verified headless: steering adjust, attract, guest story race to the result, new card
+    (registration, name, auto team, car, createProfile / saveProfile3, story race, results,
+    time attack saved), returning card (loadProfile3 and the others), test menu NETWORK TEST all
+    GOOD. Open: in-store battle (single cabinet), events / gacha / rankings empty (as ARTEMiS).
 - CHUNITHM STAR (SDBT 1.20.00, Nu 1.1 `AAV1`, 32-bit Direct3D 9; `wal_alls32.dll`): amLib and
   the ALL.Net library are linked in `chuniApp.exe`, no amdaemon. `WAL_ALLS_BOARD=chuni`
   (`lib.rs` `chuni_process`): the game's devices first (`chuni.rs`), then the system's
@@ -7199,6 +7234,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `sonic-dash-extreme` | Sonic Dash Extreme | seganu | headless tests (2026-11-08): attract, coins, start, character select, play, tickets dispensed during play and at the end, back to attract, test menu and back; not user-verified | Sega Nu SX (§6.3m): AMEX board devices, keychip driver, registry values, JVS with 24 outputs and the ticket dispenser (`WAL_TYPEX_JVS_TICKETS`), portrait window in the dump's bezel |
 | `luigis-mansion-arcade` | Luigi's Mansion Arcade | seganu | user (2026-11-08): "game is working perfect" (aim, start, play); headless tests: attract, coins, service, free play from a blank backup | Sega Nu (§6.3m), 64-bit: the Capcom protector's game started once unpacked (`WAL_SEGANU_UNPACK`), the I/O board on COM1 (guns, coins, switches; `WAL_SEGANU_LMAIO`), free play in the game's coin settings |
 | `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept | Nu 1.1 with amdaemon (§6.3l): AMEX board JVS in amdaemon (`WAL_ALLS_JVS`), LED board on COM12, levers layout, amRtc sync patch, Aime (837-15286) and the CTS game server (player names and saves kept) |
+| `initial-d-arcade-stage-zero` | Initial D ARCADE STAGE Zero | alls | user 100% (2026-11-10); headless tests: attract, guest story race, new Aime player (registration, team, car, race, saved), returning player loaded, test menu network test | Nu 1.1 with amdaemon (§6.3l), segatools idzhook reimplemented: AMEX JVS with the H shifter layout, FFB COM1, LED 15070 COM11, its store server (ServerBox) started with the payload, the IDZ game server (ARTEMiS + minime protocol), billing for Aime |
 | `chunithm-star` | CHUNITHM STAR | alls | user (2026-11-09): "working 100%" (Aime login, play, audio, touchpad slider); headless tests: power-on test, card registration, name entry, tutorial | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=chuni`): slider COM1, air sensors on JVS, LED boards COM10/11, Aime reader in aimeReaderHost, distribution server in the EEPROM, title server, billing TLS server, RTC privileges, WASAPI shared (CRI 24-in-32), windowed device, touchpad slider (`input.touch`) |
 | `chunithm-star-plus` | CHUNITHM STAR PLUS | alls | user (2026-11-09): "working 100%"; headless tests: card login, registration, name entry | as CHUNITHM STAR, title uri `/SDBT/125/` |
 | `chunithm-plus` | CHUNITHM PLUS | alls | headless tests (2026-11-09): attract, card login, tutorial with the slider, billing over TLS 1.0 | as CHUNITHM STAR, title uri `/SDBT/106/` |

@@ -26,7 +26,13 @@
 //!   `ffb.rs`, the LED board on COM2, the dashboard on COM20, `dashboard.rs`, the main
 //!   cabinet's LAN announcements, `udp.rs`, the English translation, `english.rs`; `idac`: the
 //!   force feedback board on COM1, the 837-15070 LED board on COM2, the game server, `idac.rs`;
-//!   `hkb`: Chrono Regalia's touch screen as the mouse, its game server, `hkb.rs`)
+//!   `hkb`: Chrono Regalia's touch screen as the mouse, its game server, `hkb.rs`; `idz`:
+//!   Initial D ARCADE STAGE Zero, a Nu cabinet: the force feedback board on COM1, the 837-15070
+//!   LED board on COM11, the game server, `idz.rs`)
+//! - `WAL_ALLS_BILLING=1`: ALL.Net's billing server for amdaemon's accounting (`billing.rs`)
+//! - `WAL_ALLS_CHILDREN`: programs the game starts, started with the payload (`child.rs`)
+//! - `WAL_ALLS_INI_FILE`: a settings file read as an edited copy (`inifile.rs`)
+//! - `WAL_ALLS_STAT_BYPASS`: files whose C runtime `_stat64i32` succeeds (`stat.rs`)
 //! - `WAL_ALLS_AIME_PORT` (`COM3`...): the Aime card reader amdaemon opens there (`aime.rs`),
 //!   `WAL_ALLS_ACCESS_CODE` the player's card, `WAL_ALLS_AUTO_CARD=1` touched by itself after
 //!   start (`WAL_ALLS_AUTO_CARD_DELAY_MS` later)
@@ -59,6 +65,7 @@ mod aime;
 mod aimedb;
 mod allnet;
 mod billing;
+mod child;
 mod chuni;
 mod clock;
 mod cts;
@@ -75,12 +82,15 @@ mod hkb;
 mod hotd;
 mod icf;
 mod idac;
+mod idz;
 mod indrun;
+mod inifile;
 mod io4;
 mod led;
 mod netenv;
 mod pki;
 mod registry;
+mod stat;
 mod sysfile;
 mod udp;
 
@@ -117,8 +127,22 @@ fn start() {
     {
         wal_payload_common::start("alls");
         if std::env::var("WAL_ALLS_CLOCK").map_or(true, |v| v.trim() != "0") { clock::init(); }
+        stat::init();
         if is_daemon() {
             daemon::init();
+            // ALL.Net's billing server (amdaemon's accounting: Initial D ARCADE STAGE Zero plays
+            // with Aime cards only after it checked in)
+            if std::env::var("WAL_ALLS_BILLING").is_ok_and(|v| v.trim() == "1") {
+                allnet::serve_billing();
+            }
+        } else if child::is_child() {
+            // a program the game started (Initial D ARCADE STAGE Zero's store server): the
+            // cabinet's network only, its windows hidden
+            child::hide_windows();
+            child::peers_from_cabinet();
+            udp::init();
+            netenv::init_game();
+            allnet::init_redirect();
         } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chuni") {
             chuni_process();
         } else {
@@ -159,6 +183,21 @@ fn start() {
                 // 837-15070 LED board
                 ffb::init();
                 led::init_15070("COM2");
+            } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "idz") {
+                // Initial D ARCADE STAGE Zero (segatools' idzhook): its game server (Aime card
+                // players), COM1 the force feedback board (Sega World Drivers Championship's),
+                // COM11 the 837-15070 LED board
+                idz::init();
+                // its settings file's screen size
+                inifile::init();
+                // its store server (cabinet 1) started with the payload
+                child::init();
+                // its store server found on the subnet, its game server's echo servers (minime's
+                // ping ports), its news pages on the router's port 80
+                udp::init_with_echo();
+                gs::init_plain();
+                ffb::init();
+                led::init_15070("COM11");
             } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "hkb") {
                 // Chrono Regalia: the touch screen (the mouse), the touch panel and LED board
                 // off in its configuration; the game server (Aime card players), Mono's clock

@@ -105,8 +105,9 @@ fn power_on(req: &[(String, String)]) -> String {
     let gs = format!("127.0.0.1:{}", crate::gs::port());
     let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).map(|u| u.replace("{router}", &host).replace("{gs}", &gs)).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
     // the title server's host (`WAL_ALLS_TITLE_HOST`: Initial D THE ARCADE's game server URL,
-    // `<host>initiald/...`, https:// when it has no scheme)
-    let title_host = std::env::var("WAL_ALLS_TITLE_HOST").map_or(host.clone(), |h| h.trim().to_string());
+    // `<host>initiald/...`, https:// when it has no scheme; Initial D ARCADE STAGE Zero's
+    // `{router}:10000`, its game server's address)
+    let title_host = std::env::var("WAL_ALLS_TITLE_HOST").map_or(host.clone(), |h| h.trim().replace("{router}", &host));
     let mut resp = format!("stat=1&uri={}&host={title_host}&place_id=0123", uri.trim());
     resp += "&name=WindowsArcadeLoader&nickname=WAL&region0=1&region_name0=W&region_name1=X&region_name2=Y&region_name3=Z&setting=1";
     let (y, mo, d, h, mi, s) = utc_now();
@@ -272,6 +273,14 @@ fn moved(address: *const u8, length: i32) -> Option<[u8; 16]> {
         return None;
     }
     let a = unsafe { std::slice::from_raw_parts(address, 16) };
+    // the cabinet's own address (absent from the machine): the loopback address, same port
+    // (Initial D ARCADE STAGE Zero's store server, `ServerBoxD8_Nu_x64` beside the game)
+    if a[0] == 2 && a[4..8] == crate::netenv::iface() {
+        let mut m = [0u8; 16];
+        m.copy_from_slice(a);
+        m[4..8].copy_from_slice(&[127, 0, 0, 1]);
+        return Some(m);
+    }
     if a[0] != 2 || a[4..8] != crate::netenv::router() {
         return None;
     }
@@ -281,6 +290,8 @@ fn moved(address: *const u8, length: i32) -> Option<[u8; 16]> {
         80 if IN_GAME.load(Ordering::Relaxed) => crate::gs::port(),
         80 => port(),
         22345 => crate::aimedb::port(),
+        // Initial D ARCADE STAGE Zero's game server (`idz.rs`)
+        10000 if IN_GAME.load(Ordering::Relaxed) => crate::idz::port(),
         // the billing server (a game checking in itself: CHUNITHM)
         8443 if BILLING.load(Ordering::Relaxed) => crate::billing::port(),
         other => {
