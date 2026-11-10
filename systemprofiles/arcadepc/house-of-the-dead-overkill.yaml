@@ -1,0 +1,60 @@
+# The House of the Dead: Overkill (The Typing of the Dead: Overkill's Steam build, HOTD_NG.exe,
+# BlitzTech, Direct3D 9, 32-bit) - template, override values in
+# userprofiles/arcadepc/house-of-the-dead-overkill.yaml.
+# Dump: the Steam build with gbe_fork's steam_api.dll (Detanup01, LGPL) and its steam_settings\
+# (steam_interfaces.txt: the game's interface versions, else it quits at start): the online
+# co-op of player 2 runs on it. The payload opens Overkill's menu at start (the Typing of the
+# Dead's menu clicked behind a black screen).
+system: arcadepc
+name: "The House of the Dead: Overkill"
+
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: hotdo
+  # the payload's DirectInput: its keyboard and mouse are the virtual sticks'
+  WAL_DINPUT_DISABLE: "1"
+  WAL_HIDE_CURSOR: "1"
+  # player 2: a fake online player in the same game (Multi Player, Search for online player,
+  # then Ready in the gun shop), its gun the second one
+  WAL_HOTDO_PEER: "1"
+  # the gun shop's cash kept at that (0: the game's own)
+  WAL_HOTDO_MONEY: "999999"
+  # every level and game mode unlocked (Director's Cut)
+  WAL_HOTDO_UNLOCK: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_HOTDO_PEER
+        label: Player 2
+        kind: bool
+        description: >-
+          The second gun plays player 2, an online player in the same game: Multi Player,
+          Search for online player, then Ready in the gun shop.
+      - key: WAL_HOTDO_MONEY
+        label: Gun shop cash
+        kind: number
+        description: >-
+          The cash kept in the gun shop (0: the game's own).
+      - key: WAL_HOTDO_UNLOCK
+        label: Unlock everything
+        kind: bool
+        description: >-
+          Every level and game mode, Director's Cut's included (written into the save).
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Reload
+  b3: Special
+  start: Enter (P2 next weapon)
+  test: Pause
+  left: Previous weapon
+  right: Next weapon

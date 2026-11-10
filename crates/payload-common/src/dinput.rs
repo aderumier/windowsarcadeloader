@@ -249,14 +249,33 @@ pub fn set_keyboard(keys: fn(&mut [u8; 256])) {
     let _ = KEYBOARD.set(keys);
 }
 
-/// The keyboard's `GetDeviceState(cbData, lpvData)`: the payload's key states (the other
-/// devices': nothing pressed).
+/// The payload's source of the system mouse's buttons ([`set_mouse_buttons`]).
+static MOUSE_BUTTONS: std::sync::OnceLock<fn() -> u8> = std::sync::OnceLock::new();
+
+/// The fake DirectInput's system mouse (next to the keyboard of [`set_keyboard`]): `buttons`
+/// gives its buttons held (bit n: button n, 0 left, 1 right, 2 middle) at each `GetDeviceState`;
+/// it never moves (the game reads its position elsewhere: `GetCursorPos`).
+pub fn set_mouse_buttons(buttons: fn() -> u8) {
+    let _ = MOUSE_BUTTONS.set(buttons);
+}
+
+/// The keyboard's `GetDeviceState(cbData, lpvData)`: the payload's key states; the mouse's
+/// (DIMOUSESTATE / DIMOUSESTATE2: lX, lY, lZ, then its buttons): no motion, the payload's
+/// buttons (the other devices': nothing pressed).
 unsafe extern "system" fn keyboard_state(this: P, size: u32, data: *mut u8) -> i32 {
     let mut keys = [0u8; 256];
     if std::ptr::eq(this.cast_const().cast(), &KEYBOARD_DEVICE)
         && let Some(fill) = KEYBOARD.get()
     {
         fill(&mut keys);
+    }
+    if std::ptr::eq(this.cast_const().cast(), &MOUSE_DEVICE)
+        && let Some(buttons) = MOUSE_BUTTONS.get()
+    {
+        let held = buttons();
+        for (i, b) in keys[12..20].iter_mut().enumerate() {
+            *b = if held >> i & 1 != 0 { 0x80 } else { 0 };
+        }
     }
     if !data.is_null() {
         unsafe {

@@ -110,6 +110,12 @@
 //! The House of the Dead 2: Remake (`WAL_ARCADEPC_BOARD=hotd2`, x64 build): `hotd2.rs` plays
 //! player 1's mouse with the gun, player 2 on a pad, and puts the crosshairs on the guns (Mono).
 //!
+//! The House of the Dead: Overkill (`WAL_ARCADEPC_BOARD=hotdo`, x86 build): `hotdo.rs` plays its
+//! mouse (the cursor, DirectInput's buttons) and its DirectInput keyboard with the gun.
+//!
+//! Wii static recompilations' SDL2 Windows builds (`WAL_ARCADEPC_BOARD=wiirecomp`): `wiirecomp.rs`
+//! plays their Wii Remote's mouse with the gun.
+//!
 //! Mad Bullets (`WAL_ARCADEPC_BOARD=madbullets`, x86 build): `madbullets.rs` plays its mouse
 //! with the gun.
 //!
@@ -155,6 +161,10 @@ mod gamewax;
 #[cfg(target_arch = "x86_64")]
 mod hotd2;
 #[cfg(target_arch = "x86")]
+mod hotdo;
+#[cfg(target_arch = "x86")]
+mod hotdo_peer;
+#[cfg(target_arch = "x86")]
 mod interface;
 #[cfg(target_arch = "x86")]
 mod madbullets;
@@ -187,6 +197,7 @@ mod unrealio;
 mod vcthunder;
 #[cfg(target_arch = "x86")]
 mod vsioboard;
+mod wiirecomp;
 #[cfg(target_arch = "x86")]
 mod xio;
 mod xmlset;
@@ -427,6 +438,14 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 pads::reload_on_left_trigger();
                 wal_payload_common::input_filter::init(unity, hotd2::key_held);
                 hotd2::init(unity);
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "hotdo" => {
+                pads::disconnect();
+                hotdo::init();
+            }
+            _ if board.trim() == "wiirecomp" => {
+                wiirecomp::init();
             }
             _ if board.trim() == "teamplay" => {
                 pads::disconnect();

@@ -1,0 +1,37 @@
+# The House of the Dead: Overkill (Wii, NTSC-U RHOE8P) on its static recompilation's Windows build
+# (https://github.com/darkuni/house-of-the-dead-overkill-recomp, MIT; hotdoverkill.exe, SDL2,
+# OpenGL 3.3, 64-bit) - template, override values in
+# userprofiles/arcadepc/house-of-the-dead-overkill-wii.yaml.
+# Dump: the release's files and the disc image (RHOE8P.iso) beside them; the first start builds
+# its game\ folder from the image.
+system: arcadepc
+name: "The House of the Dead: Overkill (Wii)"
+
+# SDL tries xinput1_4.dll first: disabled, it loads the payload (xinput1_3.dll) at its start
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+env:
+  # the runtime's Wii Remotes from the guns (docs §6.3i): the dump's runtime is built with its
+  # XInput guns (remote n = the payload's XInput pad n: two players; START = A + B, BACK = +)
+  WAL_ARCADEPC_BOARD: wiirecomp
+  RECOMP_XINPUT_GUNS: "1"
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+  # a gun pointing off the screen reloads when it shoots (the remote off the screen)
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (B)
+  b2: A (menus back)
+  b3: Reload
+  b6: Gun off screen
+  start: A + B (title, join)
+  coin: "+ (pause)"
