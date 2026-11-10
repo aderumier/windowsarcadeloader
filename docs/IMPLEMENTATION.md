@@ -5029,6 +5029,34 @@ next to the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
   select, shots scoring for both (30, 30, 10, 20), both crosshairs where aimed, coins counted
   per station with free play off, operator menu opened, navigated, Setup entered.
 
+#### Family Guy Bowling Arcade
+
+Team Play's trackball bowling game (`bowling.exe`, Unity 5.4, Mono, 64-bit). The dump is the
+Linux cabinet's game folder (`bowling.x86_64`, `bowling_Data` with `Plugins/x86_64/
+libteamplayio.so`, `libserialio.so`) with Unity's Windows player added, and a BepInEx loader
+(`winhttp.dll`) the profile disables (`winhttp: b`): the game runs unmodified.
+`.windowsloader`: `bowling.exe`. Board `teamplay` (`teamplay.rs`):
+
+- **The I/O library.** The game's `DllImport("teamplayio")` / `("serialio")` have no Windows
+  library: stand-in handles (`mono_imports::stand_in`), every function the payload's. The
+  board's input state (`IO_GetInputState`: start `0x400`, left `0x200`, right `0x800`, select
+  `0x1000`, adjustables `0x40`, service credit `0x8`; the game makes the edges), coins as cash in
+  cents (`IO_DefineCoinMech`'s cents a coin, `IO_NewCoinCount`, `IO_CashAvailable`,
+  `IO_UseCash`; the game calls `NewCoinCount` with the mech as its board), secure with no
+  cabinet flags (`IO_IsSecure`), connected, versions, the time; outputs, tickets, comm links,
+  the printer's serial port accepted and dropped.
+- **The trackball** (`IO_SpinnerGetCurrentValue`, spinners 8 / 9 read once a frame, times 0.033
+  in the game, spinner 8 negated): the mouse's wrapping counters (`mouse_wrap` on `rx` / `ry`:
+  a real trackball or a mouse) since the last read, plus the left stick's tilt (up to
+  `WAL_TEAMPLAY_STICK` = 45 counts a frame: the back swing wants 0.87 a frame, the throw 0.435
+  for 8 frames).
+- **Settings.** The profile installs the dump's `Adjustables` (and `.bak`: `key|value|` text)
+  at each start, the payload sets its `freePlayOn` from `WAL_FREEPLAY`; the audits are hidden
+  (made in the run folder).
+- Verified headless (2026-11-10): attract, start, game type, players, bowler select by the
+  trackball's x, back swing and throws (pins down), coins (25 cents each) with free play off,
+  the operator menu (test) navigated by the trackball, System Information entered.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7242,6 +7270,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder 0.5 runtime (its own dump, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload (first gear at start) |
 | `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i): the dump's DemulShooter BepInEx plugin (dongle, serial board, camera guns), the payload its TCP client with its reflection packet (`WAL_DEMUL_FIELDS`), aim in Unity's 1440x1080 picture (`WAL_DEMUL_RESOLUTION`), a shot starts, coin keys per player, free play and the game's crosshairs in its `GameConfig.xml` (`WAL_ARCADEPC_XML`); Doorstop's `GetProcAddress` hook no longer chained by the payload (endless recursion) |
 | `mars-sortie` | Mars Sortie | arcadepc | headless-tested, awaiting user (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play, the game's crosshairs and no player photos by IL patches of their getters, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
+| `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | headless-tested, awaiting user (2026-11-10), 1 trackball | Team Play's bowling game (Linux cabinet folder + Unity 5.4 Windows player, 64-bit, §6.3i): the dump's BepInEx loader disabled, the payload is the cabinet's `teamplayio` / `serialio` libraries for the game's DllImports (buttons, coins in cents, the trackball from the mouse's wrapping counters or the stick), free play in its `Adjustables` |
 | `bounty-hunter` | Bounty Hunter | arcadepc | headless-tested, awaiting user (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 

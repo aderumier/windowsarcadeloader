@@ -1,0 +1,68 @@
+# Family Guy Bowling Arcade (Team Play, bowling.exe, Unity 5.4, Mono, 64-bit) - template, override
+# values in userprofiles/arcadepc/family-guy-bowling-arcade.yaml.
+# A trackball bowling game. The dump is the Linux cabinet's game folder with Unity's Windows
+# player: the payload is the cabinet's I/O library (libteamplayio: the trackball, the buttons,
+# coins) for the game's DllImports (docs §6.3i).
+system: arcadepc
+name: Family Guy Bowling Arcade
+
+# Unity's own log beside the game; full screen at 1920x1080 (16:9)
+args: [-logFile, Player.log, -screen-width, "1920", -screen-height, "1080", -screen-fullscreen, "1"]
+
+dll_overrides:
+  # Unity tries xinput1_3.dll: the payload
+  xinput1_3: "n,b"
+  # the dump's mod loader (winhttp.dll, BepInEx): Wine's own, the game unmodified
+  winhttp: "b"
+
+# The game's settings (installed at each start: changes in its adjustables menu last until the
+# next launch): the dump's (prices, volume 10, tickets off), free play from the common option
+# (WAL_FREEPLAY). Its audits made in the run folder, the dump's untouched.
+files:
+  Adjustables: systemprofiles/arcadepc/files/family-guy-bowling-arcade/Adjustables
+  Adjustables.bak: systemprofiles/arcadepc/files/family-guy-bowling-arcade/Adjustables
+hide: [Audits, Audits.bak, LifetimeAudits, LifetimeAudits.bak]
+
+env:
+  WAL_ARCADEPC_BOARD: teamplay
+  # trackball counts per mouse count, and per frame at full stick tilt
+  WAL_TEAMPLAY_TRACKBALL: "1"
+  WAL_TEAMPLAY_STICK: "45"
+
+input:
+  # the stick rolls the ball, it must not press left / right too
+  stick_as_dpad: false
+  # The mouse (or a real trackball) is the trackball: its position wraps (a counter) on the
+  # right stick's axes.
+  guns_enabled: true
+  guns_mice: 1
+  mouse_screen: [65536, 65536]
+  mouse_wrap: true
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b1
+    BTN_RIGHT: start
+    BTN_MIDDLE: none
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the adjustables' price (25 cents a coin, a game 1 dollar).
+
+controls:
+  lx: Trackball (x)
+  ly: Trackball (y)
+  rx: Trackball (mouse x)
+  ry: Trackball (mouse y)
+  b1: Select
+  start: Start
+  left: Left
+  right: Right
+  coin: Coin
+  test: Adjustables menu
+  service: Service credit

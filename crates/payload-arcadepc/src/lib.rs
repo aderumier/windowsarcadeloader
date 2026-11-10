@@ -103,6 +103,9 @@
 //! (`WAL_ARCADEPC_XML`, Wild West Shoot Out's free play). Mars Sortie
 //! (`WAL_ARCADEPC_BOARD=marssortie`, with its plugin): `marssortie.rs` patches its settings'
 //! getters (free play, crosshairs, no photos) and posts its operator menus' keypad keys.
+//!
+//! Family Guy Bowling Arcade (`WAL_ARCADEPC_BOARD=teamplay`): `teamplay.rs` is the Linux
+//! cabinet's Team Play I/O library (`teamplayio`, `serialio`) for its DllImports.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
 //! (`WAL_CROSSHAIR`) draws player 1's crosshair (`pointer_d3d11`).
 
@@ -148,6 +151,7 @@ mod pads;
 mod sdc2;
 mod softkey;
 mod spacewarp;
+mod teamplay;
 mod topgun;
 mod uaf;
 mod unrealio;
@@ -382,6 +386,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 pads::reload_on_left_trigger();
                 wal_payload_common::input_filter::init(unity, hotd2::key_held);
                 hotd2::init(unity);
+            }
+            _ if board.trim() == "teamplay" => {
+                pads::disconnect();
+                // Unity 5.4: the player is the executable
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                teamplay::init();
             }
             _ if board.trim() == "mame" => {
                 pads::disconnect();
