@@ -1,0 +1,147 @@
+# Initial D ARCADE STAGE Zero Ver.2 (Sega, Nu 1.1, 2018; game id SDDF, version 2.30): 64-bit
+# Direct3D 11, 1920x1080. Version 1.30's profile (initial-d-arcade-stage-zero.yaml) with Ver.2's
+# dump layout (package\ at the dump root) and its amdaemon. One player: a wheel, gas and brake pedals, a 6-speed H shifter, the cabinet's
+# up/down/left/right, start and view change buttons, an Aime card reader.
+# amdaemon.exe (the cabinet's system service) is started first, then the game
+# (package\InitialD0_DX11_Nu.exe), both with the ALLS payload (segatools' idzhook): on the Nu,
+# amdaemon reads the JVS I/O board through the AMEX board (WAL_ALLS_JVS).
+# Override values in userprofiles/seganu/initial-d-arcade-stage-zero-ver-2.yaml.
+system: alls
+name: Initial D ARCADE STAGE Zero Ver.2
+
+# both programs started by wal-loader64 with the payload
+payload_loader: true
+# game.bat's -m
+args: [-m]
+
+# game.bat's amdaemon command line (its configuration files merged in this order), the
+# profile's configuration last
+background:
+  - >-
+    amdaemon.exe -c configDHCP_Final_Common.json configDHCP_Final_JP.json
+    configDHCP_Final_JP_ST1.json configDHCP_Final_JP_ST2.json configDHCP_Final_EX.json
+    configDHCP_Final_EX_ST1.json configDHCP_Final_EX_ST2.json config_wal.json -l Y:\amdaemon.log
+background_wait_ms: 5000
+
+# merged last by amdaemon: its video setup off (the launcher sets the screen), the network
+# address from DHCP, the LAN install off (cabinet 1 is the store's install server)
+files:
+  package/config_wal.json: systemprofiles/alls/files/initial-d-arcade-stage-zero/config_wal.json
+
+# The cabinet's drives: E: the AMFS (the image information, the system backup amdaemon keeps),
+# Y: the game's data (its logs, backup; the AMEX board's EEPROM and SRAM; the players' data,
+# Y:\idz)
+drives:
+  e: amfs
+  y: AppData
+
+env:
+  WAL_ALLS_GAME_ID: SDDF
+  WAL_ALLS_PLATFORM_ID: AAV2
+  # the keychip's region: 1 Japan (amdaemon's JP configurations), 4 export
+  WAL_ALLS_REGION: "1"
+  # the Nu's amdaemon reads the JVS I/O board through the AMEX board (config "jvs": 2 players x
+  # 14 switches, 1 coin slot, 20 outputs, 3 analog channels of 8 bits): the wheel, gas and brake
+  # on channels 0-2, start / view change / up / down / left / right on player 1's switches, the
+  # H shifter's gate on player 2's directions
+  WAL_ALLS_JVS: "1"
+  WAL_ALLS_BOARD: idz
+  WAL_TYPEX_JVS_LAYOUT: h-shifter
+  WAL_TYPEX_JVS_OUTPUTS: "24"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,accel,brake"
+  # amdaemon's clock reported synced with ALL.Net's (amRtcIsServerSync: mov eax,1; ret; Ver.2's amdaemon); offline
+  # it never is (error 8114 "ALL.Net System error (RTC)": the boot screen waits)
+  WAL_ALLS_DAEMON_PATCHES: "0x265630:B801000000C3"
+  # the store server cabinet 1 starts (DIP switch 1) started with the payload (segatools injects
+  # idzhook there too)
+  WAL_ALLS_CHILDREN: ServerBoxD8_Nu_x64
+  # initialD.ini read as a copy: the cabinet's 1920x1080 picture (game.bat's setresolution; the
+  # dump's file says 2560x1440: the picture was cut), windowed (its full screen mode exits on a
+  # screen of another size: 1920x1200), in a borderless 16:9 window centered on the screen
+  WAL_ALLS_INI_FILE: "initialD.ini:FullScreen=0,Width=1920,Height=1080"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: picture
+  WAL_D3D9_ASPECT: "16:9"
+  # the players' names (the name entry's kana) converted in Shift-JIS: the western code page
+  # gave "??????"
+  WAL_ANSI_CODEPAGE: "932"
+  # the unpacked programs' sizes (segatools' idzhook crt.c)
+  WAL_ALLS_STAT_BYPASS: InitialD0_DX11_Nu.exe,amdaemon.exe
+  # ALL.Net's authentication accepted (the payload's server), the game server (the players'
+  # data, payload idz.rs) on the router's port 10000 (ALL.Net's host field, as ARTEMiS and
+  # minime answer)
+  WAL_ALLS_ALLNET: "1"
+  # ALL.Net's billing server (amdaemon's accounting, payload billing.rs)
+  WAL_ALLS_BILLING: "1"
+  WAL_ALLS_TITLE_HOST: "{router}:10000"
+  # the Aime reader on COM10 (amdaemon's aime unit port 10; the cabinet's 837-15286, its firmware
+  # in package\)
+  WAL_ALLS_AIME_PORT: COM10
+  WAL_AIME_READER: "15286"
+  # after start, the card touched by itself when the game asks for it
+  WAL_ALLS_AUTO_CARD: "1"
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_ALLS_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself when the game asks for it (the
+          player's data saved on the game server). Off: touch it with the card button, or play
+          as a guest.
+
+native_map:
+  b6: none
+  b7: none
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    y: b1
+    l1: b6
+    r1: b7
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      # the arrows steer and drive, and move in the menus (the cabinet's buttons)
+      KEY_LEFT: -lx,left
+      KEY_RIGHT: lx,right
+      KEY_UP: accel,up
+      KEY_DOWN: brake,down
+      KEY_LEFTCTRL: b1
+      KEY_A: b6
+      KEY_S: b7
+      # the H shifter's gears on the numpad
+      KEY_KP1: kp1
+      KEY_KP2: kp2
+      KEY_KP3: kp3
+      KEY_KP4: kp4
+      KEY_KP5: kp5
+      KEY_KP6: kp6
+
+controls:
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: View change
+  b6: Shift down
+  b7: Shift up
+  kp1: Gear 1 (H shifter)
+  kp2: Gear 2 (H shifter)
+  kp3: Gear 3 (H shifter)
+  kp4: Gear 4 (H shifter)
+  kp5: Gear 5 (H shifter)
+  kp6: Gear 6 (H shifter)
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

@@ -11,7 +11,9 @@
 use wal_payload_common::json::Json;
 use wal_payload_common::log;
 
-use super::store::{self, arr, bytes, hex, obj, unhex};
+use super::store::{self, Store, arr, bytes, hex, obj, unhex};
+
+mod v2;
 
 /// The store name in the top ten's rows.
 const STORE_NAME: &[u8] = b"WindowsArcadeLoader";
@@ -51,7 +53,8 @@ const REQUESTS: [(u16, usize, &str); 51] = [
     (0x00a7, 0x0010, "loadStocker"),
     (0x00a9, 0x0010, "lockGarage"),
     (0x00ab, 0x0010, "loadConfig2"),
-    (0x00ad, 0x061c, "msg00AD"),
+    // minime v016: 0x0620 (v005's 0x061c is not a whole number of blocks)
+    (0x00ad, 0x0620, "msg00AD"),
     (0x00b0, 0x0010, "load2on2_v1"),
     (0x00b5, 0x00e0, "loadTopTen1"),
     (0x00b9, 0x0010, "loadTeamRanking"),
@@ -71,12 +74,42 @@ const REQUESTS: [(u16, usize, &str); 51] = [
     (0x013f, 0x0010, "saveExpedition2"),
 ];
 
-/// A request's payload length (its code included), `None` for an unknown code.
-pub(super) fn request_len(code: u16) -> Option<usize> {
-    REQUESTS.iter().find(|r| r.0 == code).map(|r| r.1)
+/// The header's protocol: Ver.1 ("110", "130": [`REQUESTS`]), Ver.2 ("210", "230" and later:
+/// `v2.rs`, [`v2::REQUESTS`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum Proto {
+    V1,
+    V210,
+    V230,
 }
 
-pub(super) fn name(code: u16) -> &'static str {
+impl Proto {
+    pub(super) fn of(version: &str) -> Proto {
+        match version.trim().parse::<u32>() {
+            Ok(v) if v >= 230 => Proto::V230,
+            Ok(v) if v >= 200 => Proto::V210,
+            _ => Proto::V1,
+        }
+    }
+
+    pub(super) fn v2(self) -> bool {
+        self != Proto::V1
+    }
+}
+
+/// A request's payload length (its code included) and whether that length is known for sure
+/// (else the framer takes what the game sent before it waits), `None` for an unknown code.
+pub(super) fn request_info(proto: Proto, code: u16) -> Option<(usize, bool)> {
+    if proto.v2() {
+        return v2::request_info(proto, code);
+    }
+    REQUESTS.iter().find(|r| r.0 == code).map(|r| (r.1, true))
+}
+
+pub(super) fn name(proto: Proto, code: u16) -> &'static str {
+    if proto.v2() {
+        return v2::name(code);
+    }
     REQUESTS.iter().find(|r| r.0 == code).map_or("unknown", |r| r.2)
 }
 
@@ -578,6 +611,11 @@ pub(super) fn commit_reservation(teams: &mut Json, aime: u32) {
 /// minime's team answer (`loadTeam` 0x0078 / `createAutoTeam` 0x007c, 0x0ca0 bytes): the team,
 /// its members (`players`: their documents).
 fn team_answer(code: u16, team: Option<&Json>, players: &[Json]) -> Vec<u8> {
+    team_answer_at(code, team, players, 0x011c)
+}
+
+/// The team answer with its members from `members_at` (Ver.2: 0x0120).
+fn team_answer_at(code: u16, team: Option<&Json>, players: &[Json], members_at: usize) -> Vec<u8> {
     let mut out = Out::new(0x0ca0, code);
     let empty = Json::obj();
     let team = team.unwrap_or(&empty);
@@ -595,7 +633,7 @@ fn team_answer(code: u16, team: Option<&Json>, players: &[Json]) -> Vec<u8> {
         if i == TEAM_SIZE {
             break;
         }
-        let base = 0x011c + i * 0x5c;
+        let base = members_at + i * 0x5c;
         out.u32(base, doc.u("aime_id") as u32);
         out.text(base + 0x04, &bytes(doc, "name", doc.s("name").len() / 2), 0x13);
         out.u32(base + 0x18, doc.u("lv") as u32);
@@ -619,64 +657,75 @@ fn host() -> String {
 /// `loadServerList` (0x0007): the servers on the router (minime's switchboard ports), the
 /// news on the router's port 80 (ARTEMiS's routes).
 pub(super) fn server_list(host: &str) -> Vec<u8> {
+    server_list_at(host, 0)
+}
+
+/// The server list with its fields `o` bytes further (Ver.2: 2).
+fn server_list_at(host: &str, o: usize) -> Vec<u8> {
     let mut out = Out::new(0x04b0, 0x0007);
     let h = host.as_bytes();
-    out.u16(0x0002, 1);
-    out.text(0x0004, h, 0x80);
+    out.u16(0x0002 + o, 1);
+    out.text(0x0004 + o, h, 0x80);
     // userdb TCP / HTTP
-    out.u16(0x0084, 10000);
-    out.u16(0x0086, 10001);
-    out.text(0x0088, h, 0x80);
+    out.u16(0x0084 + o, 10000);
+    out.u16(0x0086 + o, 10001);
+    out.text(0x0088 + o, h, 0x80);
     // matching TCP, UDP send, UDP receive; tag matching
     for (i, port) in [10002u32, 10003, 10004, 10005, 10006, 10007].iter().enumerate() {
-        out.u16(0x0108 + 2 * i, *port);
+        out.u16(0x0108 + o + 2 * i, *port);
     }
-    out.text(0x0114, h, 0x80);
-    out.u16(0x0194, 10008);
-    out.text(0x0198, h, 0x80);
-    out.u16(0x0218, 10009);
+    out.text(0x0114 + o, h, 0x80);
+    out.u16(0x0194 + o, 10008);
+    out.text(0x0198 + o, h, 0x80);
+    out.u16(0x0218 + o, 10009);
     // ping return, echo 1, echo 2
-    out.text(0x021c, h, 0x80);
-    out.text(0x029c, h, 0x80);
-    out.text(0x031c, h, 0x80);
-    out.u16(0x039c, 10010);
-    out.u16(0x039e, 10011);
-    out.text(0x03a0, format!("http://{host}/idz/news/news80**.txt").as_bytes(), 0x83);
-    out.text(0x0424, format!("http://{host}/idz/error").as_bytes(), 0x8b);
+    out.text(0x021c + o, h, 0x80);
+    out.text(0x029c + o, h, 0x80);
+    out.text(0x031c + o, h, 0x80);
+    out.u16(0x039c + o, 10010);
+    out.u16(0x039e + o, 10011);
+    out.text(0x03a0 + o, format!("http://{host}/idz/news/news80**.txt").as_bytes(), 0x83);
+    out.text(0x0424 + o, format!("http://{host}/idz/error").as_bytes(), 0x8b);
     out.done()
 }
 
 /// `loadTopTen1/2` (0x00b5 / 0x012c): up to 3 of the asked routes with results newer than
-/// asked, their 10 best (every local player's best), answered 0x00b6.
+/// asked, their 10 best (every local player's best; minime v016: all of them, not only the
+/// newer ones, else the newer time takes the first row), answered 0x00b6.
 fn top_ten(p: &[u8], count: usize, times_at: usize, players: &[Json], teams: &Json) -> Vec<u8> {
-    let mut out = Out::new(0x1720, 0x00b6);
+    top_ten_as(p, count, 0x04, times_at, players, teams, false)
+}
+
+/// The top ten, the routes asked from `routes_at`; `v2`: Ver.2's answer (`loadTopTen3`,
+/// 0x00ce: its fields 2 bytes further).
+fn top_ten_as(p: &[u8], count: usize, routes_at: usize, times_at: usize, players: &[Json], teams: &Json, v2: bool) -> Vec<u8> {
+    let (code, o) = if v2 { (0x00ce, 2) } else { (0x00b6, 0) };
+    let mut out = Out::new(0x1720, code);
     let mut courses = 0;
     let mut seen = Vec::new();
     for i in 0..count {
         if courses == 3 {
             break;
         }
-        let route = r16(p, 0x04 + 2 * i) >> 1;
+        let route = r16(p, routes_at + 2 * i) >> 1;
         let min = r32(p, times_at + 4 * i) as u64 + 1;
         if seen.contains(&route) {
             continue;
         }
         seen.push(route);
-        let mut rows: Vec<(&Json, &Json)> = players
-            .iter()
-            .flat_map(|d| d.a("time_attack").iter().filter(|t| t.u("route") == route as u64 && t.u("timestamp") > min).map(move |t| (d, t)))
-            .collect();
-        if rows.is_empty() {
+        let mut rows: Vec<(&Json, &Json)> =
+            players.iter().flat_map(|d| d.a("time_attack").iter().filter(|t| t.u("route") == route as u64).map(move |t| (d, t))).collect();
+        if !rows.iter().any(|(_, t)| t.u("timestamp") > min) {
             continue;
         }
         rows.sort_by_key(|(_, t)| (t.u("total_ms"), t.u("timestamp")));
-        let outer = 0x0004 + 0x0794 * courses;
-        out.u16(outer, route << 1);
+        let outer = 0x0004 + o + 0x0794 * courses;
+        out.u16(outer + o, route << 1);
         for (j, s) in rows[0].1.a("sections").iter().take(3).enumerate() {
             out.u32(outer + 0x04 + 4 * j, s.as_u64().unwrap_or(0) as u32);
         }
         for (j, (doc, ta)) in rows.iter().take(10).enumerate() {
-            let inner = outer + 0x0010 + 0xc0 * j;
+            let inner = outer + 0x0010 + o + 0xc0 * j;
             out.u32(inner + 0x04, ta.u("total_ms") as u32);
             out.u32(inner + 0x08, ta.u("timestamp") as u32);
             out.u16(inner + 0x0c, ta.u("car") as u32);
@@ -689,7 +738,7 @@ fn top_ten(p: &[u8], count: usize, times_at: usize, players: &[Json], teams: &Js
         }
         courses += 1;
     }
-    out.u16(0x0002, courses as u32);
+    out.u16(0x0002 + o, courses as u32);
     // no trailers
     for i in 0..3 {
         out.u8(0x16c0 + 0x1c * i + 0x02, 0xff);
@@ -699,7 +748,12 @@ fn top_ten(p: &[u8], count: usize, times_at: usize, players: &[Json], teams: &Js
 
 /// `loadGhost` (0x00a1): minime's two empty ghosts.
 fn ghost() -> Vec<u8> {
-    let mut out = Out::new(0x0070, 0x00a1);
+    ghost_as(0x00a1)
+}
+
+/// The ghosts answered `code` (Ver.2: 0x0096).
+fn ghost_as(code: u16) -> Vec<u8> {
+    let mut out = Out::new(0x0070, code);
     out.u16(0x0002, 0x0005);
     for i in 0..2 {
         let base = 0x04 + i * 0x34;
@@ -728,21 +782,25 @@ fn now() -> u64 {
 }
 
 /// One request's answer (`p` its payload, code first).
-pub(super) fn handle(code: u16, p: &[u8]) -> Vec<u8> {
+pub(super) fn handle(proto: Proto, code: u16, p: &[u8]) -> Vec<u8> {
+    if proto.v2() {
+        return v2::handle(proto, code, p);
+    }
     let _lock = store::LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let store = Store(false);
     let aime = r32(p, 4);
     // the request's player, changed and saved
-    let with_player = |f: &mut dyn FnMut(&mut Json)| match store::load(aime) {
+    let with_player = |f: &mut dyn FnMut(&mut Json)| match store.load(aime) {
         Some(mut doc) => {
             f(&mut doc);
-            store::save(aime, &doc);
+            store.save(aime, &doc);
         }
-        None => log!("idz: {} for {aime}: no profile", name(code)),
+        None => log!("idz: {} for {aime}: no profile", name(proto, code)),
     };
     let with_teams = |f: &mut dyn FnMut(&mut Json)| {
-        let mut teams = store::load_teams();
+        let mut teams = store.load_teams();
         f(&mut teams);
-        store::save_teams(&teams);
+        store.save_teams(&teams);
     };
     match code {
         0x0004 => {
@@ -760,7 +818,7 @@ pub(super) fn handle(code: u16, p: &[u8]) -> Vec<u8> {
         0x0006 => server_list(&host()),
         0x006b => {
             let mut out = Out::new(0x0010, 0x006c);
-            out.u8(0x0004, u32::from(store::load(aime).is_some()));
+            out.u8(0x0004, u32::from(store.load(aime).is_some()));
             out.done()
         }
         0x0069 => {
@@ -784,15 +842,15 @@ pub(super) fn handle(code: u16, p: &[u8]) -> Vec<u8> {
         0x0066 => {
             let doc = new_profile(p, now());
             log!("idz: new profile {aime} \"{}\"", printable(&cstr(p, 0x1e, 0x34)));
-            store::save(aime, &doc);
+            store.save(aime, &doc);
             with_teams(&mut |t| commit_reservation(t, aime));
             // minime: the Aime id as the generic answer's status; ARTEMiS's at 0x08 too
             let mut out = generic(aime);
             out[8..12].copy_from_slice(&aime.to_le_bytes());
             out
         }
-        0x012f => match store::load(aime) {
-            Some(doc) => load_profile3(&doc, find_team(&store::load_teams(), aime)),
+        0x012f => match store.load(aime) {
+            Some(doc) => load_profile3(&doc, find_team(&store.load_teams(), aime)),
             None => {
                 log!("idz: loadProfile3 for {aime}: no profile");
                 generic(0)
@@ -803,7 +861,7 @@ pub(super) fn handle(code: u16, p: &[u8]) -> Vec<u8> {
             generic(1)
         }
         0x0067 | 0x0068 => {
-            log!("idz: {} (v1.10's profile) not supported", name(code));
+            log!("idz: {} (v1.10's profile) not supported", name(proto, code));
             generic(0)
         }
         0x00cd | 0x0136 => {
@@ -836,28 +894,31 @@ pub(super) fn handle(code: u16, p: &[u8]) -> Vec<u8> {
         0x00a7 => {
             let mut out = Out::new(0x00a0, 0x00a8);
             out.u8(0x0002, 1);
-            if let Some(doc) = store::load(aime) {
+            if let Some(doc) = store.load(aime) {
                 out.put(0x0003, &bytes(&doc, "backgrounds", BACKGROUNDS_LEN));
             }
             out.done()
         }
-        0x0090 => garage(store::load(aime).as_ref(), r8(p, 0x08) as usize),
-        // minime keeps nothing of it; status 0 is success here
-        0x008e => empty(0x0010, 0x008f),
-        0x00b5 => top_ten(p, 32, 0x44, &store::players(), &store::load_teams()),
-        0x012c => top_ten(p, 40, 0x54, &store::players(), &store::load_teams()),
+        0x0090 => garage(store.load(aime).as_ref(), r8(p, 0x08) as usize),
+        // the car saved (minime v016's fix: v005 dropped it); status 0 is success here
+        0x008e => {
+            with_player(&mut |d| put_car(d, &slice(p, 0x08, 0x68)));
+            empty(0x0010, 0x008f)
+        }
+        0x00b5 => top_ten(p, 32, 0x44, &store.players(), &store.load_teams()),
+        0x012c => top_ten(p, 40, 0x54, &store.players(), &store.load_teams()),
         0x007b => {
-            let mut teams = store::load_teams();
+            let mut teams = store.load_teams();
             let id = create_auto_team(&mut teams, aime, now());
-            store::save_teams(&teams);
+            store.save_teams(&teams);
             let team = team_index(&teams, id).map(|t| &teams.a("teams")[t]);
-            team_answer(0x007c, team, &store::players())
+            team_answer(0x007c, team, &store.players())
         }
         0x0077 => {
             let id = r32(p, 0x08);
-            let teams = store::load_teams();
+            let teams = store.load_teams();
             let team = if id == 0xffff_ffff { None } else { team_index(&teams, id).map(|t| &teams.a("teams")[t]) };
-            team_answer(0x0078, team, &store::players())
+            team_answer(0x0078, team, &store.players())
         }
         0x0071 => {
             let mut id = 0;

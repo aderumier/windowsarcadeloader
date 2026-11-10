@@ -1,5 +1,5 @@
 //! The players' documents and the teams: one JSON object per Aime user id in
-//! `Y:\idz\<id>.json` (minime's `idz_*` tables of one profile: the profile, its chara, cars and
+//! `Y:\idz\<id>.json` (Ver.2's players apart, in `Y:\idz2\`: [`Store`]) (minime's `idz_*` tables of one profile: the profile, its chara, cars and
 //! selected car, settings, unlocks, tickets, missions, story, course plays, titles, backgrounds,
 //! time attack bests; the game's opaque bytes as hex), the teams in `Y:\idz\teams.json`
 //! (`teams` with their `members`, the auto teams' `auto` counter, the `reservations` of the
@@ -13,56 +13,68 @@ use wal_payload_common::json::Json;
 /// Held for each request.
 pub(super) static LOCK: Mutex<()> = Mutex::new(());
 
+/// Ver.1's players (v1.10 / v1.30) and Ver.2's (v2.10 / v2.30: other documents, other teams).
 pub(super) const DIR: &str = "Y:\\idz";
+pub(super) const DIR2: &str = "Y:\\idz2";
 
-fn path(name: &str) -> String {
-    format!("{DIR}\\{name}.json")
-}
+/// One version's players and teams: `Store(false)` in [`DIR`], `Store(true)` (Ver.2) in [`DIR2`].
+#[derive(Clone, Copy)]
+pub(super) struct Store(pub(super) bool);
 
-fn read(name: &str) -> Option<Json> {
-    std::fs::read_to_string(path(name)).ok().and_then(|t| Json::parse(&t)).filter(|d| matches!(d, Json::Obj(_)))
-}
-
-fn write(name: &str, doc: &Json) {
-    let _ = std::fs::create_dir_all(DIR);
-    let tmp = format!("{}.tmp", path(name));
-    if std::fs::write(&tmp, doc.to_string()).is_ok() {
-        let _ = std::fs::rename(&tmp, path(name));
+impl Store {
+    fn dir(self) -> &'static str {
+        if self.0 { DIR2 } else { DIR }
     }
-}
 
-/// The player `aime`'s document.
-pub(super) fn load(aime: u32) -> Option<Json> {
-    read(&aime.to_string())
-}
+    fn path(self, name: &str) -> String {
+        format!("{}\\{name}.json", self.dir())
+    }
 
-pub(super) fn save(aime: u32, doc: &Json) {
-    write(&aime.to_string(), doc);
-}
+    fn read(self, name: &str) -> Option<Json> {
+        std::fs::read_to_string(self.path(name)).ok().and_then(|t| Json::parse(&t)).filter(|d| matches!(d, Json::Obj(_)))
+    }
 
-/// Every player's document (the top ten, the team rosters).
-pub(super) fn players() -> Vec<Json> {
-    let mut out = Vec::new();
-    if let Ok(dir) = std::fs::read_dir(DIR) {
-        for entry in dir.flatten() {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if let Some(id) = name.strip_suffix(".json").and_then(|n| n.parse::<u32>().ok())
-                && let Some(doc) = load(id)
-            {
-                out.push(doc);
-            }
+    fn write(self, name: &str, doc: &Json) {
+        let _ = std::fs::create_dir_all(self.dir());
+        let tmp = format!("{}.tmp", self.path(name));
+        if std::fs::write(&tmp, doc.to_string()).is_ok() {
+            let _ = std::fs::rename(&tmp, self.path(name));
         }
     }
-    out
-}
 
-/// The teams' document (created empty).
-pub(super) fn load_teams() -> Json {
-    read("teams").unwrap_or_else(|| Json::obj().with("next_id", 1u32))
-}
+    /// The player `aime`'s document.
+    pub(super) fn load(self, aime: u32) -> Option<Json> {
+        self.read(&aime.to_string())
+    }
 
-pub(super) fn save_teams(doc: &Json) {
-    write("teams", doc);
+    pub(super) fn save(self, aime: u32, doc: &Json) {
+        self.write(&aime.to_string(), doc);
+    }
+
+    /// Every player's document (the top ten, the team rosters).
+    pub(super) fn players(self) -> Vec<Json> {
+        let mut out = Vec::new();
+        if let Ok(dir) = std::fs::read_dir(self.dir()) {
+            for entry in dir.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if let Some(id) = name.strip_suffix(".json").and_then(|n| n.parse::<u32>().ok())
+                    && let Some(doc) = self.load(id)
+                {
+                    out.push(doc);
+                }
+            }
+        }
+        out
+    }
+
+    /// The teams' document (created empty).
+    pub(super) fn load_teams(self) -> Json {
+        self.read("teams").unwrap_or_else(|| Json::obj().with("next_id", 1u32))
+    }
+
+    pub(super) fn save_teams(self, doc: &Json) {
+        self.write("teams", doc);
+    }
 }
 
 /// `doc`'s array `key` (created empty).
