@@ -5130,6 +5130,29 @@ libteamplayio.so`, `libserialio.so`) with Unity's Windows player added, and a Be
   trackball's x, back swing and throws (pins down), coins (25 cents each) with free play off,
   the operator menu (test) navigated by the trackball, System Information entered.
 
+#### Pop Moto
+
+Tecway's motorbike racing game (`fightmoto.exe`, the 3D GameStudio engine `acknex.dll`,
+Direct3D 9, 32-bit; English build `fightmoto_En10_3_19-10`). `.windowsloader`: `fightmoto.exe`.
+The dump carries a community `USB_board.dll` (with its source: XInput, keyboard, raw mouse), a
+dgVoodoo `D3D9.dll` and ReShade's `d3d11.dll`: the profile hides both renderers (Wine's
+Direct3D 9) and installs the payload as `USB_board.dll` (board `popmoto`, `popmoto.rs`), an
+engine plugin the game's scripts call (cdecl, by name):
+
+- **Inputs.** `getJoy_x(0)` the balance plate handlebar (0..255, 128 centered: the left stick,
+  or full lock with left / right), `getJoy_x(1)` / `getJoy_y` the throttle lever (128 + the
+  accelerator - the brake: the pedals, or b1 / b2 full), `isButtonDown` 0 start, 1 item (b3),
+  2 test, `getCoinSum` 1 per coin. Tickets, counters and lamps do nothing.
+- **Engine patches.** `A6_DLLAPI` (the plugin entry, called when the engine loads the
+  library) does what the community library did: the compiled scripts' code (at
+  `[acknex.dll+0x21ab1c]`) gets two `sete al` (+0x5283c, +0x17ef7f) replaced by `nop`s, and
+  `GS_XSocket_CS.dll`'s `x_connect_to_sever` returns at once (one cabinet, no server).
+- **Free play.** `config.ini` `[Config]` `gamemode` (1 free: FREE MODE on the screens) set from
+  `WAL_FREEPLAY` at start, the file's other bytes kept (GBK comments, CRLF).
+- Verified headless (2026-11-10): attract, coins (CREDIT counter), free mode, start, mode /
+  team / mission select with the handlebar, a race (throttle to 260 km/h, steering, the item
+  prompt). The boot's WMV logos show black; the test menu not reached yet.
+
 #### Subway Surfers Arcade
 
 An arcade conversion of Kiloo / SYBO's Subway Surfers (`SubwaySurfers.exe`, Unity 2022.3, Mono
@@ -7451,6 +7474,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `friction` | Friction | arcadepc | user 100% (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play as 99 credits never spent, a shot is also its player's start, the payload's crosshairs (common option) |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 | `mad-bullets` | Mad Bullets | arcadepc | user 100% (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture (the game's cursor hidden), OpenAL from winetricks, reload = a click on the bullet belt (b2 or a shot off the screen), Escape on start |
+| `pop-moto` | Pop Moto | arcadepc | works (headless 2026-11-10), 1 player (handlebar, throttle, item) | Tecway's motorbike racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `USB_board.dll` (handlebar, throttle lever, keys, coins) and patches the engine's scripts as the community library, no server, free play as the game's free mode |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

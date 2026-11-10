@@ -1,0 +1,43 @@
+# Pop Moto (Tecway, fightmoto.exe, 3D GameStudio engine acknex.dll, Direct3D 9, 32-bit) -
+# template, override values in userprofiles/arcadepc/pop-moto.yaml.
+# A motorbike racing game: a balance plate handlebar, a throttle lever, an item button. The
+# payload is the cabinet's USB board library (USB_board.dll: handlebar, throttle, keys, coins)
+# and patches the engine's scripts as the dump's community library did (docs §6.3i).
+system: arcadepc
+name: Pop Moto
+
+# the game's USB board library: the payload, in place of the dump's community one
+payload_install: [USB_board.dll]
+# the dump's dgVoodoo (Direct3D 9 on 11) and ReShade: not used
+hide: [D3D9.dll, d3d11.dll]
+
+env:
+  WAL_ARCADEPC_BOARD: popmoto
+  # the engine's DirectInput: the payload's, without devices
+  WAL_DINPUT_DISABLE: "1"
+
+input:
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's free mode (config.ini gamemode 1): starts without coins. Off: its coin
+          settings.
+
+controls:
+  lx: Handlebar (balance plate)
+  accel: Throttle
+  brake: Brake
+  b1: Throttle (full)
+  b2: Brake (full)
+  b3: Item
+  left: Handlebar full left
+  right: Handlebar full right
+  start: Start
+  coin: Coin
+  test: Test

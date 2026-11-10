@@ -73,6 +73,9 @@
 //! `vsIOBoard.dll` (the guns, coins, start and service buttons, through the game's listener); the
 //! common crosshair option draws the guns (Direct3D 9).
 //!
+//! Pop Moto (`WAL_ARCADEPC_BOARD=popmoto`, x86 build): `popmoto.rs` is its `USB_board.dll` (the
+//! handlebar, throttle lever, keys, coins) and patches its engine's scripts as the community one.
+//!
 //! Subway Surfers Arcade (`WAL_ARCADEPC_BOARD=subway`): `subway.rs` posts its cabinet's keys and
 //! the hoverboard's double tap, and is its lamps' silent Arduino.
 //!
@@ -159,6 +162,8 @@ mod ngun;
 mod robinhood;
 mod topgun2_landscape;
 mod pads;
+#[cfg(target_arch = "x86")]
+mod popmoto;
 #[cfg(target_arch = "x86")]
 mod sdc2;
 mod softkey;
@@ -424,6 +429,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "madbullets" => {
                 pads::disconnect();
                 madbullets::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "popmoto" => {
+                pads::disconnect();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                popmoto::init();
             }
             _ if board.trim() == "subway" => {
                 pads::disconnect();
