@@ -18,6 +18,19 @@ env:
 
 input:
   stick_as_dpad: false
+  # the pads' triggers: the throttle lever (forward, back)
+  gamepad:
+    r2: accel
+    l2: brake
+  # keyboard handlebar and throttle: full in 0.3 s
+  keyboard_ramp_ms: 300
+  # Keyboard: Left / Right handlebar, Up throttle, Down brake.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
 
 options:
   - title: Game
