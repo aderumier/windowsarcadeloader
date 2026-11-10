@@ -5103,6 +5103,32 @@ instead the Shell ran unpatched, and its cleanup deleted the dump's `pvz` folder
   User 100% on the desktop (2026-11-10). Test and service (the Shell's DirectInput keyboard)
   are not mapped.
 
+#### Savage Quest
+
+Immersia / Angel Studios' 1999 DOS game (DOS4GW, 3dfx Voodoo 2): the player is a T-Rex. The
+dump is the cabinet's disk (MS-DOS 6.22, `IMMERSIA\BIN\RUN.BAT`, `SQ05\SQ\BIN\SQ.BAT`) with
+the community `winsavage.exe` (`.windowsloader`: `SQ05\SQ\BIN\winsavage.exe`, 32-bit, PE
+time stamp 0x612E771B). That loader maps `PSAVAGE.EXE` ("SQ v0.92 May 13 1999") flat, runs it
+with the dump's dgVoodoo `Glide2x.dll` (its `dgVoodoo.conf`) and DirectSound, and reads one
+XInput pad (`LoadLibraryA("xinput1_3.dll")`). Board `savagequest` (`savagequest.rs`, x86
+build), loaded by `payload_loader`.
+
+- **Pad.** Each frame `winsavage.exe` takes the first connected pad into the game's GCI joystick
+  (game +0x4fe104, its joystick at +0x3c): +0x79c = LY / 32767 (the game's x, +right), +0x7a4 =
+  LX / 32767 (its y, +back), +0x7ac bit 0 A, 1 X, 2 Y, 3 START. The payload's pad: the stick
+  (or the directions, at full deflection) with its axes swapped for that, b1 bite (A), b2 roar
+  (X), b3 run (Y: the stick's thumb button, double press headbutt), start (START).
+- **Keyboard.** The loader's window keys become DOS scancodes in the game's keyboard array; the
+  real keyboard is filtered (the executable's `PeekMessageW`).
+- **Graphics.** The dump's dgVoodoo (Direct3D 11 on DXVK), not the runner's gxvk: with gxvk the
+  foliage, distant creatures and HUD parts were black.
+- **Not done.** Coins and the operator menu: they come from the cabinet's Gandalf serial board
+  (`ImmCoinOpToolkit`, `PROTOCOL.IDB`), which `winsavage.exe` does not emulate. Free play is
+  the dump's own setting (its encrypted `IFF\DATABASE\SETUP.IDB`): `WAL_FREEPLAY` does not change
+  it.
+- Verified headless (2026-11-10): title, level select, intro, stick, bite, roar. User 100% on
+  the desktop (2026-11-10).
+
 #### Bounty Hunter
 
 GCTECH's striking game (`bh.exe`, 2002, Power Render 4 on Direct3D 8, 32-bit, UPX-packed,
@@ -7691,6 +7717,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `the-house-of-the-dead-3` | The House of the Dead 3 | arcadepc | user 100% (2026-11-10), 2 guns | SEGA's PC release (Direct3D 8, 32-bit, §6.3i) with the community ArcadeMod 7.0, whose patches the payload applies itself (its sprites read from the dump's .NET launcher); the guns written into the game's input blocks (DemulShooter's), start / coin as its window keys, saves beside the executable, the 4:3 picture windowed on the screen |
 | `the-house-of-the-dead-remake` | The House of the Dead: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity 2020.3 HDRP, Mono, 64-bit, §6.3i, board `hotdr`) with the community arcade plugin (BepInEx): the guns written into the plugin's DemulShooter shared memory, start / coin as its Unity keys (the trigger is start too, right button reload), its ini set at start (free play, crosshairs, difficulty, lives, credits, language), 1280x720 picture (an iGPU's reset at 1920x1080) |
 | `plants-vs-zombies-the-last-stand` | Plants vs. Zombies: The Last Stand | arcadepc | user 100% (2026-11-10), 1 gun | Hollywood Gaming's redemption game (Shell Direct3D 9 + Unity 4.3, 32-bit, §6.3i, board `pvz`): the Shell patched as the community did, the game started with the payload, the gun plays its mouse (no BepInEx plugin), the Shell's START button and coin meter from the sticks (the trigger is start too), portrait 1080x1920 fitted with the dump's bezel |
+| `savage-quest` | Savage Quest | arcadepc | user 100% (2026-11-10), 1 player | Immersia's DOS game (DOS4GW, Glide, §6.3i, board `savagequest`) in the community `winsavage.exe` loader with the dump's dgVoodoo: the payload is its XInput pad (stick axes swapped, bite, roar, run, start), the real keyboard filtered; free play from the dump's settings, no coins / operator menu (Gandalf serial board not emulated) |
 | `pop-moto` | Pop Moto | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, item) | Tecway's motorbike racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `USB_board.dll` (handlebar, throttle lever, keys, coins) and patches the engine's scripts as the community library, no server, free play as the game's free mode |
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) | DiverBras' kart racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `bin\s_input.dll` in each of its engine programs (menus, races, operator menu), their hand-offs started by the launcher (relaunch), the record photo (webcam) skipped, free play as the game's own (JOGO LIVRE) |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |

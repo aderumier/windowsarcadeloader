@@ -99,14 +99,14 @@ fn pressed(player: usize) -> Vec<Native> {
 /// XINPUT_GAMEPAD: buttons, left and right triggers, lx ly rx ry.
 #[repr(C)]
 #[derive(Clone, Copy, Default, PartialEq)]
-struct Gamepad {
-    buttons: u16,
-    left_trigger: u8,
-    right_trigger: u8,
-    lx: i16,
-    ly: i16,
-    rx: i16,
-    ry: i16,
+pub(crate) struct Gamepad {
+    pub(crate) buttons: u16,
+    pub(crate) left_trigger: u8,
+    pub(crate) right_trigger: u8,
+    pub(crate) lx: i16,
+    pub(crate) ly: i16,
+    pub(crate) rx: i16,
+    pub(crate) ry: i16,
 }
 
 fn gamepad(player: usize) -> Gamepad {
@@ -185,6 +185,13 @@ pub(crate) fn offscreen_held(player: usize) -> bool {
     pressed(player).contains(&Native::Offscreen)
 }
 
+/// A game's own pads in place of the Galaxy Rangers ones (Savage Quest's `winsavage.exe`).
+static CUSTOM: OnceLock<fn(usize) -> Gamepad> = OnceLock::new();
+
+pub(crate) fn custom(pad: fn(usize) -> Gamepad) {
+    let _ = CUSTOM.set(pad);
+}
+
 /// No pad connected (the DemulShooter plugin games: their guns are not pads).
 static DISCONNECTED: AtomicBool = AtomicBool::new(false);
 
@@ -218,7 +225,7 @@ pub unsafe extern "system" fn XInputGetState(index: u32, state: *mut State) -> u
     if absent(index) {
         return ERROR_DEVICE_NOT_CONNECTED;
     }
-    let pad = gamepad(player);
+    let pad = CUSTOM.get().map_or_else(|| gamepad(player), |custom| custom(player));
     let packet = {
         let mut last = LAST.lock().unwrap();
         let (previous, packet) = &mut last[player];

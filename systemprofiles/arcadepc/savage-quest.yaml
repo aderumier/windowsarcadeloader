@@ -1,0 +1,31 @@
+# Savage Quest (Immersia / Angel Studios, 1999, DOS / DOS4GW, 3dfx Voodoo 2) - template,
+# override values in userprofiles/arcadepc/savage-quest.yaml.
+# The dump's cabinet disk keeps the DOS game (SQ05\SQ\BIN\PSAVAGE.EXE) and the community
+# winsavage.exe, a Windows loader running it with the dump's dgVoodoo Glide2x.dll (its
+# dgVoodoo.conf) and one XInput pad: the payload (savagequest.rs). One player, the T-Rex: the
+# stick, bite (trigger), roar, run (thumb button: double press headbutt), start. Free play is the
+# dump's own operator setting (its encrypted Setup database). No coin or operator menu:
+# winsavage.exe does not emulate the cabinet's Gandalf serial board.
+system: arcadepc
+name: Savage Quest
+
+# loaded at the executable's entry point (winsavage.exe loads xinput1_3.dll later, by name)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: savagequest
+
+controls:
+  up: Forward
+  down: Back
+  left: Turn left
+  right: Turn right
+  b1: "Bite (hold: pick up)"
+  b2: Roar
+  b3: "Run (double press: headbutt)"
+  start: Start
+  coin: none
+  service: none
+  test: none

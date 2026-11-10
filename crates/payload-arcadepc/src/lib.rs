@@ -130,6 +130,9 @@
 //! its Shell as the community did and starts the game with the payload, which plays its mouse
 //! with the gun.
 //!
+//! Savage Quest (`WAL_ARCADEPC_BOARD=savagequest`, x86 build): `savagequest.rs` is the pad
+//! the community `winsavage.exe` loader reads into the DOS game's joystick.
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
 //! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
@@ -200,6 +203,8 @@ mod pvz;
 mod sdc2;
 #[cfg(target_arch = "x86")]
 mod senninha;
+#[cfg(target_arch = "x86")]
+mod savagequest;
 mod softkey;
 mod spacewarp;
 mod subway;
@@ -511,6 +516,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "mame" => {
                 pads::disconnect();
                 mame::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "savagequest" => {
+                pads::custom(savagequest::gamepad);
+                // winsavage.exe's keys are the DOS game's keyboard: the real one filtered
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();
