@@ -5005,8 +5005,10 @@ the payload is the library instead (`payload_install: [VSIOBOARD.dll]`), board `
 - **Free play.** None in the game (coins per play / continue, `HKLM\Software\VenumSpyder`, read
   at `0x44b680`, default 2): with `WAL_FREEPLAY`, a start press first gives that many service
   credits (`CoinsPerContinue` when larger). Start presses during play bank credits.
-- **Crosshairs.** The game draws its own; the dump's ReShade (`d3d9.dll`, crosshair pictures) is
-  hidden. Off the screen, the trigger reloads (`gun.offscreen: b6`).
+- **Crosshairs.** The common crosshair option (`WAL_CROSSHAIR`, on by default) draws the guns over
+  each `Present` (P1 blue, P2 red, hidden after a few seconds without moving); the dump's ReShade
+  (`d3d9.dll`, crosshair pictures) is hidden. Off the screen, the trigger reloads
+  (`gun.offscreen: b6`).
 - `WAL_VSIOBOARD_TRACE=1` logs the guns' events at each button change.
 
 #### Wild West Shoot Out
@@ -7390,7 +7392,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mars-sortie` | Mars Sortie | arcadepc | user 100% (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play and the game's crosshairs by IL patches of their getters, the crosshairs of the playing stations only, the players' photos from the webcam when present, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
 | `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | user 100% (2026-11-10), 1 trackball | Team Play's bowling game (Linux cabinet folder + Unity 5.4 Windows player, 64-bit, §6.3i): the dump's BepInEx loader disabled, the payload is the cabinet's `teamplayio` / `serialio` libraries for the game's DllImports (buttons, coins in cents, the trackball from the mouse's wrapping counters or the stick), free play in its `Adjustables` |
 | `bounty-hunter` | Bounty Hunter | arcadepc | user 100% (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
-| `friction` | Friction | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play by service credits at start, the game's own crosshairs |
+| `friction` | Friction | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play by service credits at start, the payload's crosshairs (common option) |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 | `mad-bullets` | Mad Bullets | arcadepc | user 100% (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture (the game's cursor hidden), OpenAL from winetricks, reload = a click on the bullet belt (b2 or a shot off the screen), Escape on start |
 

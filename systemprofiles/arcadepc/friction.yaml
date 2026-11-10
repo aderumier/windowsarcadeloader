@@ -7,7 +7,7 @@ name: Friction
 
 # the game's vsIOBoard.dll (the gun board): the payload, in place of the dump's community one
 payload_install: [VSIOBOARD.dll]
-# the dump's ReShade setup (its crosshair pictures): not used, the game draws its own
+# the dump's ReShade setup (its crosshair pictures): not used, the payload draws the crosshairs
 hide: [d3d9.dll]
 
 env:
@@ -19,6 +19,8 @@ env:
   # its DirectInput: the payload's, without devices
   WAL_DINPUT_DISABLE: "1"
   WAL_HIDE_CURSOR: "1"
+  # the guns' crosshairs, drawn by the payload (P1 blue, P2 red)
+  WAL_CROSSHAIR: "1"
 
 input:
   guns_enabled: true
@@ -36,6 +38,12 @@ options:
         description: >-
           Start (and continue) without coins: a start press gives the coins of a play as
           service credits. Off: the coin settings.
+      - key: WAL_CROSSHAIR
+        label: Crosshairs
+        kind: bool
+        description: >-
+          Each gun's crosshair drawn over the picture (the game shows none), hidden after a few
+          seconds without moving.
 
 controls:
   lx: Gun aim (x)

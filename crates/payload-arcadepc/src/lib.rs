@@ -70,7 +70,8 @@
 //! COM1 board (the pads, coins), replaces its leak-tracking allocator and sets free play.
 //!
 //! Friction (`WAL_ARCADEPC_BOARD=vsioboard`, x86 build): `vsioboard.rs` is its gun board's
-//! `vsIOBoard.dll` (the guns, coins, start and service buttons, through the game's listener).
+//! `vsIOBoard.dll` (the guns, coins, start and service buttons, through the game's listener); the
+//! common crosshair option draws the guns (Direct3D 9).
 //!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
@@ -331,6 +332,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 wal_payload_common::patches::apply();
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
+                // the guns' crosshairs (the common option: the game shows none in its levels)
+                wal_payload_common::crosshair::init();
                 vsioboard::init();
             }
             #[cfg(target_arch = "x86")]
