@@ -94,6 +94,9 @@
 //! switches, the handlebar and throttle, the credits; and the same for its operator diagnostics
 //! (`diag.exe`, started by the test button through the launcher).
 //!
+//! The House of the Dead 2: Remake (`WAL_ARCADEPC_BOARD=hotd2`, x64 build): `hotd2.rs` plays
+//! player 1's mouse with the gun, player 2 on a pad, and puts the crosshairs on the guns (Mono).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
 //! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
@@ -127,6 +130,8 @@ mod eolith;
 mod gameport;
 #[cfg(target_arch = "x86")]
 mod gamewax;
+#[cfg(target_arch = "x86_64")]
+mod hotd2;
 #[cfg(target_arch = "x86")]
 mod interface;
 mod jxboard;
@@ -371,6 +376,12 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "dosbox" => {
                 pads::disconnect();
                 dosbox::init();
+            }
+            #[cfg(target_arch = "x86_64")]
+            _ if board.trim() == "hotd2" => {
+                pads::reload_on_left_trigger();
+                wal_payload_common::input_filter::init(unity, hotd2::key_held);
+                hotd2::init(unity);
             }
             _ if board.trim() == "mame" => {
                 pads::disconnect();

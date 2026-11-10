@@ -11,7 +11,8 @@
 //!
 //! Natives for `native_map`: `trigger reload change start coin offscreen` (every player), and
 //! player 1's operator keys `menu menu_up menu_down menu_left menu_right` (`F2` opens the
-//! settings, the arrows choose and change them; Enter = right).
+//! settings, the arrows choose and change them; Enter = right). Unmapped by default:
+//! `button_a`, `button_b`, `left_trigger`.
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -34,6 +35,9 @@ enum Native {
     MenuDown,
     MenuLeft,
     MenuRight,
+    ButtonA,
+    ButtonB,
+    LeftTrigger,
 }
 
 const NATIVES: &[(&str, Native)] = &[
@@ -48,6 +52,9 @@ const NATIVES: &[(&str, Native)] = &[
     ("menu_down", Native::MenuDown),
     ("menu_left", Native::MenuLeft),
     ("menu_right", Native::MenuRight),
+    ("button_a", Native::ButtonA),
+    ("button_b", Native::ButtonB),
+    ("left_trigger", Native::LeftTrigger),
 ];
 
 const DEFAULTS: &[(&str, &str)] = &[
@@ -75,6 +82,8 @@ const XINPUT_GAMEPAD_START: u16 = 0x0010;
 const XINPUT_GAMEPAD_BACK: u16 = 0x0020;
 const XINPUT_GAMEPAD_LEFT_SHOULDER: u16 = 0x0100;
 const XINPUT_GAMEPAD_RIGHT_SHOULDER: u16 = 0x0200;
+const XINPUT_GAMEPAD_A: u16 = 0x1000;
+const XINPUT_GAMEPAD_B: u16 = 0x2000;
 
 fn map() -> &'static ButtonMap<Native> {
     static MAP: OnceLock<ButtonMap<Native>> = OnceLock::new();
@@ -106,11 +115,28 @@ fn gamepad(player: usize) -> Gamepad {
     let on = |n| natives.contains(&n);
     let offscreen = on(Native::Offscreen);
     let mut pad = Gamepad { lx: stick.axis(Axis::LeftX), ly: stick.axis(Axis::LeftY).saturating_neg(), ..Default::default() };
+    if RELOAD_LEFT_TRIGGER.load(Ordering::Relaxed) {
+        // the gun is not the stick there (its menus' navigation)
+        (pad.lx, pad.ly) = (0, 0);
+    }
     if on(Native::Trigger) && !offscreen {
         pad.right_trigger = 255;
     }
     if on(Native::Reload) || (on(Native::Trigger) && offscreen) {
-        pad.buttons |= XINPUT_GAMEPAD_LEFT_SHOULDER;
+        if RELOAD_LEFT_TRIGGER.load(Ordering::Relaxed) {
+            pad.left_trigger = 255;
+        } else {
+            pad.buttons |= XINPUT_GAMEPAD_LEFT_SHOULDER;
+        }
+    }
+    if on(Native::LeftTrigger) {
+        pad.left_trigger = 255;
+    }
+    if on(Native::ButtonA) {
+        pad.buttons |= XINPUT_GAMEPAD_A;
+    }
+    if on(Native::ButtonB) {
+        pad.buttons |= XINPUT_GAMEPAD_B;
     }
     if on(Native::Change) {
         pad.buttons |= XINPUT_GAMEPAD_RIGHT_SHOULDER;
@@ -118,7 +144,8 @@ fn gamepad(player: usize) -> Gamepad {
     if on(Native::Start) {
         pad.buttons |= XINPUT_GAMEPAD_START;
     }
-    if on(Native::Coin) {
+    // (the payload's own coins there)
+    if on(Native::Coin) && !RELOAD_LEFT_TRIGGER.load(Ordering::Relaxed) {
         pad.buttons |= XINPUT_GAMEPAD_BACK;
     }
     pad
@@ -129,6 +156,35 @@ pub(crate) fn key_held(vk: i32) -> bool {
     KEYS.iter().any(|(n, k)| *k == vk && pressed(0).contains(n))
 }
 
+/// The reload (and a shot off the screen) on the left trigger instead of LB, the stick centered,
+/// one pad: player 2's (The House of the Dead 2: Remake: the payload places its crosshairs,
+/// player 1 is its mouse).
+static RELOAD_LEFT_TRIGGER: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn reload_on_left_trigger() {
+    RELOAD_LEFT_TRIGGER.store(true, Ordering::Relaxed);
+}
+
+/// Whether `player`'s trigger is held (on or off the screen).
+pub(crate) fn trigger_held(player: usize) -> bool {
+    pressed(player).contains(&Native::Trigger)
+}
+
+/// Whether `player` holds native `name` (`NATIVES`).
+pub(crate) fn held(player: usize, name: &str) -> bool {
+    NATIVES.iter().find(|(n, _)| *n == name).is_some_and(|(_, native)| pressed(player).contains(native))
+}
+
+/// Whether `player`'s reload button is held.
+pub(crate) fn reload_held(player: usize) -> bool {
+    pressed(player).contains(&Native::Reload)
+}
+
+/// Whether `player`'s gun is off the screen.
+pub(crate) fn offscreen_held(player: usize) -> bool {
+    pressed(player).contains(&Native::Offscreen)
+}
+
 /// No pad connected (the DemulShooter plugin games: their guns are not pads).
 static DISCONNECTED: AtomicBool = AtomicBool::new(false);
 
@@ -137,7 +193,13 @@ pub(crate) fn disconnect() {
 }
 
 fn absent(index: u32) -> bool {
-    index as usize >= MAX_PLAYERS || DISCONNECTED.load(Ordering::Relaxed)
+    let only_player_2 = RELOAD_LEFT_TRIGGER.load(Ordering::Relaxed);
+    index as usize >= if only_player_2 { 1 } else { MAX_PLAYERS } || DISCONNECTED.load(Ordering::Relaxed)
+}
+
+/// The player of XInput pad `index` (with [`reload_on_left_trigger`]: one pad, player 2's).
+fn player_of(index: u32) -> usize {
+    index as usize + RELOAD_LEFT_TRIGGER.load(Ordering::Relaxed) as usize
 }
 
 /// Last pad of each player and its packet number (changed with the pad).
@@ -152,7 +214,7 @@ pub struct State {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn XInputGetState(index: u32, state: *mut State) -> u32 {
-    let player = index as usize;
+    let player = player_of(index);
     if absent(index) {
         return ERROR_DEVICE_NOT_CONNECTED;
     }

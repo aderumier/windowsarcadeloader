@@ -4867,6 +4867,48 @@ snow.exe is a new build. The profile is Arctic Thunder's (environment settings o
   START", "1 CREDIT", 1 credit used), driver and track select (Haunted Forest), a race, test into
   the diagnostics, Exit back to the game (its title).
 
+#### The House of the Dead 2: Remake
+
+MegaPixel Studio's 2025 PC remake (`THE HOUSE OF THE DEAD 2 Remake.exe`, Unity 2022.3 HDRP, Mono,
+64-bit, DXVK). Board `hotd2` (`hotd2.rs`, x64 build installed as `xinput1_3.dll`). The PC game plays
+with the mouse and pads through Unity's Input System; its crosshairs move by the mouse's or the
+sticks' motion.
+
+- **Pads.** Unity reads pads with Windows.Gaming.Input, else XInput: the profile disables
+  `windows.gaming.input` and `xinput1_4`, so it loads the payload. `pads.rs` (with
+  `reload_on_left_trigger`) gives one pad, player 2's: trigger = right trigger, a shot off the
+  screen or reload = left trigger, start = A, b2 = B, the stick centered, no BACK (the gamepad
+  cursor toggle).
+- **Player 1 = the mouse.** `input_filter::own_mouse` + posted moves and buttons (trigger the left
+  button, off screen / reload the right one; the move posted again every 250 ms so a new menu sees
+  a still pointer); b2 = Escape. The PC menus point and click with the gun; the payload draws a dot
+  there (`pointer_d3d11`, while `Cursor.visible`: the game's cursor is the system's, at the real
+  mouse).
+- **Controllers.** `MP_ControllerManager.Update` (debug display only) is replaced (Mono's compiled
+  code jumps to the payload): player 1 kept on `MouseController`, player 2 on the pad
+  (`ForceAssignControllerToPlayerAndHandleOthers`, compared by device: the controller objects are
+  made again with each level).
+- **Crosshairs.** `CR_Player.handleMovingCrosshair` is replaced: the crosshair's transform placed at
+  the gun in screen pixels (screen-space overlay canvas; `CR_Crosshair.getRay` shoots through its
+  position), while `CR_ReadyCheckPanel.ArePlayersReady` and the player alive. `WAL_CROSSHAIR=0`
+  scales it to 0 (shots unchanged).
+- **Quick start.** Player 1's start while `CR_LevelLoader.IsMainMenuLoaded` (title, attract, menus)
+  does what the New Campaign menu, Start New Game and the chapter selection's Play do:
+  `CR_NewGampaignMenu` fields (`activeMode` = `WAL_HOTD2_MODE` arcade/original, `multiplayerMode`
+  = cooperative, `difficulty` = `WAL_HOTD2_DIFFICULTY`), `prepareSaveDataForNewGame`,
+  `MP_GameManager.LevelAborted`, `SetCurrentChapter(Ch1)`, `SetMultiplayerActive(false)` (player 2
+  inactive), `CR_LevelLoader.LoadGameplayLevel(Ch1)`. Player 2 joins with A (the game's
+  `OnPlayerJoined`, cooperative campaigns). In a chapter, start = `CR_Player.Revive()` (continue).
+- **Free play** (`WAL_FREEPLAY`, default on): `CR_Data.UNLIMITED_CREDITS_ENABLED_FROM_CONTROL_PANEL`
+  (the game shows FREE PLAY on its continue screen). Off: `DEFAULT_START_TOKEN_AMOUNT` = 0, coins in
+  the menus are credits (start takes one, the rest become player 1's continues), coins in a chapter
+  `AddPlayerTokens` for that player.
+- Verified headless (2026-11-10): boot, quick start, ready check, cutscene, gameplay with both
+  crosshairs exactly on the guns (corners and points checked), shots and scores, player 2 joining,
+  death, continue with start (free play), coin mode credits; the PC menus clicked through with the
+  gun (New Campaign, tutorial, character, chapter: the Original mode's trunk needs Tab to confirm,
+  skipped by the quick start).
+
 #### Bounty Hunter
 
 GCTECH's striking game (`bh.exe`, 2002, Power Render 4 on Direct3D 8, 32-bit, UPX-packed,
@@ -7201,6 +7243,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i): the dump's DemulShooter BepInEx plugin (dongle, serial board, camera guns), the payload its TCP client with its reflection packet (`WAL_DEMUL_FIELDS`), aim in Unity's 1440x1080 picture (`WAL_DEMUL_RESOLUTION`), a shot starts, coin keys per player, free play and the game's crosshairs in its `GameConfig.xml` (`WAL_ARCADEPC_XML`); Doorstop's `GetProcAddress` hook no longer chained by the payload (endless recursion) |
 | `mars-sortie` | Mars Sortie | arcadepc | headless-tested, awaiting user (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play, the game's crosshairs and no player photos by IL patches of their getters, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
 | `bounty-hunter` | Bounty Hunter | arcadepc | headless-tested, awaiting user (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
+| `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

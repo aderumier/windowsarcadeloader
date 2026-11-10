@@ -1,0 +1,82 @@
+# The House of the Dead 2: Remake (MegaPixel Studio / Forever Entertainment, 2025, THE HOUSE OF
+# THE DEAD 2 Remake.exe, Unity 2022.3 HDRP / Mono, 64-bit, the PC release) - template, override
+# values in userprofiles/arcadepc/house-of-the-dead-2-remake.yaml.
+# Two lightguns. The PC game plays with the mouse and pads: player 1's gun is its mouse (the
+# PC menus point and click with it), player 2's its pad (the payload's xinput1_3.dll), the real
+# keyboard and mouse filtered; the crosshairs follow the guns (WAL_ARCADEPC_BOARD=hotd2, docs
+# §6.3i). Player 1's start in the main menu starts a campaign (first chapter, the PC menus
+# skipped); player 2 joins with start; in a chapter start continues.
+system: arcadepc
+name: The House of the Dead 2 Remake
+
+# Unity's own log beside the game
+args: [-logFile, Player.log]
+
+# Unity reads pads through Windows.Gaming.Input, else XInput (xinput1_4.dll first): both
+# disabled, it loads the payload (xinput1_3.dll) at start.
+dll_overrides:
+  windows.gaming.input: ""
+  xinput1_4: ""
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: hotd2
+  # the game's own crosshairs (0: hidden, the shots still at the guns)
+  WAL_CROSSHAIR: "1"
+  WAL_HOTD2_MODE: arcade
+  WAL_HOTD2_DIFFICULTY: "2"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Unlimited continues (the game's free play). Off: a coin is a credit, a campaign
+          starts with one, each one more is a continue.
+      - key: WAL_HOTD2_MODE
+        label: Campaign mode
+        kind: choice
+        choices: [arcade, original]
+        description: >-
+          The campaign that start begins: arcade (the arcade game's rules) or original (the
+          remake's, with its upgrades).
+      - key: WAL_HOTD2_DIFFICULTY
+        label: Difficulty
+        kind: choice
+        choices: ["0", "1", "2", "3", "4"]
+        description: >-
+          0 very easy, 1 easy, 2 normal, 3 hard, 4 very hard.
+      - key: WAL_CROSSHAIR
+        label: Crosshairs
+        kind: bool
+        description: >-
+          The game's crosshairs at the guns. Off: hidden (for lightguns with their own aim).
+
+input:
+  # two lightguns (or mice): the pointer aims, left button shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # right button: back (b2), middle: start; shooting off the screen reloads
+  gun:
+    offscreen: b6
+
+# player 1: the mouse (trigger = left button, reload = right button), start = a new campaign or
+# a continue, b2 = Escape (back, the pause menu); player 2: the pad (trigger = right trigger,
+# reload = left trigger, start = A: join, accept, continue; b2 = B: back); coin: a credit or a
+# continue without free play
+native_map:
+  start: button_a
+  b2: button_b
+  b3: reload
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (reloads off screen)
+  b2: Back / pause
+  b3: Reload
+  b6: Gun off screen
+  start: Start / join / continue
+  coin: Coin
