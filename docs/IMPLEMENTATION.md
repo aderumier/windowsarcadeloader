@@ -5061,18 +5061,14 @@ next to the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
   run in a child domain, its static fields out of the payload's reach): free play
   (`WAL_FREEPLAY`) as the coins per game / per continue 0 (`GameDataBase.GetCoinsPerGame`,
   `GetCoinsPerGame2` and the instance getters), the crosshairs (`WAL_CROSSHAIR`) as
-  `GameData.DisplayHairCross` (the game's own crosses), no player photos at a game's start
-  (`GameData.TakePhoto` false).
+  `GameData.DisplayHairCross` (the game's own crosses); the players' photos are the
+  game's (its webcam when present, blank photos without one: both work).
 - **Crosshairs of the players only.** The game shows every station's cross (`HairCrossManager`),
   and with free play (price 0) every station plays from a stage's start: `HairCrossManager.Update`
   is rewritten in place (same size) to `SetActive(ScoreManager.IsPlaying(i) &&
   PropWeaponSpawner.IsDefaultWeaponMounted(i))` each frame, the default weapon being given at a
   playing station's first shot: a cross appears from its player's first shot in a stage, none in
   the attract or the stage select. Checked against the shipped body (this build's tokens).
-- **No webcam.** `Photocamera.Awake`'s `Application.RequestUserAuthorization(WebCam)` is made
-  `null` (`pop`, `ldnull`): its `Update` never creates the `WebCamTexture`, as on a PC without a
-  camera (blank photos). `TakePhoto` false alone still opened the camera and showed it on a
-  stage's photo screen.
 - **Operator menus.** Space (OK) in the attract opens them (Device, Account, Setup, License,
   Leaderboard). They are Unity UI driven by the keypad: `MRCQ.UIInputHelper` calls
   `keybd_event` (keypad 8 5 4 6 +) for the board's up / down / left / right / OK, messages the
@@ -7373,7 +7369,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hydro-thunder` | Hydro Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder 0.5 runtime (Glide, 32-bit, §6.3i): the fake DirectInput wheel and its buttons from the virtual sticks, constant force to the launcher's wheel, GPU renderer on the runner's vkd3d-proton, 60 fps, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder 0.5 runtime (its own dump, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload (first gear at start) |
 | `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | user 100% (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i): the dump's DemulShooter BepInEx plugin (dongle, serial board, camera guns), the payload its TCP client with its reflection packet (`WAL_DEMUL_FIELDS`), aim in Unity's 1440x1080 picture (`WAL_DEMUL_RESOLUTION`), a shot starts, coin keys per player, free play and the game's crosshairs in its `GameConfig.xml` (`WAL_ARCADEPC_XML`); Doorstop's `GetProcAddress` hook no longer chained by the payload (endless recursion) |
-| `mars-sortie` | Mars Sortie | arcadepc | headless-tested, awaiting user (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play, the game's crosshairs and no player photos by IL patches of their getters, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
+| `mars-sortie` | Mars Sortie | arcadepc | headless-tested, awaiting user (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play and the game's crosshairs by IL patches of their getters, the crosshairs of the playing stations only, the players' photos from the webcam when present, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
 | `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | headless-tested, awaiting user (2026-11-10), 1 trackball | Team Play's bowling game (Linux cabinet folder + Unity 5.4 Windows player, 64-bit, §6.3i): the dump's BepInEx loader disabled, the payload is the cabinet's `teamplayio` / `serialio` libraries for the game's DllImports (buttons, coins in cents, the trackball from the mouse's wrapping counters or the stick), free play in its `Adjustables` |
 | `bounty-hunter` | Bounty Hunter | arcadepc | headless-tested, awaiting user (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
 | `friction` | Friction | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play by service credits at start, the game's own crosshairs |

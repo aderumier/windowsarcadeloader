@@ -21,8 +21,8 @@ dll_overrides:
   winhttp: "n,b"
 
 env:
-  # free play (the price's getters made 0), the crosshairs (WAL_CROSSHAIR), no player photos,
-  # the operator menus' keypad keys
+  # free play (the price's getters made 0), the crosshairs (WAL_CROSSHAIR: the playing stations'),
+  # the operator menus' keypad keys; the players' photos the game's (its webcam when present)
   WAL_ARCADEPC_BOARD: marssortie
   # the plugin's TCP port and its input class (fields sorted by name, four players)
   WAL_DEMUL_PORT: "33610"

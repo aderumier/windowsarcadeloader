@@ -10,7 +10,7 @@
 //!   `get_CoinsPerGame`) 0: a shot starts without credits;
 //! - the crosshairs (`WAL_CROSSHAIR`): `GameData.DisplayHairCross` (each gun's cross, from the
 //!   laser locator: the guns' place);
-//! - no player photos at a game's start (`GameData.TakePhoto` false): no camera needed.
+//! - the players' photos are the game's: its webcam when present, blank photos without one.
 //!
 //! The operator menus are Unity UI driven by the keypad: `MRCQ.UIInputHelper` turns the board's
 //! up / down / left / right / OK into `keybd_event` calls (keypad 8 5 4 6 +), whose messages the
@@ -38,7 +38,7 @@ unsafe extern "system" fn keybd_event(vk: u8, _scan: u8, flags: u32, _extra: usi
 /// The settings, once Mono has the game's assembly (a thread of the payload's: not from
 /// `DllMain`).
 pub fn init() {
-    let mut patches: Vec<(&str, &str, &str, u8)> = vec![("", "GameData", "get_TakePhoto", 0)];
+    let mut patches: Vec<(&str, &str, &str, u8)> = Vec::new();
     if wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY") == Some(true) {
         for name in ["GetCoinsPerGame", "GetCoinsPerGame2", "_GetCoinsPerGame", "_GetCoinsPerGame2", "get_CoinsPerGame"] {
             patches.push(("MRCQ", "GameDataBase", name, 0));
@@ -76,26 +76,10 @@ pub fn init() {
                 _ => log!("marssortie: {class}.{name} not found"),
             }
         }
-        no_webcam(m, image);
         if wal_payload_common::crosshairs(false) {
             playing_crosshairs(m, image);
         }
     });
-}
-
-/// The webcam never opened: `Photocamera.Awake`'s `Application.RequestUserAuthorization(WebCam)`
-/// made `null` (`pop`, `ldnull`), its `Update` then never creates the `WebCamTexture` (as on a PC
-/// without one: the players' photos stay blank). `TakePhoto` false did not keep a stage's photo
-/// screen from showing the camera.
-fn no_webcam(m: &wal_payload_common::mono::Mono, image: wal_payload_common::mono::P) {
-    const CALL: [u8; 7] = [0x17, 0x28, 0x77, 0x03, 0x00, 0x0a, 0x7d]; // ldc.i4.1, call, stfld
-    match m.il_code(m.method(m.class(image, "", "Photocamera"), "Awake", 0)) {
-        Some(il) if il.get(0x84..0x8b) == Some(&CALL[..]) => {
-            il[0x85..0x8a].copy_from_slice(&[0x26, 0x14, 0x00, 0x00, 0x00]);
-            log!("marssortie: webcam not opened");
-        }
-        _ => log!("marssortie: Photocamera.Awake not this build's: webcam opened"),
-    }
 }
 
 /// `Now.HairCrossManager.Update` as the game ships it: each station's cross placed at its gun.
