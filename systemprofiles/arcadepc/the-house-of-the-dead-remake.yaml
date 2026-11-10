@@ -1,0 +1,131 @@
+# The House of the Dead: Remake (MegaPixel Studio / Forever Entertainment, 2022, The House of the
+# Dead Remake.exe, Unity 2020.3 HDRP / Mono, 64-bit, the PC release) with the community arcade
+# plugin (BepInEx, HotdRemake_ArcadePlugin_2022xx.dll) - template, override values in
+# userprofiles/arcadepc/the-house-of-the-dead-remake.yaml.
+# Two lightguns. The plugin makes the PC game an arcade one (title and attract, coins and
+# credits, free play, continues, the PC menus skipped); its MULTIPLAYER input reads both guns
+# from DemulShooter's shared memory: the payload writes them there and posts its keys (start,
+# coin), the real keyboard, mouse and pads filtered (WAL_ARCADEPC_BOARD=hotdr, docs §6.3i).
+system: arcadepc
+name: The House of the Dead Remake
+
+# Unity's own log beside the game
+args: [-logFile, Player.log]
+
+# the plugin's settings (installed at each start, then set by the payload: the input type, the
+# screen's resolution, the options below); the dump's own stays untouched
+files:
+  ArcadeMod_Config.ini: systemprofiles/arcadepc/files/the-house-of-the-dead-remake/ArcadeMod_Config.ini
+
+# The payload is loaded at the entry point: the plugin's settings written before it reads them.
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+  # Unity Doorstop's BepInEx loader (the plugin)
+  winhttp: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: hotdr
+  # Rewired's DirectInput: the payload's fake (no real pad reaches the game)
+  WAL_DINPUT_DISABLE: "1"
+  # player 2's start key (the plugin's: 1 / 2)
+  WAL_DEMUL_KEYS_P2: "key_1=key_2"
+  # the game's crosshairs at the guns (0: hidden)
+  WAL_CROSSHAIR: "1"
+  WAL_HOTDR_DIFFICULTY: arcade
+  WAL_HOTDR_LIFE: "5"
+  WAL_HOTDR_MAX_LIFE: "5"
+  WAL_HOTDR_CREDITS_TO_START: "1"
+  WAL_HOTDR_CREDITS_TO_CONTINUE: "1"
+  WAL_HOTDR_LANGUAGE: english
+  WAL_HOTDR_BLOOD: red
+  # the game's picture (Unity scales it to the screen; the guns aim in its pixels): 1280x720,
+  # an iGPU's reset otherwise (an 8192 samples full screen draw at load longer than amdgpu's
+  # timeout at 1920x1080)
+  WAL_HOTDR_RESOLUTION: 1280x720
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Start begins a game without coins. Off: a coin is a credit.
+      - key: WAL_HOTDR_DIFFICULTY
+        label: Difficulty
+        kind: choice
+        choices: [easy, normal, hard, arcade]
+        description: >-
+          The game's difficulty (arcade: the arcade game's).
+      - key: WAL_HOTDR_LIFE
+        label: Lives at start
+        kind: number
+        description: >-
+          The torches a player starts with.
+      - key: WAL_HOTDR_MAX_LIFE
+        label: Maximum lives
+        kind: number
+        description: >-
+          The most torches a player can have.
+      - key: WAL_HOTDR_CREDITS_TO_START
+        label: Credits to start
+        kind: number
+        description: >-
+          The credits a game costs without free play.
+      - key: WAL_HOTDR_CREDITS_TO_CONTINUE
+        label: Credits to continue
+        kind: number
+        description: >-
+          The credits a continue costs without free play.
+      - key: WAL_HOTDR_LANGUAGE
+        label: Language
+        kind: choice
+        choices: [english, french, german, italian, spanish, polish, russian, japanese, chinese]
+        description: >-
+          The game's texts and the plugin's arcade screens.
+      - key: WAL_HOTDR_BLOOD
+        label: Blood color
+        kind: choice
+        choices: [red, green]
+        description: >-
+          The color of the zombies' blood.
+      - key: WAL_HOTDR_RESOLUTION
+        label: Resolution
+        kind: choice
+        choices: [1280x720, 1600x900, 1920x1080]
+        description: >-
+          The game's picture, scaled to the screen. Above 1280x720 weak GPUs (laptop iGPUs) may
+          reset at the first loading screen.
+      - key: WAL_CROSSHAIR
+        label: Crosshairs
+        kind: bool
+        description: >-
+          The game's crosshairs at the guns. Off: hidden (for lightguns with their own aim).
+
+input:
+  # two lightguns (or mice): the pointer aims, the trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # a shot off the screen reloads
+  gun:
+    offscreen: b6
+
+# the plugin's keys: 1 / 2 start (player 2's own key: WAL_DEMUL_KEYS_P2), 5 coin; the trigger
+# is start too (game start, join, continue, cutscene skip)
+native_map:
+  b1: trigger+key_1
+  # the gun's (or mouse's) right button reloads
+  b2: reload
+  start: key_1
+  coin: key_5
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (reloads off screen; also start - game start, join, continue, cutscene skip)
+  b2: Reload (right button)
+  b3: Reload
+  b6: Gun off screen
+  start: Start / continue / skip
+  coin: Coin

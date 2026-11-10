@@ -110,6 +110,10 @@
 //! The House of the Dead 2: Remake (`WAL_ARCADEPC_BOARD=hotd2`, x64 build): `hotd2.rs` plays
 //! player 1's mouse with the gun, player 2 on a pad, and puts the crosshairs on the guns (Mono).
 //!
+//! The House of the Dead: Remake (`WAL_ARCADEPC_BOARD=hotdr`, x64 build): `hotdr.rs` writes
+//! both guns into its arcade plugin's DemulShooter shared memory, posts its keys and sets the
+//! plugin's settings.
+//!
 //! The House of the Dead: Overkill (`WAL_ARCADEPC_BOARD=hotdo`, x86 build): `hotdo.rs` plays its
 //! mouse (the cursor, DirectInput's buttons) and its DirectInput keyboard with the gun.
 //!
@@ -164,6 +168,8 @@ mod hotd2;
 mod hotd3;
 #[cfg(target_arch = "x86")]
 mod hotdo;
+#[cfg(target_arch = "x86_64")]
+mod hotdr;
 #[cfg(target_arch = "x86")]
 mod hotdo_peer;
 #[cfg(target_arch = "x86")]
@@ -444,6 +450,12 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "hotdo" => {
                 pads::disconnect();
                 hotdo::init();
+            }
+            #[cfg(target_arch = "x86_64")]
+            _ if board.trim() == "hotdr" => {
+                pads::disconnect();
+                wal_payload_common::input_filter::init(unity, demul::key_held);
+                hotdr::init();
             }
             _ if board.trim() == "teamplay" => {
                 pads::disconnect();

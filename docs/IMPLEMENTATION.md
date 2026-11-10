@@ -5025,6 +5025,46 @@ build), loaded by `payload_loader`.
   (2026-11-10); the trigger is start too (the title, joins, continues, the cutscenes' skip:
   always, the in-game pause being disabled).
 
+#### The House of the Dead: Remake
+
+MegaPixel's 2022 PC remake (`The House of the Dead Remake.exe`, Unity 2020.3 HDRP, Mono, 64-bit;
+the dump's build is Steam v1.0, `Assembly-CSharp.dll` MD5 70997cdf…) with the community arcade
+plugin (Argonlefou's, BepInEx 5 by Unity Doorstop: `winhttp` native; its
+`HotdRemake_ArcadePlugin_202204.dll` runs on this build, the 2022-07 one removes itself).
+`.windowsloader`: `The House of the Dead Remake.exe`. Board `hotdr` (`hotdr.rs`, x64 build),
+loaded by `payload_loader`.
+
+- **The plugin.** Arcade title and attract (its logo, PRESS START / FREEPLAY / INSERT COINS),
+  coins and credits, free play, continues with their countdown, the PC menus skipped, the
+  name entry and rankings, saves in the dump's `NVRAM\saveData.sav`. Its settings are
+  `ArcadeMod_Config.ini`, read at its `Awake`: the profile installs its own copy (the dump's
+  untouched), the payload (at the entry point) sets the input type, the resolution, free play
+  (`WAL_FREEPLAY`), the crosshairs (`WAL_CROSSHAIR`) and `WAL_HOTDR_*` (difficulty, lives,
+  credits, language, blood).
+- **Guns: DemulShooter's shared memory.** The plugin's MULTIPLAYER input (`InputType=1`) reads
+  both guns each frame from DemulShooter's `DemulShooter_MMF_Hotdra` (mutex
+  `DemulShooter_Mutex_Hotdra`): `f32` aim x / y per player (Unity's screen pixels, y from the
+  bottom) at 0 / 4 and 8 / 12, trigger bytes 16 / 17, reload bytes 18 / 19, its outputs from
+  20 on. The payload creates the same mapping and writes the 20 input bytes every 4 ms from
+  the virtual sticks (`demul.rs`'s `player_state`: the window's picture, the resolution's
+  pixels): the plugin writes the whole block back each frame, as it read it. A shot off the
+  screen (or with the gun off it) only reloads; the right button (b2) reloads.
+- **Keys.** Start `1` / `2`, coin `5`: Unity's keys, posted to the window (`demul.rs`'s
+  `update_keys`, player 2's start by `WAL_DEMUL_KEYS_P2`); the trigger is start too (game
+  start, join, continue, cutscene skip). The real keyboard and mouse are filtered, Rewired's
+  DirectInput is the payload's fake (`WAL_DINPUT_DISABLE`).
+- **Resolution: 1280x720 (`WAL_HOTDR_RESOLUTION`).** At 1920x1080 the game reset an AMD iGPU
+  (Radeon 860M, RADV) at its first loading screen, with or without the plugin: an `amdgpu` gfx
+  ring timeout from DXVK's submit thread, no VM fault. `RADV_DEBUG=hang` showed the draw: a
+  full screen triangle whose pixel shader loops 8192 samples (a GGX BRDF integration) over a
+  1920x1080 target, longer than the kernel's timeout on 8 CUs (not `nodcc`, `syncshaders`,
+  `zeroWorkgroupMemory`, `-force-gfx-direct`, the plugin's graphics settings). At 1280x720 no
+  reset; Unity scales the picture to the screen and the guns aim in its pixels
+  (`WAL_DEMUL_RESOLUTION`, set by the payload). The option offers 1600x900 and 1920x1080 for
+  stronger GPUs.
+- Verified headless (2026-11-10): the arcade title (PRESS START, FREEPLAY), start and player 2's
+  join, the intro's skip by start, gameplay. User 100% on the desktop (2026-11-10).
+
 #### Bounty Hunter
 
 GCTECH's striking game (`bh.exe`, 2002, Power Render 4 on Direct3D 8, 32-bit, UPX-packed,
@@ -7611,6 +7651,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `mad-bullets` | Mad Bullets | arcadepc | user 100% (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture (the game's cursor hidden), OpenAL from winetricks, reload = a click on the bullet belt (b2 or a shot off the screen), Escape on start |
 | `pull-the-trigger` | Pull The Trigger | arcadepc | user 100% (2026-11-10), 1 gun | Digital Silkroad's shooter (OpenGL, 32-bit, §6.3i): the dump's decrypted `PTW-BootTest.exe` + community `PttBootTest.dll` (MP4 videos, FREEPLAY), the gun plays its mouse and keys (COM2 board absent), free play = price 0, the library's window on the screen's 4:3 with the dump's bezel (unmanaged), crosshair, native DirectMusic |
 | `the-house-of-the-dead-3` | The House of the Dead 3 | arcadepc | user 100% (2026-11-10), 2 guns | SEGA's PC release (Direct3D 8, 32-bit, §6.3i) with the community ArcadeMod 7.0, whose patches the payload applies itself (its sprites read from the dump's .NET launcher); the guns written into the game's input blocks (DemulShooter's), start / coin as its window keys, saves beside the executable, the 4:3 picture windowed on the screen |
+| `the-house-of-the-dead-remake` | The House of the Dead: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity 2020.3 HDRP, Mono, 64-bit, §6.3i, board `hotdr`) with the community arcade plugin (BepInEx): the guns written into the plugin's DemulShooter shared memory, start / coin as its Unity keys (the trigger is start too, right button reload), its ini set at start (free play, crosshairs, difficulty, lives, credits, language), 1280x720 picture (an iGPU's reset at 1920x1080) |
 | `pop-moto` | Pop Moto | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, item) | Tecway's motorbike racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `USB_board.dll` (handlebar, throttle lever, keys, coins) and patches the engine's scripts as the community library, no server, free play as the game's free mode |
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) | DiverBras' kart racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `bin\s_input.dll` in each of its engine programs (menus, races, operator menu), their hand-offs started by the launcher (relaunch), the record photo (webcam) skipped, free play as the game's own (JOGO LIVRE) |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
