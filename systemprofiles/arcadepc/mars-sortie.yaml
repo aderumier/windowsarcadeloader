@@ -1,0 +1,78 @@
+# Mars Sortie (MRCQ "TJZS", Shooter.exe, Unity 5.4, Mono, 64-bit) - template, override values in
+# userprofiles/arcadepc/mars-sortie.yaml.
+# Four guns. The dump's DemulShooter BepInEx plugin (Argonlefou's) replaces the cabinet's GMB
+# I/O board, its SuperDog dongle check and its laser camera guns: the payload is that plugin's
+# TCP client (the guns) and posts its keyboard keys (docs §6.3i).
+system: arcadepc
+name: Mars Sortie
+
+# Unity's own log beside the game; its 16:10 picture (the cabinet's 1280x800) at 1680x1050,
+# black bars around it on another screen shape
+args: [-logFile, Player.log, -screen-width, "1680", -screen-height, "1050", -screen-fullscreen, "1"]
+
+# the game's records (credits, accounting, the price: coins per game) made in the game's run
+# folder, not written into the dump's (the dump's are a cabinet's)
+hide: [GameRecords1.dat, GameRecords2.dat]
+
+dll_overrides:
+  # Unity tries xinput1_3.dll: the payload
+  xinput1_3: "n,b"
+  # Unity Doorstop's BepInEx loader (the plugin)
+  winhttp: "n,b"
+
+env:
+  # free play (the price's getters made 0), the crosshairs (WAL_CROSSHAIR), no player photos,
+  # the operator menus' keypad keys
+  WAL_ARCADEPC_BOARD: marssortie
+  # the plugin's TCP port and its input class (fields sorted by name, four players)
+  WAL_DEMUL_PORT: "33610"
+  WAL_DEMUL_FIELDS: "Axis_X,Axis_Y,ChangeWeapon,EnableInputsHack,HideCrosshairs,Trigger"
+  WAL_DEMUL_PLAYERS: "4"
+  # the plugin's aim in Unity's pixels (Screen: the resolution of args), the picture centered
+  WAL_DEMUL_RESOLUTION: 1680x1050
+  # each player's coin key (the game's keys 1..4, the plugin's 5..8)
+  WAL_DEMUL_KEYS_P2: "key_5=key_6"
+  WAL_DEMUL_KEYS_P3: "key_5=key_7"
+  WAL_DEMUL_KEYS_P4: "key_5=key_8"
+  # the game's own crosshairs ("Display hair cross"): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+
+input:
+  # each gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+# The cabinet has no start buttons: a shot starts. The game's keys kept by the plugin: 5..8
+# coins, space OK (in the attract: the operator menu), the arrows (the operator menus).
+native_map:
+  start: trigger
+  coin: key_5
+  test: key_space
+  service: key_space
+  up: key_up
+  down: key_down
+  left: key_left
+  right: key_right
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the settings menu's price (2 coins a game by default).
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Change weapon
+  start: Start (a shot)
+  coin: Coin
+  test: Operator menu / OK
+  service: OK
+  up: Menu up
+  down: Menu down
+  left: Menu left / decrease
+  right: Menu right / increase

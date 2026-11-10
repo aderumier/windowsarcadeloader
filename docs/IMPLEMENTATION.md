@@ -4909,6 +4909,42 @@ the crosshairs placed by `GameUIController` / `ShowGamePointController`). `.wind
   stage map, shots scoring (headshot at the gun's exact place, both crosshairs where aimed),
   reload, coins with free play off (3 coins a game), settings menu opened and entered.
 
+#### Mars Sortie
+
+MRCQ's four-gun shooter ("TJZS", `Shooter.exe`, Unity 5.4, Mono `mono.dll`, 64-bit; the player
+is the executable). The dump keeps BepInEx (Unity Doorstop's `winhttp.dll`) and Argonlefou's
+DemulShooter plugin (`BepInEx\plugins\MarsSortie_BepInEx_DemulShooter_Plugin.dll`): it stands
+in for the GMB I/O board (`MRCQ.Hardware.GetInputAxis` "x01".."y04" from its aim, `Update`'s
+trigger as each station's `startGameKey` and `fire`), skips the SuperDog check and the board /
+laser camera errors, and remaps the game's coin keys 1..4 to 5..8 (`SignalKey`, keeping
+space and the arrows). `.windowsloader`: `Shooter.exe`. Board `marssortie` (`marssortie.rs`)
+next to the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
+
+- **Plugin packets.** The reflection layout (see Wild West Shoot Out): `Axis_X[4]`, `Axis_Y[4]`,
+  `ChangeWeapon[4]`, `EnableInputsHack`, `HideCrosshairs`, `Trigger[4]`; players 2..4 their own
+  coin keys (`WAL_DEMUL_KEYS_P2..P4`: 6, 7, 8). The aim goes through the game's laser locator
+  (`LaserLocator`: the dump's `LaserCamera.dat` calibration, an identity map but for its
+  offsets) times `Screen`: Unity at 1680x1050 (16:10, the profile's `-screen-width` /
+  `-screen-height`; the cabinet's run.bat had 1280x800), `WAL_DEMUL_RESOLUTION=1680x1050`.
+- **Settings (`marssortie.rs`).** Getters made constants by IL patches before their first call
+  (`nop`s, `ldc.i4.<n>`, `ret`, so callers inlining them compile the patch; Unity 5.4's scripts
+  run in a child domain, its static fields out of the payload's reach): free play
+  (`WAL_FREEPLAY`) as the coins per game / per continue 0 (`GameDataBase.GetCoinsPerGame`,
+  `GetCoinsPerGame2` and the instance getters), the crosshairs (`WAL_CROSSHAIR`) as
+  `GameData.DisplayHairCross` (the game's own crosses, every station's), no player photos at
+  a game's start (`GameData.TakePhoto` false: no camera).
+- **Operator menus.** Space (OK) in the attract opens them (Device, Account, Setup, License,
+  Leaderboard). They are Unity UI driven by the keypad: `MRCQ.UIInputHelper` calls
+  `keybd_event` (keypad 8 5 4 6 +) for the board's up / down / left / right / OK, messages the
+  keyboard filter drops: that `DllImport` is the payload's (`mono_imports`), the keys posted as
+  the payload's own, a key's per-frame repeats dropped.
+- **Records.** `GameRecords1.dat` / `GameRecords2.dat` (credits, accounting, the price) hidden
+  from the run folder: the game makes its own there (price 2 coins, 1 a continue), the dump's
+  untouched.
+- Verified headless (2026-11-10): attract in free play, both players started by a shot, stage
+  select, shots scoring for both (30, 30, 10, 20), both crosshairs where aimed, coins counted
+  per station with free play off, operator menu opened, navigated, Setup entered.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7121,6 +7157,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hydro-thunder` | Hydro Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder 0.5 runtime (Glide, 32-bit, §6.3i): the fake DirectInput wheel and its buttons from the virtual sticks, constant force to the launcher's wheel, GPU renderer on the runner's vkd3d-proton, 60 fps, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder 0.5 runtime (its own dump, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload (first gear at start) |
 | `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i): the dump's DemulShooter BepInEx plugin (dongle, serial board, camera guns), the payload its TCP client with its reflection packet (`WAL_DEMUL_FIELDS`), aim in Unity's 1440x1080 picture (`WAL_DEMUL_RESOLUTION`), a shot starts, coin keys per player, free play and the game's crosshairs in its `GameConfig.xml` (`WAL_ARCADEPC_XML`); Doorstop's `GetProcAddress` hook no longer chained by the payload (endless recursion) |
+| `mars-sortie` | Mars Sortie | arcadepc | headless-tested, awaiting user (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play, the game's crosshairs and no player photos by IL patches of their getters, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

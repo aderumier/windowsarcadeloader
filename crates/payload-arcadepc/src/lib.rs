@@ -94,7 +94,9 @@
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
 //! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
-//! (`WAL_ARCADEPC_XML`, Wild West Shoot Out's free play).
+//! (`WAL_ARCADEPC_XML`, Wild West Shoot Out's free play). Mars Sortie
+//! (`WAL_ARCADEPC_BOARD=marssortie`, with its plugin): `marssortie.rs` patches its settings'
+//! getters (free play, crosshairs, no photos) and posts its operator menus' keypad keys.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
 //! (`WAL_CROSSHAIR`) draws player 1's crosshair (`pointer_d3d11`).
 
@@ -125,6 +127,7 @@ mod interface;
 mod jxboard;
 mod jxcamera;
 mod mame;
+mod marssortie;
 #[cfg(target_arch = "x86")]
 mod ngun;
 #[cfg(target_arch = "x86")]
@@ -174,6 +177,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         }
         wal_payload_common::start("arcadepc");
         xmlset::init();
+        // Mars Sortie: free play (its guns are the DemulShooter plugin's, below)
+        if board.trim() == "marssortie" {
+            marssortie::init();
+        }
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
         // the common crosshair option: player 1's gun on the picture (Direct3D 11; the
         // reflection packet plugins show the game's own, `WAL_DEMUL_FIELDS`)
