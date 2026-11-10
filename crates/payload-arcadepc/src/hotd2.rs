@@ -196,8 +196,8 @@ fn setup(m: &Mono) {
 
 /// `WAL_HOTD2_PC_MENU=1`: the PC menu opened by any input on the title screen (its options,
 /// modes, chapters), as the game. Off (the default): the title screen and its attract stay, its
-/// "press any key" reading "PRESS START" ("INSERT COIN" without a credit), player 1's start the
-/// quick start.
+/// "press any key" reading "PRESS START" ("INSERT COIN" without a credit), player 1's start or
+/// trigger the quick start.
 fn pc_menu() -> bool {
     std::env::var("WAL_HOTD2_PC_MENU").is_ok_and(|v| matches!(v.trim(), "1" | "true" | "on"))
 }
@@ -369,6 +369,11 @@ unsafe extern "system" fn frame(_this: P) {
             quick_start(m, f);
         }
     }
+    // the title screen (no PC menu): player 1's trigger is its start too
+    let trigger = crate::pads::trigger_held(0);
+    if trigger != TRIGGER.swap(trigger, Ordering::Relaxed) && trigger && !pc_menu() && !flag(m.invoke(f.gameplay, std::ptr::null_mut(), &mut [])) {
+        quick_start(m, f);
+    }
     // the menus' coins beyond the campaign's: player 1's continues
     if CREDITS.load(Ordering::Relaxed) > 0 && flag(m.invoke(f.gameplay, std::ptr::null_mut(), &mut [])) {
         if let Some(campaign) = m.invoke(f.last_campaign, std::ptr::null_mut(), &mut []).filter(|c| !c.is_null()) {
@@ -405,6 +410,12 @@ static CREDITS: AtomicUsize = AtomicUsize::new(0);
 /// continues (`CR_Player.Revive`), as player 2's (which also joins: the game's own).
 static START: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(false)];
 
+/// Player 1's trigger held (its start on the title screen).
+static TRIGGER: AtomicBool = AtomicBool::new(false);
+
+/// When the last campaign started: presses while its chapter loads start no other.
+static STARTED: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
 /// `WAL_HOTD2_MODE`: the campaign mode (`CampaignMode`): `arcade` (0, the default) or `original`
 /// (1: the trunk's power-ups, the PC game's extras).
 fn mode() -> i32 {
@@ -425,6 +436,9 @@ fn difficulty() -> i32 {
 /// trunk). A cooperative campaign: player 2 joins with its start at any time
 /// (`MP_InputManager.onPlayerJoined`), its player inactive until then.
 fn quick_start(m: &Mono, f: &Found) {
+    if STARTED.lock().unwrap().is_some_and(|t| t.elapsed() < Duration::from_secs(10)) {
+        return;
+    }
     let flag = |r: Option<P>| r.is_some_and(|r| !r.is_null() && unsafe { mono::read::<u8>(r as *const u8, BOXED) } != 0);
     if !flag(m.invoke(f.main_menu, std::ptr::null_mut(), &mut [])) {
         log!("hotd2: start outside the main menu");
@@ -457,6 +471,9 @@ fn quick_start(m: &Mono, f: &Found) {
     let mut chapter: i32 = 1;
     let loaded = flag(m.invoke(f.load_level, std::ptr::null_mut(), &mut [(&raw mut chapter).cast()]));
     log!("hotd2: new campaign (mode {}, difficulty {}): {loaded}", mode(), difficulty());
+    if loaded {
+        *STARTED.lock().unwrap() = Some(std::time::Instant::now());
+    }
 }
 
 /// Player 1 on the mouse (`MP_ControllerManager.MouseController`), player 2 on the pad

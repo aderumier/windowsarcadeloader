@@ -4896,7 +4896,8 @@ sticks' motion.
   keeps it): the game stays on its title screen and attract (`CR_MainMenuMovieController`: any
   input opened the menu), its `CR_SimplePressAnyKeyDisplay` text set to PRESS START (INSERT COIN
   without free play and no credit) twice a second (`TMP_Text.set_text`); player 1's start is the
-  quick start. Verified headless: trigger presses leave the title, start begins chapter 1, INSERT
+  quick start, its trigger too (a campaign at most every 10 s: shots while it loads start no
+  other). Verified headless: start or trigger begins chapter 1 (three shots, one campaign), INSERT
   COIN turning PRESS START at a coin.
 - **Quick start.** Player 1's start while `CR_LevelLoader.IsMainMenuLoaded` (title, attract, menus)
   does what the New Campaign menu, Start New Game and the chapter selection's Play do:
