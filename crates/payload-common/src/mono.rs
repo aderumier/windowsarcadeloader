@@ -43,6 +43,7 @@ pub struct Mono {
     class_from_mono_type: unsafe extern "C" fn(P) -> P,
     method_get_header: unsafe extern "C" fn(P) -> P,
     method_header_get_code: unsafe extern "C" fn(P, *mut u32, *mut u32) -> *mut u8,
+    ldstr: unsafe extern "C" fn(P, P, u32) -> P,
 }
 
 /// Mono, once the game has loaded it.
@@ -90,6 +91,7 @@ pub fn mono() -> Option<&'static Mono> {
             class_from_mono_type: std::mem::transmute(get("mono_class_from_mono_type")?),
             method_get_header: std::mem::transmute(get("mono_method_get_header")?),
             method_header_get_code: std::mem::transmute(get("mono_method_header_get_code")?),
+            ldstr: std::mem::transmute(get("mono_ldstr")?),
         }
     };
     Some(MONO.get_or_init(|| m))
@@ -263,6 +265,21 @@ impl Mono {
             unsafe { (self.gchandle_new)(obj, 1) };
         }
         obj
+    }
+
+    /// The text of `image`'s user string `token` (an `ldstr`'s operand, `0x70......`).
+    pub fn user_string(&self, image: P, token: u32) -> Option<String> {
+        if token >> 24 != 0x70 {
+            return None;
+        }
+        let s = unsafe { (self.ldstr)(self.domain(), image, token & 0x00FF_FFFF) } as *const u8;
+        if s.is_null() {
+            return None;
+        }
+        // its length (i32) after the object header, then its UTF-16 characters
+        let len = unsafe { read::<i32>(s, 2 * size_of::<usize>()) }.max(0) as usize;
+        let chars: Vec<u16> = (0..len).map(|i| unsafe { read::<u16>(s, 2 * size_of::<usize>() + 4 + 2 * i) }).collect();
+        Some(String::from_utf16_lossy(&chars))
     }
 
     /// A new string of `text`.

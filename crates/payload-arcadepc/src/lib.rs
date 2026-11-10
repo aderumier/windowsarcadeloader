@@ -139,7 +139,8 @@
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
 //! (`WAL_ARCADEPC_XML`, Wild West Shoot Out's free play). Mars Sortie
-//! (`WAL_ARCADEPC_BOARD=marssortie`, with its plugin): `marssortie.rs` patches its settings'
+//! (`WAL_ARCADEPC_BOARD=marssortie`, no plugin): `marssortie.rs` feeds its laser guns and board
+//! signals into the game, patches its settings'
 //! getters (free play, crosshairs, no photos) and posts its operator menus' keypad keys.
 //!
 //! Family Guy Bowling Arcade (`WAL_ARCADEPC_BOARD=teamplay`): `teamplay.rs` is the Linux
@@ -535,6 +536,12 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 // winsavage.exe's keys are the DOS game's keyboard: the real one filtered
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
+            }
+            _ if board.trim() == "marssortie" => {
+                pads::disconnect();
+                // Unity 5.4: the player is the executable
+                let player = if unity != 0 { unity } else { unsafe { GetModuleHandleW(std::ptr::null()) as usize } };
+                wal_payload_common::input_filter::init(player, demul::key_held);
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();

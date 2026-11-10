@@ -1,6 +1,17 @@
-//! Mars Sortie (`WAL_ARCADEPC_BOARD=marssortie`, Unity 5.4, 64-bit): its settings made by the
-//! payload. The guns, coins and keys are the DemulShooter plugin's (`demul.rs`, the profile's
-//! `WAL_DEMUL_PORT`).
+//! Mars Sortie (`WAL_ARCADEPC_BOARD=marssortie`, Unity 5.4, 64-bit): the cabinet's hardware and
+//! settings made by the payload (the dump's DemulShooter BepInEx plugin is not loaded).
+//!
+//! The guns are its laser camera's: `MRCQ.Hardware.GetInputAxis` ("x01".."y04", each station's
+//! laser spot as a fraction of the camera's picture, y from the bottom, which `LaserLocator`
+//! turns into the screen through `LaserCamera.dat`) is the payload's: each gun's place on
+//! Unity's picture (`demul.rs`'s mapping, `WAL_DEMUL_RESOLUTION`). Its buttons are the GMB board's
+//! signals, each with the game's own keyboard key (`SignalKey`'s simulator): a station's fire
+//! `a s d f` (its shot also starts it), its weapon switch `q w e r` (its start signal's key too,
+//! which does not start it), its coin `1 2 3 4`, posted to the
+//! window (`demul.rs`'s `update_keys`, the profile's keys). The board itself is absent: its error
+//! (`SystemError.SetIOBoardError`) and the laser camera's (`SetLaserCamError`) return at once,
+//! the SuperDog dongle's check (`SuperDogManager.DoCheckKey`) is true (their IL). The operator's
+//! keys are the game's too (space, the arrows). The game is in English (its language getter).
 //!
 //! Getters of the game's settings return constants: their IL patched before their first call
 //! (`nop`s, `ldc.i4.<n>`, `ret`; callers inlining them compile the patched body), the operator's
@@ -18,10 +29,84 @@
 //! payload's keyboard filter drops. Its `DllImport` is the payload's: the same keys posted to the
 //! game window as the payload's own (`input_filter::post_key`), a key's repeats (flag 1) dropped.
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
-use wal_payload_common::mono::mono;
+use wal_payload_common::mono::{self, P, mono};
 use wal_payload_common::{input_filter, log, mono_imports};
+
+use crate::demul::{client_area, find_window, player_state, resolution, update_keys};
+
+const STATIONS: usize = 4;
+
+/// Each station's aim (`x`, `y` as `f32` bits).
+static AIM: [AtomicU32; 2 * STATIONS] = [const { AtomicU32::new(0) }; 2 * STATIONS];
+
+/// The guns' places, from the virtual sticks; the posted keys.
+fn input_thread() {
+    let mut keys = [0u64; 4];
+    loop {
+        std::thread::sleep(Duration::from_millis(4));
+        let hwnd = find_window();
+        update_keys(hwnd, &mut keys);
+        let area = client_area(hwnd);
+        let (rw, rh) = resolution().or_else(|| area.map(|(_, _, w, h)| (w, h))).unwrap_or((1.0, 1.0));
+        for p in 0..STATIONS {
+            let s = player_state(p, area);
+            AIM[2 * p].store((s.x / rw).clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
+            AIM[2 * p + 1].store((s.y / rh).clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
+        }
+    }
+}
+
+/// `Hardware.GetInputAxis(string axisName)`: the guns' places ("x01".."y04").
+extern "C" fn get_input_axis(name: *const u8) -> f32 {
+    if name.is_null() {
+        return 0.0;
+    }
+    // a managed string: its length (i32) after the object header, then its UTF-16 characters
+    let len = unsafe { mono::read::<i32>(name, 2 * size_of::<usize>()) }.clamp(0, 16) as usize;
+    let chars: Vec<u16> = (0..len).map(|i| unsafe { mono::read::<u16>(name, 2 * size_of::<usize>() + 4 + 2 * i) }).collect();
+    let axis = String::from_utf16_lossy(&chars);
+    let station = axis.get(1..).and_then(|n| n.parse::<usize>().ok()).filter(|n| (1..=STATIONS).contains(n));
+    match (axis.as_bytes().first(), station) {
+        (Some(b'x'), Some(n)) => f32::from_bits(AIM[2 * (n - 1)].load(Ordering::Relaxed)),
+        (Some(b'y'), Some(n)) => f32::from_bits(AIM[2 * (n - 1) + 1].load(Ordering::Relaxed)),
+        _ => 0.0,
+    }
+}
+
+/// The game in English: `MRCQ.Localization.get_Language` returns "English" (its IL: the
+/// literal of `Load`, the language's default when the configuration names none), whatever the
+/// configuration or the operator menu chose (the cabinet's default was Chinese).
+fn english(m: &mono::Mono, image: P) {
+    let localization = m.class(image, "MRCQ", "Localization");
+    // ldstr <token>
+    let token = m.il_code(m.method(localization, "Load", 0)).and_then(|il| {
+        (0..il.len().saturating_sub(4))
+            .filter(|&i| il[i] == 0x72 && il[i + 4] == 0x70)
+            .map(|i| u32::from_le_bytes([il[i + 1], il[i + 2], il[i + 3], il[i + 4]]))
+            .find(|&t| m.user_string(image, t).as_deref() == Some("English"))
+    });
+    match (token, m.il_code(m.method(localization, "get_Language", 0))) {
+        (Some(token), Some(il)) if il.len() >= 6 => {
+            il.fill(0x00);
+            let n = il.len();
+            il[n - 6] = 0x72;
+            il[n - 5..n - 1].copy_from_slice(&token.to_le_bytes());
+            il[n - 1] = 0x2A;
+            log!("marssortie: the game in English");
+        }
+        _ => log!("marssortie: Localization.get_Language not patched (its language unchanged)"),
+    }
+}
+
+/// `Hardware`'s input replaced (from a thread of Mono's: compiling the replacement).
+fn hardware(m: &'static mono::Mono, image: P) {
+    let hardware = m.class(image, "MRCQ", "Hardware");
+    let replaced = m.replace(m.method(hardware, "GetInputAxis", 1), get_input_axis as *const () as usize);
+    log!("marssortie: Hardware.GetInputAxis {}", if replaced { "replaced: the guns" } else { "not replaced" });
+}
 
 /// The game's `DllImport`s answered by the payload.
 fn resolve(name: &str, module: &str) -> Option<usize> {
@@ -65,6 +150,28 @@ pub fn init() {
             }
             std::thread::sleep(Duration::from_millis(1));
         };
+        // a thread of Mono's: the lookups below load classes (the dongle check's nested type)
+        while m.domain().is_null() || !m.attach() {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        // the absent board, laser camera and dongle: (namespace, class, method, its arguments,
+        // the body's end)
+        let hardware_patches: &[(&str, &str, &str, i32, &[u8])] = &[
+            ("MRCQ", "SystemError", "SetIOBoardError", 1, &[0x2A]),
+            ("MRCQ", "SystemError", "SetLaserCamError", 1, &[0x2A]),
+            ("MRCQ", "SuperDogManager", "DoCheckKey", 2, &[0x17, 0x2A]),
+        ];
+        for &(namespace, class, name, args, body) in hardware_patches {
+            match m.il_code(m.method(m.class(image, namespace, class), name, args)) {
+                Some(il) if il.len() >= body.len() => {
+                    il.fill(0x00);
+                    let n = il.len();
+                    il[n - body.len()..].copy_from_slice(body);
+                    log!("marssortie: {class}.{name} patched");
+                }
+                _ => log!("marssortie: {class}.{name} not found"),
+            }
+        }
         for (namespace, class, name, value) in patches {
             match m.il_code(m.method(m.class(image, namespace, class), name, 0)) {
                 // a getter without exception clauses: any body (Mono decodes it whole, no bytes
@@ -81,7 +188,10 @@ pub fn init() {
         if wal_payload_common::crosshairs(false) {
             playing_crosshairs(m, image);
         }
+        english(m, image);
+        hardware(m, image);
     });
+    std::thread::spawn(input_thread);
 }
 
 /// `Now.HairCrossManager.Update` as the game ships it: each station's cross placed at its gun.

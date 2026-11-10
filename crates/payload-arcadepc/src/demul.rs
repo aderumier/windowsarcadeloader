@@ -166,8 +166,9 @@ pub(crate) struct Player {
     pub(crate) trigger: bool,
     pub(crate) reload: bool,
     action: bool,
-    change: bool,
+    pub(crate) change: bool,
     /// The gun on the picture (not off the screen or the window).
+    #[cfg_attr(not(target_arch = "x86"), allow(dead_code))]
     pub(crate) on_picture: bool,
 }
 

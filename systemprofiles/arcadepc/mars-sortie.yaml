@@ -1,8 +1,9 @@
 # Mars Sortie (MRCQ "TJZS", Shooter.exe, Unity 5.4, Mono, 64-bit) - template, override values in
 # userprofiles/arcadepc/mars-sortie.yaml.
-# Four guns. The dump's DemulShooter BepInEx plugin (Argonlefou's) replaces the cabinet's GMB
-# I/O board, its SuperDog dongle check and its laser camera guns: the payload is that plugin's
-# TCP client (the guns) and posts its keyboard keys (docs §6.3i).
+# Four guns. The payload is the cabinet's hardware: its laser camera guns and GMB board's
+# signals fed into the game, the absent board's errors and the SuperDog dongle check skipped,
+# the game's own keys posted (WAL_ARCADEPC_BOARD=marssortie, docs §6.3i); the dump's BepInEx
+# plugin is not loaded.
 system: arcadepc
 name: Mars Sortie
 
@@ -17,23 +18,20 @@ hide: [GameRecords1.dat, GameRecords2.dat]
 dll_overrides:
   # Unity tries xinput1_3.dll: the payload
   xinput1_3: "n,b"
-  # Unity Doorstop's BepInEx loader (the plugin)
-  winhttp: "n,b"
+  # Wine's winhttp: the dump's Unity Doorstop (its BepInEx plugin) not loaded
+  winhttp: "b"
 
 env:
-  # free play (the price's getters made 0), the crosshairs (WAL_CROSSHAIR: the playing stations'),
-  # the operator menus' keypad keys; the players' photos the game's (its webcam when present)
+  # the guns and the stations' buttons, free play (the price's getters made 0), the crosshairs
+  # (WAL_CROSSHAIR: the playing stations'), the operator menus' keypad keys; the players' photos
+  # the game's (its webcam when present)
   WAL_ARCADEPC_BOARD: marssortie
-  # the plugin's TCP port and its input class (fields sorted by name, four players)
-  WAL_DEMUL_PORT: "33610"
-  WAL_DEMUL_FIELDS: "Axis_X,Axis_Y,ChangeWeapon,EnableInputsHack,HideCrosshairs,Trigger"
-  WAL_DEMUL_PLAYERS: "4"
-  # the plugin's aim in Unity's pixels (Screen: the resolution of args), the picture centered
+  # the guns aim over Unity's picture (the resolution of args), centered in its window
   WAL_DEMUL_RESOLUTION: 1680x1050
-  # each player's coin key (the game's keys 1..4, the plugin's 5..8)
-  WAL_DEMUL_KEYS_P2: "key_5=key_6"
-  WAL_DEMUL_KEYS_P3: "key_5=key_7"
-  WAL_DEMUL_KEYS_P4: "key_5=key_8"
+  # each station's own keys (the game's: coin 1..4, fire a s d f, start / weapon switch q w e r)
+  WAL_DEMUL_KEYS_P2: "key_1=key_2,key_a=key_s,key_q=key_w"
+  WAL_DEMUL_KEYS_P3: "key_1=key_3,key_a=key_d,key_q=key_e"
+  WAL_DEMUL_KEYS_P4: "key_1=key_4,key_a=key_f,key_q=key_r"
   # the game's own crosshairs ("Display hair cross"): the common crosshair option's default
   WAL_CROSSHAIR: "1"
 
@@ -42,11 +40,15 @@ input:
   guns_enabled: true
   stick_as_dpad: false
 
-# The cabinet has no start buttons: a shot starts. The game's keys kept by the plugin: 5..8
-# coins, space OK (in the attract: the operator menu), the arrows (the operator menus).
+# The game's keys (its board signals' keyboard keys, player 1's; the others' above): the trigger
+# fires (a), a station's shot starts it (start is that shot too: q, its start signal's key, is
+# also the weapon switch, which does not start), the change button switches the weapon (q), 1
+# coin; space OK (in the attract: the operator menu), the arrows (the operator menus).
 native_map:
-  start: trigger
-  coin: key_5
+  b1: key_a
+  b2: key_q
+  start: key_a
+  coin: key_1
   test: key_space
   service: key_space
   up: key_up

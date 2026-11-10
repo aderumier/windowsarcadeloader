@@ -5255,19 +5255,27 @@ payload is the cabinet's hardware instead. `.windowsloader`: `CowBoy.exe`. Board
 
 MRCQ's four-gun shooter ("TJZS", `Shooter.exe`, Unity 5.4, Mono `mono.dll`, 64-bit; the player
 is the executable). The dump keeps BepInEx (Unity Doorstop's `winhttp.dll`) and Argonlefou's
-DemulShooter plugin (`BepInEx\plugins\MarsSortie_BepInEx_DemulShooter_Plugin.dll`): it stands
-in for the GMB I/O board (`MRCQ.Hardware.GetInputAxis` "x01".."y04" from its aim, `Update`'s
-trigger as each station's `startGameKey` and `fire`), skips the SuperDog check and the board /
-laser camera errors, and remaps the game's coin keys 1..4 to 5..8 (`SignalKey`, keeping
-space and the arrows). `.windowsloader`: `Shooter.exe`. Board `marssortie` (`marssortie.rs`)
-next to the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
+DemulShooter plugin: not loaded (`winhttp` builtin), the payload is the cabinet's hardware
+instead. `.windowsloader`: `Shooter.exe`. Board `marssortie` (`marssortie.rs`):
 
-- **Plugin packets.** The reflection layout (see Wild West Shoot Out): `Axis_X[4]`, `Axis_Y[4]`,
-  `ChangeWeapon[4]`, `EnableInputsHack`, `HideCrosshairs`, `Trigger[4]`; players 2..4 their own
-  coin keys (`WAL_DEMUL_KEYS_P2..P4`: 6, 7, 8). The aim goes through the game's laser locator
-  (`LaserLocator`: the dump's `LaserCamera.dat` calibration, an identity map but for its
-  offsets) times `Screen`: Unity at 1680x1050 (16:10, the profile's `-screen-width` /
-  `-screen-height`; the cabinet's run.bat had 1280x800), `WAL_DEMUL_RESOLUTION=1680x1050`.
+- **The guns.** The laser camera's spots are `MRCQ.Hardware.GetInputAxis` ("x01".."y04", a
+  fraction of the camera's picture, y from the bottom): replaced (`Mono::replace`, the name a
+  managed string) by each gun's place on Unity's picture (`demul.rs`'s mapping,
+  `WAL_DEMUL_RESOLUTION=1680x1050`), which the game's `LaserLocator` turns into the screen
+  through the dump's `LaserCamera.dat` (an identity map but for its offsets). Unity at
+  1680x1050 (16:10, the profile's `-screen-width` / `-screen-height`; the cabinet's run.bat had
+  1280x800).
+- **Buttons: the game's keys.** Each GMB board signal has a keyboard key in the game's signal
+  map (`SignalKey`'s simulator, in `sharedassets0.assets`): fire `a s d f` (a station's shot
+  starts it: start is that shot), weapon switch `q w e r` (also its start signal's key, which
+  does not start it), coins `1 2 3 4`, and space / the arrows for the operator menus: posted to
+  the window (`demul.rs`'s `update_keys`, `WAL_DEMUL_KEYS_P2..P4` each station's own).
+- **The absent hardware.** `SystemError.SetIOBoardError` / `SetLaserCamError` return at once,
+  `SuperDogManager.DoCheckKey` is true (IL; the lookups need a thread attached to Mono, the
+  check's nested type loaded).
+- **English.** `Localization.get_Language` returns the `"English"` literal of `Load` (its user
+  string found with `mono_ldstr`, payload-common's `Mono::user_string`): the dump's default was
+  Chinese; the operator menu's language choice no longer changes it.
 - **Settings (`marssortie.rs`).** Getters made constants by IL patches before their first call
   (`nop`s, `ldc.i4.<n>`, `ret`, so callers inlining them compile the patch; Unity 5.4's scripts
   run in a child domain, its static fields out of the payload's reach): free play
@@ -5294,7 +5302,9 @@ next to the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
   untouched.
 - Verified headless (2026-11-10): attract in free play, both players started by a shot, stage
   select, shots scoring for both (30, 30, 10, 20), both crosshairs where aimed, coins counted
-  per station with free play off, operator menu opened, navigated, Setup entered.
+  per station with free play off, operator menu opened, navigated, Setup entered (with the
+  plugin). Without it: start, stage select in English, shots where aimed headless; user 100% on
+  the desktop (2026-11-10), four players.
 
 #### Family Guy Bowling Arcade
 
@@ -7712,7 +7722,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hydro-thunder` | Hydro Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder 0.5 runtime (Glide, 32-bit, §6.3i): the fake DirectInput wheel and its buttons from the virtual sticks, constant force to the launcher's wheel, GPU renderer on the runner's vkd3d-proton, 60 fps, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder 0.5 runtime (its own dump, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload (first gear at start) |
 | `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | user 100% (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i, board `wws`), no BepInEx plugin: its COM1 I/O board emulated (check, triggers, coins, test, select), the camera guns' SDK stubbed in IL and the guns written into the game's camera data (`BaseGun.Update` replaced, identity calibration), the crosshairs in the canvas' units without the jitter filter, the dongle check skipped, reload = a shot pointed away (right button too), 16:9 1920x1080, a shot starts, free play and crosshairs in its `GameConfig.xml` |
-| `mars-sortie` | Mars Sortie | arcadepc | user 100% (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play and the game's crosshairs by IL patches of their getters, the crosshairs of the playing stations only, the players' photos from the webcam when present, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
+| `mars-sortie` | Mars Sortie | arcadepc | user 100% (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i, board `marssortie`), no BepInEx plugin: the laser camera's axes (`Hardware.GetInputAxis`) replaced by the guns' places, the board's buttons as the game's own signal keys (fire a s d f = start, weapon q w e r, coins 1..4), the absent board's / camera's errors and the SuperDog check skipped, English forced, free play and the game's crosshairs by IL patches of their getters, the crosshairs of the playing stations only, the players' photos from the webcam when present, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
 | `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | user 100% (2026-11-10), 1 trackball | Team Play's bowling game (Linux cabinet folder + Unity 5.4 Windows player, 64-bit, §6.3i): the dump's BepInEx loader disabled, the payload is the cabinet's `teamplayio` / `serialio` libraries for the game's DllImports (buttons, coins in cents, the trackball from the mouse's wrapping counters or the stick), free play in its `Adjustables` |
 | `bounty-hunter` | Bounty Hunter | arcadepc | user 100% (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
 | `friction` | Friction | arcadepc | user 100% (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play as 99 credits never spent, a shot is also its player's start, the payload's crosshairs (common option) |
