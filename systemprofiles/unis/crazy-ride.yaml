@@ -24,9 +24,26 @@ env:
   WAL_UNIS_BOARD: usbplugins
   # full screen: the game sizes its 16:9 picture from the screen's height (on a 1920x1200
   # screen 2133x1200, its right cut off): a 1920x1080 desktop for it, its borderless window
-  # fitted onto the real screen (aspect kept)
+  # fitted onto the real screen, stretched over it (a 4:3 screen filled;
+  # WAL_KEEP_ASPECT_RATIO "1", Batocera ES's KEEP ASPECT RATIO: aspect kept, black bars)
   WAL_DESKTOP_SIZE: 1920x1080
   WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  # the window's client size read in the desktop's units (the stretched window read back made
+  # the game size its window from the screen's height again, growing it on each turn)
+  WAL_DESKTOP_CLIENT: "1"
+
+# The game's own options, for the GUI's Options tab (its env variables above).
+options:
+  - title: Display
+    options:
+      - key: WAL_KEEP_ASPECT_RATIO
+        label: Keep aspect ratio
+        kind: bool
+        description: >-
+          The game's 16:9 picture with its aspect kept, black bars on a 4:3 or 16:10 screen.
+          Off: stretched to the whole screen.
 
 input:
   stick_as_dpad: false
