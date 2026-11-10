@@ -4,8 +4,9 @@
 # Two lightguns. The PC game plays with the mouse and pads: player 1's gun is its mouse (the
 # PC menus point and click with it), player 2's its pad (the payload's xinput1_3.dll), the real
 # keyboard and mouse filtered; the crosshairs follow the guns (WAL_ARCADEPC_BOARD=hotd2, docs
-# §6.3i). Player 1's start in the main menu starts a campaign (first chapter, the PC menus
-# skipped); player 2 joins with start; in a chapter start continues.
+# §6.3i). The PC menu is never opened: the title screen and its attract stay, "PRESS START"
+# ("INSERT COIN" without a credit); player 1's start starts a campaign (first chapter, the PC
+# menus skipped); player 2 joins with start; in a chapter start continues.
 system: arcadepc
 name: The House of the Dead 2 Remake
 
@@ -25,6 +26,8 @@ env:
   WAL_CROSSHAIR: "1"
   WAL_HOTD2_MODE: arcade
   WAL_HOTD2_DIFFICULTY: "2"
+  # 1: the PC menu opened by any input on the title screen (its options, modes, chapters)
+  WAL_HOTD2_PC_MENU: "0"
 
 options:
   - title: Game
@@ -48,6 +51,12 @@ options:
         choices: ["0", "1", "2", "3", "4"]
         description: >-
           0 very easy, 1 easy, 2 normal, 3 hard, 4 very hard.
+      - key: WAL_HOTD2_PC_MENU
+        label: PC menu
+        kind: bool
+        description: >-
+          The PC game's menu on the title screen's first input (options, modes, chapters).
+          Off: the title screen reads PRESS START and start begins the campaign.
       - key: WAL_CROSSHAIR
         label: Crosshairs
         kind: bool

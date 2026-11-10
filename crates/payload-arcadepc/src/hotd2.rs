@@ -63,6 +63,9 @@ struct Found {
     players: *const u8,
     revive: P,
     start_tokens: *mut u8,
+    press_any_key: P,
+    press_text: usize,
+    set_text: P,
 }
 
 unsafe impl Send for Found {}
@@ -106,7 +109,8 @@ fn setup(m: &Mono) {
     let loader = m.class(game, "", "CR_LevelLoader");
     let campaign = m.class(game, "", "CR_NewGampaignMenu");
     let data = m.class(game, "", "CR_Data");
-    if [player, ready_panel, manager, loader, campaign, data].iter().any(|c| c.is_null()) {
+    let press = m.class(game, "", "CR_SimplePressAnyKeyDisplay");
+    if [player, ready_panel, manager, loader, campaign, data, press].iter().any(|c| c.is_null()) {
         log!("hotd2: classes not found: no guns");
         return;
     }
@@ -144,6 +148,9 @@ fn setup(m: &Mono) {
         players: static_field(player, "Players"),
         revive: m.method(player, "Revive", 0),
         start_tokens: static_field(data, "DEFAULT_START_TOKEN_AMOUNT") as *mut u8,
+        press_any_key: m.pin(m.type_object(press)),
+        press_text: m.offset(m.field(press, "textField")),
+        set_text: m.method(m.class(m.image("Unity.TextMeshPro"), "TMPro", "TMP_Text"), "set_text", 1),
     };
     let methods = [
         found.get_transform,
@@ -165,6 +172,8 @@ fn setup(m: &Mono) {
         found.cursor_visible,
         found.set_scale,
         found.revive,
+        found.press_any_key,
+        found.set_text,
     ];
     let statics = [found.ready, found.gamepads, found.mouse, found.unlimited, found.start_tokens, found.players];
     if methods.iter().any(|p| p.is_null()) || statics.iter().any(|p| p.is_null()) {
@@ -179,6 +188,36 @@ fn setup(m: &Mono) {
     let crosshair = m.replace(m.method(player, "handleMovingCrosshair", 0), moving_crosshair as *const () as usize);
     let frame = m.replace(m.method(manager, "Update", 0), frame as *const () as usize);
     log!("hotd2: crosshairs {crosshair}, controllers {frame}");
+    if !pc_menu() {
+        let menu = m.replace(m.method(m.class(game, "", "CR_MainMenu"), "Open", 0), menu_open as *const () as usize);
+        log!("hotd2: PC menu never opened (title screen, start): {menu}");
+    }
+}
+
+/// `WAL_HOTD2_PC_MENU=1`: the PC menu opened by any input on the title screen (its options,
+/// modes, chapters), as the game. Off (the default): the title screen and its attract stay, its
+/// "press any key" reading "PRESS START" ("INSERT COIN" without a credit), player 1's start the
+/// quick start.
+fn pc_menu() -> bool {
+    std::env::var("WAL_HOTD2_PC_MENU").is_ok_and(|v| matches!(v.trim(), "1" | "true" | "on"))
+}
+
+/// `CR_MainMenu.Open` (the title screen's any input, a return from a mode's menu): nothing.
+unsafe extern "system" fn menu_open(_this: P) {}
+
+/// The title screen's text (`CR_SimplePressAnyKeyDisplay.textField`): the payload's.
+fn title_text(m: &Mono, f: &Found) {
+    let text = if free_play() || CREDITS.load(Ordering::Relaxed) > 0 { "PRESS START" } else { "INSERT COIN" };
+    let mut inactive = true;
+    let Some(array) = m.invoke(f.find_all, std::ptr::null_mut(), &mut [f.press_any_key, (&raw mut inactive).cast()]).filter(|a| !a.is_null()) else { return };
+    let count = unsafe { mono::read::<usize>(array as *const u8, mono::ARRAY_DATA - size_of::<usize>()) };
+    for i in 0..count {
+        let display = unsafe { mono::read::<usize>(array as *const u8, mono::ARRAY_DATA + i * size_of::<usize>()) };
+        let field = if display == 0 { 0 } else { unsafe { mono::read::<usize>(display as *const u8, f.press_text) } };
+        if field != 0 {
+            m.invoke(f.set_text, field as P, &mut [m.string(text)]);
+        }
+    }
 }
 
 /// `player`'s gun on the game window's picture (fractions from its top left, clamped), the
@@ -303,6 +342,9 @@ unsafe extern "system" fn frame(_this: P) {
     let flag = |r: Option<P>| r.is_some_and(|r| !r.is_null() && unsafe { mono::read::<u8>(r as *const u8, BOXED) } != 0);
     if FRAMES.fetch_add(1, Ordering::Relaxed) % 30 == 0 {
         assign(m, f);
+        if !pc_menu() && flag(m.invoke(f.main_menu, std::ptr::null_mut(), &mut [])) {
+            title_text(m, f);
+        }
         MENU.store(flag(m.invoke(f.cursor_visible, std::ptr::null_mut(), &mut [])), Ordering::Relaxed);
         let unlimited = unsafe { mono::read::<usize>(f.unlimited, 0) } as *mut u8;
         if !unlimited.is_null() {

@@ -4892,6 +4892,12 @@ sticks' motion.
   the gun in screen pixels (screen-space overlay canvas; `CR_Crosshair.getRay` shoots through its
   position), while `CR_ReadyCheckPanel.ArePlayersReady` and the player alive. `WAL_CROSSHAIR=0`
   scales it to 0 (shots unchanged).
+- **Title screen, no PC menu.** `CR_MainMenu.Open` is replaced by nothing (`WAL_HOTD2_PC_MENU=1`
+  keeps it): the game stays on its title screen and attract (`CR_MainMenuMovieController`: any
+  input opened the menu), its `CR_SimplePressAnyKeyDisplay` text set to PRESS START (INSERT COIN
+  without free play and no credit) twice a second (`TMP_Text.set_text`); player 1's start is the
+  quick start. Verified headless: trigger presses leave the title, start begins chapter 1, INSERT
+  COIN turning PRESS START at a coin.
 - **Quick start.** Player 1's start while `CR_LevelLoader.IsMainMenuLoaded` (title, attract, menus)
   does what the New Campaign menu, Start New Game and the chapter selection's Play do:
   `CR_NewGampaignMenu` fields (`activeMode` = `WAL_HOTD2_MODE` arcade/original, `multiplayerMode`
