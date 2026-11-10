@@ -91,8 +91,10 @@
 //! switches, the handlebar and throttle, the credits; and the same for its operator diagnostics
 //! (`diag.exe`, started by the test button through the launcher).
 //!
-//! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs`
-//! is the plugin's TCP client (guns) and posts its keys (coin, operator buttons); no pads.
+//! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
+//! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
+//! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
+//! (`WAL_ARCADEPC_XML`, Wild West Shoot Out's free play).
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
 //! (`WAL_CROSSHAIR`) draws player 1's crosshair (`pointer_d3d11`).
 
@@ -140,6 +142,7 @@ mod unrealio;
 mod vcthunder;
 #[cfg(target_arch = "x86")]
 mod xio;
+mod xmlset;
 mod zombiecrisis;
 
 use std::ffi::c_void;
@@ -170,9 +173,12 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             bugbusters::prepare();
         }
         wal_payload_common::start("arcadepc");
+        xmlset::init();
         let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) as usize };
-        // the common crosshair option: player 1's gun on the picture (Direct3D 11)
-        if (matches!(board.trim(), "syfire" | "jxboard" | "jxcamera" | "bullseye" | "dcop") || std::env::var("WAL_DEMUL_PORT").is_ok()) && wal_payload_common::crosshairs(false) {
+        // the common crosshair option: player 1's gun on the picture (Direct3D 11; the
+        // reflection packet plugins show the game's own, `WAL_DEMUL_FIELDS`)
+        let demul_dot = std::env::var("WAL_DEMUL_PORT").is_ok() && std::env::var("WAL_DEMUL_FIELDS").is_err();
+        if (matches!(board.trim(), "syfire" | "jxboard" | "jxcamera" | "bullseye" | "dcop") || demul_dot) && wal_payload_common::crosshairs(false) {
             wal_payload_common::pointer_d3d11::init(wal_payload_common::pointer_d3d11::Dot {
                 color: [1.0, 0.15, 0.15],
                 size: 0.06,
@@ -360,7 +366,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             }
             Some(port) => {
                 pads::disconnect();
-                wal_payload_common::input_filter::init(unity, demul::key_held);
+                // Unity before 2017.2: the player is the executable
+                let player = if unity != 0 { unity } else { unsafe { GetModuleHandleW(std::ptr::null()) as usize } };
+                wal_payload_common::input_filter::init(player, demul::key_held);
                 demul::start(port);
             }
             None => wal_payload_common::input_filter::init(unity, pads::key_held),

@@ -36,9 +36,27 @@ fn export(dll: &str, name: &str) -> usize {
     (!module.is_null()).then(|| unsafe { GetProcAddress(module, cname.as_ptr()) }).flatten().map_or(0, |p| p as usize)
 }
 
+/// The module holding address `a`.
+fn module_of(a: usize) -> usize {
+    use windows_sys::Win32::System::LibraryLoader::{
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, GetModuleHandleExW,
+    };
+    let mut module = std::ptr::null_mut();
+    let flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+    unsafe { GetModuleHandleExW(flags, a as *const u16, &mut module) };
+    module as usize
+}
+
 fn apply(base: usize, (dll, name, f, orig): Hook) {
     if let Some(o) = unsafe { iat::hook_module(base, dll, name, f) } {
         if o == f {
+            return;
+        }
+        if o != export(dll, name) && module_of(o) != crate::workarea::this_module() {
+            // another DLL's hook (Unity Doorstop's GetProcAddress in the executable, BepInEx's
+            // loader: winhttp.dll): kept, never the original of ours. That DLL calls the real
+            // function through its own imports, hooked too: chained to its hook, endless.
+            unsafe { iat::hook_module(base, dll, name, o) };
             return;
         }
         let prev = orig.load(Ordering::Relaxed);

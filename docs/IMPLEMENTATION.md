@@ -4867,6 +4867,48 @@ snow.exe is a new build. The profile is Arctic Thunder's (environment settings o
   START", "1 CREDIT", 1 credit used), driver and track select (Haunted Forest), a race, test into
   the diagnostics, Exit back to the game (its title).
 
+#### Wild West Shoot Out
+
+Yingqi's two-gun western shooter (`CowBoy.exe`, Unity 5.6, Mono, 32-bit, Direct3D 11; the player
+is the executable). The dump keeps BepInEx 5.4 (Unity Doorstop's `winhttp.dll`) and Argonlefou's
+DemulShooter plugin (`BepInEx\plugins\WildWestShootout_BepInEx_DemulShooter_Plugin.dll` +
+`.ini`): it skips the dongle check, stands in for the serial board (`LSerialPort`: its packets
+made from the plugin's buttons) and the camera guns (`BaseGun.GetGunPos` / `GetGunRealPixPos`,
+the crosshairs placed by `GameUIController` / `ShowGamePointController`). `.windowsloader`:
+`CowBoy.exe`. No board: the payload is the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
+
+- **Reflection packets (`WAL_DEMUL_FIELDS`, `WAL_DEMUL_PLAYERS`).** The plugin's input class is
+  serialized by reflection, its public fields sorted by name, each player array as long as its
+  players: here `Axis_X[2]`, `Axis_Y[2]` (`f32`), `EnableInputsHack`, `HideCrosshairs`,
+  `Reload[2]`, `Trigger[2]` (22 bytes). The profile lists those fields, the payload writes each
+  (the aim, the natives `trigger` / `reload` / `action` / `change`, the inputs hack on, the
+  crosshairs hidden when `WAL_CROSSHAIR=0`); the plugin draws the game's own crosshairs, so the
+  payload's Direct3D 11 dot stays off. Player 2's coin key from `WAL_DEMUL_KEYS_P2`
+  (`key_5=key_6`: each player's key in place of the profile's).
+- **Aim units (`WAL_DEMUL_RESOLUTION`).** The plugin takes Unity's `Screen` pixels (y from the
+  bottom). Unity full screen at its own resolution draws the 4:3 picture centered in the
+  1920x1080 window, black bars around (DXVK's swap chain stays the window's size): the aim is the
+  gun's place in that picture, in the resolution's pixels. The resolution is fixed by the
+  profile's Unity arguments (`-screen-width 1440 -screen-height 1080`; its registry default
+  was 1024x768).
+- **Inputs.** The cabinet has no start buttons: a shot starts (start = the trigger). Coins are
+  the plugin's keys 5 / 6 (one coin each), its `0` opens the settings menu (test: next item),
+  Enter selects (service). Reload: `b3`, or a shot off the picture / with the gun off screen.
+- **Settings.** The profile installs the dump's `GameConfig.xml` (and `GameCount.xml`, credits
+  from zero) at each start; the payload's new `WAL_ARCADEPC_XML` (`xmlset.rs`: `<Tag>` values of
+  an XML file, `{freeplay}` / `{crosshair}` the common options) sets `Free` from `WAL_FREEPLAY`
+  and `FrontSight` from `WAL_CROSSHAIR`.
+- **Doorstop and the payload's hooks.** The payload's d3d9 shims hook the game modules'
+  `GetProcAddress` imports (`late_hooks.rs`), Doorstop's own `winhttp.dll` (in the game's
+  directory) among them; the executable's import was already Doorstop's hook, kept as the
+  shims' original: Doorstop calling the real function through its import reached the shims,
+  then itself, endlessly (the main thread's stack overflowed, the process died without an exit
+  call, `wine-preloader` SIGSEGV in `setup_raise_exception`). An import already holding another
+  DLL's hook is now left alone (never the original of the payload's).
+- Verified headless (2026-11-10): attract with free play, starts by a shot (both players),
+  stage map, shots scoring (headshot at the gun's exact place, both crosshairs where aimed),
+  reload, coins with free play off (3 coins a game), settings menu opened and entered.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7078,6 +7120,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `ultimate-arctic-thunder` | Ultimate Arctic Thunder | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, attack) | Arctic Thunder's 2004 build (§6.3i): dump = the `Midway games` folder; same board by `snow.exe` build: its own texture key (0x0cc4cc8d), its parallel port dongle (`kfunc` answered by the payload, its `ppmon.exe` monitor not started), diagnostics and Exit as Arctic Thunder's |
 | `hydro-thunder` | Hydro Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder 0.5 runtime (Glide, 32-bit, §6.3i): the fake DirectInput wheel and its buttons from the virtual sticks, constant force to the launcher's wheel, GPU renderer on the runner's vkd3d-proton, 60 fps, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder 0.5 runtime (its own dump, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload (first gear at start) |
+| `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i): the dump's DemulShooter BepInEx plugin (dongle, serial board, camera guns), the payload its TCP client with its reflection packet (`WAL_DEMUL_FIELDS`), aim in Unity's 1440x1080 picture (`WAL_DEMUL_RESOLUTION`), a shot starts, coin keys per player, free play and the game's crosshairs in its `GameConfig.xml` (`WAL_ARCADEPC_XML`); Doorstop's `GetProcAddress` hook no longer chained by the payload (endless recursion) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

@@ -117,59 +117,159 @@ pub(crate) fn key_held(vk: i32) -> bool {
     (0..256).contains(&vk) && HELD[vk as usize / 64].load(Ordering::Relaxed) & 1 << (vk % 64) != 0
 }
 
+/// A field of a reflection serialized input packet (`WAL_DEMUL_FIELDS`).
+#[derive(Clone, Copy)]
+enum Field {
+    AxisX,
+    AxisY,
+    HideCrosshairs,
+    EnableInputsHack,
+    /// A button array, its native (none: zeros).
+    Button(Option<Native>),
+}
+
+/// The fields and players of `WAL_DEMUL_FIELDS` / `WAL_DEMUL_PLAYERS` (none: the fixed packet).
+fn fields() -> Option<&'static (Vec<Field>, usize)> {
+    static FIELDS: OnceLock<Option<(Vec<Field>, usize)>> = OnceLock::new();
+    FIELDS
+        .get_or_init(|| {
+            let list = std::env::var("WAL_DEMUL_FIELDS").ok()?;
+            let players = std::env::var("WAL_DEMUL_PLAYERS").ok().and_then(|p| p.trim().parse().ok()).unwrap_or(2usize);
+            let fields = list
+                .split(',')
+                .map(|f| match f.trim() {
+                    "Axis_X" => Field::AxisX,
+                    "Axis_Y" => Field::AxisY,
+                    "HideCrosshairs" => Field::HideCrosshairs,
+                    "EnableInputsHack" => Field::EnableInputsHack,
+                    "Trigger" => Field::Button(Some(Native::Trigger)),
+                    "Reload" => Field::Button(Some(Native::Reload)),
+                    "Action" => Field::Button(Some(Native::Action)),
+                    "ChangeWeapon" | "Change" => Field::Button(Some(Native::Change)),
+                    other => {
+                        log!("demul: field {other}: zeros");
+                        Field::Button(None)
+                    }
+                })
+                .collect();
+            log!("demul: reflection packet, {players} players, fields {list}");
+            Some((fields, players))
+        })
+        .as_ref()
+}
+
+/// A player's state in a packet: the aim (window pixels, `y` from the bottom), the buttons.
+#[derive(Clone, Copy, Default)]
+struct Player {
+    x: f32,
+    y: f32,
+    trigger: bool,
+    reload: bool,
+    action: bool,
+    change: bool,
+}
+
 /// The input packet of the players' sticks, for a game window `area`.
-fn packet(area: Option<(f32, f32, f32, f32)>, crosshairs: bool) -> [u8; PACKET] {
-    let mut p = [0u8; PACKET];
-    let screen = screen_size();
-    for player in 0..PLAYERS.min(MAX_PLAYERS) {
-        let stick = input(player);
-        let natives = pressed(player);
-        let on = |n| natives.contains(&n);
-        // the gun position on the screen, then in the window (y from the bottom)
-        let (sx, sy) = on_screen(&stick, screen);
-        // a game on a desktop of its own (`WAL_DESKTOP_SIZE`): full screen on it, its pixels
-        let (sx, sy, area) = match desktop::size() {
-            Some((w, h)) => {
-                let (x, y) = desktop::from_screen(sx as f64, sy as f64);
-                (x as f32, y as f32, Some((0.0, 0.0, w as f32, h as f32)))
+fn packet(area: Option<(f32, f32, f32, f32)>, crosshairs: bool) -> Vec<u8> {
+    let players = fields().map_or(PLAYERS, |f| f.1);
+    let states: Vec<Player> = (0..players).map(|p| if p < MAX_PLAYERS { player_state(p, area) } else { Player::default() }).collect();
+    let Some((fields, _)) = fields() else {
+        let mut p = vec![0u8; PACKET];
+        for (player, s) in states.iter().enumerate() {
+            p[8 * player..8 * player + 4].copy_from_slice(&s.x.to_le_bytes());
+            p[8 * player + 4..8 * player + 8].copy_from_slice(&s.y.to_le_bytes());
+            let bit = 1u8 << player;
+            for (i, on) in [s.trigger, s.reload, s.action, s.change].into_iter().enumerate() {
+                if on {
+                    p[32 + i] |= bit;
+                }
             }
-            None => (sx, sy, area),
-        };
-        let (x, y, inside) = match area {
-            Some((left, top, w, h)) => {
-                let (x, y) = (sx - left, sy - top);
-                let inside = (0.0..w).contains(&x) && (0.0..h).contains(&y);
-                (x.clamp(0.0, w - 1.0), h - y.clamp(0.0, h - 1.0), inside)
-            }
-            None => (sx, screen.1 - sy, true),
-        };
-        let offscreen = on(Native::Offscreen) || !inside;
-        let (x, y) = match area {
-            // the window's top left corner, as Unity counts it
-            Some((_, _, _, h)) if offscreen => (0.0, h),
-            _ => (x, y),
-        };
-        p[8 * player..8 * player + 4].copy_from_slice(&x.to_le_bytes());
-        p[8 * player + 4..8 * player + 8].copy_from_slice(&y.to_le_bytes());
-        let trigger = on(Native::Trigger);
-        let bit = 1u8 << player;
-        // off the screen: the reload, and the trigger at the corner (Top Gun has no reload
-        // input: its reload is a shot at (0, 0))
-        if trigger {
-            p[32] |= bit;
         }
-        if on(Native::Reload) || (trigger && offscreen) {
-            p[33] |= bit;
-        }
-        if on(Native::Action) {
-            p[34] |= bit;
-        }
-        if on(Native::Change) {
-            p[35] |= bit;
+        p[36] = if crosshairs { 0 } else { 1 } | 0x80;
+        return p;
+    };
+    let mut p = Vec::new();
+    for field in fields {
+        match *field {
+            Field::AxisX => states.iter().for_each(|s| p.extend_from_slice(&s.x.to_le_bytes())),
+            Field::AxisY => states.iter().for_each(|s| p.extend_from_slice(&s.y.to_le_bytes())),
+            Field::HideCrosshairs => p.push(!crosshairs as u8),
+            Field::EnableInputsHack => p.push(1),
+            Field::Button(n) => states.iter().for_each(|s| {
+                p.push(match n {
+                    Some(Native::Trigger) => s.trigger,
+                    Some(Native::Reload) => s.reload,
+                    Some(Native::Action) => s.action,
+                    Some(Native::Change) => s.change,
+                    _ => false,
+                } as u8)
+            }),
         }
     }
-    p[36] = if crosshairs { 0 } else { 1 } | 0x80;
     p
+}
+
+/// `WAL_DEMUL_RESOLUTION=<w>x<h>`: the game's resolution, its picture centered in its window.
+fn resolution() -> Option<(f32, f32)> {
+    static RESOLUTION: OnceLock<Option<(f32, f32)>> = OnceLock::new();
+    *RESOLUTION.get_or_init(|| {
+        let v = std::env::var("WAL_DEMUL_RESOLUTION").ok()?;
+        let (w, h) = v.trim().split_once('x')?;
+        Some((w.trim().parse().ok()?, h.trim().parse().ok()?))
+    })
+}
+
+/// Player `player`'s state, for a game window `area`.
+fn player_state(player: usize, area: Option<(f32, f32, f32, f32)>) -> Player {
+    let screen = screen_size();
+    let stick = input(player);
+    let natives = pressed(player);
+    let on = |n| natives.contains(&n);
+    // the gun position on the screen, then in the window (y from the bottom)
+    let (sx, sy) = on_screen(&stick, screen);
+    // a game on a desktop of its own (`WAL_DESKTOP_SIZE`): full screen on it, its pixels
+    let (sx, sy, area) = match desktop::size() {
+        Some((w, h)) => {
+            let (x, y) = desktop::from_screen(sx as f64, sy as f64);
+            (x as f32, y as f32, Some((0.0, 0.0, w as f32, h as f32)))
+        }
+        None => (sx, sy, area),
+    };
+    // a game drawing a smaller picture than its window (Unity's full screen at its own
+    // resolution, black bars around): its picture, the plugin's units its resolution's pixels
+    let (area, scale) = match (resolution(), area) {
+        (Some((rw, rh)), Some((left, top, w, h))) => {
+            let k = (w / rw).min(h / rh);
+            (Some((left + (w - rw * k) / 2.0, top + (h - rh * k) / 2.0, rw * k, rh * k)), 1.0 / k)
+        }
+        _ => (area, 1.0),
+    };
+    let (x, y, inside) = match area {
+        Some((left, top, w, h)) => {
+            let (x, y) = (sx - left, sy - top);
+            let inside = (0.0..w).contains(&x) && (0.0..h).contains(&y);
+            (x.clamp(0.0, w - 1.0), h - y.clamp(0.0, h - 1.0), inside)
+        }
+        None => (sx, screen.1 - sy, true),
+    };
+    let offscreen = on(Native::Offscreen) || !inside;
+    let (x, y) = match area {
+        // the window's top left corner, as Unity counts it
+        Some((_, _, _, h)) if offscreen => (0.0, h),
+        _ => (x, y),
+    };
+    let (x, y) = (x * scale, y * scale);
+    let trigger = on(Native::Trigger);
+    // off the screen: the reload, and the trigger at the corner (Top Gun has no reload
+    // input: its reload is a shot at (0, 0))
+    Player {
+        x,
+        y,
+        trigger,
+        reload: on(Native::Reload) || (trigger && offscreen),
+        action: on(Native::Action),
+        change: on(Native::Change),
+    }
 }
 
 /// The keys every player's natives hold.
@@ -178,11 +278,28 @@ fn keys_held() -> [u64; 4] {
     for player in 0..MAX_PLAYERS {
         for n in pressed(player) {
             if let Native::Key(vk) = n {
+                let vk = player_key(player, vk);
                 held[vk as usize / 64] |= 1 << (vk % 64);
             }
         }
     }
     held
+}
+
+/// Player `player`'s key for the profile's key `vk`: `WAL_DEMUL_KEYS_P<N>` (players 2..4)
+/// remaps keys, `key_1=key_2,key_5=key_6` (each player's own start and coin keys).
+fn player_key(player: usize, vk: u16) -> u16 {
+    static REMAP: OnceLock<Vec<Vec<(u16, u16)>>> = OnceLock::new();
+    let remap = REMAP.get_or_init(|| {
+        let key = |name: &str| natives().iter().find(|(n, _)| *n == name.trim()).and_then(|(_, n)| if let Native::Key(vk) = n { Some(*vk) } else { None });
+        (0..MAX_PLAYERS)
+            .map(|p| {
+                let list = std::env::var(format!("WAL_DEMUL_KEYS_P{}", p + 1)).unwrap_or_default();
+                list.split(',').filter_map(|pair| pair.split_once('=')).filter_map(|(a, b)| Some((key(a)?, key(b)?))).collect()
+            })
+            .collect()
+    });
+    remap.get(player).and_then(|r| r.iter().find(|(from, _)| *from == vk)).map_or(vk, |(_, to)| *to)
 }
 
 /// Posts the keys pressed and released since `previous` to the game window.
@@ -216,7 +333,7 @@ pub fn start(port: u16) {
         let crosshairs = wal_payload_common::crosshairs(true);
         let mut keys = [0u64; 4];
         let mut stream: Option<TcpStream> = None;
-        let mut last = ([0u8; PACKET], Instant::now());
+        let mut last = (Vec::new(), Instant::now());
         let mut next_connect = Instant::now();
         let mut last_area = None;
         loop {

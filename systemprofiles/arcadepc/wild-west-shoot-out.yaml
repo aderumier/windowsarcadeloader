@@ -1,0 +1,74 @@
+# Wild West Shoot Out (CowBoy.exe, Unity 5.6, Mono, 32-bit) - template, override values in
+# userprofiles/arcadepc/wild-west-shoot-out.yaml.
+# Two guns. The dump's DemulShooter BepInEx plugin (Argonlefou's) replaces the cabinet's serial
+# board, its dongle check and its camera guns: the payload is that plugin's TCP client (the
+# guns) and posts its keyboard keys (docs §6.3i).
+system: arcadepc
+name: Wild West Shoot Out
+
+# Unity's own log beside the game; the 4:3 picture at 1440x1080 (its default: 1024x768), black
+# bars around it on a wide screen
+args: [-logFile, Player.log, -screen-width, "1440", -screen-height, "1080", -screen-fullscreen, "1"]
+
+# the game's settings (installed at each start: changes in its settings menu last until the next
+# launch): the dump's (English, 3 coins a game, difficulty 3), the credits counted from zero;
+# free play from the common option (WAL_FREEPLAY, below)
+files:
+  GameConfig.xml: systemprofiles/arcadepc/files/wild-west-shoot-out/GameConfig.xml
+  GameCount.xml: systemprofiles/arcadepc/files/wild-west-shoot-out/GameCount.xml
+
+dll_overrides:
+  # Unity tries xinput1_3.dll: the payload
+  xinput1_3: "n,b"
+  # Unity Doorstop's BepInEx loader (the plugin)
+  winhttp: "n,b"
+
+env:
+  # the plugin's TCP port and its input class (fields sorted by name, two players)
+  WAL_DEMUL_PORT: "33610"
+  WAL_DEMUL_FIELDS: "Axis_X,Axis_Y,EnableInputsHack,HideCrosshairs,Reload,Trigger"
+  WAL_DEMUL_PLAYERS: "2"
+  # the plugin's aim in Unity's pixels (Screen: the resolution of args), the picture centered
+  WAL_DEMUL_RESOLUTION: 1440x1080
+  # player 2's own coin key (the plugin's ini: 5 / 6)
+  WAL_DEMUL_KEYS_P2: "key_5=key_6"
+  # the game's own crosshairs (the plugin's flag): the common crosshair option's default
+  WAL_CROSSHAIR: "1"
+  # free play: the settings' Free; the crosshairs: their FrontSight
+  WAL_ARCADEPC_XML: "GameConfig.xml:Free={freeplay},FrontSight={crosshair}"
+
+input:
+  # each gun (or mouse) aims, its trigger shoots; shooting off the screen reloads
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    offscreen: b6
+
+# The cabinet has no start buttons: a shot starts (the plugin's keys 1 / 2 unread). The
+# plugin's keyboard keys: 5 coin (player 2's: 6), 0 test (the settings), Enter the settings'
+# select.
+native_map:
+  start: trigger
+  coin: key_5
+  test: key_0
+  service: key_return
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: 3 coins a game (the settings menu changes it).
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (reloads off screen)
+  b3: Reload
+  b6: Gun off screen
+  start: Start (a shot)
+  coin: Coin
+  test: Settings menu
+  service: Settings select
