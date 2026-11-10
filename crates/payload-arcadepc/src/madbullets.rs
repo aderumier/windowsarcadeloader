@@ -7,13 +7,19 @@
 //! game window's picture), the trigger its left button, the keys posted (`payload-common`'s
 //! `input_filter`: the real keyboard and mouse never reach the game, moves included).
 //!
-//! The game's pointer is the system cursor (its `cursor.cur`), at the real mouse: the payload
+//! The game's pointer is the system cursor (its `cursor.cur`, the window class's): the payload
 //! draws the gun's crosshair over its picture instead (the common crosshair option,
 //! `WAL_CROSSHAIR`): the executable's `SwapBuffers` hooked, a red cross outlined in black drawn
 //! with OpenGL's fixed pipeline (the game's context is a legacy one: `wglCreateContext`), the
-//! game's state saved and put back.
+//! game's state saved and put back; the game's cursors (`LoadCursorFromFileA`, `LoadCursorA`)
+//! then an invisible one.
 //!
-//! Natives: `trigger` (player 1), `back` (Escape: the pause menu, back in the menus).
+//! The game reloads only by a touch of its bullet belt (the HUD's reload buttons:
+//! `onHudReload`, no key): the gun's reload, or a shot off the screen, clicks the belt (the
+//! pointer there, the left button pressed and released, the pointer back on the gun).
+//!
+//! Natives: `trigger` (player 1), `reload`, `offscreen` (the gun off the screen: the trigger
+//! reloads), `back` (Escape: the pause menu, back in the menus).
 
 use std::sync::OnceLock;
 use std::ffi::c_void;
@@ -26,7 +32,7 @@ use wal_payload_common::{gun, input, log};
 use windows_sys::Win32::Foundation::RECT;
 use windows_sys::Win32::Graphics::Gdi::WindowFromDC;
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
-use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE};
+use windows_sys::Win32::UI::WindowsAndMessaging::{CreateCursor, GetClientRect, HCURSOR, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE};
 
 /// `wParam`'s left button flag.
 const MK_LBUTTON: usize = 0x0001;
@@ -34,13 +40,20 @@ const MK_LBUTTON: usize = 0x0001;
 #[derive(Clone, Copy, PartialEq)]
 enum Native {
     Trigger,
+    Reload,
+    Offscreen,
     /// A key: its virtual key.
     Key(u16),
 }
 
-const NATIVES: &[(&str, Native)] = &[("trigger", Native::Trigger), ("back", Native::Key(0x1B))];
+const NATIVES: &[(&str, Native)] =
+    &[("trigger", Native::Trigger), ("reload", Native::Reload), ("offscreen", Native::Offscreen), ("back", Native::Key(0x1B))];
 
-const DEFAULTS: &[(&str, &str)] = &[("b1", "trigger"), ("b2", "back")];
+/// The gun's right button reloads, start is the pause menu.
+const DEFAULTS: &[(&str, &str)] = &[("b1", "trigger"), ("b2", "reload"), ("b6", "offscreen"), ("start", "back")];
+
+/// The bullet belt (the HUD's reload button), on the picture: its middle, bottom left.
+const BELT: (f32, f32) = (0.15, 0.88);
 
 fn map() -> &'static ButtonMap<Native> {
     static MAP: OnceLock<ButtonMap<Native>> = OnceLock::new();
@@ -56,6 +69,7 @@ pub fn key_held(vk: i32) -> bool {
 
 fn input_thread() {
     let (mut keys_was, mut trigger_was, mut last) = ([0u64; 4], false, (i32::MIN, i32::MIN));
+    let mut reload_was = false;
     let mut tick = 0u32;
     loop {
         std::thread::sleep(Duration::from_millis(8));
@@ -64,11 +78,17 @@ fn input_thread() {
             continue;
         }
         let mut keys = [0u64; 4];
-        let mut trigger = false;
+        let (mut trigger, mut reload, mut offscreen) = (false, false, false);
         map().for_each_pressed(&input(0), |n| match n {
             Native::Trigger => trigger = true,
+            Native::Reload => reload = true,
+            Native::Offscreen => offscreen = true,
             Native::Key(vk) => keys[vk as usize / 64] |= 1 << (vk % 64),
         });
+        // off the screen the trigger reloads
+        if offscreen && trigger {
+            (trigger, reload) = (false, true);
+        }
         for vk in 0..256u16 {
             let (now, was) = (keys[vk as usize / 64] >> (vk % 64) & 1 != 0, keys_was[vk as usize / 64] >> (vk % 64) & 1 != 0);
             if now != was {
@@ -97,7 +117,47 @@ fn input_thread() {
             post_mouse(hwnd, if trigger { WM_LBUTTONDOWN } else { WM_LBUTTONUP }, last.0, last.1, buttons);
         }
         trigger_was = trigger;
+        if reload && !reload_was && !trigger {
+            click_belt(hwnd, &r, last);
+        }
+        reload_was = reload;
     }
+}
+
+/// A reload: the bullet belt touched (a frame between each step), the pointer back at `back`.
+fn click_belt(hwnd: windows_sys::Win32::Foundation::HWND, r: &RECT, back: (i32, i32)) {
+    let belt = ((BELT.0 * r.right as f32) as i32, (BELT.1 * r.bottom as f32) as i32);
+    let step = Duration::from_millis(35);
+    log!("madbullets: reload (the belt at {}, {})", belt.0, belt.1);
+    post_mouse(hwnd, WM_MOUSEMOVE, belt.0, belt.1, 0);
+    std::thread::sleep(step);
+    post_mouse(hwnd, WM_LBUTTONDOWN, belt.0, belt.1, MK_LBUTTON);
+    std::thread::sleep(step);
+    post_mouse(hwnd, WM_LBUTTONUP, belt.0, belt.1, 0);
+    std::thread::sleep(step);
+    if back.0 != i32::MIN {
+        post_mouse(hwnd, WM_MOUSEMOVE, back.0, back.1, 0);
+    }
+}
+
+/// An invisible cursor (the payload's crosshair drawn instead).
+fn no_cursor() -> HCURSOR {
+    static CURSOR: AtomicUsize = AtomicUsize::new(0);
+    if CURSOR.load(Ordering::Relaxed) == 0 {
+        // 32x32: the AND mask keeps the screen, the XOR mask changes nothing
+        let (and, xor) = ([0xFFu8; 128], [0u8; 128]);
+        let cursor = unsafe { CreateCursor(GetModuleHandleW(std::ptr::null()), 0, 0, 32, 32, and.as_ptr().cast(), xor.as_ptr().cast()) };
+        CURSOR.store(cursor as usize, Ordering::Relaxed);
+    }
+    CURSOR.load(Ordering::Relaxed) as HCURSOR
+}
+
+unsafe extern "system" fn load_cursor_from_file(_name: *const u8) -> HCURSOR {
+    no_cursor()
+}
+
+unsafe extern "system" fn load_cursor(_instance: *mut c_void, _name: *const u8) -> HCURSOR {
+    no_cursor()
 }
 
 // The crosshair: OpenGL's functions (opengl32's exports, then the context's)
@@ -234,6 +294,10 @@ pub fn init() {
     if wal_payload_common::crosshairs(true) {
         if let Some(orig) = unsafe { wal_payload_common::iat::hook_module(exe, "gdi32.dll", "SwapBuffers", swap_buffers as *const () as usize) } {
             ORIG_SWAP.store(orig, Ordering::Relaxed);
+        }
+        // the game's cursor hidden: the crosshair is the payload's
+        for (name, f) in [("LoadCursorFromFileA", load_cursor_from_file as *const () as usize), ("LoadCursorA", load_cursor as *const () as usize)] {
+            unsafe { wal_payload_common::iat::hook_module(exe, "user32.dll", name, f) };
         }
     }
     wal_payload_common::input_filter::init(exe, key_held);

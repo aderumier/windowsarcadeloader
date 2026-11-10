@@ -4927,11 +4927,16 @@ Ironbird's 2016 shooting game, the Steam release (`bin_x86\game.exe`, OpenGL leg
 - **Input.** The game reads the mouse from its own `PeekMessageA` loop (`WM_MOUSEMOVE`, left
   button) and keys with `GetKeyState`: `input_filter::init(exe)` + `own_mouse`, the gun posted as
   the mouse (client pixels of the window's picture, re-posted every half second), trigger = left
-  button, b2 = Escape (pause / back).
+  button, start = Escape (pause / back).
+- **Reload.** The game reloads only by a touch of its bullet belt (the HUD's reload buttons,
+  `onHudReload`; no key): the gun's reload (b2, its right button) or a shot off the screen (b6)
+  clicks the belt (pointer at 0.15, 0.88 of the picture, left button down and up a frame apart,
+  pointer back on the gun). Verified headless: an empty belt full again, a full one unchanged.
 - **Crosshair.** The game's pointer is the system cursor (`cursor.cur`, at the real mouse): the
   executable's `gdi32!SwapBuffers` is hooked and a red cross drawn at the gun with the fixed
-  pipeline (attributes, matrices, program and draw framebuffer saved and put back);
-  `WAL_CROSSHAIR=0` turns it off.
+  pipeline (attributes, matrices, program and draw framebuffer saved and put back), the game's
+  cursors (`LoadCursorFromFileA`, `LoadCursorA` in the executable) an invisible one;
+  `WAL_CROSSHAIR=0` turns it off (the game's cursor back).
 - Verified headless (2026-11-10): menu, PLAY clicked with the gun, boosts screen, gameplay with
   shots scoring at the aimed enemies, the crosshair exactly at the gun.
 
@@ -7387,7 +7392,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `bounty-hunter` | Bounty Hunter | arcadepc | headless-tested, awaiting user (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
 | `friction` | Friction | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play by service credits at start, the game's own crosshairs |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
-| `mad-bullets` | Mad Bullets | arcadepc | headless-tested, awaiting user (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture, OpenAL from winetricks, Escape on b2 |
+| `mad-bullets` | Mad Bullets | arcadepc | headless-tested, awaiting user (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture (the game's cursor hidden), OpenAL from winetricks, reload = a click on the bullet belt (b2 or a shot off the screen), Escape on start |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

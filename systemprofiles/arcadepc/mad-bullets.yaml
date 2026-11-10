@@ -2,8 +2,9 @@
 # its steam_api.dll a Steam emulator) - template, override values in
 # userprofiles/arcadepc/mad-bullets.yaml.
 # A one-player shooting game played with the mouse: the payload plays that mouse with the gun
-# (WAL_ARCADEPC_BOARD=madbullets, docs §6.3i) and draws its crosshair (the game's pointer is
-# the system cursor). A PC game: no coins, no credits.
+# (WAL_ARCADEPC_BOARD=madbullets, docs §6.3i) and draws its crosshair (the game's cursor hidden).
+# The gun's reload (right button) or a shot off the screen touches the bullet belt (the game's
+# only reload); start is the pause menu. A PC game: no coins, no credits.
 system: arcadepc
 name: Mad Bullets
 
@@ -26,15 +27,21 @@ options:
         label: Crosshair
         kind: bool
         description: >-
-          The gun's crosshair drawn over the picture (the game shows no pointer of its own).
+          The gun's crosshair drawn over the picture, the game's cursor hidden. Off: the game's
+          cursor.
 
 input:
   # one lightgun (or mouse): the pointer aims, left button shoots
   guns_enabled: true
   stick_as_dpad: false
+  # a shot off the screen reloads
+  gun:
+    offscreen: b6
 
 controls:
   lx: Gun aim (x)
   ly: Gun aim (y)
   b1: Trigger
-  b2: Pause / back (Escape)
+  b2: Reload (the bullet belt)
+  b6: Gun off screen (the trigger reloads)
+  start: Pause / back (Escape)
