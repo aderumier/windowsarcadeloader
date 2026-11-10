@@ -424,6 +424,20 @@ const GL_TEXTURE0: u32 = 0x84C0;
 /// Gashaaaan: the crosshairs over the window's back buffer (`ww` x `wh`, the default
 /// framebuffer bound), before its swap. The game's state saved around them.
 pub unsafe fn draw_gl(ww: i32, wh: i32) {
+    unsafe { draw_gl_area(ww, wh, (0.0, 0.0, ww as f32, wh as f32)) };
+}
+
+/// The crosshairs over the back buffer of `hwnd`, a window on a part of the screen (Pull The
+/// Trigger: the screen's centered 4:3): each aim at its place on the screen, in the window.
+pub unsafe fn draw_gl_window(hwnd: P) {
+    let Some((left, top, w, h)) = crate::gun::client_area(hwnd.cast()) else { return };
+    let (sw, sh) = crate::gun::screen_size();
+    unsafe { draw_gl_area(w as i32, h as i32, (left, top, sw, sh)) };
+}
+
+/// The crosshairs over a `ww` x `wh` back buffer whose window's top left is at `(area.0,
+/// area.1)` of an `area.2` x `area.3` screen (the aims span the screen).
+unsafe fn draw_gl_area(ww: i32, wh: i32, area: (f32, f32, f32, f32)) {
     let mut guard = STATE.lock().unwrap();
     let Some(state) = guard.as_mut() else { return };
     let shown = aims(state);
@@ -489,8 +503,8 @@ pub unsafe fn draw_gl(ww: i32, wh: i32) {
             let (Some(aim), Some(&tex)) = (aim, state.gl_textures.get(player)) else { continue };
             let image = &state.images[player];
             let cw = ch * image.w as f32 / image.h as f32;
-            let x = (aim.0 as f32 + 32768.0) / 65535.0 * ww as f32 - cw / 2.0;
-            let y = (aim.1 as f32 + 32768.0) / 65535.0 * wh as f32 - ch / 2.0;
+            let x = (aim.0 as f32 + 32768.0) / 65535.0 * area.2 - area.0 - cw / 2.0;
+            let y = (aim.1 as f32 + 32768.0) / 65535.0 * area.3 - area.1 - ch / 2.0;
             (gl.bind_texture)(GL_TEXTURE_2D, tex);
             (gl.begin)(GL_QUADS);
             for (u, v) in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {

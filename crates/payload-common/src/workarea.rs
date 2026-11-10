@@ -167,6 +167,12 @@ pub fn init() {
     ];
     for &base in &modules {
         for (name, f, orig) in &hooks {
+            // one original per function: a slot another DLL hooked is left to it (it calls the
+            // real function through its own imports, hooked here)
+            if unsafe { iat::foreign_hook(base, "user32.dll", name) } {
+                log!("workarea: {name} of module {base:#x} hooked by another DLL: left to it");
+                continue;
+            }
             if let Some(o) = unsafe { iat::hook_module(base, "user32.dll", name, *f) } {
                 if o != *f {
                     orig.store(o, Ordering::Relaxed);

@@ -113,6 +113,9 @@
 //! Mad Bullets (`WAL_ARCADEPC_BOARD=madbullets`, x86 build): `madbullets.rs` plays its mouse
 //! with the gun.
 //!
+//! Pull The Trigger (`WAL_ARCADEPC_BOARD=pullthetrigger`, x86 build): `pullthetrigger.rs`
+//! plays its mouse and keys with the gun (the cabinet's COM2 gun board left absent).
+//!
 //! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
 //! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
@@ -167,6 +170,8 @@ mod topgun2_landscape;
 mod pads;
 #[cfg(target_arch = "x86")]
 mod popmoto;
+#[cfg(target_arch = "x86")]
+mod pullthetrigger;
 #[cfg(target_arch = "x86")]
 mod sdc2;
 #[cfg(target_arch = "x86")]
@@ -434,6 +439,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "madbullets" => {
                 pads::disconnect();
                 madbullets::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "pullthetrigger" => {
+                pads::disconnect();
+                pullthetrigger::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "popmoto" => {

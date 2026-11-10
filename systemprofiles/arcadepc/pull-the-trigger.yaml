@@ -1,0 +1,75 @@
+# Pull The Trigger (Digital Silkroad / Covielsa, 2003, PTW-BootTest.exe, OpenGL, 32-bit) -
+# template, override values in userprofiles/arcadepc/pull-the-trigger.yaml.
+# A one-gun shooting game (two players: two cabinets linked). The dump runs PTW-BootTest.exe,
+# the decrypted build of the WibuKey-protected PTW.exe, with its community PttBootTest.dll (the
+# videos as MP4, the window stretched to the screen's 4:3, FREEPLAY). The cabinet's gun board
+# (COM2) is absent: the payload plays the game's mouse and keys with the gun (docs §6.3i).
+system: arcadepc
+name: Pull The Trigger
+
+# The game imports no DLL of ours: the payload is loaded at its entry point.
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# Its sound is DirectMusic: Wine's failed ("DirectMusic Device Initialize Fail.", the game
+# stopped on a black screen): native DirectMusic + DirectSound + the GM DLS sound bank.
+tricks: [dmband, dmcompos, dmime, dmloader, dmscript, dmstyle, dmsynth, dmusic, dmusic32, dsound, dswave, dsdmo, gmdls]
+
+# The game keeps its gun calibration and rankings in d:\dsrinfo when that folder exists (the
+# game's own folder otherwise).
+drives:
+  d: WindowsLoader
+
+initial_files:
+  WindowsLoader/dsrinfo/correctionV2.txt: "{dump}/correctionV2.txt"
+  WindowsLoader/dsrinfo/ranking.bin: "{dump}/ranking.bin"
+
+env:
+  WAL_ARCADEPC_BOARD: pullthetrigger
+  # The community library's window is the screen's centered 4:3 (the payload gives it that
+  # monitor): the dump's art around it, its opening fitted to the picture, its sides stretched to
+  # the screen's edges.
+  WAL_BEZEL: bezel.png
+  WAL_BEZEL_FIT: stretch
+  # not managed by the window manager: GNOME's top bar pushed the full-height window down (the
+  # picture cut at the bottom); never told it lost the focus
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+  # the common crosshair option, on: the gun's crosshair over the picture
+  WAL_CROSSHAIR: "1"
+
+input:
+  # one lightgun (or mouse): the pointer aims, the trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Start then a shot begins a game without coins (a credit's price 0). Off: the operator
+          menu's coin setting.
+      - key: WAL_CROSSHAIR
+        label: Crosshair
+        kind: bool
+        description: >-
+          The gun's crosshair drawn over the picture (hidden after a few seconds without
+          moving). Off: only the game's small aim mark.
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (shoot, select)
+  b2: Cover (the pedal)
+  b7: Cover (the pedal, keyboard C)
+  start: Start
+  coin: Coin
+  test: Operator menu (at the title)
+  up: Operator menu up
+  down: Operator menu down
+  left: Operator menu left
+  right: Operator menu right

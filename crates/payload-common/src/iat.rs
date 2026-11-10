@@ -143,6 +143,22 @@ pub unsafe fn hook_addr(dll: &str, function: &str) -> Option<usize> {
     }
 }
 
+/// The module loaded at `base` imports `dll!function` through a slot another DLL of the game
+/// already patched (neither the real function nor one of ours): Pull The Trigger's community
+/// `PttBootTest.dll` hooks the executable's `CreateWindowExA` (it learns the game's window there)
+/// and calls the real one through its own imports.
+///
+/// # Safety
+/// `base` must be a loaded module.
+pub unsafe fn foreign_hook(base: usize, dll: &str, function: &str) -> bool {
+    unsafe {
+        let Some((slot, _)) = find_slot(base, dll, Import::Name(function)) else { return false };
+        let value = slot.read();
+        let real = resolve(dll, Import::Name(function));
+        real != 0 && value != real && !HOOKED.lock().unwrap().iter().any(|(_, h)| *h == value)
+    }
+}
+
 /// The IAT slot of `dll!function` in the module loaded at `base`, with what to record in
 /// `HOOKED` when patching it: the resolved address for imports without a lookup table (a slot
 /// without a name once loaded), the original slot value otherwise.

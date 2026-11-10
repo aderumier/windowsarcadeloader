@@ -4940,6 +4940,44 @@ Ironbird's 2016 shooting game, the Steam release (`bin_x86\game.exe`, OpenGL leg
 - Verified headless (2026-11-10): menu, PLAY clicked with the gun, boosts screen, gameplay with
   shots scoring at the aimed enemies, the crosshair exactly at the gun.
 
+#### Pull The Trigger
+
+Digital Silkroad's 2003 one-gun shooter (two players are two cabinets linked: LINK PLAY). The dump
+runs `PTW-BootTest.exe`, the decrypted build of the WibuKey-protected (`.wkcrypt`) `PTW.exe`
+(OpenGL, 640x480, 32-bit), with its community `PttBootTest.dll` (imported by the executable: it
+patches the executable's IAT to play the `AVI\*.mp4` videos with MFPlay in place of the MCI
+`.avi` ones, stretch the window to the screen and draw FREEPLAY). Board `pullthetrigger`
+(`pullthetrigger.rs`, x86 build), loaded by `payload_loader`.
+
+- **Input.** The cabinet's gun board is a serial one on COM2 (MarshallSoft `wsc32.dll`): absent,
+  the game logs "iolink setup fail" and goes on. Its window procedure takes the same from the
+  mouse and keyboard: the gun is posted as the mouse (client pixels), trigger = left button;
+  start = S, coin = Insert, cover = Space held (the pedal: b2, keyboard C's b7), test = Home (the
+  SYSTEM MENU, at the title), Page Up / Page Down / Delete / End its navigation from the
+  directions (`input_filter::init(exe)` + `own_mouse`: the real keyboard and mouse filtered).
+- **Free play.** No setting: the price of a credit (`settings\coinsetting.txt`, game object +0x120
+  at 0x4cc340) kept at 0, start then a shot begins a game; the community library shows FREEPLAY.
+- **Display.** The library makes the game's popup window its monitor's size (`MonitorFromPoint` /
+  `GetMonitorInfoW` in its `CreateWindowExA` hook) and draws the 4:3 picture in its middle: its
+  `GetMonitorInfoW` answers the screen's centered 4:3 rectangle, the window is the picture and the
+  dump's `bezel.png` (opening 4:3) is drawn around it (`WAL_BEZEL_FIT=stretch`).
+- **Its video window.** The library's MP4 player is a child of the game's window, which it learns
+  in its `CreateWindowExA` hook of the executable. `workarea.rs` kept one original per function
+  for every module it hooked: the executable's call went to user32 directly, the library never saw
+  the window, its child window failed ("No parent for child window") and MCI looked for the
+  missing `.avi`. A slot another DLL hooked is now left to it (`iat::foreign_hook`).
+- **Window manager.** `WAL_DESKTOP_UNMANAGED` / `WAL_DESKTOP_ACTIVE`: GNOME's top bar pushed the
+  full-height window down (a black band at the top, the picture cut at the bottom).
+- **Crosshair.** The common option (`WAL_CROSSHAIR`, on): drawn before the executable's
+  `SwapBuffers` (the library's hook of it after) with `crosshair::draw_gl_window`: the OpenGL
+  crosshair of a window on a part of the screen (each aim at its place on the screen, in the
+  window; `draw_gl` took the window for the screen).
+- **Sound.** DirectMusic: native (winetricks); with Wine's the game stopped on "DirectMusic Device
+  Initialize Fail.".
+- `d:\dsrinfo` (drive D: = the dump's `WindowsLoader`): the gun calibration and the rankings.
+- Verified headless (2026-11-10): title, coin / start / shot to PLAYER SELECT, character and bonus
+  screens, the aim at the gun, the operator menu. User 100% on the desktop (2026-11-10).
+
 #### Bounty Hunter
 
 GCTECH's striking game (`bh.exe`, 2002, Power Render 4 on Direct3D 8, 32-bit, UPX-packed,
@@ -7524,6 +7562,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `friction` | Friction | arcadepc | user 100% (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play as 99 credits never spent, a shot is also its player's start, the payload's crosshairs (common option) |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 | `mad-bullets` | Mad Bullets | arcadepc | user 100% (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture (the game's cursor hidden), OpenAL from winetricks, reload = a click on the bullet belt (b2 or a shot off the screen), Escape on start |
+| `pull-the-trigger` | Pull The Trigger | arcadepc | user 100% (2026-11-10), 1 gun | Digital Silkroad's shooter (OpenGL, 32-bit, §6.3i): the dump's decrypted `PTW-BootTest.exe` + community `PttBootTest.dll` (MP4 videos, FREEPLAY), the gun plays its mouse and keys (COM2 board absent), free play = price 0, the library's window on the screen's 4:3 with the dump's bezel (unmanaged), crosshair, native DirectMusic |
 | `pop-moto` | Pop Moto | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, item) | Tecway's motorbike racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `USB_board.dll` (handlebar, throttle lever, keys, coins) and patches the engine's scripts as the community library, no server, free play as the game's free mode |
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) | DiverBras' kart racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `bin\s_input.dll` in each of its engine programs (menus, races, operator menu), their hand-offs started by the launcher (relaunch), the record photo (webcam) skipped, free play as the game's own (JOGO LIVRE) |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
