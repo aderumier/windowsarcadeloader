@@ -30,8 +30,8 @@ env:
   WAL_WINDOW_POPUP: "1"
   WAL_DESKTOP_STRETCH: "1"
   WAL_KEEP_ASPECT_RATIO: "0"
-  # the window's client size read in the desktop's units (the stretched window read back made
-  # the game size its window from the screen's height again, growing it on each turn)
+  # the window's client size in the desktop's units (GetClientRect, WM_SIZE): the game sizes
+  # its picture from it
   WAL_DESKTOP_CLIENT: "1"
   WAL_PACKED_IMPORTS: user32.dll
 

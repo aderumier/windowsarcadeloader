@@ -29,7 +29,8 @@
 //! (`GetClientRect`: the fitted window's client size unscaled, `GetWindowRect`, `ClientToScreen`:
 //! places on the desktop). Harikiri Professional Baseball's test menu makes its back buffer and then its window
 //! the client size it reads (scaled again on each turn otherwise), its game subtracts its
-//! window's origin from its touch position, already in desktop coordinates.
+//! window's origin from its touch position, already in desktop coordinates. `WM_SIZE` gives
+//! that client size too.
 //!
 //! `WAL_DESKTOP_STRETCH=1`: with `WAL_KEEP_ASPECT_RATIO=0` (Batocera ES's KEEP ASPECT RATIO off)
 //! the desktop is stretched over the whole screen instead (each axis its own scale): a wide game
@@ -65,6 +66,8 @@ static ORIG_MONITOR_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_MONITOR_W: AtomicUsize = AtomicUsize::new(0);
 /// `WAL_DESKTOP_ACTIVE=1`.
 static ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// `WAL_DESKTOP_CLIENT=1`.
+static CLIENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static ORIG_ENUM_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_ENUM_W: AtomicUsize = AtomicUsize::new(0);
 static ORIG_ENUM_EX_A: AtomicUsize = AtomicUsize::new(0);
@@ -126,7 +129,11 @@ fn to_screen(x: i32, y: i32, w: i32, h: i32) -> (i32, i32, i32, i32) {
     if crate::border::config().is_some() { let (sw,sh)=screen(); return (0,0,sw,sh); }
     let (sx, sy, _, _) = fit();
     let (sw, sh) = screen();
-    let (nw, nh) = ((w as f64 * sx).round() as i32, (h as f64 * sy).round() as i32);
+    // stretched, a window as wide or as tall as the desktop is the whole screen: UE4 sized its
+    // window from its window's height read back (1600x1200 -> 2133x1200 on a 4:3 screen),
+    // scaled again it grew on each turn
+    let full = size().is_some_and(|(dw, dh)| stretched() && (w >= dw || h >= dh));
+    let (nw, nh) = if full { (sw, sh) } else { ((w as f64 * sx).round() as i32, (h as f64 * sy).round() as i32) };
     let (nx, ny) = ((sw - nw) / 2, (sh - nh) / 2);
     log!("desktop: window {w}x{h} at {x},{y} -> {nw}x{nh} at {nx},{ny}");
     (nx, ny, nw, nh)
@@ -364,6 +371,17 @@ unsafe extern "system" fn window_proc(hwnd: P, msg: u32, wparam: usize, lparam: 
             PostMessageW(hwnd, WM_SETFOCUS, 0, 0);
         }
     }
+    // `WAL_DESKTOP_CLIENT`: the client size of `WM_SIZE` in desktop units too, as
+    // `GetClientRect` gives it (Fantasy Soccer's Unreal Engine on Batocera's Xwayland: its back
+    // buffer resized to the 1600x1200 window, its 1920x1080 view drawn into the top left)
+    const WM_SIZE: u32 = 0x0005;
+    let lparam = if CLIENT.load(Ordering::Relaxed) && msg == WM_SIZE && is_top_level(hwnd) {
+        let (sx, sy, _, _) = fit();
+        let (w, h) = ((lparam & 0xFFFF) as f64 / sx, ((lparam >> 16) & 0xFFFF) as f64 / sy);
+        ((h.round() as isize & 0xFFFF) << 16) | (w.round() as isize & 0xFFFF)
+    } else {
+        lparam
+    };
     let r = unsafe { CallWindowProcW(Some(std::mem::transmute::<usize, _>(orig)), hwnd, msg, wparam, lparam) };
     // Unity's procedure puts its own size back (WM_WINDOWPOSCHANGING): fitted again
     if msg == windows_sys::Win32::UI::WindowsAndMessaging::WM_WINDOWPOSCHANGING && lparam != 0 {
@@ -634,6 +652,7 @@ pub fn init() {
     // desktop units (Elevator Action Invasion's Unreal Engine laid out its portrait picture in
     // the real, screen-wide window otherwise: the left part of a 1920x1080 swap chain)
     let client = crate::border::config().is_some() || std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1");
+    CLIENT.store(std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
     ACTIVE.store(std::env::var("WAL_DESKTOP_ACTIVE").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
     let hooks: [(&str, usize, &AtomicUsize); 20] = [
         ("GetWindowRect", if client { window_rect as *const () as usize } else { 0 }, &ORIG_WINDOW_RECT),
