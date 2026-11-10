@@ -1,0 +1,53 @@
+# Senninha GP (interface.exe the menus, bin\<track>\seninha.exe the races, 3D GameStudio engine
+# acknex.dll, Direct3D 9, 32-bit) - template, override values in
+# userprofiles/arcadepc/senninha-gp.yaml.
+# A kart racing game: a wheel, two pedals, boost, item and camera buttons. The payload is the
+# cabinet's input library (bin\s_input.dll), loaded by each of the game's programs (docs §6.3i).
+system: arcadepc
+name: Senninha GP
+
+# the game's input library: the payload, in place of the dump's community one
+payload_install: [bin/s_input.dll]
+
+env:
+  WAL_ARCADEPC_BOARD: senninha
+  # the engine's DirectInput: the payload's, without devices
+  WAL_DINPUT_DISABLE: "1"
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 300
+  # Keyboard: Left / Right wheel, Up accelerator, Down brake.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's free play (its operator menu's, config_senninha.ini [Coin] value 0):
+          starts without coins. Off: its coin settings.
+
+controls:
+  lx: Wheel
+  accel: Accelerator
+  brake: Brake
+  b1: Boost
+  b2: Item
+  b3: Camera
+  left: Wheel full left
+  right: Wheel full right
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

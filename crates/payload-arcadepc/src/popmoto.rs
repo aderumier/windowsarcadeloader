@@ -8,7 +8,7 @@
 //!   `isButtonDown(n)` the keys (0 start, 1 item, 2 test), `getCoinSum` 1 for each coin
 //!   inserted. The ticket, counter and lamp functions do nothing.
 //! - **Engine patches.** `A6_DLLAPI` (the engine's plugin entry, called when it loads the
-//!   library) patches the game's compiled scripts (their code at the engine's
+//!   library, lib.rs) patches the game's compiled scripts (their code at the engine's
 //!   `[acknex.dll+0x21ab1c]`): two 3-byte instructions at +0x5283c and +0x17ef7f (from the
 //!   community library), and makes the network library's connection (`GS_XSocket_CS.dll`'s
 //!   `x_connect_to_sever`) return at once: one cabinet, no server.
@@ -117,10 +117,9 @@ unsafe fn patch(at: usize, expect: Option<&[u8]>, bytes: &[u8]) -> bool {
     true
 }
 
-/// The engine's plugin entry: the game patches (see the module's notes); the plugin SDK
-/// version the engine expects.
-#[unsafe(no_mangle)]
-pub extern "C" fn A6_DLLAPI(_a: i32) -> i32 {
+/// From the engine's plugin entry (`A6_DLLAPI`, lib.rs): the game patches (see the module's
+/// notes).
+pub fn engine_patches() {
     unsafe {
         let socket = LoadLibraryA(c"GS_XSocket_CS.dll".as_ptr().cast());
         if let Some(connect) = GetProcAddress(socket, c"x_connect_to_sever".as_ptr().cast()) {
@@ -136,7 +135,6 @@ pub extern "C" fn A6_DLLAPI(_a: i32) -> i32 {
             }
         }
     }
-    630
 }
 
 #[unsafe(no_mangle)]

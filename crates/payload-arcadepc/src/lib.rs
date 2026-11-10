@@ -76,6 +76,9 @@
 //! Pop Moto (`WAL_ARCADEPC_BOARD=popmoto`, x86 build): `popmoto.rs` is its `USB_board.dll` (the
 //! handlebar, throttle lever, keys, coins) and patches its engine's scripts as the community one.
 //!
+//! Senninha GP (`WAL_ARCADEPC_BOARD=senninha`, x86 build): `senninha.rs` is its `s_input.dll`
+//! (the wheel, pedals, switches) in each of its engine programs.
+//!
 //! Subway Surfers Arcade (`WAL_ARCADEPC_BOARD=subway`): `subway.rs` posts its cabinet's keys and
 //! the hoverboard's double tap, and is its lamps' silent Arduino.
 //!
@@ -166,6 +169,8 @@ mod pads;
 mod popmoto;
 #[cfg(target_arch = "x86")]
 mod sdc2;
+#[cfg(target_arch = "x86")]
+mod senninha;
 mod softkey;
 mod spacewarp;
 mod subway;
@@ -437,6 +442,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 wal_payload_common::input_filter::init(exe, |_| false);
                 popmoto::init();
             }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "senninha" => {
+                pads::disconnect();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                senninha::init();
+            }
             _ if board.trim() == "subway" => {
                 pads::disconnect();
                 subway::init();
@@ -463,4 +475,15 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         }
     }
     1
+}
+
+/// The 3D GameStudio engine's plugin entry (Pop Moto's `USB_board.dll`, Senninha GP's
+/// `s_input.dll`): the plugin SDK version the engine expects.
+#[cfg(target_arch = "x86")]
+#[unsafe(no_mangle)]
+pub extern "C" fn A6_DLLAPI(_a: i32) -> i32 {
+    if std::env::var("WAL_ARCADEPC_BOARD").is_ok_and(|b| b.trim() == "popmoto") {
+        popmoto::engine_patches();
+    }
+    630
 }
