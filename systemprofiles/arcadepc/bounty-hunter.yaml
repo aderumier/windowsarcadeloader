@@ -1,0 +1,61 @@
+# Bounty Hunter (GCTECH, 2002, bh.exe, Power Render 4 on Direct3D 8, 32-bit, UPX-packed) -
+# template, override values in userprofiles/arcadepc/bounty-hunter.yaml.
+# A striking game on a vertical screen: the player punches and kicks eight pads where the
+# targets light up. The payload emulates the cabinet's COM1 board (the pads, coins, the setup
+# menu) and sets free play (docs §6.3i).
+system: arcadepc
+name: Bounty Hunter
+
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# The vertical game rotated to a landscape screen with a bezel (the dump's ArcCabView):
+# dgVoodoo's D3D8.dll (Direct3D 11) then ReShade as d3d11.dll, on DXVK (wined3d's OpenGL
+# context creation looped in ReShade's OpenGL hooks: the boot hung at random). reshade: false
+# (the vertical picture, sideways) also needs dxvk: false: DXVK's Direct3D 8 crashes in the
+# game's state block calls at its device setup.
+reshade_files: [D3D8.dll, d3d11.dll]
+# (d3dcompiler_47: ReShade compiles its effects with it, Wine's fails them.)
+tricks: [d3dcompiler_47]
+
+# The operator settings file is set for the keyboard: the game's defaults (its board). The
+# coin setting (setup.dat, saved by the setup menu): the game's default (1 coin, 1 credit),
+# then the run directory's file.
+hide: [D3D9.dll, DDraw.dll, BountyHunter.GC, setup.dat]
+
+env:
+  WAL_ARCADEPC_BOARD: bountyhunter
+  # its DirectInput keyboard (Escape quits): the payload's, without keys
+  WAL_DINPUT_DISABLE: "1"
+
+input:
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins (the setup menu shows 0 coins). Off: the setup menu's coins
+          per credit.
+
+controls:
+  b1: Punch pad left (high)
+  b2: Punch pad right (high)
+  b3: Punch pad left (low)
+  b4: Punch pad right (low)
+  b5: Foot pad left (high)
+  b6: Foot pad right (high)
+  b7: Foot pad left (low)
+  b8: Foot pad right (low)
+  up: Punch pad left (high)
+  left: Punch pad left (low)
+  right: Punch pad right (low)
+  down: Foot pad left (low)
+  start: Start (foot pad left, low)
+  coin: Coin
+  service: Service credit
+  test: Setup menu

@@ -66,6 +66,9 @@
 //! Robin Hood (`WAL_ARCADEPC_BOARD=robinhood`, x86 build): `robinhood.rs` emulates its serial
 //! board (keys, coins, tickets); its crossbow is the common DirectInput joystick.
 //!
+//! Bounty Hunter (`WAL_ARCADEPC_BOARD=bountyhunter`, x86 build): `bountyhunter.rs` emulates its
+//! COM1 board (the pads, coins), replaces its leak-tracking allocator and sets free play.
+//!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
@@ -106,6 +109,8 @@
 mod arcticthunder;
 #[cfg(target_arch = "x86")]
 mod ballistics;
+#[cfg(target_arch = "x86")]
+mod bountyhunter;
 mod boys;
 #[cfg(target_arch = "x86")]
 mod bugbusters;
@@ -292,6 +297,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 robinhood::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "bountyhunter" => {
+                pads::disconnect();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                bountyhunter::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "arcticthunder" => {

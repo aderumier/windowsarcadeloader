@@ -4867,6 +4867,48 @@ snow.exe is a new build. The profile is Arctic Thunder's (environment settings o
   START", "1 CREDIT", 1 credit used), driver and track select (Haunted Forest), a race, test into
   the diagnostics, Exit back to the game (its title).
 
+#### Bounty Hunter
+
+GCTECH's striking game (`bh.exe`, 2002, Power Render 4 on Direct3D 8, 32-bit, UPX-packed,
+640x480 on a vertical monitor): the player punches and kicks eight pads (two rows of punch
+pads, two of foot pads, left and right) where the targets light up; bosses picked with the pads
+(a punch moves, a foot selects). `.windowsloader`: `bh.exe`. The payload is loaded at the
+entry point (`payload_loader`, `xinput1_3` native), board `bountyhunter` (`bountyhunter.rs`):
+
+- **Packed.** UPX: the payload starts before the stub unpacks the program; the stub fills the
+  import table with `GetProcAddress`, which the payload hooks (chained to the common
+  DirectInput's): the serial functions are the emulation's (`serial::replacement`). Its first
+  call comes once the code is unpacked: the code patches are written then.
+- **Board.** COM1, 57600 bauds (`0x4129c4`), used when the operator settings
+  (`BountyHunter.GC`, `DataSetting.exe`'s, read at `0x4141c0`) say so (`+0x4b0`). The dump's file
+  is set for the keyboard: hidden, the game starts with its defaults (board on). Packets of 5
+  bytes `xx, cmd, data, xx, sum` (`sum`: the complement of the first four's sum), read once
+  per frame (`0x412ae0`, dispatched at `0x412c20`): `4` the pads (bits 0-3 the left pads, 4-7
+  the right ones, top to bottom: punch high, punch low, foot high, foot low), latched until the
+  frame's end; `1` a coin, `2` a service credit, `3` the setup menu. The game's `FF 06 01 n`
+  / `FF 05` commands get no answer. A pad press is sent once (pads are struck; a held button
+  repeated every frame: the setup menu ran several steps per press).
+- **Keyboard.** The window procedure takes the development keys (`0x413c20`: numpad 8 / 9,
+  5 / 6, 2 / 3, down / up the pads, `Tab` coin, `F1` setup, `F2` service, test keys):
+  skipped (`0x413c32` jumps to the default procedure). DirectInput keyboard (Escape quits):
+  the common fake one (`WAL_DINPUT_DISABLE`).
+- **Loading.** The engine's allocations go through a leak tracker (`0x475f30` / `0x476110`): a
+  list node per block, each free walking the list from its head; the boot's loading took 2.5
+  minutes. Both jump to the payload's: the same blocks (zeroed, two `0xeeeeeeee` guards) from
+  the game's C runtime (`0x4a4eaa` / `0x4a4b4e`), no list. Loading: about 10 s.
+- **Free play.** `setup.dat` (`coins per credit, credits per coin`, read at `0x415500`, written
+  by the setup menu) is copied in the game's object (`[0x4cfd50]`, `+0x1e0`): 0 coins plays
+  free (any pad starts, "FREE PLAY" on the title). `WAL_FREEPLAY` writes 0 there once the
+  object exists (`[0x4cfd50]` holds packed data until then: its value before the program runs is
+  ignored). The dump's `setup.dat` is hidden: the game's default (1 coin, 1 credit), then the
+  run folder's.
+- **Display.** The dump's rotation setup (ArcCabView): dgVoodoo's `D3D8.dll` (Direct3D 11),
+  ReShade 4.9's `d3d11.dll` rotating the picture into the dump's bezel (`reshade_files`,
+  `d3dcompiler_47`), on DXVK: on wined3d, ReShade's OpenGL hooks looped in
+  `wglCreateContext` / `wglCreateLayerContext` and the boot hung at random. Without ReShade
+  (the picture sideways), wined3d is needed: DXVK's Direct3D 8 crashes in the game's state block
+  calls at its device setup (`CaptureStateBlock` / `ApplyStateBlock`).
+
 #### Wild West Shoot Out
 
 Yingqi's two-gun western shooter (`CowBoy.exe`, Unity 5.6, Mono, 32-bit, Direct3D 11; the player
@@ -7158,6 +7200,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder 0.5 runtime (its own dump, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload (first gear at start) |
 | `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | headless-tested, awaiting user (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i): the dump's DemulShooter BepInEx plugin (dongle, serial board, camera guns), the payload its TCP client with its reflection packet (`WAL_DEMUL_FIELDS`), aim in Unity's 1440x1080 picture (`WAL_DEMUL_RESOLUTION`), a shot starts, coin keys per player, free play and the game's crosshairs in its `GameConfig.xml` (`WAL_ARCADEPC_XML`); Doorstop's `GetProcAddress` hook no longer chained by the payload (endless recursion) |
 | `mars-sortie` | Mars Sortie | arcadepc | headless-tested, awaiting user (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play, the game's crosshairs and no player photos by IL patches of their getters, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
+| `bounty-hunter` | Bounty Hunter | arcadepc | headless-tested, awaiting user (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
