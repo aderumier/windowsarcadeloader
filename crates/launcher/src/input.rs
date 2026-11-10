@@ -148,6 +148,11 @@ impl<'a> Hub<'a> {
 
         // gamepads/wheels are read in the background while the game window has the focus
         sdl3::hint::set("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
+        // Logitech wheels (G29...) through the kernel's evdev driver, not SDL's own hidraw one:
+        // the hidraw one read frozen axes and no buttons beside the kernel driver (hid-logitech,
+        // new-lg4ff) and Steam, and force feedback is played through evdev (ffb.rs). The
+        // environment variable still wins (a normal priority hint).
+        sdl3::hint::set("SDL_JOYSTICK_HIDAPI_LG4FF", "0");
         let sdl = sdl3::init().map_err(|e| anyhow::anyhow!("SDL init: {e}"))?;
         let gamepads = sdl.gamepad().map_err(|e| anyhow::anyhow!("SDL gamepad: {e}"))?;
         let joysticks = sdl.joystick().map_err(|e| anyhow::anyhow!("SDL joystick: {e}"))?;

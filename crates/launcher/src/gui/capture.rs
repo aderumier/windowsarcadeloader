@@ -95,6 +95,8 @@ fn read_sdl(tx: &Sender<InputEvent>, wake: &impl Fn()) -> Result<(), String> {
     sdl3::hint::set("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
     // SIGINT/SIGTERM would only become SDL quit events: the window must quit on them
     sdl3::hint::set("SDL_NO_SIGNAL_HANDLERS", "1");
+    // Logitech wheels through the kernel's evdev driver, as the game's input (input.rs)
+    sdl3::hint::set("SDL_JOYSTICK_HIDAPI_LG4FF", "0");
     let sdl = sdl3::init().map_err(|e| e.to_string())?;
     let gamepads = sdl.gamepad().map_err(|e| e.to_string())?;
     let joysticks = sdl.joystick().map_err(|e| e.to_string())?;
