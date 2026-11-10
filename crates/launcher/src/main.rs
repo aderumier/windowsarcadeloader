@@ -630,9 +630,9 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             }
             None => wine.command(&exe_path),
         };
-        // from its own folder (game.bat's `pushd amdaemon`: its configuration files there)
-        let cwd = run_exe_dir.join(exe).parent().map_or_else(|| run_exe_dir.clone(), |d| d.to_path_buf());
-        cmd.args(args).current_dir(cwd);
+        // from the game's folder, as the cabinets' start scripts: the profiles' relative paths
+        // (amdaemon's configuration files) are from there
+        cmd.args(args).current_dir(&run_exe_dir);
         Some(cmd)
     };
     // the game command with these arguments; `relaunched`: started again at the payload's

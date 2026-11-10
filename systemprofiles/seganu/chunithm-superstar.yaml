@@ -12,9 +12,12 @@ name: CHUNITHM SUPERSTAR
 dxvk: false
 
 # game.bat's amdaemon command line (its folder's configuration files, merged in this order) and
-# the profile's last: its video setup off, the network address from DHCP, no LAN install
+# the profile's last: its video setup off, the network address from DHCP, no LAN install; the
+# paths from the game's folder (background programs run there)
 background:
-  - ../amdaemon/amdaemon.exe -f -c config_common.json config_server.json config_client.json config_wal.json
+  - >-
+    ../amdaemon/amdaemon.exe -f -c ..\amdaemon\config_common.json ..\amdaemon\config_server.json
+    ..\amdaemon\config_client.json ..\amdaemon\config_wal.json
 background_wait_ms: 5000
 files:
   App/amdaemon/config_wal.json: systemprofiles/alls/files/chunithm-superstar/config_wal.json
