@@ -5157,6 +5157,7 @@ payload), the input filter installed once `UnityPlayer.dll` is loaded:
   `DllImport`s through `mono_imports`): the port never reaches a real serial port.
 - Verified headless (2026-11-10): attract (INSERT CREDIT(S)), free play start, lane changes by
   the d-pad and the stick, jumps, rolls, the hoverboard.
+- The user: 100% (2026-11-10, desktop).
 
 ### 6.3j UNIS (`crates/payload-unis`)
 
@@ -7450,7 +7451,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `friction` | Friction | arcadepc | user 100% (2026-11-10), 2 guns | Venum Spyder's shooter (Direct3D 9, 32-bit, §6.3i): the payload is its gun board's `vsIOBoard.dll` (the game's listener: guns, coins, start, operator console), the community library's game patches in the profile, free play as 99 credits never spent, a shot is also its player's start, the payload's crosshairs (common option) |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | user 100% (2026-11-10), 2 guns | MegaPixel's PC remake (Unity HDRP, Mono, 64-bit, §6.3i): player 1's gun is the mouse, player 2's a pad (Windows.Gaming.Input disabled), crosshairs placed at the guns (Mono method replacement), start = new cooperative campaign from the main menu (PC menus skipped) or continue, player 2 joins with start, free play = the game's unlimited credits, coins as credits/continues otherwise, campaign mode and difficulty options |
 | `mad-bullets` | Mad Bullets | arcadepc | user 100% (2026-11-10), 1 gun | Ironbird's PC shooting game (OpenGL, 32-bit, §6.3i): the gun plays its mouse (window messages), the crosshair drawn by the payload over its picture (the game's cursor hidden), OpenAL from winetricks, reload = a click on the bullet belt (b2 or a shot off the screen), Escape on start |
-| `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | works (headless 2026-11-10: attract, free play start, lane changes by the d-pad and the stick, jumps, rolls, hoverboard), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
+| `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and
