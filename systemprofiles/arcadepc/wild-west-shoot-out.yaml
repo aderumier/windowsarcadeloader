@@ -1,14 +1,15 @@
 # Wild West Shoot Out (CowBoy.exe, Unity 5.6, Mono, 32-bit) - template, override values in
 # userprofiles/arcadepc/wild-west-shoot-out.yaml.
-# Two guns. The dump's DemulShooter BepInEx plugin (Argonlefou's) replaces the cabinet's serial
-# board, its dongle check and its camera guns: the payload is that plugin's TCP client (the
-# guns) and posts its keyboard keys (docs §6.3i).
+# Two guns. The payload is the cabinet's hardware: its COM1 I/O board (triggers, coins, test,
+# select) emulated, its camera guns and dongle check stubbed, the guns written into the game's
+# camera data (WAL_ARCADEPC_BOARD=wws, docs §6.3i); the dump's BepInEx plugin is not loaded.
 system: arcadepc
 name: Wild West Shoot Out
 
-# Unity's own log beside the game; the 4:3 picture at 1440x1080 (its default: 1024x768), black
-# bars around it on a wide screen
-args: [-logFile, Player.log, -screen-width, "1440", -screen-height, "1080", -screen-fullscreen, "1"]
+# Unity's own log beside the game; the cabinet's 16:9 picture at 1920x1080 full screen (its
+# default: 1024x768; its attract frame and intros' black bars are laid out for 16:9, at 4:3 the
+# 3D scene showed around them)
+args: [-logFile, Player.log, -screen-width, "1920", -screen-height, "1080", -screen-fullscreen, "1"]
 
 # the game's settings (installed at each start: changes in its settings menu last until the next
 # launch): the dump's (English, 3 coins a game, difficulty 3), the credits counted from zero;
@@ -20,19 +21,15 @@ files:
 dll_overrides:
   # Unity tries xinput1_3.dll: the payload
   xinput1_3: "n,b"
-  # Unity Doorstop's BepInEx loader (the plugin)
-  winhttp: "n,b"
+  # Wine's winhttp: the dump's Unity Doorstop (its BepInEx plugin) not loaded
+  winhttp: "b"
 
 env:
-  # the plugin's TCP port and its input class (fields sorted by name, two players)
-  WAL_DEMUL_PORT: "33610"
-  WAL_DEMUL_FIELDS: "Axis_X,Axis_Y,EnableInputsHack,HideCrosshairs,Reload,Trigger"
-  WAL_DEMUL_PLAYERS: "2"
-  # the plugin's aim in Unity's pixels (Screen: the resolution of args), the picture centered
-  WAL_DEMUL_RESOLUTION: 1440x1080
-  # player 2's own coin key (the plugin's ini: 5 / 6)
-  WAL_DEMUL_KEYS_P2: "key_5=key_6"
-  # the game's own crosshairs (the plugin's flag): the common crosshair option's default
+  WAL_ARCADEPC_BOARD: wws
+  # the guns aim over Unity's picture (the resolution of args), centered in its window; the
+  # crosshairs placed for it (their canvas is 1920 units wide: wws.rs)
+  WAL_DEMUL_RESOLUTION: 1920x1080
+  # the game's own crosshairs (its FrontSight setting, below): the common option's default
   WAL_CROSSHAIR: "1"
   # free play: the settings' Free; the crosshairs: their FrontSight
   WAL_ARCADEPC_XML: "GameConfig.xml:Free={freeplay},FrontSight={crosshair}"
@@ -44,14 +41,16 @@ input:
   gun:
     offscreen: b6
 
-# The cabinet has no start buttons: a shot starts (the plugin's keys 1 / 2 unread). The
-# plugin's keyboard keys: 5 coin (player 2's: 6), 0 test (the settings), Enter the settings'
-# select.
+# The cabinet has no start buttons: a shot starts. The board's coin (each player's), test (the
+# settings) and select (their item).
 native_map:
+  # the gun's (or mouse's) right button reloads
+  b2: reload
+  b3: reload
   start: trigger
-  coin: key_5
-  test: key_0
-  service: key_return
+  coin: coin
+  test: test
+  service: select
 
 options:
   - title: Game
@@ -66,6 +65,7 @@ controls:
   lx: Gun aim (x)
   ly: Gun aim (y)
   b1: Trigger (reloads off screen)
+  b2: Reload (right button)
   b3: Reload
   b6: Gun off screen
   start: Start (a shot)

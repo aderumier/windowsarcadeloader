@@ -130,11 +130,13 @@
 //! its Shell as the community did and starts the game with the payload, which plays its mouse
 //! with the gun.
 //!
+//! Wild West Shoot Out (`WAL_ARCADEPC_BOARD=wws`, x86 build): `wws.rs` emulates its COM1 board,
+//! stubs its camera and dongle and writes the guns into the game's camera data (no plugin).
+//!
 //! Savage Quest (`WAL_ARCADEPC_BOARD=savagequest`, x86 build): `savagequest.rs` is the pad
 //! the community `winsavage.exe` loader reads into the DOS game's joystick.
 //!
-//! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, Wild West Shoot Out,
-//! `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
+//! Games with a DemulShooter BepInEx plugin (Quick Shot Arcade, `WAL_DEMUL_PORT`): `demul.rs` is the plugin's TCP client (guns) and posts its keys (coin,
 //! operator buttons); no pads. `xmlset.rs`: a game's XML settings set at start
 //! (`WAL_ARCADEPC_XML`, Wild West Shoot Out's free play). Mars Sortie
 //! (`WAL_ARCADEPC_BOARD=marssortie`, with its plugin): `marssortie.rs` patches its settings'
@@ -216,6 +218,8 @@ mod unrealio;
 mod vcthunder;
 #[cfg(target_arch = "x86")]
 mod vsioboard;
+#[cfg(target_arch = "x86")]
+mod wws;
 #[cfg(target_arch = "x86")]
 mod xio;
 mod xmlset;
@@ -516,6 +520,14 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "mame" => {
                 pads::disconnect();
                 mame::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "wws" => {
+                pads::disconnect();
+                // Unity 5.6: the player is the executable
+                let player = if unity != 0 { unity } else { unsafe { GetModuleHandleW(std::ptr::null()) as usize } };
+                wal_payload_common::input_filter::init(player, |_| false);
+                wws::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "savagequest" => {

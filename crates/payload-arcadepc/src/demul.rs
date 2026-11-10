@@ -167,6 +167,8 @@ pub(crate) struct Player {
     pub(crate) reload: bool,
     action: bool,
     change: bool,
+    /// The gun on the picture (not off the screen or the window).
+    pub(crate) on_picture: bool,
 }
 
 /// The input packet of the players' sticks, for a game window `area`.
@@ -210,7 +212,7 @@ fn packet(area: Option<(f32, f32, f32, f32)>, crosshairs: bool) -> Vec<u8> {
 }
 
 /// `WAL_DEMUL_RESOLUTION=<w>x<h>`: the game's resolution, its picture centered in its window.
-fn resolution() -> Option<(f32, f32)> {
+pub(crate) fn resolution() -> Option<(f32, f32)> {
     static RESOLUTION: OnceLock<Option<(f32, f32)>> = OnceLock::new();
     *RESOLUTION.get_or_init(|| {
         let v = std::env::var("WAL_DEMUL_RESOLUTION").ok()?;
@@ -269,6 +271,7 @@ pub(crate) fn player_state(player: usize, area: Option<(f32, f32, f32, f32)>) ->
         reload: on(Native::Reload) || (trigger && offscreen),
         action: on(Native::Action),
         change: on(Native::Change),
+        on_picture: !offscreen,
     }
 }
 

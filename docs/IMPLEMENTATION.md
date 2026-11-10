@@ -5207,44 +5207,49 @@ the payload is the library instead (`payload_install: [VSIOBOARD.dll]`), board `
 #### Wild West Shoot Out
 
 Yingqi's two-gun western shooter (`CowBoy.exe`, Unity 5.6, Mono, 32-bit, Direct3D 11; the player
-is the executable). The dump keeps BepInEx 5.4 (Unity Doorstop's `winhttp.dll`) and Argonlefou's
-DemulShooter plugin (`BepInEx\plugins\WildWestShootout_BepInEx_DemulShooter_Plugin.dll` +
-`.ini`): it skips the dongle check, stands in for the serial board (`LSerialPort`: its packets
-made from the plugin's buttons) and the camera guns (`BaseGun.GetGunPos` / `GetGunRealPixPos`,
-the crosshairs placed by `GameUIController` / `ShowGamePointController`). `.windowsloader`:
-`CowBoy.exe`. No board: the payload is the plugin's client (`demul.rs`, `WAL_DEMUL_PORT=33610`):
+is the executable; the cabinet's 16:9 screen). The dump keeps BepInEx 5.4 (Unity Doorstop's
+`winhttp.dll`) and Argonlefou's DemulShooter plugin: not loaded (`winhttp` builtin), the
+payload is the cabinet's hardware instead. `.windowsloader`: `CowBoy.exe`. Board `wws`
+(`wws.rs`, x86 build):
 
-- **Reflection packets (`WAL_DEMUL_FIELDS`, `WAL_DEMUL_PLAYERS`).** The plugin's input class is
-  serialized by reflection, its public fields sorted by name, each player array as long as its
-  players: here `Axis_X[2]`, `Axis_Y[2]` (`f32`), `EnableInputsHack`, `HideCrosshairs`,
-  `Reload[2]`, `Trigger[2]` (22 bytes). The profile lists those fields, the payload writes each
-  (the aim, the natives `trigger` / `reload` / `action` / `change`, the inputs hack on, the
-  crosshairs hidden when `WAL_CROSSHAIR=0`); the plugin draws the game's own crosshairs, so the
-  payload's Direct3D 11 dot stays off. Player 2's coin key from `WAL_DEMUL_KEYS_P2`
-  (`key_5=key_6`: each player's key in place of the profile's).
-- **Aim units (`WAL_DEMUL_RESOLUTION`).** The plugin takes Unity's `Screen` pixels (y from the
-  bottom). Unity full screen at its own resolution draws the 4:3 picture centered in the
-  1920x1080 window, black bars around (DXVK's swap chain stays the window's size): the aim is the
-  gun's place in that picture, in the resolution's pixels. The resolution is fixed by the
-  profile's Unity arguments (`-screen-width 1440 -screen-height 1080`; its registry default
-  was 1024x768).
-- **Inputs.** The cabinet has no start buttons: a shot starts (start = the trigger). Coins are
-  the plugin's keys 5 / 6 (one coin each), its `0` opens the settings menu (test: next item),
-  Enter selects (service). Reload: `b3`, or a shot off the picture / with the gun off screen.
+- **The I/O board.** `LSerialPort` opens COM1 (38400 bauds; 8-byte frames `FF <head> <6
+  bytes>`) through Mono's `SerialPort` (`kernel32` `DllImport`s): an emulated device
+  (`serial.rs` by `mono_imports`). The game's I/O check (`5A` and six random bytes) is echoed;
+  the board sends `DD` with each gun's trigger (byte 1 + its number) and the operator buttons in
+  byte 1 (16 test: the settings, 128 select) on each change, and `CC <player> <count>` per coin
+  (its 16 bits in nibbles; the game sends it back).
+- **The camera guns.** `BaseCamera` (the MindVision SDK, whose `MVCAMSDK.dll` does not load under
+  Wine: a `DllNotFoundException` stopped the gun system's start) never calls the SDK: its methods
+  and property accessors patched in their IL (`Play`, `InitCamera`, `GetFrameData` true, the
+  statuses success, the rest `ret`). The guns' places are `BaseData.Point` (per gun,
+  `BaseGun.FrameData`): `BaseGun.Update` (the camera frames' parsing) is the payload's
+  (`Mono::replace`), writing each gun's place as a fraction of Unity's picture (y from the
+  bottom), the invalid point (-1, -1) off the picture. The calibration
+  (`BaseCalibrate.GetFinalScreenPoint`) is made the identity. The game's shots, crosshairs and
+  reloads follow: a reload is the game's, a shot with the gun pointed away for 6 physics frames;
+  the reload button (b2, b3) points the gun away 200 ms, then shoots.
+- **The crosshairs.** `BaseData.get_ScreenPoint` (their places) multiplies by `Screen`'s size,
+  their canvas being 1920 units wide (the cabinet's screen): its screen size calls made the
+  canvas's units (`ldc.r4`; the same at 1920x1080), and its camera jitter filter
+  (`MVConfig.Correct`, 8 units: the crosshair moved in steps) removed.
+- **The dongle.** `BaseCom.CheckDog` returns at once (IL).
+- **Picture.** 1920x1080 full screen (the profile's Unity arguments; its registry default was
+  1024x768): the attract's frame and the intros' black bars are laid out for 16:9 (at 1440x1080
+  the 3D scene showed around them); the aim is the gun's place in that picture
+  (`WAL_DEMUL_RESOLUTION`, `demul.rs`'s mapping).
+- **Inputs.** The cabinet has no start buttons: a shot starts (start = the trigger). Coins per
+  player (the board's), test opens the settings, service selects.
 - **Settings.** The profile installs the dump's `GameConfig.xml` (and `GameCount.xml`, credits
-  from zero) at each start; the payload's new `WAL_ARCADEPC_XML` (`xmlset.rs`: `<Tag>` values of
-  an XML file, `{freeplay}` / `{crosshair}` the common options) sets `Free` from `WAL_FREEPLAY`
-  and `FrontSight` from `WAL_CROSSHAIR`.
-- **Doorstop and the payload's hooks.** The payload's d3d9 shims hook the game modules'
-  `GetProcAddress` imports (`late_hooks.rs`), Doorstop's own `winhttp.dll` (in the game's
-  directory) among them; the executable's import was already Doorstop's hook, kept as the
-  shims' original: Doorstop calling the real function through its import reached the shims,
-  then itself, endlessly (the main thread's stack overflowed, the process died without an exit
-  call, `wine-preloader` SIGSEGV in `setup_raise_exception`). An import already holding another
-  DLL's hook is now left alone (never the original of the payload's).
-- Verified headless (2026-11-10): attract with free play, starts by a shot (both players),
-  stage map, shots scoring (headshot at the gun's exact place, both crosshairs where aimed),
-  reload, coins with free play off (3 coins a game), settings menu opened and entered.
+  from zero) at each start; `WAL_ARCADEPC_XML` (`xmlset.rs`) sets `Free` from `WAL_FREEPLAY` and
+  `FrontSight` from `WAL_CROSSHAIR`.
+- **Doorstop and the payload's hooks** (with the plugin, before): the payload's d3d9 shims hook
+  the game modules' `GetProcAddress` imports (`late_hooks.rs`); an import already holding
+  another DLL's hook (Doorstop's) is left alone, never the original of the payload's (endless
+  recursion, a stack overflow otherwise).
+- Verified headless (2026-11-10): the board's check and coins, attract with free play, stage map,
+  a level, the crosshairs at the guns (the game's computed points read back). User 100% on the
+  desktop without the plugin (2026-11-10): aim, shots, reloads (off screen, right button),
+  coins.
 
 #### Mars Sortie
 
@@ -7706,7 +7711,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `ultimate-arctic-thunder` | Ultimate Arctic Thunder | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, attack) | Arctic Thunder's 2004 build (§6.3i): dump = the `Midway games` folder; same board by `snow.exe` build: its own texture key (0x0cc4cc8d), its parallel port dongle (`kfunc` answered by the payload, its `ppmon.exe` monitor not started), diagnostics and Exit as Arctic Thunder's |
 | `hydro-thunder` | Hydro Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, throttle, boost, 3 views) | Midway's powerboat racer on the VCThunder 0.5 runtime (Glide, 32-bit, §6.3i): the fake DirectInput wheel and its buttons from the virtual sticks, constant force to the launcher's wheel, GPU renderer on the runner's vkd3d-proton, 60 fps, free play option, operator menu (Winsock kept), 4:3 full screen, widescreen option |
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) | Midway's off-road racer on the VCThunder 0.5 runtime (its own dump, §6.3i): as Hydro Thunder, the shifter's gear latched by the payload (first gear at start) |
-| `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | user 100% (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i): the dump's DemulShooter BepInEx plugin (dongle, serial board, camera guns), the payload its TCP client with its reflection packet (`WAL_DEMUL_FIELDS`), aim in Unity's 1440x1080 picture (`WAL_DEMUL_RESOLUTION`), a shot starts, coin keys per player, free play and the game's crosshairs in its `GameConfig.xml` (`WAL_ARCADEPC_XML`); Doorstop's `GetProcAddress` hook no longer chained by the payload (endless recursion) |
+| `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | user 100% (2026-11-10), 2 guns | Yingqi's western shooter (Unity 5.6, 32-bit, §6.3i, board `wws`), no BepInEx plugin: its COM1 I/O board emulated (check, triggers, coins, test, select), the camera guns' SDK stubbed in IL and the guns written into the game's camera data (`BaseGun.Update` replaced, identity calibration), the crosshairs in the canvas' units without the jitter filter, the dongle check skipped, reload = a shot pointed away (right button too), 16:9 1920x1080, a shot starts, free play and crosshairs in its `GameConfig.xml` |
 | `mars-sortie` | Mars Sortie | arcadepc | user 100% (2026-11-10), 4 guns | MRCQ's shooter (Unity 5.4, 64-bit, §6.3i): the dump's DemulShooter BepInEx plugin (I/O board, dongle, laser camera guns), the payload its TCP client (reflection packet, aim in Unity's 1680x1050 picture, coin keys per player), board `marssortie`: free play and the game's crosshairs by IL patches of their getters, the crosshairs of the playing stations only, the players' photos from the webcam when present, the operator menus' keypad `keybd_event` posted past the keyboard filter, records made in the run folder |
 | `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | user 100% (2026-11-10), 1 trackball | Team Play's bowling game (Linux cabinet folder + Unity 5.4 Windows player, 64-bit, §6.3i): the dump's BepInEx loader disabled, the payload is the cabinet's `teamplayio` / `serialio` libraries for the game's DllImports (buttons, coins in cents, the trackball from the mouse's wrapping counters or the stick), free play in its `Adjustables` |
 | `bounty-hunter` | Bounty Hunter | arcadepc | user 100% (2026-11-10), 1 player (8 pads) | GCTECH's striking game (Direct3D 8, UPX, §6.3i): its COM1 pad board emulated (the dump's keyboard settings hidden: the board defaults), the stub's `GetProcAddress` hooked for the serial functions, the development keys skipped, the engine's leak-tracking allocator replaced (loading 2.5 min to 10 s), free play, the dump's ArcCabView rotation on DXVK |
