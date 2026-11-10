@@ -21,7 +21,7 @@
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use wal_payload_common::{gun, input, log, serial};
+use wal_payload_common::{desktop, gun, input, log, serial};
 use wal_protocol::button as b;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
@@ -124,7 +124,14 @@ extern "C" fn aim_fields(this: *mut u8) {
     let state = unsafe { ((base + GAME_STATE) as *const usize).read() };
     let playing = state != 0 && unsafe { ((state + 0x231) as *const [u8; 2]).read() } != [0, 0];
     // the 3D view's pixels in game; the menus' canvas: 1920 wide, the view's aspect
-    let view = gun::client_area(gun::find_window()).filter(|&(_, _, w, h)| w > 0.0 && h > 0.0);
+    // in the desktop's units (WAL_DESKTOP_SIZE: the game's view, not the real window's pixels)
+    let view = gun::client_area(gun::find_window())
+        .map(|(x, y, w, h)| {
+            let (x0, y0) = desktop::from_screen(f64::from(x), f64::from(y));
+            let (x1, y1) = desktop::from_screen(f64::from(x + w), f64::from(y + h));
+            (x, y, (x1 - x0) as f32, (y1 - y0) as f32)
+        })
+        .filter(|&(_, _, w, h)| w > 0.0 && h > 0.0);
     let (w, h) = match view {
         Some((_, _, w, h)) if playing => (w as i32, h as i32),
         Some((_, _, w, h)) => (1920, (1920.0 * h / w) as i32),

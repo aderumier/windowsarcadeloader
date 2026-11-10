@@ -55,6 +55,15 @@ env:
   # the exclusive full screen mode (off: the borderless window, the desktop's size)
   WAL_HOTD_EXCLUSIVE: "0"
   WAL_RESOLUTION: 1920x1080
+  # the borderless window: Unreal keeps its 16:9 view's height, a 4:3 screen (1600x1200) cut
+  # it on the left and right: a 1920x1080 desktop for it, its window stretched over the real
+  # screen (WAL_KEEP_ASPECT_RATIO "1", Batocera ES's KEEP ASPECT RATIO: black bars); the
+  # window's client size in the desktop's units (GetClientRect, WM_SIZE): its back buffer
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   # Wine's full screen mode emulation scales a lower mode to the screen with AMD FSR 1
   WINE_FULLSCREEN_FSR: "1"
 
