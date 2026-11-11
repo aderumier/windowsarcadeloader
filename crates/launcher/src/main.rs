@@ -224,7 +224,7 @@ fn headless_gamescope(conf: &config::GamescopeConfig) -> config::GamescopeConfig
     let (width, height) = if conf.enabled && conf.width > 0 && conf.height > 0 { (conf.width, conf.height) } else { (1920, 1080) };
     let mut args: Vec<String> = if conf.enabled { conf.args.iter().filter(|a| *a != "-f").cloned().collect() } else { Vec::new() };
     args.extend(["--backend".to_string(), "headless".to_string()]);
-    config::GamescopeConfig { enabled: true, bin: conf.bin.clone(), width, height, args }
+    config::GamescopeConfig { enabled: true, bin: conf.bin.clone(), width, height, args, narrow_screen_only: false }
 }
 
 /// The X screen's size (`xrandr`'s current size), none without one.
@@ -282,7 +282,7 @@ fn stretched(conf: &config::GamescopeConfig, stretch: bool) -> config::Gamescope
             }
         }
     }
-    config::GamescopeConfig { enabled: conf.enabled, bin: conf.bin.clone(), width: conf.width, height: conf.height, args }
+    config::GamescopeConfig { enabled: conf.enabled, bin: conf.bin.clone(), width: conf.width, height: conf.height, args, narrow_screen_only: conf.narrow_screen_only }
 }
 
 /// `cmd` run inside gamescope, with its environment and directory.
@@ -591,11 +591,22 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     }
     // the screen's size placeholders of the arguments and the environment (headless:
     // gamescope's screen)
+    let real_screen = screen_size();
+    // the profile's gamescope: with `narrow_screen_only`, on a screen narrower than its size
+    let use_gamescope = profile.gamescope.enabled
+        && (!profile.gamescope.narrow_screen_only
+            || real_screen.is_some_and(|(w, h)| profile.gamescope.width > 0 && w * profile.gamescope.height < profile.gamescope.width * h));
+    if profile.gamescope.narrow_screen_only && !opts.headless {
+        eprintln!("launcher: gamescope {} (narrow screens only, screen {:?})", if use_gamescope { "on" } else { "off" }, real_screen);
+    }
     let screen = if opts.headless {
         let conf = headless_gamescope(&profile.gamescope);
         (conf.width, conf.height)
+    } else if use_gamescope && profile.gamescope.width > 0 && profile.gamescope.height > 0 {
+        // gamescope's X screen
+        (profile.gamescope.width, profile.gamescope.height)
     } else {
-        screen_size().unwrap_or((1920, 1080))
+        real_screen.unwrap_or((1920, 1080))
     };
     for (k, v) in &profile.env {
         wine.set_env(k, &screen_placeholders(v, screen, &profile.env));
@@ -673,7 +684,11 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
                 cmd = with_background(cmd, profile.background.iter().filter_map(|p| background_command(p)).collect(), profile.background_wait_ms);
             }
             cmd = gamescope(&stretched(&headless_gamescope(&profile.gamescope), stretch), cmd);
-        } else if profile.gamescope.enabled {
+        } else if use_gamescope {
+            // the background programs in its X display too (as headless)
+            if !relaunched && !profile.background.is_empty() {
+                cmd = with_background(cmd, profile.background.iter().filter_map(|p| background_command(p)).collect(), profile.background_wait_ms);
+            }
             cmd = gamescope(&stretched(&profile.gamescope, stretch), cmd);
         }
         // own process group: whatever the game leaves (gamescope's reaper and its children) is
@@ -716,14 +731,14 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     // programs left running beside the game (Sega ALLS's amdaemon.exe), with the game's payload
     // when the system starts it through wal-loader; ended with the game's leftovers (headless:
     // started inside the game's gamescope instead)
-    if !opts.headless {
+    if !opts.headless && !use_gamescope {
         for mut cmd in profile.background.iter().filter_map(|p| background_command(p)) {
             std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
             eprintln!("launcher: starting background program {:?}", cmd.get_program());
             cmd.spawn().with_context(|| format!("starting background program {:?}", cmd.get_program()))?;
         }
     }
-    if !profile.background.is_empty() && !opts.headless {
+    if !profile.background.is_empty() && !opts.headless && !use_gamescope {
         std::thread::sleep(Duration::from_millis(profile.background_wait_ms));
         // the payload log the background program created: the game's lines appended to it
         cmd.env("WAL_LOG_APPEND", "1");

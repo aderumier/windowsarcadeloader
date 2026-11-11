@@ -43,6 +43,18 @@ drives:
 c_folders:
   Mount/Option: Option
 
+# on a 4:3 screen (Batocera at 1600x1200) the game in gamescope at 1920x1080, its picture
+# stretched over the screen (WAL_KEEP_ASPECT_RATIO "1", Batocera ES's KEEP ASPECT RATIO: black
+# bars): with a 1920x1080 desktop of the payload, Unreal laid its interface out for the real
+# screen (the picture squeezed into its top, or the 16:9 scene letterboxed in a 4:3 interface);
+# amdaemon runs in the same gamescope. On a 16:9 screen the game's own borderless window
+gamescope:
+  enabled: true
+  narrow_screen_only: true
+  width: 1920
+  height: 1080
+  args: [-S, fit, -f]
+
 env:
   WAL_ALLS_GAME_ID: SDGT
   # the cabinets' maintenance hours (Japan 02:00-07:00) never reached: the attract stays black
@@ -110,6 +122,8 @@ env:
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: picture
   WAL_D3D9_ASPECT: "16:9"
+  # gamescope's scaler (4:3 screens): stretched ("1": black bars)
+  WAL_KEEP_ASPECT_RATIO: "0"
 
 options:
   - title: Aime card

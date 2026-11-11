@@ -115,6 +115,9 @@ pub struct GamescopeConfig {
     pub width: u32,
     pub height: u32,
     pub args: Vec<String>,
+    /// Gamescope only on a screen narrower than `width` x `height` (a 4:3 screen for a 16:9
+    /// game), the game's own window on the others.
+    pub narrow_screen_only: bool,
 }
 
 #[derive(Debug, Deserialize)]
