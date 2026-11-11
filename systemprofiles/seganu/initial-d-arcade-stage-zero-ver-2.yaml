@@ -57,11 +57,15 @@ env:
   WAL_ALLS_CHILDREN: ServerBoxD8_Nu_x64
   # initialD.ini read as a copy: the cabinet's 1920x1080 picture (game.bat's setresolution; the
   # dump's file says 2560x1440: the picture was cut), windowed (its full screen mode exits on a
-  # screen of another size: 1920x1200), in a borderless 16:9 window centered on the screen
+  # screen of another size: 1920x1200). A 4:3 screen (1600x1200) showed its 1920x1080 picture
+  # unscaled, cut on the right: a 1920x1080 desktop for it, its borderless window stretched over
+  # the real screen (payload dxgi_size.rs: the swap chain windowed, stretched to the window)
   WAL_ALLS_INI_FILE: "initialD.ini:FullScreen=0,Width=1920,Height=1080"
+  WAL_DESKTOP_SIZE: 1920x1080
   WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: picture
-  WAL_D3D9_ASPECT: "16:9"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   # English on the Japanese keychip (Aime cards and the game server kept): the export version's
   # texts and pictures, the texts and the cars' tuning texts left in Japanese translated
   # (payload idzenglish.rs; an English patch would go in the dump's english\ folder)
