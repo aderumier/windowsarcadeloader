@@ -3,27 +3,23 @@
 //! `cUE4Interface::RetireRace(eRetireRaceType)` (`IndRun.dll+0x5ede0`): its type 1 stores -1 into
 //! the race's remaining time (`+0x538` of the race object). The game calls it before the lights,
 //! so the clock updater (`0x7b820`) finished the race on its first tick (`+0x668 = 6`, end type 1)
-//! with over 100 s left. Two fixes, on Season 5's IndRun only (its RetireRace reads the race
-//! pointer at `+0x21c720`; Season 3's fields are 8 bytes further on):
-//! - on entry to the racing state the remaining time is refunded to the largest value seen for
-//!   the race (the budget the game seeded, `0x7b2e0`); the elapsed stamps are left alone
-//!   (`GetRaceTime`, `0x5ee60`, subtracts them: rewritten, the game ended the race itself);
-//! - RetireRace(1) is ignored during the race's first 45 s; later calls, calls outside the racing
-//!   state and types 2 / 3 go to the original (quitting works).
+//! with over 100 s left. On entry to the racing state the remaining time is refunded to the
+//! largest value seen for the race (the budget the game seeded, `0x7b2e0`); the elapsed stamps are
+//! left alone (`GetRaceTime`, `0x5ee60`, subtracts them: rewritten, the game ended the race
+//! itself). RetireRace(1) during the race is left alone: it is how the game ends a race at its
+//! goal (a Story race's second part, after `RaceReStart`, finishes with it). Season 5's IndRun
+//! only (its RetireRace reads the race pointer at `+0x21c720`; Season 3's fields are 8 bytes
+//! further on).
 //!
 //! From Doug Maupin's Season 5 work (github.com/douggle/windowsarcadeloader).
 
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use wal_payload_common::log;
-use windows_sys::Win32::System::Memory::{
-    MEM_COMMIT, MEM_RESERVE, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE, PAGE_GUARD, PAGE_NOACCESS,
-    VirtualAlloc, VirtualProtect, VirtualQuery,
-};
+use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_GUARD, PAGE_NOACCESS, VirtualQuery};
 
-/// `cUE4Interface::RetireRace`; its first instruction `mov rax,[rip+disp32]` (7 bytes) reads the
-/// race pointer.
+/// `cUE4Interface::RetireRace`: its first instruction `mov rax,[rip+disp32]` (7 bytes) reads the
+/// race pointer (the Season 5 check).
 const RETIRE_RVA: usize = 0x5ede0;
 const RETIRE_PROLOGUE: usize = 7;
 /// The race pointer (`DAT_18021c720`): race object = `[[[[it]+8]]+8]`.
@@ -32,19 +28,6 @@ const RACE_RVA: usize = 0x21c720;
 const STATE: usize = 0x668;
 const REMAINING: usize = 0x538;
 const RACING: u32 = 4;
-/// RetireRace(1) is ignored this long after the lights.
-const RETIRE_WINDOW_MS: u64 = 45_000;
-
-static RETIRE_ORIG: AtomicUsize = AtomicUsize::new(0);
-static RACE_STATE: AtomicU32 = AtomicU32::new(0);
-/// When the race entered the racing state, in milliseconds since the payload started (0: none).
-static LIGHTS_MS: AtomicU64 = AtomicU64::new(0);
-
-fn now_ms() -> u64 {
-    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
-    START.get_or_init(Instant::now).elapsed().as_millis() as u64
-}
-
 unsafe fn readable(p: usize, size: usize) -> bool {
     if p < 0x10000 || p >= 0x8000_0000_0000 {
         return false;
@@ -77,74 +60,6 @@ unsafe fn word(p3: usize, off: usize) -> i32 {
     unsafe { std::ptr::read_volatile((p3 + off) as *const i32) }
 }
 
-unsafe extern "system" fn retire_hook(this: usize, kind: u32) {
-    let state = RACE_STATE.load(Ordering::Relaxed);
-    let lights = LIGHTS_MS.load(Ordering::Relaxed);
-    let age = if lights == 0 { 0 } else { now_ms().saturating_sub(lights) };
-    let ignore = kind == 1 && state == RACING && lights != 0 && age < RETIRE_WINDOW_MS;
-    log!("indstate: RetireRace({kind}) state {state}, racing {age} ms: {}", if ignore { "ignored" } else { "passed" });
-    if ignore {
-        return;
-    }
-    let orig: unsafe extern "system" fn(usize, u32) = unsafe { std::mem::transmute(RETIRE_ORIG.load(Ordering::Relaxed)) };
-    unsafe { orig(this, kind) }
-}
-
-/// An executable page within ±2 GiB of `base`, for the entry's `jmp rel32`.
-unsafe fn alloc_near(base: usize) -> Option<usize> {
-    let mut delta = 0x0100_0000usize;
-    while delta < 0x6000_0000 {
-        for cand in [base.checked_sub(delta), base.checked_add(delta)].into_iter().flatten() {
-            let p = unsafe { VirtualAlloc(cand as *const _, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) };
-            if !p.is_null() {
-                return Some(p as usize);
-            }
-        }
-        delta += 0x0100_0000;
-    }
-    None
-}
-
-/// RetireRace's entry to `retire_hook`; the trampoline runs the replaced prologue as
-/// `mov rax,[moffs64]` and jumps back.
-unsafe fn hook_retire(base: usize, race: usize) -> bool {
-    let entry = base + RETIRE_RVA;
-    let Some(page) = (unsafe { alloc_near(base) }) else { return false };
-    unsafe {
-        let mut t = [0u8; 15];
-        t[0] = 0x48;
-        t[1] = 0xA1;
-        t[2..10].copy_from_slice(&(race as u64).to_le_bytes());
-        t[10] = 0xE9;
-        let back = (entry + RETIRE_PROLOGUE) as isize - (page + 15) as isize;
-        t[11..15].copy_from_slice(&(back as i32).to_le_bytes());
-        std::ptr::copy_nonoverlapping(t.as_ptr(), page as *mut u8, t.len());
-        // mov rax, retire_hook; jmp rax
-        let stub = page + 0x40;
-        let mut s = [0u8; 12];
-        s[0] = 0x48;
-        s[1] = 0xB8;
-        s[2..10].copy_from_slice(&(retire_hook as *const () as u64).to_le_bytes());
-        s[10] = 0xFF;
-        s[11] = 0xE0;
-        std::ptr::copy_nonoverlapping(s.as_ptr(), stub as *mut u8, s.len());
-        RETIRE_ORIG.store(page, Ordering::Relaxed);
-
-        let dist = stub as isize - (entry + 5) as isize;
-        if dist < i32::MIN as isize || dist > i32::MAX as isize {
-            return false;
-        }
-        let mut old = 0;
-        if VirtualProtect(entry as *const _, 5, PAGE_EXECUTE_READWRITE, &mut old) == 0 {
-            return false;
-        }
-        std::ptr::write_volatile(entry as *mut u8, 0xE9);
-        std::ptr::write_unaligned((entry + 1) as *mut i32, dist as i32);
-        VirtualProtect(entry as *const _, 5, old, &mut old);
-    }
-    true
-}
-
 /// `base` is the loaded IndRun.dll.
 pub(crate) fn init(base: usize) {
     let entry = base + RETIRE_RVA;
@@ -158,11 +73,7 @@ pub(crate) fn init(base: usize) {
     if !season5 {
         return;
     }
-    if !unsafe { hook_retire(base, race) } {
-        log!("indstate: RetireRace not hooked");
-        return;
-    }
-    log!("indstate: Season 5 race clock fixes on");
+    log!("indstate: Season 5 race clock refund on");
     std::thread::spawn(move || {
         let mut last = 0u32;
         let mut seed = 0i32;
@@ -171,7 +82,6 @@ pub(crate) fn init(base: usize) {
             let Some(p3) = (unsafe { race_object(race) }) else {
                 last = 0;
                 seed = 0;
-                RACE_STATE.store(0, Ordering::Relaxed);
                 continue;
             };
             let state = unsafe { word(p3, STATE) } as u32;
@@ -179,18 +89,14 @@ pub(crate) fn init(base: usize) {
             if state <= RACING && rem > seed {
                 seed = rem;
             }
-            if state == RACING && last != RACING {
-                LIGHTS_MS.store(now_ms().max(1), Ordering::Relaxed);
-                if seed > rem {
-                    unsafe { std::ptr::write_volatile((p3 + REMAINING) as *mut i32, seed) };
-                    log!("indstate: green light, remaining time {rem} -> {seed} ms");
-                }
+            if state == RACING && last != RACING && seed > rem {
+                unsafe { std::ptr::write_volatile((p3 + REMAINING) as *mut i32, seed) };
+                log!("indstate: green light, remaining time {rem} -> {seed} ms");
             }
             if state != RACING && last == RACING {
                 seed = 0;
             }
             last = state;
-            RACE_STATE.store(state, Ordering::Relaxed);
         }
     });
 }
