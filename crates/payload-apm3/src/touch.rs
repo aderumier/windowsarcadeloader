@@ -56,8 +56,10 @@ pub(crate) fn start() {
             }
             let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
             unsafe { GetClientRect(hwnd, &mut r) };
+            // the game's client units: a stretched desktop's (`WAL_DESKTOP_CLIENT`)
+            let (cw, ch) = wal_payload_common::desktop::client_size().unwrap_or((r.right, r.bottom));
             if let Some((x, y)) = gun::gun_in_picture() {
-                let at = ((x * r.right as f32) as i32, (y * r.bottom as f32) as i32);
+                let at = ((x * cw as f32) as i32, (y * ch as f32) as i32);
                 if at != last {
                     last = at;
                     post_mouse(hwnd, WM_MOUSEMOVE, at.0, at.1, if was { MK_LBUTTON } else { 0 });

@@ -8,6 +8,15 @@ system: apm3
 name: Puyo Puyo e-Sports
 
 env:
+  # a 16:9 game on a 4:3 screen (Batocera at 1600x1200: letterboxed, or cut on the right): a
+  # 1920x1080 desktop for it, its borderless window stretched over the screen
+  # (WAL_KEEP_ASPECT_RATIO "1", Batocera ES's KEEP ASPECT RATIO: black bars); the window's
+  # client size in the desktop's units (GetClientRect, WM_SIZE): its back buffer
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   WAL_APM3_TEST: puyoe.exe
   # the test program is the game started again: marked by an argument the game ignores
   WAL_APM3_TEST_ARGS: "-wal-test"

@@ -14,6 +14,15 @@ native_map:
   b5: push04
 
 env:
+  # a 16:9 game on a 4:3 screen (Batocera at 1600x1200: letterboxed, or cut on the right): a
+  # 1920x1080 desktop for it, its borderless window stretched over the screen
+  # (WAL_KEEP_ASPECT_RATIO "1", Batocera ES's KEEP ASPECT RATIO: black bars); the window's
+  # client size in the desktop's units (GetClientRect, WM_SIZE): its back buffer
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   # ALL.Net and the Aime server up: Aime cards (WAL_APM3_ONLINE: "0" boots offline: no card)
   WAL_APM3_ONLINE: "1"
   # the card on the reader without pressing anything

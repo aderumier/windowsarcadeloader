@@ -11,11 +11,26 @@ name: Kasiori
 args: [-popupwindow]
 
 # the game loads the system library by its path, X:\lib\apm.dll: the payload is there too
-payload_install: [apm.dll, X/lib/apm.dll]
+payload_install: [X/lib/apm.dll, apm.dll]
+# Unity reads the screen before the game loads its system library: the payload loaded first
+# (wal-loader64, the library at X:\lib\apm.dll: the game's own load finds it loaded), the game
+# desktop's size seen from the start (Unity sized its window to the real screen's width)
+payload_loader: true
+# Unity starts at the size saved in the registry (a narrower one saved on a 4:3 screen kept):
+# 1920x1080, windowed (the desktop is stretched over the screen)
+registry: [systemprofiles/apm3/files/kasiori/screen.reg]
 run_drives:
   x: X
 
 env:
+  # a 16:9 game on a 4:3 screen (Batocera at 1600x1200: Unity's 1600x1080 window, its picture
+  # squeezed, black below): a 1920x1080 desktop for it, its borderless window stretched over
+  # the screen (WAL_KEEP_ASPECT_RATIO "1", Batocera ES's KEEP ASPECT RATIO: black bars)
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   WAL_APM3_TEST: kasiori.exe
   WAL_APM3_TEST_ARGS: "TestMode"
   # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)

@@ -9,8 +9,23 @@ name: Goonya Fighter
 
 # the game and its test program each load the apm.dll of their folder
 payload_install: [game/apm.dll, gametest/apm.dll]
+# Unity reads the screen before the game loads its system library: the payload loaded first
+# (wal-loader64, the game's game\apm.dll: its own load finds it loaded), the game desktop's
+# size seen from the start (Unity letterboxed its 16:9 picture in a screen-sized window)
+payload_loader: true
+# Unity starts at the size saved in the registry (the 4:3 screen's saved kept): 1920x1080,
+# windowed (the desktop is stretched over the screen)
+registry: [systemprofiles/apm3/files/goonya-fighter/screen.reg]
 
 env:
+  # a 16:9 game on a 4:3 screen (Batocera at 1600x1200: letterboxed): a 1920x1080 desktop for
+  # it, its borderless window stretched over the screen (WAL_KEEP_ASPECT_RATIO "1", Batocera
+  # ES's KEEP ASPECT RATIO: black bars)
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   WAL_APM3_TEST: ..\gametest\gametest.exe
   # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
   WAL_APM3_ONLINE: "1"

@@ -59,6 +59,12 @@ pub fn size() -> Option<(i32, i32)> {
     SIZE.get().copied()
 }
 
+/// `WAL_DESKTOP_CLIENT`: the client size the game's window answers (the desktop's), for the
+/// payload's own mouse messages in the game's units.
+pub fn client_size() -> Option<(i32, i32)> {
+    if CLIENT.load(Ordering::Relaxed) { size() } else { None }
+}
+
 static ORIG_METRICS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SPI_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SPI_W: AtomicUsize = AtomicUsize::new(0);
@@ -81,6 +87,7 @@ static ORIG_CREATE_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_W: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SET_POS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_MOVE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_SET_PLACEMENT: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CLIENT_TO_SCREEN: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CLIENT_RECT: AtomicUsize = AtomicUsize::new(0);
 static ORIG_WINDOW_RECT: AtomicUsize = AtomicUsize::new(0);
@@ -150,9 +157,56 @@ fn top_level(parent: P, style: u32) -> bool {
 
 type CreateWindow<T> = unsafe extern "system" fn(u32, *const T, *const T, u32, i32, i32, i32, i32, P, P, P, P) -> P;
 
+/// A child window covering the whole desktop (`<w>x<h>` at 0,0) of a top-level window: its
+/// parent's real client area. Umihara Kawase Fresh!, Cotton Rock 'n' Roll draw OpenGL into a
+/// 1920x1080 child of their fitted window (on a 1600x1200 screen its top left only showed).
+fn desktop_child(parent: P, x: i32, y: i32, w: i32, h: i32) -> Option<(i32, i32, i32, i32)> {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
+    let (dw, dh) = size()?;
+    if parent.is_null() || (x, y, w, h) != (0, 0, dw, dh) || !is_top_level(parent) {
+        return None;
+    }
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    if unsafe { GetClientRect(parent, &mut r) } == 0 || r.right <= 0 || r.bottom <= 0 || (r.right, r.bottom) == (dw, dh) {
+        return None;
+    }
+    log!("desktop: child window {w}x{h} at 0,0 -> {}x{} (its parent's client area)", r.right, r.bottom);
+    Some((0, 0, r.right, r.bottom))
+}
+
+/// The child windows [`desktop_child`] fitted: their client size answers in desktop units too
+/// (`WAL_DESKTOP_CLIENT`: Umihara Kawase Fresh! letterboxed its 16:9 viewport in the 4:3 child).
+static CHILDREN: Mutex<Vec<usize>> = Mutex::new(Vec::new());
+
+/// A fitted child: remembered and subclassed, its `WM_SIZE` in desktop units too (GLUT sizes its
+/// viewport from it), sent again for a child created at its size.
+fn fitted_child(hwnd: P, created: bool) {
+    if hwnd.is_null() {
+        return;
+    }
+    {
+        let mut children = CHILDREN.lock().unwrap();
+        if children.contains(&(hwnd as usize)) {
+            return;
+        }
+        children.push(hwnd as usize);
+    }
+    subclass(hwnd);
+    if created {
+        size_again(hwnd);
+    }
+}
+
+fn is_fitted_child(hwnd: P) -> bool {
+    CHILDREN.lock().unwrap().contains(&(hwnd as usize))
+}
+
 /// A window created with a size, top-level: fitted.
 fn created(style: u32, parent: P, x: i32, y: i32, w: i32, h: i32) -> (i32, i32, i32, i32) {
-    if !top_level(parent, style) || w == CW_USEDEFAULT || w <= 0 || h <= 0 {
+    if !top_level(parent, style) {
+        return desktop_child(parent, x, y, w, h).unwrap_or((x, y, w, h));
+    }
+    if w == CW_USEDEFAULT || w <= 0 || h <= 0 {
         return (x, y, w, h);
     }
     let (x, y) = if x == CW_USEDEFAULT { (0, 0) } else { (x, y) };
@@ -163,8 +217,12 @@ unsafe extern "system" fn create_a(
     ex: u32, class: *const u8, title: *const u8, style: u32, x: i32, y: i32, w: i32, h: i32, parent: P, menu: P, inst: P, param: P,
 ) -> P {
     let orig: CreateWindow<u8> = unsafe { std::mem::transmute(ORIG_CREATE_A.load(Ordering::Relaxed)) };
+    let child = !top_level(parent, style) && desktop_child(parent, x, y, w, h).is_some();
     let (x, y, w, h) = created(style, parent, x, y, w, h);
     let hwnd = unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) };
+    if child {
+        fitted_child(hwnd, true);
+    }
     if !hwnd.is_null() && top_level(parent, style) {
         subclass(hwnd);
         size_again(hwnd);
@@ -177,8 +235,12 @@ unsafe extern "system" fn create_w(
     ex: u32, class: *const u16, title: *const u16, style: u32, x: i32, y: i32, w: i32, h: i32, parent: P, menu: P, inst: P, param: P,
 ) -> P {
     let orig: CreateWindow<u16> = unsafe { std::mem::transmute(ORIG_CREATE_W.load(Ordering::Relaxed)) };
+    let child = !top_level(parent, style) && desktop_child(parent, x, y, w, h).is_some();
     let (x, y, w, h) = created(style, parent, x, y, w, h);
     let hwnd = unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) };
+    if child {
+        fitted_child(hwnd, true);
+    }
     if !hwnd.is_null() && top_level(parent, style) {
         subclass(hwnd);
         size_again(hwnd);
@@ -209,6 +271,14 @@ unsafe extern "system" fn set_window_pos(hwnd: P, after: P, x: i32, y: i32, cx: 
         let (nx, ny, nw, nh) = to_screen(if flags & SWP_NOMOVE != 0 { 0 } else { x }, if flags & SWP_NOMOVE != 0 { 0 } else { y }, cx, cy);
         return unsafe { orig(hwnd, after, nx, ny, nw, nh, flags & !SWP_NOMOVE) };
     }
+    // a child's size alone (SWP_NOMOVE): taken as at 0,0
+    let (px, py) = if flags & SWP_NOMOVE != 0 { (0, 0) } else { (x, y) };
+    if flags & SWP_NOSIZE == 0
+        && let Some((nx, ny, nw, nh)) = desktop_child(unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetParent(hwnd) }, px, py, cx, cy)
+    {
+        fitted_child(hwnd, false);
+        return unsafe { orig(hwnd, after, nx, ny, nw, nh, flags) };
+    }
     unsafe { orig(hwnd, after, x, y, cx, cy, flags) }
 }
 
@@ -218,7 +288,29 @@ unsafe extern "system" fn move_window(hwnd: P, x: i32, y: i32, cx: i32, cy: i32,
         let (nx, ny, nw, nh) = to_screen(x, y, cx, cy);
         return unsafe { orig(hwnd, nx, ny, nw, nh, repaint) };
     }
+    if let Some((nx, ny, nw, nh)) = desktop_child(unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetParent(hwnd) }, x, y, cx, cy) {
+        fitted_child(hwnd, false);
+        return unsafe { orig(hwnd, nx, ny, nw, nh, repaint) };
+    }
     unsafe { orig(hwnd, x, y, cx, cy, repaint) }
+}
+
+/// `SetWindowPlacement`: a top-level window's normal place (WINDOWPLACEMENT's rcNormalPosition,
+/// +28) fitted as `SetWindowPos` (Guilty Gear Xrd's Unreal Engine 3 sized its window to the
+/// 1920x1080 desktop with it, unscaled on a 1600x1200 screen).
+unsafe extern "system" fn set_window_placement(hwnd: P, placement: *const u8) -> i32 {
+    let orig: unsafe extern "system" fn(P, *const u8) -> i32 = unsafe { std::mem::transmute(ORIG_SET_PLACEMENT.load(Ordering::Relaxed)) };
+    if placement.is_null() || !is_top_level(hwnd) {
+        return unsafe { orig(hwnd, placement) };
+    }
+    let mut copy = [0u8; 44];
+    unsafe { std::ptr::copy_nonoverlapping(placement, copy.as_mut_ptr(), copy.len()) };
+    let r = unsafe { &mut *(copy.as_mut_ptr().add(28) as *mut RECT) };
+    if r.right > r.left && r.bottom > r.top {
+        let (x, y, w, h) = to_screen(r.left, r.top, r.right - r.left, r.bottom - r.top);
+        *r = RECT { left: x, top: y, right: x + w, bottom: y + h };
+    }
+    unsafe { orig(hwnd, copy.as_ptr()) }
 }
 
 /// `ClientToScreen` (`WAL_DESKTOP_CLIENT`): a point of the game's desktop (its fitted window's
@@ -246,7 +338,7 @@ unsafe extern "system" fn client_to_screen(hwnd: P, point: *mut windows_sys::Win
 unsafe extern "system" fn client_rect(hwnd: P, rect: *mut RECT) -> i32 {
     let orig: unsafe extern "system" fn(P, *mut RECT) -> i32 = unsafe { std::mem::transmute(ORIG_CLIENT_RECT.load(Ordering::Relaxed)) };
     let ok = unsafe { orig(hwnd, rect) };
-    if ok != 0 && !rect.is_null() && is_top_level(hwnd) {
+    if ok != 0 && !rect.is_null() && (is_top_level(hwnd) || is_fitted_child(hwnd)) {
         if crate::border::config().is_some() && let Some((w,h))=size() {
             unsafe { *rect=RECT { left:0,top:0,right:w,bottom:h }; }
             return ok;
@@ -389,7 +481,7 @@ unsafe extern "system" fn window_proc(hwnd: P, msg: u32, wparam: usize, lparam: 
     // `GetClientRect` gives it (Fantasy Soccer's Unreal Engine on Batocera's Xwayland: its back
     // buffer resized to the 1600x1200 window, its 1920x1080 view drawn into the top left)
     const WM_SIZE: u32 = 0x0005;
-    let lparam = if CLIENT.load(Ordering::Relaxed) && msg == WM_SIZE && is_top_level(hwnd) {
+    let lparam = if CLIENT.load(Ordering::Relaxed) && msg == WM_SIZE && (is_top_level(hwnd) || is_fitted_child(hwnd)) {
         let (sx, sy, _, _) = fit();
         let (w, h) = ((lparam & 0xFFFF) as f64 / sx, ((lparam >> 16) & 0xFFFF) as f64 / sy);
         ((h.round() as isize & 0xFFFF) << 16) | (w.round() as isize & 0xFFFF)
@@ -668,7 +760,8 @@ pub fn init() {
     let client = crate::border::config().is_some() || std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1");
     CLIENT.store(std::env::var("WAL_DESKTOP_CLIENT").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
     ACTIVE.store(std::env::var("WAL_DESKTOP_ACTIVE").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
-    let hooks: [(&str, usize, &AtomicUsize); 20] = [
+    let hooks: [(&str, usize, &AtomicUsize); 21] = [
+        ("SetWindowPlacement", set_window_placement as *const () as usize, &ORIG_SET_PLACEMENT),
         ("GetWindowRect", if client { window_rect as *const () as usize } else { 0 }, &ORIG_WINDOW_RECT),
         ("ClientToScreen", if client { client_to_screen as *const () as usize } else { 0 }, &ORIG_CLIENT_TO_SCREEN),
         ("GetClientRect", if client { client_rect as *const () as usize } else { 0 }, &ORIG_CLIENT_RECT),

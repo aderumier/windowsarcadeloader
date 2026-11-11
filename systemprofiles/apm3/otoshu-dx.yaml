@@ -5,7 +5,24 @@
 system: apm3
 name: Otoshu DX
 
+# Unity reads the screen before the game loads its system library: the payload loaded first
+# (wal-loader64, the game's apm.dll: its own load finds it loaded), the game desktop's size
+# seen from the start (Unity letterboxed its 16:9 picture in a screen-sized window)
+payload_loader: true
+# Unity starts at the size saved in the registry (full screen window, letterboxed by Unity):
+# 1920x1080, windowed (the desktop is stretched over the screen)
+registry: [systemprofiles/apm3/files/otoshu-dx/screen.reg]
+
 env:
+  # a 16:9 game on a 4:3 screen (Batocera at 1600x1200: letterboxed): a 1920x1080 desktop for
+  # it, its borderless window stretched over the screen (WAL_KEEP_ASPECT_RATIO "1", Batocera
+  # ES's KEEP ASPECT RATIO: black bars); the window's client size in the desktop's units (the
+  # payload's touches too)
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   WAL_APM3_TEST: otsdx.exe
   WAL_APM3_TEST_ARGS: "-t"
   # the touch screen: player 1's gun, its trigger the touch

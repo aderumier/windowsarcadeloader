@@ -8,6 +8,17 @@ system: apm3
 name: Cotton Rock 'n' Roll
 
 env:
+  # a 16:9 OpenGL game (GLUT) on a 4:3 screen (Batocera at 1600x1200: a black screen): a 1920x1080
+  # desktop for it, its borderless window and its 1920x1080 drawing child stretched over the
+  # screen (WAL_KEEP_ASPECT_RATIO "1", Batocera ES's KEEP ASPECT RATIO: black bars), their
+  # client size in the desktop's units; the game's 1920x1080 viewports fitted to the window
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
+  WAL_GL_SIZE: 1920x1080
+  WAL_D3D9_ASPECT: "16:9"
   WAL_APM3_TEST: gametest.exe
   # ALL.Net, the Aime server and the game server up: Aime cards ("0" boots offline)
   WAL_APM3_ONLINE: "1"

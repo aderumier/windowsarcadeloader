@@ -1,0 +1,6 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Success Corp\kasiori]
+"Screenmanager Fullscreen mode_h3630240806"=dword:00000003
+"Screenmanager Resolution Width_h182942802"=dword:00000780
+"Screenmanager Resolution Height_h2627697771"=dword:00000438

@@ -131,6 +131,17 @@ fn picture() -> Option<(i32, i32, i32, i32, i32, i32)> {
 unsafe extern "system" fn viewport(x: i32, y: i32, w: i32, h: i32) {
     let orig: unsafe extern "system" fn(i32, i32, i32, i32) = unsafe { std::mem::transmute(ORIG_VIEWPORT.load(Ordering::Relaxed)) };
     let Some((px, py, pw, ph, cw, ch)) = picture() else { return unsafe { orig(x, y, w, h) } };
+    // a framebuffer object's viewport (an offscreen pass: Umihara Kawase Fresh!'s 1280x720
+    // scene, then drawn to the window) left as it is: only the window's are fitted
+    const GL_DRAW_FRAMEBUFFER_BINDING: u32 = 0x8CA6;
+    if gl(4) != 0 {
+        let get: unsafe extern "system" fn(u32, *mut i32) = unsafe { std::mem::transmute(gl(4)) };
+        let mut fbo = 0;
+        unsafe { get(GL_DRAW_FRAMEBUFFER_BINDING, &mut fbo) };
+        if fbo != 0 {
+            return unsafe { orig(x, y, w, h) };
+        }
+    }
     // the game's size, or the window's for a viewport over the whole window (GLUT's reshape)
     let (gw, gh) = if (x, y, w, h) == (0, 0, cw, ch) {
         (cw as i64, ch as i64)
