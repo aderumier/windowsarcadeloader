@@ -32,6 +32,12 @@ env:
   WAL_DESKTOP_UNMANAGED: "1"
 
 input:
+  # the pads: RT the accelerator, LT the brake, RB / LB gear high / low
+  gamepad:
+    r2: accel
+    l2: brake
+    r1: b3
+    l1: b4
   # the d-pad's up / down (keyboard arrows) accelerate / brake, its left / right steer fully
   stick_as_dpad: false
 

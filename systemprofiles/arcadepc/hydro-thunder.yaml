@@ -51,6 +51,10 @@ env:
   WAL_VCTHUNDER_60FPS: "1"
 
 input:
+  # the pads' triggers: RT the throttle, LT reverse (the default layout has them as b7 / b8)
+  gamepad:
+    r2: accel
+    l2: brake
   stick_as_dpad: false
   keyboard_ramp_ms: 300
   keyboard:

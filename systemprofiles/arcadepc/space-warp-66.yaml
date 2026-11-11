@@ -37,6 +37,11 @@ registry: [systemprofiles/arcadepc/files/space-warp-66/window.reg]
 input:
   # the stick turns the spinner, it must not press left / right too
   stick_as_dpad: false
+  # the left stick is the spinner; the right stick off: its default rx / ry are the mouse's
+  # wrapping counters below (a tilt read as a jump of thousands of spinner counts)
+  gamepad:
+    rightx: none
+    righty: none
   # The mouse is the spinner: its position wraps (a counter) on the right stick's x axis.
   guns_enabled: true
   guns_mice: 1

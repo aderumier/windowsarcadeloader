@@ -42,6 +42,9 @@ env:
   WAL_DESKTOP_ACTIVE: "1"
 
 input:
+  # the pads' RT trigger: the gas (the default layout has it as b7)
+  gamepad:
+    r2: accel
   stick_as_dpad: false
   # the keyboard: the up arrow is the gas
   keyboard:

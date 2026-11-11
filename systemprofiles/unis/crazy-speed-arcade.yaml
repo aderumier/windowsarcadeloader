@@ -33,6 +33,10 @@ env:
   WAL_DESKTOP_CLIENT: "1"
 
 input:
+  # the pads' triggers: RT the gas, LT the brake (the default layout has them as b7 / b8)
+  gamepad:
+    r2: accel
+    l2: brake
   stick_as_dpad: false
   # the keyboard: the arrows steer (left / right) and drive (up the gas, down the brake),
   # pushed progressively

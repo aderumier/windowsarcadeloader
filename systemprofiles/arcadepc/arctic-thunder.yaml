@@ -32,6 +32,9 @@ env:
   NGLIDE_ASPECT: "1"
 
 input:
+  # the pads' RT trigger: the throttle (the default layout has it as b7)
+  gamepad:
+    r2: accel
   # the keyboard's arrows: left / right the handlebar, up the throttle (ramped: the analog values
   # the game reads), down the diagnostics' down
   keyboard_ramp_ms: 300

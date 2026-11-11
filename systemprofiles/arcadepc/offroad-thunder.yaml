@@ -53,6 +53,15 @@ env:
   WAL_VCTHUNDER_60FPS: "1"
 
 input:
+  # the pads: RT the gas, LT the brake, RB / LB shift up / down, A / B the chase / chopper cams
+  # (the default layout: triggers b7 / b8, bumpers b3 / b4, A / B b5 / b6)
+  gamepad:
+    r2: accel
+    l2: brake
+    r1: b5
+    l1: b6
+    a: b3
+    b: b4
   stick_as_dpad: false
   keyboard_ramp_ms: 300
   keyboard:

@@ -32,6 +32,11 @@ env:
 input:
   # the stick rolls the ball, it must not press left / right too
   stick_as_dpad: false
+  # the left stick is the trackball; the right stick off: its default rx / ry are the mouse's
+  # wrapping counters below (a tilt read as a jump of thousands of trackball counts)
+  gamepad:
+    rightx: none
+    righty: none
   # The mouse (or a real trackball) is the trackball: its position wraps (a counter) on the
   # right stick's axes.
   guns_enabled: true

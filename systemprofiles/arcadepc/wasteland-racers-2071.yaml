@@ -39,6 +39,13 @@ env:
   WAL_WINDOW_SIZE: screen
 
 input:
+  # the pads: RT the gas, LT the brake, RB the gear, A the boost (the default layout: triggers
+  # b7 / b8, RB b3, A b5)
+  gamepad:
+    r2: accel
+    l2: brake
+    r1: b5
+    a: b3
   stick_as_dpad: false
   # keyboard steering, gas and brake: full in 0.5 s (at once, steering was too quick)
   keyboard_ramp_ms: 500

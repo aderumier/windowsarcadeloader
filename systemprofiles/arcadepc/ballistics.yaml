@@ -38,6 +38,10 @@ env:
   WAL_HIDE_CURSOR: "1"
 
 input:
+  # the pads' triggers: RT the throttle, LT the brake button (the default layout has them as b7 / b8)
+  gamepad:
+    r2: accel
+    l2: b2
   stick_as_dpad: false
   # keyboard throttle: full in 0.3 s
   keyboard_ramp_ms: 300
