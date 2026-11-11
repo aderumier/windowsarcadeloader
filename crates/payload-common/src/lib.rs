@@ -36,6 +36,7 @@ pub mod crosshair;
 pub mod d3d9_quads;
 pub mod d3dx;
 pub mod desktop;
+pub mod dxgi_size;
 #[cfg(windows)]
 mod crypto_keys;
 #[cfg(windows)]
@@ -187,6 +188,7 @@ pub fn start(name: &'static str) {
             workarea::init();
             glview::init();
             desktop::init();
+            dxgi_size::init();
             bezel::init();
             font::init();
             sdl::init();

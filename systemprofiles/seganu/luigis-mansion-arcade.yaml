@@ -24,6 +24,15 @@ env:
   WAL_SEGANU_FREEPLAY_RECORD: "0x1f0:5d5b0c930000000053444346010000\
     00,0x9f0:5d5b0c930000000053444346010000\
     00,0x1200:1c000000010000000100000002000000020000000100000000"
+  # the game's full screen 1920x1080 swap chain: a 4:3 screen (1600x1200) showed its picture
+  # unscaled, cut on the right. A 1920x1080 desktop for it, its borderless window stretched
+  # over the real screen (as House of the Dead: Scarlet Dawn), the swap chain made windowed
+  # (payload dxgi_size.rs: stretched to the window); the guns' aim in its picture
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   # the I/O board on COM1 (guns, coins, switches; lamps), its object in the game (the guns'
   # calibration)
   WAL_SEGANU_LMAIO: COM1
