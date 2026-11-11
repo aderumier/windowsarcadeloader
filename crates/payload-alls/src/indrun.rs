@@ -123,6 +123,8 @@ fn loaded(module: usize, name: *const u16) {
     if name.ends_with("indrun.dll") {
         log!("indrun: IndRun.dll hooked");
         hook(module);
+        #[cfg(target_arch = "x86_64")]
+        crate::indstate::init(module);
     }
 }
 

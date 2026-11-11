@@ -86,6 +86,9 @@ mod idac;
 mod idz;
 mod idzenglish;
 mod indrun;
+// IndRun.dll is 64-bit
+#[cfg(target_arch = "x86_64")]
+mod indstate;
 mod inifile;
 mod io4;
 mod led;
