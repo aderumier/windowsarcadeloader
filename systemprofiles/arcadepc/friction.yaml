@@ -20,6 +20,16 @@ env:
   # its DirectInput: the payload's, without devices
   WAL_DINPUT_DISABLE: "1"
   WAL_HIDE_CURSOR: "1"
+  # Its 1920x1080 full screen mode: the game looks for it in the adapter's modes ("Unable to
+  # detect current video mode." on a 1600x1200 screen without it): added, the device made
+  # windowed, in a borderless window on a 1920x1080 desktop stretched over the screen (a wide
+  # game on a 4:3 screen); its viewport from WM_SIZE's client size, in the desktop's units
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   # the guns' crosshairs, drawn by the payload (P1 blue, P2 red)
   WAL_CROSSHAIR: "1"
 

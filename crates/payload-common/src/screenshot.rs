@@ -1135,7 +1135,9 @@ pub fn picture_rect() -> [f32; 4] {
     // the real screen (the desktop module answers the game's own calls with its desktop)
     let (sw, sh) = crate::desktop::screen_size();
     let (sw, sh) = (sw as f32, sh as f32);
-    let aspect = d3d9_aspect().or(crate::desktop::size().map(|(w, h)| (w as u32, h as u32)));
+    // a desktop stretched over the screen (`WAL_DESKTOP_STRETCH`) is the whole screen
+    let desktop = crate::desktop::size().filter(|_| !crate::desktop::stretched());
+    let aspect = d3d9_aspect().or(desktop.map(|(w, h)| (w as u32, h as u32)));
     let Some((aw, ah)) = aspect.map(|(w, h)| (w as f32, h as f32)).filter(|&(w, h)| w > 0.0 && h > 0.0 && sw > 0.0 && sh > 0.0) else {
         return [0.0, 0.0, 1.0, 1.0];
     };

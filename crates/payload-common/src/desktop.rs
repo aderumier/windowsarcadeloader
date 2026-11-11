@@ -95,7 +95,7 @@ pub fn screen_size() -> (i32, i32) {
 }
 
 /// `WAL_DESKTOP_STRETCH=1` with `WAL_KEEP_ASPECT_RATIO=0`: the desktop stretched over the screen.
-fn stretched() -> bool {
+pub fn stretched() -> bool {
     static STRETCH: OnceLock<bool> = OnceLock::new();
     *STRETCH.get_or_init(|| {
         std::env::var("WAL_DESKTOP_STRETCH").is_ok_and(|v| v.trim() == "1") && std::env::var("WAL_KEEP_ASPECT_RATIO").is_ok_and(|v| v.trim() == "0")
@@ -167,6 +167,7 @@ unsafe extern "system" fn create_a(
     let hwnd = unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) };
     if !hwnd.is_null() && top_level(parent, style) {
         subclass(hwnd);
+        size_again(hwnd);
         managed_again();
     }
     hwnd
@@ -180,9 +181,22 @@ unsafe extern "system" fn create_w(
     let hwnd = unsafe { orig(ex, class, title, style, x, y, w, h, parent, menu, inst, param) };
     if !hwnd.is_null() && top_level(parent, style) {
         subclass(hwnd);
+        size_again(hwnd);
         managed_again();
     }
     hwnd
+}
+
+/// `WAL_DESKTOP_CLIENT`: the `WM_SIZE` that `CreateWindowEx` sent before [`subclass`] sent
+/// again, its client size now in desktop units (Friction sets its viewport from it: 1600x1200 of
+/// its 1920x1080 back buffer on a 4:3 screen, the picture in the left of the window).
+fn size_again(hwnd: P) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, SendMessageW};
+    const WM_SIZE: u32 = 0x0005;
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    if CLIENT.load(Ordering::Relaxed) && unsafe { GetClientRect(hwnd, &mut r) } != 0 && r.right > 0 && r.bottom > 0 {
+        unsafe { SendMessageW(hwnd, WM_SIZE, 0, ((r.bottom as isize & 0xFFFF) << 16) | (r.right as isize & 0xFFFF)) };
+    }
 }
 
 fn is_top_level(hwnd: P) -> bool {

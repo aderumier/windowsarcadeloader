@@ -5202,6 +5202,15 @@ the payload is the library instead (`payload_install: [VSIOBOARD.dll]`), board `
   each `Present` (P1 blue, P2 red, hidden after a few seconds without moving); the dump's ReShade
   (`d3d9.dll`, crosshair pictures) is hidden. Off the screen, the trigger reloads
   (`gun.offscreen: b6`).
+- **Display.** The game looks for its 1920x1080 mode in the adapter's modes ("Unable to detect
+  current video mode.", `0x470c09`, on Batocera's 1600x1200 screen): `WAL_D3D9_WINDOWED_SIZE`
+  adds it and makes the device windowed, in a borderless window on a 1920x1080 desktop
+  stretched over the screen (`WAL_DESKTOP_SIZE` / `STRETCH`, a wide game on a 4:3 screen). Its
+  viewport is the client size of its `WM_SIZE` (`0x473306`), sent while `CreateWindowEx` makes
+  the window, before the desktop module subclassed it (1600x1200 of the 1920x1080 back buffer:
+  the picture in the left of the screen): with `WAL_DESKTOP_CLIENT` that `WM_SIZE` is sent again
+  once subclassed, in desktop units. The crosshairs map the guns onto the whole screen there
+  (`picture_rect`: a stretched desktop is not letterboxed).
 - `WAL_VSIOBOARD_TRACE=1` logs the guns' events at each button change.
 
 #### Wild West Shoot Out
