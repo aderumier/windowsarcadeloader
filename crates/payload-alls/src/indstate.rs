@@ -8,16 +8,16 @@
 //! - on entry to the racing state the remaining time is refunded to the largest value seen for
 //!   the race (the budget the game seeded, `0x7b2e0`); the elapsed stamps are left alone
 //!   (`GetRaceTime`, `0x5ee60`, subtracts them: rewritten, the game ended the race itself);
-//! - RetireRace(1) is ignored during the 45 s after the race's first green light (the early call
-//!   lands just before or just after it); later calls, calls outside the racing state and types
-//!   2 / 3 go to the original. A Story race's second part (`SuspendRace`, then `RaceReStart`, one
-//!   rival: the same race object) ends at its goal with RetireRace(1): its return to the racing
-//!   state does not open the window again.
+//! - RetireRace(1) is ignored while the race is racing: the game sends it at random moments of a
+//!   race (1.9 s to 58 s after the lights seen, nothing in its log; a Time Attack ended at its
+//!   TIME UP, a Story race's second part never reached its line). The race ends by IndRun itself:
+//!   its goal (state 5) or its clock (state 6). Calls outside the racing state and types 2 / 3
+//!   go to the original.
 //!
 //! From Doug Maupin's Season 5 work (github.com/douggle/windowsarcadeloader).
 
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::time::Duration;
 
 use wal_payload_common::log;
 use windows_sys::Win32::System::Memory::{
@@ -35,18 +35,9 @@ const RACE_RVA: usize = 0x21c720;
 const STATE: usize = 0x668;
 const REMAINING: usize = 0x538;
 const RACING: u32 = 4;
-/// RetireRace(1) is ignored this long after the lights.
-const RETIRE_WINDOW_MS: u64 = 45_000;
 
 static RETIRE_ORIG: AtomicUsize = AtomicUsize::new(0);
 static RACE_STATE: AtomicU32 = AtomicU32::new(0);
-/// When the race entered the racing state, in milliseconds since the payload started (0: none).
-static LIGHTS_MS: AtomicU64 = AtomicU64::new(0);
-
-fn now_ms() -> u64 {
-    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
-    START.get_or_init(Instant::now).elapsed().as_millis() as u64
-}
 
 unsafe fn readable(p: usize, size: usize) -> bool {
     if p < 0x10000 || p >= 0x8000_0000_0000 {
@@ -82,10 +73,8 @@ unsafe fn word(p3: usize, off: usize) -> i32 {
 
 unsafe extern "system" fn retire_hook(this: usize, kind: u32) {
     let state = RACE_STATE.load(Ordering::Relaxed);
-    let lights = LIGHTS_MS.load(Ordering::Relaxed);
-    let age = if lights == 0 { 0 } else { now_ms().saturating_sub(lights) };
-    let ignore = kind == 1 && state == RACING && lights != 0 && age < RETIRE_WINDOW_MS;
-    log!("indstate: RetireRace({kind}) state {state}, racing {age} ms: {}", if ignore { "ignored" } else { "passed" });
+    let ignore = kind == 1 && state == RACING;
+    log!("indstate: RetireRace({kind}) state {state}: {}", if ignore { "ignored" } else { "passed" });
     if ignore {
         return;
     }
@@ -169,14 +158,11 @@ pub(crate) fn init(base: usize) {
     std::thread::spawn(move || {
         let mut last = 0u32;
         let mut seed = 0i32;
-        // the race object whose first green light opened the window
-        let mut lit = 0usize;
         loop {
             std::thread::sleep(Duration::from_millis(10));
             let Some(p3) = (unsafe { race_object(race) }) else {
                 last = 0;
                 seed = 0;
-                lit = 0;
                 RACE_STATE.store(0, Ordering::Relaxed);
                 continue;
             };
@@ -190,15 +176,9 @@ pub(crate) fn init(base: usize) {
             if state <= RACING && rem > seed {
                 seed = rem;
             }
-            if state == RACING && last != RACING {
-                if lit != p3 {
-                    lit = p3;
-                    LIGHTS_MS.store(now_ms().max(1), Ordering::Relaxed);
-                }
-                if seed > rem {
-                    unsafe { std::ptr::write_volatile((p3 + REMAINING) as *mut i32, seed) };
-                    log!("indstate: green light, remaining time {rem} -> {seed} ms");
-                }
+            if state == RACING && last != RACING && seed > rem {
+                unsafe { std::ptr::write_volatile((p3 + REMAINING) as *mut i32, seed) };
+                log!("indstate: green light, remaining time {rem} -> {seed} ms");
             }
             if state != RACING && last == RACING {
                 seed = 0;
@@ -208,3 +188,4 @@ pub(crate) fn init(base: usize) {
         }
     });
 }
+
