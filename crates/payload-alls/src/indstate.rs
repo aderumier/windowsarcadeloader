@@ -183,7 +183,9 @@ pub(crate) fn init(base: usize) {
             let state = unsafe { word(p3, STATE) } as u32;
             let rem = unsafe { word(p3, REMAINING) };
             if state != last {
-                log!("indstate: race {p3:#x} state {last} -> {state}, remaining {rem} ms");
+                // the goal test (+0x7abb6) needs +0x1000 == +0x10f4 (10 each from a clean verdict)
+                let (goal, need, verdict) = unsafe { (word(p3, 0x1000), word(p3, 0x10f4), word(p3, 0x1120)) };
+                log!("indstate: race {p3:#x} state {last} -> {state}, remaining {rem} ms, goal counters {goal}/{need}, verdict {verdict}");
             }
             if state <= RACING && rem > seed {
                 seed = rem;
