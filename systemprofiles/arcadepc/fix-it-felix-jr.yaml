@@ -1,0 +1,42 @@
+# Fix-It Felix Jr. (the Wreck-It Ralph promotional arcade game, 2012: FixitFelixJr.exe, its
+# "FOCAL" test shell, OpenGL, 32-bit) - template, override values in
+# userprofiles/arcadepc/fix-it-felix-jr.yaml.
+# A portrait (3:4) game read from the keyboard: the payload posts its keys from the virtual
+# sticks (the real keyboard and mouse filtered), fits its window's zoom to the screen's height
+# and sets free play (docs §6.3i).
+system: arcadepc
+name: Fix-It Felix Jr.
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: felix
+  # the shell's window without its frame and menus, 3:4 at the screen's height, black sides
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  WAL_D3D9_ASPECT: "3:4"
+  WAL_BEZEL: black
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's free play (its -user=free: always 2 credits). Off: a coin per credit.
+
+controls:
+  up: Climb up
+  down: Climb down
+  left: Left
+  right: Right
+  b1: Hammer (fix)
+  b2: Jump
+  b6: Player 2 start
+  start: Player 1 start
+  coin: Coin

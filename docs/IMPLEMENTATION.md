@@ -5517,6 +5517,33 @@ uninstaller removed). `.windowsloader`: `SEGA RALLY 2.EXE`. A PC game, not a cab
   transmission, name entry, a race (gas to 186 km/h, steering, brake), the pause menu (START)
   closed with b5, force feedback effect created; 16:9 and 4:3 pictures.
 
+#### Fix-It Felix Jr.
+
+The Wreck-It Ralph promotional arcade game (2012, "TOBIKOMI COMPANY 1982" on its title:
+`FixitFelixJr.exe`, its "FOCAL" test shell, OpenGL, 32-bit, portrait 240x320 doubled).
+`.windowsloader`: `FixitFelixJr.exe`. Board `felix` (`felix.rs`), loaded at the entry point
+(`payload_loader`):
+
+- **Keys.** The game reads only its window messages: `WM_KEYDOWN` / `WM_KEYUP` become bits of
+  its input words (0x4117a0): the system one (`1` / `2` the players' starts) and player 1's
+  (the arrows, `X` / Shift the hammer, `Z` / Space the jump, `C` a coin); players 2 and 3 are
+  the network play's (`-network`), the second player plays in turn on player 1's controls. Its
+  other keys are debugging ones (Escape leaves full screen, `F5`..`F7`, `F9`, `F11` writes
+  `Controls.log`), the mouse its left button and pointer. The payload posts the keys from the
+  virtual sticks (`input_filter`: the real keyboard and mouse filtered, its pointer too).
+- **Picture.** The shell's window is its zoom (0x418054, a float; its Zoom menu's 33 %, 50 %,
+  100 %, 200 %) times 480x640, sized back each frame unless the client area divided by the zoom
+  is 480x640, the picture drawn that size from its bottom left. The profile makes it a popup
+  without menus, 3:4 at the screen's height (`WAL_WINDOW_SIZE=aspect`, `WAL_D3D9_ASPECT=3:4`,
+  black sides); the payload sets the zoom (and the `-zoom` default 0x41803c the window's
+  creation copies) to that height: 1.6875 on 1920x1080 (810x1080), 1.875 on 1600x1200.
+- **Free play** (the common `WAL_FREEPLAY`, on by default): the game's `-user` argument
+  holding `free` keeps the credits at 2 (each frame); the payload points it (0x420288) at
+  `free` before the command line is read. Off: a coin per credit.
+- No operator menu: the shell's Options menu (`-settings`) is a development one, not shown.
+- Verified headless (2026-11-12): boot (RAM OK, ROM OK), attract, coins (CREDITS 02), free
+  play, start, the intro, a level (moving, climbing, the hammer fixing windows: 300 points).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7881,6 +7908,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) | DiverBras' kart racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `bin\s_input.dll` in each of its engine programs (menus, races, operator menu), their hand-offs started by the launcher (relaunch), the record photo (webcam) skipped, free play as the game's own (JOGO LIVRE) |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
 | `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player | LuckSheng's off-road racing cabinet (Unity 2020.3, IL2CPP, 64-bit, §6.3i): the repack's launcher stub renamed to the product name, its BepInEx plugin disabled, the payload is the COM1 board's `cncommwrapper.dll` (wheel, pedals, switches, coins), silent for 0.5 s after open (the game's receive thread race), free play as `GameData.ini`'s `Coin_Rate` |
+| `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | headless-tested (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

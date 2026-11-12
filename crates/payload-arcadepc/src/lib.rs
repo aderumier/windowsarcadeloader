@@ -85,6 +85,9 @@
 //! Extreme Off Road (`WAL_ARCADEPC_BOARD=extremeoffroad`): `extremeoffroad.rs` is its COM1
 //! board's `cncommwrapper.dll` (the wheel, pedals, switches, coins) and sets free play.
 //!
+//! Fix-It Felix Jr. (`WAL_ARCADEPC_BOARD=felix`, x86 build): `felix.rs` posts its keys, fits its
+//! window's zoom to the screen and sets free play.
+//!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
@@ -176,6 +179,8 @@ mod dosbox;
 #[cfg(target_arch = "x86")]
 mod eolith;
 mod extremeoffroad;
+#[cfg(target_arch = "x86")]
+mod felix;
 mod gameport;
 #[cfg(target_arch = "x86")]
 mod gamewax;
@@ -543,6 +548,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let player = if unity != 0 { unity } else { unsafe { GetModuleHandleW(std::ptr::null()) as usize } };
                 wal_payload_common::input_filter::init(player, |_| false);
                 wws::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "felix" => {
+                pads::disconnect();
+                felix::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "segarally2" => {
