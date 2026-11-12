@@ -7086,6 +7086,37 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     `oC0`: `sm3_io_map.cpp` `getColorValue`), the game aborts at boot: the profile uses
     wined3d (`dxvk: false`).
 
+- crossbeats REV. SUNRiSE (SDCA, Omnimix 1.2 dump, `Rev_v11.exe` 1.03.14, Nu 1.1 `AAV1`, 32-bit
+  Direct3D 9; `crossbeats-rev-sunrise`, `WAL_ALLS_BOARD=cxb`, `cxb.rs`): amLib linked in, no
+  amdaemon, as CHUNITHM (`daemon.rs` in the game: keychip, AMEX EEPROM / SRAM, ALL.Net, billing).
+  segatools' cxbhook (public domain) and ARTEMiS' `titles/cxb` (WTFPL) as references.
+  - I/O: the REV I/O board's `CommIo.dll` (COM10, a text protocol: `SW:` held / pressed /
+    released switches, `CO:` coins) and the LED board's `CommLamp.dll` (COM11): their exports
+    patched with jumps to the payload's (switches: bit 1 up, 2 cancel, 3 down, 4 test, 5 service;
+    `GetCoin` the coins since the last call). The Aime reader on COM12 is the TN32MSEC003S
+    (`WAL_AIME_READER=tn32`, sgreader generation 1).
+  - Touch screen: `RegisterTouchWindow` / `WM_TOUCH` / `GetTouchInputInfo` answered by the
+    payload (`SM_DIGITIZER` multi-touch ready); the launcher's touch surface gives one finger
+    each, the gun (the mouse, `guns_enabled`) one more while `b1` is held. The common crosshair
+    as a red dot (profile: `disc`, 1.5 %, `FF2020`, never hidden), the desktop cursor hidden.
+  - Options: the executable lists `C:\Mount\Option\0000` to `0060` only; the Omnimix dump adds
+    `0061`-`0067` (its `MusicArchiveList.csv` names songs only they hold: else "Fatal error. Failed
+    open file ... takesc_jpn.gmd", a message box). `GetFileAttributes` / `CreateFile` of
+    `0060\<file>` take the newest later folder holding the file.
+  - ALL.Net: the keychip's billing type 0 (`WAL_ALLS_BILLING_TYPE`, segatools' `billingType=0`):
+    with 1 "ALL.Net System error(MODE)" 8113. Its ALL.Net library logs through its own function
+    (`WAL_ALLS_ALWLOG=0x2444d0`; amLib's `WAL_ALLS_AMLOG=0x21f520`).
+  - Game server (`cxb/server.rs`): `https://rev-ent.ac.capcom.jp` (`WAL_ALLS_TITLE_HOST`) answered
+    in ALL.Net's server in plain HTTP (`WinHttpOpenRequest` without `WINHTTP_FLAG_SECURE`).
+    `/data` tables by file name (ARTEMiS' `rss2.py`; its CSVs in `cxb/data/`, the song list the
+    dump's), `/auth` (usercheck, entry, login with the card's PIN set at sign-up), `/action`
+    (`loadrange`, `saveindex`, rankings, energy): the players' records in `Y:\cxb\<aime id>.json`.
+    The game asks for the answer (`WinHttpReceiveResponse`) in its send callback before writing
+    the body (`WinHttpWriteData`): Wine runs them in order, each request waited 21 s (socket
+    timeout) and the game retried; the payload asks once the body is written. `UnlimitedMission`
+    is `\r\n`: its parser skips a header line, then reads past an empty text (boot hang one time
+    out of two).
+
 - CHUNITHM SUPERSTAR (SDGS 1.00.00, international, ALLS `ACA1`; `chunithm-superstar`): WORK IN
   PROGRESS, not running. amdaemon (64-bit, `App\amdaemon`, game.bat's `pushd amdaemon`) runs the
   IO4 board (`WAL_ALLS_BOARD=chusan`: the air sensors on players 1 / 2 bits 13, 12, 11, `chuni::hand`)
@@ -7619,6 +7650,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chunithm-star-plus` | CHUNITHM STAR PLUS | alls | user (2026-11-09): "working 100%"; headless tests: card login, registration, name entry | as CHUNITHM STAR, title uri `/SDBT/125/` |
 | `chunithm-plus` | CHUNITHM PLUS | alls | headless tests (2026-11-09): attract, card login, tutorial with the slider, billing over TLS 1.0 | as CHUNITHM STAR, title uri `/SDBT/106/` |
 | `chunithm-paradise-lost` | CHUNITHM PARADISE LOST | alls | headless tests (2026-11-10): title server, card login, tutorial with the slider; with SEGAguide's unpacked executables (the dump's are protected) | as CHUNITHM STAR, title uri `/SDBT/150/` |
+| `crossbeats-rev-sunrise` | crossbeats REV. SUNRiSE | alls | user (2026-11-12): "the game seem to work perfectly" (mouse touch, red dot, Aime login with PIN, profile load); headless tests: boot, ALL.Net, game server tables, coins, touch, card sign-up | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=cxb`): CommIo / CommLamp exports, WM_TOUCH, TN32 Aime reader COM12, options after 0060, billing type 0, ARTEMiS game server (WinHTTP body order fix) |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |

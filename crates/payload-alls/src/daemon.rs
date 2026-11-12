@@ -185,7 +185,9 @@ fn u32_at(b: &[u8], at: usize) -> u32 {
 
 /// The keychip's play counters (not kept across launches: a fresh keychip each time).
 /// `nearfull`: the billing type (high 16 bits: 0; type 1 makes amdaemon stop the game with
-/// error 8114, "ALL.Net System error (RTC)") and the play count warning level.
+/// error 8114, "ALL.Net System error (RTC)"; `WAL_ALLS_BILLING_TYPE`, default 1: crossbeats
+/// REV.'s amLib needs 0, else error 8113 "ALL.Net System error (MODE)") and the play count
+/// warning level.
 struct Keychip {
     play_count: u32,
     play_limit: u32,
@@ -390,6 +392,9 @@ unsafe extern "system" fn query_dos_device_w(name: *const u16, target: *mut u16,
 pub(crate) fn init() {
     let cabinet = registry::Cabinet::from_env();
     registry::write(&cabinet, &module_path());
+    if let Some(kind) = std::env::var("WAL_ALLS_BILLING_TYPE").ok().and_then(|v| v.trim().parse::<u32>().ok()) {
+        KEYCHIP_STATE.lock().unwrap().nearfull = (kind << 16) + 512;
+    }
     crate::icf::ensure(&cabinet);
     crate::sysfile::apply();
     crate::netenv::init(cabinet.subnet);

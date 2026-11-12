@@ -28,7 +28,7 @@ fn port() -> u16 {
 
 const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-fn base64_encode(data: &[u8]) -> String {
+pub(crate) fn base64_encode(data: &[u8]) -> String {
     let mut out = String::new();
     for chunk in data.chunks(3) {
         let n = chunk.iter().enumerate().fold(0u32, |n, (i, &b)| n | (b as u32) << (16 - 8 * i));
@@ -243,7 +243,11 @@ fn is_allnet(host: &str) -> bool {
     let host = host.to_ascii_lowercase();
     let r = crate::netenv::router();
     let router = (TITLE.get().is_some() || TITLE_IN_DAEMON.load(Ordering::Relaxed)) && host == format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]);
-    host.ends_with("naominet.jp") || host.ends_with("sys-all.net") || host == "127.0.0.1" || host == "localhost" || router
+    // the game's own title server host (`WAL_ALLS_TITLE_HOST`, crossbeats REV.'s
+    // `rev-ent.ac.capcom.jp`), with a title server here
+    let title_host = TITLE.get().is_some()
+        && std::env::var("WAL_ALLS_TITLE_HOST").is_ok_and(|v| v.split(',').any(|h| h.trim().eq_ignore_ascii_case(&host)));
+    host.ends_with("naominet.jp") || host.ends_with("sys-all.net") || host == "127.0.0.1" || host == "localhost" || router || title_host
 }
 
 unsafe extern "system" fn win_http_connect(session: usize, server: *const u16, port_: u16, reserved: u32) -> usize {

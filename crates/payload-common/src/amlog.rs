@@ -10,6 +10,10 @@
 //!
 //! `WAL_<SYSTEM>_GAMELOG=<rva>`: the same for the game's own printf-like log function
 //! `(const char *format, ...)` (Sonic Dash Extreme: its managers' init and state messages).
+//!
+//! `WAL_<SYSTEM>_ALWLOG=<rva>` (32-bit): the ALL.Net library's log function `(const char *tag,
+//! int line, const char *function, const char *format, ...)` (crossbeats REV.: its messages
+//! otherwise go to the C runtime's stderr, when its level and category mask allow them).
 
 use std::ffi::{c_char, c_void};
 
@@ -94,6 +98,28 @@ unsafe extern "C" {
     fn common_gamelog_stub();
 }
 
+// (tag, line, function, format, ...): the tag dropped, the rest as amLib's.
+#[cfg(target_arch = "x86")]
+core::arch::global_asm!(
+    ".globl {name}",
+    "{name}:",
+    "lea eax, [esp + 20]",
+    "push eax",
+    "push dword ptr [esp + 20]",
+    "push dword ptr [esp + 16]",
+    "push dword ptr [esp + 24]",
+    "call {log}",
+    "add esp, 16",
+    "ret",
+    name = sym common_alwlog_stub,
+    log = sym amlog_va,
+);
+
+#[cfg(target_arch = "x86")]
+unsafe extern "C" {
+    fn common_alwlog_stub();
+}
+
 extern "C" fn gamelog_va(fmt: *const c_char, args: *const c_void) {
     if fmt.is_null() {
         return;
@@ -138,6 +164,11 @@ pub fn init(system: &str) {
     if let Some(rva) = var("GAMELOG").and_then(|v| parse_hex(&v)) {
         unsafe { jump_to(base, rva, common_gamelog_stub as *const () as usize) };
         log!("amlog: game log function at +{rva:#x}");
+    }
+    #[cfg(target_arch = "x86")]
+    if let Some(rva) = var("ALWLOG").and_then(|v| parse_hex(&v)) {
+        unsafe { jump_to(base, rva, common_alwlog_stub as *const () as usize) };
+        log!("amlog: ALL.Net library log function at +{rva:#x}");
     }
     let Some(rva) = var("AMLOG").and_then(|v| parse_hex(&v)) else { return };
     unsafe { jump_to(base, rva, common_amlog_stub as *const () as usize) };

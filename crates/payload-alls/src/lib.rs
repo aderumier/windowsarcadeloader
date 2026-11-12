@@ -51,6 +51,8 @@
 //!   game's own process with its slider, air sensors, LED boards and title server (`chuni.rs`);
 //!   in `aimeReaderHost.exe` the Aime reader only (`WAL_ALLS_AIME_PORT`, set for that program
 //!   with `WAL_EXE_ENV`)
+//! - `WAL_ALLS_BOARD=cxb`: crossbeats REV. SUNRiSE, a Nu game with amLib linked in and no
+//!   amdaemon (as `chuni`): its REV I/O and LED libraries, touch screen (`cxb.rs`)
 //! - `WAL_ALLS_BOARD=chusan`: CHUNITHM SUPERSTAR (amdaemon, IO4: the air sensors; the game:
 //!   slider, LED boards; the title server in amdaemon's ALL.Net server, `chuni.rs`)
 //! - `WAL_ALLS_LED_BOARD`: the LED boards' identity (`led.rs`)
@@ -70,6 +72,7 @@ mod child;
 mod chuni;
 mod clock;
 mod cts;
+mod cxb;
 mod daemon;
 mod dashboard;
 mod english;
@@ -154,6 +157,8 @@ fn start() {
             allnet::init_redirect();
         } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chuni") {
             chuni_process();
+        } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "cxb") {
+            cxb_process();
         } else {
             let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
             // the cabinet's input comes from amdaemon's I/O board: the real keyboard and pads
@@ -257,6 +262,20 @@ fn chuni_process() {
     wal_payload_common::amlog::init("ALLS");
     chuni::init();
     daemon::init();
+}
+
+/// crossbeats REV.'s game: its REV I/O and LED libraries and touch screen (`cxb.rs`), the
+/// system's devices (the Aime reader on COM12 among them) in its own process.
+fn cxb_process() {
+    let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    wal_payload_common::input_filter::init(exe, |_| false);
+    wal_payload_common::patches::apply();
+    wal_payload_common::amlog::init("ALLS");
+    cxb::init();
+    daemon::init();
+    // its amLib checks in with ALL.Net's billing server itself (else error 8113, the billing
+    // mode unknown)
+    allnet::serve_billing();
 }
 
 // amvideo: the cabinet's video driver library amdaemon loads (registry `amVideo\name`): the

@@ -1,0 +1,72 @@
+# crossbeats REV. SUNRiSE (Capcom / Sega, Nu 1.1, 2016; game id SDCA): a 32-bit Direct3D 9
+# rhythm game played on a touch screen.
+# Runs Rev_v11.exe from the dump root (game.bat); amLib is linked in (no amdaemon): the ALLS
+# payload emulates the system (keychip, AMEX board, ALL.Net, the Aime reader on COM12) in the
+# game's process, beside its REV I/O board (CommIo.dll, COM10) and LED board (CommLamp.dll, COM11).
+# Override values in userprofiles/seganu/crossbeats-rev-sunrise.yaml.
+system: alls
+name: crossbeats REV. SUNRiSE
+
+# The cabinet's drive Y: the game's data (Y:\SDCA; the AMEX board's EEPROM and SRAM in Y:\amex)
+drives:
+  y: AppData
+# the options (C:\Mount\Option\0000...: songs, events), the game's log
+c_folders:
+  Mount: Mount
+  LOG: LOG
+
+env:
+  WAL_ALLS_BOARD: cxb
+  WAL_ALLS_GAME_ID: SDCA
+  WAL_ALLS_PLATFORM_ID: AAV1
+  # the Nu's AMEX board (EEPROM, SRAM; its JVS unused: the game's switches and coins are on the
+  # REV I/O board)
+  WAL_ALLS_JVS: "1"
+  WAL_ALLS_DIPSW: "00"
+  # ALL.Net's authentication accepted (the payload's server)
+  WAL_ALLS_ALLNET: "1"
+  # the game server (Capcom's, its host in the game): answered by the payload
+  WAL_ALLS_TITLE_HOST: rev-ent.ac.capcom.jp
+  # the keychip's billing type 0 (segatools' cxb configuration): else error 8113 "ALL.Net
+  # System error (MODE)"
+  WAL_ALLS_BILLING_TYPE: "0"
+  # the Aime reader on COM12 (segatools' cxbhook: the TN32MSEC003S reader, generation 1)
+  WAL_ALLS_AIME_PORT: COM12
+  WAL_AIME_READER: tn32
+  WAL_ALLS_AUTO_CARD: "1"
+  # a windowed device in a borderless window over the screen, the picture kept 16:9
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # the game's OpenSSL computes wrong SHA values on CPUs with the SHA extensions (segatools'
+  # platform/openssl.c)
+  OPENSSL_ia32cap: "~0x20000000"
+  WAL_ALLS_TIMEWARP: "1"
+  # a red dot where the gun (or mouse) touches (the common crosshair option), always shown
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1.5"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
+  # the desktop's own arrow hidden (the dot is the pointer)
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  # the touchscreen (or the touchpad) touches the game's screen, finger by finger; the mouse
+  # (or a gun) touches it too, its left button (b1) the finger
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Touch (x)
+  ly: Touch (y)
+  b1: Touch
+  b2: Test menu cancel
+  up: Test menu up
+  down: Test menu down
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

@@ -81,19 +81,32 @@ fn block(code: &[u8; 10], n: u8) -> [u8; 16] {
     b
 }
 
-/// The reader's hardware and firmware versions: generation 3 (837-15396), or generation 2
-/// (`WAL_AIME_READER=15286`: 837-15286, firmware 0x92; Mario & Sonic at Rio 2016's amdaemon
-/// updates another one's firmware, then never polls it).
+/// The reader's generation (`WAL_AIME_READER`): 3 (837-15396, the default), 2 (`15286`:
+/// 837-15286, firmware 0x92; Mario & Sonic at Rio 2016's amdaemon updates another one's
+/// firmware, then never polls it), 1 (`tn32`: the TN32MSEC003S reader, crossbeats REV.'s;
+/// segatools' generation 1).
+fn generation() -> u8 {
+    static GEN: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
+    *GEN.get_or_init(|| match std::env::var("WAL_AIME_READER").as_deref().map(str::trim) {
+        Ok("15286") => 2,
+        Ok(v) if v.eq_ignore_ascii_case("tn32") => 1,
+        _ => 3,
+    })
+}
+
+/// The reader's hardware and firmware versions.
 fn versions() -> (&'static [u8], &'static [u8]) {
-    static GEN2: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    if *GEN2.get_or_init(|| std::env::var("WAL_AIME_READER").is_ok_and(|v| v.trim() == "15286")) {
-        (b"837-15286", b"\x92")
-    } else {
-        (b"837-15396", b"\x94")
+    match generation() {
+        1 => (b"TN32MSEC003S H/W Ver3.0", b"TN32MSEC003S F/W Ver1.2"),
+        2 => (b"837-15286", b"\x92"),
+        _ => (b"837-15396", b"\x94"),
     }
 }
-/// The LED board's info.
-const LED_INFO: &[u8] = b"000-00000\xFF\x11\x40";
+
+/// The LED board's info (generation 1: 837-15084).
+fn led_info() -> &'static [u8] {
+    if generation() == 1 { b"15084\xFF\x10\x00\x12" } else { b"000-00000\xFF\x11\x40" }
+}
 
 const NFC: u8 = 0x00;
 const LED: u8 = 0x08;
@@ -178,7 +191,7 @@ fn nfc(req: &[u8]) -> Option<Vec<u8>> {
         },
         // authenticate, firmware data (0x2b bytes: "the firmware is identical")
         0x51 | 0x55 => answer(req, 0, &[]),
-        0x61 => answer(req, if payload.len() == 0x2b { 0x20 } else { 0 }, &[]),
+        0x61 => answer(req, if payload.len() == 0x2b { if generation() == 1 { 0x03 } else { 0x20 } } else { 0 }, &[]),
         // select, keys, radio on / off, update mode
         0x40 | 0x41 | 0x43 | 0x50 | 0x54 | 0x60 => answer(req, 0, &[]),
         _ => {
@@ -191,7 +204,7 @@ fn nfc(req: &[u8]) -> Option<Vec<u8>> {
 fn led(req: &[u8]) -> Option<Vec<u8>> {
     match req[3] {
         0xF5 => Some(answer(req, 0, &[0])),
-        0xF0 => Some(answer(req, 0, LED_INFO)),
+        0xF0 => Some(answer(req, 0, led_info())),
         // set color: no answer
         0x81 => None,
         cmd => {
