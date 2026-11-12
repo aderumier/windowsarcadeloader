@@ -108,6 +108,13 @@ fn hook_loads(modules: &[usize]) {
     for &base in modules {
         for (i, (name, f)) in hooks.into_iter().enumerate() {
             if let Some(o) = unsafe { iat::hook_module(base, "kernel32.dll", name, f) } {
+                if o != f && o != export("kernel32.dll", name) && module_of(o) == crate::workarea::this_module() {
+                    // another hook of the payload (the Unity runtime's LoadLibrary, Mono's
+                    // stand-ins for the emulated libraries of the other architecture: replaced,
+                    // Disney Crossy Road's board never started, no coins): kept
+                    unsafe { iat::hook_module(base, "kernel32.dll", name, o) };
+                    continue;
+                }
                 if o != f && ORIG_LOAD[i].load(Ordering::Relaxed) == 0 {
                     ORIG_LOAD[i].store(o, Ordering::Relaxed);
                 }
