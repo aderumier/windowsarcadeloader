@@ -1622,6 +1622,8 @@ mod d3d8 {
             if !params.is_null() {
                 let p = params as *const u32;
                 let device_window = unsafe { *p.add(6) } as usize as P;
+                // `Present`'s window when it passes none (the aspect's rectangle)
+                super::DEVICE_WINDOW.store(if device_window.is_null() { window } else { device_window } as usize, Ordering::Relaxed);
                 unsafe {
                     log!(
                         "d3d8: device {}x{} windowed {}, focus window {}, device window {}",
@@ -1664,6 +1666,12 @@ mod d3d8 {
             }
         }
         let orig: unsafe extern "system" fn(P, P, P, P, P) -> HRESULT = unsafe { std::mem::transmute(ORIG_PRESENT.load(Ordering::Relaxed)) };
+        // as Direct3D 9's: the windowed size's rectangles dropped, the picture presented to the
+        // centered rectangle of `WAL_D3D9_ASPECT` (Photo Finish Racing: a screen-sized window,
+        // GNOME kept a 4:3 one under its top bar)
+        let (src, dst) = super::whole_window(src, dst);
+        let mut rect = [0i32; 4];
+        let dst = unsafe { super::aspect_rect(dst, window, &mut rect) };
         let clean=crate::border_d3d8::begin(dev);
         let result=unsafe { orig(dev, src, dst, window, dirty) };
         crate::border_d3d8::end(dev,clean);

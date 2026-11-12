@@ -5653,12 +5653,16 @@ build, is left alone). The executable links the HASP HL library; it runs without
   writes `90 02` + the relays' bits, nothing read. Without it the game stops at start ("Failed
   to initialize communications port!", `RelayErrExit`): a device of the payload's, the relays
   logged.
-- **Picture.** The 1024x768 full screen device windowed (`WAL_D3D9_WINDOWED_SIZE`) in the
-  screen's centered 4:3 rectangle, black around.
+- **Picture.** The 1024x768 full screen device windowed (`WAL_D3D9_WINDOWED_SIZE`) in a
+  borderless screen-sized window, presented to its centered 4:3 rectangle (`WAL_D3D9_ASPECT`:
+  Direct3D 8's `Present` takes it as Direct3D 9's, the device window recorded at the device's
+  creation for the presents without one). A window of the 4:3 rectangle's size was a normal
+  window to GNOME, kept under its top bar (the picture 48 pixels low, cut at the bottom).
 - Verified headless (2026-11-12): attract (its WMV video), coins for players 1 and 2, the
   starting gate, a race (sprint and trot holes, computer horses), the winner's relay, the final
   results; free play: start joins (players 1 and 3), start again races; the totals report and
   the relays screen.
+- The user: 100% (2026-11-12, desktop).
 
 #### ReRave
 
@@ -8103,7 +8107,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
 | `rerave` | ReRave | arcadepc | headless-tested (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | headless-tested (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
-| `photo-finish-racing` | Photo Finish Racing | arcadepc | headless-tested (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
+| `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

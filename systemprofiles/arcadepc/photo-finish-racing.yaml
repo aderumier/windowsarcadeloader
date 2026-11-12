@@ -16,13 +16,13 @@ drives: {d: D}
 
 env:
   WAL_ARCADEPC_BOARD: photofinish
-  # its 1024x768 full screen device windowed, in a borderless window the size of the centered
-  # 4:3 rectangle of the screen, black around
+  # its 1024x768 full screen device windowed, in a borderless screen-sized window, presented to
+  # the centered 4:3 rectangle (a window of that rectangle's size: GNOME kept it under its top
+  # bar, the picture cut at the bottom)
   WAL_D3D9_WINDOWED_SIZE: 1024x768
   WAL_D3D9_ASPECT: "4:3"
   WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: aspect
-  WAL_BEZEL: black
+  WAL_WINDOW_SIZE: screen
   WAL_HIDE_CURSOR: "1"
 
 options:
