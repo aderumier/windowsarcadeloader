@@ -1,0 +1,61 @@
+# Extreme Off Road (LuckSheng's "SurperHummerDemo": SurperHummerDemo_Local.exe, Unity 2020.3,
+# IL2CPP, 64-bit) - template, override values in userprofiles/arcadepc/extreme-off-road.yaml.
+# An off-road racing cabinet: a wheel, two pedals, start / view / weapon / attack buttons. The
+# payload is the cabinet's serial board library (cncommwrapper.dll: COM1, the "MT" board) for
+# the game's DllImports (WAL_ARCADEPC_BOARD=extremeoffroad, docs §6.3i).
+system: arcadepc
+name: Extreme Off Road
+
+# loaded at the executable's entry point; Unity's own XInput (xinput1_4) off, its xinput1_3 the
+# payload
+payload_loader: true
+dll_overrides:
+  xinput1_4: ""
+  xinput1_3: "n,b"
+  # the dump's mod loader (winhttp.dll, BepInEx: a community controls plugin): Wine's own, the
+  # game unmodified (the payload is its board)
+  winhttp: "b"
+
+env:
+  WAL_ARCADEPC_BOARD: extremeoffroad
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 300
+  # Keyboard: Left / Right wheel, Up throttle, Down brake.
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's free play (GameData.ini Coin_Rate 0): starts without coins. Off: a coin
+          per credit.
+
+controls:
+  lx: Wheel
+  accel: Throttle
+  brake: Brake
+  b1: Weapon
+  b2: Change view
+  b3: Left attack
+  b4: Right attack
+  up: Menu up
+  down: Menu down
+  left: Wheel full left
+  right: Wheel full right
+  start: Start / decide
+  coin: Coin
+  service: Operator menu (hold 1 s)
+  test: Test

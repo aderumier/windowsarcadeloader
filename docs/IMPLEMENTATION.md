@@ -5434,6 +5434,44 @@ payload), the input filter installed once `UnityPlayer.dll` is loaded:
   the d-pad and the stick, jumps, rolls, the hoverboard.
 - The user: 100% (2026-11-10, desktop).
 
+#### Extreme Off Road
+
+LuckSheng's off-road racing cabinet ("SurperHummerDemo", Unity 2020.3, IL2CPP, 64-bit). The dump
+was a repack: its executable a community launcher stub that loads `UnityPlayer.dll`, renamed to
+the game's product name (`SurperHummerDemo_Local.exe`, `SurperHummerDemo_Local_Data`: Unity
+names the data folder after the executable); its BepInEx
+controls plugin (`winhttp.dll`, Il2Cpp interop) is disabled by the profile (`winhttp: b`).
+`.windowsloader`: `SurperHummerDemo_Local.exe`. Board `extremeoffroad` (`extremeoffroad.rs`),
+loaded at the entry point (`payload_loader`; `xinput1_4` off, `xinput1_3` the payload):
+
+- **Board ("MT", COM1 at 115200 bauds).** `SerialComForMT` talks to it through the game's
+  `cncommwrapper.dll` (`CreateComm`, `Open`, `GetInputSize`, `Read`, `Write`: `DllImport`s
+  resolved by `GameAssembly.dll`'s and `baselib.dll`'s `GetProcAddress`, `mono_imports`): the
+  payload is that library, no port is opened (Wine's COM1 was the machine's `/dev/ttyS0`).
+- **Board to PC** (`SerialComForMT.ReceiveData` / `DealData`, `CommunicationWithMT.DealData`):
+  30 bytes, `55 56` (`DealDataHelpper.MThead1/2`), byte 2 the board's version, bytes 10..17
+  `10 11 .. 17`, 18..24 the switches (`ByteToBinarySting` + `CharToBool_0True`: a cleared bit
+  is pressed, into `MTSerial`'s `Key`s), 25 the wheel, 26 the throttle, 27 the brake (0..255:
+  `GameData.ini`'s calibration, wheel 0 / 128 / 255), 28 the byte sum of the bytes before it
+  (`DealDataHelpper.ADD`), 29 `ff`. Switches: byte 21 bit 0 coin; 22 bit 0 start, 1 view,
+  2 weapon, 3 link, 4 left attack, 5 right attack; 23 bit 0 the seat belt (always buckled),
+  4 up, 5 down, 6 left, 7 right; 24 bit 0 menu (held 1 s in the attract: the operator menu,
+  `GameWorker.Update`), 1 test. A frame is given each time the game has read the last one (it
+  polls every 20 ms); 5 s without a valid one is the COM error.
+- **PC to board**: 20 bytes, `55 56`, 2..9 the lamps, 10..13 the wheel's force feedback
+  settings (strength, frequency, center, dead zone), 14..17 the seat's valves and the wheel's
+  motions, 18 the sum, 19 `ff`: accepted, nothing done (no force feedback yet).
+- **Start race.** `OpenSerial` starts its receive thread before it creates the list the frames
+  go to: a frame read before then ends that thread (COM error, no inputs; 2 of 3 boots). The
+  payload's board stays silent for the first half second after `Open`, as a real one would.
+- **Free play** (the common `WAL_FREEPLAY`): the game's `Settings\GameData.ini` (UTF-16)
+  `Coin_Rate` (coins per credit, 0 its free play), written at start: 0, or 1 when free play is
+  off and it was 0.
+- The photo screen ("Let's take your picture") times out without a webcam.
+- Verified headless (2026-11-12): attract, board connected (no COM error, 5 boots of 5), free
+  play start to track select, coins with free play off (a coin starts), the operator menu.
+- The user: 100% (2026-11-12, desktop).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7782,6 +7820,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `pop-moto` | Pop Moto | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, item) | Tecway's motorbike racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `USB_board.dll` (handlebar, throttle lever, keys, coins) and patches the engine's scripts as the community library, no server, free play as the game's free mode |
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) | DiverBras' kart racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `bin\s_input.dll` in each of its engine programs (menus, races, operator menu), their hand-offs started by the launcher (relaunch), the record photo (webcam) skipped, free play as the game's own (JOGO LIVRE) |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
+| `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player | LuckSheng's off-road racing cabinet (Unity 2020.3, IL2CPP, 64-bit, §6.3i): the repack's launcher stub renamed to the product name, its BepInEx plugin disabled, the payload is the COM1 board's `cncommwrapper.dll` (wheel, pedals, switches, coins), silent for 0.5 s after open (the game's receive thread race), free play as `GameData.ini`'s `Coin_Rate` |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

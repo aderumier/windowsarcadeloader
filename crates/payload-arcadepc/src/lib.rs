@@ -82,6 +82,9 @@
 //! Subway Surfers Arcade (`WAL_ARCADEPC_BOARD=subway`): `subway.rs` posts its cabinet's keys and
 //! the hoverboard's double tap, and is its lamps' silent Arduino.
 //!
+//! Extreme Off Road (`WAL_ARCADEPC_BOARD=extremeoffroad`): `extremeoffroad.rs` is its COM1
+//! board's `cncommwrapper.dll` (the wheel, pedals, switches, coins) and sets free play.
+//!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
@@ -169,6 +172,7 @@ mod demul;
 mod dosbox;
 #[cfg(target_arch = "x86")]
 mod eolith;
+mod extremeoffroad;
 mod gameport;
 #[cfg(target_arch = "x86")]
 mod gamewax;
@@ -513,6 +517,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 senninha::init();
+            }
+            _ if board.trim() == "extremeoffroad" => {
+                pads::disconnect();
+                wal_payload_common::input_filter::init(unity, |_| false);
+                extremeoffroad::init();
             }
             _ if board.trim() == "subway" => {
                 pads::disconnect();
