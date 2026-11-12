@@ -349,6 +349,268 @@ unsafe fn draw(dev: P, _window: P) -> Option<P> {
     None
 }
 
+/// DirectDraw games presenting with a `Blt` of their back buffer to the primary surface
+/// (Dream Hunting): the crosshairs drawn into that back buffer before the `Blt`, alpha-blended
+/// in software (16 or 32 bits per pixel). `place` maps an aim (fractions of the screen) to
+/// fractions of the back buffer, `None` off it; the first `players` players' crosshairs (Dream
+/// Hunting's one gun: no second player's). `IDirectDrawSurface`'s `Blt` is hooked in its
+/// vtables (Wine's ddraw.dll, one per interface version, every surface's), found on a surface
+/// of a DirectDraw object of ours. Whether the crosshairs are on.
+#[cfg(target_arch = "x86")]
+pub fn init_ddraw(place: fn(f32, f32) -> Option<(f32, f32)>, players: usize) -> bool {
+    if !load() {
+        return false;
+    }
+    if !ddraw::hook(place, players) {
+        *STATE.lock().unwrap() = None;
+        return false;
+    }
+    true
+}
+
+/// A locked surface's pixels.
+#[cfg(target_arch = "x86")]
+struct Pixels {
+    bits: *mut u8,
+    pitch: isize,
+    w: u32,
+    h: u32,
+    /// Bytes per pixel (2 or 4).
+    bytes: u32,
+    /// Red, green, blue masks.
+    masks: [u32; 3],
+}
+
+/// One 8-bit channel of a pixel (`mask`'s bits), and back.
+#[cfg(target_arch = "x86")]
+fn channel(v: u32, mask: u32) -> u32 {
+    if mask == 0 {
+        return 0;
+    }
+    let max = mask >> mask.trailing_zeros();
+    ((v & mask) >> mask.trailing_zeros()) * 255 / max
+}
+
+#[cfg(target_arch = "x86")]
+fn unchannel(c: u32, mask: u32) -> u32 {
+    if mask == 0 {
+        return 0;
+    }
+    let max = mask >> mask.trailing_zeros();
+    ((c * max + 127) / 255) << mask.trailing_zeros() & mask
+}
+
+/// Draws the shown crosshairs into `px` (each image box-filtered to its size).
+#[cfg(target_arch = "x86")]
+unsafe fn draw_pixels(px: &Pixels, shown: &[Option<(i16, i16)>], images: &[Image], size: f32, place: fn(f32, f32) -> Option<(f32, f32)>) {
+    let ch = size * px.h as f32;
+    for (player, aim) in shown.iter().enumerate() {
+        let (Some(aim), Some(image)) = (aim, images.get(player)) else { continue };
+        let Some((ax, ay)) = place((aim.0 as f32 + 32768.0) / 65535.0, (aim.1 as f32 + 32768.0) / 65535.0) else { continue };
+        let cw = ch * image.w as f32 / image.h as f32;
+        let (x0, y0) = (ax * px.w as f32 - cw / 2.0, ay * px.h as f32 - ch / 2.0);
+        let (sx, sy) = (image.w as f32 / cw, image.h as f32 / ch);
+        let left = x0.floor().max(0.0) as i32;
+        let top = y0.floor().max(0.0) as i32;
+        let right = ((x0 + cw).ceil() as i32).min(px.w as i32);
+        let bottom = ((y0 + ch).ceil() as i32).min(px.h as i32);
+        for y in top..bottom {
+            let v0 = ((y as f32 - y0) * sy).max(0.0) as u32;
+            let v1 = (((y + 1) as f32 - y0) * sy).ceil().min(image.h as f32) as u32;
+            let row = unsafe { px.bits.offset(y as isize * px.pitch) };
+            for x in left..right {
+                let u0 = ((x as f32 - x0) * sx).max(0.0) as u32;
+                let u1 = (((x + 1) as f32 - x0) * sx).ceil().min(image.w as f32) as u32;
+                // the footprint's average, colors weighted by their alpha
+                let (mut b, mut g, mut r, mut a, mut n) = (0u32, 0u32, 0u32, 0u32, 0u32);
+                for v in v0..v1.max(v0 + 1).min(image.h) {
+                    for u in u0..u1.max(u0 + 1).min(image.w) {
+                        let p = &image.bgra[((v * image.w + u) * 4) as usize..][..4];
+                        let pa = p[3] as u32;
+                        b += p[0] as u32 * pa;
+                        g += p[1] as u32 * pa;
+                        r += p[2] as u32 * pa;
+                        a += pa;
+                        n += 1;
+                    }
+                }
+                if a == 0 || n == 0 {
+                    continue;
+                }
+                let (b, g, r) = (b / a, g / a, r / a);
+                let alpha = a / n;
+                let at = unsafe { row.add((x as u32 * px.bytes) as usize) };
+                let old = if px.bytes == 4 { unsafe { (at as *const u32).read_unaligned() } } else { u32::from(unsafe { (at as *const u16).read_unaligned() }) };
+                let mix = |src: u32, mask: u32| {
+                    let dst = channel(old, mask);
+                    unchannel((src * alpha + dst * (255 - alpha)) / 255, mask)
+                };
+                let [rm, gm, bm] = px.masks;
+                let new = mix(r, rm) | mix(g, gm) | mix(b, bm) | (old & !(rm | gm | bm));
+                if px.bytes == 4 {
+                    unsafe { (at as *mut u32).write_unaligned(new) };
+                } else {
+                    unsafe { (at as *mut u16).write_unaligned(new as u16) };
+                }
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "x86")]
+mod ddraw {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::{P, Pixels, STATE, aims, draw_pixels};
+    use crate::log;
+    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress, LoadLibraryA};
+    use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+
+    /// `IDirectDrawSurface` vtable slots.
+    const BLT: usize = 5;
+    const GET_CAPS: usize = 14;
+    const LOCK: usize = 25;
+    const UNLOCK: usize = 32;
+    const DDSCAPS_PRIMARYSURFACE: u32 = 0x200;
+    const DDLOCK_WAIT: u32 = 0x1;
+
+    /// `Blt` of each surface interface (1, 2, 3, 4, 7: a vtable each in Wine's ddraw.dll).
+    static ORIGINAL: [AtomicUsize; 5] = [const { AtomicUsize::new(0) }; 5];
+    static PLACE: AtomicUsize = AtomicUsize::new(0);
+    static PLAYERS: AtomicUsize = AtomicUsize::new(0);
+    /// IDirectDrawSurface2, 3, 4, 7.
+    const IIDS: [[u8; 16]; 4] = [
+        guid(0x5780_5885, 0x6eec, 0x11cf, [0x94, 0x41, 0xa8, 0x23, 0x03, 0xc1, 0x0e, 0x27]),
+        guid(0xda04_4e00, 0x69b2, 0x11d0, [0xa1, 0xd5, 0x00, 0xaa, 0x00, 0xb8, 0xdf, 0xbb]),
+        guid(0x0b2b_8630, 0xad35, 0x11d0, [0x8e, 0xa6, 0x00, 0x60, 0x97, 0x97, 0xea, 0x5b]),
+        guid(0x0667_5a80, 0x3b9b, 0x11d2, [0xb9, 0x2f, 0x00, 0x60, 0x97, 0x97, 0xea, 0x5b]),
+    ];
+
+    const fn guid(a: u32, b: u16, c: u16, d: [u8; 8]) -> [u8; 16] {
+        let (a, b, c) = (a.to_le_bytes(), b.to_le_bytes(), c.to_le_bytes());
+        [a[0], a[1], a[2], a[3], b[0], b[1], c[0], c[1], d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]]
+    }
+
+    type Blt = unsafe extern "system" fn(P, *const [i32; 4], P, *const [i32; 4], u32, P) -> i32;
+
+    macro_rules! com {
+        ($obj:expr, $slot:expr, fn($($t:ty),*) -> $ret:ty $(, $arg:expr)*) => {{
+            let obj = $obj;
+            let f: unsafe extern "system" fn(P $(, $t)*) -> $ret = unsafe { std::mem::transmute(*(*(obj as *const *const usize)).add($slot)) };
+            unsafe { f(obj $(, $arg)*) }
+        }};
+    }
+
+    /// The back buffer `src`, about to be copied to the primary `dst`: the crosshairs drawn in it.
+    unsafe fn draw(dst: P, src: P, version: usize) {
+        let mut guard = STATE.lock().unwrap();
+        let Some(state) = guard.as_mut() else { return };
+        let mut shown = aims(state);
+        for aim in shown.iter_mut().skip(PLAYERS.load(Ordering::Relaxed)) {
+            *aim = None;
+        }
+        if shown.iter().all(Option::is_none) {
+            return;
+        }
+        // DDSCAPS (4 bytes), DDSCAPS2 (16) for the interfaces 4 and 7
+        let mut caps = [0u32; 4];
+        if com!(dst, GET_CAPS, fn(*mut [u32; 4]) -> i32, &mut caps) < 0 || caps[0] & DDSCAPS_PRIMARYSURFACE == 0 {
+            return;
+        }
+        // DDSURFACEDESC (108 bytes), DDSURFACEDESC2 (124) for the interfaces 4 and 7: height 8,
+        // width 12, pitch 16, surface 36, pixel format 72 (bit count 84, red / green / blue
+        // masks 88 / 92 / 96)
+        let mut desc = [0u32; 31];
+        desc[0] = if version >= 3 { 124 } else { 108 };
+        if com!(src, LOCK, fn(*const [i32; 4], *mut [u32; 31], u32, P) -> i32, std::ptr::null(), &mut desc, DDLOCK_WAIT, std::ptr::null_mut()) < 0 {
+            return;
+        }
+        let bytes = desc[21] / 8;
+        if (bytes == 2 || bytes == 4) && desc[9] != 0 {
+            let px = Pixels { bits: desc[9] as usize as *mut u8, pitch: desc[4] as i32 as isize, w: desc[3], h: desc[2], bytes, masks: [desc[22], desc[23], desc[24]] };
+            let place: fn(f32, f32) -> Option<(f32, f32)> = unsafe { std::mem::transmute(PLACE.load(Ordering::Relaxed)) };
+            unsafe { draw_pixels(&px, &shown, &state.images, state.size, place) };
+        }
+        // the interfaces 1-3 take the locked pointer, 4 and 7 a rectangle (none: the whole)
+        com!(src, UNLOCK, fn(P) -> i32, if version >= 3 { std::ptr::null_mut() } else { desc[9] as usize as P });
+    }
+
+    unsafe extern "system" fn blt<const V: usize>(dst: P, dst_rect: *const [i32; 4], src: P, src_rect: *const [i32; 4], flags: u32, fx: P) -> i32 {
+        if !src.is_null() && src != dst {
+            unsafe { draw(dst, src, V) };
+        }
+        let original: Blt = unsafe { std::mem::transmute(ORIGINAL[V].load(Ordering::Relaxed)) };
+        unsafe { original(dst, dst_rect, src, src_rect, flags, fx) }
+    }
+
+    /// `Blt` replaced in `surface`'s vtable by `f`.
+    unsafe fn patch(surface: P, f: usize, original: &AtomicUsize) {
+        unsafe {
+            let slot = (*(surface as *const *mut usize)).add(BLT);
+            let mut old = 0;
+            VirtualProtect(slot as *const _, 4, PAGE_EXECUTE_READWRITE, &mut old);
+            if *slot != f {
+                original.store(*slot, Ordering::Relaxed);
+                *slot = f;
+            }
+            VirtualProtect(slot as *const _, 4, old, &mut old);
+        }
+    }
+
+    /// `Blt` hooked in the vtables of the surface interfaces (an offscreen surface of a DirectDraw
+    /// object of ours and its other interfaces: Dream Hunting presents through
+    /// `IDirectDrawSurface4`).
+    #[allow(unused_unsafe)]
+    pub(super) fn hook(place: fn(f32, f32) -> Option<(f32, f32)>, players: usize) -> bool {
+        PLACE.store(place as *const () as usize, Ordering::Relaxed);
+        PLAYERS.store(players, Ordering::Relaxed);
+        unsafe {
+            let mut module = GetModuleHandleA(c"ddraw.dll".as_ptr().cast());
+            if module.is_null() {
+                module = LoadLibraryA(c"ddraw.dll".as_ptr().cast());
+            }
+            let Some(create) = GetProcAddress(module, c"DirectDrawCreate".as_ptr().cast()) else {
+                log!("crosshair: no DirectDrawCreate, no crosshairs");
+                return false;
+            };
+            let create: unsafe extern "system" fn(P, *mut P, P) -> i32 = std::mem::transmute(create);
+            let mut dd: P = std::ptr::null_mut();
+            if create(std::ptr::null_mut(), &mut dd, std::ptr::null_mut()) < 0 || dd.is_null() {
+                log!("crosshair: DirectDrawCreate failed, no crosshairs");
+                return false;
+            }
+            // SetCooperativeLevel(NULL, DDSCL_NORMAL), CreateSurface (an 8x8 offscreen surface)
+            com!(dd, 20, fn(P, u32) -> i32, std::ptr::null_mut(), 0x8);
+            let mut desc = [0u32; 27];
+            desc[0] = 108;
+            desc[1] = 0x1 | 0x2 | 0x4; // DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH
+            desc[2] = 8;
+            desc[3] = 8;
+            desc[26] = 0x40 | 0x800; // DDSCAPS_OFFSCREENPLAIN | DDSCAPS_SYSTEMMEMORY
+            let mut surface: P = std::ptr::null_mut();
+            let hr = com!(dd, 6, fn(*mut [u32; 27], *mut P, P) -> i32, &mut desc, &mut surface, std::ptr::null_mut());
+            if hr < 0 || surface.is_null() {
+                log!("crosshair: no DirectDraw surface ({hr:#x}), no crosshairs");
+                com!(dd, 2, fn() -> u32);
+                return false;
+            }
+            let blts: [usize; 5] = [blt::<0> as *const () as usize, blt::<1> as *const () as usize, blt::<2> as *const () as usize, blt::<3> as *const () as usize, blt::<4> as *const () as usize];
+            patch(surface, blts[0], &ORIGINAL[0]);
+            for (i, iid) in IIDS.iter().enumerate() {
+                let mut other: P = std::ptr::null_mut();
+                if com!(surface, 0, fn(*const [u8; 16], *mut P) -> i32, iid, &mut other) >= 0 && !other.is_null() {
+                    patch(other, blts[i + 1], &ORIGINAL[i + 1]);
+                    com!(other, 2, fn() -> u32);
+                }
+            }
+            com!(surface, 2, fn() -> u32);
+            com!(dd, 2, fn() -> u32);
+        }
+        log!("crosshair: drawn into the DirectDraw back buffer before its Blt to the primary surface");
+        true
+    }
+}
+
 /// The legacy OpenGL functions of the crosshairs (the game's compatibility context).
 struct Gl {
     gen_textures: unsafe extern "system" fn(i32, *mut u32),

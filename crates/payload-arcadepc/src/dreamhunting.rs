@@ -30,6 +30,12 @@
 //! Ctrl+Shift+Z the test menu) are kept from the real devices by `payload-common`'s
 //! `input_filter`.
 //!
+//! **Reticle.** The game draws a red reticle where its window's mouse points (`reticle`): moves
+//! posted at the gun's place, the real mouse's dropped. The common crosshair option
+//! (`WAL_CROSSHAIR`, default on) draws the payload's instead, into the back buffer before the
+//! game's `Blt` of it to the primary surface (`crosshair::init_ddraw`), no mouse move posted
+//! (no reticle).
+//!
 //! **Free play** (`WAL_FREEPLAY`, default on): the game has none (its test menu's coins per
 //! credit go from 1 to 99): the payload keeps the coin count (`0x674864`) at the price of a game
 //! and of a continue (`SERVICE.INI`'s `credits` / `c_credits`), the title then asks for the
@@ -43,9 +49,9 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use wal_payload_common::mapping::ButtonMap;
-use wal_payload_common::{input, log, serial};
+use wal_payload_common::{gun, input, input_filter, log, serial};
 use wal_protocol::Axis;
-use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, WM_MOUSEMOVE};
 
 const PORT: &str = "COM1";
 
@@ -165,9 +171,14 @@ fn picture(sw: f32, sh: f32) -> [f32; 4] {
 fn aim() -> Option<(f32, f32)> {
     let stick = input(0);
     let f = |v: i16| (v as f32 + 32768.0) / 65535.0;
+    in_picture(f(stick.axis(Axis::LeftX)), f(stick.axis(Axis::LeftY)))
+}
+
+/// A place on the screen (fractions) in the picture (fractions), `None` off it.
+fn in_picture(x: f32, y: f32) -> Option<(f32, f32)> {
     let screen = SCREEN.load(Ordering::Relaxed);
     let [px, py, w, h] = picture((screen >> 16) as f32, (screen & 0xFFFF) as f32);
-    let (x, y) = ((f(stick.axis(Axis::LeftX)) - px) / w, (f(stick.axis(Axis::LeftY)) - py) / h);
+    let (x, y) = ((x - px) / w, (y - py) / h);
     ((0.0..1.0).contains(&x) && (0.0..1.0).contains(&y)).then_some((x, y))
 }
 
@@ -208,6 +219,33 @@ fn direction(forward: bool, back: bool, left: bool, right: bool) -> Option<u8> {
         (1, 1) => b'7',
         _ => return None,
     })
+}
+
+/// The payload's crosshair shown (the common option): the game's reticle hidden.
+static OWN_CROSSHAIR: AtomicBool = AtomicBool::new(false);
+
+/// The game's red reticle follows its window's mouse moves (its development input, `0x422a90`:
+/// the place and a moved flag; the cabinet's gun gives a place only with a shot): the real
+/// mouse's are dropped (`input_filter::own_mouse`). With the payload's crosshair none is posted
+/// (no reticle: it shows once a move came; a mouse parked off the picture stopped the walk),
+/// else a move at the gun's place in the picture (the place its shot lands) as it moves.
+fn reticle() {
+    static LAST: Mutex<Option<(i32, i32)>> = Mutex::new(None);
+    if OWN_CROSSHAIR.load(Ordering::Relaxed) {
+        return;
+    }
+    let Some((x, y)) = aim() else { return };
+    let at = ((x * read(WIDTH).max(1) as f32) as i32, (y * read(HEIGHT).max(1) as f32) as i32);
+    let mut last = LAST.lock().unwrap();
+    if *last == Some(at) {
+        return;
+    }
+    let hwnd = gun::find_window();
+    if hwnd.is_null() {
+        return;
+    }
+    input_filter::post_mouse(hwnd, WM_MOUSEMOVE, at.0, at.1, 0);
+    *last = Some(at);
 }
 
 /// The board's next message, when the game polls an empty port.
@@ -263,6 +301,7 @@ fn idle() -> Vec<u8> {
             unsafe { *(COINS as *mut i32) = price };
         }
     }
+    reticle();
     if let Some(message) = b.queue.pop_front() {
         return message;
     }
@@ -306,7 +345,11 @@ pub fn init() {
     }
     let free = wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY") != Some(false);
     FREE_PLAY.store(free, Ordering::Relaxed);
+    // the real mouse's moves dropped: the game's reticle is the gun's (`reticle`)
+    input_filter::own_mouse(0);
     serial::install_streaming(PORT, handler, idle);
+    // the common crosshair option: the gun's crosshair drawn into the picture (the game has none)
+    OWN_CROSSHAIR.store(wal_payload_common::crosshair::init_ddraw(in_picture, 1), Ordering::Relaxed);
     log!("dreamhunting: the gun board on {PORT} ({sw}x{sh} screen), free play {}", if free { "on" } else { "off" });
 }
 

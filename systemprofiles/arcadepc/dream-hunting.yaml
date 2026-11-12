@@ -17,6 +17,9 @@ hide: [D3D8.dll, dgVoodoo.conf, dgVoodooCpl.exe]
 env:
   WAL_ARCADEPC_BOARD: dreamhunting
   WAL_HIDE_CURSOR: "1"
+  # the common crosshair option: the payload's crosshair drawn into the picture, the game's red
+  # reticle hidden; off, the game's reticle (moved to the gun's place by the payload)
+  WAL_CROSSHAIR: "1"
 
 input:
   guns_enabled: true

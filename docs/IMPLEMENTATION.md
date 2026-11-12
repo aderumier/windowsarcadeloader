@@ -5620,12 +5620,23 @@ hidden): the 640x480 mode scaled to the screen, 4:3 kept. Board `dreamhunting`
   credit go from 1 to 99): the payload keeps the coin count (`0x674864`) at the price of a game
   and of a continue (`SERVICE.INI`'s `credits` / `c_credits`); the title then asks for the
   trigger.
-- No crosshair (the cabinet's gun shows none; the common crosshair option draws over Direct3D 9
-  only), no Sinden border yet.
+- **Crosshair** (the common `WAL_CROSSHAIR`, on): drawn into the back buffer before the game's
+  `Blt` of it to the primary surface (`crosshair::init_ddraw`: `Blt` hooked in the vtables of
+  Wine's surface interfaces 1, 2, 3, 4 and 7, found on a surface of a DirectDraw object of the
+  payload's; the game presents through `IDirectDrawSurface4`), alpha-blended in software (16 or
+  32 bits per pixel), at the gun's place in the picture; player 1's only.
+- **Reticle.** The game also draws a red reticle where its window's mouse points (its
+  development input, `WM_MOUSEMOVE` at `0x422a90`: the place and a moved flag), not where its
+  shots land (the gun's calibration): the real mouse's moves are dropped
+  (`input_filter::own_mouse`). With the payload's crosshair none is posted (no reticle; a mouse
+  parked off the picture stopped the walk); with the option off, a move at the gun's place in the
+  picture as it moves (the reticle at the shots' place).
+- No Sinden border yet.
 - Verified on Xvfb (2026-11-12, 1920x1080: the picture 4:3, black sides): attract, free play
   title, the trigger's start, arena select, shots landing where aimed (the game's shot place
   logged: corners and center within a pixel), bullets spent, walking and turning, coins with
   free play off (CREDIT 01), the test menu (joystick moves, trigger selects, the I/O test).
+- The user: 100% (2026-11-12, desktop).
 
 #### Photo Finish Racing
 
@@ -8123,6 +8134,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
 | `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | user 100% (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
+| `dream-hunting` | Dream Hunting | arcadepc | user 100% (2026-11-12), 1 gun | Dream Gun's hunting game (`DreamGun.exe`, DirectDraw / Direct3D immediate mode 640x480, 32-bit, §6.3i): its COM1 gun board emulated (trigger, coins, test, zoom, walking joystick, the shot's place through the game's calibration), free play by the coin count, the payload's crosshair drawn into its DirectDraw back buffer (the game's mouse reticle hidden), Wine's DirectDraw |
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 
