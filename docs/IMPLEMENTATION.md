@@ -7087,6 +7087,8 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
   - CHUNITHM (SDBT 1.00, ROM 1.00.02, `chunithm`), the series' first: the same profile with the
     title uri `/SDBT/100/`; its boot checks for another distribution server about 100 s.
   - CHUNITHM AIR (SDBT 1.10.00, `chunithm-air`): the same profile with the title uri `/SDBT/110/`.
+  - CHUNITHM AIR PLUS (SDBT 1.15.00, `chunithm-air-plus`): the same profile with the title uri
+    `/SDBT/115/`.
   - CHUNITHM PARADISE LOST (SDBT 1.50.00, `chunithm-paradise-lost`): runs with SEGAguide's
     unpacked `chuniApp.exe` and `aimeReaderHost.exe` (Dniel97/SEGAguide `SDBT/150.zip`, cloned
     at `~/code/SEGAguide`; its `amfs/ICF1`, `ICF2` too) in place of the dump's protected ones
@@ -7692,6 +7694,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chunithm-plus` | CHUNITHM PLUS | alls | headless tests (2026-11-09): attract, card login, tutorial with the slider, billing over TLS 1.0 | as CHUNITHM STAR, title uri `/SDBT/106/` |
 | `chunithm` | CHUNITHM | alls | user (2026-11-12): "game works fine" (Aime card created); headless tests: attract, free play, card login, registration, tutorial with the slider | as CHUNITHM STAR, title uri `/SDBT/100/` |
 | `chunithm-air` | CHUNITHM AIR | alls | headless tests (2026-11-12): attract, free play, card login, registration, tutorial with the slider | as CHUNITHM STAR, title uri `/SDBT/110/` |
+| `chunithm-air-plus` | CHUNITHM AIR PLUS | alls | headless tests (2026-11-12): attract, free play, card login, registration, trial play, name entry, tutorial | as CHUNITHM STAR, title uri `/SDBT/115/` |
 | `chunithm-paradise-lost` | CHUNITHM PARADISE LOST | alls | headless tests (2026-11-10): title server, card login, tutorial with the slider; with SEGAguide's unpacked executables (the dump's are protected) | as CHUNITHM STAR, title uri `/SDBT/150/` |
 | `crossbeats-rev-sunrise` | crossbeats REV. SUNRiSE | alls | user (2026-11-12): "the game seem to work perfectly" (mouse touch, red dot, Aime login with PIN, profile load); headless tests: boot, ALL.Net, game server tables, coins, touch, card sign-up | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=cxb`): CommIo / CommLamp exports, WM_TOUCH, TN32 Aime reader COM12, options after 0060, billing type 0, ARTEMiS game server (WinHTTP body order fix) |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
