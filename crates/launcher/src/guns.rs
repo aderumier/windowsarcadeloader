@@ -18,7 +18,13 @@
 //! Each device reports its position as the `x`/`y` sources (-32768 left/top..32767), its
 //! buttons as evdev key sources (`BTN_LEFT`...), `offscreen` while a gun points off the
 //! screen, and a mouse's wheel as `wheel_up` / `wheel_down`, each notch held
-//! [`WHEEL_NOTCH`] (one notch a press the game's payload sees: Tapping Skill Test's pinch). The devices are not grabbed: the game still gets them as X11 mice.
+//! [`WHEEL_NOTCH`] (one notch a press the game's payload sees: Tapping Skill Test's pinch).
+//!
+//! With `input.guns_grab` the guns are grabbed: the desktop's pointer does not move, no click
+//! reaches it (Batocera's Wayland with a Sinden: its off-screen reload clicked at the screen's
+//! edge, the game window lost the focus: Tomb Raider and Rabbids paused, Luigi's Mansion's
+//! Direct3D device reset failed, Time Crisis 5's RSLauncher came to the front). The game's
+//! input is the launcher's. Mice are not grabbed: the desktop's own mouse.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
@@ -105,7 +111,7 @@ fn is_touchpad(path: &Path, dev: &Device) -> bool {
 
 /// Finds the guns, then the mice for the remaining players, and starts a reader thread for
 /// each one, sending its updates to `tx`.
-pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], wrap: bool, tx: Sender<PointerEvent>) -> Vec<Pointer> {
+pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], wrap: bool, grab: bool, tx: Sender<PointerEvent>) -> Vec<Pointer> {
     if wrap {
         return start_trackball(mouse_screen, tx);
     }
@@ -139,6 +145,10 @@ pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], wrap: bool
         let pointer = Pointer { path, name: dev.name().unwrap_or("?").to_string(), is_gun, player: index };
         let tx = tx.clone();
         if is_gun {
+            let mut dev = dev;
+            if grab && let Err(e) = dev.grab() {
+                eprintln!("input: {}: not grabbed ({e}): its clicks also reach the desktop", pointer.path.display());
+            }
             std::thread::spawn(move || read_gun(index, dev, tx));
         } else {
             std::thread::spawn(move || read_mouse(index, dev, mouse_screen, tx));

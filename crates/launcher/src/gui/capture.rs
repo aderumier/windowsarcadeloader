@@ -61,7 +61,7 @@ pub fn start(wake: impl Fn() + Send + Clone + 'static) -> Receiver<InputEvent> {
         let (tx, wake) = (tx.clone(), wake.clone());
         std::thread::spawn(move || {
             let (gun_tx, events) = channel();
-            let found = guns::start(true, 0, [1920, 1080], false, gun_tx);
+            let found = guns::start(true, 0, [1920, 1080], false, false, gun_tx);
             let _ = tx.send(InputEvent::Pointers(found.into_iter().map(|p| (p.name, p.is_gun)).collect()));
             wake();
             for (index, key, value) in events {

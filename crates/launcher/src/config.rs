@@ -134,6 +134,7 @@ pub struct InputConfig {
     pub keyboard_ramp_ms: u32,
     pub guns_enabled: bool,
     pub guns_mouse: bool,
+    pub guns_grab: bool,
     pub guns_mice: usize,
     pub mouse_screen: [u32; 2],
     pub mouse_wrap: bool,
