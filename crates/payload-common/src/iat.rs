@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use crate::log;
-use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetModuleHandleW, GetProcAddress, LoadLibraryA};
 use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE, PAGE_GUARD, PAGE_NOACCESS, PAGE_READWRITE, VirtualProtect, VirtualQuery};
 
 const IMAGE_DIRECTORY_ENTRY_IMPORT: usize = 1;
@@ -101,7 +101,13 @@ static HOOKED: Mutex<Vec<(usize, usize)>> = Mutex::new(Vec::new());
 /// Address of `dll!function` (the DLL is loaded: the game imports it).
 unsafe fn resolve(dll: &str, function: Import) -> usize {
     let Ok(cdll) = std::ffi::CString::new(dll) else { return 0 };
-    let module = unsafe { LoadLibraryA(cdll.as_ptr().cast()) };
+    // loaded already: not through LoadLibraryA, perhaps hooked by now (a packed executable's
+    // kernel32 hot patched: the late hooks' LoadLibraryA called while they hold their lock,
+    // Teratoma hung at its start)
+    let mut module = unsafe { GetModuleHandleA(cdll.as_ptr().cast()) };
+    if module.is_null() {
+        module = unsafe { LoadLibraryA(cdll.as_ptr().cast()) };
+    }
     if module.is_null() {
         return 0;
     }

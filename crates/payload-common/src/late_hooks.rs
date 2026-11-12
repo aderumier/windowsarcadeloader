@@ -82,13 +82,12 @@ pub(crate) fn hook(dll: &'static str, name: &'static str, f: usize, orig: &'stat
             *dir = exe.rsplit_once('\\').map(|(d, _)| format!("{d}\\")).unwrap_or_default();
         }
     }
-    {
+    // DONE not held while hooking: a hook may call the game's LoadLibrary, hooked by `loaded`
+    for &base in &modules {
+        apply(base, (dll, name, f, orig));
         let mut done = DONE.lock().unwrap();
-        for &base in &modules {
-            apply(base, (dll, name, f, orig));
-            if !done.contains(&base) {
-                done.push(base);
-            }
+        if !done.contains(&base) {
+            done.push(base);
         }
     }
     if orig.load(Ordering::Relaxed) == 0 {
