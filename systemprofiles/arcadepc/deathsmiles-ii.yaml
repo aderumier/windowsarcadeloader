@@ -1,0 +1,41 @@
+# Deathsmiles II (Cave, 2009, cvgame.exe, Direct3D 9, 32-bit, 640x480) - template, override
+# values in userprofiles/arcadepc/deathsmiles-ii.yaml.
+# A two player shooting game: a stick and three buttons each. The payload emulates the
+# cabinet's COM3 I/O board (WAL_ARCADEPC_BOARD=cave, docs §6.3i).
+system: arcadepc
+name: Deathsmiles II
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# the dump's community input library and its settings: not used (the payload is the board)
+hide: [ds2_monitor.dll, monitor_input.bin, monitor_opt.bin]
+
+env:
+  WAL_ARCADEPC_BOARD: cave
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The SYSTEM menu's COIN MODE set to FREE PLAY: games start without coins. Off: one
+          coin per credit when it was free play.
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Button 1
+  b2: Button 2
+  b3: Button 3
+  start: Start
+  coin: Coin
+  service: Service (credit)
+  test: Test menu (hold)

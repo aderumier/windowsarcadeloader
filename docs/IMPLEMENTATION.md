@@ -5697,6 +5697,42 @@ Board `rerave` (`rerave.rs`, x86 build), loaded at the entry point (`payload_loa
   difficulty select, a song (taps scored, combo, fail, results), coins with free play off, the
   operator menu; 1920x1080 and 1600x1200 (stretched, touches in place).
 
+#### Deathsmiles II
+
+Cave's 2009 shooting game (`cvgame.exe`, "2009/10/14 MASTER VER 4.00", Direct3D 9, XAudio2,
+32-bit, 640x480: Wine's emulated full screen mode, 4:3 kept). `.windowsloader`: `cvgame.exe`.
+The dump's community input library (`ds2_monitor.dll` with its `monitor_input.bin` /
+`monitor_opt.bin`, never loaded by the game) is hidden. Board `cave` (`cave.rs`), loaded at the
+entry point (`payload_loader`), the game's window messages filtered:
+
+- **I/O board** (COM3, the game's `COM1`-`COM17` table): 4-byte ASCII messages. Start: `@***`,
+  20 bytes read (the board's version, not checked), then `&***`, 9 bytes: `&` and 8 serial
+  number digits (kept with the network adapter's address in the backup data). Board to PC (read
+  4 bytes at a time until the port is empty, each sent when its inputs change, the game's state
+  starting released): `Q b1 b2 0` / `R b1 b2 0` players 1 / 2 (`b1` bit 7 start, 6 service, 5
+  up, 4 down, 3 left, 2 right, 1 / 0 buttons 1 / 2; `b2` bit 7 button 3), `P ff 0 0` / `P 0 0 0`
+  test pressed / released, `S 0 0 0` a coin (one each), `!***` alive. The test switch is held
+  2.5 s at least (1 s did not open the test menu, 3 s did). PC to board: `+**n` and 64 bytes and
+  a sum, the backup data copied to the board (accepted). The game's input test shows every
+  switch (lever, shots, start, service, test, both players).
+- **Boot crash.** The game's file loader (`CGMFileLoadMan`, a singleton made at its first use,
+  0x475fa0) leaves its load queue's head, tail and count uninitialized until the queue is set
+  up: a request before then divided by the queue's size (0, at 0x483801: integer divide by
+  zero, the process ended at once, 1 boot of 5 with or without a board) when Wine's heap gave
+  the object leftover bytes. The payload's `operator new` call there returns cleared memory
+  (8 boots of 8 after). The board also stays silent for 3 s after the start sequence.
+- **Free play** (the common `WAL_FREEPLAY`): the SYSTEM menu's COIN MODE (`0x7654f0`: 0 FREE
+  PLAY, 1 one coin one credit, 2-9 more coins per credit), loaded from the backup data: kept at
+  0 (FREE PLAY on the title, PRESS 1P OR 2P START); off, set back to 1 when it is 0 (the first 2
+  minutes).
+- **Saves.** The game writes its backup data (settings, rankings, income) in
+  `RES\_gdata987.rpm` and a power-on log `RES\err.log`: through the run directory's `RES` link,
+  in the dump (a `.squashfs` image: its overlay).
+- Loading takes about a minute (NOW LOADING) before the attract mode.
+- Verified headless (2026-11-12): attract, coins (CREDITS), 1P and 2P start, character select,
+  the first stage (moves, shots), the test menu (input test, system configuration, income
+  data), free play on and off.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -8064,6 +8100,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | headless-tested (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
 | `monsterous` | Monsterous | arcadepc | headless-tested (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
 | `rerave` | ReRave | arcadepc | headless-tested (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
+| `deathsmiles-ii` | Deathsmiles II | arcadepc | headless-tested (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | headless-tested (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 

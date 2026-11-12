@@ -165,6 +165,9 @@
 //! Sega Rally 2 (`WAL_ARCADEPC_BOARD=segarally2`, x86 build): `segarally2.rs` hooks its
 //! MUSASHI input library's DirectInput (the common fake wheel).
 //!
+//! Deathsmiles II (`WAL_ARCADEPC_BOARD=cave`, x86 build): `cave.rs` emulates its COM3 I/O
+//! board.
+//!
 //! Family Guy Bowling Arcade (`WAL_ARCADEPC_BOARD=teamplay`): `teamplay.rs` is the Linux
 //! cabinet's Team Play I/O library (`teamplayio`, `serialio`) for its DllImports.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -182,6 +185,8 @@ mod boys;
 #[cfg(target_arch = "x86")]
 mod bugbusters;
 mod bullseye;
+#[cfg(target_arch = "x86")]
+mod cave;
 mod commking;
 #[cfg(target_arch = "x86")]
 mod comeonbaby;
@@ -616,6 +621,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 // Unity 5.4: the player is the executable
                 let player = if unity != 0 { unity } else { unsafe { GetModuleHandleW(std::ptr::null()) as usize } };
                 wal_payload_common::input_filter::init(player, demul::key_held);
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "cave" => {
+                pads::disconnect();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                cave::init();
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();
