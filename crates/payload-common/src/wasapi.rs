@@ -151,7 +151,10 @@ pub fn init() {
     }
     *STREAMS.lock().unwrap() = Some(HashMap::new());
     *RENDERS.lock().unwrap() = Some(HashMap::new());
-    match unsafe { iat::hook("ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
+    // combase.dll's: executables with rebuilt imports (SEGAguide's unpacked CHUNITHM CRYSTAL PLUS)
+    let hooked = unsafe { iat::hook("ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) }
+        .or_else(|| unsafe { iat::hook("combase.dll", "CoCreateInstance", co_create_instance as *const () as usize) });
+    match hooked {
         Some(o) => {
             ORIG[CO_CREATE].store(o, Ordering::Relaxed);
             log!("wasapi: exclusive mode streams played in shared mode");

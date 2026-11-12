@@ -7137,6 +7137,11 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
   - CHUNITHM AMAZON (SDBT 1.30.00, `chunithm-amazon`): the same profile with the title uri `/SDBT/130/`.
   - CHUNITHM AMAZON PLUS (SDBT 1.35.00, `chunithm-amazon-plus`): the same profile with the title uri `/SDBT/135/`.
   - CHUNITHM CRYSTAL (SDBT 1.40.00, `chunithm-crystal`): the same profile with the title uri `/SDBT/140/`.
+  - CHUNITHM CRYSTAL PLUS (SDBT 1.45.00, `chunithm-crystal-plus`): protected as PARADISE LOST; runs
+    with SEGAguide's `SDBT/145.zip` executables and ICF (the same setup); the title uri `/SDBT/145/`,
+    "No TLS" at RVA 0xCE6079 (its file offset 0xCE5479: `.text` at file offset 0x400). Its rebuilt
+    imports take `CoCreateInstance` from `combase.dll`: `wasapi.rs` hooks that one too (else the
+    exclusive mode stream, no sound).
   - CHUNITHM PARADISE LOST (SDBT 1.50.00, `chunithm-paradise-lost`): runs with SEGAguide's
     unpacked `chuniApp.exe` and `aimeReaderHost.exe` (Dniel97/SEGAguide `SDBT/150.zip`, cloned
     at `~/code/SEGAguide`; its `amfs/ICF1`, `ICF2` too) in place of the dump's protected ones
@@ -7746,6 +7751,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chunithm-amazon` | CHUNITHM AMAZON | alls | headless tests (2026-11-12): attract, free play, card login, registration, tutorial with the slider | as CHUNITHM STAR, title uri `/SDBT/130/` |
 | `chunithm-amazon-plus` | CHUNITHM AMAZON PLUS | alls | headless tests (2026-11-12): attract, free play, card login, registration, tutorial with the slider | as CHUNITHM STAR, title uri `/SDBT/135/` |
 | `chunithm-crystal` | CHUNITHM CRYSTAL | alls | headless tests (2026-11-12): attract, free play, card login, registration, tutorial with the slider | as CHUNITHM STAR, title uri `/SDBT/140/` |
+| `chunithm-crystal-plus` | CHUNITHM CRYSTAL PLUS | alls | headless tests (2026-11-12): attract, free play, card login, registration, trial play, name entry, tutorial; with SEGAguide's unpacked executables (the dump's are protected) | as CHUNITHM PARADISE LOST, title uri `/SDBT/145/` |
 | `chunithm-paradise-lost` | CHUNITHM PARADISE LOST | alls | headless tests (2026-11-10): title server, card login, tutorial with the slider; with SEGAguide's unpacked executables (the dump's are protected) | as CHUNITHM STAR, title uri `/SDBT/150/` |
 | `crossbeats-rev-sunrise` | crossbeats REV. SUNRiSE | alls | user (2026-11-12): "the game seem to work perfectly" (mouse touch, red dot, Aime login with PIN, profile load); headless tests: boot, ALL.Net, game server tables, coins, touch, card sign-up | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=cxb`): CommIo / CommLamp exports, WM_TOUCH, TN32 Aime reader COM12, options after 0060, billing type 0, ARTEMiS game server (WinHTTP body order fix) |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
