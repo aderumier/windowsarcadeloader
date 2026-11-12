@@ -156,6 +156,9 @@
 //! signals into the game, patches its settings'
 //! getters (free play, crosshairs, no photos) and posts its operator menus' keypad keys.
 //!
+//! Photo Finish Racing (`WAL_ARCADEPC_BOARD=photofinish`, x86 build): `photofinish.rs` gives
+//! its three players' ball drop and credit keys and emulates its relay board.
+//!
 //! Sega Rally 2 (`WAL_ARCADEPC_BOARD=segarally2`, x86 build): `segarally2.rs` hooks its
 //! MUSASHI input library's DirectInput (the common fake wheel).
 //!
@@ -219,6 +222,8 @@ mod ngun;
 mod robinhood;
 mod topgun2_landscape;
 mod pads;
+#[cfg(target_arch = "x86")]
+mod photofinish;
 #[cfg(target_arch = "x86")]
 mod popmoto;
 #[cfg(target_arch = "x86")]
@@ -576,6 +581,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "felix" => {
                 pads::disconnect();
                 felix::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "photofinish" => {
+                pads::disconnect();
+                photofinish::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "segarally2" => {

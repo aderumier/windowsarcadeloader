@@ -1,0 +1,46 @@
+# Photo Finish Racing (Competitive Edge Games / ICE, run.exe v1.23, Direct3D 8, 32-bit) - template,
+# override values in userprofiles/arcadepc/photo-finish-racing.yaml.
+# A horse racing derby for three players: each rolls balls into holes (red: sprint, blue: gallop,
+# yellow: trot), their horse runs. The game polls its ball drop and credit switches as keys; the
+# payload gives them from the virtual sticks (the real keyboard and mouse filtered) and emulates
+# its relay board (docs §6.3i).
+system: arcadepc
+name: Photo Finish Racing
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+# the settings (D:\CE Games\Photo Finish\PhotoFinish.ini, the game's totals): in the dump
+drives: {d: D}
+
+env:
+  WAL_ARCADEPC_BOARD: photofinish
+  # its 1024x768 full screen device windowed, in a borderless window the size of the centered
+  # 4:3 rectangle of the screen, black around
+  WAL_D3D9_WINDOWED_SIZE: 1024x768
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  WAL_BEZEL: black
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's free play (FreePlayMode): start puts the player's horse in the starting
+          gate, start again begins the race. Off: a coin per race.
+
+controls:
+  b1: Red hole (sprint)
+  b2: Blue hole (gallop)
+  b3: Yellow hole (trot)
+  coin: Credit
+  start: Join / start the race (free play)
+  test: Totals report
+  service: Settings / relays screen
+  b5: Reset the totals (on the report)

@@ -5625,6 +5625,39 @@ hidden): the 640x480 mode scaled to the screen, 4:3 kept. Board `dreamhunting`
   logged: corners and center within a pixel), bullets spent, walking and turning, coins with
   free play off (CREDIT 01), the test menu (joystick moves, trigger selects, the I/O test).
 
+#### Photo Finish Racing
+
+Competitive Edge Games' horse racing derby (ICE; `run.exe` v1.23, Direct3D 8, 32-bit, three
+players: "Version 1.22.1 3 player setup"). `.windowsloader`: `run.exe` (`run.ex_`, another
+build, is left alone). The executable links the HASP HL library; it runs without the dongle
+(`start.bat` waited for its driver). Board `photofinish` (`photofinish.rs`), loaded at the entry point (`payload_loader`):
+
+- **Keys.** Each player's ball drop and credit switches are keys polled with
+  `GetAsyncKeyState` every 10 ms (a `SetTimer` callback), the settings' `PlayerNDropID` /
+  `PlayerNCreditID` (default `B` `C` `D`, `K` `L` `M`). A hole is a number of drop pulses,
+  counted for half a second after the first one (0x40b7e0), the horse running as many steps:
+  red (sprint) 3, blue (gallop) 2, yellow (trot) 1. b1 / b2 / b3 give a hole's pulses (30 ms
+  down, 30 ms up), coin the credit key; players 1 to 3 are the first three virtual sticks.
+  The operator keys are the window's `WM_KEYDOWN`s (0x40a1f1), posted: `F1` (service) the
+  settings / relays screen, `F2` (test) the totals report, `F9` (b5) resets them there; Escape
+  quits (never posted). `input_filter`: the real keyboard and mouse never reach the game.
+- **Settings.** `D:\CE Games\Photo Finish\PhotoFinish.ini` (`C:` without a `D:`; `key= value`
+  lines, the totals in `PhotoFinish.gad`): the profile maps `D:` into the dump.
+- **Free play** (the common `WAL_FREEPLAY`): the settings' `FreePlayMode`, written at start.
+  The race then waits for Space (0x40bf57 opens the starting gate from the attract, 0x40f8a7
+  starts the race), each player's credit key puts their horse in the gate without a credit: a
+  player's start posts Space and presses their credit key, start again races.
+- **Relay board** (`RelayCommPort`, COM1 at 9600 bauds): the finish and winner signals, 4-byte
+  writes `90 02` + the relays' bits, nothing read. Without it the game stops at start ("Failed
+  to initialize communications port!", `RelayErrExit`): a device of the payload's, the relays
+  logged.
+- **Picture.** The 1024x768 full screen device windowed (`WAL_D3D9_WINDOWED_SIZE`) in the
+  screen's centered 4:3 rectangle, black around.
+- Verified headless (2026-11-12): attract (its WMV video), coins for players 1 and 2, the
+  starting gate, a race (sprint and trot holes, computer horses), the winner's relay, the final
+  results; free play: start joins (players 1 and 3), start again races; the totals report and
+  the relays screen.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7991,6 +8024,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player | LuckSheng's off-road racing cabinet (Unity 2020.3, IL2CPP, 64-bit, §6.3i): the repack's launcher stub renamed to the product name, its BepInEx plugin disabled, the payload is the COM1 board's `cncommwrapper.dll` (wheel, pedals, switches, coins), silent for 0.5 s after open (the game's receive thread race), free play as `GameData.ini`'s `Coin_Rate` |
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | headless-tested (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
 | `monsterous` | Monsterous | arcadepc | headless-tested (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
+| `photo-finish-racing` | Photo Finish Racing | arcadepc | headless-tested (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
