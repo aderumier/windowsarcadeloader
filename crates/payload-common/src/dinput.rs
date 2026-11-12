@@ -31,7 +31,8 @@
 //! `WAL_DINPUT_WHEEL_HEARTBEAT_MS=<ms>` re-reports every axis that often (Visual Pinball takes
 //! an axis silent for 3 s as its nudge board unplugged).
 //! `WAL_DINPUT_WHEEL_<X|Y|Z|RX|RY|RZ>_REST=<0..1>`: where the axis rests in its raw range (a
-//! spring plunger near its end), each half of the stick spanning one side. The wheel keeps the
+//! spring plunger near its end), each half of the stick spanning one side; a pedal goes from
+//! there to the range's end (its start inverted). The wheel keeps the
 //! calibration a game sets (`DIPROP_CALIBRATION`, in the registry, for the other programs) and
 //! applies it, raw values in `DIPROP_CALIBRATIONMODE` raw; its names (`DIPROP_PRODUCTNAME` /
 //! `DIPROP_INSTANCENAME`) are its product name.
@@ -39,6 +40,9 @@
 //! picks its controls layout by the vendor id: the cabinet board's, 1ab7).
 //! `WAL_DINPUT_WHEEL_BUTTON_BASE=0`: its buttons named from `Button 0` (Windows' names), else
 //! from `Button 1`. `WAL_DINPUT_WHEEL_JOYSTICK=1`: a joystick, not a driving device.
+//! `WAL_DINPUT_LEGACY=1`: the DirectInput 5-7 device types (the wheel a joystick of the wheel
+//! subtype, the system keyboard and mouse their own, in their capabilities too): Sega Rally 2's
+//! input library takes no other (E_NOINTERFACE, the device left out).
 //! `WAL_DINPUT_WHEEL_SYSTEM=1`: the system keyboard and mouse of
 //! [`set_keyboard`] listed and created next to it (Ballistics binds its cabinet's GameFrame by
 //! its product name and buttons' names, and stops without a keyboard device).
@@ -286,19 +290,50 @@ unsafe extern "system" fn keyboard_state(this: P, size: u32, data: *mut u8) -> i
     DI_OK
 }
 
-/// `GetDeviceInfo(DIDEVICEINSTANCEA/W)`: a DirectInput 8 keyboard or mouse (dwDevType at +0x24,
-/// after dwSize and the two GUIDs).
+/// `WAL_DINPUT_LEGACY=1`: the DirectInput 5-7 device types.
+fn legacy() -> bool {
+    static LEGACY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *LEGACY.get_or_init(|| std::env::var("WAL_DINPUT_LEGACY").is_ok_and(|v| v.trim() == "1"))
+}
+
+/// The system keyboard's or mouse's dwDevType: DI8DEVTYPE_KEYBOARD / PCENH, DI8DEVTYPE_MOUSE /
+/// TRADITIONAL; [`legacy`]: DIDEVTYPE_KEYBOARD / PCENH, DIDEVTYPE_MOUSE / TRADITIONAL.
+fn system_type(keyboard: bool) -> u32 {
+    match (legacy(), keyboard) {
+        (false, true) => 0x0413,
+        (false, false) => 0x0212,
+        (true, true) => 0x0403,
+        (true, false) => 0x0202,
+    }
+}
+
+/// `GetDeviceInfo(DIDEVICEINSTANCEA/W)`: a keyboard or mouse (dwDevType at +0x24, after dwSize
+/// and the two GUIDs).
 unsafe extern "system" fn keyboard_info(this: P, info: *mut u32) -> i32 {
-    const DI8DEVTYPE_MOUSE: u32 = 0x12;
-    const DI8DEVTYPE_KEYBOARD: u32 = 0x13;
     let keyboard = std::ptr::eq(this.cast_const().cast(), &KEYBOARD_DEVICE);
     if !info.is_null() {
         unsafe {
             let size = (*info).clamp(4, 0x244) as usize;
             std::ptr::write_bytes(info.cast::<u8>().add(4), 0, size - 4);
             if size >= 0x28 {
-                *info.cast::<u8>().add(0x24).cast::<u32>() = if keyboard { DI8DEVTYPE_KEYBOARD } else { DI8DEVTYPE_MOUSE };
+                // the DirectInput 8 types without their subtype, as before (games read it)
+                let t = system_type(keyboard);
+                *info.cast::<u8>().add(0x24).cast::<u32>() = if legacy() { t } else { t & 0xff };
             }
+        }
+    }
+    DI_OK
+}
+
+/// `GetCapabilities(DIDEVCAPS)`: [`legacy`]: attached, its type (dwDevType at +8); else nothing
+/// filled, as before.
+unsafe extern "system" fn keyboard_caps(this: P, caps: *mut u32) -> i32 {
+    if legacy() && !caps.is_null() {
+        let keyboard = std::ptr::eq(this.cast_const().cast(), &KEYBOARD_DEVICE);
+        unsafe {
+            // DIDC_ATTACHED
+            *caps.add(1) = 1;
+            *caps.add(2) = system_type(keyboard);
         }
     }
     DI_OK
@@ -308,6 +343,7 @@ unsafe extern "system" fn keyboard_info(this: P, info: *mut u32) -> i32 {
 /// both): their state and info answered.
 static KEYBOARD_VTABLE: VTable<32> = {
     let mut v = DEVICE_VTABLE.0;
+    v[3] = keyboard_caps as *const ();
     v[9] = keyboard_state as *const ();
     v[15] = keyboard_info as *const ();
     v[29] = ok3 as *const (); // BuildActionMap
@@ -353,7 +389,7 @@ unsafe extern "system" fn enum_devices(_this: P, filter: u32, cb: P, ctx: P, _fl
     let cb: Callback = unsafe { std::mem::transmute(cb) };
     // (guid, dwDevType: DI8DEVTYPE_KEYBOARD / PCENH, DI8DEVTYPE_MOUSE / TRADITIONAL, class, name)
     let devices: [(&[u8; 16], u32, u32, &[u8]); 2] =
-        [(&GUID_SYS_KEYBOARD, 0x0413, 3, b"Keyboard"), (&GUID_SYS_MOUSE, 0x0212, 2, b"Mouse")];
+        [(&GUID_SYS_KEYBOARD, system_type(true), 3, b"Keyboard"), (&GUID_SYS_MOUSE, system_type(false), 2, b"Mouse")];
     for (guid, devtype, class, name) in devices {
         let f = filter & 0xff;
         if f != 0 && f != class && f != devtype & 0xff {
@@ -677,9 +713,12 @@ mod wheel {
     const DEV_TYPE: u32 = 0x16 | 3 << 8 | 0x1_0000;
     /// `WAL_DINPUT_WHEEL_JOYSTICK=1`: DI8DEVTYPE_JOYSTICK, DI8DEVTYPEJOYSTICK_STANDARD, HID (a
     /// game taking only joysticks and gamepads: Ballistics' cabinet GameFrame).
+    /// [`super::legacy`]: DIDEVTYPE_JOYSTICK, DIDEVTYPEJOYSTICK_WHEEL, HID.
     fn dev_type() -> u32 {
         static JOYSTICK: OnceLock<bool> = OnceLock::new();
-        if *JOYSTICK.get_or_init(|| std::env::var("WAL_DINPUT_WHEEL_JOYSTICK").is_ok_and(|v| v.trim() == "1")) {
+        if super::legacy() {
+            0x04 | 3 << 8 | 0x1_0000
+        } else if *JOYSTICK.get_or_init(|| std::env::var("WAL_DINPUT_WHEEL_JOYSTICK").is_ok_and(|v| v.trim() == "1")) {
             0x14 | 2 << 8 | 0x1_0000
         } else {
             DEV_TYPE
@@ -1070,6 +1109,20 @@ mod wheel {
         (if v >= 32768 { rest + (v - 32768) * (65535 - rest) / 32767 } else { v * rest / 32768 }) as u16
     }
 
+    /// A pedal value (0 released) from the axis' rest (`REST`, default its end): pressed, it
+    /// goes to the raw range's end (its start when `inverted`). Sega Rally 2 reads a pedal on
+    /// the half of an axis from its center.
+    fn pedal_rested(axis: usize, v: u16, inverted: bool) -> u16 {
+        let rest = REST[axis].load(Ordering::Relaxed);
+        let v = v as i32;
+        match (rest < 0, inverted) {
+            (true, false) => v as u16,
+            (true, true) => !(v as u16),
+            (false, false) => (rest + v * (65535 - rest) / 65535) as u16,
+            (false, true) => (rest - v * rest / 65535) as u16,
+        }
+    }
+
     /// A raw value in the game's terms: itself in raw mode, else mapped to the axis' range
     /// through its calibration (its center to the range's middle), else linearly.
     fn scaled(axis: usize, v: u16) -> i32 {
@@ -1215,8 +1268,13 @@ mod wheel {
         let axes = std::array::from_fn::<_, AXIS_COUNT, _>(|i| {
             let mapped = INPUT_AXES[i].load(Ordering::Relaxed);
             let value = if mapped & 0x7f == 0x7f { 0 } else {
-                let value = stick.axis_u16(Axis::ALL[(mapped & 0x7f) as usize]);
-                rested(i, if mapped & 0x80 != 0 { !value } else { value })
+                let axis = Axis::ALL[(mapped & 0x7f) as usize];
+                let value = stick.axis_u16(axis);
+                if axis.is_pedal() {
+                    pedal_rested(i, value, mapped & 0x80 != 0)
+                } else {
+                    rested(i, if mapped & 0x80 != 0 { !value } else { value })
+                }
             };
             scaled(i, value)
         });

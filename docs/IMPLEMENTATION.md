@@ -5472,6 +5472,49 @@ loaded at the entry point (`payload_loader`; `xinput1_4` off, `xinput1_3` the pa
   play start to track select, coins with free play off (a coin starts), the operator menu.
 - The user: 100% (2026-11-12, desktop).
 
+#### Sega Rally 2
+
+Sega's 1999 PC port (`SEGA RALLY 2.EXE`, DirectDraw / Direct3D 6, 32-bit), the "25th
+Anniversary Edition" repack 2.1.0: an Inno Setup 6.3 installer (`installer/`, too recent for
+innoextract 1.9: installed with Wine's `/VERYSILENT`, its game folder the dump root, its
+uninstaller removed). `.windowsloader`: `SEGA RALLY 2.EXE`. A PC game, not a cabinet; board
+`segarally2` (`segarally2.rs`), loaded at the entry point (`payload_loader`).
+
+- **COM libraries.** The game creates its `MUSASHI\*.dll` (input, Direct3D, sound, network...)
+  by their CLSIDs: the installer's registration (and its `Sega\SEGA RALLY 2` controls) in the
+  profile's `sega-rally-2.reg`, the paths in the run directory (`C:\wal\arcadepc\sega-rally-2`).
+- **Picture.** The repack's chain: `wsock32.dll` (its widescreen fix: resolution, aspect ratio
+  and field of view patched in memory, `wsock32: n,b`) and `MUSASHI\DDraw.dll` (a proxy
+  centering the 2D) in front of dgVoodoo (`DDraw_dgv.dll`, `D3DImm.dll`; `graphics:
+  dgvoodoo`). The repack's dgVoodoo fails under Wine (its own Linux readme): the 2.79.3 it ships
+  (`Troubleshooting\Linux\dgVoodoo2_79_3.zip`, extracted in the dump) is installed in its place,
+  with the repack's settings in a 2.79.3 `dgVoodoo.conf` (it rejects the repack's 0x287 file:
+  watermark, no 1067x600 mode; and its own `high_quality` dithering, `auto` render format),
+  rendered at the screen's size with 4x antialiasing. ReShade (`dxgi.dll`) is hidden.
+- **Aspect ratio** (`WAL_SR2_ASPECT`, the GUI's Game option, 16:9 by default, or 4:3): the
+  widescreen fix reads `SegaRally2Resolution.cfg`'s `Aspect ratio=` (3: 1067x600, 1: 800x600)
+  in its `DllMain`, before the payload: the profile's `files` source is chosen by the option
+  (`SegaRally2Resolution-{WAL_SR2_ASPECT}.cfg`; the launcher expands `{WAL_...}` in `files`
+  sources as in `args`).
+- **Inputs.** `MUSASHI\MGInput.dll` (DirectInput 5, `DirectInputCreateA`): the common fake
+  wheel, hooked in that library (loaded by the payload first: COM loads it later). The library
+  takes only DirectInput 5-7 device types (else `IMGameInputDevice::Initialize` fails with
+  E_NOINTERFACE and the device is left out): `WAL_DINPUT_LEGACY=1` (the wheel a joystick of the
+  wheel subtype, the system keyboard and mouse with their capabilities). The controls are the
+  repack's (registry `InputSettings`, codes `0x101`+ the buttons, `0x14d`+ the axes' halves:
+  X-, X+, Y-, Y+, Z-, Z+, Rx-, Rx+, Ry-, Ry+): X steering, Ry+ gas and Rx+ brake (pedals from
+  the axis' center: `WAL_DINPUT_WHEEL_RX_REST` / `RY_REST` 0.5), Y the menus' up / down (the
+  left stick: an unmapped axis rests at its minimum, the cursor ran), buttons 1-4 shift up /
+  accept, handbrake / cancel, shift down, view change. The game also reads the DirectInput
+  keyboard (Enter starts, pauses, leaves the demo; Esc back; without a keyboard device it
+  crashed at the name entry, its keyboard state null): `WAL_DINPUT_WHEEL_SYSTEM=1`, START as
+  Enter, b5 as Esc.
+- **Force feedback.** The game's constant force effect (created on the wheel when a race
+  starts) goes to the launcher's wheel (`WAL_DINPUT_WHEEL_FFB_OUT`).
+- Verified headless (2026-11-12): attract, title, mode select, championship, car,
+  transmission, name entry, a race (gas to 186 km/h, steering, brake), the pause menu (START)
+  closed with b5, force feedback effect created; 16:9 and 4:3 pictures.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`

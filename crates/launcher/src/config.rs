@@ -358,6 +358,10 @@ impl Profile {
         profile.id = id.to_string();
         profile.sources = sources;
         profile.args = profile.args.iter().map(|a| expand_env(a, &profile.env)).collect();
+        // a source chosen by an option (Sega Rally 2's aspect ratio file, read before the payload)
+        for src in profile.files.values_mut() {
+            *src = PathBuf::from(expand_env(&src.to_string_lossy(), &profile.env));
+        }
         profile.add_common_options();
         Ok(profile)
     }
@@ -532,10 +536,10 @@ pub fn game_ids(root: &Path) -> Result<Vec<String>> {
     Ok(ids)
 }
 
-/// A game argument with the profile's environment (its options) in it: `{NAME}` the value of
-/// `NAME`, `{NAME.width}` and `{NAME.height}` the two sides of a `WIDTHxHEIGHT` value (a
-/// resolution option: Unity's `-screen-width {WAL_RESOLUTION.width}`). Unknown names stay as
-/// they are.
+/// A game argument (or a `files` source) with the profile's environment (its options) in it:
+/// `{NAME}` the value of `NAME`, `{NAME.width}` and `{NAME.height}` the two sides of a
+/// `WIDTHxHEIGHT` value (a resolution option: Unity's `-screen-width {WAL_RESOLUTION.width}`).
+/// Unknown names stay as they are.
 pub fn expand_env(arg: &str, env: &BTreeMap<String, String>) -> String {
     let mut out = String::new();
     let mut rest = arg;
@@ -706,6 +710,16 @@ options:
     fn common_keys(p: &Profile) -> Vec<&str> {
         assert_eq!(p.options[0].title.as_deref(), Some("Common"));
         p.options[0].options.iter().map(|o| o.key.as_str()).collect()
+    }
+
+    #[test]
+    fn files_expand_env() {
+        let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
+        let yaml = "system: test\nenv: {WAL_A: \"16:9\"}\nfiles: {a.cfg: \"files/a-{WAL_A}.cfg\", b.dll: \"{dump}/b.dll\"}\n";
+        merge(&mut v, serde_yaml_ng::from_str(yaml).unwrap());
+        let p = Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap();
+        assert_eq!(p.files["a.cfg"], PathBuf::from("files/a-16:9.cfg"));
+        assert_eq!(p.files["b.dll"], PathBuf::from("{dump}/b.dll"));
     }
 
     #[test]

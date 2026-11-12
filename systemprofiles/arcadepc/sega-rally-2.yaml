@@ -1,0 +1,91 @@
+# Sega Rally 2 (Sega, 1999 PC port of the Model 3 game: SEGA RALLY 2.EXE and its MUSASHI COM
+# libraries, DirectDraw / Direct3D 6, 32-bit), the "25th Anniversary Edition" repack (2.1.0) -
+# template, override values in userprofiles/arcadepc/sega-rally-2.yaml.
+# A PC game: the game reads a DirectInput wheel with force feedback (MUSASHI\MGInput.dll): the
+# payload's fake wheel, its constant force sent to the launcher's wheel (docs §6.3i).
+system: arcadepc
+name: Sega Rally 2
+
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+  # the widescreen fix (resolution, aspect ratio, field of view patched in memory)
+  wsock32: "n,b"
+
+# The MUSASHI libraries are COM servers the game creates by their CLSIDs (the installer's
+# registration, here in the run directory), and its controls (InputSettings, the repack's
+# layout: X steering, Ry+ gas, Rx+ brake, Y the menus' up / down, buttons 1 to 4 shift up /
+# accept, handbrake / cancel, shift down, view change; the keyboard's Enter and Esc).
+registry: [systemprofiles/arcadepc/files/sega-rally-2/sega-rally-2.reg]
+
+# dgVoodoo: the repack's recent one fails under Wine (80004002, its own Linux readme): the 2.79.3 it
+# ships for Linux (Troubleshooting\Linux\dgVoodoo2_79_3.zip, extracted in the dump) behind the
+# widescreen fix's DDraw proxy (MUSASHI\DDraw.dll loads DDraw_dgv.dll).
+graphics: dgvoodoo
+files:
+  MUSASHI/DDraw_dgv.dll: "{dump}/Troubleshooting/Linux/dgVoodoo2_79_3/MS/x86/DDraw.dll"
+  D3DImm.dll: "{dump}/Troubleshooting/Linux/dgVoodoo2_79_3/MS/x86/D3DImm.dll"
+  # dgVoodoo 2.79.3 ignores the repack's 2.87 settings file (its watermark, no 1067x600 mode):
+  # the repack's settings in a 2.79.3 file
+  dgVoodoo.conf: systemprofiles/arcadepc/files/sega-rally-2/dgVoodoo.conf
+  MUSASHI/dgVoodoo.conf: systemprofiles/arcadepc/files/sega-rally-2/dgVoodoo.conf
+  # the widescreen fix's aspect ratio (WAL_SR2_ASPECT), read when the game process starts
+  SegaRally2Resolution.cfg: "systemprofiles/arcadepc/files/sega-rally-2/SegaRally2Resolution-{WAL_SR2_ASPECT}.cfg"
+
+# ReShade (dxgi.dll) and Xidi (MUSASHI\dinput.dll, its DirectInput 8 backend): not used, the
+# wheel is the payload's DirectInput one.
+hide: [dxgi.dll, ReShade.ini, dinput.dll, dinput_backend.dll, Xidi.ini, installer]
+
+env:
+  WAL_ARCADEPC_BOARD: segarally2
+  WAL_SR2_ASPECT: "16:9"
+  WAL_DINPUT_WHEEL: Sega Rally 2 Wheel
+  # MGInput.dll takes DirectInput 5-7 device types only
+  WAL_DINPUT_LEGACY: "1"
+  # the system keyboard too (Enter, Esc: the payload's START, b5)
+  WAL_DINPUT_WHEEL_SYSTEM: "1"
+  # the wheel's X steering; Y and Z centered sticks (the game binds Y to the menus' up /
+  # down); the pedals on Rx (brake) and Ry (gas), from the axis' center (the game reads their
+  # + half)
+  WAL_DINPUT_WHEEL_Y_AXIS: ly
+  WAL_DINPUT_WHEEL_Z_AXIS: ry
+  WAL_DINPUT_WHEEL_RX_AXIS: brake
+  WAL_DINPUT_WHEEL_RX_REST: "0.5"
+  WAL_DINPUT_WHEEL_RY_AXIS: accel
+  WAL_DINPUT_WHEEL_RY_REST: "0.5"
+  WAL_DINPUT_WHEEL_FFB_OUT: "1"
+
+input:
+  gamepad:
+    r2: accel
+    l2: brake
+  stick_as_dpad: false
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+options:
+  - title: Game
+    options:
+      - key: WAL_SR2_ASPECT
+        label: Aspect ratio
+        kind: choice
+        choices: ["16:9", "4:3"]
+        description: >-
+          The repack's widescreen fix (a wider view, 2D centered) or the original 4:3 picture.
+
+controls:
+  lx: Steering wheel
+  ly: Menus up / down
+  accel: Accelerator
+  brake: Brake
+  b1: Shift up / accept
+  b2: Handbrake / cancel
+  b3: Shift down
+  b4: View change
+  b5: Back (Esc)
+  start: Start / pause (Enter)
