@@ -5688,6 +5688,9 @@ Board `rerave` (`rerave.rs`, x86 build), loaded at the entry point (`payload_loa
   first finger (`input.touch`), else the gun or mouse (player 1's `lx` / `ly`) is the cursor,
   b1 / start the touch (messages and raw reports; Unity's `GetCursorPos` answered:
   `input_filter`, the real keyboard and mouse filtered).
+- **Touch pointer** (the common `WAL_CROSSHAIR`, on; the GUI's Touch screen options): a small
+  red dot where the gun or mouse touches (`crosshair::init`, Direct3D 9: style `disc`, 1 % of
+  the screen's height, never hidden), the system cursor hidden (`WAL_HIDE_CURSOR`).
 - **Picture.** A 1920x1080 desktop stretched over the screen (`WAL_DESKTOP_SIZE`,
   `WAL_DESKTOP_STRETCH`, the device windowed): on a 1600x1200 screen Unity chose 1600x900. The
   common `dxgi_size` (on a desktop other than the screen) now pins `dxgi.dll`: Unity 3.5 loads
@@ -5702,6 +5705,7 @@ Board `rerave` (`rerave.rs`, x86 build), loaded at the entry point (`payload_loa
 - Verified headless (2026-11-12): update screen, attract, title, player select, mode, song and
   difficulty select, a song (taps scored, combo, fail, results), coins with free play off, the
   operator menu; 1920x1080 and 1600x1200 (stretched, touches in place).
+- The user: 100% (2026-11-12, desktop).
 
 #### Deathsmiles II
 
@@ -8105,7 +8109,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player | LuckSheng's off-road racing cabinet (Unity 2020.3, IL2CPP, 64-bit, §6.3i): the repack's launcher stub renamed to the product name, its BepInEx plugin disabled, the payload is the COM1 board's `cncommwrapper.dll` (wheel, pedals, switches, coins), silent for 0.5 s after open (the game's receive thread race), free play as `GameData.ini`'s `Coin_Rate` |
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | user 100% (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
-| `rerave` | ReRave | arcadepc | headless-tested (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
+| `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | headless-tested (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |

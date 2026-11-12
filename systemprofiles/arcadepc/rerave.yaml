@@ -27,6 +27,14 @@ env:
   WAL_DESKTOP_STRETCH: "1"
   WAL_KEEP_ASPECT_RATIO: "0"
   WAL_DESKTOP_CLIENT: "1"
+  # no system cursor over the picture (the red dot shows the touch)
+  WAL_HIDE_CURSOR: "1"
+  # the touch pointer: a small red dot where the mouse or gun touches (the game shows no cursor)
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
 
 input:
   # the touch screen: a touch screen's first finger, else the gun (or the mouse) points and the
@@ -44,6 +52,20 @@ options:
         description: >-
           The game's Event Mode (EVENT MODE on the screens): plays without coins. Off: a coin a
           play (the operator menu's coin settings).
+  - title: Touch screen
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or gun touches (the game shows no cursor).
+      - key: WAL_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
 
 controls:
   lx: Touch position (x)

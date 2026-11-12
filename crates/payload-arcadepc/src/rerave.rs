@@ -516,5 +516,7 @@ pub fn init() {
     wal_payload_common::input_filter::init(exe, |_| false);
     own_mouse(exe);
     std::thread::spawn(input_thread);
+    // a red dot where the gun (or mouse) touches (the common crosshair option, `WAL_CROSSHAIR`)
+    wal_payload_common::crosshair::init();
     log!("rerave: RaveSvc emulated, touches from the gun");
 }
