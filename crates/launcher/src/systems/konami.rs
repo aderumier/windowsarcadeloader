@@ -83,7 +83,7 @@
 //! - `WAL_KONAMI_AVS_LOG=1`: the AVS log (the game system's boot, errors) in the payload log
 //! - `WAL_CROSSHAIR=1` (the common crosshair option; `WAL_CROSSHAIR_STYLE`, `_SIZE`,
 //!   `_P1`..`_P4`, `_TINT`): the players' aim drawn over the picture (Gashaaaan, Gashaaaan
-//!   Refill!)
+//!   Refill!, Silent Hill: The Arcade)
 //! - `WAL_KEEP_ASPECT_RATIO=0` (Gashaaaan): the picture stretched to the screen (`1`: aspect
 //!   kept), Batocera ES's KEEP ASPECT RATIO
 //! - Winning Eleven 2008: `WAL_KONAMI_GAME_LOG=1` the game's own log in the payload log;

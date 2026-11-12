@@ -12,6 +12,8 @@ env:
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
   WAL_HIDE_CURSOR: "1"
+  # each player's crosshair where the gun (or mouse) aims: the common option's default
+  WAL_CROSSHAIR: "1"
   # the game reads the PC keyboard through DirectInput (debug keys): no input there
   WAL_DINPUT_DISABLE: "1"
   # the security plug's region: E (Europe), U (USA), A (Asia), K (Korea), J (Japan)

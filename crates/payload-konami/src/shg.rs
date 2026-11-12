@@ -359,5 +359,7 @@ pub fn init() {
         log!("shg: unexpected gun read code, guns aim through the test menu's calibration");
     }
     write_speaker_channel();
+    // the players' aim drawn over the picture (WAL_CROSSHAIR)
+    wal_payload_common::crosshair::init();
     log!("shg: button board, gun boards and security plug emulated (Silent Hill: The Arcade)");
 }
