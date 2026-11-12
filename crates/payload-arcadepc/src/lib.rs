@@ -92,6 +92,9 @@
 //! Fix-It Felix Jr. (`WAL_ARCADEPC_BOARD=felix`, x86 build): `felix.rs` posts its keys, fits its
 //! window's zoom to the screen and sets free play.
 //!
+//! In The Groove 2 (`WAL_ARCADEPC_BOARD=itg`, x86 build): `itg.rs` is its DirectInput keyboard
+//! (both players' dance pads and menu buttons) and sets its preferences (free play, window).
+//!
 //! Galaxian 3 (`WAL_ARCADEPC_BOARD=mame`, a patched `mame.exe`): `mame.rs` is MAME's raw input
 //! devices (a keyboard and the players' guns, from the virtual sticks).
 //!
@@ -216,6 +219,8 @@ mod hotdr;
 mod hotdo_peer;
 #[cfg(target_arch = "x86")]
 mod interface;
+#[cfg(target_arch = "x86")]
+mod itg;
 #[cfg(target_arch = "x86")]
 mod madbullets;
 mod jxboard;
@@ -596,6 +601,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "felix" => {
                 pads::disconnect();
                 felix::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "itg" => {
+                pads::disconnect();
+                itg::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "photofinish" => {

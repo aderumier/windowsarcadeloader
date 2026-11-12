@@ -62,6 +62,9 @@
 //! fills from the virtual sticks (Contra: Evolution plays on its DirectInput keyboard keys and
 //! needs the keyboard device to work: `GetDeviceInfo` answered). `EnumDevicesBySemantics` lists
 //! it then, its action map accepted (Need for Speed Underground: DirectInput 8 action mapping).
+//! `WAL_DINPUT_KEYBOARD_POLLED=1`: its `SetProperty(DIPROP_BUFFERSIZE)` answers
+//! `DI_POLLEDDEVICE`, so a game reading buffered data when it can (StepMania's input handler,
+//! In The Groove 2) polls its `GetDeviceState` instead.
 //!
 //! Games creating DirectInput as a COM object (`CoCreateInstance(CLSID_DirectInput)`, then
 //! `Initialize`: the Virtools player's input manager, After Dark) get the same fake one.
@@ -339,11 +342,21 @@ unsafe extern "system" fn keyboard_caps(this: P, caps: *mut u32) -> i32 {
     DI_OK
 }
 
+/// `SetProperty(rguidProp, pdiph)`: `WAL_DINPUT_KEYBOARD_POLLED=1`: `DIPROP_BUFFERSIZE` (the
+/// predefined property 1) refused as `DI_POLLEDDEVICE`, so the game polls the key states.
+unsafe extern "system" fn keyboard_set_property(_this: P, prop: usize, _header: usize) -> i32 {
+    const DI_POLLEDDEVICE: i32 = 2;
+    static POLLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let polled = *POLLED.get_or_init(|| std::env::var("WAL_DINPUT_KEYBOARD_POLLED").is_ok_and(|v| v.trim() == "1"));
+    if polled && prop == 1 { DI_POLLEDDEVICE } else { DI_OK }
+}
+
 /// The system keyboard of [`set_keyboard`] and the system mouse next to it (the game sets up
 /// both): their state and info answered.
 static KEYBOARD_VTABLE: VTable<32> = {
     let mut v = DEVICE_VTABLE.0;
     v[3] = keyboard_caps as *const ();
+    v[6] = keyboard_set_property as *const ();
     v[9] = keyboard_state as *const ();
     v[15] = keyboard_info as *const ();
     v[29] = ok3 as *const (); // BuildActionMap

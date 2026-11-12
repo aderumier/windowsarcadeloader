@@ -5545,6 +5545,39 @@ The Wreck-It Ralph promotional arcade game (2012, "TOBIKOMI COMPANY 1982" on its
   play, start, the intro, a level (moving, climbing, the hammer fixing windows: 300 points).
 - The user: 100% (2026-11-12, desktop).
 
+#### In The Groove 2
+
+Roxor Games' dance game (2005), the dump's OpenITG beta 2 build (`Program\OpenITG.exe`, a
+StepMania 3.95 fork, OpenGL, 32-bit; the songs of ITG 1, 2 and 3, the `arcade` theme).
+`.windowsloader`: `Program/OpenITG.exe`. Board `itg` (`itg.rs`), loaded at the entry point
+(`payload_loader`):
+
+- **Inputs.** The cabinet's boards (ITGIO / PIUIO through `libusb0.dll`, the PIU pump pads
+  through HID) are absent; the game then plays on its DirectInput keyboard (`dinput.dll`,
+  DirectInput 7 types), mapped by the dump's `Data\KEYMAPS.INI`: player 1's arrows, Enter,
+  Escape (back), Delete / Page Down / Home / End (menu buttons), Right Shift (select), F1
+  (coin), Scroll Lock (operator); player 2's keypad. The common fake DirectInput
+  (`WAL_DINPUT_DISABLE`, `WAL_DINPUT_LEGACY`) gives it the payload's system keyboard, from both
+  players' virtual sticks (a pad's face buttons are the arrows too, for jumps). Its device
+  opening (0x56e440) lists the keyboard's 256 keys and reads buffered data unless
+  `SetProperty(DIPROP_BUFFERSIZE)` returns `DI_POLLEDDEVICE` (2): the fake keyboard does with
+  `WAL_DINPUT_KEYBOARD_POLLED=1`, so the game polls its `GetDeviceState`.
+- **Preferences.** `Data\StepMania.ini` (read at start, `Data\Static.ini` over it, written
+  back): the payload sets `CoinMode` (the common `WAL_FREEPLAY`, on by default: 2 free play,
+  off 1 pay at the operator's coins per credit, 4 in the dump) and, `WAL_ITG_WINDOWED=1`,
+  `Windowed=1` with `DisplayWidth` / `DisplayHeight` the profile's `WAL_GL_SIZE` (640x480).
+- **Window.** A borderless screen-sized window (`WAL_WINDOW_SIZE=screen`; one of the 4:3
+  rectangle was kept under GNOME's top bar), the game's 640x480 viewports scaled to its
+  centered 4:3 rectangle (`WAL_GL_SIZE`, `WAL_D3D9_ASPECT=4:3`: drawn at the screen's
+  resolution, black bars). The game creates its window at 0x0 (the common popup creation
+  leaves it), then sets its captioned style: `itg.rs` hooks its `SetWindowLongA` and keeps
+  it a popup.
+- The memory card hub (USB profiles) is absent: its warning dismisses itself at boot.
+- Verified headless (2026-11-12): attract, start, PICK A GAME / STYLE (player 2 joined: 2
+  PLAYERS), a song, modifiers, gameplay (both players' steps judged), coins in pay mode
+  (CREDIT(S) 1/4), the operator menu (SERVICE OPTIONS, moved with the arrows).
+- The user: 100% (2026-11-12, desktop).
+
 #### Monsterous
 
 Game Concepts' coin pusher screen game (2012, UK, V3.54; `PX.exe`, SDL 1.2 `windib`, 32-bit,
@@ -8131,6 +8164,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
 | `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player | LuckSheng's off-road racing cabinet (Unity 2020.3, IL2CPP, 64-bit, §6.3i): the repack's launcher stub renamed to the product name, its BepInEx plugin disabled, the payload is the COM1 board's `cncommwrapper.dll` (wheel, pedals, switches, coins), silent for 0.5 s after open (the game's receive thread race), free play as `GameData.ini`'s `Coin_Rate` |
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | user 100% (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
+| `in-the-groove-2` | In The Groove 2 | arcadepc | user 100% (2026-11-12), 2 players | Roxor's dance game, the OpenITG beta 2 build (StepMania 3.95, OpenGL, 32-bit, §6.3i, board `itg`): the payload is its DirectInput keyboard (both players' pads and menu buttons, polled), sets free play and the window in its `StepMania.ini`; a borderless screen-sized window, its 640x480 viewports scaled to 4:3 (black bars) |
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
 | `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | user 100% (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |

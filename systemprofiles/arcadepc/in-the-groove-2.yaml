@@ -1,0 +1,58 @@
+# In The Groove 2 (Roxor Games, 2005: the OpenITG beta 2 build, `Program\OpenITG.exe`, a
+# StepMania 3.95 fork, OpenGL, 32-bit) - template, override values in
+# userprofiles/arcadepc/in-the-groove-2.yaml.
+# A dance game (two players, four arrows each). Without its cabinet's I/O board it plays on its
+# DirectInput keyboard (the dump's Data\KEYMAPS.INI): the payload is that keyboard, from the
+# virtual sticks (the real keyboard never reaches it), and sets free play and the window in
+# Data\StepMania.ini (WAL_ARCADEPC_BOARD=itg, docs §6.3i).
+system: arcadepc
+name: In The Groove 2
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: itg
+  # the fake DirectInput: its keyboard the payload's (DirectInput 7 device types), polled
+  WAL_DINPUT_DISABLE: "1"
+  WAL_DINPUT_LEGACY: "1"
+  WAL_DINPUT_KEYBOARD_POLLED: "1"
+  # the game windowed at 640x480 (its themes' size) in a borderless screen-sized window (one of
+  # the 4:3 rectangle was kept under GNOME's top bar), its viewports scaled to the centered 4:3
+  # rectangle, black bars
+  WAL_ITG_WINDOWED: "1"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_GL_SIZE: 640x480
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_KEEP_ASPECT_RATIO: "1"
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's coin mode: free play, else pay (the operator menu's coins per credit).
+
+controls:
+  up: Up arrow
+  down: Down arrow
+  left: Left arrow
+  right: Right arrow
+  b1: Left arrow
+  b2: Up arrow
+  b5: Down arrow
+  b6: Right arrow
+  b4: Menu left
+  b3: Menu right
+  b7: Select
+  b8: Back
+  start: Start
+  coin: Coin
+  service: Coin
+  test: Operator menu
