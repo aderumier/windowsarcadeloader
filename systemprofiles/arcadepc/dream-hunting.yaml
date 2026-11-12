@@ -1,0 +1,46 @@
+# Dream Hunting (DreamGun.exe, DirectDraw / Direct3D immediate mode 640x480, 32-bit) - template,
+# override values in userprofiles/arcadepc/dream-hunting.yaml.
+# A one-player hunting game: a gun, an 8-way joystick to walk and turn. The payload is the
+# cabinet's COM1 gun board (gun position, trigger, joystick, coins, test: docs §6.3i).
+system: arcadepc
+name: Dream Hunting
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# Wine's DirectDraw; the dump's dgVoodoo (DDraw.dll, D3DImm.dll, D3D8.dll) is not used
+graphics: wine
+hide: [D3D8.dll, dgVoodoo.conf, dgVoodooCpl.exe]
+
+env:
+  WAL_ARCADEPC_BOARD: dreamhunting
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  guns_enabled: true
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start with the trigger, without coins. Off: the test menu's coins per credit.
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (start, select)
+  b2: Zoom
+  up: Walk forward
+  down: Walk back
+  left: Turn left
+  right: Turn right
+  start: Trigger (start)
+  coin: Coin
+  service: Service credit
+  test: Test menu

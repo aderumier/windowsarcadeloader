@@ -99,6 +99,9 @@
 //! gun board (`inpout32.dll`'s `Inp32` / `Out32`); the common crosshair option draws the guns
 //! (Direct3D 9).
 //!
+//! Dream Hunting (`WAL_ARCADEPC_BOARD=dreamhunting`, x86 build): `dreamhunting.rs` is its COM1
+//! gun board (gun position, trigger, joystick, coins, test).
+//!
 //! Bug Busters (`WAL_ARCADEPC_BOARD=bugbusters`, x86 build): `bugbusters.rs` writes its guns and
 //! its I/O board's switches into the game; the game draws its own pointers.
 //!
@@ -178,6 +181,8 @@ mod commking;
 mod comeonbaby;
 mod dcop;
 mod demul;
+#[cfg(target_arch = "x86")]
+mod dreamhunting;
 #[cfg(target_arch = "x86")]
 mod dosbox;
 #[cfg(target_arch = "x86")]
@@ -424,6 +429,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 ballistics::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "dreamhunting" => {
+                pads::disconnect();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                dreamhunting::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "bugbusters" => {

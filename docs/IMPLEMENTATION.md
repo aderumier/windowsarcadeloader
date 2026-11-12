@@ -5589,6 +5589,42 @@ targets' sensors.
   coin, the instructions skipped by fire, shots aimed and fired (monsters hit, jailed, coins
   won), free play refills, the operator menu (on, next item, off), its sound stream playing.
 
+#### Dream Hunting
+
+A one-player hunting game ("Dream Gun", `DreamGun.exe`, DirectDraw / Direct3D immediate mode,
+640x480, 32-bit): a gun aims and shoots, an 8-way joystick walks forward / back and turns.
+`.windowsloader`: `DreamGun.exe`. Wine's DirectDraw (`graphics: wine`; the dump's dgVoodoo
+hidden): the 640x480 mode scaled to the screen, 4:3 kept. Board `dreamhunting`
+(`dreamhunting.rs`), loaded at the entry point (`payload_loader`):
+
+- **Board** (COM1, 9600 bauds): it only talks. The game's reader thread waits for a character,
+  reads what is queued and parses each read as one ASCII message, turned into a window message:
+  `KT` the trigger (the title's start, the menus' select), `KE` a coin, `KS` the test menu
+  (in it: back), `KD` a service credit, `KB` / `KC` the zoom on / off (slower turns), `K0`..`K7`
+  the joystick (right, left, back, forward, back right, back left, forward left, forward right:
+  the game walks while the last one is under 300 ms old, so a held direction is repeated every
+  50 ms; in the test menu, where each moves the cursor, once per press, repeated after 0.4 s).
+  A shot is `KT` then `XY` + the gun's raw position (4 + 4 hex digits) + `\r\n`: each `XY` is
+  a shot at that place (a bullet spent, the map's arena chosen), so it is sent only then, none
+  off the picture (the trigger alone: the empty gun's reload). The game maps the raw position
+  to the picture with `DREAMGUN.INI`'s `[gun]` calibration (x wraps at `xmax`, from `left` to
+  `right`, y from `min` to `max`, `xcal` / `ycal` offsets): the payload sends the inverse of
+  the calibration the game holds, the gun's place in the centered 4:3 picture of the screen.
+  One message per poll of an empty port (`serial::install_streaming`'s idle data): two in one
+  read would be one for the parser.
+- The game's development inputs (window mouse messages, `GetAsyncKeyState` arrows / WASD,
+  Ctrl+Shift+Z the test menu) are kept from the real devices (`input_filter`).
+- **Free play** (the common `WAL_FREEPLAY`): the game has none (its test menu's coins per
+  credit go from 1 to 99): the payload keeps the coin count (`0x674864`) at the price of a game
+  and of a continue (`SERVICE.INI`'s `credits` / `c_credits`); the title then asks for the
+  trigger.
+- No crosshair (the cabinet's gun shows none; the common crosshair option draws over Direct3D 9
+  only), no Sinden border yet.
+- Verified on Xvfb (2026-11-12, 1920x1080: the picture 4:3, black sides): attract, free play
+  title, the trigger's start, arena select, shots landing where aimed (the game's shot place
+  logged: corners and center within a pixel), bullets spent, walking and turning, coins with
+  free play off (CREDIT 01), the test menu (joystick moves, trigger selects, the I/O test).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
