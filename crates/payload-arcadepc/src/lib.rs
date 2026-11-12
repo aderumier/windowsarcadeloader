@@ -143,6 +143,9 @@
 //! its Shell as the community did and starts the game with the payload, which plays its mouse
 //! with the gun.
 //!
+//! ReRave (`WAL_ARCADEPC_BOARD=rerave`, x86 build): `rerave.rs` is its RaveSvc service (coins,
+//! settings), replaces its dongle checks and plays its touch screen (Unity's mouse).
+//!
 //! Wild West Shoot Out (`WAL_ARCADEPC_BOARD=wws`, x86 build): `wws.rs` emulates its COM1 board,
 //! stubs its camera and dongle and writes the guns into the game's camera data (no plugin).
 //!
@@ -230,6 +233,8 @@ mod popmoto;
 mod pullthetrigger;
 #[cfg(target_arch = "x86")]
 mod pvz;
+#[cfg(target_arch = "x86")]
+mod rerave;
 #[cfg(target_arch = "x86")]
 mod sdc2;
 #[cfg(target_arch = "x86")]
@@ -536,6 +541,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "pvz" => {
                 pads::disconnect();
                 pvz::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "rerave" => {
+                pads::disconnect();
+                rerave::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "popmoto" => {

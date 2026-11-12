@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crate::log;
-use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+use windows_sys::Win32::System::LibraryLoader::{GET_MODULE_HANDLE_EX_FLAG_PIN, GetModuleHandleExW, GetProcAddress};
 use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
 use windows_sys::core::GUID;
 
@@ -48,9 +48,11 @@ fn hook_slot(obj: P, index: usize, hook: usize, orig: &AtomicUsize) {
 }
 
 fn hook_factory() {
+    // pinned once loaded: a game loading it only to look at the adapters (ReRave's Unity 3.5,
+    // a Direct3D 9 game) unloaded it under the factory's creation here (a crash in its freed code)
     let dxgi = loop {
-        let m = unsafe { GetModuleHandleW(windows_sys::w!("dxgi.dll")) };
-        if !m.is_null() {
+        let mut m = std::ptr::null_mut();
+        if unsafe { GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_PIN, windows_sys::w!("dxgi.dll"), &mut m) } != 0 && !m.is_null() {
             break m;
         }
         std::thread::sleep(Duration::from_millis(5));

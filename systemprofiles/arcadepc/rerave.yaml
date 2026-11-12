@@ -1,0 +1,55 @@
+# ReRave (Step Revolution, 2012: ReRaveArcade.exe, Unity 3.5, Mono, 32-bit) - template, override
+# values in userprofiles/arcadepc/rerave.yaml.
+# A touch screen rhythm game (one player). The payload is the cabinet's RaveSvc service (coins,
+# operator settings: RaveSvcClient.dll's functions for Mono), replaces the game's SenseLock
+# dongle checks, and plays the touch screen (Unity's mouse) with the gun or mouse
+# (WAL_ARCADEPC_BOARD=rerave, docs §6.3i).
+system: arcadepc
+name: ReRave
+
+# loaded at the executable's entry point: its Mono hooks in place before the game's code runs
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# the cabinet's service and its key hook (RaveSvc.exe, KeyHook.exe): not run, the payload is the
+# service
+hide: [RaveSvc.exe, KeyHook.exe, terminate.bat]
+
+env:
+  WAL_ARCADEPC_BOARD: rerave
+  # Unity's full screen 1920x1080 device (its own mode list: 1600x900 on a 1600x1200 screen,
+  # letterboxed): windowed on a 1920x1080 desktop in a borderless window, stretched over the
+  # screen (a wide game on a 4:3 screen; aspect kept with WAL_KEEP_ASPECT_RATIO=1)
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
+
+input:
+  # the touch screen: a touch screen's first finger, else the gun (or the mouse) points and the
+  # trigger touches
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's Event Mode (EVENT MODE on the screens): plays without coins. Off: a coin a
+          play (the operator menu's coin settings).
+
+controls:
+  lx: Touch position (x)
+  ly: Touch position (y)
+  b1: Touch
+  start: Touch
+  coin: Coin
+  service: Service credit
+  test: Operator menu
