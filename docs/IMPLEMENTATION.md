@@ -5544,6 +5544,51 @@ The Wreck-It Ralph promotional arcade game (2012, "TOBIKOMI COMPANY 1982" on its
 - Verified headless (2026-11-12): boot (RAM OK, ROM OK), attract, coins (CREDITS 02), free
   play, start, the intro, a level (moving, climbing, the hammer fixing windows: 300 points).
 
+#### Monsterous
+
+Game Concepts' coin pusher screen game (2012, UK, V3.54; `PX.exe`, SDL 1.2 `windib`, 32-bit,
+1280x768). `.windowsloader`: `PX.exe`. Board `monsterous` (`monsterous.rs`), loaded at the
+entry point (`payload_loader`). The cabinet fires the player's coins (shots, one per 10p at the
+dump's settings) at ten targets in front of the screen (three rows, `Setup\PinPos.txt`'s pins,
+their places `0x412010`); the monster on a hit target is caught (the eight gray ones jailed:
+BIG BONUS) or pays coins. Its "Logic" board (COM, 9600 bauds, ASCII lines `H1<cmd>` / `<h1<cmd>`
+with a base-64 alphabet and a sum) runs the coin mechs, the hoppers, lift, slides and the
+targets' sensors.
+
+- **Desktop mode.** The profile runs the game's own (`NOIO WINDOW NOCURSOR`; without `NOIO`
+  the window mode is that too): the board simulated by the game (its hoppers dispense in
+  software, no alarms), its debug keys standing in for the cabinet. A digit (`1`-`9`, `0` the
+  tenth target, `0x402330`) with credits fires a coin (`0x411ac0`) and hits its target.
+- **Aim and fire.** The payload keeps an aimed target (the stick or d-pad: left / right along
+  its row, up / down the nearest of the next row; the bottom middle one at start), drawn as a
+  yellow ring into the screen surface before `SDL_Flip` (main and bonus screens); fire posts its
+  digit (again every 250 ms while held, as the cabinet's button). In the instructions (shown at
+  a credit's first coin and in the attract) fire is their "fire button to skip": the screen's
+  timer ends at once (`0x6077fc` = 1, what the board's fire switch does).
+- **Coins.** A coin (or the service button) is the game's coin in (`0x40c3c0` with the coin's
+  value `0x6078de`). Free play (the common `WAL_FREEPLAY`, on by default): a coin whenever the
+  credits (`0x6065d8`) are spent.
+- **Operator menu.** The board's operator switches (`0x6021a8`, never written in the desktop
+  mode): the menu's key switch (shown while on: the test button turns it on and off), previous
+  / next item, select (up, down, fire). The desktop mode's keys for them (`s`, the arrows) are
+  read from the key of the frame's last event poll, which the menu's frame polls again
+  without: posted keys never reached it.
+- **Setup alarm.** Without saved options (`Data\Options*.dat`, `Status*.dat`: the game's
+  saves, with `Logs\Log_<date>.txt`) the game shows "Setup Alarm, Please Call the Operator"
+  until the menu is left once: the options' check value (`0x6078c8` = `0x2a`) is set at the
+  first frame.
+- **Input.** `SDL_PollEvent`: the real keyboard's, mouse's and joysticks' events dropped, the
+  payload's keys queued; `SDL_GetKeyState` (the volume keys) gives no key down.
+- **Picture.** The 1280x768 window on a 1280x768 desktop fitted onto the screen
+  (`WAL_DESKTOP_SIZE`, borderless; stretched over a 4:3 screen with KEEP ASPECT RATIO off,
+  `WAL_DESKTOP_STRETCH`); SDL's `windib` draws its surface with `BitBlt`, a `StretchBlt` to the
+  window's client area here (`COLORONCOLOR`: `HALFTONE` slowed the loading screen's many
+  flips several times over). `WAL_MONSTEROUS_TRACE=1`: the scene, level, credits logged each
+  second.
+- Verified headless (2026-11-12): boot (fresh saves: no setup alarm), attract instructions,
+  coin, the instructions skipped by fire, shots aimed and fired (monsters hit, jailed, coins
+  won), free play refills, the operator menu (on, next item, off), its sound stream playing.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
@@ -7909,6 +7954,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
 | `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player | LuckSheng's off-road racing cabinet (Unity 2020.3, IL2CPP, 64-bit, §6.3i): the repack's launcher stub renamed to the product name, its BepInEx plugin disabled, the payload is the COM1 board's `cncommwrapper.dll` (wheel, pedals, switches, coins), silent for 0.5 s after open (the game's receive thread race), free play as `GameData.ini`'s `Coin_Rate` |
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | headless-tested (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
+| `monsterous` | Monsterous | arcadepc | headless-tested (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs

@@ -1,0 +1,47 @@
+# Monsterous (Game Concepts, 2012; PX.exe, SDL 1.2, 32-bit, 1280x768) - template, override
+# values in userprofiles/arcadepc/monsterous.yaml.
+# A coin pusher's screen game: the cabinet fires the player's coins (shots) at ten targets in
+# front of the screen, a monster on the hit target is caught or wins coins. The game runs in
+# its own desktop mode (NOIO: the cabinet's Logic board simulated by the game), whose debug
+# keys the payload plays: the aimed target chosen with the stick and drawn as a ring, the fire
+# button shoots it, the coins, the operator menu (docs §6.3i).
+system: arcadepc
+name: Monsterous
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# the desktop mode, in a window (the payload stretches its picture), without the mouse cursor
+args: [NOIO, WINDOW, NOCURSOR]
+
+env:
+  WAL_ARCADEPC_BOARD: monsterous
+  # the game's 1280x768 window on a 1280x768 desktop fitted onto the screen (aspect kept;
+  # stretched over a 4:3 screen with WAL_KEEP_ASPECT_RATIO "0", Batocera ES's KEEP ASPECT RATIO
+  # off), borderless
+  WAL_DESKTOP_SIZE: 1280x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          A coin is added whenever the shots are spent. Off: the coins (one shot per coin at
+          the default settings).
+
+controls:
+  up: Aim at the row above (menu previous)
+  down: Aim at the row below (menu next)
+  left: Aim left
+  right: Aim right
+  b1: Fire (skip the instructions, menu select)
+  start: Fire
+  coin: Coin
+  service: Service coin
+  test: Operator menu on / off

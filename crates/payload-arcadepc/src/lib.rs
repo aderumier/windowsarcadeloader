@@ -79,6 +79,10 @@
 //! Senninha GP (`WAL_ARCADEPC_BOARD=senninha`, x86 build): `senninha.rs` is its `s_input.dll`
 //! (the wheel, pedals, switches) in each of its engine programs.
 //!
+//! Monsterous (`WAL_ARCADEPC_BOARD=monsterous`, x86 build): `monsterous.rs` plays its desktop
+//! mode (the coin targets aimed with the stick and fired, coins, the operator switches), drops
+//! SDL's real input events and stretches its picture.
+//!
 //! Subway Surfers Arcade (`WAL_ARCADEPC_BOARD=subway`): `subway.rs` posts its cabinet's keys and
 //! the hoverboard's double tap, and is its lamps' silent Arduino.
 //!
@@ -202,6 +206,8 @@ mod jxboard;
 mod jxcamera;
 mod mame;
 mod marssortie;
+#[cfg(target_arch = "x86")]
+mod monsterous;
 #[cfg(target_arch = "x86")]
 mod ngun;
 #[cfg(target_arch = "x86")]
@@ -527,6 +533,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 senninha::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "monsterous" => {
+                pads::disconnect();
+                monsterous::init();
             }
             _ if board.trim() == "extremeoffroad" => {
                 pads::disconnect();
