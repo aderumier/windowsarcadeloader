@@ -9,11 +9,21 @@ name: Deathsmiles II
 payload_loader: true
 dll_overrides:
   xinput1_3: "n,b"
+  # dgVoodoo 2.79.3's D3D9.dll (added to the dump; Direct3D 9 on 11, DXVK's): with DXVK's
+  # Direct3D 9 the 3D backgrounds flashed (a sky dropped, buildings stretched for a frame),
+  # wined3d's worse
+  d3d9: "n,b"
+files:
+  # its settings: windowed borderless, the screen's size, 4:3 kept, no watermark
+  dgVoodoo.conf: systemprofiles/arcadepc/files/deathsmiles-ii/dgVoodoo.conf
 
 # the dump's community input library and its settings: not used (the payload is the board)
 hide: [ds2_monitor.dll, monitor_input.bin, monitor_opt.bin]
 
 env:
+  # the window never sees its deactivation: the game stops (NOW LOADING forever) while another
+  # window has the focus
+  WAL_DESKTOP_ACTIVE: "1"
   WAL_ARCADEPC_BOARD: cave
   WAL_HIDE_CURSOR: "1"
 

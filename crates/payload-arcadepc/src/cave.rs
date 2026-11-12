@@ -179,6 +179,24 @@ fn handler(packet: &[u8]) -> Vec<u8> {
     }
 }
 
+/// `DRIVE_REMOVABLE`.
+const DRIVE_REMOVABLE: u32 = 2;
+
+/// Every drive removable to the game (`0x45d6c0` lists the fixed and removable FAT / NTFS
+/// drives): with Wine's fixed drives (C:, the dump's, Z: the whole Linux file system) the boot
+/// stayed about a minute on NOW LOADING, with removable ones about 10 s.
+unsafe extern "system" fn get_drive_type(_root: *const u8) -> u32 {
+    DRIVE_REMOVABLE
+}
+
+fn removable_drives() {
+    if unsafe { wal_payload_common::iat::hook("kernel32.dll", "GetDriveTypeA", get_drive_type as *const () as usize) }.is_some() {
+        log!("cave: drives reported removable");
+    } else {
+        log!("cave: GetDriveTypeA not imported");
+    }
+}
+
 /// The game's `operator new` (cdecl).
 const OPERATOR_NEW: usize = 0x45eec2;
 /// The file loader's allocation: `call operator new`.
@@ -252,6 +270,7 @@ fn free_play() {
 }
 
 pub fn init() {
+    removable_drives();
     patch_loader_new();
     free_play();
     serial::install_streaming(PORT, handler, idle);

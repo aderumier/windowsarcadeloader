@@ -5738,10 +5738,22 @@ entry point (`payload_loader`), the game's window messages filtered:
 - **Saves.** The game writes its backup data (settings, rankings, income) in
   `RES\_gdata987.rpm` and a power-on log `RES\err.log`: through the run directory's `RES` link,
   in the dump (a `.squashfs` image: its overlay).
-- Loading takes about a minute (NOW LOADING) before the attract mode.
+- **Loading.** The game lists the fixed and removable FAT / NTFS drives (`0x45d6c0`,
+  `GetDriveTypeA`): with Wine's fixed drives (C:, Z: the whole Linux file system) NOW LOADING
+  lasted about a minute, with every drive reported removable (the payload's `GetDriveTypeA`)
+  about 10 s.
+- **Focus.** The game stops while its window is inactive (NOW LOADING forever when another
+  window took the focus on the desktop): `WAL_DESKTOP_ACTIVE`, the window never sees its
+  deactivation.
+- **Picture.** With DXVK's Direct3D 9 the 3D backgrounds flashed (for a frame the sky dropped,
+  buildings stretched), Wine's Direct3D 9 was worse (polygons across the screen): dgVoodoo
+  2.79.3's `D3D9.dll` (in the dump, `d3d9: n,b`; Direct3D 9 on 11, DXVK's) draws it right, its
+  settings the profile's `dgVoodoo.conf` (windowed borderless at the screen's size, 4:3 kept,
+  no watermark).
 - Verified headless (2026-11-12): attract, coins (CREDITS), 1P and 2P start, character select,
   the first stage (moves, shots), the test menu (input test, system configuration, income
   data), free play on and off.
+- The user: 100% (2026-11-12, desktop).
 
 ### 6.3j UNIS (`crates/payload-unis`)
 
@@ -8110,7 +8122,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | user 100% (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
 | `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
-| `deathsmiles-ii` | Deathsmiles II | arcadepc | headless-tested (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
+| `deathsmiles-ii` | Deathsmiles II | arcadepc | user 100% (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 
