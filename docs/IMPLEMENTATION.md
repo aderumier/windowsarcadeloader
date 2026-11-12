@@ -5505,8 +5505,10 @@ uninstaller removed). `.windowsloader`: `SEGA RALLY 2.EXE`. A PC game, not a cab
   X-, X+, Y-, Y+, Z-, Z+, Rx-, Rx+, Ry-, Ry+): X steering, Ry+ gas and Rx+ brake (pedals from
   the axis' center: `WAL_DINPUT_WHEEL_RX_REST` / `RY_REST` 0.5), Y the menus' up / down (the
   left stick: an unmapped axis rests at its minimum, the cursor ran), buttons 1-4 shift up /
-  accept, handbrake / cancel, shift down, view change. The game also reads the DirectInput
-  keyboard (Enter starts, pauses, leaves the demo; Esc back; without a keyboard device it
+  accept, handbrake / cancel, shift down, view change; the gas accepts too (an added
+  binding of the menus' accept, function `0x0a`, to `0x156`: each binding 52 bytes, the
+  library reads as many as the value holds; the start / pause function `0x0c` stays on Enter,
+  the gas does not pause a race). The game also reads the DirectInput keyboard (Enter starts, pauses, leaves the demo; Esc back; without a keyboard device it
   crashed at the name entry, its keyboard state null): `WAL_DINPUT_WHEEL_SYSTEM=1`, START as
   Enter, b5 as Esc.
 - **Force feedback.** The game's constant force effect (created on the wheel when a race

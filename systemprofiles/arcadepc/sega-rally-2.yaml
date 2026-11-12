@@ -15,7 +15,8 @@ dll_overrides:
 # The MUSASHI libraries are COM servers the game creates by their CLSIDs (the installer's
 # registration, here in the run directory), and its controls (InputSettings, the repack's
 # layout: X steering, Ry+ gas, Rx+ brake, Y the menus' up / down, buttons 1 to 4 shift up /
-# accept, handbrake / cancel, shift down, view change; the keyboard's Enter and Esc).
+# accept, handbrake / cancel, shift down, view change; the gas accepts too (added: the menus'
+# accept on Ry+, not the start / pause, which stays Enter); the keyboard's Enter and Esc).
 registry: [systemprofiles/arcadepc/files/sega-rally-2/sega-rally-2.reg]
 
 # dgVoodoo: the repack's recent one fails under Wine (80004002, its own Linux readme): the 2.79.3 it
@@ -81,7 +82,7 @@ options:
 controls:
   lx: Steering wheel
   ly: Menus up / down
-  accel: Accelerator
+  accel: Accelerator / accept
   brake: Brake
   b1: Shift up / accept
   b2: Handbrake / cancel
