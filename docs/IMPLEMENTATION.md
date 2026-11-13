@@ -7495,6 +7495,47 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     is `\r\n`: its parser skips a header line, then reads past an empty text (boot hang one time
     out of two).
 
+- Wonderland Wars (SDAP 5.36, Nu 1.1 `AAV0`, `package\bin\carol_nu.exe`, 32-bit Direct3D 9 with
+  NVIDIA's Cg runtime; `wonderland-wars`, `WAL_ALLS_BOARD=wlw`, `wlw.rs`): amLib linked in, no
+  amdaemon, as CHUNITHM (`daemon.rs` in the game; `aimeReaderHost.exe -p10 -n` started first, the
+  Aime reader 837-15286 on COM10 in it). segatools' carolhook (public domain) as the reference
+  for the boards.
+  - amVideo: the game's amLib loads the `amVideo\name` library (the payload) and takes its
+    functions by ordinal (1 open, 2 close, 3 set resolution, 4 video BIOS version: 0x25358bb):
+    `crates/payload-alls/amvideo.def` gives them those ordinals (DllMain was ordinal 1, called as
+    open: a jump to 1 at boot). amdaemon finds them by name.
+  - COM1: the 3M MicroTouch controller (`\x01` command `\r` answered `\x010\r`, `NM` / `OI` /
+    `UT` its name and type), then a report stream (10 touches of 6 bytes: status 0x80, 0x40 while
+    touching; X and Y in 7-bit halves over 0..16383, Y from the bottom). The pen: the touch
+    surface, else the mouse / gun with `b1`. The common crosshair follows it
+    (`WAL_CROSSHAIR_AXES=touch`, new: the touch surface's first finger, kept once lifted until the
+    stick moves).
+  - COM12: the 837-15312 pen controller board (`E0` frames, the sum from the destination; board
+    info `15312   ` / `6699 ` revision 0x90, firmware sum 0x361b). The game first runs
+    `15312firm\firmupdate_1113.exe -COM:12 -FirmUpdate ...` and opens the board after its exit
+    code 0 or 1 (the table at 0xefb8cc): replaced by `cmd.exe /c exit 0`. Polling (0x81 per
+    request): pen button `b2` (bit 0), dodge `b3` (bit 1) at byte 10, the lever's X / Y signed at bytes 18 /
+    19 (Y up positive). The game checks the status bytes of the previous answer it kept (bytes 7:
+    bits 0-1 set, 8: bit 1 clear), none before the first: its first board initialization always
+    fails, the second one plays (the real board's too). COM11: the 837-15070 LED board (`led.rs`).
+  - DIP switch 1: the store's server cabinet (else error 3007). Free play: amLib's credit record
+    (`chuni::set_free_play`) at start and in the game's writes.
+  - Network: its server list `<ALL.Net uri>:80/carol/service/servers.cgi` (WinINet
+    `InternetOpenUrlA`) answered at once with an empty `200 OK` by the payload (127.0.0.1:
+    `WAL_PORT`+110; the router's address is absent from the network: a TCP timeout, then the list
+    asked again every 9 s). No game server (database DtFront, matching Sphingo): guest play only,
+    Aime refused offline by the game. The network test's database, matching and game server checks
+    wait 1350 frames each for their connection flag (0x1390bd0, 0x1390c40, 0x1390ce0): 60 frames
+    (`WAL_PATCHES`). `gethostbyname` (ws2 ordinal 52, `netenv.rs`) answers the network's names as
+    `DnsQuery` does.
+  - Shaders: about 9700 vertex and pixel programs compiled with `cgCreateProgram` at each boot
+    (10 minutes): payload-common's `cg_cache.rs` (`WAL_CG_CACHE=Y:\cgcache`, new) keeps the
+    compiled assembly per program (21947 files, 212 MB; the key's SHA-256 names and checks each),
+    a fake program serving it. Loading them back still takes about 2 minutes (not the assembling:
+    caching `D3DXAssembleShader` too gained nothing). DXVK's SM3 compiler asserts on its shaders
+    (`sm3_io_map.cpp:880`, as CHUNITHM): wined3d (`dxvk: false`). Its fullscreen device ends the
+    game when it loses the focus: windowed 1920x1080 in a borderless screen window, 16:9.
+
 - CHUNITHM SUPERSTAR (SDGS 1.00.00, international, ALLS `ACA1`; `chunithm-superstar`): WORK IN
   PROGRESS, not running. amdaemon (64-bit, `App\amdaemon`, game.bat's `pushd amdaemon`) runs the
   IO4 board (`WAL_ALLS_BOARD=chusan`: the air sensors on players 1 / 2 bits 13, 12, 11, `chuni::hand`)
@@ -8036,6 +8077,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chunithm-crystal-plus` | CHUNITHM CRYSTAL PLUS | alls | headless tests (2026-11-12): attract, free play, card login, registration, trial play, name entry, tutorial; with SEGAguide's unpacked executables (the dump's are protected) | as CHUNITHM PARADISE LOST, title uri `/SDBT/145/` |
 | `chunithm-paradise-lost` | CHUNITHM PARADISE LOST | alls | headless tests (2026-11-10): title server, card login, tutorial with the slider; with SEGAguide's unpacked executables (the dump's are protected) | as CHUNITHM STAR, title uri `/SDBT/150/` |
 | `crossbeats-rev-sunrise` | crossbeats REV. SUNRiSE | alls | user (2026-11-12): "the game seem to work perfectly" (mouse touch, red dot, Aime login with PIN, profile load); headless tests: boot, ALL.Net, game server tables, coins, touch, card sign-up | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=cxb`): CommIo / CommLamp exports, WM_TOUCH, TN32 Aime reader COM12, options after 0060, billing type 0, ARTEMiS game server (WinHTTP body order fix) |
+| `wonderland-wars` | Wonderland Wars | alls | user (2026-11-13, desktop): boots, touchpad pen OK, guest play; headless: power-on and network tests, shader cache | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=wlw`): 3M touch COM1, 837-15312 pen board COM12, amVideo ordinals, Cg shader cache, server checks shortened; offline (no game server): guest only |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |

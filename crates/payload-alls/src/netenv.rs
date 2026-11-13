@@ -401,6 +401,30 @@ unsafe extern "system" fn getaddrinfo(node: *const u8, service: *const u8, hints
     unsafe { real(addr.as_ptr().cast(), service, hints, result) }
 }
 
+static GETHOSTBYNAME: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// `gethostbyname` (ws2_32 ordinal 52: Wonderland Wars' amLib checks the line type with it): a
+/// name of the network resolved as `DnsQuery` resolves it, at once (the mobile and DSL routers
+/// not found, not asked of the machine's DNS: its timeout held the network test up to 80 s).
+unsafe extern "system" fn gethostbyname(name: *const u8) -> usize {
+    type F = unsafe extern "system" fn(*const u8) -> usize;
+    let real: F = unsafe { std::mem::transmute(GETHOSTBYNAME.load(std::sync::atomic::Ordering::Relaxed)) };
+    let host = if name.is_null() { String::new() } else { unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy().into_owned() };
+    // the machine's own name (no domain) asked of the machine
+    let numeric = host.parse::<std::net::Ipv4Addr>().is_ok();
+    if !host.contains('.') || numeric {
+        return unsafe { real(name) };
+    }
+    if !resolves(&host) {
+        log!("netenv: gethostbyname {host}: not found");
+        unsafe { windows_sys::Win32::Networking::WinSock::WSASetLastError(11001) }; // WSAHOST_NOT_FOUND
+        return 0;
+    }
+    let addr = std::ffi::CString::new(dotted(address(&host))).unwrap();
+    log!("netenv: gethostbyname {host}: {}", addr.to_string_lossy());
+    unsafe { real(addr.as_ptr().cast()) }
+}
+
 static DNS_FREE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 unsafe extern "system" fn dns_free(data: usize, kind: u32) {
@@ -435,6 +459,10 @@ pub(crate) fn init(subnet: [u8; 4]) {
             GETADDRINFO.store(orig, std::sync::atomic::Ordering::Relaxed);
         }
         iat::hook("dnsapi.dll", "DnsQueryEx", dns_query_ex as *const () as usize);
+        let f = gethostbyname as *const () as usize;
+        if let Some(orig) = iat::hook_ordinal(iat::game_module(), "WS2_32.dll", 52, f).or_else(|| iat::hook("ws2_32.dll", "gethostbyname", f)) {
+            GETHOSTBYNAME.store(orig, std::sync::atomic::Ordering::Relaxed);
+        }
         if let Some(orig) = iat::hook("dnsapi.dll", "DnsFree", dns_free as *const () as usize) {
             DNS_FREE.store(orig, std::sync::atomic::Ordering::Relaxed);
         }

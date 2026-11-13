@@ -10,6 +10,7 @@ wal-protocol = { path = "../protocol" }
 png = "0.17"
 aes = "0.8"
 miniz_oxide = "0.8"
+sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = [

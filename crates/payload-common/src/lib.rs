@@ -17,6 +17,8 @@ pub mod avpro;
 #[cfg(windows)]
 pub mod codepage;
 #[cfg(windows)]
+pub mod cg_cache;
+#[cfg(windows)]
 pub mod crash;
 #[cfg(windows)]
 pub mod memdiff;
@@ -194,6 +196,7 @@ pub fn start(name: &'static str) {
             sdl::init();
             codepage::init();
             d3dx::init();
+            cg_cache::init();
             dinput::init();
             ini::init();
             mouse_stick::init();

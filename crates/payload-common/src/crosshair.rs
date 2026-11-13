@@ -14,7 +14,8 @@
 //! - `WAL_CROSSHAIR_AXES`: what it follows, `stick` (the left stick, the guns' aim:
 //!   default), `pedals` (`accel` / `brake`, 0..32767 across the screen: the touch pointer of
 //!   Steel Chronicle Victroopers, whose sticks steer) or `right-stick` (`rx` / `ry`: the touch
-//!   pointer of the other touch screens, Yu-Gi-Oh! Duel Terminal 6).
+//!   pointer of the other touch screens, Yu-Gi-Oh! Duel Terminal 6) or `touch` (player 1: the
+//!   touch surface's first finger while one is down, else the left stick: Wonderland Wars' pen).
 //! - `WAL_CROSSHAIR_HIDE`: seconds without moving before it hides (5; 0: never).
 //!
 //! Before each `Present` (payload-common's Direct3D 9 overlay) the crosshairs are drawn into the
@@ -52,6 +53,7 @@ enum Axes {
     LeftStick,
     Pedals,
     RightStick,
+    Touch,
 }
 
 fn axes() -> Axes {
@@ -59,6 +61,7 @@ fn axes() -> Axes {
     *AXES.get_or_init(|| match std::env::var("WAL_CROSSHAIR_AXES").as_deref().map(str::trim) {
         Ok("pedals") => Axes::Pedals,
         Ok("right-stick") => Axes::RightStick,
+        Ok("touch") => Axes::Touch,
         _ => Axes::LeftStick,
     })
 }
@@ -272,6 +275,9 @@ unsafe fn reset(_dev: P) {
     }
 }
 
+/// `WAL_CROSSHAIR_AXES=touch`: player 1's last finger place and the left stick then.
+static LAST_TOUCH: Mutex<Option<((i16, i16), (i16, i16))>> = Mutex::new(None);
+
 /// Who aims (a gun that moved lately) and where.
 fn aims(state: &mut State) -> [Option<(i16, i16)>; MAX_PLAYERS] {
     let now = Instant::now();
@@ -285,7 +291,24 @@ fn aims(state: &mut State) -> [Option<(i16, i16)>; MAX_PLAYERS] {
                 (full(stick.axis(Axis::Accel)), full(stick.axis(Axis::Brake)))
             }
             Axes::RightStick => (stick.axis(Axis::RightX), stick.axis(Axis::RightY)),
-            Axes::LeftStick => (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY)),
+            Axes::Touch if player == 0 => {
+                // the finger's place (0..65535 across the screen to the sticks' -32768..32767),
+                // kept once lifted until the stick moves
+                let left = (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY));
+                let mut last = LAST_TOUCH.lock().unwrap();
+                match crate::touches().first() {
+                    Some(&(x, y)) => {
+                        let touch = ((x as i32 - 32768) as i16, (y as i32 - 32768) as i16);
+                        *last = Some((touch, left));
+                        touch
+                    }
+                    None => match *last {
+                        Some((touch, at)) if at == left => touch,
+                        _ => left,
+                    },
+                }
+            }
+            Axes::LeftStick | Axes::Touch => (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY)),
         };
         if aim != *last {
             *last = aim;

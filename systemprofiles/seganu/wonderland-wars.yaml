@@ -1,0 +1,91 @@
+# Wonderland Wars (Sega, Nu 1.1, 2015; game id SDAP): a 32-bit Direct3D 9 (Cg) game played
+# with a pen on a touch screen and a stick.
+# Runs package\bin\carol_nu.exe; amLib is linked in (no amdaemon): the ALLS payload emulates the
+# system (keychip, AMEX board and its JVS I/O board, ALL.Net) in the game's process, beside its
+# devices (WAL_ALLS_BOARD=wlw). aimeReaderHost.exe (game.bat starts it first) reads the Aime
+# cards on COM10 for the game.
+# Override values in userprofiles/seganu/wonderland-wars.yaml.
+system: alls
+name: Wonderland Wars
+
+# Wine's Direct3D: DXVK's SM3 shader compiler (dxbc-spirv) asserts on one of the game's shaders
+# (sm3_io_map.cpp:880) and the game aborts at boot (exit code 3), as CHUNITHM
+dxvk: false
+
+# game.bat's reader host (the cards' reader on COM10), with the payload
+background:
+  - aimeReaderHost.exe -p10 -n
+background_wait_ms: 3000
+
+# The cabinet's drives: E: the AMFS (the image information, the system file), Y: the game's
+# data (Y:\SDAP, Y:\SDAP.share; the AMEX board's EEPROM and SRAM in Y:\amex)
+drives:
+  e: amfs
+  y: Y
+
+env:
+  WAL_ALLS_BOARD: wlw
+  WAL_ALLS_GAME_ID: SDAP
+  WAL_ALLS_PLATFORM_ID: AAV0
+  WAL_ALLS_JVS: "1"
+  # DIP switch 1: the store's server cabinet (else error 3007, no server cabinet)
+  WAL_ALLS_DIPSW: "01"
+  WAL_TYPEX_JVS_OUTPUTS: "24"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,,,,,"
+  WAL_TYPEX_JVS_ROTARY: "4"
+  # ALL.Net's authentication accepted (the payload's server)
+  WAL_ALLS_ALLNET: "1"
+  # the Aime reader in aimeReaderHost.exe only; the cabinet's reader (837-15286, its firmware 0x92
+  # in package\bin\firm)
+  WAL_EXE_ENV: "aimeReaderHost.exe: WAL_ALLS_AIME_PORT=COM10"
+  WAL_AIME_READER: "15286"
+  WAL_ALLS_AUTO_CARD: "1"
+  # the network test's database, matching and game server checks (no server: each waits for
+  # its connection 1350 frames, 22.5 s, then BAD) given 60 frames
+  WAL_PATCHES: "0xf90bf4:3C000000,0xf90c64:3C000000,0xf90d04:3C000000"
+  WAL_PATCHES_EXE: carol_nu.exe
+  # its ~9700 shaders compiled by the Cg runtime at each boot (about 10 minutes): the compiled
+  # programs kept on the Y: drive, the next boots take them from there
+  WAL_CG_CACHE: Y:\cgcache
+  # CRI ADX2's stream in WASAPI exclusive mode (none in Wine: silent) played in shared mode
+  WAL_WASAPI_SHARED: "1"
+  # the game's OpenSSL 1.0.2h computes wrong SHA values on CPUs with the SHA extensions
+  OPENSSL_ia32cap: "~0x20000000"
+  WAL_ALLS_TIMEWARP: "1"
+  # its fullscreen 1920x1080 device lost with the focus on a desktop (the game then ends): a
+  # windowed device in a borderless window over the screen, the picture kept 16:9 (as CHUNITHM)
+  WAL_D3D9_WINDOWED_SIZE: 1920x1080
+  WAL_D3D9_ASPECT: "16:9"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # the pen's place: a red dot (the common crosshair option), following the touch surface's
+  # finger, else the mouse or gun
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_AXES: touch
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1.5"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  # the pen: the touchscreen / touchpad, else the mouse or gun (its position, b1 touches)
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: true
+
+controls:
+  lx: Pen (x)
+  ly: Pen (y)
+  b1: Pen touch
+  b2: Pen button
+  b3: Dodge
+  up: Stick up
+  down: Stick down
+  left: Stick left
+  right: Stick right
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

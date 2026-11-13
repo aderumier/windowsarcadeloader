@@ -53,6 +53,9 @@
 //!   with `WAL_EXE_ENV`)
 //! - `WAL_ALLS_BOARD=cxb`: crossbeats REV. SUNRiSE, a Nu game with amLib linked in and no
 //!   amdaemon (as `chuni`): its REV I/O and LED libraries, touch screen (`cxb.rs`)
+//! - `WAL_ALLS_BOARD=wlw`: Wonderland Wars, a Nu game with amLib linked in and no amdaemon (as
+//!   `chuni`): its touch panel, controller board and pen (`wlw.rs`); the Aime reader in
+//!   `aimeReaderHost.exe`
 //! - `WAL_ALLS_BOARD=chusan`: CHUNITHM SUPERSTAR (amdaemon, IO4: the air sensors; the game:
 //!   slider, LED boards; the title server in amdaemon's ALL.Net server, `chuni.rs`)
 //! - `WAL_ALLS_LED_BOARD`: the LED boards' identity (`led.rs`)
@@ -101,6 +104,7 @@ mod registry;
 mod stat;
 mod sysfile;
 mod udp;
+mod wlw;
 
 use std::ffi::c_void;
 
@@ -159,6 +163,8 @@ fn start() {
             chuni_process();
         } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "cxb") {
             cxb_process();
+        } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "wlw") {
+            wlw_process();
         } else {
             let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
             // the cabinet's input comes from amdaemon's I/O board: the real keyboard and pads
@@ -275,6 +281,25 @@ fn cxb_process() {
     daemon::init();
     // its amLib checks in with ALL.Net's billing server itself (else error 8113, the billing
     // mode unknown)
+    allnet::serve_billing();
+}
+
+/// Wonderland Wars' programs: the game (its devices, `wlw.rs`, then the system's in its own
+/// process) and the Aime reader's host.
+fn wlw_process() {
+    let exe_name = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase())).unwrap_or_default();
+    if exe_name == "aimereaderhost.exe" {
+        aime::init();
+        netenv::init_game();
+        allnet::init_redirect();
+        return;
+    }
+    let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    wal_payload_common::input_filter::init(exe, |_| false);
+    wal_payload_common::patches::apply();
+    wal_payload_common::amlog::init("ALLS");
+    wlw::init();
+    daemon::init();
     allnet::serve_billing();
 }
 

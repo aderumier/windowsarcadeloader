@@ -1,0 +1,7 @@
+; The amVideo library's exports (amdaemon finds them by name, a Nu game's linked amLib by
+; ordinal: 1 open, 2 close, 3 set resolution, 4 video BIOS version).
+EXPORTS
+    amDllVideoOpen @1
+    amDllVideoClose @2
+    amDllVideoSetResolution @3
+    amDllVideoGetVBiosVersion @4

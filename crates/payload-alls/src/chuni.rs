@@ -251,15 +251,15 @@ fn serve_distribution(record: &mut [u8]) -> bool {
 /// amLib's credit record (backup record 1: at 0x40, its copy at 0x840, 0x50 bytes: CRC-32 of the
 /// bytes after it), free play at +0x0A: `WAL_ALLS_FREEPLAY`, else the common `WAL_FREEPLAY`
 /// (default on). Set in the backup at start and in the game's writes (a blank backup's first).
-const CREDIT: [u64; 2] = [0x40, 0x840];
-const CREDIT_SIZE: usize = 0x50;
+pub(crate) const CREDIT: [u64; 2] = [0x40, 0x840];
+pub(crate) const CREDIT_SIZE: usize = 0x50;
 
-fn free_play() -> bool {
+pub(crate) fn free_play() -> bool {
     wal_payload_common::free_play("WAL_ALLS_FREEPLAY").unwrap_or(true)
 }
 
 /// A credit record given the free play setting, when it is one (its sum checked).
-fn set_free_play(record: &mut [u8]) -> bool {
+pub(crate) fn set_free_play(record: &mut [u8]) -> bool {
     let valid = u32::from_le_bytes(record[..4].try_into().unwrap()) == crc32(&record[4..]) && record.iter().any(|&b| b != 0);
     if valid && record[0x0A] != free_play() as u8 {
         record[0x0A] = free_play() as u8;
