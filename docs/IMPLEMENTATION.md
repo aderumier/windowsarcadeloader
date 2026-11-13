@@ -5491,7 +5491,7 @@ uninstaller removed). `.windowsloader`: `SEGA RALLY 2.EXE`. A PC game, not a cab
   with the repack's settings in a 2.79.3 `dgVoodoo.conf` (it rejects the repack's 0x287 file:
   watermark, no 1067x600 mode; and its own `high_quality` dithering, `auto` render format),
   rendered at the screen's size with 4x antialiasing. ReShade (`dxgi.dll`) is hidden.
-- **Aspect ratio** (`WAL_SR2_ASPECT`, the GUI's Game option, 16:9 by default, or 4:3): the
+- **Aspect ratio** (`WAL_SR2_ASPECT`, the GUI's Game option, `16_9` by default, or `4_3`: no colon, a file name on the box): the
   widescreen fix reads `SegaRally2Resolution.cfg`'s `Aspect ratio=` (3: 1067x600, 1: 800x600)
   in its `DllMain`, before the payload: the profile's `files` source is chosen by the option
   (`SegaRally2Resolution-{WAL_SR2_ASPECT}.cfg`; the launcher expands `{WAL_...}` in `files`

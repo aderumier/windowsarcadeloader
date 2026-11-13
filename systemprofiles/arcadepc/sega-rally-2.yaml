@@ -30,7 +30,7 @@ files:
   # the repack's settings in a 2.79.3 file
   dgVoodoo.conf: systemprofiles/arcadepc/files/sega-rally-2/dgVoodoo.conf
   MUSASHI/dgVoodoo.conf: systemprofiles/arcadepc/files/sega-rally-2/dgVoodoo.conf
-  # the widescreen fix's aspect ratio (WAL_SR2_ASPECT), read when the game process starts
+  # the widescreen fix's aspect ratio (WAL_SR2_ASPECT: 16_9 or 4_3, no colon in a file name), read when the game process starts
   SegaRally2Resolution.cfg: "systemprofiles/arcadepc/files/sega-rally-2/SegaRally2Resolution-{WAL_SR2_ASPECT}.cfg"
 
 # ReShade (dxgi.dll) and Xidi (MUSASHI\dinput.dll, its DirectInput 8 backend): not used, the
@@ -39,7 +39,7 @@ hide: [dxgi.dll, ReShade.ini, dinput.dll, dinput_backend.dll, Xidi.ini, installe
 
 env:
   WAL_ARCADEPC_BOARD: segarally2
-  WAL_SR2_ASPECT: "16:9"
+  WAL_SR2_ASPECT: "16_9"
   WAL_DINPUT_WHEEL: Sega Rally 2 Wheel
   # MGInput.dll takes DirectInput 5-7 device types only
   WAL_DINPUT_LEGACY: "1"
@@ -75,7 +75,7 @@ options:
       - key: WAL_SR2_ASPECT
         label: Aspect ratio
         kind: choice
-        choices: ["16:9", "4:3"]
+        choices: ["16_9", "4_3"]
         description: >-
           The repack's widescreen fix (a wider view, 2D centered) or the original 4:3 picture.
 
