@@ -15,7 +15,8 @@
 //! * `NRM`, `SGT`, `SLE`, `SEQ`, `SNE`, `SSG`, absolute values (`|x|`), vertex `LRP` / `CMP`
 //!   and vertex `_SAT` with ARB instructions; `TXL` as `TEX` (the level of detail dropped:
 //!   exact on the textures without mipmaps, the shadow and screen buffers).
-//! * Shadow samplers as plain 2D textures (the programs compare the depth themselves).
+//! * Shadow samplers as plain 2D textures (the programs compare the depth themselves), kept
+//!   with `WAL_RINGEDGE_CG_SHADOW=1` (Project DIVA Arcade's use the comparison).
 //! * Outputs through temporaries (a conditional write reads them back), copied at the end;
 //!   `fragment.facing` (absent) as front facing.
 //! * The vertex weight (`ARB_vertex_blend`, absent) as generic attribute 1, where NVIDIA reads
@@ -232,6 +233,14 @@ fn scalar(src: &str) -> String {
     }
 }
 
+/// `WAL_RINGEDGE_CG_SHADOW=1`: shadow samplers kept (ARB_fragment_program_shadow, the
+/// texture's depth comparison: Project DIVA Arcade's programs use its result); else plain
+/// textures (Initial D's programs compare the depth themselves).
+fn shadow_samplers() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_RINGEDGE_CG_SHADOW").is_ok_and(|v| v.trim() == "1"))
+}
+
 pub(crate) fn translate(text: &str) -> Option<String> {
     if text.starts_with("!!FP1.0") {
         return translate(&fp10(text)?);
@@ -277,7 +286,7 @@ pub(crate) fn translate(text: &str) -> Option<String> {
             continue;
         }
         if let Some(option) = s.strip_prefix("OPTION ") {
-            if !option.starts_with("NV_") && !option.starts_with("ARB_fragment_program_shadow") {
+            if !option.starts_with("NV_") && (!option.starts_with("ARB_fragment_program_shadow") || shadow_samplers()) {
                 out.push(format!("{s};"));
                 head = out.len();
             }
@@ -475,7 +484,7 @@ pub(crate) fn translate(text: &str) -> Option<String> {
         let (reg, mask, cond) = destination(&parts[0])?;
         // a texel offset (`TEX r, c, texture[0], 2D, (-1, 0)`, NV_gpu_program4) dropped: DIVA's
         // blur filters sample their center only
-        let mut sources: Vec<String> = parts[1..].iter().filter(|x| !x.starts_with('(')).map(|x| x.replace("SHADOW2D", "2D").replace("SHADOWRECT", "RECT").replace("SHADOWCUBE", "CUBE").replace("SHADOW1D", "1D")).collect();
+        let mut sources: Vec<String> = parts[1..].iter().filter(|x| !x.starts_with('(')).map(|x| if shadow_samplers() { x.to_string() } else { x.replace("SHADOW2D", "2D").replace("SHADOWRECT", "RECT").replace("SHADOWCUBE", "CUBE").replace("SHADOW1D", "1D") }).collect();
         if base == "ARL" {
             let src = sources.first()?;
             let (value, sw) = split_swizzle(src);

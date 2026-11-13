@@ -72,6 +72,8 @@ env:
   # its NVIDIA OpenGL shaders and behaviors on other GPUs (Mesa: AMD, Intel), see the payload's
   # cg.rs and nvasm.rs; NVIDIA GPUs keep the originals
   WAL_RINGEDGE_CG_FIX: auto
+  # its shadow samplers kept (its programs use the depth comparison's result, not the depth)
+  WAL_RINGEDGE_CG_SHADOW: "1"
 
 options:
   - title: Aime card
