@@ -149,6 +149,13 @@
 //! ReRave (`WAL_ARCADEPC_BOARD=rerave`, x86 build): `rerave.rs` is its RaveSvc service (coins,
 //! settings), replaces its dongle checks and plays its touch screen (Unity's mouse).
 //!
+//! Cut The Rope (`WAL_ARCADEPC_BOARD=cuttherope`): `cuttherope.rs` plays the MonoGame mouse
+//! (the touches) and keyboard (the operator keys) of this .NET redemption game, whose serial
+//! board and HID touch panel only exist on its Linux cabinet.
+//!
+//! Go Go Drummer Babe (`WAL_ARCADEPC_BOARD=gogodrummer`, x86 build): `gogodrummerbabe.rs`
+//! emulates its cnComm drum I/O board (`@<code>#` frames: the four drum sensors, coin, buttons).
+//!
 //! Wild West Shoot Out (`WAL_ARCADEPC_BOARD=wws`, x86 build): `wws.rs` emulates its COM1 board,
 //! stubs its camera and dongle and writes the guns into the game's camera data (no plugin).
 //!
@@ -193,6 +200,7 @@ mod cave;
 mod commking;
 #[cfg(target_arch = "x86")]
 mod comeonbaby;
+mod cuttherope;
 mod dcop;
 mod demul;
 #[cfg(target_arch = "x86")]
@@ -207,6 +215,8 @@ mod felix;
 mod gameport;
 #[cfg(target_arch = "x86")]
 mod gamewax;
+#[cfg(target_arch = "x86")]
+mod gogodrummerbabe;
 #[cfg(target_arch = "x86_64")]
 mod hotd2;
 #[cfg(target_arch = "x86")]
@@ -645,6 +655,16 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 commking::init();
+            }
+            _ if board.trim() == "cuttherope" => {
+                pads::disconnect();
+                cuttherope::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "gogodrummer" => {
+                pads::disconnect();
+                // HGE native exe: the board plays the game's keys (its own input_filter)
+                gogodrummerbabe::init();
             }
             Some(port) => {
                 pads::disconnect();

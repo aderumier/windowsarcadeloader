@@ -1,0 +1,39 @@
+# Go Go Drummer Babe (a Chinese drum medal / redemption game, mygame.exe: Haaf's Game Engine on
+# Direct3D 8, bass.dll audio, 640x480, 32-bit) - template, override values in
+# userprofiles/arcadepc/go-go-drummer-babe.yaml.
+# A one-player drum game: the player hits a drum at four positions (left, middle-left,
+# middle-right, right); menu navigation (song / age select) is the drums. The payload emulates
+# the cabinet's cnComm drum I/O board (coins, the four drum sensors, the operator buttons;
+# docs §6.3i).
+system: arcadepc
+name: Go Go Drummer Babe
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# Haaf's Game Engine renders through Direct3D 8 (wined3d); the game runs windowed, 640x480 (4:3)
+env:
+  WAL_ARCADEPC_BOARD: gogodrummer
+  # a borderless 4:3 window scaled to the screen (the aspect-ratio rule keeps 4:3)
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  WAL_HIDE_CURSOR: "1"
+  # Free play is the game's own Set.ini [FreePlay] Val (the dump ships 2 = free play); the game
+  # reads no environment of ours, so there is no WAL_FREEPLAY option here.
+
+# The four drums are the gamepad shoulders L1 / L2 / R1 / R2 (b4 / b8 / b3 / b7), left to right;
+# a keyboard's arrows hit them too.
+controls:
+  b4: Drum left (L1)
+  b8: Drum middle-left (L2)
+  b3: Drum middle-right (R1)
+  b7: Drum right (R2)
+  left: Drum left
+  up: Drum middle-left
+  down: Drum middle-right
+  right: Drum right
+  coin: Coin
+  service: Operator / service
+  test: Operator / service

@@ -1,0 +1,56 @@
+# Cut The Rope (the ZeptoLab redemption conversion: "CTR MonoGame Windows.exe", a .NET MonoGame
+# game on SDL/OpenGL, portrait 1080x1920, 32-bit) - template, override values in
+# userprofiles/arcadepc/cut-the-rope.yaml.
+# A touch screen redemption game (cut the ropes to feed Om Nom, win tickets). Its serial I/O
+# board (coins, the ticket dispenser) and its Baanto HID touch panel only exist on the real
+# Linux cabinet (the game's Util.OnDevice, true only on Unix): run under Wine it takes the
+# MonoGame mouse (the touches) and keyboard (the operator keys), which the payload plays with
+# the gun or mouse and the virtual sticks (WAL_ARCADEPC_BOARD=cuttherope, docs §6.3i).
+system: arcadepc
+name: Cut The Rope
+
+# loaded at the executable's entry point: the payload's hooks in place before the .NET game runs
+# (it imports no xinput; wal-loader injects the payload)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# the cabinet rotates its monitor with irotate.exe before the game; we run the game directly
+# (the .windowsloader names the game, not irotate.exe) and fit its portrait picture with
+# gamescope instead.
+hide: [irotate.exe]
+
+# The game asks its graphics device for a portrait 1080x1920 full screen, a mode a landscape
+# screen does not have: gamescope gives it that screen and fits the picture to the real one
+# (pillar-boxed, the 9:16 aspect kept).
+gamescope:
+  enabled: true
+  width: 1080
+  height: 1920
+  args: [-S, fit, -f]
+
+# The game keeps its operator options and bookkeeping in %APPDATA%\CTR\options.dat
+# (Environment.SpecialFolder.ApplicationData). Linked to the dump's save/ folder so it ships with
+# free play on (the dump's options.dat: freePlay true, swipeCard false — the cabinet's card reader
+# and coin acceptor are its serial board, absent under Wine) and keeps the game's writes.
+c_folders:
+  users/steamuser/AppData/Roaming/CTR: save
+
+env:
+  WAL_ARCADEPC_BOARD: cuttherope
+
+input:
+  # the touch screen: a touch screen's first finger, else the gun (or the mouse) points and the
+  # trigger touches
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Touch position (x)
+  ly: Touch position (y)
+  b1: Touch
+  start: Touch
+  coin: Coin
+  test: Operator menu
+  service: Test menu
