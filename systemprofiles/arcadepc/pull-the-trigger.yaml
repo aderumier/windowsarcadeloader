@@ -27,9 +27,9 @@ initial_files:
 
 env:
   WAL_ARCADEPC_BOARD: pullthetrigger
-  # The community library's window is the screen's centered 4:3 (the payload gives it that
-  # monitor): the dump's art around it, its opening fitted to the picture, its sides stretched to
-  # the screen's edges.
+  # The community library draws its picture in the screen's centered 4:3 (the payload gives it
+  # that place): the dump's art around it, its opening fitted to the picture, its sides stretched
+  # to the screen's edges.
   WAL_BEZEL: bezel.png
   WAL_BEZEL_FIT: stretch
   # not managed by the window manager: GNOME's top bar pushed the full-height window down (the
@@ -38,6 +38,10 @@ env:
   WAL_DESKTOP_ACTIVE: "1"
   # the common crosshair option, on: the gun's crosshair over the picture
   WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_STYLE: ring-cross
+  WAL_CROSSHAIR_SIZE: "6"
+  WAL_CROSSHAIR_P1: ""
+  WAL_CROSSHAIR_TINT: "1"
 
 input:
   # one lightgun (or mouse): the pointer aims, the trigger shoots
@@ -59,6 +63,30 @@ options:
         description: >-
           The gun's crosshair drawn over the picture (hidden after a few seconds without
           moving). Off: only the game's small aim mark.
+  - title: Crosshair
+    options:
+      - key: WAL_CROSSHAIR_STYLE
+        label: Style
+        kind: choice
+        choices: [ring-cross, cross, ring, dot]
+        description: The built-in crosshair, when no image of its own is given.
+      - key: WAL_CROSSHAIR_SIZE
+        label: Size (% of the screen height)
+        kind: number
+        min: 2
+        max: 20
+      - key: WAL_CROSSHAIR_P1
+        label: Image
+        kind: text
+        description: >-
+          A PNG file (full path) drawn instead of the built-in crosshair, e.g. an icon from
+          a crosshair icon collection. Empty: the built-in one.
+      - key: WAL_CROSSHAIR_TINT
+        label: Image in the player's color
+        kind: bool
+        description: >-
+          A dark image (an icon silhouette) is drawn in the player's color (blue), a colored
+          one tinted with it. Off: the image as it is.
 
 controls:
   lx: Gun aim (x)

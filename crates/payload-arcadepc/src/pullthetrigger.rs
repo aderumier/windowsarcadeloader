@@ -14,9 +14,11 @@
 //!   pedal: behind cover, no shots), `test` Home (the operator menu, at the title), the menu's
 //!   keys Page Up / Page Down / Delete / End from the directions.
 //!
-//! The community library makes the game's window its monitor's size and draws the 4:3 picture
-//! in its middle (black sides). Its monitor (`GetMonitorInfoW`) is the screen's centered 4:3
-//! rectangle instead: the window is the picture, the dump's bezel (`WAL_BEZEL`) around it.
+//! The community library draws the 4:3 picture in the middle of the screen-sized window (black
+//! sides, the dump's bezel `WAL_BEZEL` around it). Its picture's place comes from its globals,
+//! built for 1920x1080 (1440x1080 at 240,0): its own measure of the monitor, in its
+//! `CreateWindowExA`, never runs (a 1600x1200 screen showed the 1080p picture, zoomed and cut).
+//! The payload sets them from the screen: its centered 4:3 rectangle.
 //!
 //! The common crosshair option (`WAL_CROSSHAIR`): the gun's crosshair drawn before the
 //! executable's `SwapBuffers` (the community library's hook of it after, its FREEPLAY over it).
@@ -35,7 +37,6 @@ use wal_payload_common::input_filter::{own_mouse, post_key, post_mouse};
 use wal_payload_common::mapping::ButtonMap;
 use wal_payload_common::{gun, input, log};
 use windows_sys::Win32::Foundation::RECT;
-use windows_sys::Win32::Graphics::Gdi::{HMONITOR, MONITORINFO};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE};
 
@@ -145,7 +146,6 @@ fn input_thread() {
     }
 }
 
-static ORIG_MONITOR: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SWAP: AtomicUsize = AtomicUsize::new(0);
 
 unsafe extern "system" fn swap_buffers(dc: *mut std::ffi::c_void) -> i32 {
@@ -157,29 +157,28 @@ unsafe extern "system" fn swap_buffers(dc: *mut std::ffi::c_void) -> i32 {
     unsafe { orig(dc) }
 }
 
-/// A rectangle's centered 4:3 part (all of it when it is narrower).
-fn four_three(r: &mut RECT) {
-    let (w, h) = (r.right - r.left, r.bottom - r.top);
-    if w * 3 > h * 4 {
-        let width = h * 4 / 3;
-        r.left += (w - width) / 2;
-        r.right = r.left + width;
-    }
-}
+/// The community library's picture globals (RVAs): the monitor (left, top, right, bottom), its
+/// width and height, the picture's left, width and height; the picture's top apart.
+const PTT_MONITOR: usize = 0x19000;
+const PTT_PICTURE_TOP: usize = 0x19a1c;
 
-/// The community library's monitor: the screen's centered 4:3 rectangle.
-unsafe extern "system" fn monitor_info(monitor: HMONITOR, info: *mut MONITORINFO) -> i32 {
-    let orig: unsafe extern "system" fn(HMONITOR, *mut MONITORINFO) -> i32 = unsafe { std::mem::transmute(ORIG_MONITOR.load(Ordering::Relaxed)) };
-    let ok = unsafe { orig(monitor, info) };
-    if ok != 0 && !info.is_null() {
-        unsafe {
-            four_three(&mut (*info).rcMonitor);
-            four_three(&mut (*info).rcWork);
-            let r = (*info).rcMonitor;
-            log!("pullthetrigger: the window on the screen's 4:3 ({},{})-({},{})", r.left, r.top, r.right, r.bottom);
-        }
+/// The community library's picture: the screen's centered 4:3 rectangle (all of a narrower one).
+fn set_picture(ptt: usize) {
+    let (w, h) = wal_payload_common::desktop::screen_size();
+    if w <= 0 || h <= 0 {
+        return;
     }
-    ok
+    let (pw, ph) = if w * 3 > h * 4 { (h * 4 / 3, h) } else { (w, w * 3 / 4) };
+    let (left, top) = ((w - pw) / 2, (h - ph) / 2);
+    let globals = [0, 0, w, h, w, h, left, pw, ph];
+    unsafe {
+        let p = (ptt + PTT_MONITOR) as *mut i32;
+        for (i, v) in globals.into_iter().enumerate() {
+            p.add(i).write_volatile(v);
+        }
+        ((ptt + PTT_PICTURE_TOP) as *mut i32).write_volatile(top);
+    }
+    log!("pullthetrigger: the picture {pw}x{ph} at {left},{top} of the {w}x{h} screen");
 }
 
 pub fn init() {
@@ -187,9 +186,7 @@ pub fn init() {
     let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
     let ptt = unsafe { GetModuleHandleW(windows_sys::w!("PttBootTest.dll")) } as usize;
     if ptt != 0 {
-        if let Some(orig) = unsafe { wal_payload_common::iat::hook_module(ptt, "user32.dll", "GetMonitorInfoW", monitor_info as *const () as usize) } {
-            ORIG_MONITOR.store(orig, Ordering::Relaxed);
-        }
+        set_picture(ptt);
     }
     if wal_payload_common::crosshair::init_gl() {
         if let Some(orig) = unsafe { wal_payload_common::iat::hook_module(exe, "gdi32.dll", "SwapBuffers", swap_buffers as *const () as usize) } {
