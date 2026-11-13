@@ -258,7 +258,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `initial-d-arcade-stage-7` | Initial D Arcade Stage 7 AAX | ringedge | works (full screen, cards, offline) | pass | 2026-11-01 |
 | `initial-d-arcade-stage-8` | Initial D Arcade Stage 8 Infinity | ringedge | works (full screen, cards, offline) | pass | 2026-11-01 |
 | `pleasant-goat-and-big-big-wolf-happy-happy-playground` | Pleasant Goat and Big Big Wolf Happy Happy Playground | ringedge | title, attract and coins verified; gameplay, sound, payout not verified | not in the test |  |
-| `puyo-puyo-quest-arcade` | Puyo Puyo!! Quest Arcade | ringedge | work in progress: does not start yet | not in the test |  |
+| `puyo-puyo-quest-arcade` | Puyo Puyo!! Quest Arcade | ringedge | user 100% (2026-11-13, desktop); headless: coins, login, map | not in the test |  |
 | `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) | pass | 2026-11-02 |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user: 100%): the cabinet's shell `Tsunami\TVTSHELL.EXE` (dump `games/arcadepc/revolt`), its console then `ReVolt.exe -coinop`; coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | pass | 2026-11-01 |

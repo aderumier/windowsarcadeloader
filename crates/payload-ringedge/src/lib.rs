@@ -10,7 +10,8 @@
 //! * amLib's own log (`WAL_RINGEDGE_AMLOG`, `amlog.rs`).
 //! * The card daemon and its magnetic card reader (`WAL_RINGEDGE_CARD_DAEMON`, `card.rs`).
 //! * A CTR-251500 serial touch panel (`WAL_RINGEDGE_TOUCH`, `touch.rs`), a 3M MicroTouch one
-//!   (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`).
+//!   (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`); the game's Windows mouse from player 1's
+//!   pointer (`WAL_RINGEDGE_MOUSE`, `mouse.rs`).
 //! * Medal cabinet boards: Medal no Gunman's (`gunman.rs`), Lady Luck's (`satellite.rs`).
 //! * Profile code patches (`WAL_PATCHES`); `WAL_RINGEDGE_CWD`: the game's working directory,
 //!   relative to its own.
@@ -26,6 +27,7 @@ mod happy_playground;
 mod glscale;
 mod gunman;
 mod microtouch;
+mod mouse;
 mod nvasm;
 mod pcp;
 mod rfid;
@@ -80,6 +82,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         gunman::init();
         satellite::init();
         microtouch::init();
+        mouse::init();
+        // the touch pointer of the touch screen games (the common crosshair option, `WAL_CROSSHAIR`)
+        wal_payload_common::crosshair::init();
         pcp::start();
         log!("ringedge: initialized");
     }

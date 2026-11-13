@@ -548,14 +548,15 @@ unsafe extern "system" fn create_iid(_instance: P, _version: u32, iid: *const u3
 static ORIG_GET_PROC_ADDRESS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static ORIG_CO_CREATE_INSTANCE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// `CLSID_DirectInput` / `CLSID_DirectInput8` (`25E609E0` / `25E609E1-B259-11CF-BFC7-444553540000`).
+/// `CLSID_DirectInput` / `CLSID_DirectInput8` (`25E609E0` / `25E609E4-B259-11CF-BFC7-444553540000`;
+/// Puyo Puyo!! Quest Arcade creates DirectInput 8 that way).
 fn is_dinput_clsid(clsid: *const u8) -> bool {
     const TAIL: [u8; 12] = [0x59, 0xB2, 0xCF, 0x11, 0xBF, 0xC7, 0x44, 0x45, 0x53, 0x54, 0x00, 0x00];
     if clsid.is_null() {
         return false;
     }
     let c = unsafe { std::slice::from_raw_parts(clsid, 16) };
-    matches!(c[..4], [0xE0 | 0xE1, 0x09, 0xE6, 0x25]) && c[4..] == TAIL
+    matches!(c[..4], [0xE0 | 0xE4, 0x09, 0xE6, 0x25]) && c[4..] == TAIL
 }
 
 /// `CoCreateInstance(clsid, outer, context, riid, out)`: DirectInput is the fake one.
