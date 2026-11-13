@@ -59,7 +59,9 @@ fn gl_shots() {
     let shots = std::env::var("WAL_RINGEDGE_GL_SHOT").ok().and_then(|v| v.trim().parse::<f64>().ok());
     // the swaps also scale the picture (WAL_RINGEDGE_GL_SCALE)
     let scale = crate::glscale::init();
-    if shots.is_none() && !scale {
+    // the touch pointer (the common crosshair, Project DIVA Arcade's red dot) over the picture
+    CROSSHAIRS.store(wal_payload_common::crosshair::init_gl(), Ordering::Relaxed);
+    if shots.is_none() && !scale && !CROSSHAIRS.load(Ordering::Relaxed) {
         return;
     }
     let _ = unsafe { windows_sys::Win32::System::LibraryLoader::LoadLibraryA(c"opengl32.dll".as_ptr().cast()) };
@@ -261,12 +263,15 @@ unsafe extern "system" fn disable_attrib(index: u32) {
 
 /// The game writes its programs' parameters as environment parameters (`program.env`), its
 /// programs read local ones (`program.local`, as Cg binds them): fine on NVIDIA, zeros on Mesa
-/// (a black screen). Each write also goes to the bound program's locals.
+/// (a black screen). Each write also goes to the bound program's locals, unless that program
+/// reads environment parameters itself (Project DIVA Arcade's own programs set their locals
+/// themselves: its env 4, the fog color, landed on its tone map's local 4, the tone scale).
 unsafe extern "system" fn env_parameters(target: u32, index: u32, count: i32, params: *const f32) {
     let env: unsafe extern "system" fn(u32, u32, i32, *const f32) = unsafe { std::mem::transmute(ORIG_ENVS.load(Ordering::Relaxed)) };
     unsafe { env(target, index, count, params) };
     let local = ORIG_LOCALS.load(Ordering::Relaxed);
-    if local != 0 {
+    let bound = (target, BOUND[(target == 0x8804) as usize].load(Ordering::Relaxed) as u32);
+    if local != 0 && !READS_ENV.lock().unwrap().contains(&bound) {
         let local: unsafe extern "system" fn(u32, u32, i32, *const f32) = unsafe { std::mem::transmute(local) };
         unsafe { local(target, index, count, params) };
     }
@@ -278,8 +283,20 @@ unsafe extern "system" fn bind_program(target: u32, id: u32) {
     unsafe { orig(target, id) }
 }
 
+/// The programs (target, id) reading `program.env` themselves: [`env_parameters`].
+static READS_ENV: std::sync::Mutex<std::collections::BTreeSet<(u32, u32)>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
+
 unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, text: *const u8) {
     let original = unsafe { std::slice::from_raw_parts(text, len.max(0) as usize) };
+    {
+        let program = (target, BOUND[(target == 0x8804) as usize].load(Ordering::Relaxed) as u32);
+        let mut reads = READS_ENV.lock().unwrap();
+        if original.windows(11).any(|w| w == b"program.env") {
+            reads.insert(program);
+        } else {
+            reads.remove(&program);
+        }
+    }
     if DUMP_PROGRAMS.load(Ordering::Relaxed) {
         let id = BOUND[(target == 0x8804) as usize].load(Ordering::Relaxed);
         let _ = std::fs::create_dir_all("glprog");
@@ -296,7 +313,10 @@ unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, tex
                     log!("cg: program not translated: {}", t.lines().next().unwrap_or(""));
                 }
             }
-            fixed
+            // a fragment program not translated (Project DIVA Arcade's blurs, loops of a
+            // parameter's length; its tone maps with outlines, a subroutine): its first texture
+            // as is (a blur without radius), not an invalid program (nothing drawn)
+            fixed.or_else(|| (target == 0x8804).then(|| "!!ARBfp1.0\nTEMP c;\nTEX c, fragment.texcoord[0], texture[0], 2D;\nMOV result.color, c;\nEND\n".to_string()))
         }
         _ => None,
     };
@@ -332,8 +352,16 @@ static FIX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(f
 static SHOT_MS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_SWAP: AtomicUsize = AtomicUsize::new(0);
 
+static CROSSHAIRS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 unsafe extern "system" fn swap_buffers(hdc: *mut c_void) -> i32 {
     unsafe { crate::glscale::present(hdc) };
+    if CROSSHAIRS.load(Ordering::Relaxed) {
+        let window = unsafe { windows_sys::Win32::Graphics::Gdi::WindowFromDC(hdc as _) };
+        if !window.is_null() {
+            unsafe { wal_payload_common::crosshair::draw_gl_window(window) };
+        }
+    }
     if SHOT_MS.load(Ordering::Relaxed) == 0 {
         let orig: unsafe extern "system" fn(*mut c_void) -> i32 = unsafe { std::mem::transmute(ORIG_SWAP.load(Ordering::Relaxed)) };
         return unsafe { orig(hdc) };

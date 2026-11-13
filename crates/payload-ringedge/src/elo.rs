@@ -10,8 +10,8 @@
 //! `1` the touch, `2` its stream, `4` its release), X and Y little endian, Z (pressure) `0xFF`.
 //!
 //! The touch: the touch surface's first finger, else player 1's pointer (a mouse, or the left
-//! stick) while b8 is held (the profile maps the mouse button to it); in the game window's
-//! pixels, `WAL_RINGEDGE_ELO_SIZE` (default `1280x720`, segatools': the window's client area).
+//! stick) while b8 is held (the profile maps the mouse button to it); in the controller's units,
+//! 0..4095 over the screen, reversed (Project DIVA Arcade reads 4095 minus each coordinate).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -90,16 +90,6 @@ fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
 
-fn size() -> (u32, u32) {
-    std::env::var("WAL_RINGEDGE_ELO_SIZE")
-        .ok()
-        .and_then(|s| {
-            let (w, h) = s.trim().split_once('x')?;
-            Some((w.parse().ok()?, h.parse().ok()?))
-        })
-        .unwrap_or((1280, 720))
-}
-
 /// The touch, if any: (x, y) over 0..65535.
 fn touch() -> Option<(u16, u16)> {
     if let Some(&t) = touches().first() {
@@ -124,8 +114,7 @@ fn stream() -> Vec<u8> {
     TOUCHED.store(touch.is_some(), Ordering::Relaxed);
     let (status, (x, y)) = match touch {
         Some((x, y)) => {
-            let (w, h) = size();
-            let at = ((x as u32 * w / 65536) as u16, (y as u32 * h / 65536) as u16);
+            let at = (0x0FFF - (x >> 4), 0x0FFF - (y >> 4));
             *LAST.lock().unwrap() = at;
             (if was { 0x82 } else { 0x81 }, at)
         }

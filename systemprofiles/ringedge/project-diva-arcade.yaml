@@ -9,10 +9,12 @@
 system: ringedge
 name: Hatsune Miku Project DIVA Arcade
 
-# the cabinet's application partition Y: (its ram\ and rom\: the title server's lists kept in
-# ram\databank, the shop's local file server, the media fetchers' folders): the run directory
+# the cabinet's application partition Y: (its ram\: the title server's lists kept in
+# ram\databank, the shop's local file server, the media fetchers' folders): a folder of its own
+# in the run directory, never the run directory itself: the game formats Y: when its backup
+# (sv\E2PROM.bin) is new, which deleted the dump's files through the run directory's links
 run_drives:
-  y: .
+  y: appdata
 
 env:
   # platform id AAL2: amBackup's RingEdge 2 SRAM layout
@@ -44,9 +46,16 @@ env:
 
   # Project DIVA Arcade's devices and network (diva.rs)
   WAL_RINGEDGE_DIVA: "1"
-  # the touch panels (TOUCH PANEL: NG for now): Elo 2701 controllers the game's aclib opens as
-  # COM<channel+1> among the USB serial ports amPlatform lists; elo.rs and comports.rs are their
-  # emulation, the ports still to be found
+  # the touch panel: an Elo 2701 controller (elo.rs) on COM1, the game's aclib channel 0
+  WAL_RINGEDGE_ELO: COM1
+  # the touch pointer: a red dot (the common crosshair, drawn by the payload's OpenGL swap) on
+  # the finger, else the mouse
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_AXES: touch
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "2"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
   # the Aime reader's COM port (TN32MSEC003S, aimelib 3.03)
   WAL_RINGEDGE_DIVA_AIME: COM2
   # the TN32MSEC003S reader is segatools' generation 1 (hardware/firmware Ver1.2, the dump's

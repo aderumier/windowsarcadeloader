@@ -636,6 +636,10 @@ mod ddraw {
 
 /// The legacy OpenGL functions of the crosshairs (the game's compatibility context).
 struct Gl {
+    /// NV_fragment_program (NVIDIA): its switch `GL_FRAGMENT_PROGRAM_NV` turned off too
+    /// (elsewhere an invalid enum left pending, taken by Project DIVA Arcade's next error check
+    /// for its own call's: its vertex buffers refused)
+    nv_fragment_program: bool,
     gen_textures: unsafe extern "system" fn(i32, *mut u32),
     bind_texture: unsafe extern "system" fn(u32, u32),
     tex_image_2d: unsafe extern "system" fn(u32, i32, i32, i32, i32, i32, u32, u32, *const c_void),
@@ -670,7 +674,11 @@ fn gl() -> Option<&'static Gl> {
         let wgl: unsafe extern "system" fn(*const u8) -> usize = std::mem::transmute(GetProcAddress(module, c"wglGetProcAddress".as_ptr().cast())?);
         let ext = |name: &std::ffi::CStr| -> Option<usize> { Some(wgl(name.as_ptr().cast())).filter(|&f| f > 3) };
         let core = |name: &std::ffi::CStr| -> Option<usize> { GetProcAddress(module, name.as_ptr().cast()).map(|f| f as usize) };
+        let get_string: unsafe extern "system" fn(u32) -> *const std::ffi::c_char = std::mem::transmute(core(c"glGetString")?);
+        let extensions = get_string(0x1F03); // GL_EXTENSIONS
+        let nv_fragment_program = !extensions.is_null() && std::ffi::CStr::from_ptr(extensions).to_bytes().split(|&b| b == b' ').any(|e| e == b"GL_NV_fragment_program");
         Some(Gl {
+            nv_fragment_program,
             gen_textures: std::mem::transmute(core(c"glGenTextures")?),
             bind_texture: std::mem::transmute(core(c"glBindTexture")?),
             tex_image_2d: std::mem::transmute(core(c"glTexImage2D")?),
@@ -752,7 +760,9 @@ unsafe fn draw_gl_area(ww: i32, wh: i32, area: (f32, f32, f32, f32)) {
         }
         // fixed function: no shader programs (Cg's ARB / NV ones), depth, lighting, fog...
         for cap in [0x8620, 0x8804, 0x8870, 0x0B71, 0x0B50, 0x0B60, 0x0B44, 0x0BC0, 0x0C11, 0x0B90, 0x8513] {
-            (gl.disable)(cap);
+            if cap != 0x8870 || gl.nv_fragment_program {
+                (gl.disable)(cap);
+            }
         }
         (gl.enable)(GL_TEXTURE_2D);
         (gl.enable)(GL_BLEND);

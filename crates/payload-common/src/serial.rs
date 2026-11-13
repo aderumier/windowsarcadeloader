@@ -162,6 +162,7 @@ fn hooks() -> [(&'static str, usize); COUNT] {
         ("WriteFileEx", write_file_ex as *const () as usize),
         ("ReadFileEx", read_file_ex as *const () as usize),
         ("WaitCommEvent", wait_comm_event as *const () as usize),
+        ("FlushFileBuffers", flush_file_buffers as *const () as usize),
     ]
 }
 
@@ -331,7 +332,7 @@ fn port_w(name: *const u16) -> Option<P> {
 }
 
 // Original functions (previous IAT entries), by hook index.
-const COUNT: usize = 18;
+const COUNT: usize = 19;
 static ORIG: [AtomicUsize; COUNT] = [const { AtomicUsize::new(0) }; COUNT];
 
 fn orig<F: Copy>(idx: usize) -> F {
@@ -626,6 +627,15 @@ accept_on_port! {
     12 get_comm_timeouts(t: P);
     13 set_comm_timeouts(t: P);
     14 purge_comm(f: u32);
+}
+
+/// `FlushFileBuffers` on an emulated port: nothing pending (Project DIVA Arcade's aclib closes a
+/// port it cannot flush).
+unsafe extern "system" fn flush_file_buffers(h: P) -> i32 {
+    if is_fake(h) {
+        return 1;
+    }
+    unsafe { orig::<unsafe extern "system" fn(P) -> i32>(18)(h) }
 }
 
 /// `WaitCommEvent` on an emulated port: overlapped, it completes when a reply is queued
