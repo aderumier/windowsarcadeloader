@@ -1,4 +1,4 @@
-//! Sega Europa-R payload (Ford Racing Full Blown, SEGA Rally 3).
+//! Sega Europa-R payload (Ford Racing Full Blown, SEGA Rally 3, GRID, Daytona Championship USA).
 //!
 //! Ford Racing imports `inpout32.dll` (parallel port access, the force feedback board)
 //! statically: this DLL takes its place in the run directory, so it loads before the game code
@@ -10,6 +10,9 @@
 //!   and read with `ReadFile`, emulated from the virtual sticks.
 //! * `shell.rs`: the cabinet's GameShell (coins, credits): its window, the game's
 //!   `WM_COPYDATA` messages answered.
+//! * `shell_tcp.rs`: the Sega Shell over TCP (Daytona Championship USA): coins, credits, its
+//!   security challenges answered.
+//! * `inpwrapper.rs`: the shell's InpWrapper (Daytona Championship USA's force feedback bytes).
 //! * Force feedback: the bytes the game writes to the parallel port (`Out32`, payload-common's
 //!   `port_ffb`).
 //! * `settings.rs`: operator settings (resolution, free play) from profile options.
@@ -19,8 +22,10 @@
 #![allow(non_snake_case)]
 
 mod happ;
+mod inpwrapper;
 mod settings;
 mod shell;
+mod shell_tcp;
 mod testmenu;
 
 use std::ffi::c_void;
@@ -75,10 +80,12 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         } else {
             patches::apply();
             settings::init();
+            inpwrapper::init();
             happ::init(false);
             // SEGA Rally 3 counts its credits itself (no GameShell window)
             match credits_rva() {
                 Some(rva) => count_coins(rva),
+                None if shell_tcp::init() => {}
                 None => shell::init(),
             }
             testmenu::watch_game();

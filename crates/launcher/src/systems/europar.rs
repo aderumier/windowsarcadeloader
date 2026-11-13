@@ -1,4 +1,5 @@
-//! Sega Europa-R / Sega Amusements Europe PC cabinets (Ford Racing Full Blown, SEGA Rally 3, GRID).
+//! Sega Europa-R / Sega Amusements Europe PC cabinets (Ford Racing Full Blown, SEGA Rally 3, GRID,
+//! Daytona Championship USA and its New Season Edition).
 //!
 //! Ford Racing imports `inpout32.dll` statically (the force feedback board on the parallel
 //! port): our payload replaces it and, loaded before the game code, also plays its USB I/O
@@ -16,6 +17,9 @@
 //!   `xinput1_3.dll`, profile `payload_install`)
 //! - `WAL_EUROPAR_SHELL_ARG=1`, `WAL_EUROPAR_SHELL_MSGS=window=<n>,credit=<n>`: GRID's shell
 //!   (its window on the command line, its message numbers); `WAL_EUROPAR_FFB_FORMAT=grid`
+//! - `WAL_EUROPAR_SHELL_TCP=<port>`, `WAL_EUROPAR_INPWRAPPER=1`, `WAL_EUROPAR_FFB_FORMAT=daytona`:
+//!   Daytona Championship USA's Sega Shell over TCP and InpWrapper force feedback (the game run by
+//!   `wal-loader`, profile `payload_loader`)
 //! - `WAL_PATCHES`: game code patches `<rva>:<hex bytes>,...`
 //!
 //! Native inputs for `native_map`: the board's buttons `shift_up shift_down start view`.

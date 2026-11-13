@@ -22,6 +22,11 @@
 //! `<prefix>_FFB_FORMAT=grid`: GRID (`0xb9c900`) writes to port 0x1020 the low nibble
 //! `15 - |force| * 15` (at least 1: 15 none, 1 strongest) with bit 0x10 set for a negative
 //! force. Showdown (`0xd2dd80`) the same, `15 - |force| * 14` for a positive force.
+//!
+//! `<prefix>_FFB_FORMAT=daytona`: Daytona Championship USA (the bytes its InpWrapper writes to
+//! port 0x378) has the force in the low nibble (0 none, 15 strongest) with bit 0x10 set for a
+//! force pushing the wheel to the right (its self-centering: 0x01..0x03 with the wheel turned
+//! right, 0x11..0x13 to the left); it alternates two close values for a texture.
 
 use std::sync::Once;
 use std::sync::atomic::{AtomicI32, AtomicU8, Ordering};
@@ -47,6 +52,14 @@ fn percent() -> i32 {
 static RALLY3: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// GRID's encoding (`<prefix>_FFB_FORMAT=grid`, port 0x1020).
 static GRID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Daytona Championship USA's encoding (`<prefix>_FFB_FORMAT=daytona`, port 0x378).
+static DAYTONA: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Daytona Championship USA's byte -> its force, -15..=15.
+fn force_daytona(byte: u8) -> i32 {
+    let m = (byte & 0x0f) as i32;
+    if byte & 0x10 != 0 { m } else { -m }
+}
 
 /// GRID's byte -> its force, -15..=15.
 fn force_grid(byte: u8) -> i32 {
@@ -83,6 +96,7 @@ pub fn out(prefix: &str, port: u16, data: u16) {
         match format.as_str() {
             "rally3" => RALLY3.store(true, Ordering::Relaxed),
             "grid" => GRID.store(true, Ordering::Relaxed),
+            "daytona" => DAYTONA.store(true, Ordering::Relaxed),
             _ => {}
         }
         if matches!(format.as_str(), "rally3" | "grid") {
@@ -111,6 +125,8 @@ fn sample() {
         force_rally3(byte)
     } else if GRID.load(Ordering::Relaxed) {
         force_grid(byte)
+    } else if DAYTONA.load(Ordering::Relaxed) {
+        force_daytona(byte)
     } else {
         force(byte)
     };
@@ -125,7 +141,15 @@ fn sample() {
 
 #[cfg(test)]
 mod tests {
-    use super::{force, force_grid, force_rally3};
+    use super::{force, force_daytona, force_grid, force_rally3};
+
+    #[test]
+    fn decodes_daytona_bytes() {
+        assert_eq!(force_daytona(0), 0);
+        assert_eq!(force_daytona(0x0f), -15);
+        assert_eq!(force_daytona(0x13), 3);
+        assert_eq!(force_daytona(0x1d), 13);
+    }
 
     #[test]
     fn decodes_the_game_bytes() {

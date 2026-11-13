@@ -2432,6 +2432,44 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
   0x1020, low nibble `15 - |force| * 15` (at least 1; 15 none), bit 0x10 a negative force. A
   deliberate crash at boot (`0x5ab9e5`, `*(0) = 0` when a cabinet flag is clear) is skipped.
   XInput pads are hidden (its xinput1_3 ordinals 2-4 point at the payload's "no pad").
+- **Daytona Championship USA (2017) and its New Season Edition (2018).** `Daytona/Daytona.exe`
+  (`Sega/Daytona/` for the New Season), Direct3D 11, 32-bit, beside the Sega Shell
+  (`shell/Shell.exe`). It imports no DLL of ours: `payload_loader` (wal-loader). The first
+  dump's `Daytona.exe` is a modified copy: the profile installs its original `bkp.exe` in its
+  place. Its dump's `dinput8.dll` is not Microsoft's (`hide`).
+  - *Crash at boot (`qcap`).* The game's photo camera (OpenCV through DirectShow video capture)
+    opens the host's webcam through Wine's qcap; its sample grabber corrupts the game's heap a
+    few seconds after start (an access violation in its allocator, `0x69xxxx`, a different
+    thread each time, `GameData/config.ini` `ENABLE_CAPTURE` changes nothing): `dll_overrides:
+    qcap: ""`, the game plays without a camera.
+  - *Shader cache.* "データ初期化中" at the first boot is the game compiling its HLSL into
+    `GameData/.shaders/shader_cache.bin` with the dump's `d3dcompiler_46.dll` (Wine's refuses
+    its shaders, E5000 / E5018, and the game quits); a boot killed during it leaves a broken
+    cache that crashes every later boot (restore it from the dump).
+  - *Shell (`shell_tcp.rs`, `WAL_EUROPAR_SHELL_TCP=18888`).* The game connects once at start
+    (`soc::ShellCommImpl`, `0x582930`) to 127.0.0.1:18888: messages `"DYT"`, the number (u16
+    big-endian), the data length (u16 big-endian), 4 zero bytes, the data (names table
+    `0x152fbc0`: 0..43 game -> shell, 44..51 shell -> game). The payload's server sends the
+    credit count (45, 1 byte; not before the game's 2 assets loaded / 3 attract start: a count
+    at its start corrupts its heap), takes one per game started (6) unless free play (99), and
+    answers each security challenge (42, 4 bytes every 10 s) with 46. Its check (`0x582500`,
+    stdcall, a scramble of the answer compared with the challenge; more than 4 failures stop
+    the game, `0x5b9470`) accepts any answer (`WAL_PATCHES`, `mov al,1; ret 8`; the New Season's
+    at `0x584600`). The New Season waits for the cabinet SKU (44, handler `0x5844e1`, any data)
+    before it starts (`0x4dd18b`, "NETWORK DISCOVERY"): sent when the game says it is launched (1).
+  - *I/O board.* The common fake wheel "SEGA IO Controller" (`0x47cdf0`, `0x5d9bb0`): X the
+    wheel, Rx the gas, Z the brake (-1000..1000), the buttons through the table of its first
+    reader (`0x1584220`, config `0x115c810`) to the switch bits (`0x5b61c0`): 0 START, 1 / 2 /
+    6 / 7 the H shifter's gears 1-4 (bits 7-10, held in `0x19b468c`), 3 / 4 shift up / down
+    (bits 14 / 13, edges), 8-11 VR 1-4 (the views). Manual cars are offered at car select (steer)
+    but the race stays automatic: not found yet (property `0x540027`, forced to 1 by the
+    settings object `0x1628c78` +0x2a).
+  - *Force feedback (`inpwrapper.rs`, `WAL_EUROPAR_INPWRAPPER=1`).* The game starts
+    `c:\sega\shell\InpWrapper.exe -h=<its window> -p=<port>` (`0x528b70`), which registers with
+    a `WM_COPYDATA` (`dwData` 3, its window, `0x4dcd90`); the game then sends it each parallel
+    port byte (`dwData` 0x20, `0x529570`, again until the answer is 1). The payload does not
+    start the program and plays its window: `port_ffb` format `daytona`, the force in the low
+    nibble (15 strongest), bit 0x10 to the right, two close values alternated for a texture.
 
 ### 6.3h Konami e-Amusement PC (`crates/payload-konami`)
 
@@ -8098,6 +8136,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
 | `showdown` | Showdown | segashell | works (user: 100%) | `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
 | `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
+| `daytona-championship-usa` | Daytona Championship USA | europar | in progress: boots, attract, a race played from scripted inputs (desktop, headless); manual gearbox not engaged | `Daytona/Daytona.exe` (the dump's original `bkp.exe`), wal-loader: fake DirectInput "SEGA IO Controller" (wheel, gas, brake, start, shift up/down, H gears, views), the Sega Shell over TCP 18888 (credits, free play, security answers), InpWrapper force feedback, Wine's qcap disabled (heap corruption) |
+| `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | in progress: boots, attract, a race played from scripted inputs (desktop, headless); manual gearbox not engaged | `Sega/Daytona/Daytona.exe`, as the first edition; the shell's cabinet SKU (else NETWORK DISCOVERY) |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | `bin/byy.exe ..\ ..\` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coins, two positional guns scaled onto the default calibration, security plugs), ICCA card reader, cabinet IP setup answered, e-Amusement offline (local mode), picture at the screen resolution in a borderless window |
 | `gashaaaan` | Gashaaaan | konami | works (headless test) | `bin/ballshooting.exe` (§6.3h), `iob.dll` replaced: I/O board (buttons, coins, ball supply, plugs), ballio's camera board answered (ball hits from the guns), the two overlapping screens shown as one picture, E:/F: save drives, OpenGL crosshairs |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |

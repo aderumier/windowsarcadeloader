@@ -1,0 +1,77 @@
+# Daytona Championship USA (Sega Amusements / Sega AM2, 2017), racing game with a wheel,
+# pedals, a 4-speed shifter (H pattern, or shift up / down) and four view buttons: Daytona/Daytona.exe beside the cabinet's Sega
+# Shell (coins, credits), its I/O board a DirectInput game controller.
+# Override values in userprofiles/europar/daytona-championship-usa.yaml.
+system: europar
+name: Daytona Championship USA
+
+payload_loader: true
+# the dump's dinput8.dll is not Microsoft's: Wine's
+hide: [dinput8.dll]
+# Wine's video capture: its webcam graph (the game's photo camera, OpenCV) corrupts the game's
+# heap; the game plays without a camera
+dll_overrides:
+  qcap: ""
+# the original executable (the dump's Daytona.exe is a modified copy of it)
+files:
+  Daytona/Daytona.exe: "{dump}/Daytona/bkp.exe"
+
+input:
+  stick_as_dpad: false
+  gamepad:
+    r1: b1
+    l1: b2
+    y: b3
+    x: b4
+    b: b5
+    a: b6
+    r2: accel
+    l2: brake
+  keyboard_ramp_ms: 500
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+env:
+  WAL_DINPUT_WHEEL: SEGA IO Controller
+  WAL_DINPUT_WHEEL_Z_AXIS: brake
+  WAL_DINPUT_WHEEL_RX_AXIS: accel
+  # its buttons (the board's table at 0x115c810): 0 start, 1 / 2 / 6 / 7 the H shifter's gears
+  # 1-4, 3 / 4 shift up / down, 8-11 the views VR1-VR4
+  WAL_DINPUT_WHEEL_BUTTONS: "start,up,down,b1,b2,none,left,right,b3,b4,b5,b6"
+  # the Sega Shell's TCP link (coins, credits, security challenges)
+  WAL_EUROPAR_SHELL_TCP: "18888"
+  # the shell's InpWrapper (the force feedback board on the parallel port): played by the payload
+  WAL_EUROPAR_INPWRAPPER: "1"
+  WAL_EUROPAR_FFB_FORMAT: daytona
+  WAL_EUROPAR_FFB: "100"
+  # the shell's answers to the security challenges accepted (0x582500, stdcall, returns true)
+  WAL_PATCHES: "0x182500:B001C20800"
+
+options:
+  - title: Force feedback
+    options:
+      - key: WAL_EUROPAR_FFB
+        label: Strength (%)
+        kind: number
+        min: 0
+        max: 200
+        description: The wheel motor's force, in percent of the game's.
+
+controls:
+  lx: Wheel
+  accel: Gas
+  brake: Brake
+  b1: Shift Up
+  b2: Shift Down
+  b3: View 1
+  b4: View 2
+  b5: View 3
+  b6: View 4
+  up: Gear 1
+  down: Gear 2
+  left: Gear 3
+  right: Gear 4
