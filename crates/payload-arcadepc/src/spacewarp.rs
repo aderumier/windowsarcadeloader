@@ -3,9 +3,11 @@
 //!
 //! - **The Linux calls.** `SerialConnection` lists its ports with `/usr/bin/find`, `GameManager`
 //!   reads the disk's serial with `/bin/udevadm`: Mono's `CreateProcessW` import answers them
-//!   ([`create_process`]). `find` gives the two ports; `udevadm` nothing, as `/dev/disk/by-id/` (an
-//!   empty folder of `C:`) has no disk: the two empty serials agree, the licence's key is then
-//!   always [`LOCAL_KEY`].
+//!   ([`create_process`]). Mono first tests the program exists (`GetFileAttributesW`, which Wine
+//!   answers from the host's root: Batocera has no `/bin/udevadm`, the licence asked): its import
+//!   says they do ([`file_attributes`]). `find` gives the two ports; `udevadm` nothing, as
+//!   `/dev/disk/by-id/` (an empty folder of `C:`) has no disk: the two empty serials agree, the
+//!   licence's key is then always [`LOCAL_KEY`].
 //! - **The paths.** `/touchmagix/config/` (the settings, the profile's `c_folders`) and
 //!   `/dev/disk/by-id/` are on the current drive: `C:` (the launcher's run directory).
 //! - **The settings** (`Config.xml`): made here with the game's own defaults, the licence's key
@@ -43,7 +45,7 @@ use wal_payload_common::mono::mono;
 use wal_payload_common::{gun, iat, input, log, mono_imports, serial};
 use wal_protocol::{Axis, StickState};
 use windows_sys::Win32::Foundation::{ERROR_IO_PENDING, HANDLE, HMODULE, SetLastError};
-use windows_sys::Win32::Storage::FileSystem::WriteFile;
+use windows_sys::Win32::Storage::FileSystem::{FILE_ATTRIBUTE_NORMAL, WriteFile};
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::Threading::{CreateEventW, GetCurrentProcessId, PROCESS_INFORMATION, STARTF_USESTDHANDLES, STARTUPINFOW};
 use windows_sys::Win32::UI::WindowsAndMessaging::PostMessageW;
@@ -182,15 +184,18 @@ fn prepare_files() {
 /// Mono's `CreateProcessW`.
 static ORIG_CREATE_PROCESS: AtomicUsize = AtomicUsize::new(0);
 
+/// The game's programs and what they print.
+const COMMANDS: [(&str, &str); 2] = [("/usr/bin/find", PORTS), ("/bin/udevadm", "")];
+
 /// What a command of the game prints, `None` for any other program.
 fn command_output(command: &str) -> Option<&'static str> {
-    if command.contains("/usr/bin/find") {
-        Some(PORTS)
-    } else if command.contains("/bin/udevadm") {
-        Some("")
-    } else {
-        None
-    }
+    COMMANDS.iter().find(|(program, _)| command.contains(program)).map(|&(_, output)| output)
+}
+
+/// Whether `path` is one of the game's programs (Mono's test before it starts one).
+fn is_command(path: &str) -> bool {
+    let path = path.replace('\\', "/");
+    COMMANDS.iter().any(|(program, _)| path.ends_with(program))
 }
 
 fn wide_string(p: *const u16) -> String {
@@ -239,7 +244,21 @@ unsafe extern "system" fn create_process(
     unsafe { orig(app, cmd, process_attr, thread_attr, inherit, flags, env, dir, startup, info) }
 }
 
-/// Hooks Mono's `CreateProcessW` once Unity has loaded the runtime.
+/// Mono's `GetFileAttributesW`.
+static ORIG_FILE_ATTRIBUTES: AtomicUsize = AtomicUsize::new(0);
+
+/// The game's programs are files (eglib's `g_file_test`, Mono's `Process.Start`): Wine looks for
+/// them on the host, where they may be elsewhere (Batocera's `udevadm` is in `/sbin`).
+unsafe extern "system" fn file_attributes(path: *const u16) -> u32 {
+    if is_command(&wide_string(path)) {
+        return FILE_ATTRIBUTE_NORMAL;
+    }
+    type GetFileAttributesW = unsafe extern "system" fn(*const u16) -> u32;
+    let orig: GetFileAttributesW = unsafe { std::mem::transmute(ORIG_FILE_ATTRIBUTES.load(Ordering::Relaxed)) };
+    unsafe { orig(path) }
+}
+
+/// Hooks Mono's `CreateProcessW` and `GetFileAttributesW` once Unity has loaded the runtime.
 fn hook_commands() {
     loop {
         let module: HMODULE = unsafe { GetModuleHandleW(windows_sys::w!("mono-2.0-bdwgc.dll")) };
@@ -247,6 +266,10 @@ fn hook_commands() {
             match unsafe { iat::hook_module(module as usize, "kernel32.dll", "CreateProcessW", create_process as *const () as usize) } {
                 Some(orig) => ORIG_CREATE_PROCESS.store(orig, Ordering::Relaxed),
                 None => log!("spacewarp: Mono does not import CreateProcessW"),
+            }
+            match unsafe { iat::hook_module(module as usize, "kernel32.dll", "GetFileAttributesW", file_attributes as *const () as usize) } {
+                Some(orig) => ORIG_FILE_ATTRIBUTES.store(orig, Ordering::Relaxed),
+                None => log!("spacewarp: Mono does not import GetFileAttributesW"),
             }
             return;
         }
@@ -477,6 +500,9 @@ mod tests {
         assert_eq!(command_output("/usr/bin/find /dev -name ttyUSB*"), Some(PORTS));
         assert_eq!(command_output("/bin/udevadm info --query=all --name=/dev/sda"), Some(""));
         assert_eq!(command_output("C:\\game.exe"), None);
+        assert!(is_command("/bin/udevadm"));
+        assert!(is_command("\\usr\\bin\\find"));
+        assert!(!is_command("/bin/udevadm2"));
     }
 
     #[test]
