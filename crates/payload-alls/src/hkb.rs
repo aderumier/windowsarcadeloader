@@ -58,7 +58,7 @@ fn mono_clock() {
     for _ in 0..30_000 {
         let mono = unsafe { GetModuleHandleW(windows_sys::core::w!("mono.dll")) } as usize;
         if mono != 0 {
-            crate::clock::hook_module(mono);
+            wal_payload_common::clock::hook_module(mono);
             log!("alls: hkb: clock hooks in mono.dll");
             return;
         }

@@ -149,7 +149,7 @@ fn data_version(path: &str) -> String {
 
 fn game_setting(path: &str) -> Json {
     // the reboot time: 6-7 hours from now (UTC), as ARTEMiS's default
-    let now = crate::clock::unix_now() as i64;
+    let now = wal_payload_common::clock::unix_now() as i64;
     let at = |secs: i64| {
         let (days, rest) = (secs.div_euclid(86400), secs.rem_euclid(86400));
         let z = days + 719_468;
@@ -402,6 +402,6 @@ fn title(path: &str, body: &[u8]) -> Vec<u8> {
 }
 
 pub(crate) fn init() {
-    crate::allnet::set_title(title);
+    wal_payload_common::allnet::set_title(title);
     crate::allnet::serve_billing();
 }

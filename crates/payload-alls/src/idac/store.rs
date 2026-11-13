@@ -283,6 +283,6 @@ pub(super) fn maker_use_count(cars: &[Json]) -> Vec<Json> {
 pub(super) fn random() -> u64 {
     use std::hash::{BuildHasher, Hasher};
     let mut h = std::collections::hash_map::RandomState::new().build_hasher();
-    h.write_u64(crate::clock::unix_now());
+    h.write_u64(wal_payload_common::clock::unix_now());
     h.finish()
 }

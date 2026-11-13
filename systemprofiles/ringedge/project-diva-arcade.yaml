@@ -1,0 +1,115 @@
+# Hatsune Miku Project DIVA Arcade (Sega RingEdge 2, OpenGL/GLUT), game id SBTY, Version B
+# Revision 5 (6.00.01): a rhythm game played on 4 hit buttons (triangle, square, cross, circle)
+# and a touch screen. Runs diva.exe.
+# amLib is linked in (no amdaemon): the RingEdge payload emulates the system (keychip, SMBus
+# EEPROM, the JVS I/O board, the amAuth/amMaster services) in the game's process, plus the
+# game's network (its own ALL.Net client, title server, AimeDB, the shop's local file server),
+# the Aime reader and the buttons (WAL_RINGEDGE_DIVA, crates/payload-ringedge/src/diva.rs).
+# Override values in userprofiles/ringedge/project-diva-arcade.yaml.
+system: ringedge
+name: Hatsune Miku Project DIVA Arcade
+
+# the cabinet's application partition Y: (its ram\ and rom\: the title server's lists kept in
+# ram\databank, the shop's local file server, the media fetchers' folders): the run directory
+run_drives:
+  y: .
+
+env:
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip's game id (the game loads rom/SBTY_Table.dat from it) and the DS28CN01 challenge
+  # file amDongle checks against (shipped in the dump)
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBTY
+  WAL_RINGEDGE_DS_FILE: rom/SBTY_Table.dat
+  # the main board's DIP switches: SW7 a horizontal 1280x720 monitor (else error 0910, wrong
+  # resolution setting), SW1 the shop's main cabinet (SATELLITE:MAIN; off: a sub one, waiting
+  # for its main)
+  WAL_RINGEDGE_DIPSW: "41"
+  # the network card's link up with its addresses (the game's ALL.Net client, else DHCP WAIT)
+  WAL_RINGEDGE_NIC_STATUS: "1"
+  # the keychip's network address dotted (the game reads it with inet_addr, else ERROR 8001)
+  WAL_RINGEDGE_NETWORKADDR_DOTTED: "1"
+  # its ALL.Net client's power-on accepted by the payload's ALL.Net server (refused, it asks
+  # again every minute)
+  WAL_ALLS_ALLNET: "1"
+  # its title server, the payload's (crates/payload-ringedge/src/divaserver.rs)
+  WAL_ALLS_TITLE_URI: "http://{router}/DivaServlet/"
+  # - 0x864610: the festival info received (mov al,1): NET PARAM waited for it (3/4); none
+  #   running (its records stay empty)
+  # - 0x7fd330: no extended data to hand the satellites (mov al,0): the main cabinet sent its
+  #   Y:\SBTY.extend (absent) to its local file server (ERROR 8301, game LAN) or, as the game
+  #   delivery master, stopped with ERROR 0913 (game program not found on storage device)
+  WAL_PATCHES: "0x464610:B001C3,0x3fd330:B000C3"
+  WAL_PATCHES_EXE: diva.exe
+
+  # Project DIVA Arcade's devices and network (diva.rs)
+  WAL_RINGEDGE_DIVA: "1"
+  # the touch panels (TOUCH PANEL: NG for now): Elo 2701 controllers the game's aclib opens as
+  # COM<channel+1> among the USB serial ports amPlatform lists; elo.rs and comports.rs are their
+  # emulation, the ports still to be found
+  # the Aime reader's COM port (TN32MSEC003S, aimelib 3.03)
+  WAL_RINGEDGE_DIVA_AIME: COM2
+  # the TN32MSEC003S reader is segatools' generation 1 (hardware/firmware Ver1.2, the dump's
+  # rom/nfc_rw/TN32MSEC003S_V12.hex)
+  WAL_AIME_READER: tn32
+  # after start, the card touched by itself when the game asks for it
+  WAL_RINGEDGE_AUTO_CARD: "1"
+
+  # full screen: the game draws its 1280x720 screen (app.ini's resolution), scaled to the screen
+  # (aspect kept) in a borderless window; no mouse cursor
+  WAL_RINGEDGE_GL_SCALE: 1280x720
+  WAL_WINDOW_POPUP: "1"
+  WAL_HIDE_CURSOR: "1"
+  # its NVIDIA OpenGL shaders and behaviors on other GPUs (Mesa: AMD, Intel), see the payload's
+  # cg.rs and nvasm.rs; NVIDIA GPUs keep the originals
+  WAL_RINGEDGE_CG_FIX: auto
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_RINGEDGE_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself when the game asks for it (the
+          player's name, scores and progress kept on the card). Off: touch it with the card
+          button.
+
+# the touch screen: a touchpad or touchscreen (the finger), the mouse (its position, the left
+# button) or the left stick with button 8. The 4 hit buttons are the JVS buttons.
+input:
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: b8
+  # the 4 hit buttons on a pad's face buttons (the diamond): Y triangle, X square, A cross, B
+  # circle; R1 the touch
+  gamepad:
+    y: b1
+    x: b2
+    a: b3
+    b: b4
+    r1: b8
+  # the keyboard: F G H J the 4 hit buttons; 1 start, 5 coin, F1 service, F2 test, F4 card (the
+  # defaults)
+  keyboard:
+    p1:
+      KEY_F: b1
+      KEY_G: b2
+      KEY_H: b3
+      KEY_J: b4
+
+controls:
+  b1: Triangle (△)
+  b2: Square (□)
+  b3: Cross (×)
+  b4: Circle (○)
+  lx: Touch position
+  ly: Touch position
+  b8: Touch
+  start: Start (with the automatic card)
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

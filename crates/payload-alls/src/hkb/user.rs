@@ -76,7 +76,7 @@ fn random() -> u64 {
 }
 
 fn today() -> i64 {
-    (crate::clock::unix_now() / 86400) as i64
+    (wal_payload_common::clock::unix_now() / 86400) as i64
 }
 
 /// A new player: the guest's profile (`guest_user.csv`, format 2: the format, the user id, the

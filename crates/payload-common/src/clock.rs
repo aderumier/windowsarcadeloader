@@ -1,14 +1,15 @@
 //! The cabinet's clock (segatools' `platform/clock.c`, public domain): Japan's time zone
 //! (UTC+9, no daylight saving; Sega's games expect it), and the clock never set (amdaemon sets
-//! it to ALL.Net's time: Wine refuses, an RTC error), its privileges granted. In amdaemon and
-//! the game.
+//! it to ALL.Net's time: Wine refuses, an RTC error), its privileges granted. ALLS: [`init`],
+//! in amdaemon and the game; the RingEdge games setting it themselves (Project DIVA Arcade's
+//! ALL.Net client, else its power-on never ends): [`hook_setters`].
 //!
 //! `WAL_ALLS_TIMEWARP=1` (segatools' `timewarp`): the cabinets' nightly maintenance hours, Japan
 //! 02:00-07:00 (CHUNITHM PLUS closes before midnight), never seen: each day's 24 hours pass as
 //! Japan's 07:00 to 23:00. Initial D THE ARCADE's attract stays black during them (a closed
 //! cabinet waiting for its reboot), CHUNITHM's says play is over for the day.
 
-use wal_payload_common::iat;
+use crate::iat;
 
 /// SYSTEMTIME: year, month, day of week, day, hour, minute, second, milliseconds.
 type SystemTime = [u16; 8];
@@ -40,7 +41,7 @@ fn now() -> u64 {
 
 /// The cabinet's current time in Unix seconds (time-warped too: ALL.Net's and the game
 /// server's times agree with the game's clock).
-pub(crate) fn unix_now() -> u64 {
+pub fn unix_now() -> u64 {
     (now() / 10_000_000).saturating_sub(11_644_473_600)
 }
 
@@ -109,7 +110,7 @@ unsafe extern "system" fn adjust_token_privileges(_token: usize, _disable: i32, 
 /// RTC check sees the real time against ALL.Net's warped one, error 8114).
 const RUNTIMES: [&str; 4] = ["msvcr100.dll", "msvcr110.dll", "msvcr120.dll", "ucrtbase.dll"];
 
-pub(crate) fn init() {
+pub fn init() {
     let warp = std::env::var("WAL_ALLS_TIMEWARP").is_ok_and(|v| v.trim() == "1");
     TIMEWARP.store(warp, std::sync::atomic::Ordering::Relaxed);
     let mut modules = vec![iat::game_module()];
@@ -123,6 +124,10 @@ pub(crate) fn init() {
     for base in modules {
         hook_module(base);
     }
+    hook_privileges();
+}
+
+fn hook_privileges() {
     unsafe {
         if let Some(orig) = iat::hook("advapi32.dll", "LookupPrivilegeValueA", lookup_privilege_value_a as *const () as usize) {
             LOOKUP_PRIVILEGE.store(orig, std::sync::atomic::Ordering::Relaxed);
@@ -131,9 +136,18 @@ pub(crate) fn init() {
     }
 }
 
+/// The game's clock setters only (they do nothing, successfully) and their privileges; the
+/// machine's time and time zone kept.
+pub fn hook_setters() {
+    for name in ["SetLocalTime", "SetSystemTime", "SetTimeZoneInformation"] {
+        unsafe { iat::hook("kernel32.dll", name, set_time as *const () as usize) };
+    }
+    hook_privileges();
+}
+
 /// The clock's hooks in the module at `base` (a runtime the game loads later: Chrono Regalia's
 /// Mono, `mono.dll`, reading the time and time zone itself).
-pub(crate) fn hook_module(base: usize) {
+pub fn hook_module(base: usize) {
     let warp = TIMEWARP.load(std::sync::atomic::Ordering::Relaxed);
     unsafe {
         if warp {

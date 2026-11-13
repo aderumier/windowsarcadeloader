@@ -19,7 +19,7 @@
 //!   (`sysfile.rs`, from amdaemon's second start)
 //! - `WAL_ALLS_ALLNET=1`: ALL.Net authentication accepted (`allnet.rs`; default refused: the game
 //!   plays offline)
-//! - `WAL_ALLS_CLOCK=0`: the real time zone (default Japan's, `clock.rs`); `WAL_ALLS_TIMEWARP=1`:
+//! - `WAL_ALLS_CLOCK=0`: the real time zone (default Japan's, `wal_payload_common::clock`); `WAL_ALLS_TIMEWARP=1`:
 //!   the nightly maintenance hours (Japan 02:00-07:00) skipped
 //! - `WAL_ALLS_BOARD`: the game's controls (`io4.rs`; `hotd`: also the gun sensor board on
 //!   COM1, `gunsensor.rs`, instead of the LED board; `swdc`: the force feedback board on COM1,
@@ -68,12 +68,10 @@
 //! names resolved, ALL.Net answered by the payload's server.
 
 mod aime;
-mod aimedb;
 mod allnet;
 mod billing;
 mod child;
 mod chuni;
-mod clock;
 mod cts;
 mod cxb;
 mod daemon;
@@ -138,7 +136,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
 fn start() {
     {
         wal_payload_common::start("alls");
-        if std::env::var("WAL_ALLS_CLOCK").map_or(true, |v| v.trim() != "0") { clock::init(); }
+        if std::env::var("WAL_ALLS_CLOCK").map_or(true, |v| v.trim() != "0") { wal_payload_common::clock::init(); }
         stat::init();
         if is_daemon() {
             daemon::init();

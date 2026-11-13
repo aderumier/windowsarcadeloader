@@ -63,7 +63,7 @@ fn header_value<'a>(header: &'a str, key: &str) -> &'a str {
 }
 
 fn now() -> u64 {
-    crate::clock::unix_now()
+    wal_payload_common::clock::unix_now()
 }
 
 fn ok() -> Json {

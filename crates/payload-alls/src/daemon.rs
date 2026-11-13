@@ -402,7 +402,7 @@ pub(crate) fn init() {
         crate::chuni::init_daemon();
     }
     crate::allnet::init();
-    crate::aimedb::init();
+    wal_payload_common::aimedb::init();
     crate::aime::init();
     unsafe {
         let hooks: [(&str, &str, usize, &AtomicUsize); 9] = [

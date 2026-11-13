@@ -213,7 +213,7 @@ fn profile(doc: &Json) -> Option<Json> {
 }
 
 fn b64(json: &str) -> Json {
-    Json::str(crate::allnet::base64_encode(json.as_bytes()))
+    Json::str(wal_payload_common::allnet::base64_encode(json.as_bytes()))
 }
 
 fn auth(kind: &str, req: &Json) -> Json {
@@ -377,6 +377,6 @@ fn title(path: &str, body: &[u8]) -> Vec<u8> {
 }
 
 pub(crate) fn init() {
-    crate::allnet::set_title(title);
+    wal_payload_common::allnet::set_title(title);
 }
 

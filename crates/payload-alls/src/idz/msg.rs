@@ -778,7 +778,7 @@ fn garage(doc: Option<&Json>, offset: usize) -> Vec<u8> {
 }
 
 fn now() -> u64 {
-    crate::clock::unix_now()
+    wal_payload_common::clock::unix_now()
 }
 
 /// One request's answer (`p` its payload, code first).

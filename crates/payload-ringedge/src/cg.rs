@@ -81,6 +81,8 @@ fn gl_procs() {
     if cggl != 0 {
         unsafe { iat::hook_module(cggl, "opengl32.dll", "wglGetProcAddress", gl_proc as *const () as usize) };
     }
+    // the games loading their programs themselves (Project DIVA Arcade's GLEW)
+    unsafe { iat::hook("opengl32.dll", "wglGetProcAddress", gl_proc as *const () as usize) };
     if let Some(o) = unsafe { iat::hook("kernel32.dll", "GetProcAddress", get_proc as *const () as usize) } {
         ORIG_GET_PROC.store(o, Ordering::Relaxed);
     }
@@ -111,7 +113,23 @@ static BOUND: [AtomicUsize; 2] = [AtomicUsize::new(0), AtomicUsize::new(0)];
 unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
     let orig: unsafe extern "system" fn(*const c_char) -> usize = unsafe { std::mem::transmute(ORIG_GL_PROC.load(Ordering::Relaxed)) };
     let f = unsafe { orig(name) };
-    if f == 0 || name.is_null() {
+    if name.is_null() {
+        return f;
+    }
+    if f == 0 {
+        let name = unsafe { CStr::from_ptr(name) };
+        // NVIDIA's coverage antialiasing (Project DIVA Arcade's buffers, called unchecked): the
+        // color samples
+        if name.to_bytes() == b"glRenderbufferStorageMultisampleCoverageNV" && FIX.load(Ordering::Relaxed) {
+            let ms = unsafe { orig(c"glRenderbufferStorageMultisample".as_ptr()) };
+            if ms != 0 {
+                ORIG_MULTISAMPLE.store(ms, Ordering::Relaxed);
+                return multisample_coverage as *const () as usize;
+            }
+        }
+        if *LOG.get().unwrap_or(&false) {
+            log!("cg: {} absent", name.to_string_lossy());
+        }
         return f;
     }
     match unsafe { CStr::from_ptr(name) }.to_bytes() {
@@ -143,6 +161,15 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
         }
         _ => f,
     }
+}
+
+static ORIG_MULTISAMPLE: AtomicUsize = AtomicUsize::new(0);
+
+/// `glRenderbufferStorageMultisampleCoverageNV` as `glRenderbufferStorageMultisample` with the
+/// color samples (the coverage ones without colors when none).
+unsafe extern "system" fn multisample_coverage(target: u32, coverage: i32, color: i32, format: u32, width: i32, height: i32) {
+    let f: unsafe extern "system" fn(u32, i32, u32, i32, i32) = unsafe { std::mem::transmute(ORIG_MULTISAMPLE.load(Ordering::Relaxed)) };
+    unsafe { f(target, if color > 0 { color } else { coverage }, format, width, height) }
 }
 
 static ORIG_ENVS: AtomicUsize = AtomicUsize::new(0);
@@ -252,20 +279,36 @@ unsafe extern "system" fn bind_program(target: u32, id: u32) {
 }
 
 unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, text: *const u8) {
-    if !DUMP_PROGRAMS.load(Ordering::Relaxed) {
-        let orig: unsafe extern "system" fn(u32, u32, i32, *const u8) = unsafe { std::mem::transmute(ORIG_STRING.load(Ordering::Relaxed)) };
-        unsafe { orig(target, format, len, text) };
-        if *LOG.get().unwrap_or(&false) {
-            program_error(text, len);
-        }
-        return;
+    let original = unsafe { std::slice::from_raw_parts(text, len.max(0) as usize) };
+    if DUMP_PROGRAMS.load(Ordering::Relaxed) {
+        let id = BOUND[(target == 0x8804) as usize].load(Ordering::Relaxed);
+        let _ = std::fs::create_dir_all("glprog");
+        let kind = if target == 0x8804 { "fp" } else { "vp" };
+        let _ = std::fs::write(format!("glprog/{id:04}_{kind}.txt"), original);
     }
-    let id = BOUND[(target == 0x8804) as usize].load(Ordering::Relaxed);
-    let _ = std::fs::create_dir_all("glprog");
-    let kind = if target == 0x8804 { "fp" } else { "vp" };
-    let _ = std::fs::write(format!("glprog/{id:04}_{kind}.txt"), unsafe { std::slice::from_raw_parts(text, len.max(0) as usize) });
+    // the programs the game gives GL itself (Project DIVA Arcade's), NVIDIA assembly translated
+    let fixed = match std::str::from_utf8(original) {
+        Ok(t) if FIX.load(Ordering::Relaxed) && crate::nvasm::nvidia(t) => {
+            let fixed = crate::nvasm::translate(t);
+            if fixed.is_none() {
+                static UNTRANSLATED: AtomicUsize = AtomicUsize::new(0);
+                if UNTRANSLATED.fetch_add(1, Ordering::Relaxed) < 20 {
+                    log!("cg: program not translated: {}", t.lines().next().unwrap_or(""));
+                }
+            }
+            fixed
+        }
+        _ => None,
+    };
+    let (text, len) = match &fixed {
+        Some(f) => (f.as_ptr(), f.len() as i32),
+        None => (text, len),
+    };
     let orig: unsafe extern "system" fn(u32, u32, i32, *const u8) = unsafe { std::mem::transmute(ORIG_STRING.load(Ordering::Relaxed)) };
-    unsafe { orig(target, format, len, text) }
+    unsafe { orig(target, format, len, text) };
+    if *LOG.get().unwrap_or(&false) {
+        program_error(text, len);
+    }
 }
 
 /// WAL_RINGEDGE_CG_LOG: a program GL refused, with its error and the program.

@@ -6,6 +6,12 @@
 
 // the ABAAS game server (player data, rankings) of Sega's APM3 and ALLS games
 pub mod abaas_gs;
+// AimeDB, the Aime card database (the card's Aime id)
+#[cfg(windows)]
+pub mod aimedb;
+// ALL.Net's server (PowerOn), the connections to it
+#[cfg(windows)]
+pub mod allnet;
 // Sega Nu's AMEX board (JVS, DS, EEPROM, SRAM, GPIO) found by its device interface classes
 #[cfg(windows)]
 pub mod amex;
@@ -14,6 +20,9 @@ pub mod packed;
 // AVPro Video's uGUI display played by Unity's VideoPlayer (Android builds without AVPro's backend)
 #[cfg(windows)]
 pub mod avpro;
+// the cabinet's clock: Japan's time zone, never set (Sega's platform)
+#[cfg(windows)]
+pub mod clock;
 #[cfg(windows)]
 pub mod codepage;
 #[cfg(windows)]
@@ -38,6 +47,9 @@ pub mod crosshair;
 pub mod d3d9_quads;
 pub mod d3dx;
 pub mod desktop;
+// the cabinet's DNS: the store's router and ALL.Net's hosts, the virtual router
+#[cfg(windows)]
+pub mod dns;
 pub mod dxgi_size;
 #[cfg(windows)]
 mod crypto_keys;

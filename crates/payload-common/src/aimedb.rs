@@ -1,6 +1,7 @@
 //! AimeDB, the Aime card database amdaemon asks for a card's Aime id (TCP 22345 of
 //! `aime.naominet.jp`, the virtual router in the payload's DNS): answered by the payload on
-//! 127.0.0.1:`WAL_PORT`+103 (`allnet.rs` moves the connections). Formats from ARTEMiS'
+//! 127.0.0.1:`WAL_PORT`+103 (the connections moved there: [`crate::allnet::to_server`], ALLS' own
+//! redirection). Formats from ARTEMiS'
 //! `core/aimedb.py` and `core/adb_handlers` (WTFPL).
 //!
 //! Messages are AES-128-ECB encrypted (key `Copyright(C)SEGA`): a 0x20-byte header (magic
@@ -19,12 +20,12 @@ use std::net::{TcpListener, TcpStream};
 
 use aes::Aes128;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit, generic_array::GenericArray};
-use wal_payload_common::log;
+use crate::log;
 
 const KEY: &[u8; 16] = b"Copyright(C)SEGA";
 const HEADER: usize = 0x20;
 
-pub(crate) fn port() -> u16 {
+pub fn port() -> u16 {
     std::env::var("WAL_PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(wal_protocol::DEFAULT_PORT) + 103
 }
 
@@ -38,7 +39,7 @@ fn crypt(data: &mut [u8], encrypt: bool) {
 
 /// The card's Aime id: `WAL_ALLS_AIME_ID`, else 1000000000 plus the access code's last 9
 /// digits (ten digits, a positive 32-bit number).
-pub(crate) fn aime_id(access_code: &str) -> i32 {
+pub fn aime_id(access_code: &str) -> i32 {
     if let Some(id) = std::env::var("WAL_ALLS_AIME_ID").ok().and_then(|v| v.trim().parse::<i32>().ok()) {
         return id;
     }
@@ -161,6 +162,6 @@ fn serve() {
     }
 }
 
-pub(crate) fn init() {
+pub fn init() {
     std::thread::spawn(serve);
 }

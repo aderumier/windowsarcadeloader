@@ -3,7 +3,8 @@
 //! keychip, TCP 40106, its binary data channel 40107) and the auth service (amAuth, RingEdge 2:
 //! TCP 40190). The network service (amNetwork, 40104); the test menus also open the
 //! installer (amInstall, 40102), the game delivery
-//! services (amGdeliver 40108, amGcatcher 40110) and the storage service (amStorage, 40114, its
+//! services (amGdeliver 40108, amGcatcher 40110, amGfetcher 40113: Project DIVA Arcade's
+//! download state) and the storage service (amStorage, 40114, its
 //! binary channel 40115).
 //!
 //! PCP is a text protocol: the service sends the prompt `>`, the client a request line
@@ -47,6 +48,7 @@ const MXINSTALLER: u16 = 40102;
 const MXNETWORK: u16 = 40104;
 const MXGDELIVER: u16 = 40108;
 const MXGCATCHER: u16 = 40110;
+const MXGFETCHER: u16 = 40113;
 const MXSTORAGE: u16 = 40114;
 const MXSTORAGE_DATA: u16 = 40115;
 const AUTH: u16 = 40190;
@@ -78,9 +80,16 @@ fn values() -> &'static HashMap<String, String> {
     static VALUES: OnceLock<HashMap<String, String>> = OnceLock::new();
     VALUES.get_or_init(|| {
         let mut map: HashMap<String, String> = DEFAULTS.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
-        // the keychip's network: the machine's (games compare their address with it)
+        // the keychip's network: the machine's (games compare their address with it); in hex,
+        // or dotted with `WAL_RINGEDGE_NETWORKADDR_DOTTED=1` (Project DIVA Arcade reads it with
+        // inet_addr: else none, ERROR 8001 network address error)
         if let Some(network) = local_address().map(|ip| u32::from(ip) & 0xFFFF_FF00) {
-            map.insert("keychip.appboot.networkaddr".into(), format!("{network:08X}"));
+            let value = if std::env::var("WAL_RINGEDGE_NETWORKADDR_DOTTED").is_ok_and(|v| v.trim() == "1") {
+                std::net::Ipv4Addr::from(network).to_string()
+            } else {
+                format!("{network:08X}")
+            };
+            map.insert("keychip.appboot.networkaddr".into(), value);
             log!("pcp: keychip network {}.{}.{}.0", network >> 24, (network >> 16) & 0xFF, (network >> 8) & 0xFF);
         }
         if let Ok(spec) = std::env::var("WAL_RINGEDGE_PCP") {
@@ -96,7 +105,7 @@ fn values() -> &'static HashMap<String, String> {
 
 /// The machine's IPv4 address (the default route's: a UDP socket "connected" outside, no
 /// packet sent).
-fn local_address() -> Option<std::net::Ipv4Addr> {
+pub(crate) fn local_address() -> Option<std::net::Ipv4Addr> {
     let socket = std::net::UdpSocket::bind(("0.0.0.0", 0)).ok()?;
     socket.connect(("192.0.2.1", 9)).ok()?;
     match socket.local_addr().ok()?.ip() {
@@ -119,6 +128,7 @@ pub(crate) fn start() {
         (MXKEYCHIP_DATA, "mxkeychip data"),
         (MXGDELIVER, "mxgdeliver"),
         (MXGCATCHER, "mxgcatcher"),
+        (MXGFETCHER, "mxgfetcher"),
         (MXSTORAGE, "mxstorage"),
         (MXSTORAGE_DATA, "mxstorage data"),
         (AUTH, "auth"),
@@ -269,8 +279,15 @@ fn network_answer(request: &str) -> String {
     let name = request.split('&').find_map(|p| p.strip_prefix("request=")).unwrap_or("");
     let ip = local_address().unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2));
     let o = ip.octets();
+    let gateway = format!("{}.{}.{}.1", o[0], o[1], o[2]);
+    // `WAL_RINGEDGE_NIC_STATUS=1`: the card's link up, its addresses in the same answer (amNetwork
+    // then asks no more; 0, the default: it asks each one, its request ending with code 2, which
+    // Project DIVA Arcade's ALL.Net client reads as no link, stuck at DHCP WAIT)
+    if name == "query_nic_status" && std::env::var("WAL_RINGEDGE_NIC_STATUS").is_ok_and(|v| v.trim() == "1") {
+        return format!("response={name}&result=success&status=1&ip_address={ip}&subnetmask=255.255.255.0&gateway={gateway}&primary_dns={gateway}&secondary_dns=0.0.0.0");
+    }
     let value = match name {
-        // 0: link up (another value: the game stops asking)
+        // 0: amNetwork asks the addresses one by one
         "query_nic_status" => Some(("status", "0".to_string())),
         // 0..4; 3: the address obtained (the game then asks for the card's state)
         "query_dhcp_status" => Some(("dhcp_status", "3".to_string())),
@@ -278,7 +295,7 @@ fn network_answer(request: &str) -> String {
         "query_subnetmask" => Some(("subnetmask", "255.255.255.0".to_string())),
         "query_gateway" | "query_primary_dns" => {
             let key = if name == "query_gateway" { "gateway" } else { "primary_dns" };
-            Some((key, format!("{}.{}.{}.1", o[0], o[1], o[2])))
+            Some((key, gateway))
         }
         "query_secondary_dns" => Some(("secondary_dns", "0.0.0.0".to_string())),
         "query_mac_address" => Some(("mac_address", "00:D0:F1:00:00:01".to_string())),
@@ -303,6 +320,11 @@ fn service_answer(request: &str) -> String {
             let id = values().get("keychip.appboot.gameid").map_or("", String::as_str);
             format!("response={name}&result=success&status=available&id={id}")
         }
+        // amGfetcher (Project DIVA Arcade): no download instruction, the game's data up to
+        // date
+        "get_status" => format!(
+            "response={name}&result=success&instruction_enable=0&dld_st=uptodate&deliver_version=0&release_time=0&order_time=0&work_time=0&work_version=0&patchb_time=0&patchb_version=0&patchb_status=0&patchf_time=0&patchf_version=0&patchf_status=0&auth_time=0&bbflag=0"
+        ),
         _ => format!("response={name}&result=success"),
     }
 }
