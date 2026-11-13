@@ -27,6 +27,15 @@ drives:
   y: Y
 
 env:
+  # its 1368x768 full screen device (a mode a 1600x1200 screen lacks: the picture cut on the
+  # right): made windowed, in a borderless window on a 1368x768 desktop stretched over the
+  # screen (a wide game on a 4:3 screen; the window never loses its picture with the focus)
+  WAL_D3D9_WINDOWED_SIZE: 1368x768
+  WAL_DESKTOP_SIZE: 1368x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
+  WAL_DESKTOP_CLIENT: "1"
   # its working directory is the dump root (hod5.ini, Data/), not bin/
   WAL_RINGEDGE_CWD: ".."
   # its touch panel (a CTR-251500 on COM1)

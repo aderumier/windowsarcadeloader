@@ -9,7 +9,7 @@
 use std::time::Duration;
 
 use wal_payload_common::input_filter::{self, own_mouse, post_mouse};
-use wal_payload_common::{dinput, gun, input, log};
+use wal_payload_common::{desktop, dinput, gun, input, log};
 use wal_protocol::button;
 use windows_sys::Win32::Foundation::RECT;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetClientRect, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE};
@@ -40,11 +40,15 @@ fn mouse_thread() {
         if hwnd.is_null() {
             continue;
         }
-        let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-        unsafe { GetClientRect(hwnd, &mut r) };
-        // the pointer's place on the picture, in the window's pixels (kept at its last place off it)
+        // the pointer's place on the picture, in the game's pixels (its desktop's on a stretched
+        // desktop, whatever the window's size; kept at its last place off it)
+        let (w, h) = desktop::size().unwrap_or_else(|| {
+            let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            unsafe { GetClientRect(hwnd, &mut r) };
+            (r.right, r.bottom)
+        });
         let at = match gun::gun_of_player_in_picture(0) {
-            Some((x, y)) => ((x * r.right as f32) as i32, (y * r.bottom as f32) as i32),
+            Some((x, y)) => ((x * w as f32) as i32, (y * h as f32) as i32),
             None => last,
         };
         if at.0 == i32::MIN {
