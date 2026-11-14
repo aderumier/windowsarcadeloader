@@ -13,7 +13,8 @@
 //!   (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`); the game's Windows mouse from player 1's
 //!   pointer (`WAL_RINGEDGE_MOUSE`, `mouse.rs`).
 //! * Medal cabinet boards: Medal no Gunman's (`gunman.rs`), Lady Luck's (`satellite.rs`).
-//! * Profile code patches (`WAL_PATCHES`); `WAL_RINGEDGE_CWD`: the game's working directory,
+//! * Profile code patches (`WAL_PATCHES`), free play ones (`WAL_RINGEDGE_FREEPLAY_PATCHES`, with
+//!   the common free play option); `WAL_RINGEDGE_CWD`: the game's working directory,
 //!   relative to its own.
 
 #![allow(non_snake_case)]
@@ -66,6 +67,14 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             && let Ok(list) = std::env::var("WAL_RINGEDGE_OFFLINE_PATCHES")
         {
             log!("ringedge: offline cabinet");
+            patches::apply_list(&list);
+        }
+        // the common free play option (WAL_RINGEDGE_FREEPLAY, else WAL_FREEPLAY): the game's own
+        // free play check patched (WAL_RINGEDGE_FREEPLAY_PATCHES, the WAL_PATCHES format)
+        if wal_payload_common::free_play("WAL_RINGEDGE_FREEPLAY") == Some(true)
+            && let Ok(list) = std::env::var("WAL_RINGEDGE_FREEPLAY_PATCHES")
+        {
+            log!("ringedge: free play");
             patches::apply_list(&list);
         }
         amlog::init();
