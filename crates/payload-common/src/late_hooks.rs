@@ -47,7 +47,8 @@ fn module_of(a: usize) -> usize {
     module as usize
 }
 
-fn apply(base: usize, (dll, name, f, orig): Hook) {
+/// `earlier`: the hooks recorded before this one.
+fn apply(base: usize, (dll, name, f, orig): Hook, earlier: &[Hook]) {
     if let Some(o) = unsafe { iat::hook_module(base, dll, name, f) } {
         if o == f {
             return;
@@ -62,10 +63,14 @@ fn apply(base: usize, (dll, name, f, orig): Hook) {
         let prev = orig.load(Ordering::Relaxed);
         if prev == 0 {
             orig.store(o, Ordering::Relaxed);
-        } else if o != prev && o != export(dll, name) {
+        } else if o != prev && o != export(dll, name) && !earlier.iter().any(|h| h.0 == dll && h.1 == name && h.2 == o) {
             // the slot held another hook of the payload this one does not call (the Unity
             // runtime's GetProcAddress, Mono's DllImports resolved to the emulated serial ports
-            // and dongles: replaced, the game opened the machine's real COM1): kept
+            // and dongles: replaced, the game opened the machine's real COM1): kept. One recorded
+            // before it is in its chain, put on top of it in the game's modules, maybe through a
+            // hook of those modules only (Crazy Speed Arcade on Batocera: the fake desktop's
+            // CreateWindowExA calls the work area's, which calls the popup window's; kept in
+            // Ogre's render system, its window was not fitted on the screen)
             unsafe { iat::hook_module(base, dll, name, o) };
         }
     }
@@ -83,8 +88,9 @@ pub(crate) fn hook(dll: &'static str, name: &'static str, f: usize, orig: &'stat
         }
     }
     // DONE not held while hooking: a hook may call the game's LoadLibrary, hooked by `loaded`
+    let earlier = HOOKS.lock().unwrap().clone();
     for &base in &modules {
-        apply(base, (dll, name, f, orig));
+        apply(base, (dll, name, f, orig), &earlier);
         let mut done = DONE.lock().unwrap();
         if !done.contains(&base) {
             done.push(base);
@@ -142,8 +148,8 @@ fn loaded(module: usize) {
     done.push(module);
     drop(done);
     let hooks = HOOKS.lock().unwrap().clone();
-    for h in &hooks {
-        apply(module, *h);
+    for (i, h) in hooks.iter().enumerate() {
+        apply(module, *h, &hooks[..i]);
     }
     hook_loads(&[module]);
     log!("late hooks: {} ({} hooks)", file.rsplit('\\').next().unwrap_or(&file), hooks.len());
