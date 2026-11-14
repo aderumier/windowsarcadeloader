@@ -66,6 +66,11 @@ env:
   WAL_AIME_READER: tn32
   # after start, the card touched by itself when the game asks for it
   WAL_RINGEDGE_AUTO_CARD: "1"
+  # the lamp control board (lamp.rs): a USB serial board, the first port not on the main board
+  # the game finds (else LAMP CTRL BD NG at startup): COM1 (touch) and COM2 (Aime) on the main
+  # board, COM3 an FTDI USB serial port
+  WAL_COMPORTS: "COM1,COM2,COM3=USB:0403:6001"
+  WAL_RINGEDGE_DIVA_LAMP: COM3
 
   # full screen: the game draws its 1280x720 screen (app.ini's resolution), scaled to the screen
   # (aspect kept) in a borderless window; no mouse cursor

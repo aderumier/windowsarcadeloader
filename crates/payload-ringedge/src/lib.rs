@@ -32,6 +32,7 @@ mod happy_playground;
 mod iccard;
 mod glscale;
 mod gunman;
+mod lamp;
 mod microtouch;
 mod mouse;
 mod nvasm;
@@ -99,9 +100,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         satellite::init();
         microtouch::init();
         mouse::init();
-        // Project DIVA Arcade's network, Aime reader (WAL_RINGEDGE_DIVA=1) and touch panel
+        // Project DIVA Arcade's network, Aime reader (WAL_RINGEDGE_DIVA=1), touch panel and lamp
+        // control board
         diva::init();
         elo::init();
+        lamp::init();
         // the serial ports the SetupDi enumeration lists (WAL_RINGEDGE_COMPORTS)
         wal_payload_common::comports::init();
         // the touch pointer of the touch screen games (the common crosshair option, `WAL_CROSSHAIR`)
