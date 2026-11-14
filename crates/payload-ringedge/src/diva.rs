@@ -69,6 +69,7 @@ fn allnet(diva: bool) {
         wal_payload_common::allnet::set_title_dfi();
         // its billing (alpb, ib.naominet.jp:8443): checked in at boot ("Error 21" without)
         wal_payload_common::billing::init();
+        crate::bbserver::set_role();
     } else {
         wal_payload_common::allnet::set_router_is_allnet();
     }
@@ -96,20 +97,27 @@ unsafe extern "system" fn sendto(s: usize, buf: *const u8, len: i32, flags: i32,
     unsafe { real(s, buf, len, flags, to, tolen) }
 }
 
-/// The game's devices, when `WAL_RINGEDGE_DIVA=1` (after the base payload's hooks).
-pub(crate) fn init() {
-    if !std::env::var("WAL_RINGEDGE_DIVA").is_ok_and(|v| v.trim() == "1") {
-        if std::env::var("WAL_RINGEDGE_ALLNET").is_ok_and(|v| !v.trim().is_empty() && v.trim() != "0") {
-            allnet(false);
-        }
-        return;
-    }
-    allnet(true);
+/// The broadcasts to the loopback address ([`sendto`]).
+fn hook_broadcast() {
     let f = sendto as *const () as usize;
     let exe = wal_payload_common::iat::game_module();
     if let Some(o) = unsafe { wal_payload_common::iat::hook_ordinal(exe, "WS2_32.dll", 20, f) }.or_else(|| unsafe { wal_payload_common::iat::hook("ws2_32.dll", "sendto", f) }) {
         SENDTO.store(o, Ordering::Relaxed);
     }
+}
+
+/// The game's devices, when `WAL_RINGEDGE_DIVA=1` (after the base payload's hooks).
+pub(crate) fn init() {
+    if !std::env::var("WAL_RINGEDGE_DIVA").is_ok_and(|v| v.trim() == "1") {
+        if std::env::var("WAL_RINGEDGE_ALLNET").is_ok_and(|v| !v.trim().is_empty() && v.trim() != "0") {
+            allnet(false);
+            // Border Break Scramble's LFS is found the same way
+            hook_broadcast();
+        }
+        return;
+    }
+    allnet(true);
+    hook_broadcast();
     let aime_port = std::env::var("WAL_RINGEDGE_DIVA_AIME").ok().map(|p| p.trim().to_ascii_uppercase()).unwrap_or_else(|| "COM2".into());
     if aime_port.starts_with("COM") {
         aime(&aime_port);

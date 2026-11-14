@@ -220,6 +220,28 @@ fn ping(protocol: &str, common: &str) -> String {
     )
 }
 
+/// `WAL_RINGEDGE_BB_ROLE` (default `1`): the cabinet's role in the shop (0 satellite, 1 server,
+/// 2 title server, 3 live), byte 0x30 of its settings record, copied to DAT_01696ad8 at boot
+/// (FUN_0048f9c0). A satellite (a new backup's 0) waits for its shop's server cabinet at "LOCAL
+/// GAME SERVER ..." (its LFS client's UDP discovery, port 30001); the server runs the shop's LFS
+/// server itself. Set right after the copy (its CRC, the record's first dword, set).
+pub(crate) fn set_role() {
+    let role = std::env::var("WAL_RINGEDGE_BB_ROLE").ok().and_then(|v| v.trim().parse::<u8>().ok()).unwrap_or(1);
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    std::thread::spawn(move || {
+        let (crc, at) = ((base + 0x1296aa8) as *const u32, (base + 0x1296ad8) as *mut u8);
+        for _ in 0..60_000 {
+            if unsafe { std::ptr::read_volatile(crc) } != 0 {
+                let old = unsafe { std::ptr::read_volatile(at) };
+                unsafe { std::ptr::write_volatile(at, role) };
+                log!("bbserver: cabinet role {old} -> {role}");
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    });
+}
+
 pub(crate) fn answer(path: &str, body: &[u8]) -> Vec<u8> {
     // the form deflated (zlib) then base64 (`Pragma: DFI`), or plain
     let inflated = miniz_oxide::inflate::decompress_to_vec_zlib(&wal_payload_common::allnet::base64_decode(body)).ok();
