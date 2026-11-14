@@ -1,0 +1,59 @@
+# Radikal Bikers (Gaelco, 1998: the community Windows emulator of its Gaelco 3D board,
+# radikalb.exe 0.9, Direct3D 8, the ROMs in radikalb.zip, 32-bit) - template, override values
+# in userprofiles/arcadepc/radikal-bikers.yaml.
+# A motorbike game: a handlebar (analog), accelerator and brake, a handlebar-up switch, a view
+# button. The payload skips the emulator's setup dialog (windowed at the screen's 4:3
+# rectangle) and writes the board's inputs from the virtual stick (docs §6.3i).
+system: arcadepc
+name: Radikal Bikers
+
+# loaded at the executable's entry point (the emulator imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: radikalbikers
+  # the board's 4:3 picture in a borderless window, the centered 4:3 rectangle of the screen
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  WAL_BEZEL: black
+  WAL_HIDE_CURSOR: "1"
+  # not managed by the window manager: GNOME's top bar pushes a full-height window down
+  WAL_DESKTOP_UNMANAGED: "1"
+
+input:
+  # the pads: RT the accelerator, LT the brake
+  gamepad:
+    r2: accel
+    l2: brake
+  # the d-pad's up / down (keyboard arrows) accelerate / brake, its left / right steer fully
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Start inserts a coin and starts (the game has no free play setting). Off: coins as the
+          test menu's GAME ASSIGNMENTS set.
+
+controls:
+  lx: Handlebar
+  accel: Accelerator
+  brake: Brake
+  b1: Accelerator
+  b2: Brake
+  b3: Handlebar up
+  b4: View change
+  up: Accelerator
+  down: Brake
+  left: Steer left
+  right: Steer right
+  start: Start
+  coin: Coin
+  service: Service coin
+  test: Test menu

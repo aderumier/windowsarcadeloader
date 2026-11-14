@@ -175,6 +175,9 @@
 //! Sega Rally 2 (`WAL_ARCADEPC_BOARD=segarally2`, x86 build): `segarally2.rs` hooks its
 //! MUSASHI input library's DirectInput (the common fake wheel).
 //!
+//! Radikal Bikers (`WAL_ARCADEPC_BOARD=radikalbikers`, x86 build): `radikalbikers.rs` skips
+//! the community emulator's setup dialog and writes its Gaelco 3D board's inputs.
+//!
 //! Deathsmiles II (`WAL_ARCADEPC_BOARD=cave`, x86 build): `cave.rs` emulates its COM3 I/O
 //! board.
 //!
@@ -254,6 +257,8 @@ mod popmoto;
 mod pullthetrigger;
 #[cfg(target_arch = "x86")]
 mod pvz;
+#[cfg(target_arch = "x86")]
+mod radikalbikers;
 #[cfg(target_arch = "x86")]
 mod rerave;
 #[cfg(target_arch = "x86")]
@@ -644,6 +649,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 // Unity 5.4: the player is the executable
                 let player = if unity != 0 { unity } else { unsafe { GetModuleHandleW(std::ptr::null()) as usize } };
                 wal_payload_common::input_filter::init(player, demul::key_held);
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "radikalbikers" => {
+                pads::disconnect();
+                radikalbikers::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "cave" => {

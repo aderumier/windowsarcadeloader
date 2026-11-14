@@ -5904,6 +5904,37 @@ entry point (`payload_loader`), the game's window messages filtered:
   data), free play on and off.
 - The user: 100% (2026-11-12, desktop).
 
+#### Radikal Bikers
+
+Gaelco's pizza delivery motorbike game (1998), the community Windows emulator of its Gaelco 3D
+board (`radikalb.exe` 0.9: a 68EC020 core, Direct3D 8, 32-bit; the ROMs in `radikalb.zip`,
+the settings and the board's EEPROM in `radikalb.dat`). `.windowsloader`: `radikalb.exe`.
+Board `radikalbikers` (`radikalbikers.rs`), loaded at the entry point (`payload_loader`):
+
+- **Setup dialog.** The emulator first shows a dialog (controller keyboard / mouse, windowed,
+  full-screen mode; Cancel quits). The payload answers its `DialogBoxParamA` with OK without
+  showing it and sets the window: windowed, its back buffer the centered 4:3 rectangle of the
+  screen (1440x1080 on 1920x1080; 576x432 by default, the board's picture), the profile's
+  borderless popup on that rectangle.
+- **Inputs.** The emulator's per-frame reader (0x4027e0: `GetAsyncKeyState` into the board's
+  active low input bytes, the handlebar's ADC from the arrows or the mouse) is replaced by a
+  `jmp` to the payload's: accelerator, brake, handlebar up, view, start, coin, service coin,
+  test from the virtual stick, the handlebar (0x10..0xf0) the left stick, the pads' triggers
+  the pedals. The real keyboard and mouse are filtered.
+- **Free play** (the common `WAL_FREEPLAY`, on by default): the game has none (its GAME
+  ASSIGNMENTS take 1 to 8 coins a credit). A start press out of a game without credits (the
+  68020's work RAM: game state 0x755c53b, 0 in the attract and its demo race, 2 from a few
+  seconds after the start to GAME OVER; credits 0x755eb0c) inserts a coin first, then presses
+  start; no other coin until that game is over (the circuit select's confirm is a start press
+  too). A continue takes a coin. Off: coins as the GAME ASSIGNMENTS set.
+- **Saves.** The emulator writes `radikalb.dat` (operator settings, bookkeeping, records)
+  only on `WM_QUIT` (0x401420); the launcher stops the process. The payload calls that writer
+  each time the block changes.
+- Verified headless (2026-11-14): boot (version 2.02, RAM OK), attract, coins (CREDITS: 2),
+  start, circuit and biker select, a race (accelerating, steering both ways), time out,
+  CONTINUE?, GAME OVER, the test menu (input test, game assignments, handle adjust,
+  bookkeeping kept across runs), free play over two games.
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`
