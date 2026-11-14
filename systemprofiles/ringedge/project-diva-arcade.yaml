@@ -77,6 +77,9 @@ env:
   WAL_RINGEDGE_CG_FIX: auto
   # its shadow samplers kept (its programs use the depth comparison's result, not the depth)
   WAL_RINGEDGE_CG_SHADOW: "1"
+  # its loops unrolled 5 times: the skin's blur (its subsurface scattering) loops over its 5
+  # taps (a parameter, 5 in every scene)
+  WAL_RINGEDGE_CG_REPEAT: "5"
 
 options:
   - title: Game

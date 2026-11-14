@@ -20,6 +20,8 @@
 //!   ([`env_parameters`]).
 //! * Vertex inputs: the game feeds generic attributes, its programs read the fixed function
 //!   ones ([`attrib_pointer`]).
+//! * Vertex textures (none on Mesa): the texels read at a constant position given as local
+//!   parameters before each draw ([`texel_parameters`]).
 //!
 //! Debugging: `WAL_RINGEDGE_CG_LOG=1` logs each compile and Cg's listing of the failed ones;
 //! `WAL_RINGEDGE_CG_DUMP=1` writes each compiled program to `cgdump\`;
@@ -100,7 +102,7 @@ unsafe extern "system" fn get_proc(module: *mut c_void, name: *const c_char) -> 
         match unsafe { CStr::from_ptr(name) }.to_bytes() {
             b"wglGetProcAddress" => return gl_proc as *const () as usize,
             b"glBindProgramARB" | b"glProgramStringARB" | b"glProgramEnvParameters4fvEXT" | b"glVertexAttribPointer" | b"glVertexAttribPointerARB" | b"glEnableVertexAttribArray"
-            | b"glEnableVertexAttribArrayARB" | b"glDisableVertexAttribArray" | b"glDisableVertexAttribArrayARB" => return unsafe { gl_proc(name) },
+            | b"glEnableVertexAttribArrayARB" | b"glDisableVertexAttribArray" | b"glDisableVertexAttribArrayARB" | b"glDrawRangeElements" | b"glDrawRangeElementsEXT" => return unsafe { gl_proc(name) },
             _ => {}
         }
     }
@@ -142,6 +144,10 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
         b"glProgramStringARB" => {
             ORIG_STRING.store(f, Ordering::Relaxed);
             program_string as *const () as usize
+        }
+        b"glDrawRangeElements" | b"glDrawRangeElementsEXT" if FIX.load(Ordering::Relaxed) => {
+            ORIG_DRAW_RANGE.store(f, Ordering::Relaxed);
+            draw_range as *const () as usize
         }
         b"glVertexAttribPointer" | b"glVertexAttribPointerARB" if FIX.load(Ordering::Relaxed) => {
             ORIG_ATTRIB_POINTER.store(f, Ordering::Relaxed);
@@ -279,8 +285,114 @@ unsafe extern "system" fn env_parameters(target: u32, index: u32, count: i32, pa
 
 unsafe extern "system" fn bind_program(target: u32, id: u32) {
     BOUND[(target == 0x8804) as usize].store(id as usize, Ordering::Relaxed);
+    if target == 0x8620 {
+        let units = TEXELS.lock().unwrap().get(&id).copied().unwrap_or(0);
+        BOUND_TEXELS.store(units as usize, Ordering::Relaxed);
+    }
     let orig: unsafe extern "system" fn(u32, u32) = unsafe { std::mem::transmute(ORIG_BIND.load(Ordering::Relaxed)) };
     unsafe { orig(target, id) }
+}
+
+/// The vertex programs reading texels at a constant position (`nvasm::TEXEL_LOCAL`), by id:
+/// their texture units (bits).
+static TEXELS: std::sync::Mutex<std::collections::BTreeMap<u32, u16>> = std::sync::Mutex::new(std::collections::BTreeMap::new());
+/// The bound vertex program's [`TEXELS`] units.
+static BOUND_TEXELS: AtomicUsize = AtomicUsize::new(0);
+static ORIG_DRAW_ARRAYS: AtomicUsize = AtomicUsize::new(0);
+static ORIG_DRAW_ELEMENTS: AtomicUsize = AtomicUsize::new(0);
+static ORIG_DRAW_RANGE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_BEGIN: AtomicUsize = AtomicUsize::new(0);
+
+/// Mesa has no vertex textures (NVIDIA's vp40): the texels the bound vertex program reads at a
+/// constant position (Project DIVA Arcade's auto exposure, the luminance its reductions leave
+/// at (0, 0) of texture 3, else zero: the brightest exposure, its characters blown out in
+/// bloom) read before each draw into its local parameters.
+fn texel_parameters() {
+    let units = BOUND_TEXELS.load(Ordering::Relaxed) as u16;
+    if units == 0 {
+        return;
+    }
+    static PROCS: OnceLock<[usize; 5]> = OnceLock::new();
+    let procs = PROCS.get_or_init(|| {
+        let orig: unsafe extern "system" fn(*const c_char) -> usize = unsafe { std::mem::transmute(ORIG_GL_PROC.load(Ordering::Relaxed)) };
+        [c"glActiveTexture", c"glGenFramebuffersEXT", c"glBindFramebufferEXT", c"glFramebufferTexture2DEXT", c"glProgramLocalParameter4fvARB"].map(|n| unsafe { orig(n.as_ptr()) })
+    });
+    if procs.contains(&0) {
+        return;
+    }
+    let active_texture: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(procs[0]) };
+    let gen_framebuffers: unsafe extern "system" fn(i32, *mut u32) = unsafe { std::mem::transmute(procs[1]) };
+    let bind_framebuffer: unsafe extern "system" fn(u32, u32) = unsafe { std::mem::transmute(procs[2]) };
+    let framebuffer_texture: unsafe extern "system" fn(u32, u32, u32, u32, i32) = unsafe { std::mem::transmute(procs[3]) };
+    let local: unsafe extern "system" fn(u32, u32, *const f32) = unsafe { std::mem::transmute(procs[4]) };
+    let get_integer: unsafe extern "system" fn(u32, *mut i32) = unsafe { std::mem::transmute(gl11(c"glGetIntegerv")) };
+    let read_buffer: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(gl11(c"glReadBuffer")) };
+    let read_pixels: unsafe extern "system" fn(i32, i32, i32, i32, u32, u32, *mut c_void) = unsafe { std::mem::transmute(gl11(c"glReadPixels")) };
+    // GL_ACTIVE_TEXTURE, GL_READ_FRAMEBUFFER_BINDING_EXT, GL_PIXEL_PACK_BUFFER_BINDING
+    let (mut active, mut read_fb, mut pack) = (0, 0, 0);
+    unsafe {
+        get_integer(0x84E0, &mut active);
+        get_integer(0x8CAA, &mut read_fb);
+        get_integer(0x88ED, &mut pack);
+    }
+    if pack != 0 {
+        return;
+    }
+    static FRAMEBUFFER: AtomicUsize = AtomicUsize::new(0);
+    if FRAMEBUFFER.load(Ordering::Relaxed) == 0 {
+        let mut fb = 0;
+        unsafe { gen_framebuffers(1, &mut fb) };
+        FRAMEBUFFER.store(fb as usize, Ordering::Relaxed);
+    }
+    // GL_READ_FRAMEBUFFER_EXT, its color attachment 0
+    unsafe { bind_framebuffer(0x8CA8, FRAMEBUFFER.load(Ordering::Relaxed) as u32) };
+    for unit in (0..16).filter(|u| units & (1 << u) != 0) {
+        let mut texture = 0;
+        unsafe {
+            active_texture(0x84C0 + unit);
+            // GL_TEXTURE_BINDING_2D
+            get_integer(0x8069, &mut texture);
+        }
+        let mut texel = [0f32; 4];
+        if texture != 0 {
+            unsafe {
+                framebuffer_texture(0x8CA8, 0x8CE0, 0x0DE1, texture as u32, 0);
+                read_buffer(0x8CE0);
+                // GL_RGBA, GL_FLOAT
+                read_pixels(0, 0, 1, 1, 0x1908, 0x1406, texel.as_mut_ptr().cast());
+            }
+        }
+        unsafe { local(0x8620, crate::nvasm::TEXEL_LOCAL + unit, texel.as_ptr()) };
+    }
+    unsafe {
+        framebuffer_texture(0x8CA8, 0x8CE0, 0x0DE1, 0, 0);
+        bind_framebuffer(0x8CA8, read_fb as u32);
+        active_texture(active as u32);
+    }
+}
+
+unsafe extern "system" fn draw_arrays(mode: u32, first: i32, count: i32) {
+    texel_parameters();
+    let orig: unsafe extern "system" fn(u32, i32, i32) = unsafe { std::mem::transmute(ORIG_DRAW_ARRAYS.load(Ordering::Relaxed)) };
+    unsafe { orig(mode, first, count) }
+}
+
+unsafe extern "system" fn draw_elements(mode: u32, count: i32, kind: u32, indices: *const c_void) {
+    texel_parameters();
+    let orig: unsafe extern "system" fn(u32, i32, u32, *const c_void) = unsafe { std::mem::transmute(ORIG_DRAW_ELEMENTS.load(Ordering::Relaxed)) };
+    unsafe { orig(mode, count, kind, indices) }
+}
+
+unsafe extern "system" fn draw_range(mode: u32, start: u32, end: u32, count: i32, kind: u32, indices: *const c_void) {
+    texel_parameters();
+    let orig: unsafe extern "system" fn(u32, u32, u32, i32, u32, *const c_void) = unsafe { std::mem::transmute(ORIG_DRAW_RANGE.load(Ordering::Relaxed)) };
+    unsafe { orig(mode, start, end, count, kind, indices) }
+}
+
+unsafe extern "system" fn begin(mode: u32) {
+    texel_parameters();
+    let orig: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(ORIG_BEGIN.load(Ordering::Relaxed)) };
+    unsafe { orig(mode) }
 }
 
 /// The programs (target, id) reading `program.env` themselves: [`env_parameters`].
@@ -313,13 +425,24 @@ unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, tex
                     log!("cg: program not translated: {}", t.lines().next().unwrap_or(""));
                 }
             }
-            // a fragment program not translated (Project DIVA Arcade's blurs, loops of a
-            // parameter's length; its tone maps with outlines, a subroutine): its first texture
+            // a fragment program not translated (Project DIVA Arcade's blurs without
+            // WAL_RINGEDGE_CG_REPEAT, loops of a parameter's length): its first texture
             // as is (a blur without radius), not an invalid program (nothing drawn)
             fixed.or_else(|| (target == 0x8804).then(|| "!!ARBfp1.0\nTEMP c;\nTEX c, fragment.texcoord[0], texture[0], 2D;\nMOV result.color, c;\nEND\n".to_string()))
         }
         _ => None,
     };
+    if target == 0x8620 {
+        let units = fixed.as_deref().map_or(0, |f| (0..16u32).filter(|u| f.contains(&format!("program.local[{}]", crate::nvasm::TEXEL_LOCAL + u))).fold(0u16, |m, u| m | 1 << u));
+        let id = BOUND[0].load(Ordering::Relaxed) as u32;
+        let mut texels = TEXELS.lock().unwrap();
+        if units != 0 {
+            texels.insert(id, units);
+        } else {
+            texels.remove(&id);
+        }
+        BOUND_TEXELS.store(units as usize, Ordering::Relaxed);
+    }
     let (text, len) = match &fixed {
         Some(f) => (f.as_ptr(), f.len() as i32),
         None => (text, len),
@@ -442,6 +565,16 @@ pub(crate) fn init() {
         FIX.store(true, Ordering::Relaxed);
         if !DUMP_PROGRAMS.load(Ordering::Relaxed) {
             gl_procs();
+        }
+        // the vertex programs' texels (texel_parameters)
+        for (name, hook, orig) in [
+            ("glDrawArrays", draw_arrays as *const () as usize, &ORIG_DRAW_ARRAYS),
+            ("glDrawElements", draw_elements as *const () as usize, &ORIG_DRAW_ELEMENTS),
+            ("glBegin", begin as *const () as usize, &ORIG_BEGIN),
+        ] {
+            if let Some(o) = unsafe { iat::hook("opengl32.dll", name, hook) } {
+                orig.store(o, Ordering::Relaxed);
+            }
         }
         unsafe { nv40_profiles() };
         if let Some(o) = unsafe { iat::hook("cg.dll", "cgGetProgramString", get_program_string as *const () as usize) } {

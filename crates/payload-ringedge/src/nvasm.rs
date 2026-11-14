@@ -8,13 +8,17 @@
 //!   temporary; a conditional write (`MOV R0.x(NE.y), ...`) computes into `_wT` and selects
 //!   (`CMP` in fragment programs, `SUB` + `MAD` in vertex ones) on the condition as 0 / 1.
 //! * Branches as predicates, every write selected on the current one: fragment `IF` / `ELSE` /
-//!   `ENDIF` and `RET`, vertex forward `BRA` to a label (Project DIVA Arcade's skinning). Loops
-//!   and subroutines: `None`.
+//!   `ENDIF` and `RET`, vertex forward `BRA` to a label (Project DIVA Arcade's skinning);
+//!   subroutines inlined at their calls ([`subroutines`]); `REP` loops unrolled
+//!   `WAL_RINGEDGE_CG_REPEAT` times, their integer index registers followed ([`loops`]).
 //! * The vertex address register's 4 components (`_adr.y`): `ARL` again from the component's
 //!   source before each use, through `.x`.
 //! * `NRM`, `SGT`, `SLE`, `SEQ`, `SNE`, `SSG`, absolute values (`|x|`), vertex `LRP` / `CMP`
 //!   and vertex `_SAT` with ARB instructions; `TXL` as `TEX` (the level of detail dropped:
-//!   exact on the textures without mipmaps, the shadow and screen buffers).
+//!   exact on the textures without mipmaps, the shadow and screen buffers); vertex `TEX` at a
+//!   constant position as a local parameter (`TEXEL_LOCAL`), the others zero.
+//! * NVIDIA's arithmetic: logarithms (`LG2`, `POW`) of the absolute value, reciprocals
+//!   (`RCP`, `RSQ`) finite (its 0 * infinity is 0), vertex temporaries zeroed first.
 //! * Shadow samplers as plain 2D textures (the programs compare the depth themselves), kept
 //!   with `WAL_RINGEDGE_CG_SHADOW=1` (Project DIVA Arcade's use the comparison).
 //! * Outputs through temporaries (a conditional write reads them back), copied at the end;
@@ -23,8 +27,8 @@
 //!   it and the game feeds it; vertex inputs Mesa refuses together ([`vertex_inputs`]) as the
 //!   ones NVIDIA aliases them with.
 //!
-//! `NV_fragment_program` programs (`!!FP1.0`) too. Programs with loops, subroutines, backward
-//! branches or other formats: `None`.
+//! `NV_fragment_program` programs (`!!FP1.0`) too. Programs with `REP` loops without
+//! `WAL_RINGEDGE_CG_REPEAT`, other loops, backward branches or other formats: `None`.
 
 const BASES: [&str; 46] = [
     "TXP", "TEX", "TXB", "TXL", "DP3", "DP4", "DPH", "FLR", "FRC", "RCP", "RSQ", "MAX", "MIN", "MAD", "MUL", "ADD", "SUB", "MOV", "SLT", "SGT", "SGE",
@@ -32,8 +36,13 @@ const BASES: [&str; 46] = [
     "SWZ", "DP2", "DDX", "DDY",
 ];
 
+/// The vertex programs' local parameter holding texel (0, 0) of texture unit `n`, at
+/// `TEXEL_LOCAL + n`: their texture reads at a constant position.
+pub(crate) const TEXEL_LOCAL: u32 = 240;
+
 const ZERO: &str = "{0,0,0,0}";
 const ONE: &str = "{1,1,1,1}";
+const BIG: &str = "{1e30,1e30,1e30,1e30}";
 
 /// A program for NVIDIA GPUs only: NVIDIA options or formats.
 pub(crate) fn nvidia(text: &str) -> bool {
@@ -50,7 +59,7 @@ fn opcode(op: &str) -> Option<(&'static str, bool, bool)> {
     bases.sort_by_key(|b| std::cmp::Reverse(b.len()));
     bases.iter().find_map(|&b| {
         let rest = op.strip_prefix(b)?;
-        matches!(rest, "" | "H" | "R" | "X" | "C" | "HC" | "RC" | "XC").then_some((b, rest.ends_with('C'), sat))
+        matches!(rest, "" | "H" | "R" | "X" | "C" | "HC" | "RC" | "XC" | "C1").then_some((b, rest.ends_with('C') || rest == "C1", sat))
     })
 }
 
@@ -158,7 +167,11 @@ fn vertex_inputs(text: &str) -> String {
 /// The condition `cond` (`NE.y`) on the condition code, as 0 / 1 per component in `dst`.
 fn test(out: &mut Vec<String>, dst: &str, cond: &str) -> Option<()> {
     let (c, sw) = split_swizzle(cond);
-    let v = format!("_wCC{}", full_swizzle(sw));
+    // `GT1`: the second condition code (NV_gpu_program4's `CC1`)
+    let (c, v) = match c.strip_suffix('1') {
+        Some(c) => (c, format!("_wCC1{}", full_swizzle(sw))),
+        None => (c, format!("_wCC{}", full_swizzle(sw))),
+    };
     match c {
         "TR" => out.push(format!("MOV {dst}, {ONE};")),
         "FL" => out.push(format!("MOV {dst}, {ZERO};")),
@@ -192,7 +205,8 @@ fn test_any(out: &mut Vec<String>, dst: &str, cond: &str) -> Option<()> {
 
 /// A condition operand (`NE.x`), not a register.
 fn is_condition(s: &str) -> bool {
-    ["EQ", "NE", "GT", "LT", "GE", "LE", "TR", "FL"].contains(&split_swizzle(s.trim()).0)
+    let c = split_swizzle(s.trim()).0;
+    ["EQ", "NE", "GT", "LT", "GE", "LE", "TR", "FL"].contains(&c.strip_suffix('1').unwrap_or(c))
 }
 
 /// The program's statements: the header line, then the rest without its comments split on
@@ -215,6 +229,172 @@ fn statements(text: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// Subroutines (`CAL NAME (GT.x)`, `NAME: ... RET`, Project DIVA Arcade's contour tone maps)
+/// inlined at their calls, an `IF` block on the call's condition; their `RET` the last
+/// statement only. NV_gpu_program4's opcode modifiers as the suffixes: `.F` dropped, `.CC` /
+/// `.CC0` `C`, `.CC1` `C1` (the second condition code), `.SAT` `_SAT`.
+fn subroutines(stmts: Vec<String>) -> Option<Vec<String>> {
+    let stmts: Vec<String> = loops(stmts)?
+        .into_iter()
+        .map(|s| {
+            let first = s.split_whitespace().next().unwrap_or("");
+            if s.starts_with("!!") || !first.contains('.') || !first.starts_with(|c: char| c.is_ascii_uppercase()) {
+                return s;
+            }
+            let mut parts = first.split('.');
+            let mut op = parts.next().unwrap_or("").to_string();
+            let mut sat = false;
+            for m in parts {
+                match m {
+                    "CC" | "CC0" => op.push('C'),
+                    "CC1" => op.push_str("C1"),
+                    "SAT" => sat = true,
+                    _ => {}
+                }
+            }
+            if sat {
+                op.push_str("_SAT");
+            }
+            format!("{op}{}", &s[first.len()..])
+        })
+        .collect();
+    let called: Vec<&str> = stmts.iter().filter_map(|s| s.strip_prefix("CAL ")).map(|r| r.split(|c: char| c == '(' || c.is_whitespace()).next().unwrap_or("")).collect();
+    if called.is_empty() {
+        return Some(stmts);
+    }
+    // each subroutine's body: from its label to its final RET (the next label or END after it)
+    let mut bodies: Vec<(String, Vec<String>)> = Vec::new();
+    let mut main = Vec::new();
+    let mut current: Option<(String, Vec<String>)> = None;
+    for s in &stmts {
+        if let Some(label) = s.strip_suffix(':')
+            && called.contains(&label)
+        {
+            bodies.extend(current.take());
+            current = Some((label.to_string(), Vec::new()));
+            continue;
+        }
+        if s == "END" || (s.ends_with(':') && current.is_some()) {
+            bodies.extend(current.take());
+        }
+        match &mut current {
+            Some((_, body)) => body.push(s.clone()),
+            None => main.push(s.clone()),
+        }
+    }
+    bodies.extend(current);
+    for (_, body) in bodies.iter_mut() {
+        if body.last().is_some_and(|s| s == "RET") {
+            body.pop();
+        }
+        if body.iter().any(|s| s == "RET" || s.starts_with("RET ") || s.starts_with("CAL ") || s.ends_with(':')) {
+            return None;
+        }
+    }
+    let mut out = Vec::new();
+    for s in main {
+        let Some(call) = s.strip_prefix("CAL ") else {
+            out.push(s);
+            continue;
+        };
+        let (name, cond) = match call.find('(') {
+            Some(i) => (call[..i].trim(), Some(call[i + 1..].trim().strip_suffix(')')?.trim())),
+            None => (call.trim(), None),
+        };
+        let (_, body) = bodies.iter().find(|(n, _)| n == name)?;
+        if let Some(cond) = cond {
+            out.push(format!("IF {cond}"));
+        }
+        out.extend(body.iter().cloned());
+        if cond.is_some() {
+            out.push("ENDIF".into());
+        }
+    }
+    Some(out)
+}
+
+/// The loop count `REP` loops are unrolled to (`WAL_RINGEDGE_CG_REPEAT`, Project DIVA Arcade's
+/// skin blur's: 5, its parameter's value): `None` without it.
+fn repeat() -> Option<usize> {
+    static N: std::sync::OnceLock<Option<usize>> = std::sync::OnceLock::new();
+    *N.get_or_init(|| std::env::var("WAL_RINGEDGE_CG_REPEAT").ok().and_then(|v| v.trim().parse().ok()))
+}
+
+/// `REP count` loops (NV_gpu_program4, count a parameter) unrolled [`repeat`] times, their
+/// integer index registers (`INT TEMP idx`: `MOV.U idx, 0`, `ADD.U idx.x, idx.x, 1`) followed:
+/// the arrays they index read at constant indices (`p_coef2d[idx.x]` as `p_coef2d[6]`).
+fn loops(stmts: Vec<String>) -> Option<Vec<String>> {
+    if !stmts.iter().any(|s| s.starts_with("REP ") || s.starts_with("INT TEMP ")) {
+        return Some(stmts);
+    }
+    let n = repeat()?;
+    // the statements with each loop's body repeated, inner loops first
+    fn unroll(stmts: &[String], n: usize) -> Option<Vec<String>> {
+        let mut out = Vec::new();
+        let mut i = 0;
+        while i < stmts.len() {
+            let s = &stmts[i];
+            if !s.starts_with("REP ") {
+                if s == "ENDREP" {
+                    return None;
+                }
+                out.push(s.clone());
+                i += 1;
+                continue;
+            }
+            let mut depth = 0;
+            let end = (i..stmts.len()).find(|&j| {
+                if stmts[j].starts_with("REP ") {
+                    depth += 1;
+                } else if stmts[j] == "ENDREP" {
+                    depth -= 1;
+                }
+                depth == 0
+            })?;
+            let body = unroll(&stmts[i + 1..end], n)?;
+            for _ in 0..n {
+                out.extend(body.iter().cloned());
+            }
+            i = end + 1;
+        }
+        Some(out)
+    }
+    let mut ints: Vec<(String, Option<i64>)> = Vec::new();
+    let mut out = Vec::new();
+    for s in unroll(&stmts, n)? {
+        if let Some(names) = s.strip_prefix("INT TEMP ") {
+            ints.extend(names.split(',').map(|n| (n.trim().to_string(), None)));
+            continue;
+        }
+        let first = s.split_whitespace().next().unwrap_or("");
+        let operands: Vec<String> = operands(s[first.len()..].trim());
+        let reg = |o: &str| split_swizzle(o.trim()).0.to_string();
+        if let Some(int) = operands.first().and_then(|d| ints.iter().position(|(n, _)| *n == reg(d))) {
+            let value = match (first, operands.as_slice()) {
+                ("MOV.U" | "MOV.S", [_, v]) => v.trim().parse().ok()?,
+                ("ADD.U" | "ADD.S", [_, a, b]) if reg(a) == ints[int].0 => ints[int].1? + b.trim().parse::<i64>().ok()?,
+                _ => return None,
+            };
+            ints[int].1 = Some(value);
+            continue;
+        }
+        let mut s = s;
+        for (name, value) in &ints {
+            for c in ["x", "y", "z", "w"] {
+                let at = format!("[{name}.{c}]");
+                if s.contains(&at) {
+                    s = s.replace(&at, &format!("[{}]", (*value)?));
+                }
+            }
+            if s.split(|c: char| !c.is_ascii_alphanumeric() && c != '_').any(|w| w == name) {
+                return None;
+            }
+        }
+        out.push(s);
+    }
+    Some(out)
 }
 
 /// A scalar instruction's operand with the component ARB requires (NVIDIA reads `.x`).
@@ -262,7 +442,7 @@ pub(crate) fn translate(text: &str) -> Option<String> {
     let mut head = 0;
     // outputs: (name, binding, written); `result.` written directly: (binding, temporary)
     let mut outputs: Vec<(String, String, bool)> = Vec::new();
-    let mut results: Vec<(String, String)> = Vec::new();
+    let mut results: Vec<(String, String, String)> = Vec::new();
     // predicates: the open IF blocks (their numbers), the live lanes (`_wL`, after a RET or BRA)
     let mut levels: Vec<usize> = Vec::new();
     let mut blocks = 0;
@@ -273,7 +453,10 @@ pub(crate) fn translate(text: &str) -> Option<String> {
     let mut labels: Vec<String> = Vec::new();
     // vertex address registers: (name, the source of each component, the component in .x)
     let mut addresses: Vec<(String, [String; 4], usize)> = Vec::new();
-    for s in statements(&text) {
+    // the temporaries declared before the first instruction (at `body` in `out`)
+    let mut declared: Vec<String> = Vec::new();
+    let mut body: Option<usize> = None;
+    for s in subroutines(statements(&text))? {
         let mut s = s.as_str();
         for p in ["SHORT ", "LONG "] {
             if let Some(r) = s.strip_prefix(p) {
@@ -294,6 +477,7 @@ pub(crate) fn translate(text: &str) -> Option<String> {
         }
         let cur = levels.last().map(|n| format!("_wP{n}")).or(live.then(|| "_wL".to_string()));
         if let Some(label) = s.strip_suffix(':') {
+            body.get_or_insert(out.len());
             labels.push(label.to_string());
             if let Some((_, acc)) = branches.iter().find(|(l, _)| l == label) {
                 out.push(format!("ADD _wL.x, _wL.x, {acc}.x;"));
@@ -308,13 +492,19 @@ pub(crate) fn translate(text: &str) -> Option<String> {
                         out.push(format!("MOV {binding}, {name};"));
                     }
                 }
-                for (binding, t) in &results {
-                    out.push(format!("MOV {binding}, {t};"));
+                // the components written only (Cg's eye vector in the tangent's .w)
+                for (binding, t, lanes) in &results {
+                    let mask: String = "xyzw".chars().filter(|c| lanes.contains(*c)).collect();
+                    let mask = if mask.len() == 4 { String::new() } else { format!(".{mask}") };
+                    out.push(format!("MOV {binding}{mask}, {t};"));
                 }
                 out.push("END".into());
                 break;
             }
             "TEMP" | "PARAM" | "ALIAS" | "ADDRESS" => {
+                if first == "TEMP" && body.is_none() {
+                    declared.extend(s[4..].split(',').map(|t| t.trim().to_string()));
+                }
                 out.push(format!("{s};"));
                 continue;
             }
@@ -328,13 +518,17 @@ pub(crate) fn translate(text: &str) -> Option<String> {
             "OUTPUT" => {
                 let (name, binding) = s[6..].split_once('=')?;
                 let name = name.trim().to_string();
+                if body.is_none() {
+                    declared.push(name.clone());
+                }
                 out.push(format!("TEMP {name};"));
                 outputs.push((name, binding.trim().to_string(), false));
                 continue;
             }
-            "REP" | "ENDREP" | "LOOP" | "ENDLOOP" | "BRK" | "CAL" | "TXD" | "PK2H" | "PK2US" | "PK4B" | "PK4UB" | "UP2H" | "UP2US" | "UP4B" | "UP4UB" => return None,
+            "REP" | "ENDREP" | "LOOP" | "ENDLOOP" | "BRK" | "TXD" | "PK2H" | "PK2US" | "PK4B" | "PK4UB" | "UP2H" | "UP2US" | "UP4B" | "UP4UB" => return None,
             _ => {}
         }
+        body.get_or_insert(out.len());
         if dead {
             continue;
         }
@@ -396,24 +590,24 @@ pub(crate) fn translate(text: &str) -> Option<String> {
                     }
                 };
                 if let Some(label) = target {
-                    let acc = match branches.iter().find(|(l, _)| *l == label) {
-                        Some((_, acc)) => {
-                            out.push(format!("ADD {acc}.x, {acc}.x, {};", k.as_deref().unwrap_or(ONE)));
-                            acc.clone()
-                        }
+                    match branches.iter().find(|(l, _)| *l == label) {
+                        Some((_, acc)) => out.push(format!("ADD {acc}.x, {acc}.x, {};", k.as_deref().unwrap_or(ONE))),
                         None => {
                             let acc = format!("_wB{}", branches.len());
                             add_temp(&mut temps, &acc);
                             out.push(format!("MOV {acc}.x, {};", k.as_deref().unwrap_or(ONE)));
-                            branches.push((label, acc.clone()));
-                            acc
+                            branches.push((label, acc));
                         }
-                    };
+                    }
+                    // the lanes branching leave the live ones (not every lane branched to the
+                    // label so far: -1 after a vertex's first skinning branch, DIVA's one bone
+                    // vertices, their writes after the label 2 * old - new)
                     add_temp(&mut temps, "_wL");
+                    let k = k.as_deref().unwrap_or(ONE);
                     if live {
-                        out.push(format!("SUB _wL.x, _wL.x, {acc}.x;"));
+                        out.push(format!("SUB _wL.x, _wL.x, {k};"));
                     } else {
-                        out.push(format!("SUB _wL.x, {ONE}, {acc}.x;"));
+                        out.push(format!("SUB _wL.x, {ONE}, {k};"));
                     }
                     live = true;
                     continue;
@@ -502,6 +696,15 @@ pub(crate) fn translate(text: &str) -> Option<String> {
             }
             continue;
         }
+        // NVIDIA's logarithms (LG2, POW's) of the absolute value, Mesa's of the value: NaN on a
+        // negative one (DIVA's specular powers of the cosines behind the light, NaN in its
+        // characters' pixels, blown out in white blooms around black ones, its exposure NaN)
+        if (base == "LG2" || base == "POW")
+            && let Some(src) = sources.first_mut()
+            && !src.contains('|')
+        {
+            *src = format!("|{}|", src.strip_prefix('-').unwrap_or(src));
+        }
         // |x|: MAX t, x, -x first
         for src in sources.iter_mut() {
             let (neg, rest) = match src.strip_prefix('-') {
@@ -520,12 +723,16 @@ pub(crate) fn translate(text: &str) -> Option<String> {
         }
         // the register written: an output's temporary, `result.` through one
         let reg = if reg.starts_with("result.") {
-            match results.iter().find(|(b, _)| b == reg) {
-                Some((_, t)) => t.clone(),
+            let lanes = if mask.is_empty() { "xyzw" } else { &mask[1..] };
+            match results.iter_mut().find(|(b, _, _)| b == reg) {
+                Some((_, t, l)) => {
+                    l.push_str(lanes);
+                    t.clone()
+                }
                 None => {
                     let t = format!("_wR{}", results.len());
                     add_temp(&mut temps, &t);
-                    results.push((reg.to_string(), t.clone()));
+                    results.push((reg.to_string(), t.clone(), lanes.to_string()));
                     t
                 }
             }
@@ -549,6 +756,7 @@ pub(crate) fn translate(text: &str) -> Option<String> {
                 add_temp(&mut temps, "_wN");
                 out.push(format!("DP3 _wN.w, {a}, {a};"));
                 out.push("RSQ _wN.w, _wN.w;".into());
+                out.push(format!("MIN _wN.w, _wN.w, {BIG};"));
                 out.push(format!("MUL{satx} {dst}, {a}, _wN.w;"));
             }
             "SGT" | "SLE" => {
@@ -595,11 +803,26 @@ pub(crate) fn translate(text: &str) -> Option<String> {
             }
             // no derivatives in ARB programs: a flat surface
             "DDX" | "DDY" => out.push(format!("MOV {dst}, {ZERO};")),
-            // no vertex textures in ARB programs (DIVA's height fog density and displacement
-            // maps): zero
-            "TEX" | "TXL" | "TXP" | "TXB" if !fragment => out.push(format!("MOV {dst}, {ZERO};")),
+            // no vertex textures in ARB programs: a texel at a constant position (DIVA's auto
+            // exposure, the scene's luminance) as a local parameter the payload reads it into
+            // (`cg::texel_parameters`), the others (its height fog density and displacement
+            // maps) zero
+            "TEX" | "TXL" | "TXP" | "TXB" if !fragment => match (sources.first(), sources.get(1).and_then(|t| t.strip_prefix("texture[")?.strip_suffix(']')?.parse::<u32>().ok())) {
+                (Some(c), Some(unit)) if c.starts_with('{') && unit < 16 && sources.get(2).is_some_and(|t| t == "2D") => {
+                    out.push(format!("MOV {dst}, program.local[{}];", TEXEL_LOCAL + unit));
+                }
+                _ => out.push(format!("MOV {dst}, {ZERO};")),
+            },
             "SIN" | "COS" | "SCS" | "KIL" if !fragment => return None,
             _ => out.push(format!("{base}{satx} {dst}, {};", sources.join(", "))),
+        }
+        // NVIDIA's 0 * infinity is 0, Mesa's NaN: the reciprocals finite (DIVA's normals of a
+        // zero vector, NaN pixels on its characters' edges, its exposure NaN: black frames)
+        if base == "RSQ" || base == "RCP" {
+            out.push(format!("MIN {dst}, {target}, {BIG};"));
+            if base == "RCP" {
+                out.push(format!("MAX {dst}, {target}, -{BIG};"));
+            }
         }
         if sat && !fragment {
             out.push(format!("MIN {dst}, {target}, {ONE};"));
@@ -631,12 +854,21 @@ pub(crate) fn translate(text: &str) -> Option<String> {
             write(&mut out, &mut temps, &reg);
         }
         if cc {
-            add_temp(&mut temps, "_wCC");
-            write(&mut out, &mut temps, "_wCC");
+            let cc = if first.ends_with("C1") { "_wCC1" } else { "_wCC" };
+            add_temp(&mut temps, cc);
+            write(&mut out, &mut temps, cc);
         }
     }
     if !levels.is_empty() || out.last().is_none_or(|l| l != "END") {
         return None;
+    }
+    // vertex temporaries zeroed first: the predicated writes select arithmetically, from the
+    // previous value (NaN or huge in a temporary never written on Mesa, its result NaN or
+    // garbage: DIVA's hair and clothes, their fog coordinate and rim light in blown out blooms)
+    if !fragment && let Some(b) = body {
+        for (i, t) in declared.iter().chain(&temps).enumerate() {
+            out.insert(b + i, format!("MOV {t}, {ZERO};"));
+        }
     }
     for (i, t) in temps.iter().enumerate() {
         out.insert(head + i, format!("TEMP {t};"));
