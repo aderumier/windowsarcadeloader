@@ -267,7 +267,13 @@ fn answer(request: &str) -> String {
     let first = request.split('&').next().unwrap_or("");
     let (key, value) = first.split_once('=').unwrap_or((first, ""));
     if key == "mxmaster.foreground.next" {
-        let args = foreground_args(value.trim());
+        let mut args = foreground_args(value.trim());
+        // the application already running asked again: its exit, back to the game (Project
+        // DIVA Arcade's test menu, started with -t, asks for application 3 when left)
+        if !args.is_empty() && std::env::args().skip(1).collect::<Vec<_>>().join(" ") == args {
+            log!("pcp: application {value} is the one running: back to the game");
+            args.clear();
+        }
         log!("pcp: next application {value}: relaunch with '{args}'");
         wal_payload_common::request_relaunch(&args);
         // the cabinet's master ends the game for the next application: a game that stays
@@ -304,6 +310,11 @@ fn answer(request: &str) -> String {
     // done (the request's echoed sector number failed ARStepWaitEraseTraceLog)
     if key == "keychip.tracedata.sectorerase" {
         return format!("{key}=0");
+    }
+    // the free trace log entries (amDongleBillingTdGetFreeLogNum, decimal): plenty (0, a full log,
+    // failed alpb's FgTraceLogCheck, Error 21 ErrNo 8103)
+    if request.starts_with("keychip.tracedata.put=?") {
+        return format!("{key}=1000");
     }
     if key == "keychip.tracedata.get" {
         return format!("{key}=0&address=0");

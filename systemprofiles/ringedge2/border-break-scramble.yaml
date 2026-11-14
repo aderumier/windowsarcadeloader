@@ -35,7 +35,9 @@ env:
   # dump's DS challenge table SBVA_Table.dat (the amDongle DS28CN01 MAC table).
   # systemflag bit 0: a develop keychip, which waives the aim control's USB mouse check (a raw
   # input mouse "HID#Vid_0ca3&Pid_000b#", FUN_0067a4xx) - that mouse is not emulated yet
-  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVA;keychip.appboot.systemflag=01
+  # billing.nearfull: the billing type in its high 16 bits, 1 the only one Border Break accepts
+  # (alpb's MODE check after its accounting report, else Error 21 ErrNo 8113), 512 near full
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVA;keychip.appboot.systemflag=01;keychip.billing.nearfull=00010200
   # (the platform id stays the default AAL: the boot check FUN_0045a6f0 wants exactly "AAL")
   # the EEPROM static record's region (Japan): amLib reads 0 without it, ANDed with the keychip's
   # region 01 -> error index 4 "Error 0903 Wrong Region" (FUN_00458fd0), the boot's black screen
