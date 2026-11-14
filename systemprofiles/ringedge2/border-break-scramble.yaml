@@ -89,6 +89,9 @@ env:
   # DIVA): the store router and ALL.Net's hosts resolved by the payload, its connections to
   # them the payload's ALL.Net server
   WAL_RINGEDGE_ALLNET: borderbreak
+  # its billing's OpenSSL 0.9.8i verifies no SHA-256 certificate: the billing server's dummy PKI
+  # re-issued with SHA-1 (the CA the keychip gives, the server's certificate)
+  WAL_BILLING_SHA1: "1"
   # amJvs uses the serial JVS driver and may also open a COM port (as Initial D 7).
   WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
   # the I/O board must declare analog inputs, rotary inputs and 20 general purpose outputs (the

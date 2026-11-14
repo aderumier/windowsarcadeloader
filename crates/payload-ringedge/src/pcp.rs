@@ -292,6 +292,22 @@ fn answer(request: &str) -> String {
     if key == "keychip.ds.compute" {
         return format!("{key}={}", ds_compute(request));
     }
+    // the trace log's restore (alpb's RestoreTraceLog, FUN_00a1b230): 3, nothing to restore (2
+    // restored, both accepted); `1` (the request's own value, echoed) means busy, the request sent
+    // again without end (Border Break: "INITIALIZING P-ras"), other values fail
+    if key == "keychip.tracedata.restore" {
+        return format!("{key}=3");
+    }
+    // the trace logs stored (the billing's accounting report, ARStepGetTraceData): none, the
+    // count and its `address` (both decimal, amDongle fails the answer without the address)
+    // a trace log sector's erase (after the billing server's traceerase=1): a result digit, 0
+    // done (the request's echoed sector number failed ARStepWaitEraseTraceLog)
+    if key == "keychip.tracedata.sectorerase" {
+        return format!("{key}=0");
+    }
+    if key == "keychip.tracedata.get" {
+        return format!("{key}=0&address=0");
+    }
     if key == "keychip.decrypt"
         && let Some(plain) = known_decrypt(value)
     {
@@ -301,7 +317,7 @@ fn answer(request: &str) -> String {
     // Break Scramble's billing checks in with them): the size here, the bytes on the data channel
     let data = match key {
         "keychip.billing.signaturepubkey" => Some(wal_payload_common::pki::BILLING_PUB),
-        "keychip.billing.cacertification" => Some(wal_payload_common::pki::CA_CERT),
+        "keychip.billing.cacertification" => Some(wal_payload_common::pki::ca_cert()),
         _ => None,
     };
     if let Some(data) = data {

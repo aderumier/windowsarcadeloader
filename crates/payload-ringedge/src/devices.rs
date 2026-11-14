@@ -599,11 +599,20 @@ fn smbus_byte(req: &[u8], out: &mut [u8]) -> usize {
 
 /// The hardware monitor registers of the 2 chips, written by amHm (`0x9C40A010`).
 static MONITOR: Mutex<[[u8; 256]; 2]> = Mutex::new(monitor_defaults());
+/// Bank 5 of the chips' registers 0x50..0x5F (the bank selected in register 0x4E).
+static MONITOR_BANK5: Mutex<[[u8; 16]; 2]> = Mutex::new([[0, 0xBB, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; 2]);
+
+/// The battery's voltage register (16 mV steps): 0xBB, 3.0 V. Border Break Scramble's billing
+/// stops on a battery under 1.5 V (alpb CheckBattery, amHmReadVoltageInternal reading bank 5
+/// register 0x51, or 0x24 on the other chip).
+const VBAT: u8 = 0xBB;
 
 const fn monitor_defaults() -> [[u8; 256]; 2] {
     let mut r = [[0u8; 256]; 2];
     r[0][0x48] = 0x2D;
     r[1][0x48] = 0x2D;
+    r[0][0x24] = VBAT;
+    r[1][0x24] = VBAT;
     r
 }
 
@@ -619,7 +628,15 @@ fn superio(code: u32, req: &[u8], out: &mut [u8]) -> usize {
     let value = match (code, reg) {
         (0x9C40_2004, 0x20) => 0xA0,
         (0x9C40_2004, 0x21) => 0x20,
-        (0x9C40_200C, _) => MONITOR.lock().unwrap()[req[0] as usize & 1][reg as usize],
+        (0x9C40_200C, _) => {
+            let chip = req[0] as usize & 1;
+            let regs = MONITOR.lock().unwrap();
+            if regs[chip][0x4E] & 7 == 5 && (0x50..0x60).contains(&reg) {
+                MONITOR_BANK5.lock().unwrap()[chip][reg as usize - 0x50]
+            } else {
+                regs[chip][reg as usize]
+            }
+        }
         _ => 0,
     };
     if data < n {
@@ -631,7 +648,14 @@ fn superio(code: u32, req: &[u8], out: &mut [u8]) -> usize {
 
 /// `0x9C40A010` `{chip, register, data}`: a hardware monitor register write.
 fn superio_write(req: &[u8]) {
-    MONITOR.lock().unwrap()[req[0] as usize & 1][req[1] as usize] = req[2];
+    let chip = req[0] as usize & 1;
+    let mut regs = MONITOR.lock().unwrap();
+    if regs[chip][0x4E] & 7 == 5 && (0x50..0x60).contains(&req[1]) {
+        MONITOR_BANK5.lock().unwrap()[chip][req[1] as usize - 0x50] = req[2];
+    } else {
+        regs[chip][req[1] as usize] = req[2];
+    }
+    drop(regs);
     smbus_trace("superio write", req, &[]);
 }
 
