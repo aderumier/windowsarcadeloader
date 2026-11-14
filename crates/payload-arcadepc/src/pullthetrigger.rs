@@ -18,7 +18,9 @@
 //! sides, the dump's bezel `WAL_BEZEL` around it). Its picture's place comes from its globals,
 //! built for 1920x1080 (1440x1080 at 240,0): its own measure of the monitor, in its
 //! `CreateWindowExA`, never runs (a 1600x1200 screen showed the 1080p picture, zoomed and cut).
-//! The payload sets them from the screen: its centered 4:3 rectangle.
+//! The payload sets them from the screen: its centered 4:3 rectangle. The library's `glViewport`
+//! hook maps the game's 640x480 window onto that picture, but the game sets its viewport from
+//! its window's client size, the screen's: the payload brings it back to 640x480 first.
 //!
 //! The common crosshair option (`WAL_CROSSHAIR`): the gun's crosshair drawn before the
 //! executable's `SwapBuffers` (the community library's hook of it after, its FREEPLAY over it).
@@ -157,6 +159,36 @@ unsafe extern "system" fn swap_buffers(dc: *mut std::ffi::c_void) -> i32 {
     unsafe { orig(dc) }
 }
 
+static ORIG_VIEWPORT: AtomicUsize = AtomicUsize::new(0);
+
+/// `wglGetCurrentDC`.
+fn current_dc() -> Option<unsafe extern "system" fn() -> windows_sys::Win32::Graphics::Gdi::HDC> {
+    static F: OnceLock<usize> = OnceLock::new();
+    let f = *F.get_or_init(|| unsafe {
+        let module = GetModuleHandleW(windows_sys::w!("opengl32.dll"));
+        windows_sys::Win32::System::LibraryLoader::GetProcAddress(module, c"wglGetCurrentDC".as_ptr().cast()).map_or(0, |p| p as usize)
+    });
+    (f != 0).then(|| unsafe { std::mem::transmute(f) })
+}
+
+/// The game's viewport in its 640x480 window's pixels, as the community library's `glViewport`
+/// hook (a 640x480 rectangle onto its picture) takes it: the game sets its window's client size
+/// (the screen's, the window stretched), which the hook scaled again (1920x1080: 240,0
+/// 4320x2430, the picture zoomed, cut at the top and the right).
+unsafe extern "system" fn viewport(x: i32, y: i32, w: i32, h: i32) {
+    let orig: unsafe extern "system" fn(i32, i32, i32, i32) = unsafe { std::mem::transmute(ORIG_VIEWPORT.load(Ordering::Relaxed)) };
+    let mut r = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+    let hwnd = match current_dc() {
+        Some(get_dc) => unsafe { windows_sys::Win32::Graphics::Gdi::WindowFromDC(get_dc()) },
+        None => std::ptr::null_mut(),
+    };
+    if hwnd.is_null() || unsafe { GetClientRect(hwnd, &mut r) } == 0 || r.right <= 0 || r.bottom <= 0 || (r.right, r.bottom) == (640, 480) {
+        return unsafe { orig(x, y, w, h) };
+    }
+    let (sx, sy) = (|v: i32| v * 640 / r.right, |v: i32| v * 480 / r.bottom);
+    unsafe { orig(sx(x), sy(y), sx(w), sy(h)) }
+}
+
 /// The community library's picture globals (RVAs): the monitor (left, top, right, bottom), its
 /// width and height, the picture's left, width and height; the picture's top apart.
 const PTT_MONITOR: usize = 0x19000;
@@ -187,6 +219,9 @@ pub fn init() {
     let ptt = unsafe { GetModuleHandleW(windows_sys::w!("PttBootTest.dll")) } as usize;
     if ptt != 0 {
         set_picture(ptt);
+        if let Some(orig) = unsafe { wal_payload_common::iat::hook_module(exe, "opengl32.dll", "glViewport", viewport as *const () as usize) } {
+            ORIG_VIEWPORT.store(orig, Ordering::Relaxed);
+        }
     }
     if wal_payload_common::crosshair::init_gl() {
         if let Some(orig) = unsafe { wal_payload_common::iat::hook_module(exe, "gdi32.dll", "SwapBuffers", swap_buffers as *const () as usize) } {
