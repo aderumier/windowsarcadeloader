@@ -12,4 +12,6 @@ crate-type = ["cdylib"]
 [dependencies]
 wal-protocol = { path = "../protocol" }
 wal-payload-common = { path = "../payload-common" }
+aes = "0.8"
+miniz_oxide = "0.8"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Memory", "Win32_System_Registry", "Win32_System_SystemServices", "Win32_System_Threading"] }

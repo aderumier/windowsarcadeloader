@@ -8,11 +8,15 @@
 //! jl` before the call): `WAL_<SYSTEM>_AMLOG_LEVELS=<rva>[=<level>],...` sets them (default
 //! level 1: errors; spaces also separate them, for `WAL_EXE_ENV`).
 //!
+//! `WAL_<SYSTEM>_AMLOG_WIDE=1`: its function names and formats in UTF-16 (KanColle Arcade);
+//! `WAL_<SYSTEM>_AMLOG_NARROW=<rva>` (64-bit): a second log function of the same arguments with
+//! narrow strings (KanColle Arcade's touch panel library).
+//!
 //! `WAL_<SYSTEM>_GAMELOG=<rva>`: the same for the game's own printf-like log function
 //! `(const char *format, ...)` (Sonic Dash Extreme: its managers' init and state messages).
 //!
-//! `WAL_<SYSTEM>_ALWLOG=<rva>` (32-bit): the ALL.Net library's log function `(const char *tag,
-//! int line, const char *function, const char *format, ...)` (crossbeats REV.: its messages
+//! `WAL_<SYSTEM>_ALWLOG=<rva>`: the ALL.Net library's log function `(const char *tag,
+//! int line, const char *function, const char *format, ...)` (crossbeats REV., KanColle Arcade: its messages
 //! otherwise go to the C runtime's stderr, when its level and category mask allow them).
 
 use std::ffi::{c_char, c_void};
@@ -23,6 +27,18 @@ use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect}
 
 unsafe extern "C" {
     fn _vsnprintf(buf: *mut c_char, size: usize, fmt: *const c_char, args: *const c_void) -> i32;
+    fn _vsnwprintf(buf: *mut u16, size: usize, fmt: *const u16, args: *const c_void) -> i32;
+}
+
+/// `WAL_<SYSTEM>_AMLOG_WIDE=1`: amLib's strings in UTF-16 (KanColle Arcade's amLib).
+static WIDE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn wide_str(p: *const u16) -> String {
+    if p.is_null() {
+        return "?".into();
+    }
+    let len = (0..).take_while(|&i| unsafe { *p.add(i) } != 0).count();
+    String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(p, len) })
 }
 
 // (function, line, format, ...): each `push [esp + 16]` takes the next argument back to front.
@@ -44,6 +60,27 @@ core::arch::global_asm!(
 
 unsafe extern "C" {
     fn common_amlog_stub();
+}
+
+// `WAL_<SYSTEM>_AMLOG_NARROW` (64-bit): the same arguments, narrow strings whatever
+// `_AMLOG_WIDE` says.
+#[cfg(target_arch = "x86_64")]
+core::arch::global_asm!(
+    ".globl {name}",
+    "{name}:",
+    "mov [rsp + 32], r9",
+    "sub rsp, 40",
+    "lea r9, [rsp + 72]",
+    "call {log}",
+    "add rsp, 40",
+    "ret",
+    name = sym common_amlog_narrow_stub,
+    log = sym alwlog_va,
+);
+
+#[cfg(target_arch = "x86_64")]
+unsafe extern "C" {
+    fn common_amlog_narrow_stub();
 }
 
 // 64-bit: the first variable argument (r9) stored in its home slot, the others follow it on
@@ -115,9 +152,34 @@ core::arch::global_asm!(
     log = sym amlog_va,
 );
 
-#[cfg(target_arch = "x86")]
+// 64-bit: tag (rcx) dropped, line, function (r8), format (r9), the arguments on the stack.
+#[cfg(target_arch = "x86_64")]
+core::arch::global_asm!(
+    ".globl {name}",
+    "{name}:",
+    "mov rcx, r8",
+    "mov r8, r9",
+    "lea r9, [rsp + 40]",
+    "jmp {log}",
+    name = sym common_alwlog_stub,
+    log = sym alwlog_va,
+);
+
 unsafe extern "C" {
     fn common_alwlog_stub();
+}
+
+/// The ALL.Net library's messages: narrow strings (amLib's may be wide).
+#[cfg(target_arch = "x86_64")]
+extern "C" fn alwlog_va(function: *const c_char, line: u32, fmt: *const c_char, args: *const c_void) {
+    if fmt.is_null() {
+        return;
+    }
+    let mut buf = [0 as c_char; 1024];
+    unsafe { _vsnprintf(buf.as_mut_ptr(), buf.len() - 1, fmt, args) };
+    let msg = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr()) }.to_string_lossy();
+    let function = if function.is_null() { "?".into() } else { unsafe { std::ffi::CStr::from_ptr(function) }.to_string_lossy() };
+    log!("alw: {function}({line}): {}", msg.trim_end());
 }
 
 extern "C" fn gamelog_va(fmt: *const c_char, args: *const c_void) {
@@ -131,19 +193,37 @@ extern "C" fn gamelog_va(fmt: *const c_char, args: *const c_void) {
 }
 
 /// Replaces the function at `base + rva` by a jump to `stub`.
+/// 64-bit: `mov rax, stub; jmp rax` when the stub is beyond a relative jump's reach (the
+/// payload loaded far from a large executable: KanColle Arcade's).
 unsafe fn jump_to(base: usize, rva: usize, stub: usize) {
     let at = base + rva;
     let mut old = 0;
+    let delta = stub.wrapping_sub(at + 5) as isize;
+    let near = delta == delta as i32 as isize;
+    let size = if near { 5 } else { 12 };
     unsafe {
-        VirtualProtect(at as *const c_void, 5, PAGE_EXECUTE_READWRITE, &mut old);
-        *(at as *mut u8) = 0xE9;
-        std::ptr::write_unaligned((at + 1) as *mut i32, stub.wrapping_sub(at + 5) as i32);
-        VirtualProtect(at as *const c_void, 5, old, &mut old);
+        VirtualProtect(at as *const c_void, size, PAGE_EXECUTE_READWRITE, &mut old);
+        if near {
+            *(at as *mut u8) = 0xE9;
+            std::ptr::write_unaligned((at + 1) as *mut i32, delta as i32);
+        } else {
+            std::ptr::copy_nonoverlapping([0x48u8, 0xB8].as_ptr(), at as *mut u8, 2);
+            std::ptr::write_unaligned((at + 2) as *mut u64, stub as u64);
+            std::ptr::copy_nonoverlapping([0xFFu8, 0xE0].as_ptr(), (at + 10) as *mut u8, 2);
+        }
+        VirtualProtect(at as *const c_void, size, old, &mut old);
     }
 }
 
 extern "C" fn amlog_va(function: *const c_char, line: u32, fmt: *const c_char, args: *const c_void) {
     if fmt.is_null() {
+        return;
+    }
+    if WIDE.load(std::sync::atomic::Ordering::Relaxed) {
+        let mut buf = [0u16; 1024];
+        unsafe { _vsnwprintf(buf.as_mut_ptr(), buf.len() - 1, fmt.cast(), args) };
+        let msg = wide_str(buf.as_ptr());
+        log!("amlib: {}({line}): {}", wide_str(function.cast()), msg.trim_end());
         return;
     }
     let mut buf = [0 as c_char; 1024];
@@ -165,12 +245,17 @@ pub fn init(system: &str) {
         unsafe { jump_to(base, rva, common_gamelog_stub as *const () as usize) };
         log!("amlog: game log function at +{rva:#x}");
     }
-    #[cfg(target_arch = "x86")]
     if let Some(rva) = var("ALWLOG").and_then(|v| parse_hex(&v)) {
         unsafe { jump_to(base, rva, common_alwlog_stub as *const () as usize) };
         log!("amlog: ALL.Net library log function at +{rva:#x}");
     }
+    #[cfg(target_arch = "x86_64")]
+    if let Some(rva) = var("AMLOG_NARROW").and_then(|v| parse_hex(&v)) {
+        unsafe { jump_to(base, rva, common_amlog_narrow_stub as *const () as usize) };
+        log!("amlog: second amLib log function (narrow strings) at +{rva:#x}");
+    }
     let Some(rva) = var("AMLOG").and_then(|v| parse_hex(&v)) else { return };
+    WIDE.store(var("AMLOG_WIDE").is_some_and(|v| v.trim() == "1"), std::sync::atomic::Ordering::Relaxed);
     unsafe { jump_to(base, rva, common_amlog_stub as *const () as usize) };
     let levels = var("AMLOG_LEVELS").unwrap_or_default();
     let mut count = 0;

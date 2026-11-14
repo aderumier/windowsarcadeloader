@@ -7,7 +7,7 @@
 //! profile's `background` list starts amdaemon first). In amdaemon (`daemon.rs`) it writes
 //! the cabinet's system registry values, emulates the keychip driver, the hardware monitor and
 //! the "Type 4" USB I/O board (`io4.rs`, fed by the launcher's sticks). In the game it filters
-//! the real keyboard and pads and answers the LED board on COM1 (`led.rs`).
+//! the real keyboard and pads and answers the LED board on COM1 (payload-common `led.rs`).
 //!
 //! Payload options (profile `env`):
 //! - `WAL_ALLS_GAME_ID` (4 letters), `WAL_ALLS_PLATFORM_ID` (default `ACA1`),
@@ -29,7 +29,7 @@
 //!   `hkb`: Chrono Regalia's touch screen as the mouse, its game server, `hkb.rs`; `idz`:
 //!   Initial D ARCADE STAGE Zero, a Nu cabinet: the force feedback board on COM1, the 837-15070
 //!   LED board on COM11, the game server, `idz.rs`)
-//! - `WAL_ALLS_BILLING=1`: ALL.Net's billing server for amdaemon's accounting (`billing.rs`)
+//! - `WAL_ALLS_BILLING=1`: ALL.Net's billing server for amdaemon's accounting (payload-common `billing.rs`)
 //! - `WAL_ALLS_CHILDREN`: programs the game starts, started with the payload (`child.rs`)
 //! - `WAL_ALLS_IDZ_ENGLISH=1`: Initial D ARCADE STAGE Zero in English (`idzenglish.rs`)
 //! - `WAL_ALLS_INI_FILE`: a settings file read as an edited copy (`inifile.rs`)
@@ -58,7 +58,7 @@
 //!   `aimeReaderHost.exe`
 //! - `WAL_ALLS_BOARD=chusan`: CHUNITHM SUPERSTAR (amdaemon, IO4: the air sensors; the game:
 //!   slider, LED boards; the title server in amdaemon's ALL.Net server, `chuni.rs`)
-//! - `WAL_ALLS_LED_BOARD`: the LED boards' identity (`led.rs`)
+//! - `WAL_ALLS_LED_BOARD`: the LED boards' identity (payload-common `led.rs`)
 //! - `WAL_ALLS_AMLOG`, `WAL_ALLS_AMLOG_LEVELS`: the game's linked amLib's log (CHUNITHM;
 //!   payload-common's `amlog`)
 //! - `WAL_ALLS_DAEMON_PATCHES`: amdaemon's patches (`<rva>:<hex bytes>,...`)
@@ -69,7 +69,6 @@
 
 mod aime;
 mod allnet;
-mod billing;
 mod child;
 mod chuni;
 mod cts;
@@ -85,7 +84,6 @@ mod gs;
 mod gunsensor;
 mod hkb;
 mod hotd;
-mod icf;
 mod idac;
 mod idz;
 mod idzenglish;
@@ -95,9 +93,7 @@ mod indrun;
 mod indstate;
 mod inifile;
 mod io4;
-mod led;
 mod netenv;
-mod pki;
 mod registry;
 mod stat;
 mod sysfile;
@@ -189,7 +185,7 @@ fn start() {
                 gs::init();
                 // COM1: the force feedback board, COM2 the LED board, COM20 the dashboard
                 ffb::init();
-                led::init("COM2");
+                wal_payload_common::led::init("COM2");
                 dashboard::init();
             } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "idac") {
                 // the game server (Aime card players), the cabinet's Windows (segatools' indrun)
@@ -200,7 +196,7 @@ fn start() {
                 // COM1: the force feedback board (Sega World Drivers Championship's), COM2 the
                 // 837-15070 LED board
                 ffb::init();
-                led::init_15070("COM2");
+                wal_payload_common::led::init_15070("COM2");
             } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "idz") {
                 // Initial D ARCADE STAGE Zero (segatools' idzhook): its game server (Aime card
                 // players), COM1 the force feedback board (Sega World Drivers Championship's),
@@ -216,7 +212,7 @@ fn start() {
                 udp::init_with_echo();
                 gs::init_plain();
                 ffb::init();
-                led::init_15070("COM11");
+                wal_payload_common::led::init_15070("COM11");
             } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "hkb") {
                 // Chrono Regalia: the touch screen (the mouse), the touch panel and LED board
                 // off in its configuration; the game server (Aime card players), Mono's clock
@@ -227,7 +223,7 @@ fn start() {
                 chuni::init_chusan();
             } else {
                 // the LED board's port (Mario & Sonic at Rio 2016: COM12)
-                led::init(std::env::var("WAL_ALLS_LED_PORT").as_deref().map_or("COM1", str::trim));
+                wal_payload_common::led::init(std::env::var("WAL_ALLS_LED_PORT").as_deref().map_or("COM1", str::trim));
             }
             if std::env::var("WAL_ALLS_CTS").is_ok_and(|v| v.trim() == "1") {
                 cts::init();

@@ -137,6 +137,12 @@ fn orig<F: Copy>(idx: usize) -> F {
 pub(crate) fn init() {
     let cfg = config();
     let _ = test_exe();
+    // the keychip's billing type (`WAL_SEGANU_BILLING_TYPE`, default 0): the near-full value's
+    // high 16 bits (KanColle Arcade's ALL.Net library: 1, else error 8113, "ALL.Net System error
+    // (MODE)")
+    if let Some(kind) = std::env::var("WAL_SEGANU_BILLING_TYPE").ok().and_then(|v| v.trim().parse::<u32>().ok()) {
+        KEYCHIP.lock().unwrap().nearfull = (kind << 16) + 512;
+    }
     let _ = std::fs::create_dir_all(&cfg.save);
     for (path, size) in files() {
         match std::fs::OpenOptions::new().create(true).truncate(false).read(true).write(true).open(&path) {
@@ -165,7 +171,53 @@ pub(crate) fn init() {
             None => log!("devices: {dll}!{name} not imported"),
         }
     }
+    // free play kept in the credit records the game writes (`WAL_SEGANU_FREEPLAY_WRITES=1`)
+    if std::env::var("WAL_SEGANU_FREEPLAY_WRITES").is_ok_and(|v| v.trim() == "1") {
+        if let Some(free_play) = wal_payload_common::free_play("WAL_SEGANU_FREEPLAY") {
+            FREE_PLAY_WRITES.store(1 + free_play as usize, Ordering::Relaxed);
+            match unsafe { iat::hook("kernel32.dll", "WriteFile", write_file as *const () as usize) } {
+                Some(o) => ORIG_WRITE.store(o, Ordering::Relaxed),
+                None => log!("devices: kernel32.dll!WriteFile not imported"),
+            }
+        }
+    }
     log!("devices: AMEX board, keychip and system values; EEPROM and SRAM in {} (DIP switches {:02X})", cfg.save, cfg.dip_switches);
+}
+
+/// `WAL_SEGANU_FREEPLAY_WRITES`: 0 off, else 1 + the free play setting.
+static FREE_PLAY_WRITES: AtomicUsize = AtomicUsize::new(0);
+static ORIG_WRITE: AtomicUsize = AtomicUsize::new(0);
+
+/// The game's EEPROM writes: a whole credit record written (KanColle Arcade writes it from its
+/// own coin settings, free play off) gets the free play setting, its CRC-32 made again, in the
+/// written buffer itself (amLib's record in memory: its credit settings in use).
+unsafe extern "system" fn write_file(h: P, buf: *const u8, len: u32, written: *mut u32, ov: *mut c_void) -> i32 {
+    let orig: unsafe extern "system" fn(P, *const u8, u32, *mut u32, *mut c_void) -> i32 = unsafe { std::mem::transmute(ORIG_WRITE.load(Ordering::Relaxed)) };
+    let setting = FREE_PLAY_WRITES.load(Ordering::Relaxed);
+    if setting == 0 || h as usize != EEPROM_HANDLE.load(Ordering::Relaxed) || buf.is_null() || ov.is_null() {
+        return unsafe { orig(h, buf, len, written, ov) };
+    }
+    // OVERLAPPED: Internal, InternalHigh, Offset, OffsetHigh
+    let base = std::mem::size_of::<usize>() * 2;
+    let offset = unsafe { *(ov.cast::<u8>().add(base) as *const u32) } as u64 | (unsafe { *(ov.cast::<u8>().add(base + 4) as *const u32) } as u64) << 32;
+    let data = unsafe { std::slice::from_raw_parts_mut(buf.cast_mut(), len as usize) };
+    let (at, copy, size) = CREDIT_RECORD;
+    let free_play = (setting - 1) as u8;
+    let mut changed = false;
+    for place in [at, copy] {
+        let Some(start) = place.checked_sub(offset).map(|s| s as usize) else { continue };
+        let Some(record) = data.get_mut(start..start + size) else { continue };
+        if record[CREDIT_FREE_PLAY] != free_play {
+            record[CREDIT_FREE_PLAY] = free_play;
+            let crc = crc32(&record[4..]);
+            record[..4].copy_from_slice(&crc.to_le_bytes());
+            changed = true;
+        }
+    }
+    if changed {
+        log!("devices: free play {} in the game's credit record write", free_play != 0);
+    }
+    unsafe { orig(h, buf, len, written, ov) }
 }
 
 /// amLib's credit record in the EEPROM (record 1): its place, copy, size and free play byte.
@@ -577,6 +629,12 @@ fn put_u32s(out: &mut [u8], values: &[u32]) -> usize {
     n
 }
 
+fn put_bytes(out: &mut [u8], data: &[u8]) -> usize {
+    let n = data.len().min(out.len());
+    out[..n].copy_from_slice(&data[..n]);
+    n
+}
+
 /// The keychip's play counters (a fresh keychip each launch).
 struct Keychip {
     play_count: u32,
@@ -636,6 +694,9 @@ fn keychip_ioctl(code: u32, input: &[u8], out: &mut [u8]) -> Option<usize> {
         }
         0x866 => put_u32s(out, &[k.log.len() as u32, k.log_tail]),
         0x867 => put_u32s(out, &[(10 * 4096 - k.log.len()) as u32]),
+        // the billing CA certificate and public key (segatools' dummy PKI, DER)
+        0x871 => put_bytes(out, wal_payload_common::pki::CA_CERT),
+        0x872 => put_bytes(out, wal_payload_common::pki::BILLING_PUB),
         0x881 => put_u32s(out, &[k.play_limit]),
         0x882 => {
             k.play_limit = u32_at(input, 0);

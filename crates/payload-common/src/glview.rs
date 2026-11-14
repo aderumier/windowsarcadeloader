@@ -191,11 +191,36 @@ unsafe extern "system" fn swap_buffers(dc: P) -> i32 {
     result
 }
 
-/// Before a swap: the corner scaled, or the bars cleared.
+/// [`crosshair`] called: the crosshairs drawn over each frame.
+static CROSSHAIR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// An OpenGL game's crosshairs (`WAL_CROSSHAIR`, KanColle Arcade's touch pointer): drawn over
+/// the window's back buffer before each swap, after the corner's scaling. Whether they are on.
+pub fn crosshair() -> bool {
+    if !crate::crosshair::init_gl() {
+        return false;
+    }
+    CROSSHAIR.store(true, Ordering::Relaxed);
+    if ORIG_SWAP.load(Ordering::Relaxed) == 0 {
+        crate::late_hooks::hook("gdi32.dll", "SwapBuffers", swap_buffers as *const () as usize, &ORIG_SWAP);
+        crate::late_hooks::hook("kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize, &ORIG_GET_PROC);
+    }
+    true
+}
+
+/// Before a swap: the corner scaled, or the bars cleared; the crosshairs over it.
 unsafe fn before_swap(dc: P) {
     if !gl_ready() {
         return;
     }
+    unsafe { fit(dc) };
+    if CROSSHAIR.load(Ordering::Relaxed) {
+        unsafe { crate::crosshair::draw_gl_window(WindowFromDC(dc).cast()) };
+    }
+}
+
+/// The corner scaled, or the bars cleared.
+unsafe fn fit(dc: P) {
     if CORNER[0].load(Ordering::Relaxed) > 0 {
         unsafe { corner(dc) };
         return;

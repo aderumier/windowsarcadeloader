@@ -257,8 +257,8 @@ fn keychip_ioctl(code: u32, input: &[u8], out: &mut [u8]) -> Option<usize> {
             0
         }
         0x893 => put_u32s(out, &[10, 4096]),
-        0x871 => put_bytes(out, crate::pki::CA_CERT),
-        0x872 => put_bytes(out, crate::pki::BILLING_PUB),
+        0x871 => put_bytes(out, wal_payload_common::pki::CA_CERT),
+        0x872 => put_bytes(out, wal_payload_common::pki::BILLING_PUB),
         _ => return None,
     })
 }
@@ -395,7 +395,7 @@ pub(crate) fn init() {
     if let Some(kind) = std::env::var("WAL_ALLS_BILLING_TYPE").ok().and_then(|v| v.trim().parse::<u32>().ok()) {
         KEYCHIP_STATE.lock().unwrap().nearfull = (kind << 16) + 512;
     }
-    crate::icf::ensure(&cabinet);
+    wal_payload_common::icf::ensure(&cabinet.game_id, &cabinet.platform_id, wal_payload_common::icf::GAME);
     crate::sysfile::apply();
     crate::netenv::init(cabinet.subnet);
     if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chusan") {

@@ -3,7 +3,7 @@
 //! system's devices (`daemon.rs`: keychip, AMEX board, ALL.Net) in the game's own process, and
 //! the cabinet's boards as segatools' carolhook (public domain) emulates them:
 //!
-//! - COM1: the touch screen's 3M MicroTouch controller: text commands (`\x01` command `\r`,
+//! - COM1: the touch screen's 3M MicroTouch controller (payload-common `touch3m.rs`): text commands (`\x01` command `\r`,
 //!   answered `\x010\r`), then a stream of reports (10 touches, 6 bytes each: status 0x80 and
 //!   0x40 while touching, X and Y in 7-bit halves over 0..16383, Y from the bottom, the touch's
 //!   id). The pen: the launcher's touch surface (a touchscreen, the touchpad), else
@@ -11,7 +11,7 @@
 //!   (the common crosshair option, `WAL_CROSSHAIR_AXES=touch`).
 //! - Free play: amLib's credit record (as CHUNITHM's, `chuni.rs`: `WAL_ALLS_FREEPLAY`, else the
 //!   common `WAL_FREEPLAY`), set in the backup at start and in the game's writes.
-//! - COM11: the 837-15070 LED board (`led.rs`).
+//! - COM11: the 837-15070 LED board (payload-common `led.rs`).
 //! - The game's servers (its server list `servers.cgi`, database, matching: WinINet requests to
 //!   ALL.Net's uri, the virtual router's port 80): no server, each request answered at once
 //!   with an empty `200 OK`, instead of a connection timeout to an address absent from the
@@ -25,16 +25,15 @@
 //!   exit code 0 (up to date): `cmd /c exit 0` is started instead.
 
 use std::ffi::c_void;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 
-use wal_payload_common::{gun, iat, log, serial};
+use wal_payload_common::{iat, log, serial};
 use wal_protocol::button;
 
 pub(crate) fn init() {
     free_play();
-    serial::install_streaming("COM1", touch_command, touch_report);
-    crate::led::init_15070("COM11");
+    wal_payload_common::touch3m::init("COM1");
+    wal_payload_common::led::init_15070("COM11");
     serial::install("COM12", control_board);
     wal_payload_common::crosshair::init();
     std::thread::spawn(empty_server);
@@ -82,56 +81,6 @@ fn free_play() {
 }
 
 // ── COM1: the touch controller ──────────────────────────────────────────────────────────
-
-/// A command (`\x01` name `\r`): acknowledged; the name, identity and unit type asked.
-fn touch_command(packet: &[u8]) -> Vec<u8> {
-    let cmd = packet.strip_prefix(&[1]).unwrap_or(packet);
-    let cmd = cmd.split(|&b| b == b'\r').next().unwrap_or(&[]);
-    match cmd {
-        b"NM" | b"OI" => b"\x01AD1000\r".to_vec(),
-        b"UT" => b"\x01AD****00\r".to_vec(),
-        _ => b"\x010\r".to_vec(),
-    }
-}
-
-/// The last touch's position (window pixels), kept for its release report.
-static LAST_TOUCH: Mutex<Option<(u16, u16)>> = Mutex::new(None);
-
-/// One report of the stream (10 touches, the pen in the first), when the game reads the port.
-fn touch_report() -> Vec<u8> {
-    let pen = pen_position();
-    let mut report = [0u8; 60];
-    for touch in report.chunks_mut(6) {
-        touch[0] = 0x80;
-    }
-    let mut last = LAST_TOUCH.lock().unwrap();
-    let (status, at) = match pen {
-        Some(at) => (0xC0, Some(at)),
-        None => (0x80, last.take()),
-    };
-    if let Some((x, y)) = at {
-        report[..6].copy_from_slice(&[status, (x & 0x7F) as u8, (x >> 7 & 0x7F) as u8, (y & 0x7F) as u8, (y >> 7 & 0x7F) as u8, 1]);
-    }
-    if pen.is_some() {
-        *last = pen;
-    }
-    report.to_vec()
-}
-
-/// The controller's coordinates: 14 bits, Y from the bottom (pixels, 0..1919 and 0..1079,
-/// touched only the screen's bottom left corner).
-const RANGE: f32 = 16383.0;
-
-/// Where the pen touches, in the controller's coordinates (the touch surface's or the gun's
-/// place in the game's picture, whatever the window's size).
-fn pen_position() -> Option<(u16, u16)> {
-    let (u, v) = match wal_payload_common::touches().first() {
-        Some(&(x, y)) => (x as f32 / 65535.0, y as f32 / 65535.0),
-        None if wal_payload_common::input(0).pressed(button::B1) => gun::gun_in_picture()?,
-        None => return None,
-    };
-    Some(((u.clamp(0.0, 1.0) * RANGE) as u16, ((1.0 - v.clamp(0.0, 1.0)) * RANGE) as u16))
-}
 
 // ── COM12: the pen controller board ─────────────────────────────────────────────────────
 

@@ -260,6 +260,14 @@ pub fn set_switches_hook(hook: fn(&mut [Switches])) {
     let _ = SWITCHES_HOOK.set(hook);
 }
 
+static ANALOG_HOOK: std::sync::OnceLock<fn(usize, u16) -> u16> = std::sync::OnceLock::new();
+
+/// A game's own analog channel values over the board's (KanColle Arcade's telegraph), set at
+/// each analog read: channel, the board's value -> the value read.
+pub fn set_analog_hook(hook: fn(usize, u16) -> u16) {
+    let _ = ANALOG_HOOK.set(hook);
+}
+
 /// `WAL_TYPEX_JVS_LAYOUT=levers`: Mario & Sonic at the Rio 2016 Olympic Games' cabinet, one
 /// player holding two levers (player 1's and player 2's switches), each read by 8 photo sensors
 /// around it, one per direction ([`LEVER_SENSORS`]). The left lever is player 1's directions
@@ -665,6 +673,12 @@ fn analog(board: &Board, sticks: &[StickState; 4], channel: usize) -> u16 {
     value & 0xFFC0
 }
 
+/// [`analog`], or the game's own value ([`set_analog_hook`]).
+fn analog_read(board: &Board, sticks: &[StickState; 4], channel: usize) -> u16 {
+    let value = analog(board, sticks, channel);
+    ANALOG_HOOK.get().map_or(value, |hook| hook(channel, value) & 0xFFC0)
+}
+
 /// The touch panel's raw position (x, y) of player 1's pointer: its place in the picture,
 /// bilinear between the panel's raw corners.
 fn touch(c: &[f32; 8], stick: &StickState) -> (u16, u16) {
@@ -968,7 +982,7 @@ fn process(packet: &[u8]) -> Vec<u8> {
             0x22 => {
                 // analog channels: fixed values (the Haunted Museum games read their volume
                 // knob on channel 0, 0: silent) or the players' axes
-                (2, (0..arg(1).max(1) as usize).flat_map(|c| analog(board, &sticks, c).to_be_bytes()).collect())
+                (2, (0..arg(1).max(1) as usize).flat_map(|c| analog_read(board, &sticks, c).to_be_bytes()).collect())
             }
             0x26 => (2, vec![0; arg(1) as usize]),
             0x2E => (2, vec![0; 4]),

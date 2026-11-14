@@ -22,7 +22,6 @@
 mod amlog;
 mod card;
 mod cg;
-mod comports;
 mod devices;
 mod diva;
 mod divaserver;
@@ -100,7 +99,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         diva::init();
         elo::init();
         // the serial ports the SetupDi enumeration lists (WAL_RINGEDGE_COMPORTS)
-        comports::init();
+        wal_payload_common::comports::init();
         // the touch pointer of the touch screen games (the common crosshair option, `WAL_CROSSHAIR`)
         wal_payload_common::crosshair::init();
         pcp::start();

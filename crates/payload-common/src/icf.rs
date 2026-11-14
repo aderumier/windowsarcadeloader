@@ -2,7 +2,8 @@
 //! installed system and game versions, and the game's id amdaemon reads it from. Dumps without
 //! them (House of the Dead: Scarlet Dawn) get one written before amdaemon starts: without it
 //! the game id stays unset ("Game ID is invalid", "Disconnect dongle") and the game stops at
-//! its first request.
+//! its first request. Nu games with amLib linked in read it themselves (KanColle Arcade: its
+//! network delivery, amGfetcher, never initialized without it).
 //!
 //! AES-128-CBC (no padding: 0x40-byte entries), its key and IV built by amdaemon from three
 //! obfuscated 32-byte tables (`key[i] = A[i] ^ B[i+10] ^ C[i+20]`, `iv[i] = A[i+16] ^ B[i+26]
@@ -14,16 +15,21 @@
 
 use aes::Aes128;
 use aes::cipher::{BlockEncrypt, KeyInit, generic_array::GenericArray};
-use wal_payload_common::log;
-
-use crate::registry::Cabinet;
+use crate::log;
 
 const KEY: [u8; 16] = [0x09, 0xca, 0x5e, 0xfd, 0x30, 0xc9, 0xaa, 0xef, 0x38, 0x04, 0xd0, 0xa7, 0xe3, 0xfa, 0x71, 0x20];
 const IV: [u8; 16] = [0xb1, 0x55, 0xc2, 0x2c, 0x2e, 0x7f, 0x04, 0x91, 0xfa, 0x7f, 0x0f, 0xdc, 0x21, 0x7a, 0xff, 0x90];
 
-/// The system version written (0040.01.01, as other ALLS images) and the game's (1.00.00).
+/// The system version written (0040.01.01, as other ALLS images); the game's default (1.00.00).
 const SYSTEM: [u8; 4] = [1, 1, 40, 0];
-const GAME: [u8; 4] = [0, 0, 1, 0];
+pub const GAME: [u8; 4] = [0, 0, 1, 0];
+
+/// A version `major.minor.build` (`7.40.00`) as written: build, minor, major (u16).
+pub fn version(text: &str) -> Option<[u8; 4]> {
+    let mut parts = text.trim().split('.').map(|p| p.parse::<u16>().ok());
+    let (major, minor, build) = (parts.next()??, parts.next()??, parts.next().flatten().unwrap_or(0));
+    Some([build as u8, minor as u8, major as u8, (major >> 8) as u8])
+}
 /// 2018-01-01 00:00:00
 const DATE: [u8; 8] = [0xe2, 0x07, 1, 1, 0, 0, 0, 0];
 
@@ -49,14 +55,14 @@ fn entry(kind: u32, version: [u8; 4]) -> [u8; 0x40] {
 }
 
 /// The plain image information: the system, the game.
-fn plain(cab: &Cabinet) -> Vec<u8> {
-    let entries = [entry(0, SYSTEM), entry(1, GAME)];
+fn plain(game_id: &str, platform_id: &str, game: [u8; 4]) -> Vec<u8> {
+    let entries = [entry(0, SYSTEM), entry(1, game)];
     let mut d = vec![0u8; 0x40];
     let size = (0x40 + entries.len() * 0x40) as u32;
     d[4..8].copy_from_slice(&size.to_le_bytes());
     d[0x10..0x18].copy_from_slice(&(entries.len() as u64).to_le_bytes());
-    d[0x18..0x1c].iter_mut().zip(cab.game_id.bytes()).for_each(|(d, s)| *d = s);
-    d[0x1c..0x1f].iter_mut().zip(cab.platform_id.bytes()).for_each(|(d, s)| *d = s);
+    d[0x18..0x1c].iter_mut().zip(game_id.bytes()).for_each(|(d, s)| *d = s);
+    d[0x1c..0x1f].iter_mut().zip(platform_id.bytes()).for_each(|(d, s)| *d = s);
     let sums = entries.iter().fold(0, |x, e| x ^ crc32(e));
     d[0x20..0x24].copy_from_slice(&sums.to_le_bytes());
     for e in &entries {
@@ -83,17 +89,17 @@ fn encrypt(data: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Writes `E:\ICF1` and `E:\ICF2` when the dump has none.
-pub(crate) fn ensure(cab: &Cabinet) {
+/// Writes `E:\ICF1` and `E:\ICF2` when the dump has none (`game`: the game's version).
+pub fn ensure(game_id: &str, platform_id: &str, game: [u8; 4]) {
     if std::path::Path::new("E:\\ICF1").exists() {
         return;
     }
-    let icf = encrypt(&plain(cab));
+    let icf = encrypt(&plain(game_id, platform_id, game));
     for path in ["E:\\ICF1", "E:\\ICF2"] {
         if let Err(e) = std::fs::write(path, &icf) {
-            log!("alls: {path}: {e}");
+            log!("icf: {path}: {e}");
             return;
         }
     }
-    log!("alls: E:\\ICF1, ICF2 written (game {}, platform {})", cab.game_id, cab.platform_id);
+    log!("icf: E:\\ICF1, ICF2 written (game {game_id}, platform {platform_id})");
 }

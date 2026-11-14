@@ -2,7 +2,7 @@
 //! (its WinHTTP and socket connections to ALL.Net's hosts redirected there), and the cabinet's
 //! other servers behind the virtual router's ports ([`moved`]): the game server (`gs.rs`),
 //! AimeDB (`wal_payload_common::aimedb`), Initial D ARCADE STAGE Zero's (`idz.rs`), the billing server
-//! (`billing.rs`).
+//! (`wal_payload_common::billing`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -14,7 +14,7 @@ static BILLING: AtomicBool = AtomicBool::new(false);
 /// The billing server in this process (a game without amdaemon checks in itself).
 pub(crate) fn serve_billing() {
     BILLING.store(true, Ordering::Relaxed);
-    crate::billing::init();
+    wal_payload_common::billing::init();
 }
 
 /// The game's process: its connections to the router's port 80 go to its game server (`gs.rs`).
@@ -42,7 +42,7 @@ fn moved(a: &[u8; 16]) -> Option<[u8; 16]> {
         // Initial D ARCADE STAGE Zero's game server (`idz.rs`)
         10000 if IN_GAME.load(Ordering::Relaxed) => crate::idz::port(),
         // the billing server (a game checking in itself: CHUNITHM)
-        8443 if BILLING.load(Ordering::Relaxed) => crate::billing::port(),
+        8443 if BILLING.load(Ordering::Relaxed) => wal_payload_common::billing::port(),
         other => {
             log!("allnet: connection to the router's port {other}");
             return None;

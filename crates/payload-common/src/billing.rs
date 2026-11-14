@@ -1,13 +1,13 @@
 //! ALL.Net's billing server (`ib.naominet.jp:8443`), reached by a game whose amLib checks in
-//! itself (CHUNITHM; on ALLS, amdaemon): its socket to the router's port 8443 goes to this
-//! server, 127.0.0.1:`WAL_PORT`+105 (`allnet.rs`). The answers follow ARTEMiS's
+//! itself (CHUNITHM, KanColle Arcade; on ALLS, amdaemon): its socket to the router's port 8443
+//! goes to this server, 127.0.0.1:`WAL_PORT`+105 (`allnet.rs`). The answers follow ARTEMiS's
 //! `core/allnet.py` billing servlet (WTFPL).
 //!
 //! TLS: the game's OpenSSL 1.0.2 offers RSA key exchange only (`TLS_RSA_WITH_AES_*_CBC_SHA`,
 //! which TLS libraries no longer serve): a TLS server of these suites alone (1.2, and 1.0 / 1.1
 //! for the clients offering no more: CHUNITHM PLUS's OpenSSL), with
 //! segatools' dummy PKI (public domain): the certificate `ib.naominet.jp`, signed by the CA the
-//! keychip gives the game (`pki.rs`), and its RSA key.
+//! keychip gives the game (payload-common `pki.rs`), and its RSA key.
 //!
 //! A request: a POST of raw-deflated lines (`application/octet-stream`), each a form; the first
 //! the cabinet's (`keychipid`, `playcnt`, `playlimit`, `nearfull`, `billingtype`, `requestno`,
@@ -21,9 +21,9 @@ use std::net::{TcpListener, TcpStream};
 
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit, generic_array::GenericArray};
 use sha2::{Digest, Sha256};
-use wal_payload_common::log;
+use crate::log;
 
-pub(crate) fn port() -> u16 {
+pub fn port() -> u16 {
     std::env::var("WAL_PORT").ok().and_then(|p| p.parse::<u16>().ok()).unwrap_or(wal_protocol::DEFAULT_PORT) + 105
 }
 
@@ -559,8 +559,17 @@ fn serve() {
     }
 }
 
-pub(crate) fn init() {
-    std::thread::spawn(serve);
+static RUNNING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The server running in this process.
+pub fn running() -> bool {
+    RUNNING.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub fn init() {
+    if !RUNNING.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        std::thread::spawn(serve);
+    }
 }
 
 // segatools' `pki/server.pem` (DER) and the RSA keys' modulus and private exponent (big

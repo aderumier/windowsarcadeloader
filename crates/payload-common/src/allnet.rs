@@ -168,7 +168,7 @@ fn handle(stream: &mut TcpStream) -> std::io::Result<()> {
     let body = &data[header_end..(header_end + length).min(data.len())];
     let path = head.split_whitespace().nth(1).unwrap_or("").to_string();
     if TITLE.get().is_none() && !path.contains("/sys/servlet/") {
-        log!("allnet: {path}: no title server ({} bytes)", body.len());
+        log!("allnet: {path}: no title server ({} bytes: {}...)", body.len(), body.iter().take(48).map(|b| format!("{b:02x}")).collect::<String>());
     }
     if let Some(title) = TITLE.get().filter(|_| !path.contains("/sys/servlet/")) {
         let body = title(&path, body);
@@ -304,6 +304,8 @@ pub fn to_server(a: &[u8; 16]) -> Option<[u8; 16]> {
     let to = match u16::from_be_bytes([a[2], a[3]]) {
         80 => port(),
         22345 => crate::aimedb::port(),
+        // the billing server, when it runs here ([`crate::billing`])
+        8443 if crate::billing::running() => crate::billing::port(),
         _ => return None,
     };
     let mut m = *a;

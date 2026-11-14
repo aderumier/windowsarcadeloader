@@ -20,6 +20,8 @@
 #![allow(non_snake_case)]
 
 mod devices;
+mod kancolle;
+mod kcserver;
 mod lmaio;
 #[cfg(target_arch = "x86_64")]
 mod unpack;
@@ -47,6 +49,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         wal_payload_common::jvs_board::init(devices::JVS_PORT);
         devices::init();
         lmaio::init();
+        kancolle::init();
+        // NVIDIA-only OpenGL on other GPUs (KanColle Arcade)
+        wal_payload_common::nvgl::init();
         test_menu();
         log!("seganu: initialized");
     }

@@ -1,9 +1,11 @@
 //! The machine's serial ports as the SetupDi device enumeration lists them (the COM port
-//! interface class, `GUID_DEVINTERFACE_COMPORT` 86E0D1E0): `WAL_RINGEDGE_COMPORTS=<port>[=USB:
+//! interface class, `GUID_DEVINTERFACE_COMPORT` 86E0D1E0): `WAL_COMPORTS=<port>[=USB:
 //! <vid>:<pid>],...`, the main board's ports (enumerator `ACPI`) and the USB serial devices
 //! (enumerator `USB`, service `usbser`, hardware id `USB\VID_<vid>&PID_<pid>&REV_0100`) a game
 //! finds its boards among (Project DIVA Arcade's lamp control board and touch panels, through
-//! amPlatform's `amPlatformGetComInfo`). Wine lists the host's ports, none of them.
+//! amPlatform's `amPlatformGetComInfo`; KanColle Arcade's gear pop LED board, the first port not
+//! on the main board). Wine lists the host's ports, none of them. `WAL_RINGEDGE_COMPORTS`: the
+//! same, its former name.
 //!
 //! A device's registry key (`SetupDiOpenDevRegKey`) holds its `PortName`. The serial layer
 //! (`wal_payload_common::serial`) then answers the port itself.
@@ -12,7 +14,7 @@ use std::ffi::{CStr, c_char, c_void};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use wal_payload_common::{iat, log};
+use crate::{iat, log};
 
 type P = *mut c_void;
 
@@ -32,7 +34,7 @@ struct Port {
 fn ports() -> &'static [Port] {
     static PORTS: OnceLock<Vec<Port>> = OnceLock::new();
     PORTS.get_or_init(|| {
-        let spec = std::env::var("WAL_RINGEDGE_COMPORTS").unwrap_or_default();
+        let spec = std::env::var("WAL_COMPORTS").or_else(|_| std::env::var("WAL_RINGEDGE_COMPORTS")).unwrap_or_default();
         spec.split(',')
             .map(str::trim)
             .filter(|s| !s.is_empty())
@@ -296,7 +298,7 @@ unsafe extern "system" fn destroy(set: P) -> i32 {
 }
 
 /// After the base payload's SetupDi hooks (`devices.rs`): the other classes go on to them.
-pub(crate) fn init() {
+pub fn init() {
     if ports().is_empty() {
         return;
     }

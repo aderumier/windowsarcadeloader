@@ -1,0 +1,89 @@
+# KanColle Arcade (Kantai Collection Arcade, Sega, Nu, 2016; game id SDBZ): 64-bit OpenGL.
+# Runs fc.exe.
+# Override values in userprofiles/seganu/kancolle-arcade.yaml.
+system: seganu
+name: KanColle Arcade
+
+# started by wal-loader64 with the 64-bit payload
+payload_loader: true
+
+# the cabinet's Y: drive (application data, Y:\SDBZ)
+drives:
+  y: Y
+  # the AMFS (the image information E:\ICF1, ICF2, written by the payload)
+  e: amfs
+
+env:
+  WAL_SEGANU_GAME_ID: SDBZ
+  WAL_SEGANU_PLATFORM_ID: AAV1
+  # its renderer draws with NVIDIA's bindless OpenGL extensions and command lists, unchecked:
+  # translated on other GPUs (payload-common nvgl.rs)
+  WAL_NVGL: auto
+  # it draws 1280x720 only (its -hdtv720 mode): a borderless screen-sized window, the game's
+  # 1280x720 picture (the lower left corner of its back buffer) scaled to it (payload-common
+  # glview.rs)
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_GL_CORNER: 1280x720
+  # the touch pointer (the mouse): a red dot, drawn by the payload over each frame
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "2"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
+  # the game's devices (payload-seganu kancolle.rs)
+  WAL_SEGANU_KANCOLLE: "1"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,ly,,,,,,"
+  # DIP switch 1: the shop's main cabinet (SATELLITE:MAIN; off: a sub one waiting for its main)
+  WAL_SEGANU_DIPSW: "01"
+  # its ALL.Net client's power-on accepted by the payload's ALL.Net server
+  WAL_ALLS_ALLNET: "1"
+  # the keychip's billing type 1 (else error 8113, ALL.Net System error (MODE)); its accounting
+  # report goes to the payload's billing server
+  WAL_SEGANU_BILLING_TYPE: "1"
+  # the image information's game version (E:\ICF1)
+  WAL_SEGANU_GAME_VERSION: "7.40.00"
+  # the CHC-C310 card printer (payload-common chcusb.rs): the printed cards in printer\
+  WAL_CHC_PRINTER: "1"
+  # its CRI sound in WASAPI exclusive mode (none in Wine) played in shared mode
+  WAL_WASAPI_SHARED: "1"
+  # its LED boards 837-15093-06 (firmware 6710, sum adf7: the dump's rom/hw/gear_pop_led)
+  WAL_ALLS_LED_BOARD: "15093-06,6710,adf7"
+  # the machine's serial ports in the device enumeration: the gear pop LED board is the first
+  # one off the main board (a USB serial device)
+  WAL_COMPORTS: "COM1,COM10,COM11,COM12,COM13=USB:0403:6001"
+  # free play (the common option) kept in amLib's credit record: the game writes it from its own
+  # coin settings (free play off), changed only by the system's test program (absent)
+  WAL_SEGANU_FREEPLAY_WRITES: "1"
+  # the shop's closing (the test menu's close setting, 24:00 every day, and the closings it is
+  # merged with): its warnings an hour before ("maintenance in N minutes"), then no new play,
+  # the card and Aime closed. The three sources return the game's own "no closing" value (none
+  # within 86400 s: xor eax,eax; mov [rcx],rax; mov qword [rcx+8],86400; mov rax,rcx; ret);
+  # the CLOSING task (0x1404c92b0, every 120 frames) never marks the day's close setting as
+  # found (mov byte [rbx+0x60],1 -> 0): its other readers take that value too
+  WAL_PATCHES: "0x4c8fb0:31C048890148C74108805101004889C8C3,0x4c8df0:31C048890148C74108805101004889C8C3,0x4c9050:31C048890148C74108805101004889C8C3,0x4c937c:00,0x4c93b0:00,0x4c93c9:00"
+  # its title server's tables (payload-seganu kcserver.rs): the commands, the keys, the commands'
+  # key lists (version 7.40)
+  WAL_SEGANU_KANCOLLE_SERVER: "0x1f99870,0x1a1e230,0x1a38000"
+
+input:
+  # the touch screen: the touchscreen / touchpad (where the finger is), else the mouse or gun
+  # (b1 touches at its red dot)
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  rx: Helm (turns while held)
+  left: Helm left
+  right: Helm right
+  ry: Speed lever (telegraph, one speed per push)
+  up: Speed up
+  down: Speed down
+  b1: Touch (the mouse's click, at the red dot)
+  b2: Order button
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

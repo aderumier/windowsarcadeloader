@@ -6,11 +6,11 @@
 //! - the JVS I/O board's player 1 and 2 switches 5-7: the six air sensors (infrared beams above
 //!   the slider, from the lowest: 0 player 1's btn5, 1 player 2's btn5, 2 player 1's btn6...),
 //!   on while their beam is clear; a raised hand breaks them from the lowest up
-//! - COM10, COM11: the 837-15093-06 LED boards (`led.rs`)
+//! - COM10, COM11: the 837-15093-06 LED boards (payload-common `led.rs`)
 //! - the title server (`chuni/server.rs`), answered in ALL.Net's server
 //! - the backup's settings: the cabinet its store's distribution server (`distribution_server`)
 //! - free play in amLib's credit record (`WAL_ALLS_FREEPLAY`, else `WAL_FREEPLAY`, default on)
-//! - the billing server (`billing.rs`)
+//! - the billing server (payload-common `billing.rs`)
 //! - COM12: the Aime reader, in `aimeReaderHost.exe` (a program of its own, the game reading the
 //!   cards from it through shared memory)
 //!
@@ -384,7 +384,7 @@ fn alib_debug() {
 /// the slider on COM1, the LED boards on COM2 / COM3 (a CVT cabinet).
 pub(crate) fn init_chusan() {
     serial::install_streaming("COM1", slider, slider_scan);
-    crate::led::init_pair("COM2", "COM3");
+    wal_payload_common::led::init_pair("COM2", "COM3");
     log!("chuni: slider on COM1, LED boards on COM2 / COM3");
 }
 
@@ -401,7 +401,7 @@ pub(crate) fn init() {
     alib_debug();
     wal_payload_common::amex::set_eeprom_write_filter(eeprom_write);
     serial::install_streaming("COM1", slider, slider_scan);
-    crate::led::init_pair("COM10", "COM11");
+    wal_payload_common::led::init_pair("COM10", "COM11");
     jvs_board::set_switches_hook(switches);
     server::init();
     log!("chuni: slider on COM1, LED boards on COM10 / COM11, air sensors on the JVS switches");

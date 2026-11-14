@@ -35,6 +35,12 @@ pub mod memdiff;
 pub mod crypto;
 #[cfg(windows)]
 pub mod bezel;
+// the Sinfonia CHC-C310 card printer (chcusb / fwdlusb libraries)
+#[cfg(windows)]
+pub mod chcusb;
+// ALL.Net's billing server (TLS, its dummy PKI)
+#[cfg(windows)]
+pub mod billing;
 #[cfg(windows)]
 pub(crate) mod border;
 #[cfg(windows)]
@@ -71,6 +77,9 @@ pub mod dshow;
 pub mod exe_env;
 #[cfg(windows)]
 pub mod glview;
+// NVIDIA-only OpenGL (bindless, command lists) on other GPUs
+#[cfg(windows)]
+pub mod nvgl;
 #[cfg(windows)]
 pub(crate) mod late_hooks;
 // where the players' guns point in the game's window
@@ -104,6 +113,22 @@ pub mod nesica_registry;
 pub mod paths;
 #[cfg(windows)]
 pub mod patches;
+// the keychip's dummy billing PKI (segatools', public domain)
+pub mod pki;
+// Sega's 837-15093 / 837-15070 LED boards
+#[cfg(windows)]
+pub mod led;
+// Sega's 837-15345 RFID deck reader
+#[cfg(windows)]
+pub mod deck;
+// the serial ports in the SetupDi device enumeration
+#[cfg(windows)]
+pub mod comports;
+// the 3M MicroTouch multi-touch serial controller
+#[cfg(windows)]
+pub mod touch3m;
+// the cabinet's image information (E:\ICF1, ICF2)
+pub mod icf;
 // images (elevator doors, a bezel) over Direct3D 11 pictures
 #[cfg(windows)]
 pub mod images_d3d11;

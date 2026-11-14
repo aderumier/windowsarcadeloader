@@ -7,6 +7,9 @@
 //! escaped as `D0 byte-1`). Request data: the command, its parameters; answer data: status
 //! (1 ok), the command, report (1 ok), the command's values.
 //!
+//! KanColle Arcade's 837-15093-06 and 837-15070-02 boards ([`init_mixed`]; `WAL_LED_15070_BOARD`:
+//! the 15070's number, default `15070-04`).
+//!
 //! CHUNITHM's two 837-15093-06 boards on COM10 and COM11 ([`init_pair`]): `WAL_ALLS_LED_BOARD`
 //! `<board number>,<chip number>,<firmware sum>` gives their identity (segatools' chunihook
 //! values `15093-06,6710,adf7`; default `15093-04,6704,aed9`).
@@ -14,7 +17,7 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use wal_payload_common::{log, serial};
+use crate::{log, serial};
 
 const SYNC: u8 = 0xE0;
 const ESC: u8 = 0xD0;
@@ -24,8 +27,8 @@ const BOARD: u8 = 1;
 /// Each port's bytes not answered yet (CHUNITHM: two boards).
 static RX: [Mutex<Vec<u8>>; 2] = [Mutex::new(Vec::new()), Mutex::new(Vec::new())];
 static RESPONSES: AtomicBool = AtomicBool::new(true);
-/// An 837-15070 board (Initial D THE ARCADE), in its boot loader.
-static BOARD_15070: AtomicBool = AtomicBool::new(false);
+/// Each port's board is an 837-15070 (Initial D THE ARCADE, KanColle Arcade); in its boot loader.
+static BOARD_15070: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(false)];
 static BOOT_15070: AtomicBool = AtomicBool::new(false);
 
 const EEPROM: &str = "Y:\\idac\\led15070.eeprom";
@@ -97,7 +100,7 @@ fn next_frame(rx: &mut Vec<u8>) -> Option<Vec<u8>> {
     }
 }
 
-fn answer(frame: &[u8]) -> Vec<u8> {
+fn answer(frame: &[u8], port: usize) -> Vec<u8> {
     let dest = frame[1];
     let src = if dest == 0 { BOARD } else { dest };
     let host = frame[2];
@@ -106,7 +109,7 @@ fn answer(frame: &[u8]) -> Vec<u8> {
     let Some(&cmd) = data.first() else { return Vec::new() };
     let args = &data[1..];
     let responses = RESPONSES.load(Ordering::Relaxed);
-    if BOARD_15070.load(Ordering::Relaxed) {
+    if BOARD_15070[port].load(Ordering::Relaxed) {
         return match cmd {
             0x10 => {
                 RESPONSES.store(true, Ordering::Relaxed);
@@ -134,7 +137,8 @@ fn answer(frame: &[u8]) -> Vec<u8> {
             }
             // board info: number, end code, firmware 0x90
             0xF0 => {
-                let mut v = b"15070-04".to_vec();
+                let number = std::env::var("WAL_LED_15070_BOARD").ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty()).unwrap_or_else(|| "15070-04".into());
+                let mut v = number.into_bytes();
                 v.extend([0xFF, 0x90]);
                 encode(cmd, &v, src)
             }
@@ -175,7 +179,15 @@ fn answer(frame: &[u8]) -> Vec<u8> {
             }
             encode(cmd, &[!RESPONSES.load(Ordering::Relaxed) as u8], src)
         }
-        // the lights: answered only while responses are on
+        // the lights: answered only while responses are on (KanColle Arcade's 0x30-0x3E to the
+        // board: acknowledged too; to all boards, address 0: no answer)
+        0x30..=0x3E if dest != 0 => {
+            if responses {
+                encode(cmd, &[], src)
+            } else {
+                Vec::new()
+            }
+        }
         0x3F | 0x80..=0x85 => {
             if responses {
                 encode(cmd, &[], src)
@@ -226,7 +238,7 @@ fn port_packet(port: usize, data: &[u8]) -> Vec<u8> {
     rx.extend_from_slice(data);
     let mut out = Vec::new();
     while let Some(frame) = next_frame(&mut rx) {
-        out.extend(answer(&frame));
+        out.extend(answer(&frame, port));
     }
     out
 }
@@ -240,18 +252,25 @@ fn packet_second(data: &[u8]) -> Vec<u8> {
 }
 
 /// The board on `port` (`COM1`; Sega World Drivers Championship's indicator LEDs: `COM2`).
-pub(crate) fn init(port: &str) {
+pub fn init(port: &str) {
     serial::install(port, packet);
 }
 
 /// Two boards (CHUNITHM: `COM10`, `COM11`).
-pub(crate) fn init_pair(first: &str, second: &str) {
+pub fn init_pair(first: &str, second: &str) {
     serial::install(first, packet);
     serial::install(second, packet_second);
 }
 
 /// An 837-15070 board on `port` (Initial D THE ARCADE: `COM2`).
-pub(crate) fn init_15070(port: &str) {
-    BOARD_15070.store(true, Ordering::Relaxed);
+pub fn init_15070(port: &str) {
+    BOARD_15070[0].store(true, Ordering::Relaxed);
     serial::install(port, packet);
+}
+
+/// An 837-15093 board on `first`, an 837-15070 on `second` (KanColle Arcade).
+pub fn init_mixed(first: &str, second: &str) {
+    BOARD_15070[1].store(true, Ordering::Relaxed);
+    serial::install(first, packet);
+    serial::install(second, packet_second);
 }
