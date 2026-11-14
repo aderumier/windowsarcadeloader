@@ -52,14 +52,26 @@ fn aime(port: &str) {
 /// routers' `.loc` names, the boot stuck at the network check), its connections to port 80 the
 /// payload's ALL.Net server (`wal_payload_common::allnet`); it sets the clock to the server's
 /// time (refused by Wine: the power-on never ended), the setters doing nothing.
-fn allnet() {
+/// Also another RingEdge game's own ALL.Net client (`WAL_RINGEDGE_ALLNET=1`, Border Break
+/// Scramble): the same, without DIVA's title server (the router's port 80 is ALL.Net's).
+fn allnet(diva: bool) {
     wal_payload_common::clock::hook_setters();
     let ip = crate::pcp::local_address().unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2)).octets();
     wal_payload_common::dns::set_router([ip[0], ip[1], ip[2], 1]);
     wal_payload_common::dns::init();
     wal_payload_common::allnet::redirect_connect(wal_payload_common::allnet::to_server);
-    // its title server (the power-on's uri, `WAL_ALLS_TITLE_URI`: `/DivaServlet/`)
-    wal_payload_common::allnet::set_title(crate::divaserver::answer);
+    if diva {
+        // its title server (the power-on's uri, `WAL_ALLS_TITLE_URI`: `/DivaServlet/`)
+        wal_payload_common::allnet::set_title(crate::divaserver::answer);
+    } else if std::env::var("WAL_RINGEDGE_ALLNET").is_ok_and(|v| v.trim() == "borderbreak") {
+        // Border Break Scramble's title server (`/SBVA/`)
+        wal_payload_common::allnet::set_title(crate::bbserver::answer);
+        wal_payload_common::allnet::set_title_dfi();
+        // its billing (alpb, ib.naominet.jp:8443): checked in at boot ("Error 21" without)
+        wal_payload_common::billing::init();
+    } else {
+        wal_payload_common::allnet::set_router_is_allnet();
+    }
     wal_payload_common::allnet::start();
     // its card system's AimeDB (`aime.naominet.jp`, the router's port 22345)
     wal_payload_common::aimedb::init();
@@ -87,9 +99,12 @@ unsafe extern "system" fn sendto(s: usize, buf: *const u8, len: i32, flags: i32,
 /// The game's devices, when `WAL_RINGEDGE_DIVA=1` (after the base payload's hooks).
 pub(crate) fn init() {
     if !std::env::var("WAL_RINGEDGE_DIVA").is_ok_and(|v| v.trim() == "1") {
+        if std::env::var("WAL_RINGEDGE_ALLNET").is_ok_and(|v| !v.trim().is_empty() && v.trim() != "0") {
+            allnet(false);
+        }
         return;
     }
-    allnet();
+    allnet(true);
     let f = sendto as *const () as usize;
     let exe = wal_payload_common::iat::game_module();
     if let Some(o) = unsafe { wal_payload_common::iat::hook_ordinal(exe, "WS2_32.dll", 20, f) }.or_else(|| unsafe { wal_payload_common::iat::hook("ws2_32.dll", "sendto", f) }) {

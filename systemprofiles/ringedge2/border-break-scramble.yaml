@@ -1,0 +1,141 @@
+# Border Break Scramble (Sega RingEdge 2), online team mech shooter. NRS engine, runs nrs.exe
+# (PE32 / i386, develop build; a Lindbergh-derived OpenGL renderer, shader_lindbergh.pfa).
+# The amLib stack (amDongle keychip, amJvs JVS board, amSram/amEeprom, amBackup, amPlatform,
+# ALL.Net) is statically linked into nrs.exe, so this reuses the RingEdge payload with the
+# RingEdge 2 board. Override values in userprofiles/ringedge2/border-break-scramble.yaml.
+#
+# WORK IN PROGRESS - the boot passes its checks up to the billing (ALL.Net PAS): its accounting
+# reporter's first step still fails ("Error 21", ErrNo 949), the screen black (an error screen
+# drawn by nothing yet). Control mapping below is an UNVERIFIED default.
+system: ringedge2
+name: Border Break Scramble
+
+# Its own wine prefix: two RingEdge games can't run at once (amLib binds the fixed pcp ports
+# 40100-40191 on 127.0.0.1), so Border Break must not share `full` with Project DIVA etc.
+prefix: wine-prefix/bb-test
+
+# game.bat runs tools\ringedge\mxGetHwInfo.exe (a cabinet hardware probe: it only validates the
+# PCI graphic/sound IDs in HwInfo.ini and returns errorlevel 0) then nrs.bat, which finally runs
+# `.\nrs.exe -wsvga -full -img`. We skip the batch files and the probe and run nrs.exe directly.
+#   -wsvga  1024x600 picture (the cabinet resolution; HwInfo.ini resolution = 1024 x 600)
+#   -full   full screen
+#   -img    load game data from the rom/ image
+#   -nnc    "network-checking disable" (built-in flag): skip the in-shop GAME-LAN check at boot
+#   -free   "set freeplay" (built-in flag): coins not required (RingEdge has no WAL_FREEPLAY)
+args: [-wsvga, -full, -img, -nnc, -free]
+
+env:
+  # RingEdge 2 board: amPlatform returns platform id AAL2, amBackup uses the RE2 SRAM layout,
+  # the SMBIOS reports SEGA / RINGEDGE2 / AAL2 (else "PlatformID is Invalid").
+  WAL_RINGEDGE_BOARD: ringedge2
+  # amDongle keychip: the game id answered to keychip.appboot.gameid. SBVA, confirmed by the
+  # version table embedded in nrs.exe ("rom/version.txt SBVA 4.04.00 4.5.0") and matching the
+  # dump's DS challenge table SBVA_Table.dat (the amDongle DS28CN01 MAC table).
+  # systemflag bit 0: a develop keychip, which waives the aim control's USB mouse check (a raw
+  # input mouse "HID#Vid_0ca3&Pid_000b#", FUN_0067a4xx) - that mouse is not emulated yet
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVA;keychip.appboot.systemflag=01
+  # (the platform id stays the default AAL: the boot check FUN_0045a6f0 wants exactly "AAL")
+  # the EEPROM static record's region (Japan): amLib reads 0 without it, ANDed with the keychip's
+  # region 01 -> error index 4 "Error 0903 Wrong Region" (FUN_00458fd0), the boot's black screen
+  WAL_RINGEDGE_REGION: "01"
+  # ... and a well formed board serial number in that record: the billing library
+  # (alpbExInitialize, FUN_006ffd60) checks it, without it "Error 21" (alpb not initialized)
+  WAL_RINGEDGE_BOARD_SERIAL: AAVE-01A00000001
+  # the RingEdge 2's Realtek HD Audio codec (HwInfo.ini sound-device), enumerated by
+  # amPlatformGetSoundInfo: none under Wine -> error index 6 "Error 0906 Sound Function Not Found"
+  WAL_RINGEDGE_SOUND_DEVICE: "10ec:0888"
+  # the USB devices (the cabinet's aim control, a Sega USB HID device 0ca3:000b), answered by the
+  # payload: Wine's own USB enumeration can block the boot after the JVS check for long seconds
+  WAL_RINGEDGE_USB_DEVICES: "0ca3:000b"
+  # main board DIP switches (FUN_0045a0e0): resolution (bits 0x70) 2 = 1024x600, the only one the
+  # boot check FUN_00679cb0 accepts ("Error 0910 Wrong Resolution Setting" else, the default FF
+  # is 7), and 0x08 off = horizontal monitor ("Wrong Horizontal / Vertical Setting" else)
+  WAL_RINGEDGE_DIPSW: "20"
+  # the keychip DS challenge table shipped in the dump root
+  WAL_RINGEDGE_DS_FILE: SBVA_Table.dat
+
+  # The boot's checks (FUN_0089a010): IC card R/W, network (ALL.Net auth, its title server
+  # /SBVA/ and its billing below), extended image, game server.
+  #
+  # Full-screen presentation: the game draws a 1024x600 picture. Scale it to the screen (aspect
+  # kept) in a borderless popup window, no cursor - as the other RingEdge 2 games.
+  WAL_RINGEDGE_GL_SCALE: 1024x600
+  WAL_WINDOW_POPUP: "1"
+  WAL_HIDE_CURSOR: "1"
+  # Shaders: rom/shader.pfa holds NV_gpu_program4 assembly (`!!NVvp4.0`/`!!NVfp4.0`, Cg's
+  # vp40/fp40), which the Mesa fix-up does not cover (it handles the older NV_fragment_program2 /
+  # vp3) - on AMD nearly every program fails to translate and the screen is black. The dump also
+  # ships the same shaders as plain ARB assembly in rom/shader_lindbergh.pfa (`!!ARBvp1.0` /
+  # `!!ARBfp1.0`), which Mesa runs natively; `files:` below swaps that in as shader.pfa so the
+  # game renders without translation (CG_FIX auto still handles the ~19 post-process programs
+  # that carry OPTION NV_fragment_program2).
+  WAL_RINGEDGE_CG_FIX: auto
+  # Network link up: amNetwork's query_nic_status answers status=1 with the addresses in the one
+  # reply, so amLib's net-status bit 1 (link up) is set and the boot's DHCP step (FUN_004f6310)
+  # passes instead of spinning on query_dhcp_status (the "DHCP WAIT" shared with Project DIVA).
+  # This is the proper fix; the offline DHCP patch above is no longer needed.
+  WAL_RINGEDGE_NIC_STATUS: "1"
+  # the keychip's network address dotted (the game reads it with inet_addr, else ERROR 8001)
+  WAL_RINGEDGE_NETWORKADDR_DOTTED: "1"
+  # the payload's ALL.Net server answers amAuth (the game's auth -> the game/title server URIs),
+  # as Project DIVA. Without it the ALL.Net stage never completes (keychip.version poll loop).
+  WAL_ALLS_ALLNET: "1"
+  # its own ALL.Net client (amLib's alw, http://naominet.jp/sys/servlet/PowerOn, as Project
+  # DIVA): the store router and ALL.Net's hosts resolved by the payload, its connections to
+  # them the payload's ALL.Net server
+  WAL_RINGEDGE_ALLNET: borderbreak
+  # amJvs uses the serial JVS driver and may also open a COM port (as Initial D 7).
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  # the I/O board must declare analog inputs, rotary inputs and 20 general purpose outputs (the
+  # node check FUN_0067afa0, else "Error 6401 JVS I/O board is not connected"); the channel
+  # order is UNVERIFIED (see the controls note below)
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,ly,rx,ry"
+  WAL_TYPEX_JVS_ROTARY: "2"
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  # the game also opens COM1 (beside the JVS board on COM4); absent, a synchronous poll hangs the
+  # game ("application not responding"). Present but silent so the polls return nothing.
+  WAL_RINGEDGE_SILENT_PORTS: "COM1"
+  # COM2 is the cabinet's IC card reader/writer, checked at boot ("CHECKING IC CARD R/W", error
+  # 23 without an answer): emulated without a card
+  WAL_RINGEDGE_IC_CARD: COM2
+  # the test button (foreground application 3): relaunch the game with -test (its gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: "3=-test"
+
+# The ARB shaders in place of the NV_gpu_program4 ones (see the shader note above): run natively
+# on Mesa/AMD, no translation. On an NVIDIA machine the original NV shaders also work - remove
+# this line there if the higher-precision originals are wanted.
+files:
+  rom/shader.pfa: "{dump}/rom/shader_lindbergh.pfa"
+
+# amPlatformGetOsVersion reads C:\System\SystemVersion.txt (8 digits: the RingEdge OS version,
+# 0011.01.02 the RingEdge Lv2 SDK of HwInfo.ini); without it the boot check FUN_0045a6f0 sets
+# error index 3 = "Error 0902 Wrong System Platform". The dump's System/ folder holds it.
+c_folders:
+  System: System
+
+# the cabinet's Y: and W: drives (FUN_0089cdc0: the data roots, W:/lfs_server the network data
+# download list; absent, "[LFS SERVER] Download-list Write Error"): folders of the dump
+drives:
+  y: Y
+  w: W
+
+# TODO (UNVERIFIED): Border Break is a twin-stick mech shooter. The cabinet has a left analog
+# stick (move), a right analog stick (aim), pedals/triggers and action buttons on the JVS board;
+# the exact analog channel order and switch bits were not derived from the binary. This is a
+# placeholder twin-stick default so the game is playable from a pad; verify the JVS mapping on
+# the box (WAL_RINGEDGE_JVS_DUMP) and fix WAL_TYPEX_JVS_ANALOG_INPUTS above accordingly.
+input:
+  stick_as_dpad: false
+
+# Control names for the GUI mapping rows - placeholder, refine once the JVS layout is confirmed.
+controls:
+  lx: Move stick X
+  ly: Move stick Y
+  rx: Aim stick X
+  ry: Aim stick Y
+  b1: Trigger / Fire
+  b2: Action
+  b3: Jump
+  b4: Dash / Boost
+  b5: Weapon change
+  b6: none

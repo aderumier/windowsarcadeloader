@@ -96,7 +96,13 @@ const CLASS_DEVS: usize = 4;
 const ENUM_IF: usize = 5;
 const IF_DETAIL: usize = 6;
 const DESTROY: usize = 7;
-static ORIG: [AtomicUsize; 8] = [const { AtomicUsize::new(0) }; 8];
+const ENUM_INFO: usize = 8;
+const DEVICE_ID: usize = 9;
+const FIND_FIRST: usize = 10;
+const ATTRIBUTES: usize = 11;
+const DELETE: usize = 12;
+const LIST_DETAIL: usize = 13;
+static ORIG: [AtomicUsize; 14] = [const { AtomicUsize::new(0) }; 14];
 
 fn orig<F: Copy>(idx: usize) -> F {
     let p = ORIG[idx].load(Ordering::Relaxed);
@@ -130,7 +136,7 @@ pub(crate) fn init() {
         }
         Err(e) => log!("devices: cannot open {eeprom}: {e}"),
     }
-    let hooks: [(&str, &str, usize); 8] = [
+    let hooks: [(&str, &str, usize); 14] = [
         ("kernel32.dll", "CreateFileA", create_file_a as *const () as usize),
         ("kernel32.dll", "CreateFileW", create_file_w as *const () as usize),
         ("kernel32.dll", "DeviceIoControl", device_io_control as *const () as usize),
@@ -139,8 +145,18 @@ pub(crate) fn init() {
         ("setupapi.dll", "SetupDiEnumDeviceInterfaces", enum_interfaces as *const () as usize),
         ("setupapi.dll", "SetupDiGetDeviceInterfaceDetailA", interface_detail as *const () as usize),
         ("setupapi.dll", "SetupDiDestroyDeviceInfoList", destroy_info_list as *const () as usize),
+        ("setupapi.dll", "SetupDiEnumDeviceInfo", enum_device_info as *const () as usize),
+        ("setupapi.dll", "CM_Get_Device_ID_ExA", device_id as *const () as usize),
+        ("kernel32.dll", "FindFirstFileA", find_first_file_a as *const () as usize),
+        ("kernel32.dll", "GetFileAttributesA", get_file_attributes_a as *const () as usize),
+        ("kernel32.dll", "DeleteFileA", delete_file_a as *const () as usize),
+        ("setupapi.dll", "SetupDiGetDeviceInfoListDetailA", list_detail as *const () as usize),
     ];
     for (i, (dll, name, f)) in hooks.into_iter().enumerate() {
+        // the device enumeration's hooks: for the sound chip or the USB devices only
+        if matches!(i, ENUM_INFO | DEVICE_ID | LIST_DETAIL) && sound_device_id().is_none() && usb_devices().is_none() {
+            continue;
+        }
         match unsafe { iat::hook(dll, name, f) } {
             Some(o) => ORIG[i].store(o, Ordering::Relaxed),
             None => log!("devices: {dll}!{name} not imported"),
@@ -165,6 +181,11 @@ fn app_user_file(path: &str) -> Option<Vec<u16>> {
         return None;
     }
     let file = format!("{}\\AppUser\\{}", save_dir(), &path[PREFIX.len()..]);
+    // its folder as the game made it in the real profile (Border Break's billing writes
+    // `temp\cacert.pem` after MakeSureDirectoryPathExists, which is not redirected)
+    if let Some(parent) = std::path::Path::new(&file).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     Some(file.encode_utf16().chain([0]).collect())
 }
 
@@ -206,6 +227,38 @@ unsafe extern "system" fn create_file_a(name: *const u8, a: u32, s: u32, sa: P, 
         }
     }
     unsafe { orig::<unsafe extern "system" fn(*const u8, u32, u32, P, u32, u32, P) -> P>(CREATE_A)(name, a, s, sa, d, f, t) }
+}
+
+/// The save folder's path (ANSI) of a game path in the cabinet's user profile folder.
+fn app_user_file_a(name: *const u8) -> Option<Vec<u8>> {
+    if name.is_null() {
+        return None;
+    }
+    let path = unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy().into_owned();
+    let file = app_user_file(&path)?;
+    let mut bytes = String::from_utf16_lossy(&file[..file.len() - 1]).into_bytes();
+    bytes.push(0);
+    Some(bytes)
+}
+
+// the profile folder's lookups (the C runtime's stat is FindFirstFileA: Border Break's billing
+// checks the files it wrote there), as its CreateFileA
+unsafe extern "system" fn find_first_file_a(name: *const u8, data: P) -> P {
+    let file = app_user_file_a(name);
+    let name = file.as_ref().map_or(name, |f| f.as_ptr());
+    unsafe { orig::<unsafe extern "system" fn(*const u8, P) -> P>(FIND_FIRST)(name, data) }
+}
+
+unsafe extern "system" fn get_file_attributes_a(name: *const u8) -> u32 {
+    let file = app_user_file_a(name);
+    let name = file.as_ref().map_or(name, |f| f.as_ptr());
+    unsafe { orig::<unsafe extern "system" fn(*const u8) -> u32>(ATTRIBUTES)(name) }
+}
+
+unsafe extern "system" fn delete_file_a(name: *const u8) -> i32 {
+    let file = app_user_file_a(name);
+    let name = file.as_ref().map_or(name, |f| f.as_ptr());
+    unsafe { orig::<unsafe extern "system" fn(*const u8) -> i32>(DELETE)(name) }
 }
 
 unsafe extern "system" fn create_file_w(name: *const u16, a: u32, s: u32, sa: P, d: u32, f: u32, t: P) -> P {
@@ -396,17 +449,25 @@ const PUSHSW_SERVICE: u8 = 0x08;
 /// bytes: CRC-32 of bytes 4-31, the region at 12, the serial number at 15). Without it amLib
 /// takes a region of 0: Dream Raiders ANDs it with the keychip's region, error 0903 "wrong
 /// region". `WAL_RINGEDGE_REGION=<hex>` writes it with that region, when it differs.
+/// `WAL_RINGEDGE_BOARD_SERIAL`: the board's serial number in it (16 characters, default
+/// `INVALID_SERIALNO`); Border Break Scramble's billing (alpbExInitialize) only starts with a
+/// well formed one (`XXXX-XXX########`: upper case letters or digits, then 8 digits), else
+/// "Error 21" at boot.
 fn write_static_record(mut f: &std::fs::File) {
     let Some(region) = std::env::var("WAL_RINGEDGE_REGION").ok().and_then(|v| u8::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()) else {
         return;
     };
+    let mut serial = *b"INVALID_SERIALNO";
+    if let Some(v) = std::env::var("WAL_RINGEDGE_BOARD_SERIAL").ok().filter(|v| v.trim().len() == 16) {
+        serial.copy_from_slice(v.trim().as_bytes());
+    }
     let mut record = [0u8; 32];
-    if f.seek(SeekFrom::Start(0)).is_ok() && f.read_exact(&mut record).is_ok() && u32::from_le_bytes(record[..4].try_into().unwrap()) == crc32(&record[4..]) && record[12] == region {
+    if f.seek(SeekFrom::Start(0)).is_ok() && f.read_exact(&mut record).is_ok() && u32::from_le_bytes(record[..4].try_into().unwrap()) == crc32(&record[4..]) && record[12] == region && record[15..31] == serial {
         return;
     }
     let mut record = [0u8; 32];
     record[12] = region;
-    record[15..31].copy_from_slice(b"INVALID_SERIALNO");
+    record[15..31].copy_from_slice(&serial);
     let crc = crc32(&record[4..]);
     record[..4].copy_from_slice(&crc.to_le_bytes());
     for at in [0, 0x200] {
@@ -654,6 +715,10 @@ static CLASS: AtomicUsize = AtomicUsize::new(0);
 
 unsafe extern "system" fn get_class_devs(guid: *const u32, enumerator: P, parent: P, flags: u32) -> P {
     let data1 = if guid.is_null() { 0 } else { unsafe { *guid } };
+    if data1 == USB_GUID_DATA1 && usb_devices().is_some() {
+        log!("devices: SetupDiGetClassDevsA USB devices: {:?}", usb_devices().unwrap_or_default());
+        return H_USB as P;
+    }
     if data1 != SMBUS_GUID_DATA1 {
         log!("devices: SetupDiGetClassDevsA class {data1:#010x}: passed through");
         let f: unsafe extern "system" fn(*const u32, P, P, u32) -> P = orig(CLASS_DEVS);
@@ -701,8 +766,102 @@ unsafe extern "system" fn interface_detail(set: P, data: P, detail: *mut u8, siz
     1
 }
 
+// ── The sound chip: an HD Audio device ──────────────────────────────────────────────────────
+
+/// `WAL_RINGEDGE_SOUND_DEVICE=<vendor>:<device>` (hex, HwInfo.ini's sound-device): the HD Audio
+/// codec amPlatformGetSoundInfo looks for. It enumerates every present device
+/// (SetupDiGetClassDevsExA, all classes) for an instance id starting with `HDAUDIO`; Wine has
+/// none, and Border Break stops on "Error 0906 Sound Function Not Found". The first device of
+/// each enumeration gets that codec's id.
+fn sound_device_id() -> Option<&'static str> {
+    static ID: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    ID.get_or_init(|| {
+        let v = std::env::var("WAL_RINGEDGE_SOUND_DEVICE").ok()?;
+        let (vendor, device) = v.trim().split_once(':')?;
+        let (vendor, device) = (vendor.to_ascii_uppercase(), device.to_ascii_uppercase());
+        Some(format!("HDAUDIO\\FUNC_01&VEN_{vendor}&DEV_{device}&SUBSYS_{vendor}{device}&REV_1000\\4&1A2B3C4D&0&0001"))
+    })
+    .as_deref()
+}
+
+/// The device instance of the last enumeration's first device.
+static FIRST_DEVINST: AtomicUsize = AtomicUsize::new(usize::MAX);
+
+// ── USB devices ─────────────────────────────────────────────────────────────────────────────
+
+/// GUID_DEVINTERFACE_USB_DEVICE's first field.
+const USB_GUID_DATA1: u32 = 0xa5dc_bf10;
+/// The USB device set's handle, its devices' instances.
+const H_USB: usize = 0x5245_1002;
+const USB_DEVINST: u32 = 0x5245_2000;
+
+/// `WAL_RINGEDGE_USB_DEVICES=<vendor>:<product>,...` (hex; `none`: no device): the present USB
+/// devices amPlatformGetSearchDevInfo enumerates (SetupDiGetClassDevsA, USB device interfaces),
+/// answered here instead of by Wine, whose USB enumeration can block the boot for long seconds
+/// (Border Break Scramble, right after its JVS board; its cabinet's aim control is the USB HID
+/// device `0ca3:000b`).
+fn usb_devices() -> Option<&'static [(String, String)]> {
+    static DEVICES: std::sync::OnceLock<Option<Vec<(String, String)>>> = std::sync::OnceLock::new();
+    DEVICES
+        .get_or_init(|| {
+            let v = std::env::var("WAL_RINGEDGE_USB_DEVICES").ok()?;
+            Some(v.split(',').filter_map(|d| d.trim().split_once(':')).map(|(v, p)| (v.to_ascii_uppercase(), p.to_ascii_uppercase())).collect())
+        })
+        .as_deref()
+}
+
+unsafe extern "system" fn list_detail(set: P, detail: *mut u8) -> i32 {
+    if set as usize != H_USB {
+        let f: unsafe extern "system" fn(P, *mut u8) -> i32 = orig(LIST_DETAIL);
+        return unsafe { f(set, detail) };
+    }
+    // SP_DEVINFO_LIST_DETAIL_DATA_A { cbSize, ClassGuid, RemoteMachineHandle, ... }: local
+    if !detail.is_null() {
+        unsafe { std::ptr::write_unaligned(detail.add(20) as *mut usize, 0) };
+    }
+    1
+}
+
+unsafe extern "system" fn enum_device_info(set: P, index: u32, info: *mut u32) -> i32 {
+    if set as usize == H_USB {
+        if index as usize >= usb_devices().map_or(0, |d| d.len()) {
+            unsafe { windows_sys::Win32::Foundation::SetLastError(259) }; // ERROR_NO_MORE_ITEMS
+            return 0;
+        }
+        if !info.is_null() {
+            unsafe { *info.add(5) = USB_DEVINST + index };
+        }
+        return 1;
+    }
+    let f: unsafe extern "system" fn(P, u32, *mut u32) -> i32 = orig(ENUM_INFO);
+    let ok = unsafe { f(set, index, info) };
+    // SP_DEVINFO_DATA { cbSize, ClassGuid, DevInst, Reserved }
+    if ok != 0 && index == 0 && !info.is_null() {
+        FIRST_DEVINST.store(unsafe { *info.add(5) } as usize, Ordering::Relaxed);
+    }
+    ok
+}
+
+unsafe extern "system" fn device_id(inst: u32, buf: *mut u8, len: u32, flags: u32, machine: P) -> u32 {
+    let usb = inst.checked_sub(USB_DEVINST).and_then(|i| usb_devices()?.get(i as usize).map(|d| (i, d)));
+    let usb = usb.map(|(i, (v, p))| format!("USB\\VID_{v}&PID_{p}\\5&1A2B3C4D&0&{}", i + 1));
+    let id = usb.as_deref().or(sound_device_id().filter(|_| inst as usize == FIRST_DEVINST.load(Ordering::Relaxed)));
+    let Some(id) = id else {
+        let f: unsafe extern "system" fn(u32, *mut u8, u32, u32, P) -> u32 = orig(DEVICE_ID);
+        return unsafe { f(inst, buf, len, flags, machine) };
+    };
+    if buf.is_null() || (len as usize) <= id.len() {
+        return 0x1A; // CR_BUFFER_SMALL
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(id.as_ptr(), buf, id.len());
+        *buf.add(id.len()) = 0;
+    }
+    0
+}
+
 unsafe extern "system" fn destroy_info_list(set: P) -> i32 {
-    if set as usize == H_DEVINFO {
+    if set as usize == H_DEVINFO || set as usize == H_USB {
         return 1;
     }
     unsafe { orig::<unsafe extern "system" fn(P) -> i32>(DESTROY)(set) }

@@ -171,8 +171,18 @@ fn handle(stream: &mut TcpStream) -> std::io::Result<()> {
         log!("allnet: {path}: no title server ({} bytes: {}...)", body.len(), body.iter().take(48).map(|b| format!("{b:02x}")).collect::<String>());
     }
     if let Some(title) = TITLE.get().filter(|_| !path.contains("/sys/servlet/")) {
-        let body = title(&path, body);
-        let mut r = format!("HTTP/1.1 200 OK\r\nDate: {}\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", http_date(), body.len()).into_bytes();
+        if std::env::var("WAL_ALLNET_LOG_HEAD").is_ok_and(|v| v.trim() == "1") {
+            log!("allnet: {}", head.trim().replace("\r\n", " | "));
+        }
+        let mut body = title(&path, body);
+        // a title server answering as ALL.Net does (`set_title_dfi`): deflated then base64,
+        // `Pragma: DFI`, when the request was
+        let dfi = TITLE_DFI.load(Ordering::Relaxed) && header("Pragma").is_some_and(|v| v.eq_ignore_ascii_case("DFI"));
+        if dfi {
+            body = format!("{}\r\n", base64_encode(&miniz_oxide::deflate::compress_to_vec_zlib(&body, 6))).into_bytes();
+        }
+        let pragma = if dfi { "Pragma: DFI\r\n" } else { "" };
+        let mut r = format!("HTTP/1.1 200 OK\r\nDate: {}\r\nContent-Type: application/octet-stream\r\n{pragma}Content-Length: {}\r\nConnection: close\r\n\r\n", http_date(), body.len()).into_bytes();
         r.extend_from_slice(&body);
         return stream.write_all(&r);
     }
@@ -241,6 +251,14 @@ static TITLE: OnceLock<Title> = OnceLock::new();
 /// The title server answering in ALL.Net's server (a game without amdaemon: CHUNITHM).
 pub fn set_title(title: Title) {
     let _ = TITLE.set(title);
+}
+
+static TITLE_DFI: AtomicBool = AtomicBool::new(false);
+
+/// The title server's answers deflated then base64 with `Pragma: DFI` when the request was
+/// (Border Break Scramble's client decodes them as ALL.Net's).
+pub fn set_title_dfi() {
+    TITLE_DFI.store(true, Ordering::Relaxed);
 }
 
 /// The router's own address is an ALL.Net host (the title server is in ALL.Net's server, here

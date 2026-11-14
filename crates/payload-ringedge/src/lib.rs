@@ -20,6 +20,7 @@
 #![allow(non_snake_case)]
 
 mod amlog;
+mod bbserver;
 mod card;
 mod cg;
 mod devices;
@@ -28,6 +29,7 @@ mod divaserver;
 mod elo;
 mod ffb;
 mod happy_playground;
+mod iccard;
 mod glscale;
 mod gunman;
 mod microtouch;
@@ -82,6 +84,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         serial::MODEM_STATUS[1].store(0x30, Ordering::Relaxed);
         wal_payload_common::jvs_board::init("mxjvs");
         happy_playground::init();
+        // Border Break Scramble's IC card reader/writer (`WAL_RINGEDGE_IC_CARD`)
+        iccard::init();
         // ports the game opens beside its I/O board, present but silent
         if let Ok(ports) = std::env::var("WAL_RINGEDGE_SILENT_PORTS") {
             serial::install_sink(&ports);

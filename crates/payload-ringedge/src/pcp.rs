@@ -53,6 +53,8 @@ const MXSTORAGE: u16 = 40114;
 const MXSTORAGE_DATA: u16 = 40115;
 const AUTH: u16 = 40190;
 const AUTH_DATA: u16 = 40191;
+/// The bytes the next connection to the keychip's data channel receives.
+static KEYCHIP_DATA: std::sync::Mutex<Option<Vec<u8>>> = std::sync::Mutex::new(None);
 /// `place.info`'s binary record (shop information), sent on the auth data channel: empty.
 const PLACE_INFO_SIZE: usize = 0xCE;
 
@@ -156,6 +158,14 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
     let _ = stream.set_nodelay(true);
     log!("pcp: {name}: client connected");
     if binary {
+        // the data of the last binary keychip answer (`size=`), else nothing
+        let data = KEYCHIP_DATA.lock().unwrap().take();
+        if let Some(data) = data {
+            log!("pcp: {name}: {} bytes sent", data.len());
+            if stream.write_all(&data).is_err() {
+                return;
+            }
+        }
         // data channel of the keychip's encrypt/decrypt requests: logged only
         let mut buf = [0u8; 512];
         while let Ok(n) = stream.read(&mut buf) {
@@ -258,6 +268,17 @@ fn answer(request: &str) -> String {
     }
     if key == "keychip.ds.compute" {
         return format!("{key}={}", ds_compute(request));
+    }
+    // the keychip's billing keys (amDongleBillingGetSignaturePubKey / GetCaCertification: Border
+    // Break Scramble's billing checks in with them): the size here, the bytes on the data channel
+    let data = match key {
+        "keychip.billing.signaturepubkey" => Some(wal_payload_common::pki::BILLING_PUB),
+        "keychip.billing.cacertification" => Some(wal_payload_common::pki::CA_CERT),
+        _ => None,
+    };
+    if let Some(data) = data {
+        *KEYCHIP_DATA.lock().unwrap() = Some(data.to_vec());
+        return format!("{key}=0&size={}&port={MXKEYCHIP_DATA}", data.len());
     }
     if value != "?" {
         // a command (mxmaster.foreground.next=..., keychip.tracedata.put=...): acknowledged
