@@ -2470,6 +2470,43 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
     port byte (`dwData` 0x20, `0x529570`, again until the answer is 1). The payload does not
     start the program and plays its window: `port_ffb` format `daytona`, the force in the low
     nibble (15 strongest), bit 0x10 to the right, two close values alternated for a texture.
+- **Men In Black (2022).** `MIB.exe`, Unity 2020.3 Mono, 64-bit, a two-gun ticket game:
+  `wal_europar64.dll` (the system's 64-bit payload) loaded at the entry point by wal-loader64
+  (`payload_loader`), `WAL_EUROPAR_BOARD=mib` (`mib.rs`, `shell_mib.rs`). The image holds the
+  cabinet's files only: a community pack's Unity Doorstop (`winhttp.dll`), BepInEx with its
+  DemulShooter plugin and `MIB_ServiceMenu.exe` (a settings editor) removed.
+  - *Shell (`shell_mib.rs`).* `MIB.MIBClient` connects to 127.0.0.1:18888 and quits while not
+    connected. Messages: `"MIB"`, the operation (u16 big-endian), the data length (u16
+    big-endian), a sequence number (u32 big-endian), the data; each acknowledged (1, its
+    sequence number). The payload's server sends the credit count (66: player 0, count, part
+    credit, maximum) at launch (101) and per coin (both players' coins in the common count),
+    takes one per player started (301) unless free play, and answers each security challenge
+    (6, 4 bytes every 10 s; more than 4 unanswered and the game quits) with 67: the 4 bytes
+    whose `MIBCore.AuthenticatedData` scramble (an xor, 12 rounds of a keyed left shift with a
+    parity bit, a bit reversal, two xors) gives the challenge, each round undone by trying the
+    first byte's lost top bit.
+  - *Settings.* `C:\Sega\ShellData\ShellData.ini` (`[Credit]` free play and costs, the guns'
+    calibration, `MIBCore.SetCalibration`) and `GameSettings.ini` (`MIBGameSettings`): the
+    profile's copies (`c_folders` `Sega/ShellData`, `files`): the calibration 0-4096 unclamped
+    on both guns (axis -1..1 over the whole screen), `SWIPE CARD TO PLAY=OFF` (coins, not the
+    card reader). The payload writes `[Credit] Freeplay` (`WAL_EUROPAR_FREEPLAY`, else
+    `WAL_FREEPLAY`) before the game reads it.
+  - *Guns.* The board is one Unity joystick (InputManager: `X Axis0` / `Y Axis0` axes 0 / 1,
+    `X Axis1` / `Y Axis1` axes 3 / 2, inverted; buttons 5 / 6 `PlayerStart1` / `2`, 7 / 9 the
+    triggers), and `MIBCore.Update` takes no input while a joystick has a name. Unity 2020 reads
+    joysticks through raw input and HID: UnityPlayer's `GetProcAddress` of
+    `mono_add_internal_call` returns the payload's wrapper, which registers its own
+    `UnityEngine.Input::GetAxis` / `GetAxisRaw` (the players' guns, `1 - 2 * x` from the
+    picture's top left, kept while off screen), `GetButton` / `GetButtonDown` / `GetButtonUp`
+    (triggers, starts; edges per frame from `Time::get_frameCount`), `GetJoystickNames` (the
+    names emptied) and `GetKey*` / `GetMouseButton*` (nothing pressed: Escape skips a boss).
+    The game draws its own crosshairs. Free play: a start sets `CreditsUI.TakingCredit` until a
+    lower credit count arrives, which free play ignores (the second player could not join):
+    in free play the payload clears it when a start is pressed (`MIBCore.Instance
+    .CreditsController`, through Mono's embedding API on the game's main thread).
+  - *Lamps.* `RS232` opens the first port of `SerialPort.GetPortNames` at 19200 baud (lamp
+    bytes): Mono's `RegOpenKeyExW` of `HARDWARE\DEVICEMAP\SERIALCOMM` fails (no port listed:
+    Batocera's serial ports and Sinden guns untouched).
 
 ### 6.3h Konami e-Amusement PC (`crates/payload-konami`)
 
@@ -8152,6 +8189,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
 | `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | `Daytona/Daytona.exe` (the dump's original `bkp.exe`), wal-loader: fake DirectInput "SEGA IO Controller" (wheel, gas, brake, start, shift up/down, H gears, views), the Sega Shell over TCP 18888 (credits, free play, security answers), InpWrapper force feedback, Wine's qcap disabled (heap corruption), a borderless window of the screen's size |
 | `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | `Sega/Daytona/Daytona.exe`, as the first edition; the shell's cabinet SKU (else NETWORK DISCOVERY) |
+| `men-in-black` | Men In Black | europar | works (headless test: attract, coins and free play, both players, guns aimed and shooting; user played on the desktop) | `MIB.exe` (Unity 2020 Mono, 64-bit), wal-loader64: Unity's input functions answered with the guns, the shell over TCP 18888 (credits, free play, security answers), `ShellData` settings from the profile, no lamp board |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | `bin/byy.exe ..\ ..\` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coins, two positional guns scaled onto the default calibration, security plugs), ICCA card reader, cabinet IP setup answered, e-Amusement offline (local mode), picture at the screen resolution in a borderless window |
 | `gashaaaan` | Gashaaaan | konami | works (headless test) | `bin/ballshooting.exe` (§6.3h), `iob.dll` replaced: I/O board (buttons, coins, ball supply, plugs), ballio's camera board answered (ball hits from the guns), the two overlapping screens shown as one picture, E:/F: save drives, OpenGL crosshairs |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |

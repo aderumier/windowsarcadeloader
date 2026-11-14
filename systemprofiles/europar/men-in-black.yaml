@@ -1,0 +1,40 @@
+# Men In Black (SEGA Amusements Europe, 2022, MIB.exe, Unity 2020.3 / Mono, 64-bit), a two-gun
+# ticket game - template, override values in userprofiles/europar/men-in-black.yaml.
+# The payload is the cabinet's hardware (WAL_EUROPAR_BOARD=mib, docs §6.3g): the guns (Unity's
+# joystick functions answered with the players' guns), the shell the game connects to (coins,
+# credits, its security challenges), the lamp board absent. The dump: the cabinet's files only
+# (no BepInEx / Unity Doorstop plugin, no community settings tool).
+system: europar
+name: Men In Black
+
+# Unity's own log beside the game
+args: [-logFile, Player.log]
+
+# loaded at the entry point (64-bit: wal-loader64): Unity's input functions wrapped before Mono
+# registers them
+payload_loader: true
+
+# The shell's settings, read from C:\Sega\ShellData (installed at each start): the dump's, the
+# guns' calibration the whole screen (0-4096, unclamped: the payload's guns are exact), free
+# play from the common option (written by the payload); the game's settings with coins, not the
+# card reader ("swipe card to join").
+c_folders:
+  Sega/ShellData: ShellData
+files:
+  ShellData/ShellData.ini: systemprofiles/europar/files/men-in-black/ShellData.ini
+  ShellData/GameSettings.ini: systemprofiles/europar/files/men-in-black/GameSettings.ini
+
+env:
+  WAL_EUROPAR_BOARD: mib
+
+input:
+  # each gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  start: Start
+  coin: Coin

@@ -290,6 +290,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `grid` | GRID | europar | works (user: 100%) | not in the test |  |
 | `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | not in the test |  |
 | `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | not in the test |  |
+| `men-in-black` | Men In Black | europar | works (headless test; user played on the desktop) | not in the test |  |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | not in the test |  |
 | `gashaaaan` | Gashaaaan | konami | works (headless test) | not in the test |  |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | not in the test |  |
