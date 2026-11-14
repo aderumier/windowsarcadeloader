@@ -27,7 +27,17 @@
 //!   black). The game's `grSstWinOpen` gets a window of the payload, a borderless one with a
 //!   thread and message loop of its own, the largest centered 4:3 rectangle of the screen (the
 //!   profile's black bezel around); gxvk's sizing of it (its `SetWindowPos` / `MoveWindow`) keeps
-//!   that rectangle. The game's window is hidden.
+//!   that rectangle. The game's window is hidden. `WAL_ARCADEPC_GLIDE_WINDOW=0` (the profile:
+//!   the dump's dgVoodoo 2.53): the Glide DLL's own window, its sizings kept on that rectangle.
+//!   dgVoodoo is packed (MPRESS), its unpacker resolves its `user32` calls: their pointers in
+//!   its image are replaced (it moved its window to 640x480 at 0,0 every 2 s).
+//! - **Frame timer.** `0x411550` keeps a time budget (`0x512804`, float ms): started from
+//!   `timeGetTime` when 0 (`0x411540`), it adds `GetTickCount` minus that start, as an unsigned
+//!   32-bit difference (`0x4114d0`); each logic frame takes 16.67 ms, the picture is drawn once
+//!   the budget is spent. Under Wine `GetTickCount` steps every ~16 ms and `timeGetTime` is
+//!   precise: a start ahead of the next tick made the difference ~4.29e9 ms, the game ran logic
+//!   frames without drawing (the attract's title never shown, a busy loop until a start reset
+//!   the budget). The game's `GetTickCount` is `timeGetTime`.
 //! - **Protection.** The boot compares `c:\windows\win386p.swp` with the volume serial number of
 //!   C: (`0x412790`): it returns 1 (the profile's patch).
 //!
@@ -59,6 +69,8 @@ struct Build {
     /// The coins per credit to start and to continue (0: free play).
     start_coins: usize,
     continue_coins: usize,
+    /// The frame timer mixes `timeGetTime` (its start) and `GetTickCount` (its deltas).
+    mixed_clocks: bool,
 }
 
 const BUILDS: &[Build] = &[
@@ -70,6 +82,7 @@ const BUILDS: &[Build] = &[
         settings_jump: (0x12C4A, [0xE9, 0xE1, 0xFD, 0xFF, 0xFF], 0x12A30),
         start_coins: 0x130840,
         continue_coins: 0x1307DC,
+        mixed_clocks: true,
     },
     // Come On Baby! 2 Winter Championship (Cob2.exe): the settings reader's `jmp 0x41fb20`
     Build {
@@ -79,6 +92,7 @@ const BUILDS: &[Build] = &[
         settings_jump: (0x1FD00, [0xE9, 0x1B, 0xFE, 0xFF, 0xFF], 0x1FB20),
         start_coins: 0x553664,
         continue_coins: 0x551E50,
+        mixed_clocks: false,
     },
 ];
 
@@ -219,6 +233,14 @@ static SET_WINDOW_POS: AtomicUsize = AtomicUsize::new(0);
 static MOVE_WINDOW: AtomicUsize = AtomicUsize::new(0);
 /// The payload's Glide window.
 static WINDOW: AtomicUsize = AtomicUsize::new(0);
+/// The Glide DLL's own window (`WAL_ARCADEPC_GLIDE_WINDOW=0`): each of its sizings kept on the
+/// Glide window's place.
+static OWN_WINDOW: AtomicBool = AtomicBool::new(false);
+
+/// The Glide DLL's sizing of `hwnd` replaced (its rectangle, moving and sizing on).
+fn sizing(hwnd: P) -> Option<(i32, i32, i32, i32)> {
+    (OWN_WINDOW.load(Ordering::Relaxed) || hwnd as usize == WINDOW.load(Ordering::Relaxed)).then(glide_rect)
+}
 
 /// The Glide window's place: the largest centered 4:3 rectangle of the screen.
 fn glide_rect() -> (i32, i32, i32, i32) {
@@ -267,13 +289,16 @@ fn glide_window() -> usize {
 /// The Glide DLL's sizing of the Glide window: its rectangle kept.
 unsafe extern "system" fn set_window_pos(hwnd: P, after: P, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32 {
     let f: unsafe extern "system" fn(P, P, i32, i32, i32, i32, u32) -> i32 = unsafe { std::mem::transmute(SET_WINDOW_POS.load(Ordering::Relaxed)) };
-    let (x, y, cx, cy) = if hwnd as usize == WINDOW.load(Ordering::Relaxed) { glide_rect() } else { (x, y, cx, cy) };
-    unsafe { f(hwnd, after, x, y, cx, cy, flags) }
+    match sizing(hwnd) {
+        // SWP_NOSIZE | SWP_NOMOVE off
+        Some((x, y, cx, cy)) => unsafe { f(hwnd, after, x, y, cx, cy, flags & !3) },
+        None => unsafe { f(hwnd, after, x, y, cx, cy, flags) },
+    }
 }
 
 unsafe extern "system" fn move_window(hwnd: P, x: i32, y: i32, cx: i32, cy: i32, repaint: i32) -> i32 {
     let f: unsafe extern "system" fn(P, i32, i32, i32, i32, i32) -> i32 = unsafe { std::mem::transmute(MOVE_WINDOW.load(Ordering::Relaxed)) };
-    let (x, y, cx, cy) = if hwnd as usize == WINDOW.load(Ordering::Relaxed) { glide_rect() } else { (x, y, cx, cy) };
+    let (x, y, cx, cy) = sizing(hwnd).unwrap_or((x, y, cx, cy));
     unsafe { f(hwnd, x, y, cx, cy, repaint) }
 }
 
@@ -302,6 +327,71 @@ unsafe extern "system" fn sst_win_open(hwnd: u32, res: i32, refresh: i32, color:
         unsafe { ShowWindow(game, SW_HIDE) };
     }
     unsafe { f(w as u32, res, refresh, color, origin, colors, aux) }
+}
+
+/// The pointers to `real` in the image at `base` replaced by `replacement` (a packed DLL's
+/// import table, filled by its unpacker: dgVoodoo's MPRESS); their count.
+unsafe fn replace_pointers(base: usize, real: usize, replacement: usize) -> usize {
+    use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_GUARD, PAGE_NOACCESS, PAGE_READWRITE, VirtualQuery};
+    unsafe {
+        let nt = base + ((base + 0x3C) as *const u32).read_unaligned() as usize;
+        let size = ((nt + 24 + 56) as *const u32).read_unaligned() as usize; // SizeOfImage
+        let mut count = 0;
+        let mut at = base;
+        while at < base + size {
+            let mut info: MEMORY_BASIC_INFORMATION = std::mem::zeroed();
+            if VirtualQuery(at as *const _, &mut info, size_of::<MEMORY_BASIC_INFORMATION>()) == 0 {
+                break;
+            }
+            let end = (info.BaseAddress as usize + info.RegionSize).min(base + size);
+            if info.State == MEM_COMMIT && info.Protect & (PAGE_NOACCESS | PAGE_GUARD) == 0 {
+                let mut p = at.next_multiple_of(4);
+                while p + 4 <= end {
+                    if (p as *const usize).read() == real {
+                        let mut old = 0;
+                        VirtualProtect(p as *const _, 4, PAGE_READWRITE, &mut old);
+                        (p as *mut usize).write(replacement);
+                        VirtualProtect(p as *const _, 4, old, &mut old);
+                        count += 1;
+                    }
+                    p += 4;
+                }
+            }
+            at = end;
+        }
+        count
+    }
+}
+
+/// The Glide DLL's own window: its `SetWindowPos` / `MoveWindow` (resolved by its unpacker)
+/// keep the Glide window's place.
+fn own_window() {
+    use windows_sys::Win32::System::LibraryLoader::GetProcAddress;
+    OWN_WINDOW.store(true, Ordering::Relaxed);
+    let (glide, user32) = unsafe { (GetModuleHandleW(windows_sys::w!("glide2x.dll")) as usize, GetModuleHandleW(windows_sys::w!("user32.dll"))) };
+    if glide == 0 || user32.is_null() {
+        log!("comeonbaby: the Glide DLL's own window, not sized (no glide2x.dll)");
+        return;
+    }
+    for (name, store, replacement) in [
+        (c"SetWindowPos", &SET_WINDOW_POS, set_window_pos as *const () as usize),
+        (c"MoveWindow", &MOVE_WINDOW, move_window as *const () as usize),
+    ] {
+        let Some(real) = (unsafe { GetProcAddress(user32, name.as_ptr().cast()) }) else { continue };
+        store.store(real as usize, Ordering::Relaxed);
+        let n = unsafe { replace_pointers(glide, real as usize, replacement) };
+        log!("comeonbaby: the Glide DLL's own window, {} kept at the Glide window's place ({n} pointer(s))", name.to_str().unwrap_or(""));
+    }
+}
+
+#[link(name = "winmm")]
+unsafe extern "system" {
+    fn timeGetTime() -> u32;
+}
+
+/// The game's `GetTickCount`: `timeGetTime`, the clock its frame timer starts from.
+unsafe extern "system" fn get_tick_count() -> u32 {
+    unsafe { timeGetTime() }
 }
 
 /// Writes a `jmp` (0xE9) or `call` (0xE8) to `to` at `at`.
@@ -338,9 +428,16 @@ pub fn init() {
     EXE.store(exe, Ordering::Relaxed);
     *FREE_PLAY.lock().unwrap() = wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY");
     branch(exe + build.settings_jump.0, 0xE9, read_settings as *const () as usize);
-    match unsafe { iat::hook("glide2x.dll", "_grSstWinOpen@28", sst_win_open as *const () as usize) } {
-        Some(o) => GR_SST_WIN_OPEN.store(o, Ordering::Relaxed),
-        None => log!("comeonbaby: no grSstWinOpen import, the Glide DLL picks the window"),
+    if build.mixed_clocks && unsafe { iat::hook("kernel32.dll", "GetTickCount", get_tick_count as *const () as usize) }.is_none() {
+        log!("comeonbaby: no GetTickCount import, the frame timer's clocks left mixed");
+    }
+    if std::env::var("WAL_ARCADEPC_GLIDE_WINDOW").is_ok_and(|v| v == "0") {
+        own_window();
+    } else {
+        match unsafe { iat::hook("glide2x.dll", "_grSstWinOpen@28", sst_win_open as *const () as usize) } {
+            Some(o) => GR_SST_WIN_OPEN.store(o, Ordering::Relaxed),
+            None => log!("comeonbaby: no grSstWinOpen import, the Glide DLL picks the window"),
+        }
     }
     log!("comeonbaby: {}, parallel port board at {at:#x}", build.name);
 }

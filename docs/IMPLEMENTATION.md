@@ -4505,18 +4505,33 @@ buttons and a start button. The payload is loaded at the entry point (`payload_l
   `in` / `out` instructions are already NOPs and its dgVoodoo `Glide2x.dll` imports
   `cob_patch.dll`, which hooks the reader with the real keyboard; the payload's jump replaces
   either.
-- **Picture.** The runner's gxvk (`Glide2x.dll` in the profile's `files`, `useMonitorResolution`,
-  no logo) in place of the dump's dgVoodoo 2.53: always windowed at 640x480 (resized again every
-  2 s through calls resolved at run time), its full screen stretched to the screen; dgVoodoo
-  2.87 hangs at boot under Wine, its "Wine fix" build loses the large sprites and the texts.
-  gxvk 0.1 drew the sprites' chroma key (magenta boxes) and lost black texels: the runner has a
-  later build (`v0.2-WIP-6-gc6d68eae`). The game hands `grSstWinOpen` no window and runs no
-  message loop: gxvk took its 0x0 window (a few pixels on the desktop) and the picture went
-  black once gxvk needed its window's messages. As for Xtom 3D, `grSstWinOpen` gets a window of
-  the payload (the largest centered 4:3 rectangle of the screen, a thread and message loop of
-  its own, gxvk's `SetWindowPos` / `MoveWindow` keep it there), the game's hidden, the black
-  bezel around. The window's WM_MOVE no longer closes the game (`0x4121bc`: on a failed
-  `grSstControl(move)`, dgVoodoo's).
+- **Picture.** The dump's dgVoodoo 2.53 (`Glide2x.dll`, Direct3D 11 on DXVK, MPRESS-packed:
+  its unpacker resolves its `user32` calls) keeps its own window (`WAL_ARCADEPC_GLIDE_WINDOW=0`):
+  always windowed, it moved the game's window to 640x480 at 0,0 every 2 s (`SetWindowPos`), out
+  of reach of the import hooks (Wine's `SetWindowPos` has no hot patch prologue). The payload
+  replaces the pointers to `SetWindowPos` / `MoveWindow` in dgVoodoo's unpacked image: each of
+  its sizings lands on the largest centered 4:3 rectangle of the screen, where the window is
+  created (`WAL_WINDOW_SIZE=aspect`, `WAL_WINDOW_POPUP`, `WAL_PACKED_IMPORTS=user32.dll` for the
+  hot-patchable `CreateWindowEx`), its 640x480 picture stretched into it by DXGI, no display mode
+  change (`WAL_NO_MODE_CHANGE`), the black bezel around, the window not managed (GNOME's top bar
+  pushed it 48 pixels down). Its `dgVoodoo.conf` byte 0x1c (0: full screen) stretched the
+  picture to the screen's 16:9. gxvk (the runner's, `v0.2-WIP-6-gc6d68eae`), used before,
+  showed the intro black: the logo animation is drawn with a constant alpha of 0
+  (`grConstantColorValue(0x00ffffff)`, alpha combine = constant), irrelevant to a Voodoo (no
+  alpha in its frame buffer) but presented by gxvk (a present with alpha forced to 1 showed it).
+  The game hands `grSstWinOpen` no window and runs no message loop: for gxvk (the payload's
+  default) `grSstWinOpen` gets a window of the payload (that rectangle, a thread and message
+  loop of its own, as for Xtom 3D), the game's hidden. dgVoodoo 2.87 hangs at boot under Wine,
+  its "Wine fix" build loses the large sprites and the texts. The window's WM_MOVE no longer
+  closes the game (`0x4121bc`: on a failed `grSstControl(move)`, dgVoodoo's).
+- **Frame timer.** `0x411550` keeps a time budget (`0x512804`, float ms): started from
+  `timeGetTime` when 0 (`0x411540`), it adds `GetTickCount` minus that start, an unsigned 32-bit
+  difference (`0x4114d0`); each logic frame takes 16.67 ms, the picture is drawn once the budget
+  is spent. Under Wine `GetTickCount` steps every ~16 ms while `timeGetTime` is precise: a start
+  ahead of the next tick made the difference ~4.29e9 ms and the game ran logic frames without
+  drawing (~330000 board reads a second): the attract's title never shown after the intro,
+  black until a start (a texture load resets the budget), by chance of the timing. The game's
+  `GetTickCount` is `timeGetTime` (the payload's import hook).
 - **Operator menu.** Test moves, service selects. The menu's select and the frame update (service:
   a credit) shared one edge detector (`0x4112f0`, its state flipped at each call while held): the
   frame update, called first, took a short press, only a long one selected. The menu's call
@@ -8270,7 +8285,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | JXCompany's "ShotRedLight" (Unity 2017.2, 64-bit, §6.3i): rebuilt dump without BepInEx/ReShade (`TopGun2.exe`); the payload emulates the JX COM1 board (`jxboard.rs`, `jxcamera`), the SoftKey HID dongle and the camera tracker's positions; landscape by default (levels full screen, not stretched; menus, attract and loading in the bezel), portrait 1080x1920 fitted as an option, crosshair |
 | `galaxian-3` | Galaxian 3 | arcadepc | user 100% (2026-11-09), 4 guns (of the cabinet's 6) | Namco's Theater 6 LaserDisc game in the dump's patched MAME (`mame.exe gal3`, H.264 laserdiscs, §6.3i): the payload is MAME's raw input devices (a keyboard and one absolute mouse per player, `mame.rs`), `ctrlr\wal.cfg` maps them; startup popups patched out; ReShade off by default; stretch option (`keepaspect`) |
 | `burning-striker` | Burning Striker | arcadepc | user 100% (2026-11-09), 2 players (stick, 3 buttons) | Eolith's football game (DirectDraw / D3D7, 32-bit, §6.3i): COM1 board and DIP switches emulated (free play option), the protection's 3ddata.pak key from the dump's `eolith.key`; intro movie needs GE patches 0116/0117 (qasf DMO wrapper); focus loss no longer minimizes (wined3d behind d7vk) |
-| `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) | ExtraLine's party game (Glide 2, 32-bit, §6.3i): the parallel port board's reader replaced (sticks, buttons, operator keys), the menu's service select given its own edge detection, free play option over `eep.rom`'s coins, the C: serial check patched; the runner's gxvk (a build after 0.1: chroma key) in a payload window with its own message loop, 4:3, black bezel |
+| `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-14), 2 players (stick, 2 buttons, start) | ExtraLine's party game (Glide 2, 32-bit, §6.3i): the parallel port board's reader replaced (sticks, buttons, operator keys), the menu's service select given its own edge detection, free play option over `eep.rom`'s coins, the C: serial check patched; the frame timer's mixed clocks made one (`GetTickCount` is `timeGetTime`: the title was never drawn); the dump's dgVoodoo 2.53 in its own window, its packed `SetWindowPos` kept on the centered 4:3, black bezel |
 | `come-on-baby-2` | Come On Baby! 2 Winter Championship | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) | The sequel (DirectDraw / Direct3D 7 on d7vk, §6.3i): `comeonbaby.rs`'s second build (the parallel port reader, free play over `eep.rom`), the lamps' `out` writers and the C: serial check patched, the attract movie's `IDirectDrawVideo` setup skipped (the MPEG plays), the Korean operator menu in code page 949 |
 | `robin-hood` | Robin Hood | arcadepc | user 100% (2026-11-09), 1 gun | ICE's ticket redemption crossbow game (Direct3D 9, 32-bit, §6.3i): the serial board emulated (switches, coins, tickets paid at once), the crossbow's DirectInput joystick X from the gun's X position, the linked HASP HL API patched, free play option over `coinfree`, the dump's root as working directory |
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | Lightgun game (Direct3D 9, 32-bit, §6.3i): the parallel port gun board emulated (`inpout32`'s `Inp32` / `Out32`: aim, triggers, switches, a gun sample per shot), the Dinkey dongle's checks patched, free play option, crosshairs, the dump's bezel |
