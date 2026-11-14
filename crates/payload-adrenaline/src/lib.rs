@@ -42,7 +42,7 @@
 //! - Need for Speed Heat Takedown (Unity 2021, Mono, 64-bit): a driving game. `steering.rs`
 //!   is its steering board on a serial port (the wheel and its motor, the pedals, the nitro
 //!   button, the operator's keypad, the coin door); `hdrp.rs` its render scale (HDRP's dynamic
-//!   resolution, FSR upscaling).
+//!   resolution, Catmull-Rom upscaling); `buttkicker.rs` its seat shaker's rumble off the speakers.
 //! - Hot Wheels: Victory Lap (Unity 6, IL2CPP, 64-bit): the same steering board, on the game's
 //!   RS-232 library (`rs232.rs`: `RS_232_DLL.dll`); its webcam pictures off (`victorylap.rs`).
 //!
@@ -63,6 +63,8 @@ mod adrio2;
 mod drakon;
 #[cfg(target_pointer_width = "64")]
 mod hdrp;
+#[cfg(target_pointer_width = "64")]
+mod buttkicker;
 mod hotwheels;
 #[cfg(target_pointer_width = "32")]
 mod fruitninja;
@@ -203,6 +205,9 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
         #[cfg(target_pointer_width = "32")]
         "pqmtclient.dll" => pqmt::resolve(name),
         "sxcore.dll" => sixense::resolve(name),
+        // Need for Speed Heat Takedown: its seat shaker's rumble kept off the speakers
+        #[cfg(target_pointer_width = "64")]
+        "aksoundengine.dll" if buttkicker::off() => buttkicker::resolve(name),
         // Hot Wheels: Victory Lap: its steering board's port
         "rs_232_dll.dll" if steering::enabled() => rs232::resolve(name),
         #[cfg(target_pointer_width = "64")]
