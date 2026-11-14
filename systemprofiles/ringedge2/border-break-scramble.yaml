@@ -4,12 +4,13 @@
 # ALL.Net) is statically linked into nrs.exe, so this reuses the RingEdge payload with the
 # RingEdge 2 board. Override values in userprofiles/ringedge2/border-break-scramble.yaml.
 #
-# WORK IN PROGRESS - it boots to its attract (IC card R/W, touch panel, network, billing and
-# extended image checks passed, the shop's local game server run by this cabinet); controls and
-# play untested. The extended image is marked installed
+# WORK IN PROGRESS - it plays up to its battle: attract, card select (「カードなし」), GP purchase,
+# mode select (個人演習, the CPU practice, the only offline mode), faction, weapon and sortie
+# point, then the battle (timer, HUD, minimap, firing, dash). The battle's 3D world is not drawn
+# yet (a gray screen under the HUD). The extended image is marked installed
 # by two empty files in the dump's Y folder, made by hand: Y/SBVA.extend and
 # Y/SBVA.extend.complete (else "Error 0913 Game Program Not Found on Storage Device").
-# Control mapping below is an UNVERIFIED default.
+# Credits are kept in the backup: insert coins (the -free flag does not waive them).
 system: ringedge2
 name: Border Break Scramble
 
@@ -98,14 +99,33 @@ env:
   # amJvs uses the serial JVS driver and may also open a COM port (as Initial D 7).
   WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
   # the I/O board must declare analog inputs, rotary inputs and 20 general purpose outputs (the
-  # node check FUN_0067afa0, else "Error 6401 JVS I/O board is not connected"); the channel
-  # order is UNVERIFIED (see the controls note below)
-  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,ly,rx,ry"
+  # node check FUN_0067afa0, else "Error 6401 JVS I/O board is not connected").
+  # Left grip (the JVS board, player 1; the game's INPUT TEST, FUN_008a04b0): button 1 JUMP,
+  # button 2 DASH, button 3 ACTION; the move stick on analog channel 1 (X) and 0 (Y): the game
+  # swaps the two channels (FUN_00679de0)
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "ly,lx"
   WAL_TYPEX_JVS_ROTARY: "2"
   WAL_TYPEX_JVS_OUTPUTS: "20"
+  # Right grip: the cabinet's aim control is a USB mouse read with DirectInput (relative motion,
+  # ~127 counts a frame the game's full aim speed; buttons A fire, B, C). The right stick moves
+  # it, b4 b5 b6 press its buttons
+  WAL_DINPUT_MOUSE_STICK: "90"
+  WAL_DINPUT_MOUSE_STICK_AXES: "rx,ry"
+  WAL_DINPUT_MOUSE_BUTTONS: "b4,b5,b6"
+  # ... a DirectInput mouse button only counts with its window message (0x67a068: the right
+  # grip's buttons ANDed with WM_L/R/MBUTTON's): the three checks jumped over
+  WAL_PATCHES: "0x27a083:EB,0x27a098:EB,0x27a0ad:EB"
   # COM1 is the cabinet's touch panel, Sega's CTR-251500 controller (as Puyo Puyo!! Quest),
   # checked at boot ("CHECKING TOUCH PANEL", error 22 without an answer)
   WAL_RINGEDGE_TOUCH: COM1
+  # its 1024x600 screen (the touch reports' scale); the touch: the pointer (the left stick, a
+  # mouse acting as a gun) with b8
+  WAL_RINGEDGE_TOUCH_SCREEN: 1024x600
+  # the game's calibration (the backup's 5-point table at 0x16dbfe8, read from the dump) on
+  # 4095 minus the panel's X and Y (FUN_008b31e0): the screen's X 0-1023 from 326-3803, Y 0-599
+  # from 332-3641, i.e. X mirrored on the panel, Y from the bottom (the screen points of the
+  # panel's report at the screen's top left and bottom right)
+  WAL_RINGEDGE_TOUCH_CALIBRATION: "942.25,48.8,73,533.5"
   # COM2 is the cabinet's IC card reader/writer, checked at boot ("CHECKING IC CARD R/W", error
   # 23 without an answer): emulated without a card
   WAL_RINGEDGE_IC_CARD: COM2
@@ -130,23 +150,21 @@ drives:
   y: Y
   w: W
 
-# TODO (UNVERIFIED): Border Break is a twin-stick mech shooter. The cabinet has a left analog
-# stick (move), a right analog stick (aim), pedals/triggers and action buttons on the JVS board;
-# the exact analog channel order and switch bits were not derived from the binary. This is a
-# placeholder twin-stick default so the game is playable from a pad; verify the JVS mapping on
-# the box (WAL_RINGEDGE_JVS_DUMP) and fix WAL_TYPEX_JVS_ANALOG_INPUTS above accordingly.
+# Left grip: move stick and its three buttons; right grip: the aim (right stick) and its three
+# buttons; the touch panel for the menus (start: touch the screen).
 input:
   stick_as_dpad: false
 
-# Control names for the GUI mapping rows - placeholder, refine once the JVS layout is confirmed.
+# Control names for the GUI mapping rows.
 controls:
   lx: Move stick X
   ly: Move stick Y
-  rx: Aim stick X
-  ry: Aim stick Y
-  b1: Trigger / Fire
-  b2: Action
-  b3: Jump
-  b4: Dash / Boost
-  b5: Weapon change
-  b6: none
+  rx: Aim X
+  ry: Aim Y
+  b1: Jump
+  b2: Dash
+  b3: Action
+  b4: Fire (right grip A)
+  b5: Right grip B
+  b6: Right grip C
+  b8: Touch

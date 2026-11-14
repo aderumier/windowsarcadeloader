@@ -36,6 +36,7 @@ pub(crate) fn init() -> bool {
     }
     for (name, hook, orig) in [
         ("RegisterClassA", register_class_a as *const () as usize, &ORIG_REGISTER_A),
+        ("RegisterClassExA", register_class_ex_a as *const () as usize, &ORIG_REGISTER_EX_A),
         ("RegisterClassExW", register_class_ex_w as *const () as usize, &ORIG_REGISTER_EX_W),
     ] {
         if let Some(o) = unsafe { iat::hook("user32.dll", name, hook) } {
@@ -47,6 +48,7 @@ pub(crate) fn init() -> bool {
 }
 
 static ORIG_REGISTER_A: AtomicUsize = AtomicUsize::new(0);
+static ORIG_REGISTER_EX_A: AtomicUsize = AtomicUsize::new(0);
 static ORIG_REGISTER_EX_W: AtomicUsize = AtomicUsize::new(0);
 /// The wrapped window procedures, by [`window_proc`] slot.
 static PROCS: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
@@ -80,6 +82,16 @@ unsafe extern "system" fn window_proc<const N: usize>(window: *mut c_void, messa
 
 unsafe extern "system" fn register_class_a(class: *mut windows_sys::Win32::UI::WindowsAndMessaging::WNDCLASSA) -> u16 {
     let orig: unsafe extern "system" fn(*mut windows_sys::Win32::UI::WindowsAndMessaging::WNDCLASSA) -> u16 = unsafe { std::mem::transmute(ORIG_REGISTER_A.load(Ordering::Relaxed)) };
+    if !class.is_null() {
+        let mut copy = unsafe { std::ptr::read(class) };
+        copy.lpfnWndProc = unsafe { std::mem::transmute(wrap(copy.lpfnWndProc.map_or(0, |f| f as usize))) };
+        return unsafe { orig(&mut copy) };
+    }
+    unsafe { orig(class) }
+}
+
+unsafe extern "system" fn register_class_ex_a(class: *mut windows_sys::Win32::UI::WindowsAndMessaging::WNDCLASSEXA) -> u16 {
+    let orig: unsafe extern "system" fn(*mut windows_sys::Win32::UI::WindowsAndMessaging::WNDCLASSEXA) -> u16 = unsafe { std::mem::transmute(ORIG_REGISTER_EX_A.load(Ordering::Relaxed)) };
     if !class.is_null() {
         let mut copy = unsafe { std::ptr::read(class) };
         copy.lpfnWndProc = unsafe { std::mem::transmute(wrap(copy.lpfnWndProc.map_or(0, |f| f as usize))) };
@@ -197,10 +209,12 @@ pub(crate) unsafe fn present(hdc: *mut c_void) {
     let first = *FIRST.get_or_init(std::time::Instant::now);
     if !ENLARGED.load(Ordering::Relaxed) && first.elapsed().as_secs() >= 5 {
         ENLARGED.store(true, Ordering::Relaxed);
-        use windows_sys::Win32::UI::WindowsAndMessaging::{GetAncestor, GA_ROOT, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SetWindowPos, SWP_NOZORDER, SWP_NOACTIVATE};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetAncestor, GA_ROOT, GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, SetWindowPos, SWP_ASYNCWINDOWPOS, SWP_NOZORDER, SWP_NOACTIVATE};
         let (sw, sh) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
         let top = unsafe { GetAncestor(window, GA_ROOT) };
-        unsafe { SetWindowPos(top, std::ptr::null_mut(), 0, 0, sw, sh, SWP_NOZORDER | SWP_NOACTIVATE) };
+        // asynchronous: a game drawing from its own render thread (Border Break Scramble) has its
+        // window thread waiting for that frame, a synchronous resize never returned
+        unsafe { SetWindowPos(top, std::ptr::null_mut(), 0, 0, sw, sh, SWP_NOZORDER | SWP_NOACTIVATE | SWP_ASYNCWINDOWPOS) };
         log!("glscale: window enlarged to {sw}x{sh}");
         if orig(window, &mut rect) != 0 {
             (ww, wh) = (rect.right - rect.left, rect.bottom - rect.top);

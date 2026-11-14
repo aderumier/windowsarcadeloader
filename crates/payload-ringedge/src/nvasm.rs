@@ -49,7 +49,11 @@ const BIG: &str = "{1e30,1e30,1e30,1e30}";
 
 /// A program for NVIDIA GPUs only: NVIDIA options or formats.
 pub(crate) fn nvidia(text: &str) -> bool {
-    text.contains("OPTION NV_") || text.starts_with("!!FP") || text.starts_with("!!VP") || text.starts_with("!!NV")
+    // the option after any blanks (Border Break Scramble's `OPTION\t\tNV_fragment_program2`)
+    text.split("OPTION").skip(1).any(|r| r.starts_with(char::is_whitespace) && r.trim_start().starts_with("NV_"))
+        || text.starts_with("!!FP")
+        || text.starts_with("!!VP")
+        || text.starts_with("!!NV")
 }
 
 /// `(base opcode, updates the condition code, saturates)`.
@@ -169,7 +173,14 @@ fn vertex_inputs(text: &str) -> String {
 
 /// The condition `cond` (`NE.y`) on the condition code, as 0 / 1 per component in `dst`.
 fn test(out: &mut Vec<String>, dst: &str, cond: &str) -> Option<()> {
-    let (c, sw) = split_swizzle(cond);
+    // its swizzle in `rgba` (Border Break Scramble's `LT.a`) as `xyzw`
+    let cond = match cond.rsplit_once('.') {
+        Some((c, sw)) if !sw.is_empty() && sw.chars().all(|ch| "rgba".contains(ch)) => {
+            format!("{c}.{}", sw.chars().map(|ch| match ch { 'r' => 'x', 'g' => 'y', 'b' => 'z', _ => 'w' }).collect::<String>())
+        }
+        _ => cond.to_string(),
+    };
+    let (c, sw) = split_swizzle(&cond);
     // `GT1`: the second condition code (NV_gpu_program4's `CC1`)
     let (c, v) = match c.strip_suffix('1') {
         Some(c) => (c, format!("_wCC1{}", full_swizzle(sw))),
@@ -215,17 +226,29 @@ fn is_condition(s: &str) -> bool {
 /// The program's statements: the header line, then the rest without its comments split on
 /// `;` (a statement can span lines), a label (`name:`) its own statement.
 fn statements(text: &str) -> Vec<String> {
-    let (header, body) = text.split_once('\n').unwrap_or((text, ""));
+    // the header (`!!ARBfp1.0`), up to its version's digits: Border Break Scramble's programs
+    // in one line, the first option right after it (`!!ARBfp1.0OPTION ...;...`)
+    let version = text.strip_prefix("!!").and_then(|t| {
+        let dot = t.find('.')?;
+        let digits = t[dot + 1..].find(|c: char| !c.is_ascii_digit()).unwrap_or(t.len() - dot - 1);
+        Some(2 + dot + 1 + digits)
+    });
+    let (header, body) = match version {
+        Some(n) if n < text.len() => (&text[..n], &text[n..]),
+        _ => text.split_once('\n').unwrap_or((text, "")),
+    };
     let mut out = vec![header.trim().to_string()];
     let body: Vec<&str> = body.lines().map(|l| l.split('#').next().unwrap_or("")).collect();
     for s in body.join(" ").split(';') {
         let mut s = s.split_whitespace().collect::<Vec<_>>().join(" ");
-        if let Some(i) = s.find(':') {
+        // its labels, several in a row (Border Break Scramble's skinning: `BB4: BB5: BB6:`)
+        while let Some(i) = s.find(':') {
             let label = &s[..i];
-            if !label.is_empty() && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-                out.push(format!("{label}:"));
-                s = s[i + 1..].trim().to_string();
+            if label.is_empty() || !label.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+                break;
             }
+            out.push(format!("{label}:"));
+            s = s[i + 1..].trim().to_string();
         }
         if !s.is_empty() {
             out.push(s);
@@ -248,6 +271,11 @@ fn subroutines(stmts: Vec<String>) -> Option<Vec<String>> {
             }
             let mut parts = first.split('.');
             let mut op = parts.next().unwrap_or("").to_string();
+            // an unsigned truncation (`TRUNC.U`: a non-negative value) is a floor (Border Break
+            // Scramble's edge filter)
+            if op == "TRUNC" && first.split('.').any(|m| m == "U") {
+                op = "FLR".into();
+            }
             let mut sat = false;
             for m in parts {
                 match m {
@@ -402,7 +430,9 @@ fn loops(stmts: Vec<String>) -> Option<Vec<String>> {
 
 /// A scalar instruction's operand with the component ARB requires (NVIDIA reads `.x`).
 fn scalar(src: &str) -> String {
-    if !split_swizzle(src).1.is_empty() {
+    // a component already, `xyzw` or `rgba` (Border Break Scramble's `RCP oa.a, out.a`)
+    let rgba = src.rsplit_once('.').is_some_and(|(_, sw)| (1..=4).contains(&sw.len()) && sw.chars().all(|c| "rgba".contains(c)));
+    if rgba || !split_swizzle(src).1.is_empty() {
         return src.to_string();
     }
     let (neg, value) = match src.strip_prefix('-') {

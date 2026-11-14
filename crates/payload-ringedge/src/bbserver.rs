@@ -71,7 +71,17 @@ fn elements(count: usize, element: &str) -> String {
 
 /// One `rules` element (`FUN_008fa2e0`): 161 fields, 187 `del`s.
 fn rule() -> String {
-    let mut r = array(4) + &array(4) + &zeros(23);
+    // the stages: the game's stage table (0x1280490: 0 NULL, an empty field; 11 ILND01, 13
+    // EURO01, 15 CANY01, 22 BILD01...)
+    let stages = "11del13del15del22deldel";
+    // rotation_repeat_count[4], then the battle's settings (the rule's dump, FUN_008fc5f0):
+    // map_member, bot_member, map_limit_time, map_limit_core, tmp_limit_time, tmp_limit_core,
+    // battle_time (seconds), respawn_interval, map_to_truemap, map_to_tempmap,
+    // map_close_team_diff, break_chance_rate, doubleup_rate, cp_bounus_rate, ev_bonus_rate,
+    // sp_bonus_rate, battle_kind, (unnamed), extra_flag, disp_info_dist_ratio, lockon_dist_ratio,
+    // cp_vital_ratio, cp_conquer_ratio; all 0, a battle ends as it starts
+    let settings = [10, 10, 600, 100, 600, 100, 600, 10, 0, 0, 0, 100, 100, 100, 100, 100, 0, 0, 0, 100, 100, 100, 100];
+    let mut r = stages.to_string() + &array(4) + &settings.iter().map(|v| format!("{v}del")).collect::<String>();
     r += &elements(4, &zeros(2));
     r += &elements(4, &array(4));
     r += &array(16);

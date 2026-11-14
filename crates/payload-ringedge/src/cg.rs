@@ -133,6 +133,13 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
                 return multisample_coverage as *const () as usize;
             }
         }
+        // NV_gpu_program4's integer parameters (Border Break Scramble's, called unchecked at its
+        // battle's start): the float ones, its programs translated to float ARB programs
+        if FIX.load(Ordering::Relaxed)
+            && let Some(f) = int_parameters(name.to_bytes(), &orig)
+        {
+            return f;
+        }
         if *LOG.get().unwrap_or(&false) {
             log!("cg: {} absent", name.to_string_lossy());
         }
@@ -174,6 +181,70 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
 }
 
 static ORIG_MULTISAMPLE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_ENV_4F: AtomicUsize = AtomicUsize::new(0);
+static ORIG_LOCAL_4F: AtomicUsize = AtomicUsize::new(0);
+
+/// `glProgram{Env,Local}ParameterI4{i,ui}{,v}NV` (absent on Mesa) as the float
+/// `glProgram{Env,Local}Parameter4fARB`.
+fn int_parameters(name: &[u8], orig: &unsafe extern "system" fn(*const c_char) -> usize) -> Option<usize> {
+    let (local, rest) = match name.strip_prefix(b"glProgram")? {
+        r if r.starts_with(b"EnvParameterI4") => (false, &r[14..]),
+        r if r.starts_with(b"LocalParameterI4") => (true, &r[16..]),
+        _ => return None,
+    };
+    let (slot, float) = if local { (&ORIG_LOCAL_4F, c"glProgramLocalParameter4fARB") } else { (&ORIG_ENV_4F, c"glProgramEnvParameter4fARB") };
+    let f = unsafe { orig(float.as_ptr()) };
+    if f == 0 {
+        return None;
+    }
+    slot.store(f, Ordering::Relaxed);
+    let hook: usize = match (local, rest) {
+        (false, b"iNV") => env_i4i as *const () as usize,
+        (false, b"uiNV") => env_i4ui as *const () as usize,
+        (false, b"ivNV") => env_i4iv as *const () as usize,
+        (false, b"uivNV") => env_i4uiv as *const () as usize,
+        (true, b"iNV") => local_i4i as *const () as usize,
+        (true, b"uiNV") => local_i4ui as *const () as usize,
+        (true, b"ivNV") => local_i4iv as *const () as usize,
+        (true, b"uivNV") => local_i4uiv as *const () as usize,
+        _ => return None,
+    };
+    Some(hook)
+}
+
+fn parameter_4f(slot: &AtomicUsize, target: u32, index: u32, v: [f32; 4]) {
+    let f: unsafe extern "system" fn(u32, u32, f32, f32, f32, f32) = unsafe { std::mem::transmute(slot.load(Ordering::Relaxed)) };
+    unsafe { f(target, index, v[0], v[1], v[2], v[3]) }
+}
+
+unsafe extern "system" fn env_i4i(target: u32, index: u32, x: i32, y: i32, z: i32, w: i32) {
+    parameter_4f(&ORIG_ENV_4F, target, index, [x as f32, y as f32, z as f32, w as f32]);
+}
+unsafe extern "system" fn env_i4ui(target: u32, index: u32, x: u32, y: u32, z: u32, w: u32) {
+    parameter_4f(&ORIG_ENV_4F, target, index, [x as f32, y as f32, z as f32, w as f32]);
+}
+unsafe extern "system" fn env_i4iv(target: u32, index: u32, v: *const i32) {
+    let v = unsafe { std::slice::from_raw_parts(v, 4) };
+    parameter_4f(&ORIG_ENV_4F, target, index, [v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32]);
+}
+unsafe extern "system" fn env_i4uiv(target: u32, index: u32, v: *const u32) {
+    let v = unsafe { std::slice::from_raw_parts(v, 4) };
+    parameter_4f(&ORIG_ENV_4F, target, index, [v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32]);
+}
+unsafe extern "system" fn local_i4i(target: u32, index: u32, x: i32, y: i32, z: i32, w: i32) {
+    parameter_4f(&ORIG_LOCAL_4F, target, index, [x as f32, y as f32, z as f32, w as f32]);
+}
+unsafe extern "system" fn local_i4ui(target: u32, index: u32, x: u32, y: u32, z: u32, w: u32) {
+    parameter_4f(&ORIG_LOCAL_4F, target, index, [x as f32, y as f32, z as f32, w as f32]);
+}
+unsafe extern "system" fn local_i4iv(target: u32, index: u32, v: *const i32) {
+    let v = unsafe { std::slice::from_raw_parts(v, 4) };
+    parameter_4f(&ORIG_LOCAL_4F, target, index, [v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32]);
+}
+unsafe extern "system" fn local_i4uiv(target: u32, index: u32, v: *const u32) {
+    let v = unsafe { std::slice::from_raw_parts(v, 4) };
+    parameter_4f(&ORIG_LOCAL_4F, target, index, [v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32]);
+}
 
 /// `glRenderbufferStorageMultisampleCoverageNV` as `glRenderbufferStorageMultisample` with the
 /// color samples (the coverage ones without colors when none).

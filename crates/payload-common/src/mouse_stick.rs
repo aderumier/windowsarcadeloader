@@ -3,6 +3,11 @@
 //! mouse, read with `GetDeviceState`). The game keeps the real DirectInput: its system mouse
 //! device gets a wrapped `GetDeviceState` that adds the stick's motion to the relative X and
 //! Y axes, `<speed>` counts per poll at full tilt (the game polls once a frame).
+//!
+//! `WAL_DINPUT_MOUSE_STICK_AXES=<x axis>,<y axis>`: the stick axes moving it (default `lx,ly`;
+//! `-ry` inverted). `WAL_DINPUT_MOUSE_BUTTONS=<virtual button>,...`: the virtual buttons
+//! pressing its buttons 1-4 (`b1+start`: either; `none`), next to the real mouse's (Border
+//! Break Scramble's aim control, a USB HID mouse with its triggers).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
@@ -29,6 +34,10 @@ static MOUSE: AtomicUsize = AtomicUsize::new(0);
 static SPEED: AtomicU32 = AtomicU32::new(0);
 /// Sub-count remainders of X and Y (f32 bits): slow tilts still move.
 static REST: [AtomicU32; 2] = [AtomicU32::new(0), AtomicU32::new(0)];
+/// The axes moving X and Y, with their inversion.
+static AXES: std::sync::OnceLock<[(Axis, bool); 2]> = std::sync::OnceLock::new();
+/// The virtual button masks of the mouse's buttons 1-4.
+static BUTTONS: std::sync::OnceLock<[u32; 4]> = std::sync::OnceLock::new();
 
 /// Replaces a vtable slot, returns the previous function.
 unsafe fn patch_slot(object: P, slot: usize, replacement: usize) -> usize {
@@ -87,12 +96,49 @@ unsafe extern "system" fn get_device_state(this: P, size: u32, data: *mut i32) -
     let hr = unsafe { f(this, size, data) };
     if hr >= 0 && this as usize == MOUSE.load(Ordering::Relaxed) && size >= 8 && !data.is_null() {
         let stick = crate::input(0);
+        let axes = AXES.get_or_init(axes_from_env);
+        let value = |(axis, invert): (Axis, bool)| {
+            let v = stick.axis(axis);
+            if invert { v.saturating_neg() } else { v }
+        };
         unsafe {
-            *data += motion(stick.axis(Axis::LeftX), &REST[0]);
-            *data.add(1) += motion(stick.axis(Axis::LeftY), &REST[1]);
+            *data += motion(value(axes[0]), &REST[0]);
+            *data.add(1) += motion(value(axes[1]), &REST[1]);
+        }
+        // DIMOUSESTATE's rgbButtons, after lX, lY and lZ
+        if size >= 16 {
+            for (i, mask) in BUTTONS.get_or_init(buttons_from_env).iter().enumerate() {
+                if *mask != 0 && stick.pressed(*mask) {
+                    unsafe { *(data as *mut u8).add(12 + i) = 0x80 };
+                }
+            }
         }
     }
     hr
+}
+
+/// `WAL_DINPUT_MOUSE_STICK_AXES` (default `lx,ly`).
+fn axes_from_env() -> [(Axis, bool); 2] {
+    let spec = std::env::var("WAL_DINPUT_MOUSE_STICK_AXES").unwrap_or_default();
+    let mut parsed = spec.split(',').map(|a| {
+        let a = a.trim();
+        let (name, invert) = a.strip_prefix('-').map_or((a, false), |n| (n, true));
+        Axis::from_name(name).map(|axis| (axis, invert))
+    });
+    let x = parsed.next().flatten().unwrap_or((Axis::LeftX, false));
+    let y = parsed.next().flatten().unwrap_or((Axis::LeftY, false));
+    [x, y]
+}
+
+/// `WAL_DINPUT_MOUSE_BUTTONS` (default none).
+fn buttons_from_env() -> [u32; 4] {
+    let mut masks = [0u32; 4];
+    if let Ok(spec) = std::env::var("WAL_DINPUT_MOUSE_BUTTONS") {
+        for (mask, item) in masks.iter_mut().zip(spec.split(',')) {
+            *mask = item.split('+').filter_map(|b| wal_protocol::button::from_name(b.trim())).fold(0, |m, b| m | b);
+        }
+    }
+    masks
 }
 
 pub fn init() {
