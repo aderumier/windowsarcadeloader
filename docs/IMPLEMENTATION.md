@@ -4021,7 +4021,8 @@ settings and the guns' calibration, identity; `AcountData.db`, `RankData.db`) on
   fine, 20..23 menu, OK, up, down: Wisdom Zombies reads up and down the other way, its
   profile's `native_map`), 8 axes (x, y per player, big endian, 0..4094, y up), tickets left
   (0), coins since the last frame. The PC's frames (lamps, motors, tickets) are ignored.
-- **Crosshair.** The games draw no gun cursor in play: the common option (Direct3D 11).
+- **Crosshair.** The games draw no gun cursor in play: the common option (Direct3D 11), each
+  player's in its color (2 blue, 3 green, 4 yellow) while its gun moves.
 - **Maps.** The map select unlocks the maps as the player passes them
   (`SelectMapManager.ShowPassLevel`: `OpenLocked(1..4)`): the dumps' assemblies open all of them
   (each call's `ldc.i4.1/2/3` patched to `ldc.i4.4`; file offsets: Mech Dinosaur 0x5977B,

@@ -181,7 +181,8 @@
 //! Family Guy Bowling Arcade (`WAL_ARCADEPC_BOARD=teamplay`): `teamplay.rs` is the Linux
 //! cabinet's Team Play I/O library (`teamplayio`, `serialio`) for its DllImports.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
-//! (`WAL_CROSSHAIR`) draws player 1's crosshair (`pointer_d3d11`).
+//! (`WAL_CROSSHAIR`) draws player 1's crosshair (`pointer_d3d11`;
+//! the JX boards' other players' too).
 
 #![allow(non_snake_case)]
 
@@ -325,9 +326,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 position: demul::gun_in_picture,
                 crosshair: true,
             });
-            // Top Gun 2's second gun
-            if board.trim() == "jxcamera" {
-                wal_payload_common::pointer_d3d11::more_players(2, demul::gun_of_player_in_picture);
+            // Top Gun 2's second gun, Mech Dinosaur's and Wisdom Zombies' guns 2 to 4
+            match board.trim() {
+                "jxcamera" => wal_payload_common::pointer_d3d11::more_players(2, demul::gun_of_player_in_picture),
+                "jxboard" => wal_payload_common::pointer_d3d11::more_players(4, demul::gun_of_player_in_picture),
+                _ => {}
             }
         }
         match std::env::var("WAL_DEMUL_PORT").ok().and_then(|p| p.trim().parse().ok()) {
