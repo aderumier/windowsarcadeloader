@@ -4,8 +4,9 @@
 # ALL.Net) is statically linked into nrs.exe, so this reuses the RingEdge payload with the
 # RingEdge 2 board. Override values in userprofiles/ringedge2/border-break-scramble.yaml.
 #
-# WORK IN PROGRESS - the boot passes its checks (IC card R/W, touch panel, network, billing,
-# extended image) and waits at "LOCAL GAME SERVER ...". The extended image is marked installed
+# WORK IN PROGRESS - it boots to its attract (IC card R/W, touch panel, network, billing and
+# extended image checks passed, the shop's local game server run by this cabinet); controls and
+# play untested. The extended image is marked installed
 # by two empty files in the dump's Y folder, made by hand: Y/SBVA.extend and
 # Y/SBVA.extend.complete (else "Error 0913 Game Program Not Found on Storage Device").
 # Control mapping below is an UNVERIFIED default.
