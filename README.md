@@ -288,8 +288,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | not in the test |  |
 | `showdown` | Showdown | segashell | works (user: 100%) | not in the test |  |
 | `grid` | GRID | europar | works (user: 100%) | not in the test |  |
-| `daytona-championship-usa` | Daytona Championship USA | europar | in progress: boots, attract, a race played from scripted inputs (desktop, headless); manual gearbox not engaged | not in the test |  |
-| `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | in progress: boots, attract, a race played from scripted inputs (desktop, headless); manual gearbox not engaged | not in the test |  |
+| `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | not in the test |  |
+| `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | not in the test |  |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | not in the test |  |
 | `gashaaaan` | Gashaaaan | konami | works (headless test) | not in the test |  |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | not in the test |  |
