@@ -36,6 +36,11 @@ env:
   # picture cut at the bottom); never told it lost the focus
   WAL_DESKTOP_UNMANAGED: "1"
   WAL_DESKTOP_ACTIVE: "1"
+  # no mouse cursor over the picture (the window class's arrow; the community library hides
+  # it only on WM_SETCURSOR)
+  WAL_HIDE_CURSOR: "1"
+  # free play off: coins (the operator menu's price), the attract's opening movie between games
+  WAL_FREEPLAY: "0"
   # the common crosshair option, on: the gun's crosshair over the picture
   WAL_CROSSHAIR: "1"
   WAL_CROSSHAIR_STYLE: ring-cross
@@ -55,8 +60,8 @@ options:
         label: Free play
         kind: bool
         description: >-
-          Start then a shot begins a game without coins (a credit's price 0). Off: the operator
-          menu's coin setting.
+          A start press inserts the credits a game costs, then a shot begins it (the
+          "FREEPLAY" text shown). Off: coins, at the operator menu's price.
       - key: WAL_CROSSHAIR
         label: Crosshair
         kind: bool

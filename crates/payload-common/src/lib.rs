@@ -42,7 +42,7 @@ pub mod chcusb;
 #[cfg(windows)]
 pub mod billing;
 #[cfg(windows)]
-pub(crate) mod border;
+pub mod border;
 #[cfg(windows)]
 mod border_d3d11;
 #[cfg(windows)]
