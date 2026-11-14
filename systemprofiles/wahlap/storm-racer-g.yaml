@@ -42,7 +42,15 @@ env:
   # Its debug overlay is hidden: "cam pos" (0x4e3d00) and "fps" (0x4e3e07), drawn while their
   # debug menu options are on, the race's "ahead sect, arrow" line (0x40f4e0 returns) and the
   # NetDb version label of the bottom status bar (0x465d13: drawn as empty; its icons stay).
-  WAL_PATCHES: "0xc008b:B063909090,0x1bb20:C21800,0xe3d00:90E9,0xe3e07:90E9,0xf4e0:C3,0x65d13:EB"
+  # The results' winner crown (backend UI "crown") has no "*_win" text in the dump's assets:
+  # its count text written at the race's end (0x4424a0, the crash after crossing the finish
+  # line) and its animations (0x444b10, 0x444d20) skipped when the text is missing (checks in
+  # the int3 padding at 0x442f74 and 0x437ed8, relative code only: the exe is relocated).
+  WAL_PATCHES: "0xc008b:B063909090,0x1bb20:C21800,0xe3d00:90E9,0xe3e07:90E9,0xf4e0:C3,0x65d13:EB,\
+    0x4259b:E8D409000090,0x42f74:8BB6D406000083BE4801000000750883C404E955F6FFFFC3,\
+    0x44c60:8BB64801000085F60F84A7000000C686E0000000009090909090,\
+    0x44cdc:8B864801000085C0742FF30F108E240100000F57D2680000803FE815C007008B8648010000F30F108E24010000FFB02C010000E8BCFD070090,\
+    0x44d20:E8B331FFFF90,0x37ed8:8B864C01000083BE4801000000750E83C40453BB01000000E97ACE0000C3"
 
 controls:
   lx: Wheel
