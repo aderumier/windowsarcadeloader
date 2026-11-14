@@ -5331,7 +5331,8 @@ instead. `.windowsloader`: `Shooter.exe`. Board `marssortie` (`marssortie.rs`):
   `GameData.DisplayHairCross` (the game's own crosses); the players' photos are the
   game's (its webcam when present, blank photos without one: both work). The Sinden lightguns'
   cameras are hidden from its webcams (`webcam::skip_sinden`, payload-common: the DirectShow
-  device list's `IEnumMoniker::Next` skips a `FriendlyName` containing "sinden"): the game takes
+  device list's `IEnumMoniker::Next` skips a `FriendlyName` containing "sinden", hooked in the
+  game's modules, the DLLs of its directory loaded later too: Unity's `UnityPlayer.dll`): the game takes
   the first webcam, on the box a gun's (held by the Sinden software).
 - **Crosshairs of the players only.** The game shows every station's cross (`HairCrossManager`),
   and with free play (price 0) every station plays from a stage's start: `HairCrossManager.Update`
@@ -5505,7 +5506,20 @@ loaded at the entry point (`payload_loader`; `xinput1_4` off, `xinput1_3` the pa
 - **Free play** (the common `WAL_FREEPLAY`): the game's `Settings\GameData.ini` (UTF-16)
   `Coin_Rate` (coins per credit, 0 its free play), written at start: 0, or 1 when free play is
   off and it was 0.
-- The photo screen ("Let's take your picture") times out without a webcam.
+- **Service period** (`Player.xyGameEncryptionHelper`, the operator's rental licence):
+  `ServiceTime`, the days left, read at start from the game's Easy Save data (PlayerPrefs, AES;
+  absent from the dump: 0) less the days since the last start. 0 shows the error 802 ("Device
+  Error, Please contact Salesperson") over the attract and checks the licence dongle's SN
+  (`Slm_an_Pass` false without it). The payload keeps `ServiceTime` 0xffff (a sold machine:
+  "Effective Day: Normal", no dongle check) and `Slm_an_Pass` true, at each board read (every
+  20 ms, IL2CPP's `il2cpp_field_static_set_value`: `Il2Cpp::set_static`).
+- **4G modem** (`xyspmodule4g.dll`, the game's online link): it looks for a USB serial port
+  (SetupAPI's "Ports" devices named `USB ... (COMn)`) and sends it AT commands: its
+  `CreateFileA` is hooked when the game resolves its exports, COM ports absent (on Batocera the
+  Sinden guns' `/dev/ttyACM*` are such ports, COM33 and COM34).
+- **Camera** (`MyWebCamera`, Unity's `WebCamTexture`, the players' photos): the Sinden guns'
+  cameras hidden (`webcam::skip_sinden`), their pictures held by the Sinden software. The photo
+  screen ("Let's take your picture") times out without a webcam.
 - Verified headless (2026-11-12): attract, board connected (no COM error, 5 boots of 5), free
   play start to track select, coins with free play off (a coin starts), the operator menu.
 - The user: 100% (2026-11-12, desktop).

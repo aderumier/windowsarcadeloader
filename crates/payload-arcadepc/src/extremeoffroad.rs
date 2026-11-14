@@ -15,6 +15,21 @@
 //!   5 down, 6 left, 7 right; 24 bit 0 menu, 1 test.
 //! - **PC to board**: 20 bytes, `55 56`, 2..9 the lamps, 10..13 the wheel's force feedback
 //!   settings, 14..17 the seat's valves and the wheel's motions, 18 the sum, 19 `ff`: accepted.
+//! - **Service period** (`Player.xyGameEncryptionHelper`, the operator's rental licence):
+//!   `ServiceTime` days left, read at start from the game's Easy Save data (PlayerPrefs, AES:
+//!   absent from the dump, 0) less the days since the last start; 0 shows the error 802
+//!   ("Device Error, Please contact Salesperson") over the attract and checks the licence
+//!   dongle's SN (`Slm_an_Pass` false without it). The payload keeps `ServiceTime` 0xffff (the
+//!   game's sold machine: "Effective Day: Normal", no dongle check) and `Slm_an_Pass` true, at
+//!   each board read (every 20 ms, IL2CPP's API): the start's values replaced.
+//! - **4G modem** (`xyspmodule4g.dll`, the game's online link: `InitApp`, `IsReadyModule`): it
+//!   looks for a USB serial port (SetupAPI's "Ports" devices named `USB ... (COMn)`) and opens
+//!   its `\\.\COMn` to send it AT commands. Its COM ports are absent (`CreateFileA` hooked when
+//!   the game resolves its exports), as on a PC without a modem: on Batocera, the Sinden guns'
+//!   `/dev/ttyACM*` are such ports (COM33, COM34), opened.
+//! - **Camera** (`MyWebCamera`, Unity's `WebCamTexture`: the players' photos): the Sinden guns'
+//!   cameras hidden (`webcam::skip_sinden`): a gun's camera, held by the Sinden software, gave
+//!   no picture ("Could not start graph").
 //!
 //! Natives: `start coin view weapon link left_attack right_attack up down left right menu test`;
 //! the left stick steers, the pedals throttle and brake.
@@ -26,7 +41,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use wal_payload_common::mapping::ButtonMap;
-use wal_payload_common::{input, log, mono_imports};
+use wal_payload_common::{iat, il2cpp, input, log, mono_imports, webcam};
 use wal_protocol::Axis;
 
 /// The board's frame length (`DealDataHelpper.MTMCU2PC_DataLength`).
@@ -161,7 +176,21 @@ extern "C" fn input_size(_comm: *const c_void) -> i32 {
     rx().len() as i32
 }
 
+/// The service period unlimited and the licence passed (`xyGameEncryptionHelper`'s statics).
+fn service_period() {
+    static CLASS: OnceLock<usize> = OnceLock::new();
+    let Some(i) = il2cpp::il2cpp() else { return };
+    let class = *CLASS.get_or_init(|| {
+        let class = i.class(i.image("Assembly-CSharp"), "Player", "xyGameEncryptionHelper");
+        log!("extremeoffroad: service period {}", if class.is_null() { "not found (Player.xyGameEncryptionHelper)" } else { "unlimited" });
+        class as usize
+    }) as il2cpp::P;
+    i.set_static(class, "ServiceTime", 0xffff_i32);
+    i.set_static(class, "Slm_an_Pass", true);
+}
+
 extern "C" fn read(_comm: *const c_void, buffer: *mut u8, length: i32, _wait: i32) -> i32 {
+    service_period();
     let mut rx = rx();
     let n = (length.max(0) as usize).min(rx.len());
     for i in 0..n {
@@ -179,7 +208,44 @@ extern "C" fn write(_comm: *const c_void, buffer: *const u8, length: i32, _wait:
     length
 }
 
+static ORIG_CREATE_FILE: AtomicUsize = AtomicUsize::new(0);
+
+/// The 4G module's `CreateFileA`: its COM ports absent, the other files opened.
+unsafe extern "system" fn create_file_a(name: *const u8, access: u32, share: u32, sa: *const c_void, disposition: u32, flags: u32, template: *const c_void) -> isize {
+    if !name.is_null() {
+        let path = unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_string_lossy();
+        let port = path.strip_prefix("\\\\.\\").unwrap_or(&path);
+        if port.len() > 3 && port[..3].eq_ignore_ascii_case("COM") && port[3..].bytes().all(|b| b.is_ascii_digit()) {
+            unsafe { windows_sys::Win32::Foundation::SetLastError(2) };
+            return -1;
+        }
+    }
+    let orig: unsafe extern "system" fn(*const u8, u32, u32, *const c_void, u32, u32, *const c_void) -> isize =
+        unsafe { std::mem::transmute(ORIG_CREATE_FILE.load(Ordering::Relaxed)) };
+    unsafe { orig(name, access, share, sa, disposition, flags, template) }
+}
+
+/// The 4G module's serial ports absent, at the game's first lookup of its exports (the module
+/// loaded).
+fn hide_modem_ports() {
+    static DONE: OnceLock<()> = OnceLock::new();
+    DONE.get_or_init(|| {
+        let module = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(windows_sys::w!("xyspmodule4g.dll")) } as usize;
+        match (module != 0).then(|| unsafe { iat::hook_module(module, "kernel32.dll", "CreateFileA", create_file_a as *const () as usize) }).flatten() {
+            Some(o) => {
+                ORIG_CREATE_FILE.store(o, Ordering::Relaxed);
+                log!("extremeoffroad: 4G modem: no serial port");
+            }
+            None => log!("extremeoffroad: xyspmodule4g.dll's CreateFileA not hooked"),
+        }
+    });
+}
+
 fn resolve(name: &str, module: &str) -> Option<usize> {
+    if module == "xyspmodule4g.dll" {
+        hide_modem_ports();
+        return None;
+    }
     if module != "cncommwrapper.dll" {
         return None;
     }
@@ -221,6 +287,7 @@ fn free_play() {
 
 pub fn init() {
     free_play();
+    webcam::skip_sinden();
     mono_imports::hook(resolve);
     log!("extremeoffroad: MT board");
 }

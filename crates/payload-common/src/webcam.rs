@@ -3,7 +3,8 @@
 //! held by the Sinden software (no frames) or taken from it. Other webcams stay the game's.
 //!
 //! DirectShow's device list (Unity's `WebCamTexture.devices`): an IAT hook of
-//! `ole32!CoCreateInstance` in the game executable wraps the system device enumerator's
+//! `ole32!CoCreateInstance` in the game's modules (the executable, the DLLs of its directory:
+//! Unity 2017 and later's `UnityPlayer.dll`, loaded by the executable later) wraps the system device enumerator's
 //! `ICreateDevEnum::CreateClassEnumerator`, whose video input monikers' `IEnumMoniker::Next`
 //! (their shared vtable) skips a device whose `FriendlyName` contains "sinden" (any case).
 
@@ -13,7 +14,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
 use windows_sys::core::GUID;
 
-use crate::{iat, log};
+use crate::log;
 
 type P = *mut c_void;
 
@@ -51,15 +52,10 @@ struct Variant {
 
 const VT_BSTR: u16 = 8;
 
-/// Hides the Sinden cameras from the game executable's DirectShow device lists.
+/// Hides the Sinden cameras from the DirectShow device lists of the game's modules.
 pub fn skip_sinden() {
-    match unsafe { iat::hook("ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize) } {
-        Some(orig) => {
-            ORIG_CO_CREATE.store(orig, Ordering::Relaxed);
-            log!("webcam: Sinden cameras hidden");
-        }
-        None => log!("webcam: CoCreateInstance import not found, Sinden cameras not hidden"),
-    }
+    crate::late_hooks::hook("ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize, &ORIG_CO_CREATE);
+    log!("webcam: Sinden cameras hidden");
 }
 
 unsafe fn method(obj: P, slot: usize) -> usize {

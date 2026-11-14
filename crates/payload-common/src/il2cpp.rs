@@ -28,6 +28,7 @@ pub struct Il2Cpp {
     class_get_method_from_name: unsafe extern "C" fn(P, *const c_char, i32) -> P,
     class_get_field_from_name: unsafe extern "C" fn(P, *const c_char) -> P,
     field_get_offset: unsafe extern "C" fn(P) -> usize,
+    field_static_set_value: unsafe extern "C" fn(P, P),
     resolve_icall: unsafe extern "C" fn(*const c_char) -> P,
 }
 
@@ -55,6 +56,7 @@ pub fn il2cpp() -> Option<&'static Il2Cpp> {
             class_get_method_from_name: std::mem::transmute(get("il2cpp_class_get_method_from_name")?),
             class_get_field_from_name: std::mem::transmute(get("il2cpp_class_get_field_from_name")?),
             field_get_offset: std::mem::transmute(get("il2cpp_field_get_offset")?),
+            field_static_set_value: std::mem::transmute(get("il2cpp_field_static_set_value")?),
             resolve_icall: std::mem::transmute(get("il2cpp_resolve_icall")?),
         }
     };
@@ -118,6 +120,20 @@ impl Il2Cpp {
         }
         let field = unsafe { (self.class_get_field_from_name)(class, c(name).as_ptr()) };
         (!field.is_null()).then(|| unsafe { (self.field_get_offset)(field) })
+    }
+
+    /// Sets a static field of a class to `value` (the field's type: `i32` for an `int`, `bool`);
+    /// false if the field is absent.
+    pub fn set_static<T: Copy>(&self, class: P, name: &str, mut value: T) -> bool {
+        if class.is_null() {
+            return false;
+        }
+        let field = unsafe { (self.class_get_field_from_name)(class, c(name).as_ptr()) };
+        if field.is_null() {
+            return false;
+        }
+        unsafe { (self.field_static_set_value)(field, (&raw mut value).cast()) };
+        true
     }
 
     /// An internal call's native function (`UnityEngine.Input::GetKeyInt(UnityEngine.KeyCode)`),
