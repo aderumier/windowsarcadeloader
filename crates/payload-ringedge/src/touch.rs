@@ -82,9 +82,19 @@ fn checksum(p: &[u8]) -> u8 {
     p[..9].iter().fold(0xAAu8, |s, b| s.wrapping_add(*b))
 }
 
+/// The packet being written: Border Break Scramble writes its packets a byte at a time.
+static PENDING: std::sync::Mutex<Vec<u8>> = std::sync::Mutex::new(Vec::new());
+
 fn reply(data: &[u8]) -> Vec<u8> {
+    let mut pending = PENDING.lock().unwrap();
+    pending.extend_from_slice(data);
+    // a packet starts with 0x55
+    let start = pending.iter().position(|&b| b == 0x55).unwrap_or(pending.len());
+    pending.drain(..start);
+    let whole = pending.len() / 10 * 10;
+    let packets: Vec<u8> = pending.drain(..whole).collect();
     let mut out = Vec::new();
-    for p in data.chunks_exact(10).filter(|p| p[0] == 0x55) {
+    for p in packets.chunks_exact(10).filter(|p| p[0] == 0x55) {
         let mut r = p.to_vec();
         match p[1] {
             b'P' => BAUD.store(p[3], Ordering::Relaxed),

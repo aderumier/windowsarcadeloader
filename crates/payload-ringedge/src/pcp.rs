@@ -53,6 +53,22 @@ const MXSTORAGE: u16 = 40114;
 const MXSTORAGE_DATA: u16 = 40115;
 const AUTH: u16 = 40190;
 const AUTH_DATA: u16 = 40191;
+/// `WAL_RINGEDGE_KEYCHIP_DECRYPT=<cipher rva>:<plain rva>:<length>` (hex): a check of the
+/// keychip's AES key the game carries both halves of, the cipher text and its plain text in the
+/// executable (Border Break Scramble: 3 blocks decrypted to "BorderBreak Copyright(C)SEGA All
+/// Rights Reserved", else the keychip unauthenticated, error index 1). `keychip.decrypt` of one
+/// of those 16-byte blocks answers its plain block (other values are echoed, as before).
+fn known_decrypt(value: &str) -> Option<String> {
+    let spec = std::env::var("WAL_RINGEDGE_KEYCHIP_DECRYPT").ok()?;
+    let mut parts = spec.split(':').map(|p| usize::from_str_radix(p.trim().trim_start_matches("0x"), 16).ok());
+    let (cipher, plain, len) = (parts.next()??, parts.next()??, parts.next()??);
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    let block = (0..value.len() / 2).map(|i| u8::from_str_radix(value.get(i * 2..i * 2 + 2)?, 16).ok()).collect::<Option<Vec<u8>>>()?;
+    let (cipher, plain) = unsafe { (std::slice::from_raw_parts((base + cipher) as *const u8, len), std::slice::from_raw_parts((base + plain) as *const u8, len)) };
+    let at = cipher.chunks(16).position(|c| c == block.as_slice())?;
+    Some(plain[at * 16..(at * 16 + 16).min(len)].iter().map(|b| format!("{b:02X}")).collect())
+}
+
 /// The bytes the next connection to the keychip's data channel receives.
 static KEYCHIP_DATA: std::sync::Mutex<Option<Vec<u8>>> = std::sync::Mutex::new(None);
 /// `place.info`'s binary record (shop information), sent on the auth data channel: empty.
@@ -165,6 +181,13 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
             if stream.write_all(&data).is_err() {
                 return;
             }
+            // the client acknowledges with `$` and waits for the close (else its transfer times
+            // out and amDongle marks the keychip unauthenticated)
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+            let mut ack = [0u8; 8];
+            let n = stream.read(&mut ack).unwrap_or(0);
+            log!("pcp: {name}: acknowledged {:02X?}, closed", &ack[..n]);
+            return;
         }
         // data channel of the keychip's encrypt/decrypt requests: logged only
         let mut buf = [0u8; 512];
@@ -268,6 +291,11 @@ fn answer(request: &str) -> String {
     }
     if key == "keychip.ds.compute" {
         return format!("{key}={}", ds_compute(request));
+    }
+    if key == "keychip.decrypt"
+        && let Some(plain) = known_decrypt(value)
+    {
+        return format!("{key}={plain}");
     }
     // the keychip's billing keys (amDongleBillingGetSignaturePubKey / GetCaCertification: Border
     // Break Scramble's billing checks in with them): the size here, the bytes on the data channel
