@@ -14,9 +14,9 @@
 //! * The vertex address register's 4 components (`_adr.y`): `ARL` again from the component's
 //!   source before each use, through `.x`.
 //! * `NRM`, `SGT`, `SLE`, `SEQ`, `SNE`, `SSG`, absolute values (`|x|`), vertex `LRP` / `CMP`
-//!   and vertex `_SAT` with ARB instructions; `TXL` as `TEX` (the level of detail dropped:
-//!   exact on the textures without mipmaps, the shadow and screen buffers); vertex `TEX` at a
-//!   constant position as a local parameter (`TEXEL_LOCAL`), the others zero.
+//!   and vertex `_SAT` with ARB instructions; `TXL` as `TXB` (the level as a bias: exact for
+//!   the base and last levels, the others on a texture drawn 1:1); vertex `TEX` at a constant
+//!   position as a local parameter (`TEXEL_LOCAL`), the others zero.
 //! * NVIDIA's arithmetic: logarithms (`LG2`, `POW`) of the absolute value, reciprocals
 //!   (`RCP`, `RSQ`) finite (its 0 * infinity is 0), vertex temporaries zeroed first.
 //! * Shadow samplers as plain 2D textures (the programs compare the depth themselves), kept
@@ -39,6 +39,9 @@ const BASES: [&str; 46] = [
 /// The vertex programs' local parameter holding texel (0, 0) of texture unit `n`, at
 /// `TEXEL_LOCAL + n`: their texture reads at a constant position.
 pub(crate) const TEXEL_LOCAL: u32 = 240;
+/// The fragment programs' local parameters `LEVELS_LOCAL + n`: the last level of texture
+/// unit n's texture (`TXL`).
+pub(crate) const LEVELS_LOCAL: u32 = 240;
 
 const ZERO: &str = "{0,0,0,0}";
 const ONE: &str = "{1,1,1,1}";
@@ -780,7 +783,26 @@ pub(crate) fn translate(text: &str) -> Option<String> {
                 out.push(format!("SLT _wF, {a}, {ZERO};"));
                 out.push(format!("SUB{satx} {dst}, _wE, _wF;"));
             }
-            "TXL" if fragment => out.push(format!("TEX{satx} {dst}, {};", sources.join(", "))),
+            // the level as a bias past the computed one (no explicit level in ARB): the base
+            // level far below it, the texture's last one (`LEVELS_LOCAL + n`, the payload's)
+            // far above it, the others a quarter above (exact on a texture drawn 1:1). Project
+            // DIVA Arcade's YCbCr sprites: luma in level 0, chroma in level 1, the last one
+            "TXL" if fragment => {
+                let (coord, rest) = sources.split_first()?;
+                let unit = rest.first().and_then(|t| t.strip_prefix("texture[")?.strip_suffix(']')?.parse::<u32>().ok())?;
+                add_temp(&mut temps, "_wE");
+                add_temp(&mut temps, "_wF");
+                out.push(format!("MOV _wE, {coord};"));
+                out.push(format!("SUB _wF.y, _wE.w, program.local[{}].x;", LEVELS_LOCAL + unit));
+                out.push("SGE _wF.y, _wF.y, {-0.5,-0.5,-0.5,-0.5};".into());
+                out.push("SGE _wF.x, _wE.w, {0.5,0.5,0.5,0.5};".into());
+                out.push("ADD _wE.w, _wE.w, {0.25,0.25,0.25,0.25};".into());
+                out.push("SUB _wF.z, {16,16,16,16}, _wE.w;".into());
+                out.push("MAD _wE.w, _wF.y, _wF.z, _wE.w;".into());
+                out.push("ADD _wF.z, _wE.w, {16,16,16,16};".into());
+                out.push("MAD _wE.w, _wF.x, _wF.z, {-16,-16,-16,-16};".into());
+                out.push(format!("TXB{satx} {dst}, _wE, {};", rest.join(", ")));
+            }
             "LRP" if !fragment => {
                 let [t, a, b] = sources.as_slice() else { return None };
                 add_temp(&mut temps, "_wE");

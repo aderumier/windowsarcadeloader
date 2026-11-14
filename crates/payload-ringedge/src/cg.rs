@@ -22,6 +22,8 @@
 //!   ones ([`attrib_pointer`]).
 //! * Vertex textures (none on Mesa): the texels read at a constant position given as local
 //!   parameters before each draw ([`texel_parameters`]).
+//! * Texture reads at a level (`TXL`, a bias in ARB): the last level of each texture given
+//!   before each draw ([`level_parameters`]).
 //!
 //! Debugging: `WAL_RINGEDGE_CG_LOG=1` logs each compile and Cg's listing of the failed ones;
 //! `WAL_RINGEDGE_CG_DUMP=1` writes each compiled program to `cgdump\`;
@@ -288,6 +290,9 @@ unsafe extern "system" fn bind_program(target: u32, id: u32) {
     if target == 0x8620 {
         let units = TEXELS.lock().unwrap().get(&id).copied().unwrap_or(0);
         BOUND_TEXELS.store(units as usize, Ordering::Relaxed);
+    } else if target == 0x8804 {
+        let units = LEVELS.lock().unwrap().get(&id).copied().unwrap_or(0);
+        BOUND_LEVELS.store(units as usize, Ordering::Relaxed);
     }
     let orig: unsafe extern "system" fn(u32, u32) = unsafe { std::mem::transmute(ORIG_BIND.load(Ordering::Relaxed)) };
     unsafe { orig(target, id) }
@@ -298,6 +303,11 @@ unsafe extern "system" fn bind_program(target: u32, id: u32) {
 static TEXELS: std::sync::Mutex<std::collections::BTreeMap<u32, u16>> = std::sync::Mutex::new(std::collections::BTreeMap::new());
 /// The bound vertex program's [`TEXELS`] units.
 static BOUND_TEXELS: AtomicUsize = AtomicUsize::new(0);
+/// The fragment programs reading textures at a level (`TXL`, `nvasm::LEVELS_LOCAL`), by id:
+/// their texture units (bits), the cube map ones in the high 16 bits.
+static LEVELS: std::sync::Mutex<std::collections::BTreeMap<u32, u32>> = std::sync::Mutex::new(std::collections::BTreeMap::new());
+/// The bound fragment program's [`LEVELS`] units.
+static BOUND_LEVELS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_DRAW_ARRAYS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_DRAW_ELEMENTS: AtomicUsize = AtomicUsize::new(0);
 static ORIG_DRAW_RANGE: AtomicUsize = AtomicUsize::new(0);
@@ -371,26 +381,79 @@ fn texel_parameters() {
     }
 }
 
+/// The last level of the textures the bound fragment program reads at a level (`TXL`, a bias
+/// in ARB, exact for the last level whatever the scale: Project DIVA Arcade's YCbCr sprites,
+/// their chroma in level 1 of 2, stretched; read from level 0, every sprite red) into its local
+/// parameters before each draw.
+fn level_parameters() {
+    let units = BOUND_LEVELS.load(Ordering::Relaxed) as u32;
+    if units == 0 {
+        return;
+    }
+    static PROCS: OnceLock<[usize; 2]> = OnceLock::new();
+    let procs = PROCS.get_or_init(|| {
+        let orig: unsafe extern "system" fn(*const c_char) -> usize = unsafe { std::mem::transmute(ORIG_GL_PROC.load(Ordering::Relaxed)) };
+        [c"glActiveTexture", c"glProgramLocalParameter4fvARB"].map(|n| unsafe { orig(n.as_ptr()) })
+    });
+    if procs.contains(&0) {
+        return;
+    }
+    let active_texture: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(procs[0]) };
+    let local: unsafe extern "system" fn(u32, u32, *const f32) = unsafe { std::mem::transmute(procs[1]) };
+    let get_integer: unsafe extern "system" fn(u32, *mut i32) = unsafe { std::mem::transmute(gl11(c"glGetIntegerv")) };
+    let get_parameter: unsafe extern "system" fn(u32, u32, *mut i32) = unsafe { std::mem::transmute(gl11(c"glGetTexParameteriv")) };
+    let get_level_parameter: unsafe extern "system" fn(u32, i32, u32, *mut i32) = unsafe { std::mem::transmute(gl11(c"glGetTexLevelParameteriv")) };
+    let mut active = 0;
+    // GL_ACTIVE_TEXTURE
+    unsafe { get_integer(0x84E0, &mut active) };
+    for unit in (0..16).filter(|u| units & (1 << u) != 0) {
+        // GL_TEXTURE_CUBE_MAP (its first face) or GL_TEXTURE_2D
+        let (target, image) = if units & (1 << (16 + unit)) != 0 { (0x8513, 0x8515) } else { (0x0DE1, 0x0DE1) };
+        // GL_TEXTURE_MAX_LEVEL, the levels defined below it (GL_TEXTURE_WIDTH)
+        let mut max = 0;
+        unsafe {
+            active_texture(0x84C0 + unit);
+            get_parameter(target, 0x813D, &mut max);
+        }
+        let mut last = 0;
+        while last < max.min(15) {
+            let mut width = 0;
+            unsafe { get_level_parameter(image, last + 1, 0x1000, &mut width) };
+            if width == 0 {
+                break;
+            }
+            last += 1;
+        }
+        let levels = [last as f32; 4];
+        unsafe { local(0x8804, crate::nvasm::LEVELS_LOCAL + unit, levels.as_ptr()) };
+    }
+    unsafe { active_texture(active as u32) };
+}
+
 unsafe extern "system" fn draw_arrays(mode: u32, first: i32, count: i32) {
     texel_parameters();
+    level_parameters();
     let orig: unsafe extern "system" fn(u32, i32, i32) = unsafe { std::mem::transmute(ORIG_DRAW_ARRAYS.load(Ordering::Relaxed)) };
     unsafe { orig(mode, first, count) }
 }
 
 unsafe extern "system" fn draw_elements(mode: u32, count: i32, kind: u32, indices: *const c_void) {
     texel_parameters();
+    level_parameters();
     let orig: unsafe extern "system" fn(u32, i32, u32, *const c_void) = unsafe { std::mem::transmute(ORIG_DRAW_ELEMENTS.load(Ordering::Relaxed)) };
     unsafe { orig(mode, count, kind, indices) }
 }
 
 unsafe extern "system" fn draw_range(mode: u32, start: u32, end: u32, count: i32, kind: u32, indices: *const c_void) {
     texel_parameters();
+    level_parameters();
     let orig: unsafe extern "system" fn(u32, u32, u32, i32, u32, *const c_void) = unsafe { std::mem::transmute(ORIG_DRAW_RANGE.load(Ordering::Relaxed)) };
     unsafe { orig(mode, start, end, count, kind, indices) }
 }
 
 unsafe extern "system" fn begin(mode: u32) {
     texel_parameters();
+    level_parameters();
     let orig: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(ORIG_BEGIN.load(Ordering::Relaxed)) };
     unsafe { orig(mode) }
 }
@@ -442,6 +505,20 @@ unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, tex
             texels.remove(&id);
         }
         BOUND_TEXELS.store(units as usize, Ordering::Relaxed);
+    } else if target == 0x8804 {
+        let units = fixed.as_deref().map_or(0, |f| {
+            (0..16u32)
+                .filter(|u| f.contains(&format!("program.local[{}]", crate::nvasm::LEVELS_LOCAL + u)))
+                .fold(0u32, |m, u| m | 1 << u | (f.contains(&format!("texture[{u}], CUBE")) as u32) << (16 + u))
+        });
+        let id = BOUND[1].load(Ordering::Relaxed) as u32;
+        let mut levels = LEVELS.lock().unwrap();
+        if units != 0 {
+            levels.insert(id, units);
+        } else {
+            levels.remove(&id);
+        }
+        BOUND_LEVELS.store(units as usize, Ordering::Relaxed);
     }
     let (text, len) = match &fixed {
         Some(f) => (f.as_ptr(), f.len() as i32),
