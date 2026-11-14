@@ -2,14 +2,18 @@
 //! port 80, `wal_payload_common::allnet`'s server), from ARTEMiS' `titles/diva` (WTFPL; written
 //! for Future Tone, the same commands and keys as this version's). Its boot requests answered
 //! (the startup checks: PV INFORMATION, NET PARAM, ...), with ARTEMiS' lists (`diva_data/`: the
-//! songs' PV list, the module shop and customize item catalogs, the quests); the others `stat=ok`
-//! with no values (the player data commands: none kept, a guest).
+//! songs' PV list, the module shop and customize item catalogs, the quests). The players of the
+//! Aime cards ([`players`]): registered, their profile and best scores kept in the save folder
+//! (`diva_players.txt`), with this version's own keys and bounds (Future Tone's differ); the other
+//! commands `stat=ok` with no values.
 //!
 //! A request's body is the form (`cmd=...&req_id=...&...`) deflated (zlib) then base64, or a
 //! multipart body (`THIS_STRING_SEPARATES`) with the form on its fourth line. An answer is
 //! `cmd=<cmd>&req_id=<req_id>&stat=ok` and the command's values, plain.
 
 use wal_payload_common::{allnet, log};
+
+mod players;
 
 /// The lists' last update time (the game asks for a list again when it changes).
 const LUT: &str = "2020-01-01 00:00:00.0";
@@ -153,7 +157,10 @@ fn qst_inf() -> String {
 }
 
 /// The command's values (after `cmd`, `req_id`, `stat`).
-fn values(cmd: &str) -> String {
+fn values(cmd: &str, form: &[(String, String)]) -> String {
+    if let Some(v) = players::values(cmd, form) {
+        return v;
+    }
     match cmd {
         "attend" => attend(),
         "ping" => ping(),
@@ -163,8 +170,6 @@ fn values(cmd: &str) -> String {
         "festa_info" => festa_info(),
         "contest_info" => format!("&ci_lut={}&ci_str={}", quote(LUT), vec!["%2A%2A%2A"; 8].join(",")),
         "qst_inf" => qst_inf(),
-        // a card's player: none (a new one)
-        "pre_start" => "&ps_result=-3".into(),
         _ => String::new(),
     }
 }
@@ -187,6 +192,15 @@ pub(crate) fn answer(path: &str, body: &[u8]) -> Vec<u8> {
     let form = form(body);
     let value = |key: &str| form.iter().find(|(k, _)| k == key).map_or("", |(_, v)| v.as_str());
     let cmd = value("cmd");
-    log!("diva: {path} {cmd}");
-    format!("cmd={cmd}&req_id={}&stat=ok{}", value("req_id"), values(cmd)).into_bytes()
+    if players::COMMANDS.contains(&cmd) {
+        let keys: Vec<String> = form.iter().filter(|(k, _)| !matches!(k.as_str(), "cmd" | "req_id")).map(|(k, v)| format!("{k}={v}")).collect();
+        log!("diva: {path} {cmd} {}", keys.join("&"));
+    } else {
+        log!("diva: {path} {cmd}");
+    }
+    let reply = format!("cmd={cmd}&req_id={}&stat=ok{}", value("req_id"), values(cmd, &form));
+    if players::COMMANDS.contains(&cmd) {
+        log!("diva: -> {reply}");
+    }
+    reply.into_bytes()
 }
