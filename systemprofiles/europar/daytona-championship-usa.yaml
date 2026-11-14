@@ -42,6 +42,11 @@ env:
   # its buttons (the board's table at 0x115c810): 0 start, 1 / 2 / 6 / 7 the H shifter's gears
   # 1-4, 3 / 4 shift up / down, 8-11 the views VR1-VR4
   WAL_DINPUT_WHEEL_BUTTONS: "start,up,down,b1,b2,none,left,right,b3,b4,b5,b6"
+  # its config.ini full screen (ENABLE_FULL_SCREEN) is a captioned window of 1280x720: a
+  # borderless window of the screen's size, the swap chain stretched to it
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  WAL_HIDE_CURSOR: "1"
   # the Sega Shell's TCP link (coins, credits, security challenges)
   WAL_EUROPAR_SHELL_TCP: "18888"
   # the shell's InpWrapper (the force feedback board on the parallel port): played by the payload
