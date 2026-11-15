@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (370)
+## Games (375)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -290,7 +290,8 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `grid` | GRID | europar | works (user: 100%) | not in the test |  |
 | `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | not in the test |  |
 | `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | not in the test |  |
-| `men-in-black` | Men In Black | europar | works (headless test; user played on the desktop) | not in the test |  |
+| `men-in-black` | Men In Black | europar | works (headless test: attract, coins and free play, both players, guns aimed and shooting; user played on the desktop) | not in the test |  |
+| `mission-impossible-arcade` | Mission: Impossible Arcade | europar | works (headless test: attract, coins and free play, both players, guns aimed, both triggers shooting in a mission, mission 3 and a later stage chosen) | not in the test |  |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | not in the test |  |
 | `gashaaaan` | Gashaaaan | konami | works (headless test) | not in the test |  |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | not in the test |  |
@@ -371,7 +372,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | not in the test |  |
 | `galaxian-3` | Galaxian 3 | arcadepc | user 100% (2026-11-09), 4 guns (of the cabinet's 6) | not in the test |  |
 | `burning-striker` | Burning Striker | arcadepc | user 100% (2026-11-09), 2 players (stick, 3 buttons) | not in the test |  |
-| `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) | not in the test |  |
+| `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-14), 2 players (stick, 2 buttons, start) | not in the test |  |
 | `come-on-baby-2` | Come On Baby! 2 Winter Championship | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) | not in the test |  |
 | `robin-hood` | Robin Hood | arcadepc | user 100% (2026-11-09), 1 gun | not in the test |  |
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | not in the test |  |
@@ -403,6 +404,9 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | not in the test |  |
 | `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (players 1 and 2 on it) | not in the test |  |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | user 100% (2026-11-12), 2 players | not in the test |  |
+| `omatsuri-yasan-kingyo-sukui` | Omatsuri Yasan Kingyo Sukui | arcadepc | user 100% (2026-11-15), 1 player | not in the test |  |
+| `omatsuri-yasan-ganso-takoyaki` | Omatsuri Yasan Ganso Takoyaki | arcadepc | user 100% (2026-11-15), 1 player | not in the test |  |
+| `quake-arcade-tournament-edition` | Quake: Arcade Tournament Edition | arcadepc | user 100% (2026-11-15), 1 player | not in the test |  |
 | `dream-hunting` | Dream Hunting | arcadepc | user 100% (2026-11-12), 1 gun | not in the test |  |
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | not in the test |  |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | not in the test |  |
