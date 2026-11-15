@@ -71,6 +71,8 @@ fn allnet(diva: bool) {
         // its billing (alpb, ib.naominet.jp:8443): checked in at boot ("Error 21" without)
         wal_payload_common::billing::init();
         crate::bbserver::set_role();
+        crate::bbserver::extend_markers();
+        crate::bbserver::free_play();
     } else {
         wal_payload_common::allnet::set_router_is_allnet();
     }

@@ -7,9 +7,10 @@
 # WORK IN PROGRESS - it plays up to its battle: attract, card select (「カードなし」), GP purchase,
 # mode select (個人演習, the CPU practice, the only offline mode), faction, weapon and sortie
 # point, then the battle (its 3D world, timer, HUD, minimap, firing, dash). The extended image
-# is marked installed by two empty files in the dump's Y folder, made by hand: Y/SBVA.extend and
-# Y/SBVA.extend.complete (else "Error 0913 Game Program Not Found on Storage Device").
-# Credits are kept in the backup: insert coins (the -free flag does not waive them).
+# is marked installed by two empty files in the dump's Y folder, Y/SBVA.extend and
+# Y/SBVA.extend.complete, which the payload creates (else "Error 0913 Game Program Not Found on
+# Storage Device").
+# Free play by default (the Free play option); off, credits are kept in the backup: insert coins.
 system: ringedge2
 name: Border Break Scramble
 
@@ -24,7 +25,8 @@ prefix: wine-prefix/bb-test
 #   -full   full screen
 #   -img    load game data from the rom/ image
 #   -nnc    "network-checking disable" (built-in flag): skip the in-shop GAME-LAN check at boot
-#   -free   "set freeplay" (built-in flag): coins not required (RingEdge has no WAL_FREEPLAY)
+#   -free   "set freeplay" (built-in flag): only a debug flag, credits still needed (free play:
+#           the payload, the Free play option)
 args: [-wsvga, -full, -img, -nnc, -free]
 
 env:
@@ -161,3 +163,12 @@ controls:
   b5: Right grip B
   b6: Right grip C
   b8: Touch
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the coins and credits of the system test menu.

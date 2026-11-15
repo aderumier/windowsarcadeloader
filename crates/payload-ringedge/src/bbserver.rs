@@ -252,6 +252,46 @@ pub(crate) fn set_role() {
     });
 }
 
+/// The common free play option (`WAL_RINGEDGE_FREEPLAY`, else `WAL_FREEPLAY`): the system test
+/// menu's FREE PLAY, amCredit's configuration byte 2 (0x128855a: its coin and credit checks
+/// skipped when 1), copied at boot from the EEPROM credit record's byte 0xa (0x16014e2) by
+/// amCreditInit (FUN_0097d320, done when 0x1288550 is set): both set once it has run. Off: the
+/// game's own setting. (A code patch can't do it: the image is relocated, its addresses too.)
+pub(crate) fn free_play() {
+    if wal_payload_common::free_play("WAL_RINGEDGE_FREEPLAY") != Some(true) {
+        return;
+    }
+    let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
+    std::thread::spawn(move || {
+        let (ready, config, record) = ((base + 0xe88550) as *const u32, (base + 0xe8855a) as *mut u8, (base + 0x12014e2) as *mut u8);
+        for _ in 0..120_000 {
+            if unsafe { std::ptr::read_volatile(ready) } != 0 {
+                unsafe {
+                    std::ptr::write_volatile(config, 1);
+                    std::ptr::write_volatile(record, 1);
+                }
+                log!("bbserver: free play");
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    });
+}
+
+/// The extended image (the cabinet's second program, its storage's `Y:\SBVA.extend`) marked
+/// installed: the boot checks for the two files (empty) on its data root Y:, else "Error 0913
+/// Game Program Not Found on Storage Device". Created when missing.
+pub(crate) fn extend_markers() {
+    for name in ["Y:\\SBVA.extend", "Y:\\SBVA.extend.complete"] {
+        if !std::path::Path::new(name).exists() {
+            match std::fs::write(name, b"") {
+                Ok(()) => log!("bbserver: {name} created"),
+                Err(e) => log!("bbserver: {name}: {e}"),
+            }
+        }
+    }
+}
+
 pub(crate) fn answer(path: &str, body: &[u8]) -> Vec<u8> {
     // the form deflated (zlib) then base64 (`Pragma: DFI`), or plain
     let inflated = miniz_oxide::inflate::decompress_to_vec_zlib(&wal_payload_common::allnet::base64_decode(body)).ok();
