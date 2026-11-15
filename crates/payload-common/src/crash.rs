@@ -697,3 +697,109 @@ fn object_type(h: usize) -> String {
     let ptr = u32::from_le_bytes([buf[4], buf[5], buf[6], buf[7]]) as usize as *const u16;
     String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(ptr, len) })
 }
+
+/// Debugging (x86-64): hardware breakpoints, `WAL_HW_BREAK=<kind>:<address>,...` (at most 4;
+/// kind `x` execution, `w1` / `w2` / `w4` / `w8` a write of that size): each hit logged with
+/// its thread's registers and stack (the first 8 per breakpoint; a write's instruction pointer
+/// is the instruction after it). Set on every thread, again every 2 s for the new ones.
+#[cfg(target_arch = "x86_64")]
+pub fn hw_breaks() {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Diagnostics::Debug::{CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64, SetThreadContext};
+    use windows_sys::Win32::System::Threading::{OpenThread, THREAD_SET_CONTEXT};
+
+    let Ok(spec) = std::env::var("WAL_HW_BREAK") else { return };
+    let mut regs = [0u64; 4];
+    let mut dr7 = 0u64;
+    for (i, item) in spec.split(',').filter_map(|s| s.trim().split_once(':')).take(4).enumerate() {
+        let Ok(address) = u64::from_str_radix(item.1.trim().trim_start_matches("0x"), 16) else { continue };
+        let (rw, len) = match item.0.trim() {
+            "x" => (0, 0),
+            "w1" => (1, 0),
+            "w2" => (1, 1),
+            "w8" => (1, 2),
+            _ => (1, 3),
+        };
+        regs[i] = address;
+        dr7 |= 1 << (2 * i) | (rw | len << 2) << (16 + 4 * i);
+    }
+    if dr7 == 0 {
+        return;
+    }
+    unsafe { AddVectoredExceptionHandler(1, Some(hw_break_handler)) };
+    log!("crash: hardware breakpoints {regs:x?} (dr7 {dr7:#x})");
+    *HW_BREAKS.lock().unwrap_or_else(|e| e.into_inner()) = Some((regs, dr7));
+    std::thread::spawn(move || loop {
+        let me = unsafe { windows_sys::Win32::System::Threading::GetCurrentThreadId() };
+        for id in other_threads(0).into_iter().chain(std::iter::once(me)).filter(|&id| id != me) {
+            let thread = unsafe { OpenThread(THREAD_SET_CONTEXT, 0, id) };
+            if thread.is_null() {
+                continue;
+            }
+            let mut c: CONTEXT = unsafe { std::mem::zeroed() };
+            c.ContextFlags = CONTEXT_DEBUG_REGISTERS_AMD64;
+            (c.Dr0, c.Dr1, c.Dr2, c.Dr3, c.Dr7) = (regs[0], regs[1], regs[2], regs[3], dr7);
+            unsafe {
+                SetThreadContext(thread, &c);
+                CloseHandle(thread);
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    });
+}
+
+#[cfg(target_arch = "x86_64")]
+static HW_BREAKS: std::sync::Mutex<Option<([u64; 4], u64)>> = std::sync::Mutex::new(None);
+
+/// [`hw_breaks`] on the calling thread (a new thread, from the payload's `DllMain`: the
+/// short-lived ones end before the next round).
+#[cfg(target_arch = "x86_64")]
+pub fn hw_break_thread() {
+    use windows_sys::Win32::System::Diagnostics::Debug::{CONTEXT, CONTEXT_DEBUG_REGISTERS_AMD64, SetThreadContext};
+    let Some((regs, dr7)) = *HW_BREAKS.lock().unwrap_or_else(|e| e.into_inner()) else { return };
+    let mut c: CONTEXT = unsafe { std::mem::zeroed() };
+    c.ContextFlags = CONTEXT_DEBUG_REGISTERS_AMD64;
+    (c.Dr0, c.Dr1, c.Dr2, c.Dr3, c.Dr7) = (regs[0], regs[1], regs[2], regs[3], dr7);
+    unsafe { SetThreadContext(windows_sys::Win32::System::Threading::GetCurrentThread(), &c) };
+}
+
+#[cfg(target_arch = "x86_64")]
+unsafe extern "system" fn hw_break_handler(info: *mut EXCEPTION_POINTERS) -> i32 {
+    static HITS: [AtomicU32; 4] = [const { AtomicU32::new(0) }; 4];
+    unsafe {
+        if (*(*info).ExceptionRecord).ExceptionCode != 0x80000004u32 as i32 {
+            return 0;
+        }
+        let c = &mut *(*info).ContextRecord;
+        let hit = (c.Dr6 & 0xF) as u32;
+        if hit == 0 {
+            return 0;
+        }
+        let n = hit.trailing_zeros() as usize;
+        if HITS[n].fetch_add(1, Ordering::Relaxed) < 8 {
+            log!(
+                "crash: breakpoint {n} hit at {:#x} ({}) rax={:x} rbx={:x} rcx={:x} rdx={:x} rsi={:x} rdi={:x} r8={:x}",
+                c.Rip, symbolize(c.Rip as usize).unwrap_or_default(), c.Rax, c.Rbx, c.Rcx, c.Rdx, c.Rsi, c.Rdi, c.R8
+            );
+            let rsp = c.Rsp as usize as *const usize;
+            let mut found = 0;
+            for i in 0..2048 {
+                if !readable(rsp.add(i) as usize, 8) {
+                    break;
+                }
+                let v = std::ptr::read_volatile(rsp.add(i));
+                if v >= 0x10000 && let Some(sym) = symbolize(v) {
+                    log!("crash:   [rsp+{:#05x}] {sym}", i * 8);
+                    found += 1;
+                    if found >= 16 {
+                        break;
+                    }
+                }
+            }
+        }
+        c.Dr6 = 0;
+        // an execution breakpoint: resume past it
+        c.EFlags |= 0x10000;
+        -1
+    }
+}

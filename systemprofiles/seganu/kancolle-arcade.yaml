@@ -60,11 +60,18 @@ env:
   # the card and Aime closed. The three sources return the game's own "no closing" value (none
   # within 86400 s: xor eax,eax; mov [rcx],rax; mov qword [rcx+8],86400; mov rax,rcx; ret);
   # the CLOSING task (0x1404c92b0, every 120 frames) never marks the day's close setting as
-  # found (mov byte [rbx+0x60],1 -> 0): its other readers take that value too
-  WAL_PATCHES: "0x4c8fb0:31C048890148C74108805101004889C8C3,0x4c8df0:31C048890148C74108805101004889C8C3,0x4c9050:31C048890148C74108805101004889C8C3,0x4c937c:00,0x4c93b0:00,0x4c93c9:00"
+  # found (mov byte [rbx+0x60],1 -> 0): its other readers take that value too.
+  # The startup's Location Server (its LFS client, 0x140d97950, TCP port 36000; no server
+  # offline): its connection waits minutes before failing; the check (0x14134ddc0) takes the
+  # path of a cabinet without one instead (its state 2 goes to 6, then done: je -> nops)
+  WAL_PATCHES: "0x4c8fb0:31C048890148C74108805101004889C8C3,0x4c8df0:31C048890148C74108805101004889C8C3,0x4c9050:31C048890148C74108805101004889C8C3,0x4c937c:00,0x4c93b0:00,0x4c93c9:00,0x134de37:9090"
   # its title server's tables (payload-seganu kcserver.rs): the commands, the keys, the commands'
   # key lists (version 7.40)
   WAL_SEGANU_KANCOLLE_SERVER: "0x1f99870,0x1a1e230,0x1a38000"
+  # a card's play (its play data's card flag, byte 1 of 0x142382420, set by the title server
+  # when it starts a registered card's play): else a play without a card, its sorties and end
+  # never uploaded (no_card_end), nothing kept; the admirals' plays are kept in kcserver\
+  WAL_SEGANU_KANCOLLE_CARD_FLAG: "0x2382421"
 
 input:
   # the touch screen: the touchscreen / touchpad (where the finger is), else the mouse or gun

@@ -272,8 +272,9 @@ unsafe extern "system" fn get_printer_info(tag: u16, buffer: *mut u8, len: *mut 
         6 => fill(32, &[88]),
         // svc: main / sub error
         7 => fill(2, &[0, 0]),
-        // print standby
-        8 => fill(1, &[if p.awaiting_exit { 0xF0 } else if p.status == 1 { 1 } else { 0 }]),
+        // print standby: a printed card to take out, else 0 (C310A and later; 1 a C300's standby,
+        // a printer error for KanColle Arcade after a session with a card in standby)
+        8 => fill(1, &[if p.awaiting_exit { 0xF0 } else { 0 }]),
         16 => fill(18, &[]),
         26 => fill(8, &SERIAL.to_le_bytes()),
         31 => fill(1, &[0]),
@@ -476,14 +477,21 @@ unsafe extern "system" fn print_standby(_position: u16, result: *mut u16) -> i32
     } else {
         0
     };
+    log!("chcusb: print standby {r}");
     unsafe { set_u16(result, r) };
     1
 }
 
-/// The printed card leaves: its chip saved, a new blank card's chip next.
+/// The printed card leaves: its chip saved, a new blank card's chip next (a card in standby
+/// not printed: out, nothing saved).
 unsafe extern "system" fn exit_card(result: *mut u16) -> i32 {
     let mut p = printer();
-    p.awaiting_exit = false;
+    p.status = 0;
+    if !std::mem::take(&mut p.awaiting_exit) {
+        log!("chcusb: card out, not printed");
+        unsafe { set_u16(result, 0) };
+        return 1;
+    }
     let dir = out_dir();
     let _ = std::fs::create_dir_all(&dir);
     let mut chip = p.tid.to_vec();

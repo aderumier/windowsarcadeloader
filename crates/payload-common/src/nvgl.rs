@@ -172,18 +172,11 @@ unsafe extern "system" fn get_proc(module: *mut c_void, name: *const c_char) -> 
 unsafe fn replacement(name: &[u8]) -> Option<usize> {
     // the same functions under their ARB / core names
     let alias: Option<&CStr> = match name {
-        b"glGetTextureHandleNV" => Some(c"glGetTextureHandleARB"),
-        b"glGetTextureSamplerHandleNV" => Some(c"glGetTextureSamplerHandleARB"),
-        b"glMakeTextureHandleResidentNV" => Some(c"glMakeTextureHandleResidentARB"),
-        b"glMakeTextureHandleNonResidentNV" => Some(c"glMakeTextureHandleNonResidentARB"),
         b"glIsTextureHandleResidentNV" => Some(c"glIsTextureHandleResidentARB"),
         b"glGetImageHandleNV" => Some(c"glGetImageHandleARB"),
         b"glMakeImageHandleResidentNV" => Some(c"glMakeImageHandleResidentARB"),
         b"glMakeImageHandleNonResidentNV" => Some(c"glMakeImageHandleNonResidentARB"),
         b"glIsImageHandleResidentNV" => Some(c"glIsImageHandleResidentARB"),
-        b"glUniformHandleui64NV" => Some(c"glUniformHandleui64ARB"),
-        b"glUniformHandleui64vNV" => Some(c"glUniformHandleui64vARB"),
-        b"glProgramUniformHandleui64NV" => Some(c"glProgramUniformHandleui64ARB"),
         b"glTextureBarrierNV" => Some(c"glTextureBarrier"),
         b"glColorMaskIndexedEXT" => Some(c"glColorMaski"),
         _ => None,
@@ -238,7 +231,14 @@ unsafe fn replacement(name: &[u8]) -> Option<usize> {
         b"glDrawCommandsStatesAddressNV" => hook_draw_commands_states_address as *const () as usize,
         b"glDrawCommandsAddressNV" => hook_draw_commands_address as *const () as usize,
         b"glShaderSource" => hook_shader_source as *const () as usize,
-        b"glProgramUniformHandleui64vNV" => hook_program_uniform_handles as *const () as usize,
+        b"glProgramUniformHandleui64vNV" | b"glProgramUniformHandleui64vARB" => hook_program_uniform_handles as *const () as usize,
+        b"glProgramUniformHandleui64NV" | b"glProgramUniformHandleui64ARB" => hook_program_uniform_handle as *const () as usize,
+        b"glUniformHandleui64vNV" | b"glUniformHandleui64vARB" => hook_uniform_handles as *const () as usize,
+        b"glUniformHandleui64NV" | b"glUniformHandleui64ARB" => hook_uniform_handle as *const () as usize,
+        b"glGetTextureHandleNV" | b"glGetTextureHandleARB" => hook_get_texture_handle as *const () as usize,
+        b"glGetTextureSamplerHandleNV" | b"glGetTextureSamplerHandleARB" => hook_get_texture_sampler_handle as *const () as usize,
+        b"glMakeTextureHandleResidentNV" | b"glMakeTextureHandleResidentARB" => hook_make_handle_resident as *const () as usize,
+        b"glMakeTextureHandleNonResidentNV" | b"glMakeTextureHandleNonResidentARB" => hook_make_handle_non_resident as *const () as usize,
         b"glCompileShader" => hook_compile_shader as *const () as usize,
         b"glLinkProgram" => hook_link_program as *const () as usize,
         b"glUseProgram" => hook_use_program as *const () as usize,
@@ -332,6 +332,16 @@ mod gl {
         glLinkProgram(program: u32);
         glReadBuffer(mode: u32);
         glGetError() -> u32;
+        glFinish();
+        glGetTextureHandleARB(texture: u32) -> u64;
+        glGetTextureSamplerHandleARB(texture: u32, sampler: u32) -> u64;
+        glMakeTextureHandleResidentARB(handle: u64);
+        glMakeTextureHandleNonResidentARB(handle: u64);
+        glIsTexture(texture: u32) -> u8;
+        glGetTextureParameteriv(texture: u32, pname: u32, params: *mut i32);
+        glGetProgramInterfaceiv(program: u32, interface: u32, pname: u32, params: *mut i32);
+        glGetProgramResourceName(program: u32, interface: u32, index: u32, size: i32, length: *mut i32, name: *mut u8);
+        glGetAttachedShaders(program: u32, max: i32, count: *mut i32, shaders: *mut u32);
         glProgramUniformHandleui64vARB(program: u32, location: i32, count: i32, values: *const u64);
         glProgramUniform2uiv(program: u32, location: i32, count: i32, values: *const u32);
         glProgramUniform1i(program: u32, location: i32, value: i32);
@@ -415,6 +425,19 @@ macro_rules! ftrace {
             log!($($arg)*);
         }
     }};
+}
+
+/// Every draw waited for and logged, with every call ([`sync_trace`]).
+static SYNC: AtomicBool = AtomicBool::new(false);
+
+/// Debugging a GPU fault (`WAL_NVGL_SYNC=1`, from the moment a caller chooses): each draw
+/// waits for the previous one and is logged, every call logged too; the last draw logged
+/// before the fault is the faulting one.
+pub fn sync_trace() {
+    if std::env::var("WAL_NVGL_SYNC").is_ok_and(|v| v.trim() == "1") && !SYNC.swap(true, Relaxed) {
+        log!("nvgl: draws synchronized and logged");
+        FRAME_LOG.store(true, Relaxed);
+    }
 }
 
 /// The first calls of a kind, logged with `WAL_NVGL_LOG=1`.
@@ -1138,8 +1161,7 @@ fn pointer_member(code: &str) -> Option<(&str, &str)> {
 ///   `uvec2 nvptr_name` (the same 8 bytes), the data a std430 storage buffer `T name[]` after
 ///   the block (bound by the payload from the pointer's value, [`update_pointers`]); `name->`
 ///   as `name[0].`.
-/// * `uint64_t` (bindless texture handles) as `uvec2`; the sampler uniforms bindless (the game
-///   gives handles to plain ones).
+/// * `uint64_t` (bindless texture handles) as `uvec2`.
 /// * Anonymous structures declared in uniform blocks (`struct{...}name[n];`, NVIDIA's GLSL
 ///   accepts them): declared before the block, named `NvAnonN`.
 /// * `gl_DrawIDARB` plus a uniform `nvDrawId`: the multi-draws drawn one command at a time
@@ -1164,16 +1186,6 @@ pub fn shader_source(src: &str) -> String {
         if t.starts_with("#extension") && (t.contains("GL_NV_command_list") || t.contains("GL_NV_shader_buffer_load")) || t.replace(' ', "").starts_with("layout(commandBindableNV)uniform;") {
             out.push(String::new());
             continue;
-        }
-        // `layout(binding = N) uniform sampler...`: bindless too (Mesa: an explicit binding makes it
-        // a bound one)
-        if t.starts_with("layout(") && t.contains("uniform") && !t.contains("bindless") && block.is_none() {
-            let kind = t.split_once("uniform").map_or("", |(_, r)| r.trim_start()).trim_start_matches(['i', 'u']);
-            let qualifier = if kind.starts_with("sampler") { Some("bindless_sampler, ") } else if kind.starts_with("image") { Some("bindless_image, ") } else { None };
-            if let Some(q) = qualifier {
-                out.push(line.replacen("layout(", &format!("layout({q}"), 1));
-                continue;
-            }
         }
         let Some(start) = block else {
             if t.contains("uniform") && t.contains('{') && !t.starts_with('#') {
@@ -1228,16 +1240,15 @@ pub fn shader_source(src: &str) -> String {
     }
     // 64-bit integers (the bindless handles) as uvec2: Mesa (26.2, radeonsi) crashes compiling a
     // sampler made from a uint64_t uniform block member; the same 8 bytes and alignment
-    // sampler uniforms take handles (NVIDIA: any of them; ARB: the bindless ones): the default
-    // qualifier after the extensions
+    // the sampler uniforms stay bound ones (the game binds its textures to their units; a
+    // bindless sampler's binding read as a handle: GPU faults), samplers made from handles
+    let draw_id = out.iter().any(|l| l.contains("gl_DrawIDARB"));
     if let Some(version) = out.iter().position(|l| l.trim_start().starts_with("#version")) {
         out.insert(version + 1, "#extension GL_ARB_bindless_texture : enable".into());
-        let last = out.iter().rposition(|l| l.trim_start().starts_with("#extension")).unwrap_or(version + 1);
-        out.insert(last + 1, "layout(bindless_sampler) uniform;".into());
-    }
-    let draw_id = out.iter().any(|l| l.contains("gl_DrawIDARB"));
-    if draw_id && let Some(at) = out.iter().position(|l| l.trim() == "layout(bindless_sampler) uniform;") {
-        out.insert(at + 1, "uniform int nvDrawId;".into());
+        if draw_id {
+            let last = out.iter().rposition(|l| l.trim_start().starts_with("#extension")).unwrap_or(version + 1);
+            out.insert(last + 1, "uniform int nvDrawId;".into());
+        }
     }
     let mut text = out.join("\n").replace("uint64_t", "uvec2");
     if draw_id {
@@ -1294,6 +1305,13 @@ unsafe extern "system" fn hook_compile_shader(shader: u32) {
 
 unsafe extern "system" fn hook_link_program(program: u32) {
     unsafe { gl::glLinkProgram(program) };
+    if std::env::var("WAL_NVGL_SYNC").is_ok_and(|v| v.trim() == "1") {
+        let mut shaders = [0u32; 8];
+        let mut n = 0;
+        unsafe { gl::glGetAttachedShaders(program, 8, &mut n, shaders.as_mut_ptr()) };
+        let src: String = with(|c| shaders[..n.max(0) as usize].iter().filter_map(|s| c.shaders.get(s).cloned()).collect::<Vec<_>>().join("\n/* ---- */\n"));
+        PROGRAM_SOURCES.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).insert(program, src);
+    }
     unsafe { program_pointers(program) };
     let location = unsafe { gl::glGetUniformLocation(program, c"nvDrawId".as_ptr().cast()) };
     with(|c| {
@@ -1317,6 +1335,120 @@ unsafe extern "system" fn hook_link_program(program: u32) {
 }
 
 static DEBUG_DRAWS: AtomicUsize = AtomicUsize::new(0);
+
+/// The programs' shader sources (`WAL_NVGL_SYNC`), written to `nvgl\program-N.glsl` on
+/// their first synchronized draw.
+static PROGRAM_SOURCES: Mutex<Option<HashMap<u32, String>>> = Mutex::new(None);
+
+/// The texture handles given: their texture, sampler, residency.
+static HANDLES: Mutex<Option<HashMap<u64, (u32, u32, bool)>>> = Mutex::new(None);
+
+unsafe extern "system" fn hook_get_texture_handle(texture: u32) -> u64 {
+    let handle = unsafe { gl::glGetTextureHandleARB(texture) };
+    HANDLES.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).entry(handle).or_insert((texture, 0, false));
+    trace!(8, "nvgl: texture {texture} handle {handle:#x}");
+    ftrace!("nvgl: texture {texture} handle {handle:#x}");
+    handle
+}
+
+unsafe extern "system" fn hook_get_texture_sampler_handle(texture: u32, sampler: u32) -> u64 {
+    let handle = unsafe { gl::glGetTextureSamplerHandleARB(texture, sampler) };
+    HANDLES.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).entry(handle).or_insert((texture, sampler, false));
+    trace!(8, "nvgl: texture {texture} sampler {sampler} handle {handle:#x}");
+    ftrace!("nvgl: texture {texture} sampler {sampler} handle {handle:#x}");
+    handle
+}
+
+unsafe extern "system" fn hook_make_handle_resident(handle: u64) {
+    unsafe { gl::glMakeTextureHandleResidentARB(handle) };
+    if let Some(h) = HANDLES.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).get_mut(&handle) {
+        h.2 = true;
+    }
+    ftrace!("nvgl: handle {handle:#x} resident");
+}
+
+unsafe extern "system" fn hook_make_handle_non_resident(handle: u64) {
+    unsafe { gl::glMakeTextureHandleNonResidentARB(handle) };
+    if let Some(h) = HANDLES.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).get_mut(&handle) {
+        h.2 = false;
+    }
+    ftrace!("nvgl: handle {handle:#x} not resident");
+}
+
+/// The texture handles in the bound uniform buffers (`WAL_NVGL_SYNC`), and the program's
+/// sources once.
+unsafe fn debug_handles() {
+    let (program, ubos) = with(|c| (c.program, { let mut u: Vec<_> = c.uniforms.iter().map(|(k, v)| (*k, *v)).collect(); u.sort(); u }));
+    if let Some(src) = PROGRAM_SOURCES.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).remove(&program) {
+        let _ = std::fs::create_dir_all("nvgl");
+        let _ = std::fs::write(format!("nvgl\\program-{program}.glsl"), src);
+    }
+    let handles = HANDLES.lock().unwrap_or_else(|e| e.into_inner()).clone().unwrap_or_default();
+    let mut found = String::new();
+    for (binding, (buffer, offset)) in ubos {
+        if buffer == 0 {
+            continue;
+        }
+        let size = with(|c| c.buffers.get(&buffer).map(|b| b.size)).unwrap_or(0);
+        let len = size.saturating_sub(offset).min(1024) as usize & !7;
+        let data = read(((buffer as u64) << 32) | offset, len);
+        for i in (0..len).step_by(8) {
+            let v = u64_at(&data, i);
+            if let Some(&(texture, sampler, resident)) = handles.get(&v) {
+                let valid = unsafe { gl::glIsTexture(texture) } != 0;
+                found += &format!(" u{binding}+{i}={v:#x}(t{texture} s{sampler}{}{})", if resident { "" } else { " NOT RESIDENT" }, if valid { "" } else { " DELETED" });
+            }
+        }
+    }
+    log!("nvgl:  handles:{found}");
+    // the program's samplers: the handles given (else their initial binding), their texture's target
+    static SAMPLERS: Mutex<Option<HashMap<u32, Vec<(String, u32, i32)>>>> = Mutex::new(None);
+    let samplers = SAMPLERS.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new).entry(program).or_insert_with(|| unsafe { program_samplers(program) }).clone();
+    let given = UNIFORM_HANDLES.lock().unwrap_or_else(|e| e.into_inner()).clone().unwrap_or_default();
+    let mut list = String::new();
+    for (name, kind, location) in samplers {
+        let describe = |v: u64| match handles.get(&v) {
+            Some(&(texture, sampler, resident)) => {
+                let mut target = 0;
+                unsafe { gl::glGetTextureParameteriv(texture, 0x1006, &mut target) };
+                format!("{v:#x}(t{texture} s{sampler} target {target:#x}{}{})", if resident { "" } else { " NOT RESIDENT" }, if unsafe { gl::glIsTexture(texture) } != 0 { "" } else { " DELETED" })
+            }
+            None => format!("{v:#x}(unknown)"),
+        };
+        let value = match given.get(&(program, location)) {
+            Some(&v) => describe(v),
+            None => "never set".into(),
+        };
+        list += &format!(" {name}[{kind:#x}]@{location}={value}");
+    }
+    log!("nvgl:  samplers:{list}");
+}
+
+/// A program's sampler uniforms: name, type, location.
+unsafe fn program_samplers(program: u32) -> Vec<(String, u32, i32)> {
+    let mut count = 0;
+    unsafe { gl::glGetProgramInterfaceiv(program, 0x92E1, 0x92F5, &mut count) }; // GL_UNIFORM, GL_ACTIVE_RESOURCES
+    let mut out = Vec::new();
+    for index in 0..count.max(0) as u32 {
+        // GL_TYPE, GL_ARRAY_SIZE, GL_LOCATION
+        let mut v = [0i32; 3];
+        unsafe { gl::glGetProgramResourceiv(program, 0x92E1, index, 3, [0x92FA, 0x92FB, 0x930E].as_ptr(), 3, std::ptr::null_mut(), v.as_mut_ptr()) };
+        let kind = v[0] as u32;
+        // (0x8DC6-0x8DC9: the unsigned integer vectors, between the sampler types)
+        let sampler = (0x8B5D..=0x8B64).contains(&kind) || (0x8DC1..=0x8DC5).contains(&kind) || (0x8DCA..=0x8DD8).contains(&kind) || (0x900C..=0x900F).contains(&kind) || (0x9108..=0x910D).contains(&kind);
+        if !sampler || v[2] < 0 {
+            continue;
+        }
+        let mut name = vec![0u8; 128];
+        let mut len = 0;
+        unsafe { gl::glGetProgramResourceName(program, 0x92E1, index, name.len() as i32, &mut len, name.as_mut_ptr()) };
+        let name = String::from_utf8_lossy(&name[..len.max(0) as usize]).into_owned();
+        for i in 0..v[1].max(1) {
+            out.push((format!("{name}+{i}"), kind, v[2] + i));
+        }
+    }
+    out
+}
 
 /// A draw's state, logged (`WAL_NVGL_LOG`): 40 draws once the game runs.
 unsafe fn debug_draw() {
@@ -1375,7 +1507,29 @@ unsafe extern "system" fn debug_message(_source: u32, kind: u32, id: u32, _sever
 /// and location: set as `uvec2` values (ARB takes handles for samplers only).
 static INTEGER_HANDLES: Mutex<Vec<(u32, i32, bool)>> = Mutex::new(Vec::new());
 
+unsafe extern "system" fn hook_program_uniform_handle(program: u32, location: i32, value: u64) {
+    unsafe { hook_program_uniform_handles(program, location, 1, &value) }
+}
+
+unsafe extern "system" fn hook_uniform_handles(location: i32, count: i32, values: *const u64) {
+    unsafe { hook_program_uniform_handles(get_i(0x8B8D) as u32, location, count, values) }
+}
+
+unsafe extern "system" fn hook_uniform_handle(location: i32, value: u64) {
+    unsafe { hook_program_uniform_handles(get_i(0x8B8D) as u32, location, 1, &value) }
+}
+
+/// The handles given to each program's uniforms (`WAL_NVGL_SYNC`), by program and location.
+static UNIFORM_HANDLES: Mutex<Option<HashMap<(u32, i32), u64>>> = Mutex::new(None);
+
 unsafe extern "system" fn hook_program_uniform_handles(program: u32, location: i32, count: i32, values: *const u64) {
+    if location >= 0 && count > 0 && !values.is_null() {
+        let mut set = UNIFORM_HANDLES.lock().unwrap_or_else(|e| e.into_inner());
+        let set = set.get_or_insert_with(HashMap::new);
+        for (i, &v) in unsafe { std::slice::from_raw_parts(values, count as usize) }.iter().enumerate() {
+            set.insert((program, location + i as i32), v);
+        }
+    }
     let known = INTEGER_HANDLES.lock().unwrap_or_else(|e| e.into_inner()).iter().find(|e| e.0 == program && e.1 == location).map(|e| e.2);
     match known {
         Some(true) => unsafe { gl::glProgramUniform2uiv(program, location, count, values.cast()) },
@@ -1441,7 +1595,11 @@ unsafe fn update_pointers() {
             DEBUG_DRAWS.store(40, Relaxed);
         }
     }
-    if DEBUG_DRAWS.load(Relaxed) > 0 {
+    if SYNC.load(Relaxed) {
+        unsafe { gl::glFinish() };
+        unsafe { debug_draw() };
+        unsafe { debug_handles() };
+    } else if DEBUG_DRAWS.load(Relaxed) > 0 {
         DEBUG_DRAWS.fetch_sub(1, Relaxed);
         unsafe { debug_draw() };
     }

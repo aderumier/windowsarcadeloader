@@ -20,6 +20,8 @@
 //!   request's then an answer's, each ended by 0x372), each with its default (lists empty): the
 //!   keys the data commands' cache does not hold.
 
+use std::sync::Mutex;
+
 use aes::Aes128;
 use aes::cipher::{BlockDecrypt, BlockEncrypt, KeyInit, generic_array::GenericArray};
 use wal_payload_common::json::Json;
@@ -200,6 +202,8 @@ fn encode(v: &Value) -> Vec<u8> {
 struct Key {
     name: String,
     list: bool,
+    /// A list's minimum length.
+    count: usize,
     kind: u64,
     min: i64,
     max: i64,
@@ -238,7 +242,7 @@ fn tables() -> Option<&'static Tables> {
             let keys: Vec<Key> = (0..0x372)
                 .map(|i| {
                     let e = unsafe { std::slice::from_raw_parts((base + keys + 72 * i) as *const u64, 9) };
-                    unsafe { Key { name: c_string(e[2] as usize), list: e[3] & 1 != 0, kind: e[4], min: e[5] as i64, max: e[6] as i64, default: c_string(e[7] as usize) } }
+                    unsafe { Key { name: c_string(e[2] as usize), list: e[3] & 1 != 0, count: (e[3] >> 32 & 0xffff) as usize, kind: e[4], min: e[5] as i64, max: e[6] as i64, default: c_string(e[7] as usize) } }
                 })
                 .collect();
             // the lists: the values before each end mark, after the zeros between them (`cmd` is 0,
@@ -264,6 +268,13 @@ fn tables() -> Option<&'static Tables> {
                 log!("kcserver: tables: {} commands, {} lists", names.len(), found.len());
                 return None;
             }
+            // WAL_SEGANU_KANCOLLE_SERVER_LOG=tables: every command's request keys
+            if std::env::var("WAL_SEGANU_KANCOLLE_SERVER_LOG").is_ok_and(|v| v.split(',').any(|c| c.trim() == "tables")) {
+                for (i, n) in names.iter().enumerate() {
+                    let request: Vec<&str> = found[2 * i].iter().filter_map(|&k| keys.get(k as usize)).map(|k| k.name.as_str()).collect();
+                    log!("kcserver: table {n}: {request:?}");
+                }
+            }
             let answers = names.into_iter().enumerate().map(|(i, n)| (n, found[2 * i + 1].clone())).collect::<Vec<_>>();
             log!("kcserver: tables: {} commands, {} keys", answers.len(), keys.len());
             Some(Tables { answers, keys })
@@ -271,17 +282,62 @@ fn tables() -> Option<&'static Tables> {
         .as_ref()
 }
 
-/// A key's default value (a list: empty; the names ending in `_lst` / `_list` are lists too,
-/// their flags 0).
+/// A key's default value (a list: its minimum length of default items; the names
+/// ending in `_lst` / `_list` are lists too, their flags 0; a string at least its minimum
+/// length, padded with `0`).
 fn default_value(k: &Key) -> Value {
+    if k.list && k.count > 0 {
+        let item = Key { name: String::new(), list: false, count: 0, kind: k.kind, min: k.min, max: k.max, default: k.default.clone() };
+        return Value::Array(vec![default_value(&item); k.count]);
+    }
     if k.list || k.name.ends_with("_lst") || k.name.ends_with("_list") {
         return Value::Array(Vec::new());
     }
     match k.kind {
+        // a command's result (`*_result`, `*_rslt`, -999..1): 1, done (0 and below the game's
+        // errors)
+        0 if k.max == 1 && k.min < 0 && (k.name.ends_with("result") || k.name.ends_with("rslt")) => Value::Int(1),
         0 => Value::Int(k.default.trim().parse::<i64>().unwrap_or(0).clamp(k.min, k.max.max(k.min))),
         3 => Value::Bool(k.default.trim() == "1"),
+        1 if k.default.len() < k.min as usize => Value::Str(format!("{:0<1$}", k.default, k.min as usize)),
         _ => Value::Str(k.default.clone()),
     }
+}
+
+// ── the game's own data ──────────────────────────────────────────────────────────────────
+
+/// A value of the game's data lists (`rom/<name>.farc`: a gzip member of `kind.id.key=value`
+/// lines), as a number.
+fn game_value(name: &str, key: &str) -> Option<i64> {
+    static LISTS: Mutex<Vec<(String, std::collections::HashMap<String, String>)>> = Mutex::new(Vec::new());
+    let mut lists = LISTS.lock().unwrap_or_else(|e| e.into_inner());
+    if !lists.iter().any(|(n, _)| n == name) {
+        let map = game_list(name).unwrap_or_default();
+        log!("kcserver: rom\\{name}.farc: {} values", map.len());
+        lists.push((name.to_string(), map));
+    }
+    let (_, map) = lists.iter().find(|(n, _)| n == name)?;
+    map.get(key)?.trim().parse().ok()
+}
+
+fn game_list(name: &str) -> Option<std::collections::HashMap<String, String>> {
+    let farc = std::fs::read(format!("rom\\{name}.farc")).ok()?;
+    let gz = farc.windows(3).position(|w| w == [0x1f, 0x8b, 8])?;
+    let flags = *farc.get(gz + 3)?;
+    let mut at = gz + 10;
+    if flags & 4 != 0 {
+        at += 2 + u16::from_le_bytes([*farc.get(at)?, *farc.get(at + 1)?]) as usize;
+    }
+    for flag in [8, 16] {
+        if flags & flag != 0 {
+            at += farc.get(at..)?.iter().position(|&b| b == 0)? + 1;
+        }
+    }
+    if flags & 2 != 0 {
+        at += 2;
+    }
+    let text = miniz_oxide::inflate::decompress_to_vec(farc.get(at..)?).ok()?;
+    Some(String::from_utf8_lossy(&text).lines().filter_map(|l| l.split_once('=')).map(|(k, v)| (k.to_string(), v.to_string())).collect())
 }
 
 // ── the dump's cached answers ────────────────────────────────────────────────────────────
@@ -398,6 +454,98 @@ fn attend_params(name: &str, fields: &[usize]) -> Value {
     Value::Array(fields.iter().map(|&i| Value::Int(field(i))).collect())
 }
 
+/// An event's progress, none (ids -1, counts 0, lists empty, times past).
+fn event_progress(key: &str) -> Option<Value> {
+    let fields: &[&str] = match key {
+        "cop_progress_info" => &["cop_id", "total_cp", "sortie_cnt_total", "trc_frame_num", "use_trc_frame_num", "ttrl_flg_array", "lst_thrgh_slctr_tm", "area_id", "area_sub_id_lst", "area_max_clr_rnk_lst", "area_sortie_cnt_lst", "area_aurid_flg_lst", "prize_exch_inf_lst"],
+        "epfes_progress_info" => &["epfes_id", "tutorial_flag", "item_get_num", "item_use_num", "prize_exchange_info_list"],
+        "mfes_progress_info" => &["tutorial_flag", "item_get_num", "item_use_num", "mfes_id", "clear_mission_id", "mfes_mission_info_list"],
+        _ => return None,
+    };
+    Some(Value::Map(
+        fields
+            .iter()
+            .map(|&f| {
+                let v = if f.ends_with("_lst") || f.ends_with("_list") || f.ends_with("_array") || f == "tutorial_flag" {
+                    Value::Array(Vec::new())
+                } else if f.ends_with("_tm") {
+                    Value::Str("2005-01-01T00:00:00+09:00".into())
+                } else if f.ends_with("_id") {
+                    Value::Int(-1)
+                } else {
+                    Value::Int(0)
+                };
+                (f.to_string(), v)
+            })
+            .collect(),
+    ))
+}
+
+/// The admirals registered on this cabinet: one file per card (its Aime id), the name.
+const ADMIRALS: &str = "kcserver";
+
+/// The name of the admiral registered for a card.
+fn admiral(aime_id: i64) -> Option<String> {
+    std::fs::read_to_string(format!("{ADMIRALS}\\{aime_id}.txt")).ok().filter(|n| !n.is_empty())
+}
+
+/// The admiral's saved play (`kcserver\<id>.msgpack`): the game's last `area_result` or `end`
+/// request, the whole state it uploads.
+fn saved_play(id: i64) -> Option<Vec<(String, Value)>> {
+    let bytes = std::fs::read(format!("{ADMIRALS}\\{id}.msgpack")).ok()?;
+    match read_value(&bytes, &mut 0)? {
+        Value::Map(m) => Some(m),
+        _ => None,
+    }
+}
+
+fn save_play(req: &[(String, Value)]) {
+    let Some(id) = get(req, "pd_id").and_then(int).filter(|&id| id >= 0) else { return };
+    let mut out = Vec::new();
+    write_value(&mut out, &Value::Map(req.to_vec()));
+    let saved = std::fs::create_dir_all(ADMIRALS).and_then(|_| std::fs::write(format!("{ADMIRALS}\\{id}.msgpack"), out));
+    log!("kcserver: play of admiral {id} saved: {saved:?}");
+}
+
+/// Two values of the same shape (a saved value replaces a default only then).
+fn same_kind(a: &Value, b: &Value) -> bool {
+    matches!((a, b), (Value::Int(_), Value::Int(_)) | (Value::Bool(_), Value::Bool(_)) | (Value::Str(_), Value::Str(_)) | (Value::Array(_), Value::Array(_)) | (Value::Map(_), Value::Map(_)))
+}
+
+/// The admiral's values of an answer from its saved play: each key `x` from the upload's
+/// `x_lst` (its first item: the uploads list one value per admiral).
+fn restore(res: &mut [(String, Value)], play: &[(String, Value)]) {
+    for (key, value) in res.iter_mut() {
+        if let Some(Value::Array(a)) = get(play, &format!("{key}_lst"))
+            && let Some(v) = a.first()
+            && same_kind(v, value)
+        {
+            *value = v.clone();
+        }
+    }
+}
+
+/// A sortie's drop: a card of the game's list (gm_trc_list, the ones not ignored), at random.
+fn drop_card() -> Option<i64> {
+    let list = game_list("gm_trc_list")?;
+    let mut ids: Vec<i64> = list
+        .iter()
+        .filter(|(k, v)| k.ends_with(".ignore") && v.trim() == "0")
+        .filter_map(|(k, _)| k.split('.').nth(1)?.parse().ok())
+        .filter(|id| list.get(&format!("trc.{id}.chara_id")).and_then(|c| c.trim().parse::<i64>().ok()).is_some_and(|c| c > 0))
+        .collect();
+    ids.sort();
+    let seed = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos() as usize);
+    ids.get(seed.wrapping_mul(2654435761) % ids.len().max(1)).copied()
+}
+
+fn int(v: &Value) -> Option<i64> {
+    match v {
+        Value::Int(i) => Some(*i),
+        _ => None,
+    }
+}
+
 fn get<'a>(m: &'a [(String, Value)], key: &str) -> Option<&'a Value> {
     m.iter().find(|(k, _)| k == key).map(|(_, v)| v)
 }
@@ -461,6 +609,17 @@ pub fn answer(path: &str, body: &[u8]) -> Vec<u8> {
         Some(e) => e.1 = v,
         None => res.push((key.into(), v)),
     };
+    // the events' progress (objects the game reads key by key: 0x140f63dd2 cop, 0x140f67087
+    // epfes, 0x140f68f20 mfes): none
+    for (key, value) in res.iter_mut() {
+        if let Some(progress) = event_progress(key) {
+            *value = progress;
+        }
+    }
+    // the sortie's scene: its GPU fault traced from here (WAL_NVGL_SYNC)
+    if cmd == "start_sortie" {
+        wal_payload_common::nvgl::sync_trace();
+    }
     match cmd.as_str() {
         "game_init" => {
             set(&mut res, "db_close_timestamp", past_window());
@@ -498,6 +657,160 @@ pub fn answer(path: &str, body: &[u8]) -> Vec<u8> {
             set(&mut res, "tc_reissue_a_code_lst", Value::Array(Vec::new()));
             set(&mut res, "tc_reissue_kc_sral", get(&req, "kc_serial").cloned().unwrap_or(Value::Str("A69E01A8888".into())));
         }
+        "pre_start" => {
+            // the card's admiral to confirm, or none: the game's registration of a new one (its
+            // switch at 0x140f887d0: 1 an admiral, -3 the scene asking to register, 0 its
+            // error 92)
+            match get(&req, "aime_id").and_then(int).and_then(|id| admiral(id).map(|name| (id, name))) {
+                Some((id, name)) => {
+                    set(&mut res, "ps_result", Value::Int(1));
+                    set(&mut res, "pd_id", Value::Int(id));
+                    set(&mut res, "admrl_name", Value::Str(name));
+                    // its saved play: experience, flagship, tutorials seen (0 / 1 each)...
+                    if let Some(play) = saved_play(id) {
+                        restore(&mut res, &play);
+                    }
+                }
+                None => set(&mut res, "ps_result", Value::Int(-3)),
+            }
+        }
+        "pd_registration" => {
+            // the new admiral, kept for the card (1: registered)
+            if let (Some(id), Some(Value::Str(name))) = (get(&req, "aime_id").and_then(int), get(&req, "admrl_name")) {
+                let saved = std::fs::create_dir_all(ADMIRALS).and_then(|_| std::fs::write(format!("{ADMIRALS}\\{id}.txt"), name));
+                log!("kcserver: admiral {name} registered for Aime id {id}: {saved:?}");
+                set(&mut res, "cd_adm_result", Value::Int(if saved.is_ok() { 1 } else { 0 }));
+            }
+        }
+        "call_up" => {
+            // the ships of the cards laid on the deck, one per card (cu_rslt 1, 0x140f892a7):
+            // none known yet (-1), the game's own values of the card's ship
+            let cards = match get(&req, "tc_tid_lst") {
+                Some(Value::Array(a)) => a.len(),
+                _ => 0,
+            };
+            set(&mut res, "cu_rslt", Value::Int(1));
+            let tc_ids: Vec<i64> = match get(&req, "tc_id_lst") {
+                Some(Value::Array(a)) => a.iter().map(|v| int(v).unwrap_or(-1)).collect(),
+                _ => Vec::new(),
+            };
+            // a new ship: the card's (gm_trc_list chara_id), its HP, fuel and ammo full
+            // (gm_unit_list i_life, fuel_max, amm_max)
+            let ship = |i: usize, key: &str| -> Option<i64> {
+                let chara = game_value("gm_trc_list", &format!("trc.{}.chara_id", tc_ids.get(i)?))?;
+                let field = match key {
+                    "chr_id_lst" => return Some(chara),
+                    // the HP as a ratio of the full HP, 10000 full (its maximum; a card play: i_life,
+                    // 15, showed 1/15, 0 a sunk ship)
+                    "chr_hp_lst" => return Some(10000),
+                    "chr_fuel_lst" => "fuel_max",
+                    "chr_ammo_lst" => "amm_max",
+                    _ => return None,
+                };
+                game_value("gm_unit_list", &format!("unit.{chara}.{field}"))
+            };
+            // its 5 slots (the game reads each card's list of them, 0x140f896d2): its equipment
+            // (gm_unit_list eq00.., eq_num of them, the others -1), the planes on them (cap00..)
+            let slots = |i: usize, key: &str| -> Value {
+                let chara = tc_ids.get(i).and_then(|tc| game_value("gm_trc_list", &format!("trc.{tc}.chara_id")));
+                let unit = |field: String| chara.and_then(|c| game_value("gm_unit_list", &format!("unit.{c}.{field}")));
+                let equipped = unit("eq_num".into()).unwrap_or(0);
+                Value::Array(
+                    (0..5)
+                        .map(|slot| match key {
+                            "chr_slt_eqpmnt_lst" if slot < equipped => Value::Int(unit(format!("eq{slot:02}")).unwrap_or(-1)),
+                            "chr_slt_eqpmnt_lst" => Value::Int(-1),
+                            "chr_slt_amount_lst" => Value::Int(unit(format!("cap{slot:02}")).unwrap_or(0)),
+                            _ => Value::Int(0),
+                        })
+                        .collect(),
+                )
+            };
+            // a ship already played: its values in the admiral's saved play (each `chr_x_lst`
+            // from `chr_x_lst_lst`, the play's ships' lists; the ship found by its id)
+            let play = get(&req, "pd_id").and_then(int).and_then(saved_play);
+            let played = |i: usize, key: &str| -> Option<Value> {
+                let play = play.as_ref()?;
+                let chara = game_value("gm_trc_list", &format!("trc.{}.chara_id", tc_ids.get(i)?))?;
+                let first = |k: &str| match get(play, k) {
+                    Some(Value::Array(a)) => match a.first() {
+                        Some(Value::Array(ships)) => Some(ships.clone()),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let j = first("chr_id_lst_lst")?.iter().position(|v| int(v) == Some(chara))?;
+                first(&format!("{key}_lst"))?.get(j).cloned()
+            };
+            for (key, value) in res.iter_mut() {
+                let Some(k) = tables().and_then(|t| t.keys.iter().find(|k| k.name == *key)) else { continue };
+                if !key.starts_with("chr_") || !matches!(value, Value::Array(_)) {
+                    continue;
+                }
+                let items = (0..cards).map(|i| match key.as_str() {
+                    "chr_slt_eqpmnt_lst" | "chr_slt_eqpmnt_imprv_lv_lst" | "chr_slt_amount_lst" => slots(i, key),
+                    // the other lists of each card (blueprints, equipment history): none
+                    _ if !k.list => Value::Array(Vec::new()),
+                    "chr_is_lv_cp_rlsd_lst" => Value::Bool(false),
+                    "chr_strt_idx_lst" | "chr_pd_sync_idx_lst" | "chr_mrg_sts_lst" => Value::Int(-1),
+                    k => Value::Int(ship(i, k).unwrap_or(if k == "chr_id_lst" { -1 } else { 0 })),
+                });
+                let items = items.enumerate().map(|(i, new)| match played(i, key) {
+                    Some(v) if same_kind(&v, &new) && key != "chr_id_lst" => v,
+                    _ => new,
+                });
+                *value = Value::Array(items.collect());
+            }
+        }
+        "area_result" => {
+            // the sortie's result: the play saved, the admiral's values as uploaded
+            save_play(&req);
+            restore(&mut res, &req);
+        }
+        "end" => save_play(&req),
+        "sortie_drop" | "start_sortie" => {
+            // the admiral's values (else 0: its resources emptied), a card dropped
+            if let Some(play) = get(&req, "pd_id").and_then(int).and_then(saved_play) {
+                restore(&mut res, &play);
+            }
+            // the card a sortie can drop: chosen at its start (the game writes it on the card
+            // in the printer then, the start_sortie answer's tc_id), the same at its drop (the
+            // card's picture)
+            static DROP: Mutex<Option<i64>> = Mutex::new(None);
+            let mut chosen = DROP.lock().unwrap_or_else(|e| e.into_inner());
+            if cmd == "start_sortie" {
+                *chosen = drop_card();
+            }
+            if let Some(tc) = *chosen {
+                if cmd == "sortie_drop" {
+                    log!("kcserver: card {tc} dropped");
+                }
+                set(&mut res, "tc_id", Value::Int(tc));
+            }
+        }
+        "start" => {
+            // the play started (0x140f88938: 1 goes on, 0 / -1 give the card back), the
+            // card's admiral
+            set(&mut res, "start_result", Value::Int(1));
+            if let Some(id) = get(&req, "pd_id").and_then(int).filter(|&id| id >= 0) {
+                set(&mut res, "pd_id", Value::Int(id));
+                if let Some(name) = admiral(id) {
+                    set(&mut res, "admrl_name", Value::Str(name));
+                }
+                // its saved play: resources, experience, flagship...
+                if let Some(play) = saved_play(id) {
+                    restore(&mut res, &play);
+                }
+                // the play's card flag (WAL_SEGANU_KANCOLLE_CARD_FLAG, the RVA of the play data's
+                // byte 1: 0x142382420 + 1), never set by the game with this server; clear, the play
+                // is a play without a card: no credit spent, no area_result, its end no_card_end
+                // (0x140a9ac59), nothing saved
+                if let Some(rva) = std::env::var("WAL_SEGANU_KANCOLLE_CARD_FLAG").ok().and_then(|v| usize::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()) {
+                    unsafe { std::ptr::write_volatile((wal_payload_common::iat::game_module() + rva) as *mut u8, 1) };
+                    log!("kcserver: card flag set");
+                }
+            }
+        }
         _ => {
             if let Some((_, time_key, keys)) = DATABANK.iter().find(|(c, _, _)| *c == cmd) {
                 set(&mut res, time_key, lut());
@@ -511,5 +824,10 @@ pub fn answer(path: &str, body: &[u8]) -> Vec<u8> {
         }
     }
     log!("kcserver: {cmd}: {:?}", req.iter().map(|(k, _)| k.as_str()).collect::<Vec<_>>());
+    // the whole request and answer of the commands named in WAL_SEGANU_KANCOLLE_SERVER_LOG
+    if std::env::var("WAL_SEGANU_KANCOLLE_SERVER_LOG").is_ok_and(|v| v.split(',').any(|c| c.trim() == cmd || c.trim() == "all")) {
+        log!("kcserver: {cmd} request {req:?}");
+        log!("kcserver: {cmd} answer {res:?}");
+    }
     encode(&Value::Map(res))
 }
