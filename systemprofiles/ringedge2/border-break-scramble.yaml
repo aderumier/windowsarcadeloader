@@ -104,8 +104,9 @@ env:
   # node check FUN_0067afa0, else "Error 6401 JVS I/O board is not connected").
   # Left grip (the JVS board, player 1; the game's INPUT TEST, FUN_008a04b0): button 1 JUMP,
   # button 2 DASH, button 3 ACTION; the move stick on analog channel 1 (X) and 0 (Y): the game
-  # swaps the two channels (FUN_00679de0)
-  WAL_TYPEX_JVS_ANALOG_INPUTS: "ly,lx"
+  # swaps the two channels (FUN_00679de0); its Y up is forward (the stick's up negative: inverted,
+  # else forward and back swapped)
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "-ly,lx"
   WAL_TYPEX_JVS_ROTARY: "2"
   WAL_TYPEX_JVS_OUTPUTS: "20"
   # Right grip: the cabinet's aim control is a USB mouse read with DirectInput (relative motion,
