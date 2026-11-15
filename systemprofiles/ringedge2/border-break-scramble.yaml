@@ -135,6 +135,9 @@ env:
   WAL_CROSSHAIR_SIZE: "2"
   WAL_CROSSHAIR_COLOR: FF2020
   WAL_CROSSHAIR_HIDE: "5"
+  # the pointer (touch and dot): the mouse (on the pedals) or the left stick, the last moved
+  WAL_RINGEDGE_TOUCH_POINTER: pedals-stick
+  WAL_CROSSHAIR_AXES: pedals-stick
   # COM2 is the cabinet's IC card reader/writer, checked at boot ("CHECKING IC CARD R/W", error
   # 23 without an answer): emulated without a card
   WAL_RINGEDGE_IC_CARD: COM2
@@ -157,6 +160,29 @@ drives:
 # buttons; the touch panel for the menus (start: touch the screen).
 input:
   stick_as_dpad: false
+  # the mouse (or a gun) is the touch pointer, its left button the touch: its position on the
+  # pedals, which the game does not read (on the left stick it would walk the mech in battle);
+  # the touch's place is the mouse or the left stick, whichever moved last
+  guns_enabled: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: b8
+    BTN_RIGHT: none
+    BTN_MIDDLE: none
+    BTN_2: none
+  # the keyboard: WASD the move stick, the arrows the aim (the defaults: left Ctrl jump, left
+  # Alt dash, Space action, left Shift fire, V the touch)
+  keyboard:
+    p1:
+      KEY_W: -ly
+      KEY_S: ly
+      KEY_A: -lx
+      KEY_D: lx
+      KEY_UP: -ry
+      KEY_DOWN: ry
+      KEY_LEFT: -rx
+      KEY_RIGHT: rx
 
 # Control names for the GUI mapping rows.
 controls:

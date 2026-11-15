@@ -15,7 +15,9 @@
 //!   default), `pedals` (`accel` / `brake`, 0..32767 across the screen: the touch pointer of
 //!   Steel Chronicle Victroopers, whose sticks steer) or `right-stick` (`rx` / `ry`: the touch
 //!   pointer of the other touch screens, Yu-Gi-Oh! Duel Terminal 6) or `touch` (player 1: the
-//!   touch surface's first finger while one is down, else the left stick: Wonderland Wars' pen).
+//!   touch surface's first finger while one is down, else the left stick: Wonderland Wars' pen)
+//!   or `pedals-stick` (player 1: the mouse on the pedals or the left stick, whichever moved
+//!   last: Border Break Scramble's touch pointer, [`crate::gun::pedals_or_stick`]).
 //! - `WAL_CROSSHAIR_HIDE`: seconds without moving before it hides (5; 0: never).
 //!
 //! Before each `Present` (payload-common's Direct3D 9 overlay) the crosshairs are drawn into the
@@ -54,6 +56,7 @@ enum Axes {
     Pedals,
     RightStick,
     Touch,
+    PedalsOrStick,
 }
 
 fn axes() -> Axes {
@@ -62,6 +65,7 @@ fn axes() -> Axes {
         Ok("pedals") => Axes::Pedals,
         Ok("right-stick") => Axes::RightStick,
         Ok("touch") => Axes::Touch,
+        Ok("pedals-stick") => Axes::PedalsOrStick,
         _ => Axes::LeftStick,
     })
 }
@@ -308,7 +312,8 @@ fn aims(state: &mut State) -> [Option<(i16, i16)>; MAX_PLAYERS] {
                     },
                 }
             }
-            Axes::LeftStick | Axes::Touch => (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY)),
+            Axes::PedalsOrStick if player == 0 => crate::gun::pedals_or_stick(),
+            Axes::LeftStick | Axes::Touch | Axes::PedalsOrStick => (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY)),
         };
         if aim != *last {
             *last = aim;

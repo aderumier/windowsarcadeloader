@@ -114,6 +114,29 @@ pub fn gun_of_player_in_picture(player: usize) -> Option<(f32, f32)> {
     ((0.0..1.0).contains(&x) && (0.0..1.0).contains(&y)).then_some((x, y))
 }
 
+/// A touch pointer that is either the mouse or the left stick, whichever moved last (Border
+/// Break Scramble: its left stick also walks the mech, so the mouse is mapped to the pedals,
+/// `accel` / `brake` 0..32767 across the screen, which the game does not read). Player 1's place
+/// in the stick's -32768..32767.
+pub fn pedals_or_stick() -> (i16, i16) {
+    static LAST: std::sync::Mutex<Option<[(i16, i16); 2]>> = std::sync::Mutex::new(None);
+    static PEDALS_LAST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    let stick = input(0);
+    let full = |v: i16| (v.max(0) as i32 * 2 - 32768).clamp(-32768, 32767) as i16;
+    let pedals = (full(stick.axis(Axis::Accel)), full(stick.axis(Axis::Brake)));
+    let left = (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY));
+    let mut last = LAST.lock().unwrap();
+    if let Some([was_pedals, was_left]) = *last {
+        if pedals != was_pedals {
+            PEDALS_LAST.store(true, Ordering::Relaxed);
+        } else if left != was_left {
+            PEDALS_LAST.store(false, Ordering::Relaxed);
+        }
+    }
+    *last = Some([pedals, left]);
+    if PEDALS_LAST.load(Ordering::Relaxed) { pedals } else { left }
+}
+
 /// The screen's size in pixels.
 pub fn screen_size() -> (f32, f32) {
     unsafe { (GetSystemMetrics(SM_CXSCREEN) as f32, GetSystemMetrics(SM_CYSCREEN) as f32) }

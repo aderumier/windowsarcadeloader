@@ -19,6 +19,9 @@
 //! p2 83,674 mirror X and shrink both axes: the reports carry the pointer's place through that
 //! calibration's inverse (`WAL_RINGEDGE_TOUCH_CALIBRATION=<p1 x>,<p1 y>,<p2 x>,<p2 y>`, default
 //! none: the screen as is).
+//! `WAL_RINGEDGE_TOUCH_POINTER=pedals-stick`: the pointer is the mouse mapped to the pedals or
+//! the left stick, whichever moved last (Border Break Scramble, whose left stick walks the mech:
+//! [`wal_payload_common::gun::pedals_or_stick`]).
 
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::OnceLock;
@@ -111,6 +114,12 @@ fn reply(data: &[u8]) -> Vec<u8> {
     out
 }
 
+/// `WAL_RINGEDGE_TOUCH_POINTER=pedals-stick`.
+fn pedals_pointer() -> bool {
+    static ON: OnceLock<bool> = OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_RINGEDGE_TOUCH_POINTER").is_ok_and(|v| v.trim() == "pedals-stick"))
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
@@ -130,8 +139,12 @@ fn stream() -> Vec<u8> {
     }
     TOUCHED.store(down, Ordering::Relaxed);
     LAST_MS.store(now, Ordering::Relaxed);
-    let u = p1.axis_u16(Axis::LeftX) as f32 / 65535.0;
-    let v = p1.axis_u16(Axis::LeftY) as f32 / 65535.0;
+    let (u, v) = if pedals_pointer() {
+        let (x, y) = wal_payload_common::gun::pedals_or_stick();
+        ((x as i32 + 32768) as f32 / 65535.0, (y as i32 + 32768) as f32 / 65535.0)
+    } else {
+        (p1.axis_u16(Axis::LeftX) as f32 / 65535.0, p1.axis_u16(Axis::LeftY) as f32 / 65535.0)
+    };
     let (x, y) = CAL.get_or_init(Calibration::from_env).report(u, v);
     let state = match (was, down) {
         (false, true) => 0x01,
