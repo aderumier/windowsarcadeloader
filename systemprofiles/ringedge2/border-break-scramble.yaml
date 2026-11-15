@@ -1,14 +1,13 @@
 # Border Break Scramble (Sega RingEdge 2), online team mech shooter. NRS engine, runs nrs.exe
-# (PE32 / i386, develop build; a Lindbergh-derived OpenGL renderer, shader_lindbergh.pfa).
+# (PE32 / i386, develop build; a Lindbergh-derived OpenGL renderer, NV_gpu_program4 shaders).
 # The amLib stack (amDongle keychip, amJvs JVS board, amSram/amEeprom, amBackup, amPlatform,
 # ALL.Net) is statically linked into nrs.exe, so this reuses the RingEdge payload with the
 # RingEdge 2 board. Override values in userprofiles/ringedge2/border-break-scramble.yaml.
 #
 # WORK IN PROGRESS - it plays up to its battle: attract, card select (「カードなし」), GP purchase,
 # mode select (個人演習, the CPU practice, the only offline mode), faction, weapon and sortie
-# point, then the battle (timer, HUD, minimap, firing, dash). The battle's 3D world is not drawn
-# yet (a gray screen under the HUD). The extended image is marked installed
-# by two empty files in the dump's Y folder, made by hand: Y/SBVA.extend and
+# point, then the battle (its 3D world, timer, HUD, minimap, firing, dash). The extended image
+# is marked installed by two empty files in the dump's Y folder, made by hand: Y/SBVA.extend and
 # Y/SBVA.extend.complete (else "Error 0913 Game Program Not Found on Storage Device").
 # Credits are kept in the backup: insert coins (the -free flag does not waive them).
 system: ringedge2
@@ -72,12 +71,9 @@ env:
   WAL_WINDOW_POPUP: "1"
   WAL_HIDE_CURSOR: "1"
   # Shaders: rom/shader.pfa holds NV_gpu_program4 assembly (`!!NVvp4.0`/`!!NVfp4.0`, Cg's
-  # vp40/fp40), which the Mesa fix-up does not cover (it handles the older NV_fragment_program2 /
-  # vp3) - on AMD nearly every program fails to translate and the screen is black. The dump also
-  # ships the same shaders as plain ARB assembly in rom/shader_lindbergh.pfa (`!!ARBvp1.0` /
-  # `!!ARBfp1.0`), which Mesa runs natively; `files:` below swaps that in as shader.pfa so the
-  # game renders without translation (CG_FIX auto still handles the ~19 post-process programs
-  # that carry OPTION NV_fragment_program2).
+  # gp4), translated to ARB programs for Mesa by the fix-up. (The dump's
+  # rom/shader_lindbergh.pfa is an older build of them for another parameter layout - matrices
+  # at env 83, colors in fragment env 0: with it the battle's world is not drawn.)
   WAL_RINGEDGE_CG_FIX: auto
   # its objects' matrix index (vertex attribute 7) is an integer array its ARB programs read as
   # floats: given as a float array (else every object drawn with the first matrix)
@@ -134,12 +130,6 @@ env:
   WAL_RINGEDGE_IC_CARD: COM2
   # the test button (foreground application 3): relaunch the game with -test (its gametest.bat)
   WAL_RINGEDGE_FOREGROUND: "3=-test"
-
-# The ARB shaders in place of the NV_gpu_program4 ones (see the shader note above): run natively
-# on Mesa/AMD, no translation. On an NVIDIA machine the original NV shaders also work - remove
-# this line there if the higher-precision originals are wanted.
-files:
-  rom/shader.pfa: "{dump}/rom/shader_lindbergh.pfa"
 
 # amPlatformGetOsVersion reads C:\System\SystemVersion.txt (8 digits: the RingEdge OS version,
 # 0011.01.02 the RingEdge Lv2 SDK of HwInfo.ini); without it the boot check FUN_0045a6f0 sets

@@ -182,6 +182,14 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
             ORIG_FLOAT_POINTER.store(float, Ordering::Relaxed);
             int_attrib_pointer as *const () as usize
         }
+        b"glProgramEnvParameter4fARB" if FIX.load(Ordering::Relaxed) => {
+            ORIG_ENV_PARAMETER_4F.store(f, Ordering::Relaxed);
+            env_parameter_4f as *const () as usize
+        }
+        b"glProgramEnvParameter4fvARB" if FIX.load(Ordering::Relaxed) => {
+            ORIG_ENV_PARAMETER_4FV.store(f, Ordering::Relaxed);
+            env_parameter_4fv as *const () as usize
+        }
         b"glProgramEnvParameters4fvEXT" if FIX.load(Ordering::Relaxed) => {
             ORIG_ENVS.store(f, Ordering::Relaxed);
             let local = unsafe { orig(c"glProgramLocalParameters4fvEXT".as_ptr()) };
@@ -425,11 +433,38 @@ unsafe extern "system" fn disable_attrib(index: u32) {
 unsafe extern "system" fn env_parameters(target: u32, index: u32, count: i32, params: *const f32) {
     let env: unsafe extern "system" fn(u32, u32, i32, *const f32) = unsafe { std::mem::transmute(ORIG_ENVS.load(Ordering::Relaxed)) };
     unsafe { env(target, index, count, params) };
+    let attrib = crate::nvasm::ATTRIB_ENV;
+    if target == 0x8620 && ATTRIB_MIRROR.load(Ordering::Relaxed) && (index..index + count.max(0) as u32).contains(&attrib) {
+        unsafe { env(0x8804, attrib, 1, params.add(4 * (attrib - index) as usize)) };
+    }
     let local = ORIG_LOCALS.load(Ordering::Relaxed);
     let bound = (target, BOUND[(target == 0x8804) as usize].load(Ordering::Relaxed) as u32);
     if local != 0 && !READS_ENV.lock().unwrap().contains(&bound) {
         let local: unsafe extern "system" fn(u32, u32, i32, *const f32) = unsafe { std::mem::transmute(local) };
         unsafe { local(target, index, count, params) };
+    }
+}
+
+static ORIG_ENV_PARAMETER_4F: AtomicUsize = AtomicUsize::new(0);
+static ORIG_ENV_PARAMETER_4FV: AtomicUsize = AtomicUsize::new(0);
+/// Translated NV_gpu_program4 fragment programs read their generic interpolant 0 as the
+/// fragment environment parameter `nvasm::ATTRIB_ENV` (Border Break Scramble's object colors):
+/// the vertex one of that index copied there.
+static ATTRIB_MIRROR: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+unsafe extern "system" fn env_parameter_4f(target: u32, index: u32, x: f32, y: f32, z: f32, w: f32) {
+    let f: unsafe extern "system" fn(u32, u32, f32, f32, f32, f32) = unsafe { std::mem::transmute(ORIG_ENV_PARAMETER_4F.load(Ordering::Relaxed)) };
+    unsafe { f(target, index, x, y, z, w) };
+    if target == 0x8620 && index == crate::nvasm::ATTRIB_ENV && ATTRIB_MIRROR.load(Ordering::Relaxed) {
+        unsafe { f(0x8804, index, x, y, z, w) };
+    }
+}
+
+unsafe extern "system" fn env_parameter_4fv(target: u32, index: u32, v: *const f32) {
+    let f: unsafe extern "system" fn(u32, u32, *const f32) = unsafe { std::mem::transmute(ORIG_ENV_PARAMETER_4FV.load(Ordering::Relaxed)) };
+    unsafe { f(target, index, v) };
+    if target == 0x8620 && index == crate::nvasm::ATTRIB_ENV && ATTRIB_MIRROR.load(Ordering::Relaxed) {
+        unsafe { f(0x8804, index, v) };
     }
 }
 
@@ -643,6 +678,9 @@ unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, tex
         }
         _ => None,
     };
+    if target == 0x8804 && fixed.as_deref().is_some_and(|f| f.contains(&format!("program.env[{}]", crate::nvasm::ATTRIB_ENV))) && original.windows(15).any(|w| w == b"fragment.attrib") {
+        ATTRIB_MIRROR.store(true, Ordering::Relaxed);
+    }
     if target == 0x8620 {
         let units = fixed.as_deref().map_or(0, |f| (0..16u32).filter(|u| f.contains(&format!("program.local[{}]", crate::nvasm::TEXEL_LOCAL + u))).fold(0u16, |m, u| m | 1 << u));
         let id = BOUND[0].load(Ordering::Relaxed) as u32;

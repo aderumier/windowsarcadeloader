@@ -27,13 +27,14 @@
 //!   it and the game feeds it; vertex inputs Mesa refuses together ([`vertex_inputs`]) as the
 //!   ones NVIDIA aliases them with.
 //!
-//! `NV_fragment_program` programs (`!!FP1.0`) too. Programs with `REP` loops without
+//! `NV_fragment_program` programs (`!!FP1.0`) too, and NV_gpu_program4 ones (`!!NVvp4.0` /
+//! `!!NVfp4.0`) through [`gpu_program4`]. Programs with `REP` loops without
 //! `WAL_RINGEDGE_CG_REPEAT`, other loops, backward branches or other formats: `None`.
 
-const BASES: [&str; 46] = [
+const BASES: [&str; 50] = [
     "TXP", "TEX", "TXB", "TXL", "DP3", "DP4", "DPH", "FLR", "FRC", "RCP", "RSQ", "MAX", "MIN", "MAD", "MUL", "ADD", "SUB", "MOV", "SLT", "SGT", "SGE",
     "SLE", "SEQ", "SNE", "SSG", "NRM", "LRP", "CMP", "EX2", "LG2", "POW", "XPD", "ARL", "KIL", "ABS", "DST", "LIT", "SCS", "SIN", "COS", "EXP", "LOG",
-    "SWZ", "DP2", "DDX", "DDY",
+    "SWZ", "DP2", "DDX", "DDY", "TRUNC", "DIV", "I2F", "OR",
 ];
 
 /// The vertex programs' local parameter holding texel (0, 0) of texture unit `n`, at
@@ -42,6 +43,14 @@ pub(crate) const TEXEL_LOCAL: u32 = 240;
 /// The fragment programs' local parameters `LEVELS_LOCAL + n`: the last level of texture
 /// unit n's texture (`TXL`).
 pub(crate) const LEVELS_LOCAL: u32 = 240;
+/// NV_gpu_program4's vertex programs' instance (`vertex.instance`, absent in ARB): their local
+/// parameter `INSTANCE_LOCAL`, 0 (the game's draws are not instanced).
+pub(crate) const INSTANCE_LOCAL: u32 = 239;
+/// NV_gpu_program4's generic interpolant 0 (`result.attrib[0]` / `fragment.attrib[0]`, absent in
+/// ARB): Border Break Scramble's vertex programs write their object's color there, the vertex
+/// environment parameter `ATTRIB_ENV` (its `env[instance + 59]`), which the payload copies to
+/// the fragment environment parameter `ATTRIB_ENV` its fragment programs read instead.
+pub(crate) const ATTRIB_ENV: u32 = 59;
 
 const ZERO: &str = "{0,0,0,0}";
 const ONE: &str = "{1,1,1,1}";
@@ -454,10 +463,145 @@ fn shadow_samplers() -> bool {
     *ON.get_or_init(|| std::env::var("WAL_RINGEDGE_CG_SHADOW").is_ok_and(|v| v.trim() == "1"))
 }
 
+/// `name[k]` (an array of bindings declared `name[] = { base[first..last] }`) as `base[first+k]`
+/// in `s`: ARB has no arrays of attributes or outputs. A relative index: `None`.
+fn binding_arrays(s: &str, arrays: &[(String, String, usize)]) -> Option<String> {
+    let mut s = s.to_string();
+    for (name, base, first) in arrays {
+        let mut out = String::new();
+        let mut rest = s.as_str();
+        while let Some(i) = rest.find(&format!("{name}[")) {
+            let before = rest[..i].chars().last();
+            out.push_str(&rest[..i]);
+            let after = &rest[i + name.len() + 1..];
+            if before.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.') {
+                out.push_str(&rest[i..i + name.len() + 1]);
+                rest = after;
+                continue;
+            }
+            let end = after.find(']')?;
+            let k: usize = after[..end].trim().parse().ok()?;
+            out.push_str(&format!("{base}[{}]", first + k));
+            rest = &after[end + 1..];
+        }
+        out.push_str(rest);
+        s = out;
+    }
+    Some(s)
+}
+
+/// An NV_gpu_program4 program (`!!NVvp4.0` / `!!NVfp4.0`, Border Break Scramble's
+/// `rom/shader.pfa`) in the NVIDIA option form [`translate`] takes:
+/// * its arrays of attributes and outputs (`vertex_attrib7[0]`) as the bindings;
+/// * its integer instructions (`MOV.S`, `MAD.S`, `SNE.S`: object and bone indices, small
+///   integers) on floats, `TRUNC` translated; relative addressing through a temporary
+///   (`env[R2.w + 112]`) through the address register (`ARL A0.x, R2.w`);
+/// * the vertex inputs NVIDIA aliases (generic 0, 2, 3, 8-15) as the fixed function ones
+///   (`vertex_inputs`), the instance as [`INSTANCE_LOCAL`];
+/// * the generic interpolant 0 as [`ATTRIB_ENV`]: its vertex writes dropped, its fragment reads
+///   the fragment environment parameter.
+///
+/// Fragment programs with relative addressing: `None`.
+fn gpu_program4(text: &str) -> Option<String> {
+    let vertex = text.starts_with("!!NVvp4.0");
+    let stmts = statements(text);
+    let mut arrays: Vec<(String, String, usize)> = Vec::new();
+    let mut out = vec![if vertex { "!!ARBvp1.0".to_string() } else { stmts[0].clone() }];
+    let mut address = None;
+    for s in &stmts[1..] {
+        if let Some(rest) = s.strip_prefix("ATTRIB ").or_else(|| s.strip_prefix("OUTPUT "))
+            && let Some((name, binding)) = rest.split_once('=')
+            && let Some(name) = name.trim().strip_suffix("[]")
+        {
+            let inner = binding.trim().strip_prefix('{')?.strip_suffix('}')?.trim();
+            let (base, range) = inner.strip_suffix(']')?.split_once('[')?;
+            let first = range.split("..").next()?.trim().parse().ok()?;
+            arrays.push((name.trim().to_string(), base.trim().to_string(), first));
+            continue;
+        }
+        let mut s = binding_arrays(s, &arrays)?;
+        if s.starts_with("OPTION ") {
+            out.push(s);
+            continue;
+        }
+        if vertex {
+            let first = s.split_whitespace().next().unwrap_or("");
+            if s[first.len()..].trim_start().starts_with("result.attrib") {
+                continue;
+            }
+            s = s.replace("vertex.instance", &format!("program.local[{INSTANCE_LOCAL}]"));
+            for n in [0, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15] {
+                let alias = match n {
+                    0 => "vertex.position".to_string(),
+                    2 => "vertex.normal".to_string(),
+                    3 => "vertex.color".to_string(),
+                    _ => format!("vertex.texcoord[{}]", n - 8),
+                };
+                s = s.replace(&format!("vertex.attrib[{n}]"), &alias);
+            }
+        } else {
+            s = s.replace("fragment.attrib[0]", &format!("program.env[{ATTRIB_ENV}]"));
+            if s.contains("fragment.attrib[") {
+                return None;
+            }
+        }
+        // relative addressing through a temporary: `[R2.w + 112]`, `[R2.w]`
+        let mut relative: Option<String> = None;
+        let mut rewritten = String::new();
+        let mut rest = s.as_str();
+        while let Some(i) = rest.find('[') {
+            let end = rest[i..].find(']')? + i;
+            let inner = rest[i + 1..end].trim();
+            rewritten.push_str(&rest[..=i]);
+            let (reg, offset) = match inner.find(['+', '-']) {
+                Some(j) => (inner[..j].trim(), &inner[j..]),
+                None => (inner, ""),
+            };
+            if !reg.is_empty() && reg.starts_with(|c: char| c.is_ascii_alphabetic()) && reg.contains('.') && !reg.contains("..") {
+                if !vertex || relative.as_deref().is_some_and(|r| r != reg) {
+                    return None;
+                }
+                relative = Some(reg.to_string());
+                match offset.split_at_checked(1) {
+                    Some((sign, n)) => rewritten.push_str(&format!("A0.x {sign} {}", n.trim())),
+                    None => rewritten.push_str("A0.x"),
+                }
+            } else {
+                rewritten.push_str(&rest[i + 1..end]);
+            }
+            rewritten.push(']');
+            rest = &rest[end + 1..];
+        }
+        rewritten.push_str(rest);
+        if let Some(reg) = relative {
+            address.get_or_insert(out.len());
+            out.push(format!("ARL A0.x, {reg}"));
+        }
+        out.push(rewritten);
+    }
+    if let Some(at) = address {
+        let at = out.iter().take(at).position(|s| !s.starts_with("!!") && !s.starts_with("OPTION ")).unwrap_or(at);
+        out.insert(at, "ADDRESS A0".into());
+    }
+    let mut text = out[0].clone() + "\n";
+    for s in &out[1..] {
+        text.push_str(s);
+        text.push_str(if s.ends_with(':') { "\n" } else { ";\n" });
+    }
+    Some(text)
+}
+
 pub(crate) fn translate(text: &str) -> Option<String> {
     if text.starts_with("!!FP1.0") {
         return translate(&fp10(text)?);
     }
+    if text.starts_with("!!NVvp4.0") || text.starts_with("!!NVfp4.0") && (text.contains("[]") || text.contains("fragment.attrib")) {
+        return translate_converted(&gpu_program4(text)?);
+    }
+    translate_converted(text)
+}
+
+fn translate_converted(text: &str) -> Option<String> {
     // NV_gpu_program4's (`!!NVfp4.0`, DIVA's blur filters) without its integer instructions
     let fragment = text.starts_with("!!ARBfp1.0") || text.starts_with("!!NVfp4.0");
     if !fragment && !text.starts_with("!!ARBvp1.0") {
@@ -846,6 +990,37 @@ pub(crate) fn translate(text: &str) -> Option<String> {
                 out.push(format!("SLT _wE, {a}, {ZERO};"));
                 out.push(format!("SUB _wF, {b}, {c};"));
                 out.push(format!("MAD {dst}, _wE, _wF, {c};"));
+            }
+            // towards zero (NV_gpu_program4's float to integer): the floor of the absolute value,
+            // its sign back
+            "TRUNC" => {
+                let a = sources.first()?;
+                add_temp(&mut temps, "_wE");
+                add_temp(&mut temps, "_wF");
+                out.push(format!("MAX _wE, {a}, -{a};"));
+                out.push("FLR _wE, _wE;".into());
+                out.push(format!("SLT _wF, {a}, {ZERO};"));
+                out.push("MUL _wF, _wF, _wE;".into());
+                out.push(format!("MAD{satx} {dst}, _wF, {{-2,-2,-2,-2}}, _wE;"));
+            }
+            // a vector by a scalar (NV_gpu_program4), through a finite reciprocal
+            "DIV" => {
+                let [a, b] = sources.as_slice() else { return None };
+                add_temp(&mut temps, "_wE");
+                out.push(format!("RCP _wE.x, {};", scalar(b)));
+                out.push(format!("MIN _wE.x, _wE.x, {BIG};"));
+                out.push(format!("MAX _wE.x, _wE.x, -{BIG};"));
+                out.push(format!("MUL{satx} {dst}, {a}, _wE.x;"));
+            }
+            // integers on floats: a conversion is a copy, an or of truths (0 or not) nonzero
+            "I2F" => out.push(format!("MOV{satx} {dst}, {};", sources.first()?)),
+            "OR" => {
+                let [a, b] = sources.as_slice() else { return None };
+                add_temp(&mut temps, "_wE");
+                add_temp(&mut temps, "_wF");
+                out.push(format!("MAX _wE, {a}, -{a};"));
+                out.push(format!("MAX _wF, {b}, -{b};"));
+                out.push(format!("MAX{satx} {dst}, _wE, _wF;"));
             }
             "DP2" => {
                 let [a, b] = sources.as_slice() else { return None };
