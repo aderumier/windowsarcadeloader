@@ -182,6 +182,11 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
             ORIG_FLOAT_POINTER.store(float, Ordering::Relaxed);
             int_attrib_pointer as *const () as usize
         }
+        // instanced draws: ARB programs have no instance (NV_gpu_program4's `vertex.instance`,
+        // `nvasm::INSTANCE_LOCAL`): one draw per instance, its number in that local parameter
+        // (Border Break Scramble's scenery: else every copy drawn at the first one's place)
+        b"glDrawElementsInstanced" | b"glDrawElementsInstancedARB" | b"glDrawElementsInstancedEXT" if FIX.load(Ordering::Relaxed) => draw_elements_instanced as *const () as usize,
+        b"glDrawArraysInstanced" | b"glDrawArraysInstancedARB" | b"glDrawArraysInstancedEXT" if FIX.load(Ordering::Relaxed) => draw_arrays_instanced as *const () as usize,
         b"glProgramEnvParameter4fARB" if FIX.load(Ordering::Relaxed) => {
             ORIG_ENV_PARAMETER_4F.store(f, Ordering::Relaxed);
             env_parameter_4f as *const () as usize
@@ -663,6 +668,45 @@ unsafe fn level1_unit(unit: u32) {
         bind_texture(0x0DE1, texture as u32);
         bind_sampler(aux, sampler);
     }
+}
+
+/// The bound vertex program's instance (`nvasm::INSTANCE_LOCAL`).
+fn set_instance(instance: i32) {
+    static FIRST: std::sync::Once = std::sync::Once::new();
+    FIRST.call_once(|| log!("cg: instanced draws, one per instance"));
+    static LOCAL: OnceLock<usize> = OnceLock::new();
+    let f = *LOCAL.get_or_init(|| {
+        let orig: unsafe extern "system" fn(*const c_char) -> usize = unsafe { std::mem::transmute(ORIG_GL_PROC.load(Ordering::Relaxed)) };
+        unsafe { orig(c"glProgramLocalParameter4fARB".as_ptr()) }
+    });
+    if f != 0 {
+        let local: unsafe extern "system" fn(u32, u32, f32, f32, f32, f32) = unsafe { std::mem::transmute(f) };
+        let v = instance as f32;
+        // GL_VERTEX_PROGRAM_ARB
+        unsafe { local(0x8620, crate::nvasm::INSTANCE_LOCAL, v, v, v, v) };
+    }
+}
+
+/// `glDrawElementsInstanced*`: one `glDrawElements` per instance ([`set_instance`]).
+unsafe extern "system" fn draw_elements_instanced(mode: u32, count: i32, kind: u32, indices: *const c_void, instances: i32) {
+    let draw: unsafe extern "system" fn(u32, i32, u32, *const c_void) =
+        if ORIG_DRAW_ELEMENTS.load(Ordering::Relaxed) != 0 { draw_elements } else { unsafe { std::mem::transmute(gl11(c"glDrawElements")) } };
+    for instance in 0..instances.max(0) {
+        set_instance(instance);
+        unsafe { draw(mode, count, kind, indices) };
+    }
+    set_instance(0);
+}
+
+/// `glDrawArraysInstanced*`: one `glDrawArrays` per instance ([`set_instance`]).
+unsafe extern "system" fn draw_arrays_instanced(mode: u32, first: i32, count: i32, instances: i32) {
+    let draw: unsafe extern "system" fn(u32, i32, i32) =
+        if ORIG_DRAW_ARRAYS.load(Ordering::Relaxed) != 0 { draw_arrays } else { unsafe { std::mem::transmute(gl11(c"glDrawArrays")) } };
+    for instance in 0..instances.max(0) {
+        set_instance(instance);
+        unsafe { draw(mode, first, count) };
+    }
+    set_instance(0);
 }
 
 unsafe extern "system" fn draw_arrays(mode: u32, first: i32, count: i32) {

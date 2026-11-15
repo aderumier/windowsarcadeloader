@@ -47,7 +47,7 @@ pub(crate) const LEVELS_LOCAL: u32 = 240;
 /// of detail held at 1 (the payload binds it before each draw), its level 1 read exactly.
 pub(crate) const LEVEL1_UNIT: u32 = 16;
 /// NV_gpu_program4's vertex programs' instance (`vertex.instance`, absent in ARB): their local
-/// parameter `INSTANCE_LOCAL`, 0 (the game's draws are not instanced).
+/// parameter `INSTANCE_LOCAL`, set by the payload's instanced draws (one draw per instance).
 pub(crate) const INSTANCE_LOCAL: u32 = 239;
 /// NV_gpu_program4's generic interpolant 0 (`result.attrib[0]` / `fragment.attrib[0]`, absent in
 /// ARB): Border Break Scramble's vertex programs write their object's color there, the vertex
