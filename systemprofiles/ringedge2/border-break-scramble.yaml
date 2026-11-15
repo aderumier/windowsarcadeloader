@@ -36,11 +36,9 @@ env:
   # amDongle keychip: the game id answered to keychip.appboot.gameid. SBVA, confirmed by the
   # version table embedded in nrs.exe ("rom/version.txt SBVA 4.04.00 4.5.0") and matching the
   # dump's DS challenge table SBVA_Table.dat (the amDongle DS28CN01 MAC table).
-  # systemflag bit 0: a develop keychip, which waives the aim control's USB mouse check (a raw
-  # input mouse "HID#Vid_0ca3&Pid_000b#", FUN_0067a4xx) - that mouse is not emulated yet
   # billing.nearfull: the billing type in its high 16 bits, 1 the only one Border Break accepts
   # (alpb's MODE check after its accounting report, else Error 21 ErrNo 8113), 512 near full
-  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVA;keychip.appboot.systemflag=01;keychip.billing.nearfull=00010200
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVA;keychip.billing.nearfull=00010200
   # (the platform id stays the default AAL: the boot check FUN_0045a6f0 wants exactly "AAL")
   # the EEPROM static record's region (Japan): amLib reads 0 without it, ANDed with the keychip's
   # region 01 -> error index 4 "Error 0903 Wrong Region" (FUN_00458fd0), the boot's black screen
@@ -54,6 +52,9 @@ env:
   # the USB devices (the cabinet's aim control, a Sega USB HID device 0ca3:000b), answered by the
   # payload: Wine's own USB enumeration can block the boot after the JVS check for long seconds
   WAL_RINGEDGE_USB_DEVICES: "0ca3:000b"
+  # ... and the raw input mouse the boot counts (FUN_0067cdf0: a name with "HID#Vid_0ca3&Pid_000b#",
+  # case sensitive), listed by the payload
+  WAL_RINGEDGE_RAW_MOUSE: "HID#Vid_0ca3&Pid_000b"
   # main board DIP switches (FUN_0045a0e0): resolution (bits 0x70) 2 = 1024x600, the only one the
   # boot check FUN_00679cb0 accepts ("Error 0910 Wrong Resolution Setting" else, the default FF
   # is 7), and 0x08 off = horizontal monitor ("Wrong Horizontal / Vertical Setting" else)

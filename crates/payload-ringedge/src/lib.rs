@@ -37,6 +37,7 @@ mod microtouch;
 mod mouse;
 mod nvasm;
 mod pcp;
+mod rawmouse;
 mod rfid;
 mod satellite;
 mod touch;
@@ -87,6 +88,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         happy_playground::init();
         // Border Break Scramble's IC card reader/writer (`WAL_RINGEDGE_IC_CARD`)
         iccard::init();
+        // Border Break Scramble's aim control, a raw input mouse (`WAL_RINGEDGE_RAW_MOUSE`)
+        rawmouse::init();
         // ports the game opens beside its I/O board, present but silent
         if let Ok(ports) = std::env::var("WAL_RINGEDGE_SILENT_PORTS") {
             serial::install_sink(&ports);
