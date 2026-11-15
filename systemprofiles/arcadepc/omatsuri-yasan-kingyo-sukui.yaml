@@ -1,0 +1,66 @@
+# Omatsuri Yasan Kingyo Sukui (Cave, 2009, cvgame.exe, Direct3D 9, 32-bit) - template, override
+# values in userprofiles/arcadepc/omatsuri-yasan-kingyo-sukui.yaml.
+# A kids' goldfish scooping game played on a touch screen. The payload plays the touch screen
+# (the Windows mouse: the gun or mouse is the finger) and emulates the cabinet's COM3 I/O board
+# (WAL_ARCADEPC_BOARD=omatsuri, docs §6.3i).
+system: arcadepc
+name: Omatsuri Yasan Kingyo Sukui
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+# Wine's d3dx9_36 fails its .X meshes' frame hierarchies (D3DXLoadMeshHierarchyFromXInMemory:
+# a crash at the aquarium's mesh, "Now Loading 19%")
+tricks: [d3dx9_36]
+dll_overrides:
+  xinput1_3: "n,b"
+  d3dx9_36: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: omatsuri
+  # the fake DirectInput: the payload's system mouse is the touch screen's touches
+  WAL_DINPUT_DISABLE: "1"
+  # the window never sees its deactivation: Ganso Takoyaki quit a few seconds after losing the
+  # focus on the desktop
+  WAL_DESKTOP_ACTIVE: "1"
+  # where the gun or mouse touches: the dump's crosshair image (P1.png), its own colors
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_P1: P1.png
+  WAL_CROSSHAIR_TINT: "0"
+  WAL_CROSSHAIR_SIZE: "8"
+
+input:
+  # the touch screen: a touch screen's first finger, else the gun (or the mouse) points and the
+  # trigger touches
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The credits kept at 1: a touch starts a game (the game has no free play setting).
+          Off: one coin a credit.
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          Where the gun or mouse touches, drawn over the picture (the dump's P1.png) while it
+          moves.
+      - key: WAL_CROSSHAIR_SIZE
+        label: Touch pointer size (% of the screen height)
+        kind: number
+        min: 2
+        max: 20
+
+# the gun or mouse is the finger: its position the touch's, its trigger (b1) the touch
+controls:
+  b1: Touch
+  start: Touch
+  b2: Button (test menu enter)
+  coin: Coin
+  service: Service (test menu down)
+  test: Test menu (hold 3 s; up in it)

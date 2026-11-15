@@ -5947,6 +5947,61 @@ entry point (`payload_loader`), the game's window messages filtered:
   data), free play on and off.
 - The user: 100% (2026-11-12, desktop).
 
+#### Omatsuri Yasan: Kingyo Sukui, Ganso Takoyaki
+
+Cave's kids' touch screen games (`cvgame.exe`, Direct3D 9, 32-bit, 1024x768 full screen):
+Kingyo Sukui (2009, goldfish scooping) and Ganso Takoyaki (2010, takoyaki cooking).
+`.windowsloader`: `cvgame.exe` (the dumps' `logo.exe` / `logo.exe1`, a boot logo, not run).
+Board `omatsuri` (`omatsuri.rs`), loaded at the entry point (`payload_loader`), the real
+keyboard and mouse filtered:
+
+- **Touch screen.** The game reads the touch's position with `GetCursorPos` (the payload's: the
+  gun or mouse of player 1 on the picture) and its touches as the DirectInput system mouse's
+  buffered left button events (`GetDeviceData`): the fake DirectInput (`WAL_DINPUT_DISABLE`),
+  whose system mouse now also reports its button changes as buffered events (`dinput.rs`,
+  `DIMOFS_BUTTONn`, before: `GetDeviceState` only). Its keyboard stays silent (the game's
+  debug keys: X a coin, Q / A / Z the board's switches).
+- **I/O board** (COM3, 9600 baud): 4-byte ASCII messages, read a byte at a time. Start:
+  `&***`, 9 bytes read (`&` and 8 serial number digits, then kept with the network adapter's
+  address). Board to PC, on change: `#XY ` (the inputs' byte in hex, active low: bit 4 the coin,
+  counted on release; bit 3 test, held 3 s for the test menu, which restarts when it is held there;
+  bit 2 a button; bit 1 service). PC to board: `%15n` the coin meter's pulses, `%16n` Ganso
+  Takoyaki's prize dispenser (`%161` pay one, answered `@***` 0.5 s later; `%160`).
+- **Machine check.** At the end of the boot the game reads `common.log` (32 bytes: marker
+  letters, the network adapter's address and the board's serial number; written at the first
+  boot from a blank template the dumps lack): without it, 20 tries a second apart, then error
+  11 (a black screen). The check returns at once when its flag is set (Kingyo Sukui
+  `0x5988d4`, Ganso Takoyaki `0x49b6fc`, each found by its `cmp dword [flag], 1`): set by the
+  payload.
+- **Meshes.** Wine's `d3dx9_36` fails the games' `.X` frame hierarchies
+  (`D3DXLoadMeshHierarchyFromXInMemory`: Kingyo Sukui crashed at its aquarium mesh, "Now
+  Loading 19%", a blue screen): the native one (`tricks: [d3dx9_36]`, `n,b`; added to the shared
+  prefix's verbs).
+- **Free play** (the common `WAL_FREEPLAY`, on by default): the games have no free play setting:
+  their credits are kept at 1 at least, the title then asks for a touch (Kingyo Sukui: the
+  game's count `0x5986b8`, added by the board's coin callback 0x4064f0, spent at the start
+  0x4204d6; Ganso Takoyaki: the board object's `+0xf4`, added by its coin callback 0x401600).
+  Off: one coin a credit.
+- **Test menu.** Test held 3 s: the TEST MENU (BOOKKEEPING, SPEAKER SETTINGS, GAME SETTINGS,
+  IO TEST, CLEAR ALL & RESTORE DEFAULTS, SYSTEM LOG), a white screen with a red cross in its top
+  left corner shown first at times. Its switches act on release (0x4228d0: the board object's
+  +0xef / +0xf0 / +0xf1 release flags): the button enters / confirms, service moves down, test
+  up. (The payload first held each test press 3.5 s: in the menu that restarted it.)
+  Ganso Takoyaki's IO TEST names its bits: TEST SW bit 2 (its test menu opens at once, the
+  switch enters in the menus), SERVICE SW bit 1 (down), TOUCHPANEL SW bit 3 (up), COINSHOOTER
+  (coins), TOUCHPANEL (the touch, ON while touched): the payload's test and button bits are
+  each game's (Kingyo Sukui: test bit 3, the button bit 2; Ganso Takoyaki: test bit 2, the
+  button bit 3, the touch panel switch).
+- **Pointer.** The common crosshair option (`WAL_CROSSHAIR`, on in the profiles): the dumps'
+  `P1.png` (a pink crosshair) drawn over the picture where the gun or mouse touches.
+- **Ganso Takoyaki's play.** The game pours the batter and the octopus itself; a touch on a
+  cell turns its ball with the pick, a golden ball dragged (touch held) onto the boat on the
+  right is served (the count, いま Nコ).
+- Verified headless (2026-11-15): Kingyo Sukui: boot, attract, coins (CREDIT 2), the touch
+  start, the mode select's cards by touch, a game (20 fish scooped, the boss), free play, the test menu (BOOKKEEPING entered);
+  Ganso Takoyaki: boot, attract, coins, free play's touch start, a game (9 takoyaki turned and dragged onto the boat).
+- The user: both 100% (2026-11-15, desktop; the profiles first lacked `guns_enabled`: no mouse attached).
+
 #### Radikal Bikers
 
 Gaelco's pizza delivery motorbike game (1998), the community Windows emulator of its Gaelco 3D
@@ -5977,6 +6032,54 @@ Board `radikalbikers` (`radikalbikers.rs`), loaded at the entry point (`payload_
   start, circuit and biker select, a race (accelerating, steering both ways), time out,
   CONTINUE?, GAME OVER, the test menu (input test, game assignments, handle adjust,
   bookkeeping kept across runs), free play over two games.
+
+#### Quake: Arcade Tournament Edition
+
+Lazer-Tron / LBE Systems' Quake cabinet (1998, 1.30 r3: GLQuake 1.07 with the arcade's
+accounting, menus, bots and tickets; OpenGL 640x480, 32-bit). `glquake.exe` is wrapped in its
+Sentinel dongle's protection; the dump's `glquake_decrypted.exe` (the same program without it)
+is the `.windowsloader`. Board `quakearcade` (`quakearcade.rs`), loaded at the entry point
+(`payload_loader`); the dump's 3dfx MiniGL `OPENGL32.DLL` hidden (Wine's OpenGL).
+
+- **Arguments.** `-nogci`: the GCI (Game Control Interface) serial board off, its `gciarcade`
+  cvar 0 (without the board the game says OUT OF ORDER). `-basedir .`: the map path
+  (`<basedir>/id1/maps/<map>.bsp`) is written into a 64-byte buffer of `map` (0x421ea0): the
+  run directory's path overflowed it and the first map crashed (its return address
+  overwritten). `-nojoy -noipx` as the cabinet's `glquake.bat`.
+- **Controls.** The GCI's buttons and joystick were Quake's keys `AUX1`..`AUX32`, bound in
+  `ID1/config.cfg` (`AUX1` attack, `AUX2` next weapon, `AUX3` jump, `AUX4`..`AUX7` strafe right,
+  back, forward, strafe left, `AUX25` a coin, `AUX30` the operator menu) and the menus' keys
+  (`menukey`, arcade keys only: `AUX1` Enter, `AUX2` Escape, the joystick the arrows). The
+  keyboard's keys are scan codes through `scantokey` (0x46ec60, 128 bytes, codes 0x59..0x7f
+  unused): the payload maps codes 0x60..0x7f to `AUX1`..`AUX32` and posts them from the
+  virtual sticks, the cabinet's binds unchanged. The trackball (the look) is the mouse:
+  `+mlook` on the command line, the right stick moves the cursor the game polls
+  (`GetCursorPos` / `SetCursorPos`; the cabinet's negative `m_pitch` kept, the stick's down
+  looks down). The real keyboard and mouse are filtered. In the menus the trackball (right
+  stick) moves the cursor, attack plays, jump chooses.
+- **Movies.** The attract's movies (`avis\*.avi`, Microsoft Video 1, MCI `avivideo`) play in a
+  second full-screen window ("Quake AVI") created visible over the game's: on the cabinet the
+  3dfx card drew the game on its own output. The payload creates it hidden, shows it on top
+  from `MCI_PLAY` to `MCI_STOP` / `MCI_CLOSE`, and fits each movie opened to it (`MCI_PUT` of
+  MCIAVI's window and destination: it drew 640x480 in the corner).
+- **Picture.** The 640x480 full-screen mode is not set (`WAL_NO_MODE_CHANGE`): a borderless
+  window of the screen's centered 4:3 rectangle, the lower left 640x480 corner scaled to it
+  (`WAL_GL_CORNER`, as SiN). A larger mode (`-width 1440 -height 1080`) stops at a
+  1080-texel texture ("GL_LoadTexture: too big"); `-window` mode errors at start.
+- **Free play** (the common `WAL_FREEPLAY`, on by default): the operator's free time
+  (`a_freetime`, a toggle, 0x47e718: "Free Play" in place of the credits), added to the
+  command line; the attract then skips its movies. `a_freeplay` (the other operator key) only
+  adds a credit. Off: the operator's pricing (one coin a credit, three lives).
+- Verified headless (2026-11-15): boot, attract (LBE movie fitted, demos), coin ("1 Credit"),
+  free play, the menu, a single player game (moving, looking both axes, shooting, next weapon,
+  checkpoints), the operator menu (accounting data).
+- **Mouse look** (the user, 2026-11-15: the desktop's mouse did not look): the mouse is the
+  trackball. The launcher's virtual sticks keep each axis's largest deflection of every device:
+  a mouse position on the right stick would fight the pads'. So the profile's gun (the mouse,
+  `mouse_wrap`, a counter 1 count a unit) is on the pedal axes (`accel` / `brake`, unused here),
+  the payload adds their motion (modulo 32768) to the cursor's, vertically inverted (the mouse
+  pushed away looks up); its left / right / middle buttons attack, jump, change weapon.
+- The user: 100% (2026-11-15, desktop).
 
 ### 6.3j UNIS (`crates/payload-unis`)
 
@@ -8393,6 +8496,9 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
 | `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | user 100% (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
+| `omatsuri-yasan-kingyo-sukui` | Omatsuri Yasan Kingyo Sukui | arcadepc | user 100% (2026-11-15), 1 player | Cave's goldfish scooping touch game (Direct3D 9, 32-bit, 1024x768, §6.3i, board `omatsuri`): the payload emulates the COM3 I/O board (coins, service, test), plays the touch screen (cursor + DirectInput mouse button events), passes the machine check (`common.log`), native `d3dx9_36` (mesh crash), free play as credits kept at 1 |
+| `omatsuri-yasan-ganso-takoyaki` | Omatsuri Yasan Ganso Takoyaki | arcadepc | user 100% (2026-11-15), 1 player | Cave's takoyaki cooking touch game (Direct3D 9, 32-bit, 1024x768, §6.3i, board `omatsuri`): as Kingyo Sukui, plus the prize dispenser's answer |
+| `quake-arcade-tournament-edition` | Quake: Arcade Tournament Edition | arcadepc | user 100% (2026-11-15), 1 player | Lazer-Tron / LBE Systems' GLQuake cabinet (OpenGL 640x480, 32-bit, §6.3i, board `quakearcade`): its GCI board off (`-nogci`), the payload posts its arcade keys (`AUX1`..`AUX32` through the scan code table) and the mouse look, shows and fits the attract movies' window, `-basedir .` (a map path overflow), free play as the operator's free time, the mouse as the trackball (pedal axes) |
 | `dream-hunting` | Dream Hunting | arcadepc | user 100% (2026-11-12), 1 gun | Dream Gun's hunting game (`DreamGun.exe`, DirectDraw / Direct3D immediate mode 640x480, 32-bit, §6.3i): its COM1 gun board emulated (trigger, coins, test, zoom, walking joystick, the shot's place through the game's calibration), free play by the coin count, the payload's crosshair drawn into its DirectDraw back buffer (the game's mouse reticle hidden), Wine's DirectDraw |
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |

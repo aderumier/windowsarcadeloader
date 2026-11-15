@@ -304,6 +304,16 @@ pub fn post_key(hwnd: P, vk: u16, down: bool) {
     unsafe { PostMessageW(hwnd, if down { WM_KEYDOWN } else { WM_KEYUP }, vk as usize, lparam) };
 }
 
+/// Posts a key press (`down`) or release of virtual key `vk` with scan code `scan` (a key the
+/// game maps by its scan code, one no keyboard sends: Quake's table of them) to the game window
+/// `hwnd`: the filter lets it through.
+pub fn post_scan(hwnd: P, vk: u16, scan: u8, down: bool) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_KEYDOWN};
+    let up = if down { 0 } else { 0xC000_0000u32 as i32 as isize };
+    let lparam = 1 | (scan as isize) << 16 | MARK | up;
+    unsafe { PostMessageW(hwnd, if down { WM_KEYDOWN } else { WM_KEYUP }, vk as usize, lparam) };
+}
+
 type PeekMessage = unsafe extern "system" fn(*mut MSG, P, u32, u32, u32) -> i32;
 type GetMessage = unsafe extern "system" fn(*mut MSG, P, u32, u32) -> i32;
 

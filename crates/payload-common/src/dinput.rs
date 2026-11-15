@@ -293,6 +293,56 @@ unsafe extern "system" fn keyboard_state(this: P, size: u32, data: *mut u8) -> i
     DI_OK
 }
 
+/// The system mouse's buttons last reported by its `GetDeviceData`.
+static MOUSE_REPORTED: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+static MOUSE_SEQUENCE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+/// The system keyboard's or mouse's `GetDeviceData(cbObjectData, rgdod, pdwInOut, dwFlags)`:
+/// the mouse's button changes since the previous call (DIDEVICEOBJECTDATA: `DIMOFS_BUTTONn`,
+/// 0x80 pressed, time stamp, sequence; DIGDD_PEEK: kept), never any motion; the keyboard's
+/// nothing. Omatsuri Yasan reads its touch screen's touches only as buffered mouse events.
+unsafe extern "system" fn keyboard_data(this: P, obj_size: u32, data: *mut u8, count: *mut u32, flags: u32) -> i32 {
+    use std::sync::atomic::Ordering;
+    const DIGDD_PEEK: u32 = 1;
+    if count.is_null() {
+        return DI_OK;
+    }
+    let capacity = unsafe { *count } as usize;
+    unsafe { *count = 0 };
+    let Some(buttons) = MOUSE_BUTTONS.get().filter(|_| std::ptr::eq(this.cast_const().cast(), &MOUSE_DEVICE)) else {
+        return DI_OK;
+    };
+    let (held, reported) = (buttons(), MOUSE_REPORTED.load(Ordering::Relaxed));
+    let now = unsafe { windows_sys::Win32::System::SystemInformation::GetTickCount() };
+    let size = (obj_size as usize).max(16);
+    let mut n = 0;
+    let mut sent = reported;
+    for b in (0..8).filter(|b| (held ^ reported) >> b & 1 != 0) {
+        if n == capacity {
+            break;
+        }
+        let pressed = held >> b & 1 != 0;
+        if !data.is_null() {
+            let sequence = if flags & DIGDD_PEEK == 0 { MOUSE_SEQUENCE.fetch_add(1, Ordering::Relaxed) } else { MOUSE_SEQUENCE.load(Ordering::Relaxed) };
+            unsafe {
+                let e = data.add(n * size);
+                std::ptr::write_bytes(e, 0, size);
+                // DIMOFS_BUTTON0 is 12 (after lX, lY, lZ)
+                for (k, v) in [12 + b, if pressed { 0x80 } else { 0 }, now, sequence].into_iter().enumerate() {
+                    (e.add(4 * k) as *mut u32).write_unaligned(v);
+                }
+            }
+        }
+        sent ^= 1 << b;
+        n += 1;
+    }
+    if flags & DIGDD_PEEK == 0 {
+        MOUSE_REPORTED.store(sent, Ordering::Relaxed);
+    }
+    unsafe { *count = n as u32 };
+    DI_OK
+}
+
 /// `WAL_DINPUT_LEGACY=1`: the DirectInput 5-7 device types.
 fn legacy() -> bool {
     static LEGACY: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
@@ -358,6 +408,7 @@ static KEYBOARD_VTABLE: VTable<32> = {
     v[3] = keyboard_caps as *const ();
     v[6] = keyboard_set_property as *const ();
     v[9] = keyboard_state as *const ();
+    v[10] = keyboard_data as *const ();
     v[15] = keyboard_info as *const ();
     v[29] = ok3 as *const (); // BuildActionMap
     v[30] = ok3 as *const (); // SetActionMap

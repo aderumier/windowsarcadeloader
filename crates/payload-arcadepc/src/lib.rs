@@ -181,6 +181,13 @@
 //! Deathsmiles II (`WAL_ARCADEPC_BOARD=cave`, x86 build): `cave.rs` emulates its COM3 I/O
 //! board.
 //!
+//! Omatsuri Yasan Kingyo Sukui and Ganso Takoyaki (`WAL_ARCADEPC_BOARD=omatsuri`, x86 build):
+//! `omatsuri.rs` emulates their COM3 I/O board and plays their touch screen (the mouse).
+//!
+//! Quake: Arcade Tournament Edition (`WAL_ARCADEPC_BOARD=quakearcade`, x86 build):
+//! `quakearcade.rs` plays its keys and mouse look (its GCI board off) and shows its movies'
+//! window only while a movie plays.
+//!
 //! Family Guy Bowling Arcade (`WAL_ARCADEPC_BOARD=teamplay`): `teamplay.rs` is the Linux
 //! cabinet's Team Play I/O library (`teamplayio`, `serialio`) for its DllImports.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
@@ -246,6 +253,8 @@ mod monsterous;
 #[cfg(target_arch = "x86")]
 mod ngun;
 #[cfg(target_arch = "x86")]
+mod omatsuri;
+#[cfg(target_arch = "x86")]
 mod robinhood;
 mod topgun2_landscape;
 mod pads;
@@ -257,6 +266,8 @@ mod popmoto;
 mod pullthetrigger;
 #[cfg(target_arch = "x86")]
 mod pvz;
+#[cfg(target_arch = "x86")]
+mod quakearcade;
 #[cfg(target_arch = "x86")]
 mod radikalbikers;
 #[cfg(target_arch = "x86")]
@@ -651,6 +662,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 wal_payload_common::input_filter::init(player, demul::key_held);
             }
             #[cfg(target_arch = "x86")]
+            _ if board.trim() == "quakearcade" => {
+                pads::disconnect();
+                quakearcade::init();
+            }
+            #[cfg(target_arch = "x86")]
             _ if board.trim() == "radikalbikers" => {
                 pads::disconnect();
                 radikalbikers::init();
@@ -661,6 +677,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 cave::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "omatsuri" => {
+                pads::disconnect();
+                omatsuri::init();
             }
             _ if board.trim() == "commking" => {
                 pads::disconnect();

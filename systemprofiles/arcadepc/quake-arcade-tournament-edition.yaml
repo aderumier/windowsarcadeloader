@@ -1,0 +1,80 @@
+# Quake: Arcade Tournament Edition (Lazer-Tron / LBE Systems, 1998: GLQuake 1.07 with the
+# arcade's accounting, menus and tickets, 1.30 r3; OpenGL, 640x480, 32-bit) - template, override
+# values in userprofiles/arcadepc/quake-arcade-tournament-edition.yaml.
+# A one-player shooter: a joystick (move, strafe), a trackball (look), attack, jump and next
+# weapon buttons. glquake.exe is wrapped in its Sentinel dongle's protection: the dump's
+# glquake_decrypted.exe is the same program without it. The cabinet's GCI serial board (the
+# trackball and buttons) is off; the payload plays its arcade keys and the mouse look from the
+# virtual sticks and shows the attract movies' window (docs §6.3i).
+system: arcadepc
+name: Quake Arcade Tournament Edition
+
+# loaded at the executable's entry point (the game imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+# -nogci: the GCI board off (else OUT OF ORDER); -basedir .: the run directory's path is too
+# long for the game's map path buffer (64 bytes: "<basedir>/id1/maps/<map>.bsp" overflowed it
+# and crashed the first map); -nojoy -noipx as the cabinet's glquake.bat
+args: [-nojoy, -noipx, -nogci, -basedir, .]
+
+# the 3dfx MiniGL (Glide): Wine's OpenGL instead
+hide: [OPENGL32.DLL]
+
+env:
+  WAL_ARCADEPC_BOARD: quakearcade
+  # the game's 640x480 full-screen mode not set: a borderless window of the screen's centered
+  # 4:3 rectangle, the 640x480 picture (its lower left corner) scaled to it
+  WAL_NO_MODE_CHANGE: "1"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: aspect
+  WAL_D3D9_ASPECT: "4:3"
+  WAL_GL_CORNER: 640x480
+  WAL_BEZEL: black
+  WAL_HIDE_CURSOR: "1"
+
+input:
+  # the left stick moves (the d-pad / arrows), the right stick looks (the trackball)
+  stick_as_dpad: true
+  # the mouse is the cabinet's trackball: its position wraps (a counter) on the pedal axes
+  # (unused by the pads here), the payload turns its motion into the look; its buttons attack
+  # and jump
+  guns_enabled: true
+  guns_mice: 1
+  mouse_screen: [32768, 32768]
+  mouse_wrap: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: b1
+    BTN_RIGHT: b2
+    BTN_MIDDLE: b3
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The operator's free time: attack plays without a credit (the attract then skips its
+          movies). Off: the operator settings' credits (a coin a credit, three lives).
+
+controls:
+  up: Forward
+  down: Back
+  left: Strafe left
+  right: Strafe right
+  rx: Look left / right (trackball)
+  ry: Look up / down (trackball)
+  accel: Look left / right (the mouse)
+  brake: Look up / down (the mouse)
+  b1: Attack (menus, play)
+  b2: Jump (menus, choose)
+  b3: Next weapon (menus, back)
+  b4: Next weapon (menus, back)
+  start: Attack (play)
+  coin: Coin
+  service: Coin
+  test: Operator menu
