@@ -401,6 +401,9 @@ pub(crate) fn init() {
     if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "chusan") {
         crate::chuni::init_daemon();
     }
+    if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "ongeki") {
+        crate::ongeki::init_daemon();
+    }
     crate::allnet::init();
     wal_payload_common::aimedb::init();
     crate::aime::init();

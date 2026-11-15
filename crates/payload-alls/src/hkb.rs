@@ -50,8 +50,8 @@ pub(crate) fn init() {
 }
 
 /// The clock hooks in Mono's imports, as soon as the Unity player loads it (before the game's
-/// scripts read the time zone: Mono keeps the first one).
-fn mono_clock() {
+/// scripts read the time zone: Mono keeps the first one). O.N.G.E.K.I.'s too.
+pub(crate) fn mono_clock() {
     if std::env::var("WAL_ALLS_CLOCK").is_ok_and(|v| v.trim() == "0") {
         return;
     }
@@ -59,7 +59,7 @@ fn mono_clock() {
         let mono = unsafe { GetModuleHandleW(windows_sys::core::w!("mono.dll")) } as usize;
         if mono != 0 {
             wal_payload_common::clock::hook_module(mono);
-            log!("alls: hkb: clock hooks in mono.dll");
+            log!("alls: clock hooks in mono.dll");
             return;
         }
         std::thread::sleep(Duration::from_millis(1));

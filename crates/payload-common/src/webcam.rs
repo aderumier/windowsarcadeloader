@@ -7,6 +7,9 @@
 //! Unity 2017 and later's `UnityPlayer.dll`, loaded by the executable later) wraps the system device enumerator's
 //! `ICreateDevEnum::CreateClassEnumerator`, whose video input monikers' `IEnumMoniker::Next`
 //! (their shared vtable) skips a device whose `FriendlyName` contains "sinden" (any case).
+//!
+//! [`hide_all`]: every camera hidden (O.N.G.E.K.I.'s QR code card readers: it opens each
+//! webcam it finds and decodes its frames all the time, the player's webcam included).
 
 use std::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -35,6 +38,8 @@ const BAG_READ: usize = 3;
 static ORIG_CO_CREATE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_CLASS_ENUMERATOR: AtomicUsize = AtomicUsize::new(0);
 static ORIG_NEXT: AtomicUsize = AtomicUsize::new(0);
+/// Every camera hidden, not only the Sinden ones.
+static HIDE_ALL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[link(name = "oleaut32")]
 unsafe extern "system" {
@@ -56,6 +61,13 @@ const VT_BSTR: u16 = 8;
 pub fn skip_sinden() {
     crate::late_hooks::hook("ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize, &ORIG_CO_CREATE);
     log!("webcam: Sinden cameras hidden");
+}
+
+/// Hides every camera from the DirectShow device lists of the game's modules.
+pub fn hide_all() {
+    HIDE_ALL.store(true, Ordering::Relaxed);
+    crate::late_hooks::hook("ole32.dll", "CoCreateInstance", co_create_instance as *const () as usize, &ORIG_CO_CREATE);
+    log!("webcam: cameras hidden");
 }
 
 unsafe fn method(obj: P, slot: usize) -> usize {
@@ -109,7 +121,7 @@ unsafe extern "system" fn create_class_enumerator(this: P, category: *const GUID
     hr
 }
 
-/// `IEnumMoniker::Next`: the devices but the Sinden cameras.
+/// `IEnumMoniker::Next`: the devices but the Sinden cameras (none with [`hide_all`]).
 unsafe extern "system" fn next(this: P, count: u32, monikers: *mut P, fetched: *mut u32) -> i32 {
     let orig: unsafe extern "system" fn(P, u32, *mut P, *mut u32) -> i32 =
         unsafe { std::mem::transmute(ORIG_NEXT.load(Ordering::Relaxed)) };
@@ -121,7 +133,7 @@ unsafe extern "system" fn next(this: P, count: u32, monikers: *mut P, fetched: *
             break;
         }
         let name = unsafe { friendly_name(moniker) };
-        if name.to_ascii_lowercase().contains("sinden") {
+        if HIDE_ALL.load(Ordering::Relaxed) || name.to_ascii_lowercase().contains("sinden") {
             log!("webcam: {name} hidden");
             unsafe { release(moniker) };
             continue;

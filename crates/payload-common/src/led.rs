@@ -11,8 +11,8 @@
 //! the 15070's number, default `15070-04`).
 //!
 //! CHUNITHM's two 837-15093-06 boards on COM10 and COM11 ([`init_pair`]): `WAL_ALLS_LED_BOARD`
-//! `<board number>,<chip number>,<firmware sum>` gives their identity (segatools' chunihook
-//! values `15093-06,6710,adf7`; default `15093-04,6704,aed9`).
+//! `<board number>,<chip number>,<firmware sum>[,<firmware version>]` gives their identity
+//! (segatools' chunihook values `15093-06,6710,adf7`; default `15093-04,6704,aed9,90`).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -204,9 +204,9 @@ fn answer(frame: &[u8], port: usize) -> Vec<u8> {
         }
         // board info: number, LF, chip, FF, firmware, receive buffer 204
         0xF0 => {
-            let (number, chip, _) = identity();
+            let (number, chip, _, version) = identity();
             let mut v = format!("{number:<8.8}\n{chip:<5.5}").into_bytes();
-            v.extend([0xFF, 0x90, 204, 0]);
+            v.extend([0xFF, version, 204, 0]);
             encode(cmd, &v, src)
         }
         // board status: board / UART / command flags, DIP switch 1 on
@@ -223,14 +223,15 @@ fn answer(frame: &[u8], port: usize) -> Vec<u8> {
     }
 }
 
-/// The board's number, chip number and firmware sum (`WAL_ALLS_LED_BOARD`).
-fn identity() -> (String, String, u16) {
+/// The board's number, chip number, firmware sum and version (`WAL_ALLS_LED_BOARD`).
+fn identity() -> (String, String, u16, u8) {
     let spec = std::env::var("WAL_ALLS_LED_BOARD").unwrap_or_default();
     let mut parts = spec.split(',').map(str::trim);
     let number = parts.next().filter(|p| !p.is_empty()).unwrap_or("15093-04").to_string();
     let chip = parts.next().filter(|p| !p.is_empty()).unwrap_or("6704").to_string();
     let sum = parts.next().and_then(|p| u16::from_str_radix(p, 16).ok()).unwrap_or(0xAED9);
-    (number, chip, sum)
+    let version = parts.next().and_then(|p| u8::from_str_radix(p, 16).ok()).unwrap_or(0x90);
+    (number, chip, sum, version)
 }
 
 fn port_packet(port: usize, data: &[u8]) -> Vec<u8> {

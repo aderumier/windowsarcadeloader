@@ -347,10 +347,10 @@ pub fn heartbeat() {
                     dumps += 1;
                     log!("hang: main loop stopped for {idle} ms");
                     let main = THREAD.load(Ordering::Relaxed);
-                    dump_thread(main, 48);
+                    dump_thread(main, 48, true);
                     // what the main thread may wait on: the game's other threads
                     for id in other_threads(main) {
-                        dump_thread(id, 16);
+                        dump_thread(id, 16, true);
                     }
                     // where a busy main thread loops: its instruction pointer sampled
                     let samples: Vec<String> = (0..20)
@@ -383,16 +383,28 @@ pub fn dump_threads_at() {
                 std::thread::sleep(wait);
             }
             log!("hang: thread dump at {at} s");
-            let threads = other_threads(0);
-            for &id in &threads {
-                dump_thread(id, 24);
+            // `WAL_DUMP_MAIN=1`: the process's first thread only (the game's main loop), its
+            // waits included, a few stack scans showing what it waits on
+            let main_only = std::env::var("WAL_DUMP_MAIN").is_ok_and(|v| v.trim() == "1");
+            let mut threads = other_threads(0);
+            if main_only {
+                threads.truncate(1);
+                for _ in 0..5 {
+                    dump_thread(threads[0], 24, false);
+                    std::thread::sleep(std::time::Duration::from_millis(97));
+                }
+            } else {
+                for &id in &threads {
+                    dump_thread(id, 24, false);
+                }
             }
             // where the threads run between their waits: 2 s of instruction pointer samples
             let mut seen: Vec<(u32, String, u32)> = Vec::new();
             for _ in 0..200 {
                 for &id in &threads {
-                    if let Some(sym) = thread_ip(id).and_then(symbolize)
-                        && !["ntdll", "win32u", "kernelbase"].iter().any(|p| sym.starts_with(p))
+                    // code outside the modules (a JIT's: Mono, .NET) counted as one place
+                    if let Some(sym) = thread_ip(id).map(|ip| symbolize(ip).unwrap_or_else(|| "<jit>".into()))
+                        && (main_only || !["ntdll", "win32u", "kernelbase"].iter().any(|p| sym.starts_with(p)))
                     {
                         match seen.iter_mut().find(|(t, s, _)| *t == id && *s == sym) {
                             Some(e) => e.2 += 1,
@@ -470,7 +482,7 @@ fn thread_ip(id: u32) -> Option<usize> {
     ok.then_some(ip)
 }
 
-fn dump_thread(id: u32, max: usize) {
+fn dump_thread(id: u32, max: usize, unwind_frames: bool) {
     use windows_sys::Win32::Foundation::CloseHandle;
     use windows_sys::Win32::System::Diagnostics::Debug::{CONTEXT, GetThreadContext};
     use windows_sys::Win32::System::Threading::{
@@ -491,39 +503,45 @@ fn dump_thread(id: u32, max: usize) {
     {
         context.ContextFlags = windows_sys::Win32::System::Diagnostics::Debug::CONTEXT_FULL_X86;
     }
+    // allocated before the thread stops: it may hold the heap's lock
+    let mut words: Vec<usize> = Vec::with_capacity(8192);
     unsafe { SuspendThread(thread) };
     let ok = unsafe { GetThreadContext(thread, &mut context) } != 0;
     #[cfg(target_arch = "x86_64")]
     let (ip, sp) = (context.Rip as usize, context.Rsp as usize);
     #[cfg(target_arch = "x86")]
     let (ip, sp) = (context.Eip as usize, context.Esp as usize);
-    // read the stack while the thread is stopped
+    // the stack copied while the thread is stopped, its words looked up once it runs again (a
+    // module lookup takes the loader lock, which the stopped thread may hold)
     let word = std::mem::size_of::<usize>();
-    let mut found = Vec::new();
     if ok {
         for i in 0..8192 {
             let at = sp + i * word;
             if !readable(at, word) {
                 break;
             }
-            let v = unsafe { std::ptr::read_volatile(at as *const usize) };
-            if v >= 0x10000
-                && let Some(sym) = symbolize(v)
-            {
-                found.push((i * word, v, sym));
-                if found.len() >= max {
-                    break;
-                }
-            }
+            words.push(unsafe { std::ptr::read_volatile(at as *const usize) });
         }
     }
     // x64: the exact call stack from the unwind tables (the stack scan above also shows stale
     // return addresses)
+    // (the unwind looks the functions up too: the hang reporter's only, its thread stuck anyway)
     #[cfg(target_arch = "x86_64")]
-    let frames = if ok { unwind(context) } else { Vec::new() };
+    let frames = if ok && unwind_frames { unwind(context) } else { Vec::new() };
     unsafe {
         ResumeThread(thread);
         CloseHandle(thread);
+    }
+    let mut found = Vec::new();
+    for (i, &v) in words.iter().enumerate() {
+        if v >= 0x10000
+            && let Some(sym) = symbolize(v)
+        {
+            found.push((i * word, v, sym));
+            if found.len() >= max {
+                break;
+            }
+        }
     }
     #[cfg(target_arch = "x86_64")]
     for (depth, ip) in frames.iter().enumerate() {

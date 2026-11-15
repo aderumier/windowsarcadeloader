@@ -26,6 +26,7 @@
 //!   or held on kp1-kp6 (an H shifter's positions).
 //! - `chusan` (CHUNITHM SUPERSTAR): the six air sensors (`chuni::hand`); the slider is the
 //!   game's (COM1).
+//! - `ongeki` (O.N.G.E.K.I.): the ten buttons and the lever on adc 0 (`ongeki.rs`).
 
 use std::collections::VecDeque;
 use std::ffi::c_void;
@@ -71,6 +72,7 @@ enum Board {
     Swdc,
     Idac,
     Chusan,
+    Ongeki,
 }
 
 fn board() -> Board {
@@ -80,6 +82,7 @@ fn board() -> Board {
         "swdc" => Board::Swdc,
         "idac" => Board::Idac,
         "chusan" => Board::Chusan,
+        "ongeki" => Board::Ongeki,
         _ => Board::Tokyo,
     })
 }
@@ -126,6 +129,10 @@ fn switches() -> [u16; 2] {
                 sw[i % 2] |= 1 << bit;
             }
         }
+        return sw;
+    }
+    if board() == Board::Ongeki {
+        crate::ongeki::switches(&mut sw);
         return sw;
     }
     if board() == Board::Idac {
@@ -188,7 +195,8 @@ fn report() -> [u8; 64] {
     // the games share the chutes)
     let coin = (input(0).buttons | input(1).buttons) & b::COIN != 0;
     if coin && !COIN_HELD.swap(true, Ordering::Relaxed) {
-        COINS.fetch_add(1, Ordering::Relaxed);
+        let n = COINS.fetch_add(1, Ordering::Relaxed) + 1;
+        log!("io4: coin {n}");
     } else if !coin {
         COIN_HELD.store(false, Ordering::Relaxed);
     }
@@ -201,6 +209,9 @@ fn report() -> [u8; 64] {
         for (i, v) in adc.iter().enumerate() {
             r[1 + i * 2..3 + i * 2].copy_from_slice(&v.to_le_bytes());
         }
+    }
+    if board() == Board::Ongeki {
+        r[1..3].copy_from_slice(&crate::ongeki::lever().to_le_bytes());
     }
     let sw = switches();
     r[29..31].copy_from_slice(&sw[0].to_le_bytes());
@@ -284,7 +295,17 @@ pub(crate) fn write(data: &[u8]) {
     match data[1] {
         0x01 | 0x02 => SYSTEM_STATUS.store(0x30, Ordering::Relaxed),
         0x03 => SYSTEM_STATUS.store(0x00, Ordering::Relaxed),
-        0x04 | 0x05 | 0x41 => {}
+        0x04 => {
+            // the general outputs (the lamps, the coin blocker): their changes logged
+            static LAST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+            let outputs = data[2..data.len().min(6)].to_vec();
+            let mut last = LAST.lock().unwrap();
+            if *last != outputs {
+                log!("io4: general outputs {outputs:02x?}");
+                *last = outputs;
+            }
+        }
+        0x05 | 0x41 => {}
         cmd => log!("io4: command {cmd:#04x}"),
     }
 }

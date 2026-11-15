@@ -6,6 +6,11 @@
 //! 512-byte blocks, each a CRC-32 of its bytes 4..512 first: the credit block at 0x0000 (copy at
 //! 0x3000; free play at +10), the DIP switch block at 0x2800 (copy at 0x5800; the switches
 //! at +8, bit 0 = DIP 1).
+//!
+//! amdaemon writes its configuration's credit settings over the backup's at start (a game's
+//! `config_common.json` with `"credit": {"config": {"freeplay": false}}`: O.N.G.E.K.I.'s free play
+//! undone): the free play setting is also written into the profile's `config_wal.json` (the
+//! configuration file named so on amdaemon's command line, read last).
 
 use wal_payload_common::log;
 
@@ -34,7 +39,31 @@ fn set(file: &mut [u8], at: usize, copy: usize, offset: usize, value: u8) {
     file[copy..copy + BLOCK].copy_from_slice(&block);
 }
 
+/// The free play setting in the profile's `config_wal.json` (amdaemon's configuration read
+/// last): its `credit.config.freeplay`.
+fn config_free_play(free_play: bool) {
+    use wal_payload_common::json::Json;
+    let Some(path) = std::env::args().find(|a| a.to_ascii_lowercase().ends_with("config_wal.json")) else { return };
+    let Some(mut doc) = std::fs::read_to_string(&path).ok().and_then(|t| Json::parse(&t)).filter(|d| matches!(d, Json::Obj(_))) else {
+        log!("alls: {path}: unreadable, its free play unchanged");
+        return;
+    };
+    let mut credit = doc.get("credit").cloned().unwrap_or(Json::obj());
+    let mut config = credit.get("config").cloned().unwrap_or(Json::obj());
+    if config.get("freeplay") == Some(&Json::Bool(free_play)) {
+        return;
+    }
+    config.set("freeplay", free_play);
+    credit.set("config", config);
+    doc.set("credit", credit);
+    match std::fs::write(&path, doc.to_string()) {
+        Ok(()) => log!("alls: {path}: free play {free_play}"),
+        Err(e) => log!("alls: {path}: {e}"),
+    }
+}
+
 pub(crate) fn apply() {
+    config_free_play(wal_payload_common::free_play("WAL_ALLS_FREEPLAY").unwrap_or(true));
     let Ok(mut file) = std::fs::read(PATH) else {
         log!("alls: no {PATH} yet (amdaemon's first start): DIP switches and free play from the next one");
         return;

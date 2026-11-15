@@ -11,7 +11,7 @@
 //! - `PowerOn`: refused (`stat=-3`, the game plays offline, at once); with
 //!   `WAL_ALLS_ALLNET=1` accepted (`stat=1`, the shop's values, the title server's URI,
 //!   `WAL_ALLS_TITLE_URI` / `WAL_ALLS_TITLE_HOST`: `{router}` the virtual router, `{gs}` the
-//!   payload's game server, [`set_game_server`])
+//!   payload's game server, [`set_game_server`], `{allnet}` this server)
 //! - `DownloadOrder`: no update (`uri=null`)
 //!
 //! A title server in this process ([`set_title`]: CHUNITHM's, a game with no amdaemon): the
@@ -110,9 +110,11 @@ fn power_on(req: &[(String, String)]) -> String {
     let host = dns::dotted(dns::router());
     // the title server's URI (`WAL_ALLS_TITLE_URI`: an ABAAS game's GS server name, a bare host;
     // `{gs}` the payload's game server itself: Chrono Regalia's Mono sockets, not in the game
-    // module's imports, never reach the router's redirection)
+    // module's imports, never reach the router's redirection); `{allnet}` this server itself
+    // (O.N.G.E.K.I.'s title server, in amdaemon's ALL.Net server, reached from its Mono)
     let gs = GAME_SERVER.get().cloned().unwrap_or_default();
-    let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).map(|u| u.replace("{router}", &host).replace("{gs}", &gs)).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
+    let own = format!("127.0.0.1:{}", port());
+    let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).map(|u| u.replace("{router}", &host).replace("{gs}", &gs).replace("{allnet}", &own)).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
     // the title server's host (`WAL_ALLS_TITLE_HOST`: Initial D THE ARCADE's game server URL,
     // `<host>initiald/...`, https:// when it has no scheme; Initial D ARCADE STAGE Zero's
     // `{router}:10000`, its game server's address)

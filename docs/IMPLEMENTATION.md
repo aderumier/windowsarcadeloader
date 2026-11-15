@@ -7846,6 +7846,67 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     the faulting code bytes logged), `WAL_PACKED_IMPORTS` (existing: hooks as hot patches).
   - CHUNITHM SUPERSTAR PLUS (SDGS 1.05.00): the same protected `chuniApp.exe`; its dump has no
     `App\amdaemon` folder.
+- O.N.G.E.K.I. (SDDT 1.00, ALLS `ACA1`; `ongeki`, `WAL_ALLS_BOARD=ongeki`): Unity 5.6 (Mono,
+  64-bit `mu3.exe`, portrait 1080x1920) beside amdaemon (both in `package\`, game.bat's
+  `amdaemon.exe -f -c config_common.json config_server.json config_client.json`, the profile's
+  `config_wal.json` last: video and e-money off). segatools' mu3hook (public domain) was the
+  reference for the devices, ARTEMiS (WTFPL) for the title server.
+  - IO4 (`ongeki.rs`, the game's `JvsButtonIDEnum` table): left red / green / blue player 1 bits
+    0 / 5 / 4, right red / blue player 1 bits 1 / 15, right green player 2 bit 0, the menus
+    player 2 bit 14 (left) / player 1 bit 13 (right), the walls player 2 bit 15 / player 1 bit 14
+    (active low); the lever on adc 0 (`0x7FFF - position`, increasing to the left). The right
+    red button decides in the menus (`UIInput.Key.Decision`), the left red goes back: start is
+    the right red button (and touches the automatic card).
+  - The game's boards: COM3 the 837-15093-06 LED board (the dump's firmware file
+    `update_15093-06_6710A_A0_AA53.hex`: `WAL_ALLS_LED_BOARD=15093-06,6710A,aa53,a0`, led.rs's
+    identity got a firmware version field; with the 15093-04 default the game reports LED NG),
+    COM2 the VFD (segatools' `board/vfd.c`: only its version request `1B 5B` is answered,
+    `02 "01.20" 01`). The game opens them from C# (`DllImport("kernel32")`, Mono's
+    `GetProcAddress`): `mono_imports::hook` points the serial functions at the payload's. The
+    three QR code cameras (card scanning, `WebCamTexture`) are absent: error 3100 at boot,
+    skipped by the game's own `mu3.ini` `[AM] IgnoreError=1` (the profile's file; also
+    `[Sound] WasapiExclusive=0`).
+  - The settings backup (`BackupSettingRecord`, amdaemon's `Y:\SDDT\appfile.dat`): its factory
+    values are a linked cabinet's (group A, not the group's reference cabinet: the boot's
+    "Aグループの基準機から設定を取得" waits forever for the reference cabinet) and an uncalibrated
+    lever (min = max = 32768: "レバー可動範囲 NG", the lever dead). The payload, from a thread
+    started at the first `mono_add_internal_call` (the player resolves Mono's exports with
+    `GetProcAddress`; Mono touched earlier froze the game), patches `clear()`'s IL (group OFF)
+    and `leverClear()`'s (0x1000-0xEFFF), and replaces `BackupSetting.verify()` (a valid record
+    read at boot) with a native function fixing those factory values in an existing backup (the
+    record saved then); values set in the test menu are kept.
+  - Network: ALL.Net accepted; the title server (`ongeki/server.rs`, ARTEMiS's `base.py`,
+    `bright.py`, `brightmemory.py` and the versions' game settings: every handler, Card Maker's
+    and gacha's included; players in `Y:\ongeki\<aime id>.json`, the song rankings from
+    `Y:\ongeki\playlog.json`; events, rewards and cards read from the game's data) runs in
+    amdaemon's ALL.Net server. The game's Mono sockets are not redirected (Chrono Regalia's
+    case): the title URI is that server itself (`WAL_ALLS_TITLE_URI` `http://{allnet}/SDDT/100/`,
+    the new `{allnet}` token). Version 1.00 posts plain JSON (later versions zlib; encrypted
+    requests, R.E.D. and later, are not answered). The server's maintenance hours answered are
+    the game's default, Japan's 04:00-07:00 (ARTEMiS's "6 hours from now" in UTC falls in the
+    play hours: guest play only for an hour, then a reboot). The billing server is needed
+    (`WAL_ALLS_BILLING=1`, amdaemon's accounting mode A).
+  - Clock: Mono's imports get the payload's clock (Japan, the time warp), as amdaemon's
+    (`hkb::mono_clock`): else the game's "today's play is over" banner.
+  - Speed: amdaemon's main loop (0x140002586) calls `Sleep(0)` while busy, `Sleep(1)` when
+    idle; under Wine it always spins (a core at 100%) and the game's songs ran at 16-19 FPS
+    (story scenes 60; the GPU at 30%). The profile makes it always sleep 1 ms
+    (`WAL_ALLS_DAEMON_PATCHES` `0x2589:9090,0x258e:9090`): songs at about 50 FPS, amdaemon at
+    12%. `mu3.ini` `[Network] UseLocalCollab=0` (the cabinets' local link, its sockets
+    polled each frame) added a few FPS. Drawn at 720x1280 (`-screen-width/-height`,
+    `WAL_DESKTOP_SIZE`), a black bezel; the player's webcams hidden (`webcam::hide_all`: the
+    game opened them all as its QR card readers and decoded their frames).
+  - Free play: amdaemon's (the system backup's, and `config_wal.json`'s `credit.config.freeplay`
+    written by the payload from the option: amdaemon writes its configuration's credit settings,
+    `config_common.json`'s `freeplay: false`, over the backup at start; `sysfile.rs`, every ALLS
+    game); the game's own "event mode" (shown as FREE PLAY) is the store's tournament mode (no
+    story, 1-3 songs a play): not used.
+  - Verified headless (2026-11-15): power-on test all GOOD (ALL.Net, Aime, title server), attract,
+    a new Aime card: registration, name entry, profile, news, the story's chapter 0.
+  - Open: coins. The payload's IO4 counts them (chute 1, `count << 8` as segatools', logged
+    `io4: coin N`), the game opens its coin blocker (output 21), but amdaemon never credits
+    them (CREDIT(S) stays 0, free play off too; the count in both bytes changes nothing). The
+    IO4 coin path was never verified before (Rio's and crossbeats' coins are JVS).
 
 ### 6.3m Sega Nu (`crates/payload-seganu`)
 
@@ -8361,6 +8422,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `crossbeats-rev-sunrise` | crossbeats REV. SUNRiSE | alls | user (2026-11-12): "the game seem to work perfectly" (mouse touch, red dot, Aime login with PIN, profile load); headless tests: boot, ALL.Net, game server tables, coins, touch, card sign-up | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=cxb`): CommIo / CommLamp exports, WM_TOUCH, TN32 Aime reader COM12, options after 0060, billing type 0, ARTEMiS game server (WinHTTP body order fix) |
 | `wonderland-wars` | Wonderland Wars | alls | user (2026-11-13, desktop): boots, touchpad pen OK, guest play; headless: power-on and network tests, shader cache | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=wlw`): 3M touch COM1, 837-15312 pen board COM12, amVideo ordinals, Cg shader cache, server checks shortened; offline (no game server): guest only |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
+| `ongeki` | O.N.G.E.K.I. | alls | headless tests (2026-11-15): power-on test, attract, new Aime player (registration, name entry, news, story chapter 0) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=ongeki`): IO4 buttons and lever, LED 15093-06 COM3 and VFD COM2 (Mono DllImports), backup factory settings fixed (group OFF, lever range), ARTEMiS title server in amdaemon (`{allnet}` URI), Mono clock, mu3.ini IgnoreError (no QR cameras) |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide |
