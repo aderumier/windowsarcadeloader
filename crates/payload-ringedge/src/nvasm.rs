@@ -56,13 +56,23 @@ const ZERO: &str = "{0,0,0,0}";
 const ONE: &str = "{1,1,1,1}";
 const BIG: &str = "{1e30,1e30,1e30,1e30}";
 
-/// A program for NVIDIA GPUs only: NVIDIA options or formats.
+/// A program for NVIDIA GPUs only: NVIDIA options or formats, or texture arrays
+/// ([`texture_arrays`]).
 pub(crate) fn nvidia(text: &str) -> bool {
     // the option after any blanks (Border Break Scramble's `OPTION\t\tNV_fragment_program2`)
     text.split("OPTION").skip(1).any(|r| r.starts_with(char::is_whitespace) && r.trim_start().starts_with("NV_"))
         || text.starts_with("!!FP")
         || text.starts_with("!!VP")
         || text.starts_with("!!NV")
+        || texture_arrays(text)
+}
+
+/// A program sampling texture arrays (`ARRAY1D`, `ARRAY2D` targets): ARB programs on Mesa have
+/// none (no `MESA_texture_array` any more), the program refused. Border Break Scramble's is its
+/// shadow maps' debug view (FUN_00888600), its refusal stopping the attract after the logo:
+/// sampled as a 1D / 2D texture instead (its first layer's place).
+fn texture_arrays(text: &str) -> bool {
+    text.contains("ARRAY1D") || text.contains("ARRAY2D")
 }
 
 /// `(base opcode, updates the condition code, saturates)`.
@@ -855,7 +865,7 @@ fn translate_converted(text: &str) -> Option<String> {
         let (reg, mask, cond) = destination(&parts[0])?;
         // a texel offset (`TEX r, c, texture[0], 2D, (-1, 0)`, NV_gpu_program4) dropped: DIVA's
         // blur filters sample their center only
-        let mut sources: Vec<String> = parts[1..].iter().filter(|x| !x.starts_with('(')).map(|x| if shadow_samplers() { x.to_string() } else { x.replace("SHADOW2D", "2D").replace("SHADOWRECT", "RECT").replace("SHADOWCUBE", "CUBE").replace("SHADOW1D", "1D") }).collect();
+        let mut sources: Vec<String> = parts[1..].iter().filter(|x| !x.starts_with('(')).map(|x| if shadow_samplers() { x.to_string() } else { x.replace("SHADOW2D", "2D").replace("SHADOWRECT", "RECT").replace("SHADOWCUBE", "CUBE").replace("SHADOW1D", "1D") }).map(|x| match x.as_str() { "ARRAY2D" => "2D".to_string(), "ARRAY1D" => "1D".to_string(), _ => x }).collect();
         if base == "ARL" {
             let src = sources.first()?;
             let (value, sw) = split_swizzle(src);
