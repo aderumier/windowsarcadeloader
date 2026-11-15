@@ -50,7 +50,7 @@ use wal_payload_common::{iat, log, serial};
 use windows_sys::Win32::Foundation::SetLastError;
 use windows_sys::Win32::System::IO::OVERLAPPED;
 use windows_sys::Win32::System::Registry::{
-    HKEY, HKEY_LOCAL_MACHINE, KEY_WOW64_64KEY, KEY_WRITE, REG_BINARY, REG_DWORD, REG_OPTION_NON_VOLATILE, REG_SZ, RegCloseKey, RegCreateKeyExW, RegSetValueExW,
+    HKEY, HKEY_LOCAL_MACHINE, KEY_WOW64_64KEY, KEY_WRITE, REG_BINARY, REG_DWORD, REG_OPTION_NON_VOLATILE, REG_SZ, RegCloseKey, RegCreateKeyExW, RegDeleteKeyExW, RegSetValueExW,
 };
 use windows_sys::Win32::System::Threading::SetEvent;
 
@@ -852,5 +852,11 @@ fn write_registry() {
     );
     set("Master", &[("AppLoaderCount", Value::Dword(1)), ("NextProcess", Value::Str("")), ("SystemError", Value::Str(""))]);
     set("mount", &[("AMFS", Value::Str("E:\\")), ("APPDATA", Value::Str("Y:\\"))]);
+    // an ALLS game's video library left in a shared prefix (its payload): amLib loads it and the
+    // game quits after its amDllVideoSetResolution (KanColle Arcade); a Nu has none
+    let video = wide("SYSTEM\\SEGA\\SystemProperty\\amVideo");
+    if unsafe { RegDeleteKeyExW(HKEY_LOCAL_MACHINE, video.as_ptr(), KEY_WOW64_64KEY, 0) } == 0 {
+        log!("devices: another system's amVideo key removed");
+    }
     log!("devices: system registry written (game {}, platform {}, region {:02X})", cfg.game_id, cfg.platform_id, cfg.region);
 }
