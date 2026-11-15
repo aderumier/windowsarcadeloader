@@ -609,8 +609,60 @@ fn level_parameters() {
         }
         let levels = [last as f32; 4];
         unsafe { local(0x8804, crate::nvasm::LEVELS_LOCAL + unit, levels.as_ptr()) };
+        if target == 0x0DE1 && last >= 2 {
+            unsafe { level1_unit(unit) };
+        }
     }
     unsafe { active_texture(active as u32) };
+}
+
+/// Unit `nvasm::LEVEL1_UNIT + unit`: the 2D texture of `unit` (the active one) with a sampler
+/// holding its level of detail at 1 and its wrap modes, where the programs read its level 1
+/// exactly (Border Break Scramble's YCbCr textures, their Cr in level 1 of 3).
+unsafe fn level1_unit(unit: u32) {
+    static PROCS: OnceLock<[usize; 5]> = OnceLock::new();
+    let procs = PROCS.get_or_init(|| {
+        let orig: unsafe extern "system" fn(*const c_char) -> usize = unsafe { std::mem::transmute(ORIG_GL_PROC.load(Ordering::Relaxed)) };
+        [c"glActiveTexture", c"glGenSamplers", c"glBindSampler", c"glSamplerParameteri", c"glSamplerParameterf"].map(|n| unsafe { orig(n.as_ptr()) })
+    });
+    if procs.contains(&0) {
+        return;
+    }
+    let active_texture: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(procs[0]) };
+    let gen_samplers: unsafe extern "system" fn(i32, *mut u32) = unsafe { std::mem::transmute(procs[1]) };
+    let bind_sampler: unsafe extern "system" fn(u32, u32) = unsafe { std::mem::transmute(procs[2]) };
+    let sampler_i: unsafe extern "system" fn(u32, u32, i32) = unsafe { std::mem::transmute(procs[3]) };
+    let sampler_f: unsafe extern "system" fn(u32, u32, f32) = unsafe { std::mem::transmute(procs[4]) };
+    let get_integer: unsafe extern "system" fn(u32, *mut i32) = unsafe { std::mem::transmute(gl11(c"glGetIntegerv")) };
+    let get_parameter: unsafe extern "system" fn(u32, u32, *mut i32) = unsafe { std::mem::transmute(gl11(c"glGetTexParameteriv")) };
+    let bind_texture: unsafe extern "system" fn(u32, u32) = unsafe { std::mem::transmute(gl11(c"glBindTexture")) };
+    static SAMPLERS: [AtomicUsize; 16] = [const { AtomicUsize::new(0) }; 16];
+    let slot = &SAMPLERS[unit as usize & 15];
+    let (mut texture, mut wrap_s, mut wrap_t) = (0, 0, 0);
+    unsafe {
+        // GL_TEXTURE_BINDING_2D, GL_TEXTURE_WRAP_S / T
+        get_integer(0x8069, &mut texture);
+        get_parameter(0x0DE1, 0x2802, &mut wrap_s);
+        get_parameter(0x0DE1, 0x2803, &mut wrap_t);
+        if slot.load(Ordering::Relaxed) == 0 {
+            let mut s = 0;
+            gen_samplers(1, &mut s);
+            // GL_TEXTURE_MIN_FILTER GL_LINEAR_MIPMAP_NEAREST (level 1, filtered in it),
+            // GL_TEXTURE_MAG_FILTER GL_LINEAR, GL_TEXTURE_MIN_LOD / MAX_LOD 1
+            sampler_i(s, 0x2801, 0x2701);
+            sampler_i(s, 0x2800, 0x2601);
+            sampler_f(s, 0x813A, 1.0);
+            sampler_f(s, 0x813B, 1.0);
+            slot.store(s as usize, Ordering::Relaxed);
+        }
+        let sampler = slot.load(Ordering::Relaxed) as u32;
+        sampler_i(sampler, 0x2802, wrap_s);
+        sampler_i(sampler, 0x2803, wrap_t);
+        let aux = crate::nvasm::LEVEL1_UNIT + unit;
+        active_texture(0x84C0 + aux);
+        bind_texture(0x0DE1, texture as u32);
+        bind_sampler(aux, sampler);
+    }
 }
 
 unsafe extern "system" fn draw_arrays(mode: u32, first: i32, count: i32) {

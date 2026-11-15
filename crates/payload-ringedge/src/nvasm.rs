@@ -43,6 +43,9 @@ pub(crate) const TEXEL_LOCAL: u32 = 240;
 /// The fragment programs' local parameters `LEVELS_LOCAL + n`: the last level of texture
 /// unit n's texture (`TXL`).
 pub(crate) const LEVELS_LOCAL: u32 = 240;
+/// The fragment programs' texture unit `LEVEL1_UNIT + n`: unit n's texture (`TXL`) with its level
+/// of detail held at 1 (the payload binds it before each draw), its level 1 read exactly.
+pub(crate) const LEVEL1_UNIT: u32 = 16;
 /// NV_gpu_program4's vertex programs' instance (`vertex.instance`, absent in ARB): their local
 /// parameter `INSTANCE_LOCAL`, 0 (the game's draws are not instanced).
 pub(crate) const INSTANCE_LOCAL: u32 = 239;
@@ -970,13 +973,23 @@ fn translate_converted(text: &str) -> Option<String> {
             // the level as a bias past the computed one (no explicit level in ARB): the base
             // level far below it, the texture's last one (`LEVELS_LOCAL + n`, the payload's)
             // far above it, the others a quarter above (exact on a texture drawn 1:1). Project
-            // DIVA Arcade's YCbCr sprites: luma in level 0, chroma in level 1, the last one
+            // DIVA Arcade's YCbCr sprites: luma in level 0, chroma in level 1, the last one.
+            // Level 1 below the last one (Border Break Scramble's YCbCr textures: luma, Cr, Cb
+            // in levels 0, 1, 2; biased, its Cr took some luma: the bright places pink): read
+            // exactly from unit `LEVEL1_UNIT + n`, the same texture with its level of detail
+            // held at 1 (the payload's sampler)
             "TXL" if fragment => {
                 let (coord, rest) = sources.split_first()?;
                 let unit = rest.first().and_then(|t| t.strip_prefix("texture[")?.strip_suffix(']')?.parse::<u32>().ok())?;
+                let level1 = rest.get(1).is_some_and(|t| t == "2D") && unit < LEVEL1_UNIT;
                 add_temp(&mut temps, "_wE");
                 add_temp(&mut temps, "_wF");
                 out.push(format!("MOV _wE, {coord};"));
+                if level1 {
+                    add_temp(&mut temps, "_wG");
+                    add_temp(&mut temps, "_wH");
+                    out.push("MOV _wG.x, _wE.w;".into());
+                }
                 out.push(format!("SUB _wF.y, _wE.w, program.local[{}].x;", LEVELS_LOCAL + unit));
                 out.push("SGE _wF.y, _wF.y, {-0.5,-0.5,-0.5,-0.5};".into());
                 out.push("SGE _wF.x, _wE.w, {0.5,0.5,0.5,0.5};".into());
@@ -985,7 +998,19 @@ fn translate_converted(text: &str) -> Option<String> {
                 out.push("MAD _wE.w, _wF.y, _wF.z, _wE.w;".into());
                 out.push("ADD _wF.z, _wE.w, {16,16,16,16};".into());
                 out.push("MAD _wE.w, _wF.x, _wF.z, {-16,-16,-16,-16};".into());
-                out.push(format!("TXB{satx} {dst}, _wE, {};", rest.join(", ")));
+                if !level1 {
+                    out.push(format!("TXB{satx} {dst}, _wE, {};", rest.join(", ")));
+                } else {
+                    // level 1 (0.5 to 1.5) of a texture with more levels: the exact read
+                    out.push("SGE _wF.x, _wG.x, {0.5,0.5,0.5,0.5};".into());
+                    out.push("SLT _wF.y, _wG.x, {1.5,1.5,1.5,1.5};".into());
+                    out.push("MUL _wF.x, _wF.x, _wF.y;".into());
+                    out.push(format!("SGE _wF.y, program.local[{}].x, {{1.5,1.5,1.5,1.5}};", LEVELS_LOCAL + unit));
+                    out.push("MUL _wG.y, _wF.x, _wF.y;".into());
+                    out.push(format!("TEX _wH, _wE, texture[{}], 2D;", LEVEL1_UNIT + unit));
+                    out.push(format!("TXB _wF, _wE, {};", rest.join(", ")));
+                    out.push(format!("LRP{satx} {dst}, _wG.y, _wH, _wF;"));
+                }
             }
             "LRP" if !fragment => {
                 let [t, a, b] = sources.as_slice() else { return None };
