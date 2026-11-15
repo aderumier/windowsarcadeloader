@@ -1,0 +1,49 @@
+# Mission: Impossible Arcade (SEGA Amusements, 2020, MissionImpossible.exe, Unity 2018.4 / Mono,
+# 64-bit), a two-player gun game, each gun with two triggers - template, override values in
+# userprofiles/europar/mission-impossible-arcade.yaml.
+# The payload is the cabinet's hardware (WAL_EUROPAR_BOARD=mig, docs §6.3g): the guns (Unity's
+# joystick functions answered with the players' guns), the shell the game connects to (coins,
+# credits, its security challenges).
+system: europar
+name: "Mission: Impossible Arcade"
+
+# Unity's own log beside the game
+args: [-logFile, Player.log]
+
+# loaded at the entry point (64-bit: wal-loader64): Unity's input functions wrapped before Mono
+# registers them
+payload_loader: true
+
+# The shell's settings, read from ..\ShellData beside the game folder: the dump's, the guns'
+# calibration the whole screen (0-4096, unclamped: the payload's guns are exact), free play from
+# the common option (written by the payload).
+files:
+  Sega/ShellData/ShellData.ini: systemprofiles/europar/files/mission-impossible-arcade/ShellData.ini
+
+env:
+  WAL_EUROPAR_BOARD: mig
+  # every mission and stage selectable (else mission 3 after a mission cleared, the stages in order)
+  WAL_EUROPAR_UNLOCK: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_EUROPAR_UNLOCK
+        label: Unlock all missions and stages
+        kind: bool
+        description: >-
+          Mission 3 selectable from the start (else after mission 1 or 2 cleared), and any stage
+          of a mission (else the next one only).
+
+input:
+  # each gun (or mouse) aims, its triggers shoot
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Left trigger
+  b2: Right trigger
+  start: Start
+  coin: Coin

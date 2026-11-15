@@ -1,5 +1,5 @@
 //! Sega Europa-R payload (Ford Racing Full Blown, SEGA Rally 3, GRID, Daytona Championship USA,
-//! Men In Black).
+//! Men In Black, Mission: Impossible).
 //!
 //! Ford Racing imports `inpout32.dll` (parallel port access, the force feedback board)
 //! statically: this DLL takes its place in the run directory, so it loads before the game code
@@ -14,8 +14,9 @@
 //! * `shell_tcp.rs`: the Sega Shell over TCP (Daytona Championship USA): coins, credits, its
 //!   security challenges answered.
 //! * `inpwrapper.rs`: the shell's InpWrapper (Daytona Championship USA's force feedback bytes).
-//! * `mib.rs`, `shell_mib.rs`: Men In Black (64-bit Unity, loaded by `wal-loader`): its guns
-//!   (Unity's input functions), its shell over TCP (coins, credits, security).
+//! * `mib.rs`, `shell_mib.rs`: Men In Black and Mission: Impossible (64-bit Unity, loaded by
+//!   `wal-loader`): their guns (Unity's input functions), their shell over TCP (coins, credits,
+//!   security).
 //! * Force feedback: the bytes the game writes to the parallel port (`Out32`, payload-common's
 //!   `port_ffb`).
 //! * `settings.rs`: operator settings (resolution, free play) from profile options.
@@ -77,8 +78,9 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         for (ordinal, f) in xinput {
             unsafe { iat::hook_ordinal(exe, "xinput1_3.dll", ordinal, f) };
         }
-        if std::env::var("WAL_EUROPAR_BOARD").is_ok_and(|b| b.trim() == "mib") {
-            mib::init();
+        let board = std::env::var("WAL_EUROPAR_BOARD").unwrap_or_default();
+        if matches!(board.trim(), "mib" | "mig") {
+            mib::init(board.trim());
         } else if testmenu::is_test_menu() {
             // the GameShell's test menu (loaded by wal-loader)
             happ::init(true);

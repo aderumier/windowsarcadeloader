@@ -20,6 +20,17 @@
 //!   before the game reads it. A player's start sets `CreditsUI.TakingCredit` until the shell
 //!   sends a lower credit count, which free play ignores: the second player could not join. In
 //!   free play each start pressed clears it first ([`free_play_start`]).
+//!
+//! Mission: Impossible (SEGA Amusements, 2020, Unity 2018.4 Mono, 64-bit): `WAL_EUROPAR_BOARD=mig`,
+//! its shell's protocol `"MIG"`. Each player's gun has two triggers, read as joystick keys
+//! (`InputGun1` / `InputGun2`: `Input.GetKey(KeyCode.JoystickButton7)`..., left trigger 7 / 9,
+//! right 8 / 10, starts 5 / 6), its aim as axes `p1x` / `p1y` / `p2x` / `p2y` (`GunAdjust`: y
+//! the screen's x, x its y from the top, -1..1 to 0..4096 then the calibration of
+//! `..\ShellData\ShellData.ini` beside the game folder, unclamped). The keyboard keys are
+//! nothing; free play needs no help, no lamp board on a serial port. The lobby's player photo
+//! (OpenCV 3.3's `VideoCapture(0)`, DirectShow, opened whatever `config.ini`'s `ENABLE_WEBCAM`)
+//! takes the first camera: the Sinden guns' are hidden from it (`webcam::skip_sinden`).
+//! `WAL_EUROPAR_UNLOCK` (on unless 0) unlocks every mission and stage ([`unlock`]).
 
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::Mutex;
@@ -31,23 +42,68 @@ use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 
 type P = *mut c_void;
 
-const SHELL_DATA: &str = "C:/Sega/ShellData/ShellData.ini";
+#[derive(Clone, Copy, PartialEq)]
+enum Board {
+    Mib,
+    Mig,
+}
+
+static BOARD: std::sync::OnceLock<Board> = std::sync::OnceLock::new();
+
+fn board() -> Board {
+    *BOARD.get().unwrap_or(&Board::Mib)
+}
+
+fn shell_data() -> &'static str {
+    match board() {
+        Board::Mib => "C:/Sega/ShellData/ShellData.ini",
+        // the game's folder's parent (the current directory)
+        Board::Mig => "../ShellData/ShellData.ini",
+    }
+}
 
 static UNITY_GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
 static ADD_INTERNAL_CALL: AtomicUsize = AtomicUsize::new(0);
 static FRAME_COUNT: AtomicUsize = AtomicUsize::new(0);
 static JOYSTICK_NAMES: AtomicUsize = AtomicUsize::new(0);
 static FREE_PLAY: AtomicBool = AtomicBool::new(false);
+static UNLOCK: AtomicBool = AtomicBool::new(false);
 
-/// The game's joystick buttons: (name, player, virtual button).
-const BUTTONS: [(&str, usize, u32); 6] = [
-    ("PlayerStart1", 0, button::START),
-    ("PlayerStart2", 1, button::START),
-    ("Player1Trigger1", 0, button::B1),
-    ("Player1Trigger2", 0, button::B1),
-    ("Player2Trigger1", 1, button::B1),
-    ("Player2Trigger2", 1, button::B1),
+/// A joystick button as the game reads it: by its input name (`GetButton`) or key code
+/// (`GetKey`).
+#[derive(Clone, Copy, PartialEq)]
+enum Key {
+    Name(&'static str),
+    Code(i32),
+}
+
+/// `KeyCode.JoystickButton0`
+const JOYSTICK_BUTTON0: i32 = 330;
+
+/// The game's joystick buttons: (key, player, virtual button).
+const MIB_BUTTONS: [(Key, usize, u32); 6] = [
+    (Key::Name("PlayerStart1"), 0, button::START),
+    (Key::Name("PlayerStart2"), 1, button::START),
+    (Key::Name("Player1Trigger1"), 0, button::B1),
+    (Key::Name("Player1Trigger2"), 0, button::B1),
+    (Key::Name("Player2Trigger1"), 1, button::B1),
+    (Key::Name("Player2Trigger2"), 1, button::B1),
 ];
+const MIG_BUTTONS: [(Key, usize, u32); 6] = [
+    (Key::Code(JOYSTICK_BUTTON0 + 5), 0, button::START),
+    (Key::Code(JOYSTICK_BUTTON0 + 6), 1, button::START),
+    (Key::Code(JOYSTICK_BUTTON0 + 7), 0, button::B1),
+    (Key::Code(JOYSTICK_BUTTON0 + 8), 0, button::B2),
+    (Key::Code(JOYSTICK_BUTTON0 + 9), 1, button::B1),
+    (Key::Code(JOYSTICK_BUTTON0 + 10), 1, button::B2),
+];
+
+fn buttons() -> &'static [(Key, usize, u32); 6] {
+    match board() {
+        Board::Mib => &MIB_BUTTONS,
+        Board::Mig => &MIG_BUTTONS,
+    }
+}
 
 /// The text of a managed string (its length after the object header, then UTF-16).
 fn managed_string(s: P) -> String {
@@ -60,38 +116,51 @@ fn managed_string(s: P) -> String {
     String::from_utf16_lossy(&chars)
 }
 
-fn pressed(name: &str) -> bool {
-    BUTTONS.iter().any(|&(n, player, b)| n == name && wal_payload_common::input(player).pressed(b))
+fn pressed(key: Key) -> bool {
+    buttons().iter().any(|&(k, player, b)| k == key && wal_payload_common::input(player).pressed(b))
 }
 
-/// The last gun positions on the screen (f32 bits: player 1 x, y, player 2 x, y), kept while a
-/// gun points off the screen.
-static AIM: [AtomicU32; 4] = [const { AtomicU32::new(0) }; 4];
+/// The last gun positions in the picture (f32 bits: player 1 x, y, player 2 x, y, 0..1 from the
+/// top left), kept while a gun points off the screen; at the centre first.
+static AIM: [AtomicU32; 4] = [const { AtomicU32::new(0x3f00_0000) }; 4];
 
-/// `float Input.GetAxis(string)`, `GetAxisRaw`: the guns, -1..1 (inverted: 1 at the left / top).
+/// `float Input.GetAxis(string)`, `GetAxisRaw`: the guns, -1..1. Men In Black's inverted (1 at
+/// the left / top), Mission: Impossible's `pNy` the x, `pNx` the y (-1 at the left / top).
 unsafe extern "C" fn get_axis(name: P) -> f32 {
     let name = managed_string(name);
-    let Some(axis) = ["X Axis0", "Y Axis0", "X Axis1", "Y Axis1"].iter().position(|&a| a == name) else { return 0.0 };
+    let (names, sign) = match board() {
+        Board::Mib => (["X Axis0", "Y Axis0", "X Axis1", "Y Axis1"], -1.0),
+        Board::Mig => (["p1y", "p1x", "p2y", "p2x"], 1.0),
+    };
+    let Some(axis) = names.iter().position(|&a| a == name) else { return 0.0 };
+    if UNLOCK.load(Ordering::Relaxed) {
+        unlock();
+    }
     let player = axis / 2;
     if let Some((x, y)) = wal_payload_common::gun::gun_of_player_in_picture(player) {
-        AIM[player * 2].store((1.0 - 2.0 * x).to_bits(), Ordering::Relaxed);
-        AIM[player * 2 + 1].store((1.0 - 2.0 * y).to_bits(), Ordering::Relaxed);
+        AIM[player * 2].store(x.to_bits(), Ordering::Relaxed);
+        AIM[player * 2 + 1].store(y.to_bits(), Ordering::Relaxed);
     }
-    f32::from_bits(AIM[axis].load(Ordering::Relaxed))
+    sign * (2.0 * f32::from_bits(AIM[axis].load(Ordering::Relaxed)) - 1.0)
 }
 
 /// `bool Input.GetButton(string)`
 unsafe extern "C" fn get_button(name: P) -> u8 {
-    pressed(&managed_string(name)) as u8
+    pressed(named(name)) as u8
+}
+
+/// The button of a managed name (a key code of none for names not in the table).
+fn named(name: P) -> Key {
+    let name = managed_string(name);
+    buttons().iter().map(|b| b.0).find(|k| matches!(k, Key::Name(n) if *n == name)).unwrap_or(Key::Code(-1))
 }
 
 /// Each button's state at the frames it was read: (frame, previous, current).
-static EDGES: Mutex<[(i32, bool, bool); BUTTONS.len()]> = Mutex::new([(-1, false, false); BUTTONS.len()]);
+static EDGES: Mutex<[(i32, bool, bool); 6]> = Mutex::new([(-1, false, false); 6]);
 
 /// Whether the button went down (`down`) or up since the previous frame.
-fn edge(name: P, down: bool) -> u8 {
-    let name = managed_string(name);
-    let Some(i) = BUTTONS.iter().position(|&(n, ..)| n == name) else { return 0 };
+fn edge(key: Key, down: bool) -> u8 {
+    let Some(i) = buttons().iter().position(|&(k, ..)| k == key) else { return 0 };
     let frame_count = FRAME_COUNT.load(Ordering::Relaxed);
     let frame = if frame_count == 0 { 0 } else { unsafe { std::mem::transmute::<usize, unsafe extern "C" fn() -> i32>(frame_count)() } };
     let mut edges = EDGES.lock().unwrap_or_else(|e| e.into_inner());
@@ -99,10 +168,10 @@ fn edge(name: P, down: bool) -> u8 {
     if *last != frame {
         *last = frame;
         *previous = *current;
-        *current = pressed(&name);
+        *current = pressed(key);
     }
     let went = if down { *current && !*previous } else { !*current && *previous };
-    if went && down && name.starts_with("PlayerStart") && FREE_PLAY.load(Ordering::Relaxed) {
+    if went && down && matches!(key, Key::Name(n) if n.starts_with("PlayerStart")) && FREE_PLAY.load(Ordering::Relaxed) {
         free_play_start();
     }
     went as u8
@@ -130,12 +199,151 @@ fn free_play_start() {
     }
 }
 
+/// The last frame [`unlock`] ran in; `UISelectScreen.MissionsState`'s and `StagesState`'s
+/// addresses.
+static UNLOCKED_FRAME: AtomicUsize = AtomicUsize::new(usize::MAX);
+static MISSIONS_STATE: AtomicUsize = AtomicUsize::new(0);
+static STAGES_STATE: AtomicUsize = AtomicUsize::new(0);
+
+/// Mission: Impossible's missions and stages unlocked, once a frame (the game's main thread: its
+/// guns' axes are read each frame, from the lobby on). `UISelectScreen.MissionsState` and
+/// `StagesState` (0 locked, 1 open, 2 played; copied to the select screen's buttons when it
+/// fades in): mission 3 locked until mission 1 or 2 is cleared (`ConfigManager
+/// .Mission3Unlocked` is never set: its `config.ini` key is read nowhere), the stage select
+/// opens the mission's next stage only. The locked ones are opened: a shot at one plays it
+/// (the stage select's time made 10 s by [`stage_select_time`]).
+fn unlock() {
+    let frame_count = FRAME_COUNT.load(Ordering::Relaxed);
+    let frame = if frame_count == 0 { 0 } else { unsafe { std::mem::transmute::<usize, unsafe extern "C" fn() -> i32>(frame_count)() } } as usize;
+    if UNLOCKED_FRAME.swap(frame, Ordering::Relaxed) == frame {
+        return;
+    }
+    // a trigger pressed at the stage select (the game reads no trigger there: no button under
+    // a gun)
+    static TRIGGERS: [AtomicBool; 2] = [const { AtomicBool::new(false) }; 2];
+    for (player, held) in TRIGGERS.iter().enumerate() {
+        let input = wal_payload_common::input(player);
+        let pressed = input.pressed(button::B1) || input.pressed(button::B2);
+        if pressed && !held.swap(pressed, Ordering::Relaxed) {
+            choose_stage(player);
+        }
+        held.store(pressed, Ordering::Relaxed);
+    }
+    if MISSIONS_STATE.load(Ordering::Relaxed) == 0 || STAGES_STATE.load(Ordering::Relaxed) == 0 {
+        let Some(m) = mono::mono() else { return };
+        let select = m.class(m.image("Assembly-CSharp"), "", "UISelectScreen");
+        MISSIONS_STATE.store(m.static_addr(select, m.field(select, "MissionsState")) as usize, Ordering::Relaxed);
+        STAGES_STATE.store(m.static_addr(select, m.field(select, "StagesState")) as usize, Ordering::Relaxed);
+    }
+    for states in [&MISSIONS_STATE, &STAGES_STATE] {
+        let states = states.load(Ordering::Relaxed) as *const u8;
+        let array = if states.is_null() { 0 } else { unsafe { mono::read::<usize>(states, 0) } } as *mut u8;
+        if array.is_null() {
+            continue;
+        }
+        let len = unsafe { mono::read::<usize>(array, 3 * size_of::<usize>()) };
+        for i in 0..len.min(8) {
+            if unsafe { mono::read::<i32>(array, mono::ARRAY_DATA + 4 * i) } == 0 {
+                unsafe { mono::write::<i32>(array, mono::ARRAY_DATA + 4 * i, 1) };
+            }
+        }
+
+    }
+}
+
+/// A trigger pressed at the stage select (shown for 1 s at least): the stage under the player's
+/// gun, from its x (the left, middle or right third). The game's buttons never take the shot:
+/// the mission select's, behind them at the same places, take its raycast
+/// (`UISelectButton.CheckEntry2D`: the name of the button hit compared). That stage made
+/// `GameManager.SelectedStage` (the stage played when the time ends, and the one whose click
+/// animation `UISelectScreen` waits for) and clicked (`UIStageSelectInteract.PlayerClickN`:
+/// its animation, `UISelectScreen.StageClicked`; ignored before the screen's fade-in ends).
+fn choose_stage(player: usize) {
+    let entered = crate::shell_mib::STAGE_SELECT.load(Ordering::Relaxed);
+    if entered == 0 || crate::shell_mib::now_ms() < entered + 1000 {
+        return;
+    }
+    let x = wal_payload_common::gun::gun_of_player_in_picture(player).map_or(f32::from_bits(AIM[player * 2].load(Ordering::Relaxed)), |(x, _)| x);
+    let stage = ((x * 3.0) as i32).clamp(0, 2);
+    let Some(m) = mono::mono() else { return };
+    let image = m.image("Assembly-CSharp");
+    let game = m.class(image, "", "GameManager");
+    let instance = m.static_addr(game, m.field(game, "<Instance>k__BackingField"));
+    let game_object = if instance.is_null() { 0 } else { unsafe { mono::read::<usize>(instance, 0) } } as P;
+    if game_object.is_null() {
+        log!("mib: no GameManager: stage {} not chosen", stage + 1);
+        return;
+    }
+    let mut value = stage;
+    m.invoke(m.method(game, "set_SelectedStage", 1), game_object, &mut [(&raw mut value).cast()]);
+    let interact = m.class(image, "", "UIStageSelectInteract");
+    let unity = m.image("UnityEngine.CoreModule");
+    let find = m.method(m.class(unity, "UnityEngine", "Object"), "FindObjectOfType", 1);
+    let select = m.invoke(find, std::ptr::null_mut(), &mut [m.type_object(interact)]).unwrap_or(std::ptr::null_mut());
+    if !select.is_null() {
+        m.invoke(m.method(interact, &format!("PlayerClick{}", stage + 1), 0), select, &mut []);
+    }
+    log!("mib: player {} chose stage {}", player + 1, stage + 1);
+}
+
+/// The stage select's time, 1.2 s (`NONE_SELECT_TIME`: it shows the next stage, then plays it),
+/// made 10 s, the mission select's (`FULL_SELECT_TIME`), to shoot another stage: the second
+/// `ldc.r4 1.2` of `UISelectScreen.Update` (its stage fade-in; the first is the mission
+/// select's without a choice), patched in its IL before the game first compiles it.
+fn stage_select_time() {
+    let start = std::time::Instant::now();
+    let (m, image) = loop {
+        // Mono's loader only once its root domain exists, from a thread of Mono's
+        if let Some(m) = mono::mono()
+            && !m.domain().is_null()
+            && m.attach()
+        {
+            let image = m.image("Assembly-CSharp");
+            if !image.is_null() {
+                break (m, image);
+            }
+        }
+        if start.elapsed() > std::time::Duration::from_secs(60) {
+            log!("mib: Assembly-CSharp not loaded: the stage select's time unchanged");
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    };
+    let Some(il) = m.il_code(m.method(m.class(image, "", "UISelectScreen"), "Update", 0)) else {
+        log!("mib: UISelectScreen.Update not found");
+        return;
+    };
+    const SHORT: [u8; 5] = [0x22, 0x9a, 0x99, 0x99, 0x3f];
+    let at: Vec<usize> = (0..il.len().saturating_sub(4)).filter(|&i| il[i..i + 5] == SHORT).collect();
+    match at[..] {
+        [_, stage] => {
+            il[stage + 1..stage + 5].copy_from_slice(&10f32.to_le_bytes());
+            log!("mib: the stage select's time 10 s");
+        }
+        _ => log!("mib: UISelectScreen.Update: {} times of 1.2 s, unchanged", at.len()),
+    }
+}
+
 unsafe extern "C" fn get_button_down(name: P) -> u8 {
-    edge(name, true)
+    edge(named(name), true)
 }
 
 unsafe extern "C" fn get_button_up(name: P) -> u8 {
-    edge(name, false)
+    edge(named(name), false)
+}
+
+/// `bool Input.GetKeyInt(KeyCode)`, `GetKeyDownInt`, `GetKeyUpInt` (Mission: Impossible): the
+/// joystick keys of the table, no keyboard key.
+unsafe extern "C" fn get_key(code: i32) -> u8 {
+    pressed(Key::Code(code)) as u8
+}
+
+unsafe extern "C" fn get_key_down(code: i32) -> u8 {
+    edge(Key::Code(code), true)
+}
+
+unsafe extern "C" fn get_key_up(code: i32) -> u8 {
+    edge(Key::Code(code), false)
 }
 
 /// The keyboard's keys and the mouse's buttons (`GetKey*`, `GetMouseButton*`): none pressed.
@@ -163,11 +371,19 @@ unsafe extern "C" fn get_joystick_names() -> P {
 unsafe extern "C" fn add_internal_call(name: *const c_char, method: P) {
     let orig: unsafe extern "C" fn(*const c_char, P) = unsafe { std::mem::transmute(ADD_INTERNAL_CALL.load(Ordering::Relaxed)) };
     let call = if name.is_null() { &[][..] } else { unsafe { CStr::from_ptr(name) }.to_bytes() };
+    // Mono is up (its loader used before crashes): the stage select's IL patched once loaded
+    static STARTED: AtomicBool = AtomicBool::new(false);
+    if UNLOCK.load(Ordering::Relaxed) && !STARTED.swap(true, Ordering::Relaxed) {
+        std::thread::spawn(stage_select_time);
+    }
     let ours: Option<usize> = match call.strip_prefix(b"UnityEngine.Input::") {
         Some(b"GetAxis" | b"GetAxisRaw") => Some(get_axis as *const () as usize),
         Some(b"GetButton") => Some(get_button as *const () as usize),
         Some(b"GetButtonDown") => Some(get_button_down as *const () as usize),
         Some(b"GetButtonUp") => Some(get_button_up as *const () as usize),
+        Some(b"GetKeyInt") if board() == Board::Mig => Some(get_key as *const () as usize),
+        Some(b"GetKeyDownInt") if board() == Board::Mig => Some(get_key_down as *const () as usize),
+        Some(b"GetKeyUpInt") if board() == Board::Mig => Some(get_key_up as *const () as usize),
         Some(
             b"GetKeyInt" | b"GetKeyString" | b"GetKeyDownInt" | b"GetKeyDownString" | b"GetKeyUpInt" | b"GetKeyUpString"
             | b"GetMouseButton" | b"GetMouseButtonDown" | b"GetMouseButtonUp",
@@ -230,8 +446,9 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
 
 /// `[Credit] Freeplay` of the shell's settings, set to `on`.
 fn write_free_play(on: bool) {
-    let Ok(text) = std::fs::read_to_string(SHELL_DATA) else {
-        log!("mib: {SHELL_DATA} missing");
+    let shell_data = shell_data();
+    let Ok(text) = std::fs::read_to_string(shell_data) else {
+        log!("mib: {shell_data} missing");
         return;
     };
     let mut section = String::new();
@@ -248,21 +465,31 @@ fn write_free_play(on: bool) {
         })
         .collect();
     let new = lines.join("\r\n") + "\r\n";
-    if new != text && let Err(e) = std::fs::write(SHELL_DATA, new) {
-        log!("mib: writing {SHELL_DATA}: {e}");
+    if new != text && let Err(e) = std::fs::write(shell_data, new) {
+        log!("mib: writing {shell_data}: {e}");
     }
 }
 
-pub(crate) fn init() {
+/// `board`: `mib` or `mig`.
+pub(crate) fn init(board: &str) {
+    let board = if board == "mig" { Board::Mig } else { Board::Mib };
+    let _ = BOARD.set(board);
     let free_play = wal_payload_common::free_play("WAL_EUROPAR_FREEPLAY").unwrap_or(false);
     write_free_play(free_play);
-    FREE_PLAY.store(free_play, Ordering::Relaxed);
-    crate::shell_mib::init(free_play);
-    mono_imports::hook(resolve);
+    // Mission: Impossible's free play needs no help
+    FREE_PLAY.store(free_play && board == Board::Mib, Ordering::Relaxed);
+    let unlock = board == Board::Mig && std::env::var("WAL_EUROPAR_UNLOCK").map_or(true, |v| v.trim() != "0");
+    UNLOCK.store(unlock, Ordering::Relaxed);
+
+    crate::shell_mib::init(if board == Board::Mig { &crate::shell_mib::MIG } else { &crate::shell_mib::MIB }, free_play);
+    match board {
+        Board::Mib => mono_imports::hook(resolve),
+        Board::Mig => wal_payload_common::webcam::skip_sinden(),
+    }
     let unity = unsafe { GetModuleHandleW(windows_sys::w!("UnityPlayer.dll")) } as usize;
     match unsafe { iat::hook_module(unity, "kernel32.dll", "GetProcAddress", unity_get_proc_address as *const () as usize) } {
         Some(o) => UNITY_GET_PROC_ADDRESS.store(o, Ordering::Relaxed),
         None => log!("mib: UnityPlayer does not import GetProcAddress: no gun input"),
     }
-    log!("mib: shell, guns, free play {free_play}");
+    log!("mib: shell, guns, free play {free_play}, unlock {unlock}");
 }

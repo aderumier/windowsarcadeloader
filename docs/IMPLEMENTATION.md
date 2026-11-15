@@ -2507,6 +2507,49 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
   - *Lamps.* `RS232` opens the first port of `SerialPort.GetPortNames` at 19200 baud (lamp
     bytes): Mono's `RegOpenKeyExW` of `HARDWARE\DEVICEMAP\SERIALCOMM` fails (no port listed:
     Batocera's serial ports and Sinden guns untouched).
+- **Mission: Impossible Arcade (2020).** `Sega/MissionImpossible/MissionImpossible.exe`, Unity
+  2018.4 Mono, 64-bit, two players, each gun with two triggers: the same payload as Men In Black
+  (`WAL_EUROPAR_BOARD=mig`, `mib.rs`, `shell_mib.rs`'s `MIG` protocol).
+  - *Shell.* `ShellManager` connects to 127.0.0.1:18888 and quits without it: header `"MIG"`,
+    the operation, the length, the sequence number always 0, nothing acknowledged. Game ->
+    shell: 1 launched, 2 assets loaded, 3 attract, 6 start pressed (the player; a continue too),
+    27 security challenge (every 10 s, `AuthenticatedData`: Men In Black's scramble and key);
+    shell -> game: 65 credits (count, part credit, part credits per credit: 0 keeps the game's),
+    66 the answer, 68 quit. The game takes its credits itself (`CreditManager.Spend`) and a
+    count sent replaces its own: the payload sends it from attract on (`CreditManager` does not
+    exist yet at launch), counts the coins and takes one per start, none in free play.
+  - *Settings.* `..\ShellData\ShellData.ini` from the current directory (the game folder),
+    `GameSettings.ini` beside it: the profile's copy of the first (`files`), the calibration
+    0-4096 on both guns; `[Credit] Freeplay` written by the payload.
+  - *Guns.* `InputGun1` / `InputGun2` (chosen while the shell is connected) read
+    `Input.GetKey(KeyCode.JoystickButtonN)`: starts 5 / 6, left triggers 7 / 9, right triggers 8
+    / 10 (B1 / B2; either shoots, both together a faster burst, some minigames alternate them);
+    `GunAdjust` reads axes `p1y` / `p2y` as the screen's x and `p1x` / `p2x` as its y from the
+    top (-1..1 to 0..4096, then the calibration, unclamped). The wrapper's `GetKeyInt` /
+    `GetKeyDownInt` / `GetKeyUpInt` answer those key codes (no keyboard key), `GetAxis` the
+    guns (`2 * x - 1`, kept while off screen). The game draws its own crosshairs.
+  - *Camera.* The lobby's player photo is OpenCV's `VideoCapture(0)` through DirectShow: the
+    first video device, opened and set to 720x540 whatever `config.ini`'s `ENABLE_WEBCAM`
+    (`WebCamera.ConnectWebCam`; the flag only hides the picture). On Batocera that device is
+    a Sinden gun's camera, held by its driver: the Sinden cameras are hidden from its DirectShow
+    device list (payload-common `webcam::skip_sinden`, OpenCvSharpExtern's `CoCreateInstance`;
+    OpenCV 3.3.1 built without Media Foundation). Another webcam takes the photo; without one
+    the game shows the characters' pictures.
+  - *Missions and stages (`WAL_EUROPAR_UNLOCK`, on by default, a GUI option).* Missions 1 and
+    2 are open, mission 3 after one is cleared (`ConfigManager.Mission3Unlocked` is never set:
+    `GetConfigValue` returns its default, `config.ini` is read nowhere); a mission's stages are
+    played in order: the stage select shows the next one for 1.2 s and plays it. Once a frame
+    (the guns' axes) the payload opens the locked entries of `UISelectScreen.MissionsState`
+    and `StagesState` (0 locked, 1 open, 2 played), copied to the buttons when a select screen
+    fades in. The stage select's time is 10 s (the second `ldc.r4 1.2` of
+    `UISelectScreen.Update`, patched in its IL by a thread started at the first
+    `mono_add_internal_call`: Mono used earlier crashes). The stage buttons never take a shot
+    (the mission buttons, still behind them at the same places, take the 2D raycast of
+    `UISelectButton.CheckEntry2D`): between the shell's 33 (stage select entered, plus 1 s)
+    and 34 (chosen) a trigger pressed chooses the stage of its gun's third of the screen
+    (left, middle, right): `GameManager.SelectedStage` set (the stage played at the time's end,
+    and the click animation `UISelectScreen` waits for), `UIStageSelectInteract.PlayerClickN`
+    called (`Object.FindObjectOfType`).
 
 ### 6.3h Konami e-Amusement PC (`crates/payload-konami`)
 
@@ -8237,6 +8280,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | `Daytona/Daytona.exe` (the dump's original `bkp.exe`), wal-loader: fake DirectInput "SEGA IO Controller" (wheel, gas, brake, start, shift up/down, H gears, views), the Sega Shell over TCP 18888 (credits, free play, security answers), InpWrapper force feedback, Wine's qcap disabled (heap corruption), a borderless window of the screen's size |
 | `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | `Sega/Daytona/Daytona.exe`, as the first edition; the shell's cabinet SKU (else NETWORK DISCOVERY) |
 | `men-in-black` | Men In Black | europar | works (headless test: attract, coins and free play, both players, guns aimed and shooting; user played on the desktop) | `MIB.exe` (Unity 2020 Mono, 64-bit), wal-loader64: Unity's input functions answered with the guns, the shell over TCP 18888 (credits, free play, security answers), `ShellData` settings from the profile, no lamp board |
+| `mission-impossible-arcade` | Mission: Impossible Arcade | europar | works (headless test: attract, coins and free play, both players, guns aimed, both triggers shooting in a mission, mission 3 and a later stage chosen) | `Sega/MissionImpossible/MissionImpossible.exe` (Unity 2018.4 Mono, 64-bit), wal-loader64: Unity's joystick keys and axes answered with the guns (two triggers each), the shell over TCP 18888 ("MIG": credits, free play, security answers), `ShellData.ini` from the profile, every mission and stage selectable (option), Sinden cameras hidden from the lobby photo |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | `bin/byy.exe ..\ ..\` (§6.3h), `libacio.dll` replaced: HBHI board (switches, coins, two positional guns scaled onto the default calibration, security plugs), ICCA card reader, cabinet IP setup answered, e-Amusement offline (local mode), picture at the screen resolution in a borderless window |
 | `gashaaaan` | Gashaaaan | konami | works (headless test) | `bin/ballshooting.exe` (§6.3h), `iob.dll` replaced: I/O board (buttons, coins, ball supply, plugs), ballio's camera board answered (ball hits from the guns), the two overlapping screens shown as one picture, E:/F: save drives, OpenGL crosshairs |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) | `IG2/exec_root/gasya.exe` (§6.3h), `libbms.dll` replaced: BM-System (credits, e-Amusement offline), ig2ACLib's boards without hardware and its inputs answered (buttons, coins, ball hits from the guns), two screens in one window, E:/F: save drives, crosshairs |
