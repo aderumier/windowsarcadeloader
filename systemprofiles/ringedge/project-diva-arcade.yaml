@@ -41,7 +41,10 @@ env:
   # - 0x7fd330: no extended data to hand the satellites (mov al,0): the main cabinet sent its
   #   Y:\SBTY.extend (absent) to its local file server (ERROR 8301, game LAN) or, as the game
   #   delivery master, stopped with ERROR 0913 (game program not found on storage device)
-  WAL_PATCHES: "0x464610:B001C3,0x3fd330:B000C3"
+  # - 0x4e41a0: no closing time set (mov al,0): open all day, whatever the test menu's CLOSE
+  #   SETTING (its backup's closing hour, 0x1f all time; a fresh backup closes at night: the
+  #   attract's "プレイ受付:受付終了", start refused)
+  WAL_PATCHES: "0x464610:B001C3,0x3fd330:B000C3,0xe41a0:B000C3"
   WAL_PATCHES_EXE: diva.exe
   # free play (the common option): its free play check (0x7fce90, the test menu's setting)
   # answers yes: FREE PLAY shown, games started without coins
