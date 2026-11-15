@@ -128,6 +128,13 @@ env:
   # from 332-3641, i.e. X mirrored on the panel, Y from the bottom (the screen points of the
   # panel's report at the screen's top left and bottom right)
   WAL_RINGEDGE_TOUCH_CALIBRATION: "942.25,48.8,73,533.5"
+  # the touch pointer: a small red dot where the left stick points (drawn over the picture by
+  # the OpenGL fix-up), hidden after 5 s without moving (the stick also moves the mech in battle)
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "2"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "5"
   # COM2 is the cabinet's IC card reader/writer, checked at boot ("CHECKING IC CARD R/W", error
   # 23 without an answer): emulated without a card
   WAL_RINGEDGE_IC_CARD: COM2
@@ -173,3 +180,15 @@ options:
         kind: bool
         description: >-
           Games start without coins. Off: the coins and credits of the system test menu.
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the left stick points (the touch position).
+      - key: WAL_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: number
+        min: 1
+        max: 6
+        description: >-
+          The dot's size, in percent of the screen height.
