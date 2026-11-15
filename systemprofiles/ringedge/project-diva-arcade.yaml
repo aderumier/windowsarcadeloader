@@ -67,7 +67,7 @@ env:
   # the TN32MSEC003S reader is segatools' generation 1 (hardware/firmware Ver1.2, the dump's
   # rom/nfc_rw/TN32MSEC003S_V12.hex)
   WAL_AIME_READER: tn32
-  # after start, the card touched by itself when the game asks for it
+  # after start or a touch, the card touched by itself when the game asks for it
   WAL_RINGEDGE_AUTO_CARD: "1"
   # the lamp control board (lamp.rs): a USB serial board, the first port not on the main board
   # the game finds (else LAMP CTRL BD NG at startup): COM1 (touch) and COM2 (Aime) on the main
@@ -103,7 +103,7 @@ options:
         label: Touch the card automatically
         kind: bool
         description: >-
-          After start, the Aime card is touched by itself when the game asks for it (the
+          After start or a touch, the Aime card is touched by itself when the game asks for it (the
           player's name, scores and progress kept on the card). Off: touch it with the card
           button.
 

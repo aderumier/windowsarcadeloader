@@ -8,7 +8,7 @@
 //! - The Aime NFC reader (TN32MSEC003S, `aimelib` 3.03) on `WAL_RINGEDGE_DIVA_AIME` (default
 //!   `COM2`): `wal_payload_common::sgreader`, generation 1 (`WAL_AIME_READER=tn32`, set in the
 //!   profile). Player 1's `card` input touches it with the player's card; `WAL_RINGEDGE_AUTO_CARD
-//!   =1`: the card is on the reader whenever the game polls it (until read).
+//!   =1`: after start or a touch, the card is on the reader when the game polls it (until read).
 //! - The 4 hit buttons (triangle, square, cross, circle), start, test and service on the JVS
 //!   board (`jvs_board`, the base payload), no custom wiring.
 
@@ -32,7 +32,8 @@ fn aime(port: &str) {
     let code = access_code();
     log!("diva: Aime reader on {port}, card {code}");
     if std::env::var("WAL_RINGEDGE_AUTO_CARD").is_ok_and(|v| v.trim() == "1") {
-        sgreader::card_on_poll_after_press(&code, Duration::from_millis(0), |p1| p1.pressed(button::START));
+        // after start, or a touch (a game started on the touch screen)
+        sgreader::card_on_poll_after_press(&code, Duration::from_millis(0), |p1| p1.pressed(button::START) || p1.pressed(button::B8));
     }
     std::thread::spawn(move || {
         let mut held = false;
