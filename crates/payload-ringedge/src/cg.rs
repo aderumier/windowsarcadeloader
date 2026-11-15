@@ -170,6 +170,18 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
             ORIG_DISABLE_ATTRIB.store(f, Ordering::Relaxed);
             disable_attrib as *const () as usize
         }
+        // ... and their constant values (an object's index with its array disabled)
+        n if n.starts_with(b"glVertexAttribI") && !n.ends_with(b"PointerEXT") && !n.ends_with(b"Pointer") && std::env::var("WAL_RINGEDGE_GL_INT_ATTRIBS").is_ok_and(|v| v.trim() == "1") => {
+            int_attrib_value(n, &orig).unwrap_or(f)
+        }
+        b"glVertexAttribIPointerEXT" | b"glVertexAttribIPointer" if std::env::var("WAL_RINGEDGE_GL_INT_ATTRIBS").is_ok_and(|v| v.trim() == "1") => {
+            let float = unsafe { orig(c"glVertexAttribPointerARB".as_ptr()) };
+            if float == 0 {
+                return f;
+            }
+            ORIG_FLOAT_POINTER.store(float, Ordering::Relaxed);
+            int_attrib_pointer as *const () as usize
+        }
         b"glProgramEnvParameters4fvEXT" if FIX.load(Ordering::Relaxed) => {
             ORIG_ENVS.store(f, Ordering::Relaxed);
             let local = unsafe { orig(c"glProgramLocalParameters4fvEXT".as_ptr()) };
@@ -181,6 +193,71 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
 }
 
 static ORIG_MULTISAMPLE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_FLOAT_POINTER: AtomicUsize = AtomicUsize::new(0);
+
+static ORIG_ATTRIB_4F: AtomicUsize = AtomicUsize::new(0);
+
+/// `glVertexAttribI{1,4}{i,ui}{,v}[EXT]` as `glVertexAttrib4fARB`.
+fn int_attrib_value(name: &[u8], orig: &unsafe extern "system" fn(*const c_char) -> usize) -> Option<usize> {
+    let rest = name.strip_prefix(b"glVertexAttribI")?;
+    let rest = rest.strip_suffix(b"EXT").unwrap_or(rest);
+    let hook: usize = match rest {
+        b"1i" => attrib_i1i as *const () as usize,
+        b"1ui" => attrib_i1ui as *const () as usize,
+        b"4i" => attrib_i4i as *const () as usize,
+        b"4ui" => attrib_i4ui as *const () as usize,
+        b"1iv" => attrib_i1iv as *const () as usize,
+        b"1uiv" => attrib_i1uiv as *const () as usize,
+        b"4iv" => attrib_i4iv as *const () as usize,
+        b"4uiv" => attrib_i4uiv as *const () as usize,
+        _ => return None,
+    };
+    let f = unsafe { orig(c"glVertexAttrib4fARB".as_ptr()) };
+    if f == 0 {
+        return None;
+    }
+    ORIG_ATTRIB_4F.store(f, Ordering::Relaxed);
+    Some(hook)
+}
+
+fn attrib_4f(index: u32, v: [f32; 4]) {
+    let f: unsafe extern "system" fn(u32, f32, f32, f32, f32) = unsafe { std::mem::transmute(ORIG_ATTRIB_4F.load(Ordering::Relaxed)) };
+    unsafe { f(index, v[0], v[1], v[2], v[3]) }
+}
+
+unsafe extern "system" fn attrib_i1i(index: u32, x: i32) {
+    attrib_4f(index, [x as f32, 0.0, 0.0, 1.0]);
+}
+unsafe extern "system" fn attrib_i1ui(index: u32, x: u32) {
+    attrib_4f(index, [x as f32, 0.0, 0.0, 1.0]);
+}
+unsafe extern "system" fn attrib_i4i(index: u32, x: i32, y: i32, z: i32, w: i32) {
+    attrib_4f(index, [x as f32, y as f32, z as f32, w as f32]);
+}
+unsafe extern "system" fn attrib_i4ui(index: u32, x: u32, y: u32, z: u32, w: u32) {
+    attrib_4f(index, [x as f32, y as f32, z as f32, w as f32]);
+}
+unsafe extern "system" fn attrib_i1iv(index: u32, v: *const i32) {
+    attrib_4f(index, [unsafe { *v } as f32, 0.0, 0.0, 1.0]);
+}
+unsafe extern "system" fn attrib_i1uiv(index: u32, v: *const u32) {
+    attrib_4f(index, [unsafe { *v } as f32, 0.0, 0.0, 1.0]);
+}
+unsafe extern "system" fn attrib_i4iv(index: u32, v: *const i32) {
+    let v = unsafe { std::slice::from_raw_parts(v, 4) };
+    attrib_4f(index, [v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32]);
+}
+unsafe extern "system" fn attrib_i4uiv(index: u32, v: *const u32) {
+    let v = unsafe { std::slice::from_raw_parts(v, 4) };
+    attrib_4f(index, [v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32]);
+}
+
+/// `glVertexAttribIPointer` as `glVertexAttribPointer`, not normalized.
+unsafe extern "system" fn int_attrib_pointer(index: u32, size: i32, kind: u32, stride: i32, pointer: *const c_void) {
+    let f: unsafe extern "system" fn(u32, i32, u32, u8, i32, *const c_void) = unsafe { std::mem::transmute(ORIG_FLOAT_POINTER.load(Ordering::Relaxed)) };
+    unsafe { f(index, size, kind, 0, stride, pointer) }
+}
+
 static ORIG_ENV_4F: AtomicUsize = AtomicUsize::new(0);
 static ORIG_LOCAL_4F: AtomicUsize = AtomicUsize::new(0);
 

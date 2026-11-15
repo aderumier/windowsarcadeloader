@@ -79,6 +79,9 @@ env:
   # game renders without translation (CG_FIX auto still handles the ~19 post-process programs
   # that carry OPTION NV_fragment_program2).
   WAL_RINGEDGE_CG_FIX: auto
+  # its objects' matrix index (vertex attribute 7) is an integer array its ARB programs read as
+  # floats: given as a float array (else every object drawn with the first matrix)
+  WAL_RINGEDGE_GL_INT_ATTRIBS: "1"
   # Network link up: amNetwork's query_nic_status answers status=1 with the addresses in the one
   # reply, so amLib's net-status bit 1 (link up) is set and the boot's DHCP step (FUN_004f6310)
   # passes instead of spinning on query_dhcp_status (the "DHCP WAIT" shared with Project DIVA).
