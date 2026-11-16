@@ -7849,6 +7849,44 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     the faulting code bytes logged), `WAL_PACKED_IMPORTS` (existing: hooks as hot patches).
   - CHUNITHM SUPERSTAR PLUS (SDGS 1.05.00): the same protected `chuniApp.exe`; its dump has no
     `App\amdaemon` folder.
+- CHUNITHM NEW!! (SDHD 2.00.01 dump, ALLS `ACA1`; `chunithm-new`, `WAL_ALLS_BOARD=chusan`,
+  `systemprofiles/alls/chunithm-new.yaml`): SUPERSTAR's board with amdaemon beside the game in
+  `App\bin` (game.bat's store server CVT command line: `config_common.json config_server.json
+  config_cvt.json`, the profile's `config_wal.json` last). The dump's `chusanApp.exe` and
+  `amdaemon.exe` are packed with SUPERSTAR's protector: SEGAguide's unpacked 2.02.00 set
+  (`SDHD/202.zip`: both programs, its ICF1 / ICF2 in `amfs`) is laid over them, the packed files
+  kept as `.orig`; the 2.02 programs run the dump's 2.00 data and its options A111-A151 (data
+  2.00.01-2.00.08). The AMFS folder is `amfs` (lower case: drive `e: amfs`).
+  - DIP switches 07 (store server, 120 Hz port settings, CVT): their first amdaemon start writes
+    `E:\sysfile.dat` without them (no Aime unit: the game's assert `Aime::getUnit` `unitIndex` out
+    of range); from the second start on, `config_cvt.json`'s 837-15286 reader on COM4.
+  - ALL.Net: this amdaemon authenticates with Auth V2 (`allnet_auth` type `2.0`: HTTPS to
+    `at.auth.sys-all.net` / `op.auth.sys-all.net` on the router's 443, a challenge with the A7
+    keychip's own AES keys: not emulable), the game then error 8114 (ALL.Net, RTC):
+    `config_wal.json` sets type `1.0` (the PowerOn to `naominet.jp`, as O.N.G.E.K.I.). Its LAN
+    install left on (a store server cabinet is the delivery server: with it off, the power-on
+    stays on 配信サーバーを探しています). `clock.rs` also grants the time zone privilege through
+    `LookupPrivilegeValueW` (this amdaemon's import).
+  - Title server (`chuni/server.rs`): SEGAguide's 2.02 program has its encryption off already
+    (its "No encryption" bytes at file +0x1CD1060 / +0x1CD1064 are 0), so plain zlib JSON to
+    `/SDHD/200/ChuniServlet/`. ARTEMiS's `new.py` ported: the game setting's matching fields
+    (`romVersion`, match times and limits, `matchingUri` / `matchingUriX` / `udpHolePunchUri` /
+    `reflectorUri`: the power-on's cabinet information upload crashed without them), the user
+    preview's NEW fields, map areas, symbol chat, net battle data, favorites, rivals (other saved
+    players), team courses, tokens, matching rooms (in memory, one cabinet), Card Maker (no
+    gachas: their data is Card Maker's; cards, prints); UpsertUserAll keeps the new lists (map
+    areas, login bonuses, missions, unlock challenges, linked verses, over power, e-money,
+    gachas, the net battle data, the favorite songs, the last 50 plays).
+  - The cabinet group: a fresh backup's settings default to group A (its role a member), whose
+    power-on waits forever on 設定同期中 Aグループ基準機から設定を取得します. The settings record
+    (amdaemon's `Y:\SDHD\appfile.dat`: its CRC-32 over the 0x5FC bytes after it, `DHDS`, the
+    settings, the group at +0x80, then role, continue, music select time, advertise volume; the
+    same record again 0x3FE000 later) is made group-less where amdaemon reads or writes it
+    (`daemon::set_backup_filter`, `chuni::lone_cabinet`), and in the game until it saves them:
+    its defaults are globals of the program (`.data`, the body starting with 32 volumes at 20
+    and 7), searched every 20 ms for the boot's first 15 minutes (`lone_cabinet_in_game`). The
+    backup's shared memory view (amdaemon's 4 MB `MapViewOfFile`: the record as CRC-32 over 0x460
+    bytes) is not what the game reads the group from.
 - O.N.G.E.K.I. (SDDT 1.00, ALLS `ACA1`; `ongeki`, `WAL_ALLS_BOARD=ongeki`): Unity 5.6 (Mono,
   64-bit `mu3.exe`, portrait 1080x1920) beside amdaemon (both in `package\`, game.bat's
   `amdaemon.exe -f -c config_common.json config_server.json config_client.json`, the profile's
@@ -8491,6 +8529,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `crossbeats-rev-sunrise` | crossbeats REV. SUNRiSE | alls | user (2026-11-12): "the game seem to work perfectly" (mouse touch, red dot, Aime login with PIN, profile load); headless tests: boot, ALL.Net, game server tables, coins, touch, card sign-up | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=cxb`): CommIo / CommLamp exports, WM_TOUCH, TN32 Aime reader COM12, options after 0060, billing type 0, ARTEMiS game server (WinHTTP body order fix) |
 | `wonderland-wars` | Wonderland Wars | alls | user (2026-11-13, desktop): boots, touchpad pen OK, guest play; headless: power-on and network tests, shader cache | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=wlw`): 3M touch COM1, 837-15312 pen board COM12, amVideo ordinals, Cg shader cache, server checks shortened; offline (no game server): guest only |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
+| `chunithm-new` | CHUNITHM NEW!! | alls | headless tests (2026-11-16): power-on from a fresh backup, attract, free play, Aime card login, new player, tutorial with the slider; with SEGAguide's unpacked 2.02 executables (the dump's are protected) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): ALL.Net auth 1.0 (Auth V2 not emulable), ARTEMiS NEW title server (matching, Card Maker), cabinet group off in the backup and the game's defaults |
 | `ongeki` | O.N.G.E.K.I. | alls | headless tests (2026-11-15): power-on test, attract, new Aime player (registration, name entry, news, story chapter 0) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=ongeki`): IO4 buttons and lever, LED 15093-06 COM3 and VFD COM2 (Mono DllImports), backup factory settings fixed (group OFF, lever range), ARTEMiS title server in amdaemon (`{allnet}` URI), Mono clock, mu3.ini IgnoreError (no QR cameras) |
 | `ongeki-plus` | O.N.G.E.K.I. PLUS | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (55-60 FPS) | `ongeki`'s (§6.3l), version 1.05: its newer amdaemon's Sleep(0) patch, title URI /SDDT/105/ |
 | `ongeki-summer` | O.N.G.E.K.I. SUMMER | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (57-60 FPS) | `ongeki`'s (§6.3l), version 1.10: the same amdaemon patch as PLUS, title URI /SDDT/110/ |

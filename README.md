@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (381)
+## Games (382)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -270,6 +270,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `crossbeats-rev-sunrise` | crossbeats REV. SUNRiSE | alls | user (2026-11-12): "the game seem to work perfectly" (mouse touch, red dot, Aime login with PIN, profile load); headless tests: boot, ALL.Net, game server tables, coins, touch, card sign-up | not in the test |  |
 | `wonderland-wars` | Wonderland Wars | alls | user (2026-11-13, desktop): boots, touchpad pen OK, guest play; headless: power-on and network tests, shader cache | not in the test |  |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | not in the test |  |
+| `chunithm-new` | CHUNITHM NEW!! | alls | headless tests (2026-11-16): power-on from a fresh backup, attract, free play, Aime card login, new player, tutorial with the slider; with SEGAguide's unpacked 2.02 executables (the dump's are protected) | not in the test |  |
 | `ongeki` | O.N.G.E.K.I. | alls | headless tests (2026-11-15): power-on test, attract, new Aime player (registration, name entry, news, story chapter 0) | not in the test |  |
 | `ongeki-plus` | O.N.G.E.K.I. PLUS | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (55-60 FPS) | not in the test |  |
 | `ongeki-summer` | O.N.G.E.K.I. SUMMER | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (57-60 FPS) | not in the test |  |

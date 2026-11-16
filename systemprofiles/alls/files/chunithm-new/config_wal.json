@@ -1,0 +1,22 @@
+{
+	"video" :
+	{
+		"enable" : false
+	},
+	"network" :
+	{
+		"property" :
+		{
+			"save" : true,
+			"dhcp" : true
+		}
+	},
+	"emoney" :
+	{
+		"enable" : false
+	},
+	"allnet_auth" :
+	{
+		"type" : "1.0"
+	}
+}

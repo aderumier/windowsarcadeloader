@@ -34,6 +34,21 @@ static GET_OVERLAPPED_RESULT: AtomicUsize = AtomicUsize::new(0);
 static CANCEL_IO: AtomicUsize = AtomicUsize::new(0);
 static CANCEL_IO_EX: AtomicUsize = AtomicUsize::new(0);
 
+/// A filter of the game's backup as amdaemon reads and writes it (`Y:\\<game>\\appfile.dat`),
+/// the board's (CHUNITHM NEW!!: `chuni::lone_cabinet`), and the backup's open handles.
+pub(crate) type BackupFilter = fn(&mut [u8]);
+static BACKUP_FILTER: Mutex<Option<BackupFilter>> = Mutex::new(None);
+static BACKUP_HANDLES: Mutex<Vec<usize>> = Mutex::new(Vec::new());
+
+pub(crate) fn set_backup_filter(filter: BackupFilter) {
+    *BACKUP_FILTER.lock().unwrap() = Some(filter);
+}
+
+/// The filter, for a handle to the backup.
+fn backup_filter(h: usize) -> Option<BackupFilter> {
+    (*BACKUP_FILTER.lock().unwrap()).filter(|_| BACKUP_HANDLES.lock().unwrap().contains(&h))
+}
+
 const ERROR_IO_PENDING: u32 = 997;
 const ERROR_INVALID_FUNCTION: u32 = 1;
 const STATUS_PENDING: usize = 0x103;
@@ -114,7 +129,11 @@ unsafe extern "system" fn create_file_w(name: *const u16, access: u32, share: u3
         log_open(&s);
     }
     let orig: CreateFileW = unsafe { std::mem::transmute(CREATE_FILE_W.load(Ordering::Relaxed)) };
-    unsafe { orig(name, access, share, sa, disposition, flags, template) }
+    let h = unsafe { orig(name, access, share, sa, disposition, flags, template) };
+    if h != usize::MAX && s.to_ascii_lowercase().ends_with("appfile.dat") && BACKUP_FILTER.lock().unwrap().is_some() {
+        BACKUP_HANDLES.lock().unwrap().push(h);
+    }
+    h
 }
 
 unsafe extern "system" fn create_file_a(name: *const u8, access: u32, share: u32, sa: *mut c_void, disposition: u32, flags: u32, template: usize) -> usize {
@@ -275,7 +294,15 @@ unsafe extern "system" fn read_file(h: usize, buf: *mut u8, len: u32, read: *mut
         return 1;
     }
     let orig: ReadFile = unsafe { std::mem::transmute(READ_FILE.load(Ordering::Relaxed)) };
-    unsafe { orig(h, buf, len, read, ov) }
+    let ok = unsafe { orig(h, buf, len, read, ov) };
+    if ok != 0
+        && ov.is_null()
+        && !read.is_null()
+        && let Some(filter) = backup_filter(h)
+    {
+        filter(unsafe { std::slice::from_raw_parts_mut(buf, *read as usize) });
+    }
+    ok
 }
 
 unsafe extern "system" fn write_file(h: usize, buf: *const u8, len: u32, written: *mut u32, ov: *mut Overlapped) -> i32 {
@@ -287,6 +314,11 @@ unsafe extern "system" fn write_file(h: usize, buf: *const u8, len: u32, written
         return 1;
     }
     let orig: WriteFile = unsafe { std::mem::transmute(WRITE_FILE.load(Ordering::Relaxed)) };
+    if let Some(filter) = backup_filter(h) {
+        let mut copy = unsafe { std::slice::from_raw_parts(buf, len as usize) }.to_vec();
+        filter(&mut copy);
+        return unsafe { orig(h, copy.as_ptr(), len, written, ov) };
+    }
     unsafe { orig(h, buf, len, written, ov) }
 }
 
@@ -294,6 +326,7 @@ unsafe extern "system" fn close_handle(h: usize) -> i32 {
     if is_fake(h) {
         return 1;
     }
+    BACKUP_HANDLES.lock().unwrap().retain(|&b| b != h);
     let orig: unsafe extern "system" fn(usize) -> i32 = unsafe { std::mem::transmute(CLOSE_HANDLE.load(Ordering::Relaxed)) };
     unsafe { orig(h) }
 }

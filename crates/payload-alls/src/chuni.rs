@@ -380,18 +380,119 @@ fn alib_debug() {
     });
 }
 
-/// CHUNITHM SUPERSTAR's game (amdaemon has the IO4 board, its air sensors, and the Aime reader):
-/// the slider on COM1, the LED boards on COM2 / COM3 (a CVT cabinet).
+/// NEW!!'s settings record in its backup (`Y:\\SDHD\\appfile.dat`, kept by amdaemon): its
+/// CRC-32 over the 0x5FC bytes after it, `DHDS`, then the settings, the cabinet group at +0x80
+/// (0 off, 1 group A...), the group role, continue, music select time, advertise volume.
+const CHUSAN_SETTINGS_SIZE: usize = 0x600;
+const CHUSAN_GROUP: usize = 0x80;
+
+/// The backup's settings made a lone cabinet's as amdaemon reads or writes them (no cabinet
+/// group: a fresh backup's default is group A, whose power-on waits forever for the group's
+/// reference cabinet).
+fn lone_cabinet(data: &mut [u8]) {
+    let mut from = 0;
+    while let Some(pos) = data[from..].windows(4).position(|w| w == b"DHDS") {
+        let tag = from + pos;
+        from = tag + 4;
+        let Some(at) = tag.checked_sub(4) else { continue };
+        if at + CHUSAN_SETTINGS_SIZE > data.len() {
+            break;
+        }
+        let r = &mut data[at..at + CHUSAN_SETTINGS_SIZE];
+        if r[CHUSAN_GROUP] == 0 || u32::from_le_bytes(r[..4].try_into().unwrap()) != crc32(&r[4..]) {
+            continue;
+        }
+        r[CHUSAN_GROUP] = 0;
+        let crc = crc32(&r[4..]);
+        r[..4].copy_from_slice(&crc.to_le_bytes());
+        log!("chuni: the backup's settings: no cabinet group");
+    }
+}
+
+/// The settings' first bytes (NEW!!'s defaults: 32 volumes at 20, then 7), where the record's
+/// body starts in the game's memory.
+const CHUSAN_SETTINGS_START: [u8; 33] = {
+    let mut s = [0x14u8; 33];
+    s[32] = 7;
+    s
+};
+
+/// A fresh backup's settings, in the game's memory: its defaults (group A) are kept there until
+/// the game saves them (in globals of the program), and its power-on waits for group A's
+/// reference cabinet meanwhile. The program's writable pages are searched every 20 ms (before the
+/// game reads the group from them) for the settings' body (their first bytes, then the group 1-8,
+/// continue on or off, the volume 0-20), the group set off (its CRC-32 before the body,
+/// when there is one, made again), for the boot's first 15 minutes.
+fn lone_cabinet_in_game() {
+    use windows_sys::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
+    use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_READWRITE, PAGE_WRITECOPY, VirtualQuery};
+    use windows_sys::Win32::System::Threading::GetCurrentProcess;
+    const BODY: usize = 0x460;
+    const GROUP: usize = CHUSAN_GROUP - 8;
+    std::thread::spawn(|| {
+        let started = Instant::now();
+        let mut chunk = Vec::new();
+        let image = wal_payload_common::iat::game_module();
+        // the image's size (its PE header's SizeOfImage)
+        let end = unsafe {
+            let pe = image + *((image + 0x3c) as *const u32) as usize;
+            image + *((pe + 0x50) as *const u32) as usize
+        };
+        while started.elapsed() < Duration::from_secs(15 * 60) {
+            std::thread::sleep(Duration::from_millis(20));
+            let mut addr = image;
+            let mut info: MEMORY_BASIC_INFORMATION = unsafe { std::mem::zeroed() };
+            while addr < end && unsafe { VirtualQuery(addr as *const _, &mut info, std::mem::size_of_val(&info)) } != 0 {
+                let (base, size) = (info.BaseAddress as usize, info.RegionSize);
+                if info.State == MEM_COMMIT && matches!(info.Protect, PAGE_READWRITE | PAGE_WRITECOPY) && size >= BODY + 4 {
+                    chunk.resize(size, 0);
+                    if unsafe { ReadProcessMemory(GetCurrentProcess(), base as *const _, chunk.as_mut_ptr().cast(), size, std::ptr::null_mut()) } != 0 {
+                        let mut i = 4;
+                        while i + BODY <= size {
+                            if chunk[i] == 0x14 && chunk[i + 32] == 7 && chunk[i..i + 33] == CHUSAN_SETTINGS_START {
+                                let body = &chunk[i..i + BODY];
+                                if (1..=8).contains(&body[GROUP]) && body[GROUP + 2] <= 1 && body[GROUP + 4] <= 20 {
+                                    let mut fixed = body.to_vec();
+                                    fixed[GROUP] = 0;
+                                    let had_crc = u32::from_le_bytes(chunk[i - 4..i].try_into().unwrap()) == crc32(body);
+                                    let mut record = if had_crc { crc32(&fixed).to_le_bytes().to_vec() } else { chunk[i - 4..i].to_vec() };
+                                    record.extend_from_slice(&fixed);
+                                    if unsafe { WriteProcessMemory(GetCurrentProcess(), (base + i - 4) as *const _, record.as_ptr().cast(), record.len(), std::ptr::null_mut()) } != 0 {
+                                        log!("chuni: the settings in memory at {:#x}: no cabinet group (CRC {had_crc})", base + i);
+                                    }
+                                }
+                                i += 33;
+                            } else {
+                                i += 1;
+                            }
+                        }
+                    }
+                }
+                addr = base + size;
+            }
+        }
+    });
+}
+
+/// CHUNITHM SUPERSTAR's and NEW!!'s game (amdaemon has the IO4 board, its air sensors, and the
+/// Aime reader): the slider on COM1, the LED boards on COM2 / COM3 (a CVT cabinet).
 pub(crate) fn init_chusan() {
     serial::install_streaming("COM1", slider, slider_scan);
     wal_payload_common::led::init_pair("COM2", "COM3");
+    if std::env::var("WAL_ALLS_GAME_ID").is_ok_and(|v| v.trim() == "SDHD") {
+        lone_cabinet_in_game();
+    }
     log!("chuni: slider on COM1, LED boards on COM2 / COM3");
 }
 
-/// CHUNITHM SUPERSTAR's amdaemon: the title server and the billing server beside its ALL.Net
-/// server (the game's data from its working directory, `App\amdaemon`: `..\data\A000`).
+/// CHUNITHM SUPERSTAR's and NEW!!'s amdaemon: the title server and the billing server beside
+/// its ALL.Net server (the game's data from its working directory: `..\data\A000`), no cabinet
+/// group in the backup (`lone_cabinet`).
 pub(crate) fn init_daemon() {
     server::init();
+    if std::env::var("WAL_ALLS_GAME_ID").is_ok_and(|v| v.trim() == "SDHD") {
+        crate::daemon::set_backup_filter(lone_cabinet);
+    }
 }
 
 /// The game's devices, before the system's hooks (`daemon.rs`, which pass the serial calls on

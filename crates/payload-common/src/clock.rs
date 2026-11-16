@@ -78,12 +78,27 @@ unsafe extern "system" fn set_time(_time: *const u8) -> i32 {
 }
 
 static LOOKUP_PRIVILEGE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static LOOKUP_PRIVILEGE_W: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 /// The privileges a time setter asks (amLib's `amRtcSetTimezoneInformation`: Wine has no
 /// `SeTimeZonePrivilege`, error 1313, then CHUNITHM's error 8114): a privilege Wine does not
 /// know gets Windows' value, `SE_TIME_ZONE_PRIVILEGE` (34).
 unsafe extern "system" fn lookup_privilege_value_a(system: *const u8, name: *const u8, luid: *mut u32) -> i32 {
     let real: unsafe extern "system" fn(*const u8, *const u8, *mut u32) -> i32 = unsafe { std::mem::transmute(LOOKUP_PRIVILEGE.load(std::sync::atomic::Ordering::Relaxed)) };
+    if unsafe { real(system, name, luid) } != 0 || luid.is_null() {
+        return 1;
+    }
+    unsafe {
+        *luid = 34;
+        *luid.add(1) = 0;
+        SetLastError(0);
+    }
+    1
+}
+
+/// [`lookup_privilege_value_a`]'s wide version (CHUNITHM NEW!!'s amdaemon).
+unsafe extern "system" fn lookup_privilege_value_w(system: *const u16, name: *const u16, luid: *mut u32) -> i32 {
+    let real: unsafe extern "system" fn(*const u16, *const u16, *mut u32) -> i32 = unsafe { std::mem::transmute(LOOKUP_PRIVILEGE_W.load(std::sync::atomic::Ordering::Relaxed)) };
     if unsafe { real(system, name, luid) } != 0 || luid.is_null() {
         return 1;
     }
@@ -131,6 +146,10 @@ fn hook_privileges() {
     unsafe {
         if let Some(orig) = iat::hook("advapi32.dll", "LookupPrivilegeValueA", lookup_privilege_value_a as *const () as usize) {
             LOOKUP_PRIVILEGE.store(orig, std::sync::atomic::Ordering::Relaxed);
+            iat::hook("advapi32.dll", "AdjustTokenPrivileges", adjust_token_privileges as *const () as usize);
+        }
+        if let Some(orig) = iat::hook("advapi32.dll", "LookupPrivilegeValueW", lookup_privilege_value_w as *const () as usize) {
+            LOOKUP_PRIVILEGE_W.store(orig, std::sync::atomic::Ordering::Relaxed);
             iat::hook("advapi32.dll", "AdjustTokenPrivileges", adjust_token_privileges as *const () as usize);
         }
     }
