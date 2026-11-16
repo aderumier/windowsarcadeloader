@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (387)
+## Games (402)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -422,6 +422,21 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | not in the test |  |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | not in the test |  |
 | `left-4-dead-survivors` | Left 4 Dead: Survivors | nesica | user 100% (2026-11-16), NESiCA card (new player, CPU play), mouse and pad | not in the test |  |
+| `mario-and-sonic-at-tokyo-2020-olympic-games` | Mario & Sonic at the Tokyo 2020 Olympic Games | alls | user 100% (2026-11-08) | not in the test |  |
+| `house-of-the-dead-scarlet-dawn` | The House of the Dead: Scarlet Dawn | alls | user 100% (2026-11-08), 2 guns | not in the test |  |
+| `sega-world-drivers-championship` | Sega World Drivers Championship | alls | user-tested (2026-11-08): power-on test all GOOD, card registration with name entry, a race, the save, the returning player's licence | not in the test |  |
+| `initial-d-the-arcade-season-3` | Initial D THE ARCADE Season 3 | alls | user 100% (2026-11-09), online: Aime cards, saves, story and time trial | not in the test |  |
+| `initial-d-the-arcade-season-5` | Initial D THE ARCADE Season 5 | alls | headless tests (2026-11-11): attract, story and time trial races to the finish; user: races slow on an integrated GPU (the game runs one physics step per frame), box test pending | not in the test |  |
+| `chrono-regalia` | Chrono Regalia | alls | user 100% (2026-11-10): guest and Aime card play | not in the test |  |
+| `xtom-3d` | Xtom 3D | arcadepc | user 100% (2026-11-09) | not in the test |  |
+| `sega-rally-2` | Sega Rally 2 | arcadepc | user 100% (2026-11-12), wheel | not in the test |  |
+| `cut-the-rope` | Cut The Rope | arcadepc | user 100% (2026-11-13) | not in the test |  |
+| `go-go-drummer-babe` | Go Go Drummer Babe | arcadepc | user 100% (2026-11-13) | not in the test |  |
+| `radikal-bikers` | Radikal Bikers | arcadepc | user 100% (2026-11-14) | not in the test |  |
+| `project-diva-arcade` | Hatsune Miku Project DIVA Arcade | ringedge | user 100% (2026-11-15, desktop) | not in the test |  |
+| `border-break-scramble` | Border Break Scramble | ringedge2 | user (2026-11-15): "working 100% excluding online mode" | not in the test |  |
+| `kancolle-arcade` | KanColle Arcade | seganu | user 100% (2026-11-15): guest and Aime card play | not in the test |  |
+| `crossbeats-rev` | crossbeats REV. | alls | user 100% (2026-11-16, desktop): mouse with the red dot, touchpad multi-touch | not in the test |  |
 <!-- GAMELIST END -->
 
 ## Thanks
