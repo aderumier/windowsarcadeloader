@@ -1,7 +1,9 @@
 //! crossbeats REV.'s game server (`https://rev-ent.ac.capcom.jp`), answered in ALL.Net's
 //! server: the game's WinHTTP connection to it goes there, in plain HTTP (`cxb.rs`). A port of
 //! ARTEMiS' `titles/cxb` (WTFPL: `index.py`, `base.py`, `rss2.py`, SUNRiSE S2, version 10104):
-//! JSON requests, JSON answers.
+//! JSON requests, JSON answers. crossbeats REV. (its requests' versions up to 10102) gets
+//! `rev.py`'s tables (`cxb/data/rev/`), its song list ARTEMiS' and the dump's, only the songs
+//! and events its options hold.
 //!
 //! - `/data` (`{"dldate": {"filetype": "<version>/<folder>/<Name>"}}`): the server's tables,
 //!   picked by the file's name (`ShopListDetail`, `Cs2001`: `cs` and 4 digits...); its data in
@@ -53,6 +55,42 @@ fn data(name: &str) -> Option<&'static str> {
     })
 }
 
+/// crossbeats REV.'s tables (ARTEMiS' `data/rev`, in UTF-8).
+fn rev_data(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "MusicArchiveList" => include_str!("data/rev/MusicArchiveList.csv"),
+        "ItemArchiveList_Icon" => include_str!("data/rev/ItemArchiveList_Icon.csv"),
+        "ItemArchiveList_SkinNotes" => include_str!("data/rev/ItemArchiveList_SkinNotes.csv"),
+        "ItemArchiveList_SkinEffect" => include_str!("data/rev/ItemArchiveList_SkinEffect.csv"),
+        "ItemArchiveList_SkinBg" => include_str!("data/rev/ItemArchiveList_SkinBg.csv"),
+        "ItemList_Title" => include_str!("data/rev/ItemList_Title.csv"),
+        "ShopList_Music" => include_str!("data/rev/ShopList_Music.csv"),
+        "ShopList_Icon" => include_str!("data/rev/ShopList_Icon.csv"),
+        "ShopList_Title" => include_str!("data/rev/ShopList_Title.csv"),
+        "ShopList_Sale" => include_str!("data/rev/ShopList_Sale.csv"),
+        "ExtraStageList" => include_str!("data/rev/ExtraStageList.csv"),
+        "Ex0000" => include_str!("data/rev/Ex0000.csv"),
+        "Ex0001" => include_str!("data/rev/Ex0001.csv"),
+        "NewsList" => include_str!("data/rev/NewsList.csv"),
+        "License_Offline" => include_str!("data/rev/License_Offline.csv"),
+        "CourseList" => include_str!("data/rev/CourseList.csv"),
+        "Cs0000" => include_str!("data/rev/Cs0000.csv"),
+        "Cs0001" => include_str!("data/rev/Cs0001.csv"),
+        "Cs0002" => include_str!("data/rev/Cs0002.csv"),
+        "Cs0003" => include_str!("data/rev/Cs0003.csv"),
+        "Cs0004" => include_str!("data/rev/Cs0004.csv"),
+        "Cs0005" => include_str!("data/rev/Cs0005.csv"),
+        "Cs0006" => include_str!("data/rev/Cs0006.csv"),
+        "Cs0007" => include_str!("data/rev/Cs0007.csv"),
+        "Cs0008" => include_str!("data/rev/Cs0008.csv"),
+        "Cs0009" => include_str!("data/rev/Cs0009.csv"),
+        "MissionList" => include_str!("data/rev/MissionList.csv"),
+        "EventArchiveList" => include_str!("data/rev/EventArchiveList.csv"),
+        "EventStampList" => include_str!("data/rev/EventStampList.csv"),
+        _ => return None,
+    })
+}
+
 /// A table's lines, each ended by `\r\n`.
 fn lines(text: &str) -> String {
     text.lines().map(|l| format!("{l}\r\n")).collect()
@@ -63,10 +101,14 @@ fn answer(text: impl Into<Json>) -> Json {
     Json::obj().with("data", text)
 }
 
-/// The dump's song list: its first 15 columns each line.
-fn music_list() -> String {
+/// The dump's own song list (beside the executable).
+fn dump_music_list() -> String {
     let file = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(MUSIC_LIST)));
-    let text = file.and_then(|f| std::fs::read(f).ok()).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default();
+    file.and_then(|f| std::fs::read(f).ok()).map(|b| String::from_utf8_lossy(&b).into_owned()).unwrap_or_default()
+}
+
+/// A song list's lines: their first 15 columns each.
+fn song_lines(text: &str) -> String {
     text.lines()
         .filter(|l| !l.trim().is_empty())
         .map(|l| {
@@ -76,6 +118,63 @@ fn music_list() -> String {
             out
         })
         .collect()
+}
+
+/// The dump's song list: its first 15 columns each line.
+fn music_list() -> String {
+    song_lines(&dump_music_list())
+}
+
+/// The songs the options hold: their archives' names (`Option\NNNN\archive\music\<n>_m.arc`,
+/// `n` the song code's CRC-32, inverted, in 10 digits).
+fn option_songs() -> &'static std::collections::HashSet<String> {
+    static SONGS: std::sync::OnceLock<std::collections::HashSet<String>> = std::sync::OnceLock::new();
+    SONGS.get_or_init(|| {
+        let folders = std::fs::read_dir("C:\\Mount\\Option").map(|d| d.flatten().map(|e| e.path()).collect::<Vec<_>>()).unwrap_or_default();
+        folders
+            .iter()
+            .filter_map(|f| std::fs::read_dir(f.join("archive").join("music")).ok())
+            .flat_map(|d| d.flatten().filter_map(|e| e.file_name().into_string().ok()))
+            .filter_map(|n| n.strip_suffix("_m.arc").map(str::to_string))
+            .collect()
+    })
+}
+
+fn song_in_options(code: &str) -> bool {
+    // the CRC-32 before its final inversion
+    let inverted = code.bytes().fold(!0u32, |mut crc, b| {
+        crc ^= b as u32;
+        for _ in 0..8 {
+            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+        }
+        crc
+    });
+    option_songs().contains(&format!("{inverted:010}"))
+}
+
+/// crossbeats REV.'s events: ARTEMiS', those the options hold (`archive\event\<id>.arc`) only.
+/// The game asks each listed event's 10 tables and rankings at its boot, a few a second.
+fn rev_event_list() -> String {
+    let folders = std::fs::read_dir("C:\\Mount\\Option").map(|d| d.flatten().map(|e| e.path()).collect::<Vec<_>>()).unwrap_or_default();
+    let held = |id: &str| folders.iter().any(|f| f.join("archive").join("event").join(format!("{id}.arc")).exists());
+    let events: String = rev_data("EventArchiveList").unwrap_or("").lines().filter(|l| l.split(',').next().is_some_and(held)).map(|l| format!("{l}\r\n")).collect();
+    log!("cxb: REV events: {} in the options", events.lines().count());
+    events
+}
+
+/// crossbeats REV.'s song list: ARTEMiS' (the last version's songs) and the dump's, those of
+/// the songs its options hold only (a listed song without its archives is not played).
+fn rev_music_list() -> String {
+    let dump = dump_music_list();
+    let mut seen = std::collections::HashSet::new();
+    let text: Vec<&str> = rev_data("MusicArchiveList")
+        .unwrap_or("")
+        .lines()
+        .chain(dump.lines())
+        .filter(|l| l.split(',').next().is_some_and(|code| !code.trim().is_empty() && song_in_options(code) && seen.insert(code.to_string())))
+        .collect();
+    log!("cxb: REV song list: {} songs in the options", text.len());
+    song_lines(&text.join("\n"))
 }
 
 /// `PathList` → `path_list`, `Cs2001` → `csxxxx` (ARTEMiS' handler names: inflection's
@@ -101,6 +200,10 @@ fn dldate(req: &Json) -> Json {
     let parts: Vec<&str> = filetype.split('/').collect();
     let file = parts.last().copied().unwrap_or("");
     let number = file.get(file.len().saturating_sub(4)..).and_then(|n| n.parse::<u32>().ok()).unwrap_or(0);
+    // ARTEMiS' versions: up to 10102 crossbeats REV. (its own tables), later ones SUNRiSE
+    if parts.len() >= 2 && parts[0].parse::<u32>().is_ok_and(|v| v <= 10102) {
+        return rev_dldate(file, number);
+    }
     let table = |name: &str| data(name).map(lines).unwrap_or_default();
     match handler_name(file).as_str() {
         "music_list" => answer(music_list()),
@@ -159,6 +262,40 @@ fn dldate(req: &Json) -> Json {
         // reads on past the text (the game hung at its boot, one time out of two)
         "unlimited_mission" => answer("\r\n"),
         // the others (PathList, Tips, MissionList, OneMoreExtraList...): empty
+        _ => answer(""),
+    }
+}
+
+/// A crossbeats REV. `/data` request (ARTEMiS' `rev.py`).
+fn rev_dldate(file: &str, number: u32) -> Json {
+    let table = |name: &str| rev_data(name).map(lines).unwrap_or_default();
+    let titled = |title: &str, name: &str| answer(format!("\r\n#{title}\r\n{}", table(name)));
+    match handler_name(file).as_str() {
+        "music_list" => answer(rev_music_list()),
+        "item_list_icon" => titled("ItemListIcon", "ItemArchiveList_Icon"),
+        "item_list_skin_notes" => titled("ItemListSkinNotes", "ItemArchiveList_SkinNotes"),
+        "item_list_skin_effect" => titled("ItemListSkinEffect", "ItemArchiveList_SkinEffect"),
+        "item_list_skin_bg" => titled("ItemListSkinBg", "ItemArchiveList_SkinBg"),
+        "item_list_title" => titled("ItemListTitle", "ItemList_Title"),
+        "shop_list_music" => titled("ShopListMusic", "ShopList_Music"),
+        "shop_list_icon" => titled("ShopListIcon", "ShopList_Icon"),
+        "shop_list_title" => titled("ShopListTitle", "ShopList_Title"),
+        "shop_list_sale" => titled("ShopListSale", "ShopList_Sale"),
+        "extra_stage_list" => answer(table("ExtraStageList")),
+        "exxxxx" => answer(table(&format!("Ex{number:04}"))),
+        "news_list" => answer(table("NewsList")),
+        "license" => answer(table("License_Offline")),
+        "course_list" => answer(table("CourseList")),
+        "csxxxx" => answer(table(&format!("Cs{number:04}"))),
+        "mission_list" => answer(table("MissionList")),
+        "event_list" => answer(rev_event_list()),
+        "event_stamp_list" => answer(table("EventStampList")),
+        "event_stamp_map_list_csxxxx" => answer("1,2,1,1,2,3,9,5,6,7,8,9,10,\r\n"),
+        "server_state" => answer(true),
+        // as SUNRiSE's: a line ending for its parser
+        "unlimited_mission" => answer("\r\n"),
+        // the others (PathList, the skins' shop lists, BonusList10100, Tips, the event
+        // rankings...): empty
         _ => answer(""),
     }
 }
@@ -278,8 +415,14 @@ fn load_range(body: &Json) -> Json {
 }
 
 fn save_index(body: &Json) -> Json {
-    let indexes = body.a("index");
-    let values = body.a("data");
+    // SUNRiSE: `index` and `data` side by side; REV.: `data` alone, `[index, record, version]`
+    // each (ARTEMiS' "REV Omnimix" form)
+    let (indexes, values): (Vec<Json>, Vec<Json>) = if body.get("index").is_some() {
+        (body.a("index").to_vec(), body.a("data").to_vec())
+    } else {
+        body.a("data").iter().filter_map(|e| Some((e.items().first()?.clone(), e.items().get(1)?.clone()))).unzip()
+    };
+    let (indexes, values) = (&indexes[..], &values[..]);
     let profile_user = indexes
         .iter()
         .position(|i| text_of(i) == "0")

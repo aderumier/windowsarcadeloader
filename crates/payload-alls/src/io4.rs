@@ -92,7 +92,8 @@ fn board() -> Board {
 /// cabinet has no start button), for the automatic Aime card.
 pub(crate) fn start_pressed(p1: &wal_protocol::StickState) -> bool {
     static HKB: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    let hkb = *HKB.get_or_init(|| std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "hkb"));
+    // hkb, cxb (crossbeats: no start button, the screen touched): the gun's or mouse's touch
+    let hkb = *HKB.get_or_init(|| std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| matches!(v.trim(), "hkb" | "cxb")));
     p1.pressed(b::START) || (board() == Board::Idac && p1.axis_u16(Axis::Accel) >= 0x8000) || (hkb && p1.pressed(b::B1)) || (board() == Board::Chusan && slider_touched(p1))
 }
 

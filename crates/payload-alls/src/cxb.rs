@@ -1,4 +1,4 @@
-//! crossbeats REV. SUNRiSE (Capcom / Sega, Nu 1.1, game id SDCA; `WAL_ALLS_BOARD=cxb`): a
+//! crossbeats REV. and REV. SUNRiSE (Capcom / Sega, Nu 1.1, game id SDCA; `WAL_ALLS_BOARD=cxb`): a
 //! 32-bit Direct3D 9 rhythm game played on a touch screen, amLib linked in (no amdaemon):
 //! the system's devices (`daemon.rs`: keychip, AMEX board, ALL.Net, the Aime reader on COM12)
 //! in the game's own process, as segatools' cxbhook (public domain) does:
@@ -13,8 +13,9 @@
 //!   more while `b1` is held; all are posted as `WM_TOUCH`, answered by the payload. The common
 //!   crosshair option (`WAL_CROSSHAIR`, the profile's red dot) shows where the gun touches.
 //! - The options (`C:\Mount\Option\NNNN`: songs, events, newest first): the executable knows
-//!   the folders up to `0060`; a dump's later ones (`0061`...: its song list names songs only
-//!   they hold) are seen through `0060`: a file asked there is the newest later folder's copy.
+//!   the folders up to its last (the newest its image names: SUNRiSE `0060`, REV. `0008`); a
+//!   dump's later ones (songs only they hold) are seen through it: a file asked there is the
+//!   newest later folder's copy (each option's lists hold the earlier ones').
 
 mod server;
 
@@ -256,27 +257,44 @@ unsafe extern "system" fn win_http_write_data(request: *mut c_void, buffer: *con
     ok
 }
 
-// The options after 0060
+// The options after the executable's last
 
-/// The option folders after the executable's last (`0060`), newest first.
+/// The option folders after the executable's last, newest first.
 static LATER_OPTIONS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static CREATE_FILE_W: AtomicUsize = AtomicUsize::new(0);
 static CREATE_FILE_A: AtomicUsize = AtomicUsize::new(0);
 static GET_FILE_ATTRIBUTES_W: AtomicUsize = AtomicUsize::new(0);
 static GET_FILE_ATTRIBUTES_A: AtomicUsize = AtomicUsize::new(0);
 
-const LAST_KNOWN: &str = "C:\\Mount\\Option\\0060\\";
+/// The executable's last option folder, `C:\Mount\Option\NNNN\`.
+static LAST_KNOWN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// The newest option folder the executable's image names (`9999` aside): SUNRiSE's `0060`,
+/// REV.'s `0008`.
+fn last_known_option() -> String {
+    const PREFIX: &[u8] = b"C:\\Mount\\Option\\";
+    let image = std::env::current_exe().ok().and_then(|e| std::fs::read(e).ok()).unwrap_or_default();
+    image
+        .windows(PREFIX.len() + 4)
+        .filter(|w| w.starts_with(PREFIX))
+        .filter_map(|w| std::str::from_utf8(&w[PREFIX.len()..]).ok().filter(|n| n.bytes().all(|b| b.is_ascii_digit()) && *n != "9999"))
+        .max()
+        .unwrap_or("0060")
+        .to_string()
+}
 
 fn options() {
+    let last = last_known_option();
     let mut later: Vec<String> = std::fs::read_dir("C:\\Mount\\Option")
         .map(|d| d.flatten().filter_map(|e| e.file_name().into_string().ok()).collect())
         .unwrap_or_default();
-    later.retain(|n| n.len() == 4 && n.bytes().all(|b| b.is_ascii_digit()) && n.as_str() > "0060" && n.as_str() < "9999");
+    later.retain(|n| n.len() == 4 && n.bytes().all(|b| b.is_ascii_digit()) && *n > last && n.as_str() < "9999");
     later.sort_unstable_by(|a, b| b.cmp(a));
     if later.is_empty() {
         return;
     }
-    log!("alls: cxb: options {later:?} seen through 0060");
+    log!("alls: cxb: options {later:?} seen through {last}");
+    let _ = LAST_KNOWN.set(format!("C:\\Mount\\Option\\{last}\\"));
     *LATER_OPTIONS.lock().unwrap() = later;
     let hooks: [(&str, usize, &AtomicUsize); 4] = [
         ("CreateFileW", create_file_w as *const () as usize, &CREATE_FILE_W),
@@ -291,9 +309,10 @@ fn options() {
     }
 }
 
-/// `C:\Mount\Option\0060\rest` as the newest later folder's `rest`, when one has it.
+/// `C:\Mount\Option\<last known>\rest` as the newest later folder's `rest`, when one has it.
 fn later_option(path: &str) -> Option<String> {
-    let rest = path.get(LAST_KNOWN.len()..).filter(|_| path.get(..LAST_KNOWN.len()).is_some_and(|p| p.eq_ignore_ascii_case(LAST_KNOWN)))?;
+    let known = LAST_KNOWN.get()?;
+    let rest = path.get(known.len()..).filter(|_| path.get(..known.len()).is_some_and(|p| p.eq_ignore_ascii_case(known)))?;
     LATER_OPTIONS
         .lock()
         .unwrap()
@@ -433,6 +452,8 @@ const TOUCHEVENTF_UP: u32 = 0x4;
 const TOUCHEVENTF_PRIMARY: u32 = 0x10;
 /// The gun's finger id (the touch surface's fingers: 1 + their index).
 const GUN_FINGER: u32 = 100;
+/// The game's picture, the space of its touches' client positions.
+const LAYOUT: (f32, f32) = (1920.0, 1080.0);
 /// The `HTOUCHINPUT` handles posted: the mark and a slot of the event.
 const TOUCH_MARK: usize = 0x57A3_0000;
 const TOUCH_SLOTS: usize = 64;
@@ -505,17 +526,33 @@ fn touch_window() -> HWND {
 
 /// The fingers on the game's picture: the touch surface's (id 1 + index), the gun's while `b1`
 /// is held; (id, client x, y).
-fn fingers(r: &RECT) -> Vec<(u32, i32, i32)> {
-    let (w, h) = ((r.right - r.left) as f32, (r.bottom - r.top) as f32);
+fn fingers() -> Vec<(u32, i32, i32)> {
+    // the screen's places in the picture (the game's window spans the screen, its picture
+    // letterboxed in it: `WAL_D3D9_ASPECT`), in the game's layout: it takes a touch's client
+    // position as a point of its 1920x1080 picture, whatever its window's size (on a 1920x1200
+    // screen a client position touched 60 pixels lower mid-screen)
+    let picture = |x: f32, y: f32| {
+        let (u, v) = wal_payload_common::screenshot::to_picture(x, y);
+        ((u * LAYOUT.0) as i32, (v * LAYOUT.1) as i32)
+    };
+    // the touch surface: a touchpad is the whole picture (`WAL_CXB_TOUCH=pad`, the default), a
+    // touchscreen (`screen`) touches where the picture shows
+    static SCREEN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let screen = *SCREEN.get_or_init(|| std::env::var("WAL_CXB_TOUCH").is_ok_and(|v| v.trim() == "screen"));
     let mut out: Vec<(u32, i32, i32)> = wal_payload_common::touches()
         .into_iter()
         .enumerate()
-        .map(|(i, (x, y))| (1 + i as u32, (x as f32 / 65536.0 * w) as i32, (y as f32 / 65536.0 * h) as i32))
+        .map(|(i, (x, y))| {
+            let (x, y) = (x as f32 / 65536.0, y as f32 / 65536.0);
+            let (px, py) = if screen { picture(x, y) } else { ((x * LAYOUT.0) as i32, (y * LAYOUT.1) as i32) };
+            (1 + i as u32, px, py)
+        })
         .collect();
     if wal_payload_common::input(0).pressed(button::B1)
         && let Some((u, v)) = gun::gun_in_picture()
     {
-        out.push((GUN_FINGER, (u * w) as i32, (v * h) as i32));
+        let (px, py) = picture(u, v);
+        out.push((GUN_FINGER, px, py));
     }
     out
 }
@@ -537,7 +574,7 @@ fn touch_thread() {
         if unsafe { GetClientRect(hwnd, &mut r) } == 0 || r.right <= r.left || r.bottom <= r.top {
             continue;
         }
-        let now = fingers(&r);
+        let now = fingers();
         if now == last {
             continue;
         }
