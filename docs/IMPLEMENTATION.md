@@ -6764,7 +6764,10 @@ root).
 
 - **Touch frame.** `PQMTClient.dll` imported, as Infinity Blade FX: `pqmt.rs` through IAT
   hooks. The game asks the resolution but takes the points in client pixels (native mode).
-  Several players' fingers at once (one per gun).
+  Several players' fingers at once (one per gun), and the touch surface's (`input.touch`, up
+  to 10, ids after the guns' and fixed fingers, each kept by the nearest finger of the last
+  frame): real multi-touch slices beside the guns' simulated ones; `WAL_PQMT_TOUCH=pad` (the
+  whole touchpad is the picture, default) or `screen` (a touchscreen). Fruit Ninja FX as FX 2.
 - **Gun slice.** A gun's shot is a point, the fruit is cut by swipes: `WAL_GUN_SLICE=<length>`
   (profile option, default 0.25 of the picture's height) makes each trigger pull a slice
   (`pqmt.rs` `Slicer`): down at the aim, out half the length, back through the aim to the

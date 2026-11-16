@@ -1,6 +1,7 @@
 # Fruit Ninja FX 2 (Adrenaline Amusements / Halfbrick, native engine, 32-bit, Direct3D 9) -
 # template, override values in userprofiles/adrenaline/fruit-ninja-fx2.yaml.
-# A touch screen game: the fruit is sliced with swipes. The mouse (or a gun) touches the screen
+# A touch screen game: the fruit is sliced with swipes. A touchpad or touchscreen's fingers are
+# real touches (several at once); beside them the mouse (or a gun) touches the screen
 # where it points while its button is held, and a pull draws a slice through the aim (the Gun
 # slice option): a light gun's shot cuts the fruit it aims at. The payload emulates the
 # cabinet's PQ Labs touch frame, its Kaboom I/O board (on its serial port: coins, the operator's
@@ -27,6 +28,9 @@ env:
   WAL_DINPUT_DISABLE: "1"
   # the game draws no gun cursor: the common crosshair option's default
   WAL_CROSSHAIR: "1"
+  # the touch surface's fingers: pad (the whole touchpad is the game's picture) or screen (a
+  # touchscreen: the fingers where the picture shows)
+  WAL_PQMT_TOUCH: pad
 
 options:
   - title: Controls
@@ -40,8 +44,17 @@ options:
           fraction of the screen's height), the finger going out one way and back through the
           aim to the other side; holding the trigger then slices along the gun's moves. 0: no
           slice, the finger only follows the gun or mouse while its button is held.
+      - key: WAL_PQMT_TOUCH
+        label: Touch surface
+        kind: choice
+        choices: [pad, screen]
+        description: >-
+          pad: the whole touchpad is the game's picture (real multi-touch slices, beside the
+          guns' and mouse's). screen: a touchscreen, the fingers touch where the picture shows.
 
 input:
+  # the touchpad or touchscreen: all its fingers, real slices
+  touch: true
   # each player's gun (or mouse) aims, its trigger touches
   guns_enabled: true
   stick_as_dpad: false

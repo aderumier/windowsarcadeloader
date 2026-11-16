@@ -31,6 +31,11 @@
 //! slice ([`Slicer`]): down at the aim, out half the length, back through the aim to the other
 //! side, back to the aim, in 8 frames (~130 ms), whether the trigger is still held or not; held,
 //! the finger then follows the gun.
+//!
+//! The player's touch surface (the profile's `input.touch`, [`surface_fingers`]): its fingers
+//! (up to [`SURFACE_FINGERS`], ids from [`FINGERS`]) are real touches beside the guns' slices:
+//! the whole touchpad is the picture, or with `WAL_PQMT_TOUCH=screen` the surface is the screen
+//! and the picture its part (a touchscreen).
 
 use std::ffi::{CStr, c_void};
 use std::sync::{Mutex, Once};
@@ -263,6 +268,50 @@ fn finger((fx, fy): (f32, f32)) -> Option<(i32, i32)> {
 const FIXED: [(Native, (f32, f32)); 3] = [(Native::Shield, (0.5, 0.9)), (Native::DodgeLeft, (0.055, 0.94)), (Native::DodgeRight, (0.945, 0.94))];
 /// Fingers: each player's, then each fixed finger of each player.
 const FINGERS: usize = PLAYERS * (1 + FIXED.len());
+/// The touch surface's fingers (ids `FINGERS..`).
+const SURFACE_FINGERS: usize = 10;
+
+/// A point of the player's touch surface (0..65535 across it) in the game's picture: the whole
+/// surface is the picture (a touchpad, by default), or with `WAL_PQMT_TOUCH=screen` the surface
+/// is the screen and the picture its part (a touchscreen: the finger where it shows).
+fn surface_in_picture((x, y): (u16, u16)) -> Option<(f32, f32)> {
+    let (x, y) = (x as f32 / 65535.0, y as f32 / 65535.0);
+    static SCREEN: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if !*SCREEN.get_or_init(|| std::env::var("WAL_PQMT_TOUCH").is_ok_and(|v| v.trim() == "screen")) {
+        return Some((x.min(0.999), y.min(0.999)));
+    }
+    let (sw, sh) = gun::screen_size();
+    let (left, top, w, h) = gun::client_area(gun::find_window())?;
+    let (x, y) = ((x * sw - left) / w, (y * sh - top) / h);
+    ((0.0..1.0).contains(&x) && (0.0..1.0).contains(&y)).then_some((x, y))
+}
+
+/// The touch surface's fingers in this frame, each in its slot (`None`: up): a point takes the
+/// slot of the nearest finger of the last frame (the launcher sends the points only), else a free
+/// one.
+fn surface_fingers(last: &[Option<(f32, f32)>; SURFACE_FINGERS]) -> [Option<(f32, f32)>; SURFACE_FINGERS] {
+    let mut now = [None; SURFACE_FINGERS];
+    let mut free: Vec<usize> = (0..SURFACE_FINGERS).filter(|&i| last[i].is_some()).collect();
+    let mut new = Vec::new();
+    for p in wal_payload_common::touches().into_iter().filter_map(surface_in_picture) {
+        let nearest = free
+            .iter()
+            .enumerate()
+            .filter_map(|(k, &i)| last[i].map(|q| (k, (p.0 - q.0).powi(2) + (p.1 - q.1).powi(2))))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .filter(|&(_, d)| d < 0.04);
+        match nearest {
+            Some((k, _)) => now[free.remove(k)] = Some(p),
+            None => new.push(p),
+        }
+    }
+    for p in new {
+        if let Some(i) = (0..SURFACE_FINGERS).find(|&i| now[i].is_none() && last[i].is_none()) {
+            now[i] = Some(p);
+        }
+    }
+    now
+}
 
 /// The finger's place for a gun at `gun` pulled at `anchor`: its moves since times the swipe
 /// gain, on the picture.
@@ -304,8 +353,9 @@ fn touch_point(id: usize, at: Option<(i32, i32)>, down: &mut [bool], last: &mut 
 /// Sends the players' fingers to the game.
 fn touch_thread() {
     let mut attached = false;
-    let mut down = [false; FINGERS];
-    let mut last = [(0, 0); FINGERS];
+    let mut down = [false; FINGERS + SURFACE_FINGERS];
+    let mut last = [(0, 0); FINGERS + SURFACE_FINGERS];
+    let mut surface = [None; SURFACE_FINGERS];
     let mut anchor = [(0.0, 0.0); PLAYERS];
     let gain = swipe_gain();
     let slice_len = slice_length();
@@ -317,7 +367,8 @@ fn touch_thread() {
         std::thread::sleep(Duration::from_millis(16));
         let callback = POINT_FRAME.load(Ordering::Relaxed);
         if callback == 0 || !CONNECTED.load(Ordering::Relaxed) {
-            down = [false; FINGERS];
+            down = [false; FINGERS + SURFACE_FINGERS];
+            surface = [None; SURFACE_FINGERS];
             continue;
         }
         if !attached {
@@ -359,6 +410,12 @@ fn touch_thread() {
                 ONCE.call_once(|| log!("pqmt: P{} touch held off the picture (gun {gun:?}, window {:?})", player + 1, gun::client_area(gun::find_window())));
             }
             if let Some(point) = touch_point(id, at, &mut down, &mut last) {
+                points.push(point);
+            }
+        }
+        surface = surface_fingers(&surface);
+        for (i, at) in surface.iter().enumerate() {
+            if let Some(point) = touch_point(FINGERS + i, at.and_then(finger), &mut down, &mut last) {
                 points.push(point);
             }
         }
