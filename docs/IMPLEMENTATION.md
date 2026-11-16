@@ -7841,7 +7841,10 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     syscalls (syscall user dispatch, Windows call numbers) or patching every stub; segatools users
     run unpacked executables (none in SEGAguide's packages for SDGS).
   - Tools made for it: payload-common's `packed.rs` (`WAL_PACKED_JUMP=0x100d`: the stub's last
-    jump caught, the payload started after it; `WAL_PACKED_DUMP`: the image written then),
+    jump caught, the payload started after it; `WAL_PACKED_DUMP`: the image written then, `{exe}`
+    in its path the program's name; 64-bit stubs too since O.N.G.E.K.I. bright MEMORY: their last
+    14 bytes at +0x1037, `pop rdi ... pop rcx; test rax,rax; je; push rax; ret; ret`, replaced by
+    an absolute `jmp [rip]`),
     `crash.rs` (`WAL_CRASH_DUMP`: the image at the first illegal instruction or access violation,
     the faulting code bytes logged), `WAL_PACKED_IMPORTS` (existing: hooks as hot patches).
   - CHUNITHM SUPERSTAR PLUS (SDGS 1.05.00): the same protected `chuniApp.exe`; its dump has no
@@ -7903,6 +7906,49 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     story, 1-3 songs a play): not used.
   - Verified headless (2026-11-15): power-on test all GOOD (ALL.Net, Aime, title server), attract,
     a new Aime card: registration, name entry, profile, news, the story's chapter 0.
+  - O.N.G.E.K.I. PLUS (1.05, `ongeki-plus`) and SUMMER (1.10, `ongeki-summer`): the same
+    `mu3.exe` and the same backup IL, a newer amdaemon (shared by both): its main loop sleeps
+    `bpl ? max(1, ms) : 0` (`xor ecx,ecx; test bpl,bpl; cmovne ecx,r15d` before the call at
+    0x140002686), made `mov ecx,1` (`WAL_ALLS_DAEMON_PATCHES` `0x267d:B90100000090909090`);
+    title URIs `/SDDT/105/`, `/SDDT/110/` (zlib-packed requests, data versions 1.05.00 /
+    1.10.00). Verified headless (2026-11-15): power-on, a new Aime player, registration, story,
+    the tutorial song at 55-60 FPS. Option data (each pack's `DataConfig.xml` names its data
+    version): PLUS 1.05.01 (`package\option\A001`), SUMMER 1.10.01-1.10.04 (A001, A004, A005,
+    A008, A012); the game reads them from `mu3_Data\..\option`, the title server's events and
+    rewards from them too (SUMMER: 138 events, 619 rewards).
+  - Later versions (bright MEMORY 1.45, Re:Fresh 1.50, 1.52): every program and library of the
+    images is packed with CHUNITHM SUPERSTAR's protector (64-bit stub, entry +0x1b5c, its tail at
+    +0x1037; the managed assemblies too, with a native stub and the IL-only flag cleared): stage 1
+    decrypts (`packed.rs` catches it) only the protector, whose direct system calls die under Wine
+    (the same `ntdll+0x10efb` crash). The same builds unpacked (memory images: the PE timestamps
+    match) are laid over them, the packed files kept beside (`packed-<version>`):
+    - bright MEMORY (`ongeki-bright-memory`, dump 1.45 in `App\package`, options A001-A028 =
+      data 1.45.00-1.45.07 moved to `App\package\option`): SEGAguide's SDDT 1.45 set (mu3.exe,
+      amdaemon.exe and the assemblies the dump's builds, PE timestamps matching); title URI
+      `/SDDT/145/` (data 1.45.00, 934 events); amdaemon's Sleep loop at +0x26fd
+      (`B90100000090909090`); requests plain JSON with a `nonce_` (not encrypted). The dump's
+      amfs has no ICFs: SEGAguide's (else the payload's 1.00.00 ICF, the players'
+      `lastRomVersion` 1.00.00). A new player: the "create user data?" question starts on No (the
+      left green button moves to Yes, else a guest play). 912 songs (the 1.37 dump, first used
+      with SEGAguide's 1.39 set: 844). Verified headless: a new player saved at the end of the
+      credit (`UpsertUserAll`; 1.37: loaded on the next card touch).
+    - Re:Fresh 1.50 (1.52's base, no profile): the image's `SDDT 1.50 unpacked` set (amdaemon the
+      same build, Sleep loop at +0x26fd), options A001-A016 (1.50.00-01); title URI `/SDDT/150/`
+      (data 1.50.00); plain requests (the community's unpacked assembly is MonoMod-patched:
+      `NetConfig.EncryptVersion` 0, `UseTLS` false); the community option AOMN (194 songs of other
+      versions, data 1.50.01) beside them. Verified headless: a new player through the tutorial to
+      the save.
+    - Re:Fresh 1.52 (`ongeki-re-fresh-152`): 1.50's folder hard-linked, the 1.52 update's files
+      over it (its assemblies already unpacked memory images, IL-only), its ICFs (game 1.50.00,
+      patch 1.52.00), options A001-A016 and A033-A052 (1.50.12-16; A033/A034 only their fix
+      files) and 1.50's AOMN (1.50.01, loaded after A052: its 7 songs that 1.52 has removed, 187
+      left, 1,013 + 187 songs; events 675 to 1,244); title URI `/SDDT/152/`. Its assembly is not
+      patched: `Config.initializeAfterAMDaemonReady` sets `NetConfig.EncryptVersion` from the ROM version (1052:
+      AES requests to PBKDF2-hashed endpoint names, keys only in the game) and `UseTLS`; the
+      title server never reached, the game offline ("guest play only"). `ongeki.rs`
+      `plain_requests`: both setters' IL (`ldarg.0; stsfld; ret`) made `nop`s before the game
+      runs them (every version; a missing or different setter left as it is). Verified
+      headless: the title server reached, a new player through the tutorial to the save.
   - Open: coins. The payload's IO4 counts them (chute 1, `count << 8` as segatools', logged
     `io4: coin N`), the game opens its coin blocker (output 21), but amdaemon never credits
     them (CREDIT(S) stays 0, free play off too; the count in both bytes changes nothing). The
@@ -8423,6 +8469,10 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `wonderland-wars` | Wonderland Wars | alls | user (2026-11-13, desktop): boots, touchpad pen OK, guest play; headless: power-on and network tests, shader cache | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=wlw`): 3M touch COM1, 837-15312 pen board COM12, amVideo ordinals, Cg shader cache, server checks shortened; offline (no game server): guest only |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
 | `ongeki` | O.N.G.E.K.I. | alls | headless tests (2026-11-15): power-on test, attract, new Aime player (registration, name entry, news, story chapter 0) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=ongeki`): IO4 buttons and lever, LED 15093-06 COM3 and VFD COM2 (Mono DllImports), backup factory settings fixed (group OFF, lever range), ARTEMiS title server in amdaemon (`{allnet}` URI), Mono clock, mu3.ini IgnoreError (no QR cameras) |
+| `ongeki-plus` | O.N.G.E.K.I. PLUS | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (55-60 FPS) | `ongeki`'s (§6.3l), version 1.05: its newer amdaemon's Sleep(0) patch, title URI /SDDT/105/ |
+| `ongeki-summer` | O.N.G.E.K.I. SUMMER | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (57-60 FPS) | `ongeki`'s (§6.3l), version 1.10: the same amdaemon patch as PLUS, title URI /SDDT/110/ |
+| `ongeki-bright-memory` | O.N.G.E.K.I. bright MEMORY | alls | headless tests (2026-11-16, dump 1.45): boot, title server (data 1.45.00, options A001-A028), new Aime player (name entry, login bonus, story, tutorial song) to the save | `ongeki`'s (§6.3l): packed images, SEGAguide's unpacked 1.45 set and ICFs, Sleep patch +0x26fd, title URI /SDDT/145/ |
+| `ongeki-re-fresh-152` | O.N.G.E.K.I. Re:Fresh 1.52 | alls | headless tests (2026-11-15): boot, title server (data 1.50.00, plain requests), new Aime player to the save | `ongeki`'s (§6.3l): Re:Fresh 1.50's unpacked set with the 1.52 update, options A001-A052 and AOMN, `plain_requests`, Sleep patch +0x26fd, title URI /SDDT/152/ |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide |

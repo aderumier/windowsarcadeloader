@@ -14,6 +14,7 @@
 //!   cabinet's settings: group OFF instead) and the lever's range calibrated (the factory's
 //!   32768-32768: "lever range NG", the lever dead)
 //! - the game's clock (Mono's): the cabinet's (Japan's, the time warp's), as amdaemon's
+//! - the title server's requests plain ([`plain_requests`]: Re:Fresh 1.52 encrypts them)
 //! - the three QR code card readers (webcams) absent: the player's webcams hidden (the game opened
 //!   them all and decoded their frames all the time)
 //!
@@ -191,6 +192,36 @@ fn backup_settings() {
         log!("ongeki: BackupSetting.verify not replaced");
     }
     log!("ongeki: backup settings: new backups a lone cabinet's (group OFF, the lever calibrated)");
+    plain_requests(m, image);
+}
+
+/// The title server's requests plain (Re:Fresh 1.52: `Config.initializeAfterAMDaemonReady` sets
+/// `NetConfig.EncryptVersion` from the ROM version, AES-encrypted requests to hashed endpoint
+/// names, and `UseTLS`): both setters' IL (`ldarg.0; stsfld; ret`) made `nop`s, the fields
+/// staying 0 / false. Earlier versions (and the community's unpacked 1.50, patched the same
+/// way) send them plain already.
+fn plain_requests(m: &mono::Mono, image: P) {
+    let config = m.class(image, "MU3", "NetConfig");
+    if config.is_null() {
+        return;
+    }
+    let mut plain = 0;
+    for name in ["set_EncryptVersion", "set_UseTLS"] {
+        if let Some(il) = m.il_code(m.method(config, name, 1))
+            && il.len() == 7
+            && il[0] == 0x02
+            && il[1] == 0x80
+            && il[6] == 0x2A
+        {
+            il[..6].fill(0x00);
+            plain += 1;
+        }
+    }
+    if plain == 2 {
+        log!("ongeki: the title server's requests plain (NetConfig's encryption and TLS off)");
+    } else {
+        log!("ongeki: NetConfig's setters not the plain ones ({plain} of 2 changed): its requests as the game makes them");
+    }
 }
 
 static GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);

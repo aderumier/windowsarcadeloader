@@ -1,0 +1,129 @@
+# O.N.G.E.K.I. bright MEMORY (Sega, ALLS, 2022; game id SDDT, the dump 1.45, data 1.45): a later
+# O.N.G.E.K.I. (ongeki.yaml), a 64-bit Mono Unity rhythm game, portrait 1080x1920. One player: a
+# lever, three buttons for each hand, two side buttons (the walls), two menu buttons, an Aime card
+# reader. The dump's programs and libraries are packed (a protector whose second stage makes
+# direct system calls: they die under Wine); the same builds unpacked (SEGAguide's 1.45 set:
+# mu3.exe, amdaemon.exe, the plugins and the game's assemblies) laid over them, the packed ones
+# kept in App\packed-1.45.
+# amdaemon.exe (the cabinet's system service) runs the "Type 4" USB I/O board (the buttons, the
+# lever, test, service, coins) and the Aime reader on COM1, then the game (its LED board on COM3,
+# its VFD on COM2), both with the ALLS payload (segatools' mu3hook).
+# The dump: App\package (the programs), App\package\option (the option data, A001-A028), amfs
+# (the 1.45 ICFs).
+# Override values in userprofiles/alls/ongeki-bright-memory.yaml.
+system: alls
+name: O.N.G.E.K.I. bright MEMORY
+
+# both programs started by wal-loader64 with the payload
+payload_loader: true
+# segatools' launch: windowed, borderless (game.bat's -nolog); drawn at 720x1280 (the cabinet's
+# 1080x1920 is slow, and a 1080 or 1200 pixel high screen shows less anyway)
+args: [-nolog, -screen-fullscreen, "0", -popupwindow, -screen-width, "720", -screen-height, "1280"]
+
+# game.bat's amdaemon command line (package\), the profile's configuration last: its video setup
+# off (the launcher sets the screen), no e-money terminal
+background:
+  - >-
+    amdaemon.exe -f -c config_common.json config_server.json config_client.json config_wal.json
+background_wait_ms: 5000
+files:
+  App/package/config_wal.json: systemprofiles/alls/files/ongeki/config_wal.json
+  # the game's settings (mu3.ini, absent from the dump: its defaults otherwise): errors ignored
+  # (the three QR code cameras, absent: error 3100 at boot), its sound in shared mode, the local
+  # link between cabinets off (its sockets polled each frame: slower songs)
+  App/package/mu3.ini: systemprofiles/alls/files/ongeki/mu3.ini
+
+# The cabinet's drives: E: the AMFS (the system backup amdaemon keeps), Y: the game's data
+# (Y:\SDDT; the players in Y:\ongeki)
+drives:
+  e: amfs
+  y: AppData
+
+env:
+  WAL_ALLS_GAME_ID: SDDT
+  WAL_ALLS_PLATFORM_ID: ACA1
+  WAL_ALLS_BOARD: ongeki
+  # the Aime reader (config_common.json's unit: port 1)
+  WAL_ALLS_AIME_PORT: COM1
+  WAL_ALLS_AUTO_CARD: "1"
+  # online: ALL.Net accepted, the Aime cards (AimeDB) and the players' data (the title server,
+  # payload ongeki/server.rs, in amdaemon's ALL.Net server: the game's Mono reaches it directly)
+  WAL_ALLS_ALLNET: "1"
+  WAL_ALLS_TITLE_URI: "http://{allnet}/SDDT/145/"
+  # ALL.Net's billing server (amdaemon's accounting, mode A: it checks in on the router's 8443)
+  WAL_ALLS_BILLING: "1"
+  # the LED board's identity: the dump's firmware's (firm\update_15093-06_6710A_A0_AA53.hex)
+  WAL_ALLS_LED_BOARD: "15093-06,6710A,aa53,a0"
+  # amdaemon's main loop sleeps 1 ms each turn (it yields with Sleep(0) while busy, which is
+  # always: a core at 100% under Wine and slow songs; its xor ecx,ecx; test bpl,bpl; cmovne
+  # ecx,r15d before the Sleep call made mov ecx,1)
+  WAL_ALLS_DAEMON_PATCHES: "0x26fd:B90100000090909090"
+  # the nightly maintenance hours skipped
+  WAL_ALLS_TIMEWARP: "1"
+  # the portrait screen fitted on the real one, black around it
+  WAL_DESKTOP_SIZE: 720x1280
+  WAL_BEZEL: black
+  WAL_EXE_ENV: "mu3.exe: WAL_WINDOW_POPUP=1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_ALLS_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself when the game asks for it (the
+          player's name, scores and story kept on the card). Off: touch it with the card button.
+
+# segatools' keyboard: A S D the left hand's buttons, J K L the right hand's, U / O the menus,
+# Q / P the side buttons, the arrows the lever (1 start, 5 coin, F1 service, F2 test, F4 card:
+# the defaults)
+input:
+  stick_as_dpad: false
+  keyboard_ramp_ms: 150
+  keyboard:
+    p1:
+      KEY_A: left
+      KEY_S: up
+      KEY_D: right
+      KEY_J: b1
+      KEY_K: b2
+      KEY_L: b5
+      KEY_U: down
+      KEY_O: b6
+      KEY_Q: b4
+      KEY_P: b3
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+    # these keys are player 2's and 3's by default: freed there
+    p2:
+      KEY_A: none
+      KEY_S: none
+      KEY_D: none
+      KEY_Q: none
+    p3:
+      KEY_J: none
+      KEY_K: none
+      KEY_L: none
+
+controls:
+  lx: Lever
+  left: Left red button (back)
+  up: Left green button
+  right: Left blue button
+  b1: Right red button (decide)
+  b2: Right green button
+  b5: Right blue button
+  b4: Left side button
+  b3: Right side button
+  b8: Lever fully left
+  b7: Lever fully right
+  down: Left menu button
+  b6: Right menu button
+  start: Right red button (decide; with the automatic card)
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

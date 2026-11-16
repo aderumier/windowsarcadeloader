@@ -218,7 +218,8 @@ fn version(path: &str) -> u32 {
     path.split('/').filter_map(|p| p.parse::<u32>().ok()).next().unwrap_or(100)
 }
 
-/// The data version ARTEMiS answers for the version's release (1.00, 1.05 ... 1.45).
+/// The data version ARTEMiS answers for the version's release (1.00, 1.05 ... 1.45; 1.50 and
+/// its updates: 1.50.00).
 fn data_version(version: u32) -> &'static str {
     match version {
         0..105 => "1.00.00",
@@ -229,7 +230,8 @@ fn data_version(version: u32) -> &'static str {
         125..130 => "1.25.00",
         130..135 => "1.30.00",
         135..145 => "1.35.00",
-        _ => "1.45.00",
+        145..150 => "1.45.00",
+        _ => "1.50.00",
     }
 }
 
