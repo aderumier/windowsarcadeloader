@@ -82,6 +82,9 @@ static TWO_BOARDS: AtomicBool = AtomicBool::new(false);
 /// its master volume knob there (low byte; "automatic" master volume in its test menu): 0 by
 /// default, the game is silent.
 static ANALOG1: AtomicU32 = AtomicU32::new(0x0110_0000);
+/// `WAL_FASTIO_REGS=<reg>:<hex>,...`: fixed values of registers (Left 4 Dead: Survivors' Type X3
+/// boards: 0x4000's top byte 1 = the universal board on the hub, 0x4150 = its firmware 0x8258).
+static REGS: OnceLock<Vec<(u32, u32)>> = OnceLock::new();
 
 pub(crate) fn init() {
     MAP.get_or_init(|| ButtonMap::new(NATIVES, DEFAULT_MAP));
@@ -97,6 +100,16 @@ pub(crate) fn init() {
         ANALOG1.store(v, Ordering::Relaxed);
         log!("fastio: analogs 1 = {v:#010x}");
     }
+    let hex = |v: &str| u32::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok();
+    let regs: Vec<(u32, u32)> = std::env::var("WAL_FASTIO_REGS")
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|e| e.split_once(':').and_then(|(r, v)| Some((hex(r)?, hex(v)?))))
+        .collect();
+    if !regs.is_empty() {
+        log!("fastio: fixed registers {regs:x?}");
+    }
+    let _ = REGS.set(regs);
 }
 
 fn coin_slot(command: u32) -> Option<usize> {
@@ -227,7 +240,9 @@ pub unsafe extern "C" fn iDmacDrvRegisterRead(
     result: *mut c_void,
 ) -> i32 {
     let counter = COIN_COUNTER.load(Ordering::Relaxed);
+    let fixed = REGS.get().and_then(|r| r.iter().find(|(c, _)| *c == command)).map(|(_, v)| *v);
     let value = match command {
+        _ if fixed.is_some() => fixed.unwrap(),
         c if counter && coin_slot(c).is_some() => coin_counter(coin_slot(c).unwrap()),
         0x400 => 0x0001_0201,
         0x4000 => 0x00FF_00FF,

@@ -94,7 +94,7 @@ pub mod elo;
 #[cfg(windows)]
 pub mod nvgl;
 #[cfg(windows)]
-pub(crate) mod late_hooks;
+pub mod late_hooks;
 // where the players' guns point in the game's window
 #[cfg(windows)]
 pub mod gun;

@@ -19,6 +19,10 @@
 mod crypttrace;
 mod drive;
 mod fastio;
+mod grip;
+mod hidmouse;
+mod lobby;
+mod mouse;
 mod nesys;
 mod nesystrace;
 mod nxl2;
@@ -50,6 +54,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         // after drive: its CreateFile hooks chain in front of the D: redirection
         rfid::init();
         fastio::init();
+        hidmouse::init();
+        grip::init();
+        mouse::init();
+        lobby::init();
         crypttrace::init();
         nesystrace::init();
         if std::env::var("WAL_NESICA_NESYS").map_or(true, |v| v != "0") {

@@ -809,6 +809,64 @@ import it statically, so it loads before the game entry point: no injector neede
   patches from `NesicaGeneric.cpp`. Games also try the NESiCAxLive launcher pipe
   (`\\.\pipe\NxLPipe...`); nobody emulates it and the games tested do not need it. Game detection by CRC is not needed: the profile says which game it is.
 
+#### Left 4 Dead: Survivors (Type X3)
+
+Taito / Valve, 2014: the Source engine (`left4dead2.exe`, 32-bit, Direct3D 9). The engine's
+`bin\inputsystem.dll` reads the whole cabinet and loads `bin\iDmacDrv32.dll` itself
+(`payload_install: [bin/iDmacDrv32.dll]`). Each device missing gives a "call the staff" screen;
+the profile enables what each needs:
+
+* **NESiCA reader** (COM2, opened by `inputsystem.dll`: `WAL_NESICA_RFID_MODULES`, the serial
+  hooks on that module too). The reader thread first reads a 16-byte key from
+  `C:\TypeX3Temp.dat` (absent: the thread stops before sending anything, "NESiCA reader
+  error"), then between polls sends the board a challenge on JVS node `0x80 | n`
+  (`WAL_NESICA_RFID_SECURITY=1`, `rfid.rs` `security`: the key file created with zeros when
+  missing). The reply is a word and a 16-bit seed: the word XORed with the second output of the
+  LCG `x * 0x2253 + 0x11D7` (`>> 11`) seeded with it must have `key[i & 15]` as its low byte,
+  `i` the last challenge byte. Two failed answers in a row stop the reader. Its commands differ
+  from the other NESiCA games' reader (same option): `32 n ...` drives the lamp (a report only),
+  `26 01` is the presence (one byte, 0x19 with a card), `61` reads the card (8 header bytes and
+  the 16-character id). `WAL_NESICA_CARD_AUTO=1` (set by the launcher whenever the GUI's NESiCA
+  card exists, `nesica_card.rs`, as the Sega games' Aime card): the card always on the reader.
+* **Card server**: NESiCA needs `+arcade_NESiCA_Accept 1` (the dump's operator setting is 0:
+  "NESiCA cannot be used now"). The game then sends NESYS CARD_SELECT data type 1 and hands the
+  reply's data to its `getCardInfo` parser (`CZet_net_HttpParse_getCardInfo`): newline-separated
+  positional fields (result below 100, API id, card id, player id, UTF-8 name, title, level,
+  classes, clan, home arcade, character, avatar parts with conditional resource/color lines,
+  skill items, weapons, experience, logins...). Zeros: "the NESiCA could not be read", read again
+  every 7 s. `WAL_NESYS_NEW_CARD=l4ds` answers a card without a save with a new level 1 player
+  (`nesys.rs` `new_card`, name `WAL_NESICA_PLAYER_NAME`); a saved `card_<id>_1.bin` wins. Whether
+  the game saves its player back (CARD_UPDATE or its HTTP `update_player`) is not verified.
+* **FastIO** (`WAL_FASTIO_REGS=<reg>:<hex>,...`, fixed register values): 0x4000's top byte must
+  be 1 (the universal board on the hub, else I/O error 2-1), 0x4150's low word the board's
+  firmware 0x8258 (2-3); a second board in 0x4004 is an error (1-3). Start is its "ENTER
+  BUTTON", which the title ignores.
+* **Gun** (a USB mouse): `SetupDiGetClassDevsA(NULL, "HID")` must list a device of class
+  `Mouse` (I/O error 4): `hidmouse.rs` (`WAL_NESICA_HID_MOUSE`) answers that enumeration of the
+  module with one. The mouse itself (`mouse.rs`, `WAL_NESICA_MOUSE`): `inputsystem.dll`
+  subclasses the game window, takes the cursor from `WM_MOUSEMOVE` and recenters it each frame
+  with `SetCursorPos` (the look is the motion from the center), and sets every button from the
+  `MK_` flags of any button message. The real keyboard and mouse are dropped from both message
+  loops (`inputsystem.dll`'s and `engine.dll`'s, `input_filter`); the payload's
+  `SetCursorPos` only moves its own center, and it posts the right stick's motion (or the
+  mouse's, as a trackball on the pedal axes, the profile's `mouse_wrap`) as cursor moves from it,
+  the virtual buttons (`WAL_NESICA_MOUSE_BUTTONS`, `MOUSE1`-`MOUSE5`) as `WM_LBUTTONDOWN` flags,
+  wheel notches (`WAL_NESICA_MOUSE_WHEEL`, the item change). The menus point and click with
+  the same cursor (from the window's center, kept inside it).
+* **Grip** (a USB joystick, `grip.rs`, `WAL_NESICA_GRIP`): without a winmm joystick, I/O error
+  3 (the engine's joystick check: `inputsystem.dll` counts a missing joystick up from 120 unless
+  started with `-arcadeIO_InitializeSkip`, which also skips the FastIO and the reader).
+  Joystick 0 of the module's winmm imports is player 1's left stick (X/Y 0..65535) with
+  `WAL_NESICA_GRIP_BUTTONS` as `JOY1`...: the "Joy" controller configuration
+  (`cfg\ArcadecontrollerA_Joy.cfg`: JOY8 jump, the title's and menus' decide; JOY9 duck; JOY10
+  flashlight). With XInput the game would take `_XCtr`, with neither `_Org`.
+
+`-console` of the cabinet's `load_survivors.bat` is left out (the console opened over the
+title); `-w`/`-h` the screen's size. Free play (`WAL_FREEPLAY`) gives the SVP (play time)
+purchase for free; NESYS online works (green icon). Verified headless: boot, attract, title,
+character select and SVP purchase with the cursor, a stage played (aim, attack, first mission
+cleared).
+
 ### 6.2b NESiCAxLive 2 (system `nesica2`, `crates/payload-nesica/src/nxl2.rs`)
 
 NESiCAxLive 2 games (Million Arthur Arcana Blood) import `NxL2Core.dll` instead of the FastIO
@@ -8710,6 +8768,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `dream-hunting` | Dream Hunting | arcadepc | user 100% (2026-11-12), 1 gun | Dream Gun's hunting game (`DreamGun.exe`, DirectDraw / Direct3D immediate mode 640x480, 32-bit, §6.3i): its COM1 gun board emulated (trigger, coins, test, zoom, walking joystick, the shot's place through the game's calibration), free play by the coin count, the payload's crosshair drawn into its DirectDraw back buffer (the game's mouse reticle hidden), Wine's DirectDraw |
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
+| `left-4-dead-survivors` | Left 4 Dead: Survivors | nesica | user 100% (2026-11-16), NESiCA card (new player, CPU play), mouse and pad | Type X3 Source engine (§6.2): `bin\inputsystem.dll` loads the payload; Type X3 reader security and commands, FastIO hub/universal board registers, HID mouse and winmm grip emulated, the gun's mouse from the sticks or the mouse (menus point and click), `+arcade_NESiCA_Accept 1`, getCardInfo record for a new card, lobby server answered with no rooms |
 
 Wine's builtin DirectSound breaks several games in ways that do not look like sound bugs
 (Crimzon Clover's window/mixer sizes, Dragon Dance's crash, Homura stuck loading, Exception and

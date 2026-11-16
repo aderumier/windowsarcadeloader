@@ -349,6 +349,28 @@ fn with_player_name(card: Vec<u8>) -> Vec<u8> {
     format!("{}{name}{}", &text[..start], &text[end..]).into_bytes()
 }
 
+/// `WAL_NESYS_NEW_CARD=l4ds`: the answer to a card select of data type 1 for a card without a
+/// save (Left 4 Dead: Survivors). The game parses it as its card server's `getCardInfo`: lines of
+/// result (below 100), API id, card id, player id, player name (UTF-8, `WAL_NESICA_PLAYER_NAME`,
+/// default PLAYER), title, level, score, the classes (names, points, ids), clan id and name, home
+/// arcade id and name (empty: the cabinet's), character (1-based), the six avatar parts (0: none,
+/// no resource and color lines), skill items, title id and name, weapons (counts 0), experience,
+/// equipment changed (0), logins, versus plays and wins. Zeros instead: "the NESiCA could not be
+/// read".
+fn new_card(card_id: &[u8], data_type: u32) -> Option<Vec<u8>> {
+    if data_type != 1 || std::env::var("WAL_NESYS_NEW_CARD").map_or(true, |v| v != "l4ds") {
+        return None;
+    }
+    let id: String = card_id.iter().take(16).take_while(|c| **c != 0).map(|c| *c as char).collect();
+    let name = std::env::var("WAL_NESICA_PLAYER_NAME").ok().filter(|n| !n.is_empty()).unwrap_or_else(|| "PLAYER".into());
+    let name = name.replace('\n', " ");
+    let lines: [&str; 34] = [
+        "1", "getCardInfo", &id, "1", &name, "1", "1", "0", "", "", "0", "0", "0", "0", "", "", "", "", "1", "0", "0", "0",
+        "0", "0", "0", "0", "0", "", "0", "0", "0", "1", "0", "0",
+    ];
+    Some(lines.iter().map(|l| format!("{l}\n")).collect::<String>().into_bytes())
+}
+
 fn card_status(times: u32, data: &[u8]) -> Vec<u8> {
     Out::default().u32(1).u32(times).u32(times).u32(data.len() as u32).bytes(data).0
 }
@@ -414,9 +436,14 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             let file = card_file(data, u32_at(data, 16));
             if std::env::var("WAL_NESYS_HTTP_DUMP").is_ok_and(|v| v == "1") {
                 let param = &data[24.min(data.len())..];
-                log!("nesys: card select type {} param {:?}", u32_at(data, 16), String::from_utf8_lossy(param));
+                log!("nesys: card select {:?} type {} param {:?}", String::from_utf8_lossy(&data[..16.min(data.len())]), u32_at(data, 16), String::from_utf8_lossy(param));
             }
             let mut card = std::fs::read(&file).unwrap_or_default();
+            if card.is_empty()
+                && let Some(new) = new_card(data, u32_at(data, 16))
+            {
+                card = new;
+            }
             if card.is_empty() && u32_at(data, 16) == CARD_GET_SESSION {
                 card = session_xml(&data[24.min(data.len())..]).into_bytes();
             }

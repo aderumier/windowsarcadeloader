@@ -78,7 +78,7 @@ fn apply(base: usize, (dll, name, f, orig): Hook, earlier: &[Hook]) {
 
 /// `dll!name` of the game's modules (and of the DLLs of its directory it loads later) replaced
 /// by `f`, the original function in `orig` (from the DLL's exports when none imports it yet).
-pub(crate) fn hook(dll: &'static str, name: &'static str, f: usize, orig: &'static AtomicUsize) {
+pub fn hook(dll: &'static str, name: &'static str, f: usize, orig: &'static AtomicUsize) {
     let modules = crate::workarea::game_modules(iat::game_module());
     {
         let mut dir = DIR.lock().unwrap();

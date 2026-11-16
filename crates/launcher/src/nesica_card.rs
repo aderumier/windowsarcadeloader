@@ -1,8 +1,9 @@
 //! The player's NESiCA card, machine-wide (`userprofiles/nesica-card.yaml`, edited in the GUI):
 //! every NESiCA / NESiCA 2 game reads this card (`WAL_NESICA_CARD_ID`) with this player name
 //! (`WAL_NESICA_PLAYER_NAME`, for the games whose card server data has one: Fighting EX
-//! Layer). Each game keeps its own progress on it (its saves, by card id). A game profile's
-//! own `env` values win.
+//! Layer). Each game keeps its own progress on it (its saves, by card id). A card set here is
+//! on the reader by itself (`WAL_NESICA_CARD_AUTO=1`, as the Aime card of the Sega games): no
+//! card input needed. A game profile's own `env` values win.
 
 use std::hash::{BuildHasher, Hasher};
 use std::path::{Path, PathBuf};
@@ -68,6 +69,7 @@ pub fn env(card: &Card) -> Vec<(&'static str, String)> {
     let mut env = Vec::new();
     if valid_id(&card.card_id) {
         env.push(("WAL_NESICA_CARD_ID", card.card_id.clone()));
+        env.push(("WAL_NESICA_CARD_AUTO", "1".into()));
     }
     let name = card.player_name.trim();
     if !name.is_empty() {

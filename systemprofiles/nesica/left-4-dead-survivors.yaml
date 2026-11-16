@@ -1,0 +1,110 @@
+# Left 4 Dead: Survivors (Taito / Valve, NESiCAxLive, Type X3, 2014) - template, override
+# values in userprofiles/nesica/left-4-dead-survivors.yaml.
+# Source engine (left4dead2.exe, 32-bit, Direct3D 9); the engine's bin\inputsystem.dll reads the
+# cabinet: the FastIO board (bin\iDmacDrv32.dll: start, coin, test, service), the NESiCA reader
+# (COM2), the grip controller (a USB joystick: move, jump, duck, flashlight) and the gun (a USB
+# mouse: aim, attack, shove, reload, zoom). The payload answers all of them (docs §6.2).
+system: nesica
+name: "Left 4 Dead: Survivors"
+
+# the cabinet's load_survivors.bat (without -console: the console opened over the title), at
+# the screen's size (a borderless window); NESiCA accepted (the dump's operator setting
+# arcade_NESiCA_Accept 0: "NESiCA cannot be used now")
+args: [-game, left4dead2, -language, japanese, -noborder, -windowed, -steam, -w, "{screen_width}", -h, "{screen_height}", +arcade_NESiCA_Accept, "1"]
+
+# bin\inputsystem.dll loads bin\iDmacDrv32.dll
+payload_install: [bin/iDmacDrv32.dll]
+
+env:
+  # the NESiCA reader (COM2) is opened by bin\inputsystem.dll
+  WAL_NESICA_RFID_MODULES: inputsystem.dll
+  # Type X3 reader: security (C:\TypeX3Temp.dat key + challenges answered) and its commands
+  # (26 presence, 32 lamp, 61 card read)
+  WAL_NESICA_RFID_SECURITY: "1"
+  # The GUI's NESiCA card is always on the reader (each play logs in with it; without one the
+  # card input toggles it); a card without a save gets a new level 1 player named as the GUI's
+  # card (empty: PLAYER).
+  WAL_NESYS_NEW_CARD: l4ds
+  # With the card, the game looks for other cabinets' rooms on its UDP lobby server (port
+  # 27010) before a stage, "connection timed out" without one: answered with no rooms.
+  WAL_NESICA_LOBBY: "27010"
+  # Type X3 FastIO: the universal board on the hub (0x4000 top byte 1, else I/O error 2-1)
+  # with its firmware 0x8258 (0x4150, else 2-3)
+  WAL_FASTIO_REGS: "4000:01FF00FF,4150:00018258"
+  # the gun is a USB mouse, looked up among the HID devices by bin\inputsystem.dll (else I/O
+  # error 4)
+  WAL_NESICA_HID_MOUSE: inputsystem.dll
+  # the grip controller (else I/O error 3) is winmm joystick 0: the left stick moves, its
+  # buttons JOY8 jump (the menus' decide: start too), JOY9 duck, JOY10 flashlight (JOY5, the
+  # operator's menu, left out)
+  WAL_NESICA_GRIP: inputsystem.dll
+  WAL_NESICA_GRIP_BUTTONS: ",,,,,,,b5+start,b6,b2"
+  # the gun's mouse: the right stick (or the mouse as a trackball) aims, in the menus too;
+  # MOUSE1 attack, MOUSE2 shove, MOUSE3 orders (unused), MOUSE4 reload, MOUSE5 zoom; its wheel
+  # changes the item. The real keyboard and mouse never reach the game (the message loops of
+  # inputsystem.dll, engine.dll, tier0.dll, vgui2.dll and binkw32.dll filtered).
+  WAL_NESICA_MOUSE: inputsystem.dll,engine.dll,tier0.dll,vgui2.dll,binkw32.dll
+  WAL_NESICA_MOUSE_BUTTONS: "b7,b3,,b1,b8"
+  WAL_NESICA_MOUSE_WHEEL: "b4,none"
+  WAL_NESICA_MOUSE_SPEED: "1500"
+  # the mouse's raw counts (no desktop acceleration): 3 cursor pixels a count
+  WAL_NESICA_MOUSE_GAIN: "3"
+
+input:
+  # the mouse is the gun's aim: its position wraps (a counter) on the pedal axes (unused by the
+  # pads here), the payload turns its motion into the cursor's; left attack, right shove, middle
+  # reload, back side button change item
+  guns_enabled: true
+  guns_mice: 1
+  mouse_screen: [32768, 32768]
+  mouse_wrap: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: b7
+    BTN_RIGHT: b3
+    BTN_MIDDLE: b1
+    BTN_SIDE: b4
+
+options:
+  - title: Controls
+    options:
+      - key: WAL_NESICA_MOUSE_SPEED
+        label: Stick aim speed
+        kind: number
+        min: 200
+        max: 6000
+        description: >-
+          How fast the right stick turns the view at full tilt (pixels of the gun's mouse a
+          second).
+      - key: WAL_NESICA_MOUSE_GAIN
+        label: Mouse aim speed
+        kind: number
+        min: 1
+        max: 10
+        description: >-
+          How far the view turns for a motion of the mouse.
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Move forward
+  down: Move back
+  left: Move left
+  right: Move right
+  rx: Aim left / right
+  ry: Aim up / down
+  accel: Aim left / right (the mouse)
+  brake: Aim up / down (the mouse)
+  b1: Reload
+  b2: Flashlight
+  b3: Shove
+  b4: Change item
+  b5: Jump
+  b6: Duck
+  b7: Attack
+  b8: Zoom
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: NESiCA card
