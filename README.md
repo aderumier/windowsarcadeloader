@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (386)
+## Games (387)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -279,6 +279,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `ongeki-summer` | O.N.G.E.K.I. SUMMER | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (57-60 FPS) | not in the test |  |
 | `ongeki-bright-memory` | O.N.G.E.K.I. bright MEMORY | alls | headless tests (2026-11-16, dump 1.45): boot, title server (data 1.45.00, options A001-A028), new Aime player (name entry, login bonus, story, tutorial song) to the save | not in the test |  |
 | `ongeki-re-fresh-152` | O.N.G.E.K.I. Re:Fresh 1.52 | alls | headless tests (2026-11-15): boot, title server (data 1.50.00, plain requests), new Aime player to the save | not in the test |  |
+| `kemono-friends-3-planet-tours` | Kemono Friends 3 Planet Tours | alls | user (2026-11-16, desktop): "game 100% working"; headless: self test, attract, new Aime player (name, tutorial, card printed, saved), returning player, card scene, battle | not in the test |  |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | not in the test |  |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | not in the test |  |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | not in the test |  |

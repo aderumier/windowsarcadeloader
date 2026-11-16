@@ -341,6 +341,15 @@ impl Mono {
     pub fn byte_array(&self, len: usize) -> P {
         unsafe { (self.array_new)(self.domain(), (self.get_byte_class)(), len) }
     }
+
+    /// A new array of `len` elements of `class` (zeroed; a value type's elements in place, from
+    /// [`ARRAY_DATA`]).
+    pub fn array(&self, class: P, len: usize) -> P {
+        if class.is_null() {
+            return std::ptr::null_mut();
+        }
+        unsafe { (self.array_new)(self.domain(), class, len) }
+    }
 }
 
 /// Reads the `T` at `offset` of the object (or static data) at `base`.

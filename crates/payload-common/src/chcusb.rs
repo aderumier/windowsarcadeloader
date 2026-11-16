@@ -3,6 +3,11 @@
 //! updater): the game's `GetProcAddress` for those libraries hands it this module's functions
 //! (segatools' `printer_chc.c`, public domain: c310emu, segatools-kancolle).
 //!
+//! The CHC-C300 (Kemono Friends 3, a Mono game: `C300usb.dll`, `C300FWDLusb.dll` through its
+//! `DllImport`s, [`setup`] and [`resolve_c300`]): the same functions, a few with other
+//! parameters (`startpage` without the card state, `setPrintStandby` without the position,
+//! `testCardFeed` with the count only).
+//!
 //! `WAL_CHC_PRINTER=1`. The printer's firmware versions are those of the game's own firmware
 //! files (`WAL_CHC_MAIN_FW`, `WAL_CHC_PARAM_FW`: their headers), so no update is wanted. A
 //! printed card is written to `WAL_CHC_OUT` (default `printer\` in the working directory):
@@ -88,21 +93,25 @@ fn out_dir() -> String {
     std::env::var("WAL_CHC_OUT").ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty()).unwrap_or_else(|| "printer".into())
 }
 
+/// The printer's state: its firmware versions from the game's files (`WAL_CHC_MAIN_FW`,
+/// `WAL_CHC_PARAM_FW`, else these defaults), a blank card's chip.
+pub fn setup(main_fw: &str, param_fw: &str) {
+    let mut p = printer();
+    let var = |k: &str, d: &str| std::env::var(k).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty()).unwrap_or_else(|| d.to_string());
+    if let Some(f) = file_firmware(&var("WAL_CHC_MAIN_FW", main_fw), true) {
+        p.main_fw = f;
+    }
+    if let Some(f) = file_firmware(&var("WAL_CHC_PARAM_FW", param_fw), false) {
+        p.param_fw = f;
+    }
+    p.tid = new_tid();
+}
+
 pub fn init() {
     if !std::env::var("WAL_CHC_PRINTER").is_ok_and(|v| v.trim() == "1") {
         return;
     }
-    {
-        let mut p = printer();
-        let var = |k: &str, d: &str| std::env::var(k).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty()).unwrap_or_else(|| d.to_string());
-        if let Some(f) = file_firmware(&var("WAL_CHC_MAIN_FW", "rom\\hw\\printer\\E0225500-0116-C310-MAINAPP.BIN"), true) {
-            p.main_fw = f;
-        }
-        if let Some(f) = file_firmware(&var("WAL_CHC_PARAM_FW", "rom\\hw\\printer\\D0485300-0103-C310-PARAM.BIN"), false) {
-            p.param_fw = f;
-        }
-        p.tid = new_tid();
-    }
+    setup("rom\\hw\\printer\\E0225500-0116-C310-MAINAPP.BIN", "rom\\hw\\printer\\D0485300-0103-C310-PARAM.BIN");
     match unsafe { iat::hook("kernel32.dll", "GetProcAddress", get_proc as *const () as usize) } {
         Some(o) => ORIG_GPA.store(o, Relaxed),
         None => log!("chcusb: no GetProcAddress import"),
@@ -124,6 +133,17 @@ unsafe extern "system" fn get_proc(module: *mut c_void, name: *const c_char) -> 
         }
     }
     unsafe { orig(module, name) }
+}
+
+/// The CHC-C300's function for an export of `C300usb.dll` / `C300FWDLusb.dll`, if emulated.
+pub fn resolve_c300(name: &str) -> Option<usize> {
+    let f: usize = match name.as_bytes() {
+        b"chcusb_startpage" => start_page_c300 as *const () as usize,
+        b"chcusb_setPrintStandby" => print_standby_c300 as *const () as usize,
+        b"chcusb_testCardFeed" => ok_arg_ptr as *const () as usize,
+        n => return replacement(n),
+    };
+    Some(f)
 }
 
 fn replacement(name: &[u8]) -> Option<usize> {
@@ -343,6 +363,10 @@ unsafe extern "system" fn start_page(_post_card_state: u16, page_id: *mut u16, r
     1
 }
 
+unsafe extern "system" fn start_page_c300(page_id: *mut u16, result: *mut u16) -> i32 {
+    unsafe { start_page(0, page_id, result) }
+}
+
 unsafe extern "system" fn end_page(result: *mut u16) -> i32 {
     let mut p = printer();
     p.awaiting_exit = true;
@@ -480,6 +504,10 @@ unsafe extern "system" fn print_standby(_position: u16, result: *mut u16) -> i32
     log!("chcusb: print standby {r}");
     unsafe { set_u16(result, r) };
     1
+}
+
+unsafe extern "system" fn print_standby_c300(result: *mut u16) -> i32 {
+    unsafe { print_standby(0, result) }
 }
 
 /// The printed card leaves: its chip saved, a new blank card's chip next (a card in standby

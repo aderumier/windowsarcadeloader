@@ -61,6 +61,9 @@
 //! - `WAL_ALLS_BOARD=ongeki`: O.N.G.E.K.I. (amdaemon, IO4: the buttons and the lever; the
 //!   game: the LED board on COM3, the VFD on COM2; the title server in amdaemon's ALL.Net
 //!   server, `ongeki.rs`)
+//! - `WAL_ALLS_BOARD=kemono`: Kemono Friends 3 Planet Tours (amdaemon, JVS on the AMEX board;
+//!   the game: a cabinet's user and Windows, the LED board through its serial library, the
+//!   CHC-C300 printer; the title server in amdaemon's ALL.Net server, `kemono.rs`)
 //! - `WAL_ALLS_LED_BOARD`: the LED boards' identity (payload-common `led.rs`)
 //! - `WAL_ALLS_AMLOG`, `WAL_ALLS_AMLOG_LEVELS`: the game's linked amLib's log (CHUNITHM;
 //!   payload-common's `amlog`)
@@ -96,6 +99,7 @@ mod indrun;
 mod indstate;
 mod inifile;
 mod io4;
+mod kemono;
 mod netenv;
 mod ongeki;
 mod registry;
@@ -227,6 +231,8 @@ fn start() {
                 chuni::init_chusan();
             } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "ongeki") {
                 ongeki::init();
+            } else if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "kemono") {
+                kemono::init();
             } else {
                 // the LED board's port (Mario & Sonic at Rio 2016: COM12)
                 wal_payload_common::led::init(std::env::var("WAL_ALLS_LED_PORT").as_deref().map_or("COM1", str::trim));
@@ -240,7 +246,7 @@ fn start() {
                 udp::init();
             }
             netenv::init_game();
-            if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| matches!(v.trim(), "chusan" | "ongeki")) {
+            if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| matches!(v.trim(), "chusan" | "ongeki" | "kemono")) {
                 // its title server is amdaemon's (in ALL.Net's server)
                 allnet::init_title_redirect();
             } else {

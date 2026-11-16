@@ -8172,6 +8172,51 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     `io4: coin N`), the game opens its coin blocker (output 21), but amdaemon never credits
     them (CREDIT(S) stays 0, free play off too; the count in both bytes changes nothing). The
     IO4 coin path was never verified before (Rio's and crossbeats' coins are JVS).
+- Kemono Friends 3 Planet Tours (SDFL, Nu SX `AAW0`, Sega 2019; `kemono-friends-3-planet-tours`,
+  `WAL_ALLS_BOARD=kemono`, `systemprofiles/seganu/kemono-friends-3-planet-tours.yaml`): a 32-bit
+  Mono Unity 2018.3 card game (`App\UnityApp\Parade.exe`, portrait 720x1280) with the 64-bit
+  `App\amdaemon.exe` (JVS on the AMEX board, `WAL_ALLS_JVS=1`; the Aime unit on COM1), the
+  CHC-C300 card printer, an LED board and two cameras (`kemono.rs`, `kemono/`).
+  - Background programs run in the game's folder (`App\UnityApp`), and this amdaemon also reads
+    a bare `config.json` from its working directory (else "Invalid app config", the dongle never
+    set up): the profile's `files` put the dump's `config.json` and `config_wal.json` there.
+  - The keychip: this 2019 amdaemon's amDongle reads its ids from the registry
+    (`amsSystemProperty*`, `SystemProperty\keychip`) and takes the model type 1-98 only; the
+    registry's `modelType` was the platform id's digit (`AAW0`: 0, "Disconnect dongle" to every
+    game request): `registry.rs` writes 1 at least. Each keychip ioctl code is logged once.
+  - The cabinet: `AmManager.checkTarget` trusts the running amdaemon only with `USERNAME`
+    `AppUser` on Windows 8 / 8.1; elsewhere it kills it (`Core.Kill`) and looks for a
+    developer's `amdaemon_emu.exe` (the boot stays on BACKUP): `USERNAME` set in the game's
+    process, Mono's `GetVersionExW` 6.3. As a cabinet it keeps its work data in `Y:\SDFL`.
+  - The LED board (837-15093-04 on COM10) through the game's `SerialPortAPI.dll`: its
+    `serport_*` imports are the payload's (`mono_imports`), `led.rs` behind them; the game checks
+    the board info's 16-bit receive buffer size big-endian (`WAL_LED_RXBUF_BE=1`: `00 CC`, else
+    LED CONTROL BOARD BAD).
+  - The printer: `chcusb.rs` `resolve_c300` (`C300usb.dll`, `C300FWDLusb.dll` through Mono): the
+    C310 functions, `startpage` / `setPrintStandby` / `testCardFeed` with the C300's parameters
+    (stdcall: their count matters), firmware versions from `StreamingAssets\Printer`.
+  - The cameras (`kemono/camera.rs`): Unity's `WebCamTexture::get_devices` internal call
+    (replaced at its `mono_add_internal_call`) lists two webcams; `QrCodeDecoder.IsCameraPlaying`
+    is true; `QrCodeDecoder.SetDeviceNameFromPos` gives the card camera's decoder, as a code its
+    thread decoded, the empty slot's `SDFL_POS_CARD` (the boot's camera check takes that webcam
+    for the card camera, the other for the player's) or the next card printed this session.
+    The printed cards' QR content is caught at `QrCodeUtil.CalcCRC7` (the encoder checksums the
+    whole content before drawing it; the payload's CRC-7 is the game's) and kept in
+    `Y:\kemono\cards`. A CameraCheck IL patch was refused by Mono (exception clauses).
+  - The title server (`kemono/server.rs`, in amdaemon's ALL.Net server; `WAL_ALLS_TITLE_URI`
+    `http://{allnet}/SDFL/`, the game appends `paradesv_arcade/<Command>.do`): no public server
+    (ARTEMiS has none). Requests are `param=` the JSON obfuscated by `SGNFW.Http.Connection`
+    (the JSON's MD5's first 4 bytes, the JSON XORed with their MD5, an MD5 trailer); answers plain
+    JSON. ServerSetting (the game's default settings, the ranking from the players' best
+    scores), CheckAlive, GetUserInfo (1: no player), LoginUser (126, logged in, for a new
+    player: `UserNotExist` there returns to the attract), UpdateOrLogoutUser (the `UserInfo`
+    document kept in `Y:\kemono\<Aime id>.json`), SendLog / SendPrintLog / GetPrintLog.
+  - Entry: the agreement and player screens' yes is the green button (b3); the automatic Aime
+    card waits 3 s (`WAL_ALLS_AUTO_CARD_DELAY_MS`).
+  - Verified headless: power-on self test all GOOD but DB SERVER (no request reaches the title
+    server during it; the game uses it fine afterwards), camera check, attract (free play), new Aime player (name entry, tutorial, card
+    printed, saved), returning player, card scene, a battle. User (2026-11-16, desktop): "game
+    100% working".
 
 ### 6.3m Sega Nu (`crates/payload-seganu`)
 
@@ -8719,6 +8764,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `ongeki-summer` | O.N.G.E.K.I. SUMMER | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (57-60 FPS) | `ongeki`'s (§6.3l), version 1.10: the same amdaemon patch as PLUS, title URI /SDDT/110/ |
 | `ongeki-bright-memory` | O.N.G.E.K.I. bright MEMORY | alls | headless tests (2026-11-16, dump 1.45): boot, title server (data 1.45.00, options A001-A028), new Aime player (name entry, login bonus, story, tutorial song) to the save | `ongeki`'s (§6.3l): packed images, SEGAguide's unpacked 1.45 set and ICFs, Sleep patch +0x26fd, title URI /SDDT/145/ |
 | `ongeki-re-fresh-152` | O.N.G.E.K.I. Re:Fresh 1.52 | alls | headless tests (2026-11-15): boot, title server (data 1.50.00, plain requests), new Aime player to the save | `ongeki`'s (§6.3l): Re:Fresh 1.50's unpacked set with the 1.52 update, options A001-A052 and AOMN, `plain_requests`, Sleep patch +0x26fd, title URI /SDDT/152/ |
+| `kemono-friends-3-planet-tours` | Kemono Friends 3 Planet Tours | alls | user (2026-11-16, desktop): "game 100% working"; headless: self test, attract, new Aime player (name, tutorial, card printed, saved), returning player, card scene, battle | Nu SX with amdaemon (§6.3l, `WAL_ALLS_BOARD=kemono`): keychip model type, cabinet user / Windows 8.1, LED board via SerialPortAPI, CHC-C300 printer, two virtual webcams with the printed cards in the card slot, its own title server (players, ranking) |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide |

@@ -202,11 +202,13 @@ fn answer(frame: &[u8], port: usize) -> Vec<u8> {
                 Vec::new()
             }
         }
-        // board info: number, LF, chip, FF, firmware, receive buffer 204
+        // board info: number, LF, chip, FF, firmware, receive buffer 204 (`WAL_LED_RXBUF_BE=1`:
+        // big-endian, 00 CC: Kemono Friends 3 checks the 16-bit size, else LED CONTROL BOARD BAD)
         0xF0 => {
             let (number, chip, _, version) = identity();
             let mut v = format!("{number:<8.8}\n{chip:<5.5}").into_bytes();
-            v.extend([0xFF, version, 204, 0]);
+            v.extend([0xFF, version]);
+            v.extend(if std::env::var("WAL_LED_RXBUF_BE").is_ok_and(|v| v.trim() == "1") { [0, 204] } else { [204, 0] });
             encode(cmd, &v, src)
         }
         // board status: board / UART / command flags, DIP switch 1 on

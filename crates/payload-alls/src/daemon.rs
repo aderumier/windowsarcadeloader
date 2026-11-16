@@ -219,6 +219,14 @@ static KEYCHIP_STATE: Mutex<Keychip> = Mutex::new(Keychip { play_count: 0, play_
 
 /// `CTL_CODE(0x22, function, METHOD_BUFFERED, access)`: the keychip ioctls by function.
 fn keychip_ioctl(code: u32, input: &[u8], out: &mut [u8]) -> Option<usize> {
+    {
+        static SEEN: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+        let mut seen = SEEN.lock().unwrap();
+        if !seen.contains(&code) {
+            seen.push(code);
+            log!("alls: keychip ioctl {code:#x} (in {} out {})", input.len(), out.len());
+        }
+    }
     let mut k = KEYCHIP_STATE.lock().unwrap();
     let head = k.log_tail + k.log.len() as u32;
     Some(match (code >> 2) & 0xfff {
@@ -436,6 +444,9 @@ pub(crate) fn init() {
     }
     if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "ongeki") {
         crate::ongeki::init_daemon();
+    }
+    if std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "kemono") {
+        crate::kemono::init_daemon();
     }
     crate::allnet::init();
     wal_payload_common::aimedb::init();

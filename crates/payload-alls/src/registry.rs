@@ -77,7 +77,9 @@ pub(crate) fn write(cab: &Cabinet, video_dll: &str) {
     let mut keychip = [0u8; 16];
     keychip.iter_mut().zip(cab.keychip.bytes()).for_each(|(d, s)| *d = s);
     let platform = cab.platform_id.as_bytes();
-    let model = platform.get(3).filter(|c| c.is_ascii_digit()).map_or(0, |c| (c - b'0') as u32);
+    // the model: the platform's digit, 1 at least (amdaemon takes 1-98 only: a Nu SX's AAW0
+    // made Kemono Friends 3's amdaemon fail its keychip setup, "Disconnect dongle")
+    let model = platform.get(3).filter(|c| c.is_ascii_digit()).map_or(1, |c| (c - b'0') as u32).max(1);
     set(
         "keychip",
         &[

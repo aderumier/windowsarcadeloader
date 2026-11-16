@@ -1,0 +1,95 @@
+# Kemono Friends 3 Planet Tours (Sega, Nu SX, 2019; game id SDFL): a 32-bit Mono Unity 2018.3
+# card game on a portrait 720x1280 screen. One player: a stick, three buttons (red, green, blue),
+# start, an Aime card reader, the CHC-C300 card printer.
+# amdaemon.exe (64-bit, the cabinet's system service: game.bat's) reads the JVS I/O board through
+# the AMEX board and the Aime reader on COM1, then the game (App\UnityApp\Parade.exe), both with
+# the ALLS payload.
+# Override values in userprofiles/seganu/kemono-friends-3-planet-tours.yaml.
+system: alls
+name: Kemono Friends 3 Planet Tours
+
+# both programs started by wal-loader with the payload (the game 32-bit, amdaemon 64-bit)
+payload_loader: true
+# game.bat's, windowed and borderless
+args: [-single-instance, -screen-fullscreen, "0", -popupwindow, -screen-width, "720", -screen-height, "1280"]
+
+# game.bat's amdaemon (the dump's App\, the game's X: drive), its configuration and the
+# profile's last: its video setup off (it rotates the cabinet's monitor; the launcher fits the
+# portrait picture instead), the network address from DHCP. Background programs run in the
+# game's folder (App\UnityApp), where amdaemon also reads config.json by itself (else "Invalid
+# app config": the dongle never set up, the game waits at its BACKUP check): both files there.
+background:
+  - ../amdaemon.exe -c config.json config_wal.json -l Y:\amdaemon.log
+background_wait_ms: 5000
+files:
+  App/UnityApp/config.json: "{dump}/App/config.json"
+  App/UnityApp/config_wal.json: systemprofiles/alls/files/kemono-friends-3-planet-tours/config_wal.json
+
+# The cabinet's drives: E: the AMFS (the image information, the system backup amdaemon keeps),
+# Y: the game's data (Y:\SDFL: its logs; the AMEX board's EEPROM and SRAM in Y:\amex): a folder
+# of its own in the run directory
+drives:
+  e: amfs
+run_drives:
+  y: appdata
+
+env:
+  # the game's devices (payload-alls kemono.rs): a cabinet's user and Windows (else the game
+  # kills amdaemon), the LED board through its SerialPortAPI.dll, the CHC-C300 printer, two
+  # virtual webcams (the card slot shows the cards printed), the title server
+  WAL_ALLS_BOARD: kemono
+  # its LED board (837-15093-04, COM10): the board info's receive buffer size read big-endian
+  WAL_LED_RXBUF_BE: "1"
+  WAL_ALLS_GAME_ID: SDFL
+  WAL_ALLS_PLATFORM_ID: AAW0
+  WAL_ALLS_PLATFORM_NAME: Nu SX
+  # the Nu's amdaemon reads the JVS I/O board through the AMEX board
+  WAL_ALLS_JVS: "1"
+  WAL_TYPEX_JVS_OUTPUTS: "24"
+  # ALL.Net's authentication accepted (the payload's server)
+  WAL_ALLS_ALLNET: "1"
+  # the title server (paradesv_arcade: the Aime card players, the ranking) in amdaemon's ALL.Net
+  # server (the game's Mono reaches it directly), the players in Y:\kemono
+  WAL_ALLS_TITLE_URI: "http://{allnet}/SDFL/"
+  # ALL.Net's billing server (amdaemon's accounting, mode A: it checks in on the router's 8443)
+  WAL_ALLS_BILLING: "1"
+  # amdaemon's Aime unit (port 1); after start the card touched by itself 3 s after the game
+  # asks (one touched at once is not read)
+  WAL_ALLS_AIME_PORT: COM1
+  WAL_ALLS_AUTO_CARD: "1"
+  WAL_ALLS_AUTO_CARD_DELAY_MS: "3000"
+  WAL_ALLS_TIMEWARP: "1"
+  # its CRI sound in WASAPI exclusive mode played in shared mode
+  WAL_WASAPI_SHARED: "1"
+  # the portrait screen fitted on the real one, black around it
+  WAL_DESKTOP_SIZE: 720x1280
+  WAL_BEZEL: black
+  WAL_EXE_ENV: "Parade.exe: WAL_WINDOW_POPUP=1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_ALLS_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start, the Aime card is touched by itself when the game asks for it (the
+          player's name, friends and progress kept on the card). Off: touch it with the card
+          button.
+
+# the agreement and player screens' yes is the green button, no the red one; start decides
+controls:
+  up: Stick up
+  down: Stick down
+  left: Stick left
+  right: Stick right
+  b1: Red button
+  b2: Blue button
+  b3: Green button
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card
