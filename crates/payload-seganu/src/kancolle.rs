@@ -42,7 +42,7 @@ pub fn init() {
     let game_id = std::env::var("WAL_SEGANU_GAME_ID").unwrap_or_else(|_| "SDBZ".into());
     let platform = std::env::var("WAL_SEGANU_PLATFORM_ID").unwrap_or_else(|_| "AAV1".into());
     wal_payload_common::icf::ensure(game_id.trim(), platform.trim(), version);
-    allnet();
+    allnet(crate::kcserver::answer);
     // the card printer (WAL_CHC_PRINTER)
     wal_payload_common::chcusb::init();
     // the LED board (837-15093-06) and the RFID deck reader (837-15345)
@@ -62,12 +62,17 @@ pub fn init() {
     if aime_port.starts_with("COM") {
         aime(&aime_port);
     }
+    hook_broadcast();
+    log!("kancolle: initialized");
+}
+
+/// The broadcasts to the loopback address ([`sendto`]).
+pub(crate) fn hook_broadcast() {
     let f = sendto as *const () as usize;
     let exe = iat::game_module();
     if let Some(o) = unsafe { iat::hook_ordinal(exe, "WS2_32.dll", 20, f) }.or_else(|| unsafe { iat::hook("ws2_32.dll", "sendto", f) }) {
         SENDTO.store(o, Ordering::Relaxed);
     }
-    log!("kancolle: initialized");
 }
 
 unsafe extern "system" fn set_window_feedback_setting(_hwnd: usize, _feedback: u32, _flags: u32, _size: u32, _config: usize) -> i32 {
@@ -84,14 +89,16 @@ fn local_address() -> Option<std::net::Ipv4Addr> {
     }
 }
 
-fn allnet() {
+/// The game's own ALL.Net client (KanColle Arcade's, Project DIVA Arcade Future Tone's), its
+/// title server `title`.
+pub(crate) fn allnet(title: wal_payload_common::allnet::Title) {
     wal_payload_common::clock::hook_setters();
     let ip = local_address().unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2)).octets();
     wal_payload_common::dns::set_router([ip[0], ip[1], ip[2], 1]);
     wal_payload_common::dns::init();
     wal_payload_common::allnet::redirect_connect(wal_payload_common::allnet::to_server);
     // its title server (the power-on's uri: `/SDBZ/`), the payload's (kcserver.rs)
-    wal_payload_common::allnet::set_title(crate::kcserver::answer);
+    wal_payload_common::allnet::set_title(title);
     wal_payload_common::allnet::start();
     wal_payload_common::aimedb::init();
     // its amLib checks in with ALL.Net's billing server itself (else error 8113)
@@ -115,7 +122,7 @@ unsafe extern "system" fn sendto(s: usize, buf: *const u8, len: i32, flags: i32,
 }
 
 /// Player 1's 20-digit Aime access code (`WAL_SEGANU_AIME_CODE`, default the first card).
-fn access_code() -> String {
+pub(crate) fn access_code() -> String {
     let code: String = std::env::var("WAL_SEGANU_AIME_CODE").unwrap_or_default().chars().filter(char::is_ascii_digit).collect();
     if code.len() == 20 { code } else { "50000000000000000001".into() }
 }

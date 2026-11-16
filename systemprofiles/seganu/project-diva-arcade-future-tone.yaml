@@ -1,0 +1,152 @@
+# Hatsune Miku Project DIVA Arcade Future Tone (Sega, Nu, 2013-2017; game id SBZV, version
+# 7.01.00): a 64-bit OpenGL rhythm game played on 4 hit buttons (triangle, square, cross,
+# circle), a touch slider (the slide notes) and a touch screen. Runs App\diva.exe.
+# amLib is linked in (no amdaemon): the Nu payload emulates the system (AMEX board: keychip,
+# EEPROM, SRAM, the JVS I/O board) in the game's process, plus the game's network (its own
+# ALL.Net client, the title server, AimeDB, billing), the Aime reader, the touch screen and the
+# touch slider (WAL_SEGANU_DIVA, crates/payload-seganu/src/diva.rs).
+# Override values in userprofiles/seganu/project-diva-arcade-future-tone.yaml.
+system: seganu
+name: Hatsune Miku Project DIVA Arcade Future Tone
+
+# started by wal-loader64 with the 64-bit payload
+payload_loader: true
+
+# the cabinet's application data partition Y: (Y:\SBZV): a folder of its own in the run
+# directory, never the run directory itself (the cabinet formats Y: when Y:\SBZV is missing,
+# which through the run directory's links would delete the dump's files)
+run_drives:
+  y: appdata
+# the option data (the songs and modules of the updates: Option\M215..M271) where the game looks
+# for them (else EXTENDED DATA waits forever at startup)
+c_folders:
+  Mount/Option: Option
+drives:
+  # the AMFS (the image information E:\ICF1, ICF2, written by the payload)
+  e: amfs
+
+env:
+  # the keychip's game and platform (Nu, AAV0) and the image information's version
+  WAL_SEGANU_GAME_ID: SBZV
+  WAL_SEGANU_PLATFORM_ID: AAV0
+  WAL_SEGANU_GAME_VERSION: "7.01.00"
+  # DIP switch 1: the shop's main cabinet (SATELLITE:MAIN; off: a sub one waiting for its main)
+  WAL_SEGANU_DIPSW: "01"
+  # its ALL.Net client's power-on accepted by the payload's ALL.Net server
+  WAL_ALLS_ALLNET: "1"
+  # the keychip's billing type 1; its accounting report goes to the payload's billing server
+  WAL_SEGANU_BILLING_TYPE: "1"
+  # its title server, the payload's (payload-common divaserver.rs: ARTEMiS' Future Tone server)
+  WAL_ALLS_TITLE_URI: "http://{router}/DivaServlet/"
+
+  # the game's devices and network (diva.rs)
+  WAL_SEGANU_DIVA: "1"
+  # the touch screen: an Elo 2701 controller (payload-common elo.rs) on COM1
+  WAL_RINGEDGE_ELO: COM1
+  # the touch pointer: a red dot (the common crosshair, drawn by the payload's OpenGL swap) on
+  # the finger, else the mouse
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_AXES: touch
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "2"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
+  # the Aime reader on COM10: the TN32MSEC003S, segatools' generation 1 (the dump's
+  # App\firm\TN32MSEC003S_V12.hex)
+  WAL_AIME_READER: tn32
+  # after start or a touch, the card touched by itself when the game asks for it
+  WAL_SEGANU_AUTO_CARD: "1"
+
+  # - 0x140012fd0: the festival info received (its getter: mov al,1): NET PARAM waited for it
+  #   (5/6) with ARTEMiS' answer too; none running (its records stay empty)
+  # - 0x14020c990: no closing time set (mov al,0): open all day, whatever the test menu's CLOSE
+  #   SETTING (a fresh backup closes at night: the attract's "プレイ受付:受付終了", start refused)
+  WAL_PATCHES: "0x12fd0:B001C3,0x20c990:B000C3"
+
+  # its sound in WASAPI exclusive mode (none in Wine: silent) played in shared mode
+  WAL_WASAPI_SHARED: "1"
+
+  # full screen: the game draws its 1280x720 screen (oxGetHwInfo.ini's resolution), scaled to
+  # the screen (aspect kept) in a borderless window; no mouse cursor
+  WAL_RINGEDGE_GL_SCALE: 1280x720
+  WAL_WINDOW_POPUP: "1"
+  WAL_HIDE_CURSOR: "1"
+  # its NVIDIA assembly programs on other GPUs (Mesa: AMD, Intel), see payload-common cg.rs and
+  # nvasm.rs (its skinning's NV_gpu_program5 parameter buffer emulated); NVIDIA GPUs keep them
+  WAL_RINGEDGE_CG_FIX: auto
+  # its shadow samplers kept (its programs use the depth comparison's result, not the depth)
+  WAL_RINGEDGE_CG_SHADOW: "1"
+  # its loops unrolled 5 times (the skin's blur, its 5 taps)
+  WAL_RINGEDGE_CG_REPEAT: "5"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the coins and credits of the game's test menu.
+  - title: Aime card
+    options:
+      - key: WAL_SEGANU_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After start or a touch, the Aime card is touched by itself when the game asks for it (the
+          player's name, scores and modules kept on the card). Off: touch it with the card button.
+
+# the touch screen: a touchpad or touchscreen (the finger), the mouse (its position, the left
+# button) or the left stick with button 8. The 4 hit buttons are the JVS buttons; the slider's
+# hands slide by themselves while their input is held (diva.rs).
+input:
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: b8
+  # the 4 hit buttons on a pad's face buttons (the diamond): Y triangle, X square, A cross, B
+  # circle; L1 / R1 the left and right slides (or the triggers, or the right stick); the left
+  # stick and R3 the touch
+  gamepad:
+    y: b1
+    x: b2
+    a: b3
+    b: b4
+    l1: b5
+    r1: b6
+    r3: b8
+  # the keyboard: F G H J the 4 hit buttons, D and K the slides; 1 start, 5 coin, F1 service,
+  # F2 test, F4 card (the defaults); these keys are player 2's and 3's by default: freed there
+  keyboard:
+    p1:
+      KEY_F: b1
+      KEY_G: b2
+      KEY_H: b3
+      KEY_J: b4
+      KEY_D: b5
+      KEY_K: b6
+    p2:
+      KEY_D: none
+      KEY_F: none
+      KEY_G: none
+    p3:
+      KEY_J: none
+      KEY_K: none
+
+controls:
+  b1: Triangle (△)
+  b2: Square (□)
+  b3: Cross (×)
+  b4: Circle (○)
+  b5: Slide left (the left hand)
+  b6: Slide right (the right hand)
+  rx: Slides (left / right)
+  lx: Touch position
+  ly: Touch position
+  b8: Touch
+  start: Start (with the automatic card)
+  coin: Coin
+  service: Service
+  test: Test
+  card: Aime card

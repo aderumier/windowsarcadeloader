@@ -1,18 +1,20 @@
 //! Project DIVA Arcade's title server (`DivaServlet`, the ALL.Net power-on's uri: the router's
-//! port 80, `wal_payload_common::allnet`'s server), from ARTEMiS' `titles/diva` (WTFPL; written
+//! port 80, `crate::allnet`'s server), from ARTEMiS' `titles/diva` (WTFPL; written
 //! for Future Tone, the same commands and keys as this version's). Its boot requests answered
 //! (the startup checks: PV INFORMATION, NET PARAM, ...), with ARTEMiS' lists (`diva_data/`: the
 //! songs' PV list, the module shop and customize item catalogs, the quests). The players of the
 //! Aime cards ([`players`]): registered, their profile and best scores kept in the save folder
-//! (`diva_players.txt`), with this version's own keys and bounds (Future Tone's differ); the other
+//! (`diva_players.txt`), with this version's own keys and bounds; Future Tone's (Nu,
+//! [`set_future_tone`]) ARTEMiS' handlers ported whole ([`future_tone`], `diva_ft.txt`); the other
 //! commands `stat=ok` with no values.
 //!
 //! A request's body is the form (`cmd=...&req_id=...&...`) deflated (zlib) then base64, or a
 //! multipart body (`THIS_STRING_SEPARATES`) with the form on its fourth line. An answer is
 //! `cmd=<cmd>&req_id=<req_id>&stat=ok` and the command's values, plain.
 
-use wal_payload_common::{allnet, log};
+use crate::{allnet, log};
 
+mod future_tone;
 mod players;
 
 /// The lists' last update time (the game asks for a list again when it changes).
@@ -131,22 +133,36 @@ fn pv_list() -> String {
     format!("&pvl_lut={}&pv_lst={}", quote(LUT), lists.join(","))
 }
 
-/// The festivals: none running (they ended). Future Tone's `fi_attr` left out: this version
-/// refuses the answer with a key it does not know (NET PARAM stuck at 3/4).
+/// Future Tone's server (`set_future_tone`): its festivals' attributes (`fi_attr`).
+static FUTURE_TONE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// The game is Project DIVA Arcade Future Tone (Nu), the version ARTEMiS's server answers.
+pub fn set_future_tone() {
+    FUTURE_TONE.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The festivals: none running (they ended). Future Tone's `fi_attr` only for it: the older
+/// Project DIVA Arcade refuses the answer with a key it does not know (NET PARAM stuck at 3/4),
+/// Future Tone without it (NET PARAM stuck at 5/6).
 fn festa_info() -> String {
-    let params = [
+    let mut params = vec![
         ("fi_id", "1,2".to_string()),
         ("fi_name", "WindowsArcadeLoader Opening,Project DIVA Festa".into()),
         // 0 pink, 1 green
         ("fi_kind", "1,0".into()),
         ("fi_difficulty", "-1,-1".into()),
         ("fi_pv_id_lst", "ALL,ALL".into()),
-        ("fi_add_vp", "20".into()),
+    ];
+    if FUTURE_TONE.load(std::sync::atomic::Ordering::Relaxed) {
+        params.push(("fi_attr", "7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF,7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF".into()));
+    }
+    params.extend([
+        ("fi_add_vp", "20".to_string()),
         ("fi_mul_vp", "1".into()),
         ("fi_st", "2019-01-01 00:00:00.0,2019-01-01 00:00:00.0".into()),
         ("fi_et", "2029-01-01 00:00:00.0,2029-01-01 00:00:00.0".into()),
         ("fi_lut", LUT.into()),
-    ];
+    ]);
     format!("&{}", urlencode(&params, true))
 }
 
@@ -158,7 +174,11 @@ fn qst_inf() -> String {
 
 /// The command's values (after `cmd`, `req_id`, `stat`).
 fn values(cmd: &str, form: &[(String, String)]) -> String {
-    if let Some(v) = players::values(cmd, form) {
+    if FUTURE_TONE.load(std::sync::atomic::Ordering::Relaxed) {
+        if let Some(v) = future_tone::values(cmd, form) {
+            return v;
+        }
+    } else if let Some(v) = players::values(cmd, form) {
         return v;
     }
     match cmd {
@@ -188,18 +208,19 @@ fn form(body: &[u8]) -> Vec<(String, String)> {
 }
 
 /// `allnet::Title`: the answer to a `DivaServlet` request.
-pub(crate) fn answer(path: &str, body: &[u8]) -> Vec<u8> {
+pub fn answer(path: &str, body: &[u8]) -> Vec<u8> {
     let form = form(body);
     let value = |key: &str| form.iter().find(|(k, _)| k == key).map_or("", |(_, v)| v.as_str());
     let cmd = value("cmd");
-    if players::COMMANDS.contains(&cmd) {
+    let players = players::COMMANDS.contains(&cmd) || future_tone::COMMANDS.contains(&cmd);
+    if players {
         let keys: Vec<String> = form.iter().filter(|(k, _)| !matches!(k.as_str(), "cmd" | "req_id")).map(|(k, v)| format!("{k}={v}")).collect();
         log!("diva: {path} {cmd} {}", keys.join("&"));
     } else {
         log!("diva: {path} {cmd}");
     }
     let reply = format!("cmd={cmd}&req_id={}&stat=ok{}", value("req_id"), values(cmd, &form));
-    if players::COMMANDS.contains(&cmd) {
+    if players {
         log!("diva: -> {reply}");
     }
     reply.into_bytes()

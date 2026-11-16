@@ -13,7 +13,7 @@
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
-use wal_payload_common::{iat, log};
+use crate::{iat, log};
 use windows_sys::Win32::Foundation::RECT;
 
 static WIDTH: AtomicU32 = AtomicU32::new(0);

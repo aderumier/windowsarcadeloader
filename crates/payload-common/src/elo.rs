@@ -16,7 +16,7 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use wal_payload_common::{input, log, serial, touches};
+use crate::{input, log, serial, touches};
 use wal_protocol::{Axis, button};
 
 const LEAD: u8 = 0x55;
@@ -124,7 +124,7 @@ fn stream() -> Vec<u8> {
     frame(b'T', &[status, x as u8, (x >> 8) as u8, y as u8, (y >> 8) as u8, 0xFF, 0])
 }
 
-pub(crate) fn init() {
+pub fn init() {
     let Ok(ports) = std::env::var("WAL_RINGEDGE_ELO") else { return };
     for port in ports.split(',').map(str::trim).filter(|p| !p.is_empty()) {
         serial::install_streaming(port, reply, stream);

@@ -77,6 +77,19 @@ pub mod dshow;
 pub mod exe_env;
 #[cfg(windows)]
 pub mod glview;
+// NVIDIA assembly programs and Cg shaders on other GPUs (RingEdge, Nu: Project DIVA Arcade, Initial D)
+#[cfg(windows)]
+pub mod cg;
+#[cfg(windows)]
+pub mod nvasm;
+// an OpenGL game drawn at its own size, scaled to the screen
+#[cfg(windows)]
+pub mod glscale;
+// Project DIVA Arcade's title server (DivaServlet) and touch panel (Elo 2701), RingEdge and Nu
+#[cfg(windows)]
+pub mod divaserver;
+#[cfg(windows)]
+pub mod elo;
 // NVIDIA-only OpenGL (bindless, command lists) on other GPUs
 #[cfg(windows)]
 pub mod nvgl;

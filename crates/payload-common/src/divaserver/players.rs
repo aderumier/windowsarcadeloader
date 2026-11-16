@@ -13,7 +13,7 @@
 use std::collections::BTreeMap;
 use std::sync::Mutex;
 
-use wal_payload_common::log;
+use crate::log;
 
 use super::{quote, unquote, LUT};
 
@@ -114,7 +114,7 @@ struct Store {
 static STORE: Mutex<Store> = Mutex::new(Store { records: BTreeMap::new(), loaded: false });
 
 fn path() -> std::path::PathBuf {
-    let dir = std::env::var("WAL_RINGEDGE_SAVE").unwrap_or_else(|_| "sv".into());
+    let dir = std::env::var("WAL_RINGEDGE_SAVE").or_else(|_| std::env::var("WAL_SEGANU_SAVE")).unwrap_or_else(|_| "sv".into());
     std::path::Path::new(&dir).join("diva_players.txt")
 }
 

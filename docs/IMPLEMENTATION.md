@@ -8043,6 +8043,28 @@ payload is loaded by `wal-loader` (no driver DLL imported).
   `WAL_SEGANU_FREEPLAY_BYTE=0x1218`, and in a blank backup the records of a set up one first
   (`WAL_SEGANU_FREEPLAY_RECORD`: its id record at 0x1f0 / 0x9f0, its default coin settings; else
   its first boot sets the backup up, free play off).
+- Hatsune Miku Project DIVA Arcade Future Tone (SBZV 7.01.00, AAV0, `diva.exe` 64-bit OpenGL,
+  the RingEdge Project DIVA Arcade's engine; `WAL_SEGANU_DIVA=1`, `diva.rs`, per segatools'
+  `divahook`): its own ALL.Net client, AimeDB, billing and the local file server's broadcasts as
+  KanColle Arcade's (`kancolle.rs`); the title server payload-common `divaserver.rs`, its players
+  ARTEMiS' Future Tone handlers ported whole (`divaserver/future_tone.rs`, `sv\diva_ft.txt`);
+  COM1 the Elo 2701 touch controller (payload-common `elo.rs`), COM10 the TN32 Aime reader
+  (generation 1), COM11 the 837-15275 touch slider (32 cells streamed while scanning; the hands
+  slide by themselves from the middle outwards while b5 / b6 are held, as segatools' divaio's
+  automatic slides). Its NVIDIA assembly programs through payload-common `cg.rs` / `nvasm.rs`
+  (moved from the RingEdge payload with `glscale.rs`, `elo.rs`, `divaserver`): its skinning's
+  `!!NVvp5.0` programs read the bone matrices from an NV_parameter_buffer_object buffer
+  (`BUFFER4 _mtxpal[] = { program.buffer[0] }`, absent in Mesa: the game's next `glGetError` took
+  the error for its first render target's and crashed): rewritten as local parameters
+  256..1023 (`nvasm::PALETTE_LOCAL`), the integer index converted from a float read as that float;
+  the buffers bound to `GL_VERTEX_PROGRAM_PARAMETER_BUFFER_NV` kept by the payload (`glBindBuffer`,
+  `glBufferData`, `glBufferSubData`, `glMapBuffer*`, `glBindBuffer{Base,Range,Offset}NV`,
+  `glProgramBufferParameters*NV`; Wine's `wglGetProcAddress` gives the NV ones as NULL) and
+  copied into the bound program's local parameters before a draw when changed. All 8140 programs
+  of `rom/shader.farc` load in Mesa. Startup: the option data at `C:\Mount\Option` (`c_folders`,
+  else EXTENDED DATA waits), the festival info's received flag (`0x140012fd0`, NET PARAM 5/6)
+  and the closing time (`0x14020c990`) patched (profile `WAL_PATCHES`). Its sound: one WASAPI
+  exclusive stream (44.1 kHz, 4 channels), played in shared mode (`WAL_WASAPI_SHARED`).
 
 ### 6.4 Batocera integration
 
@@ -8451,6 +8473,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) | RingWide (platform AAM) medal slot machine satellite (game id SBXF), `App_Release.exe` alone (game.bat's `mbcom.exe`, the network medal bank, and `AimeReader.exe` not needed); 1280x1024 (DIP DF), region 01, credit record, challenge file `Data/amFile/SBXF_Table.dat`; its boards from `Data/script/game_conf.lua` (`IOBoardComPort` 3, `TouchPanelComPort` 1, `CPBoardComPort` 5; 0 = unused, debug): the I/O board on COM3 is Medal no Gunman's protocol with its own switches (`WAL_RINGEDGE_MEDAL_IO`, `satellite.rs`: selector panel / main door closed, reset key = service, transfer; medals counted by `66 0C`, coin = 10 medals), the control panel board on COM5 (`WAL_RINGEDGE_CP_BOARD`: buttons select 1-5, start, payout through command `81`), a 3M MicroTouch EX II on COM1 (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`: the mouse, its left button = b8; format tablet reports streamed through the serial layer's idle callback, Y up; the game's default calibration fits). A fresh backup shows error 3001 until the reset key (service) is turned. The game saves the I/O board's last command list in backup RAM and restores it at boot, then reads the `74` handshake reply against it (its checksum as a report: error 3105 at every boot once a payout saved the list): patched to restore it empty (`WAL_PATCHES` 0x2deac). Payout (b6) pays the medals out |
 | `sonic-dash-extreme` | Sonic Dash Extreme | seganu | headless tests (2026-11-08): attract, coins, start, character select, play, tickets dispensed during play and at the end, back to attract, test menu and back; not user-verified | Sega Nu SX (§6.3m): AMEX board devices, keychip driver, registry values, JVS with 24 outputs and the ticket dispenser (`WAL_TYPEX_JVS_TICKETS`), portrait window in the dump's bezel |
 | `luigis-mansion-arcade` | Luigi's Mansion Arcade | seganu | user (2026-11-08): "game is working perfect" (aim, start, play); headless tests: attract, coins, service, free play from a blank backup | Sega Nu (§6.3m), 64-bit: the Capcom protector's game started once unpacked (`WAL_SEGANU_UNPACK`), the I/O board on COM1 (guns, coins, switches; `WAL_SEGANU_LMAIO`), free play in the game's coin settings |
+| `project-diva-arcade-future-tone` | Hatsune Miku Project DIVA Arcade Future Tone | seganu | user (2026-11-16): "game working 100%" (picture, sound, play); headless tests: startup checks, attract (3D PVs), touch, new Aime card registration, a song played to its result (level up saved), next stage | Sega Nu (§6.3m), 64-bit OpenGL: NVIDIA assembly translated (NV_gpu_program5 parameter buffer emulated), Elo touch, TN32 Aime, touch slider, ARTEMiS' title server |
 | `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept | Nu 1.1 with amdaemon (§6.3l): AMEX board JVS in amdaemon (`WAL_ALLS_JVS`), LED board on COM12, levers layout, amRtc sync patch, Aime (837-15286) and the CTS game server (player names and saves kept) |
 | `initial-d-arcade-stage-zero` | Initial D ARCADE STAGE Zero | alls | user 100% (2026-11-10), English option user OK; headless tests: attract, guest story race, new Aime player (registration, team, car, race, saved), returning player loaded, test menu network test | Nu 1.1 with amdaemon (§6.3l), segatools idzhook reimplemented: AMEX JVS with the H shifter layout, FFB COM1, LED 15070 COM11, its store server (ServerBox) started with the payload, the IDZ game server (ARTEMiS + minime protocol), billing for Aime |
 | `initial-d-arcade-stage-zero-ver-2` | Initial D ARCADE STAGE Zero Ver.2 | alls | user 100% (2026-11-10), English; headless tests: guest race, new Aime player saved, returning player loaded | Version 2.30 (§6.3l): Ver.1's board and profile, the game server's 2.10 / 2.30 protocol (minime v016 + ARTEMiS + the game's own parser for the 2.30 profile) |

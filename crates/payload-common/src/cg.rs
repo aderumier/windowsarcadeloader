@@ -24,6 +24,11 @@
 //!   parameters before each draw ([`texel_parameters`]).
 //! * Texture reads at a level (`TXL`, a bias in ARB): the last level of each texture given
 //!   before each draw ([`level_parameters`]).
+//! * NV_parameter_buffer_object (Project DIVA Arcade Future Tone's bone matrices, absent in
+//!   Mesa): the buffers of its vertex target kept by the payload, given to the programs reading
+//!   them as local parameters before each draw ([`palette_parameters`]).
+//!
+//! 64-bit games (Nu: no hot patch prologues): the swaps through GLUT's `SwapBuffers` import.
 //!
 //! Debugging: `WAL_RINGEDGE_CG_LOG=1` logs each compile and Cg's listing of the failed ones;
 //! `WAL_RINGEDGE_CG_DUMP=1` writes each compiled program to `cgdump\`;
@@ -34,7 +39,7 @@ use std::ffi::{CStr, c_char, c_void};
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use wal_payload_common::{iat, log};
+use crate::{iat, log};
 
 static ORIG: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_W: AtomicUsize = AtomicUsize::new(0);
@@ -64,14 +69,22 @@ fn gl_shots() {
     // the swaps also scale the picture (WAL_RINGEDGE_GL_SCALE)
     let scale = crate::glscale::init();
     // the touch pointer (the common crosshair, Project DIVA Arcade's red dot) over the picture
-    CROSSHAIRS.store(wal_payload_common::crosshair::init_gl(), Ordering::Relaxed);
+    CROSSHAIRS.store(crate::crosshair::init_gl(), Ordering::Relaxed);
     if shots.is_none() && !scale && !CROSSHAIRS.load(Ordering::Relaxed) {
         return;
     }
     let _ = unsafe { windows_sys::Win32::System::LibraryLoader::LoadLibraryA(c"opengl32.dll".as_ptr().cast()) };
     match unsafe { hotpatch(c"opengl32.dll", c"wglSwapBuffers", swap_buffers as *const () as usize) } {
         Some(o) => ORIG_SWAP.store(o, Ordering::Relaxed),
-        None => log!("cg: opengl32.dll!wglSwapBuffers not hot patchable"),
+        // 64-bit (no hot patch prologues): GLUT's swaps (Project DIVA Arcade Future Tone's
+        // glut32.dll, gdi32's SwapBuffers)
+        None => {
+            let glut = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(c"glut32.dll".as_ptr().cast()) } as usize;
+            match (glut != 0).then(|| unsafe { iat::hook_module(glut, "gdi32.dll", "SwapBuffers", swap_buffers as *const () as usize) }).flatten() {
+                Some(o) => ORIG_SWAP.store(o, Ordering::Relaxed),
+                None => log!("cg: opengl32.dll!wglSwapBuffers not hot patchable"),
+            }
+        }
     }
     let Some(secs) = shots else { return };
     SHOT_MS.store((secs * 1000.0).max(1.0) as usize, Ordering::Relaxed);
@@ -133,6 +146,17 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
                 return multisample_coverage as *const () as usize;
             }
         }
+        // NV_parameter_buffer_object's (Project DIVA Arcade Future Tone's, called unchecked):
+        // emulated ([`palette_parameters`])
+        if FIX.load(Ordering::Relaxed) {
+            match name.to_bytes() {
+                b"glBindBufferBaseNV" => return bind_buffer_base_nv as *const () as usize,
+                b"glBindBufferRangeNV" => return bind_buffer_range_nv as *const () as usize,
+                b"glBindBufferOffsetNV" => return bind_buffer_offset_nv as *const () as usize,
+                b"glProgramBufferParametersfvNV" | b"glProgramBufferParametersIivNV" | b"glProgramBufferParametersIuivNV" => return program_buffer_parameters as *const () as usize,
+                _ => {}
+            }
+        }
         // NV_gpu_program4's integer parameters (Border Break Scramble's, called unchecked at its
         // battle's start): the float ones, its programs translated to float ARB programs
         if FIX.load(Ordering::Relaxed)
@@ -187,6 +211,14 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
         // (Border Break Scramble's scenery: else every copy drawn at the first one's place)
         b"glDrawElementsInstanced" | b"glDrawElementsInstancedARB" | b"glDrawElementsInstancedEXT" if FIX.load(Ordering::Relaxed) => draw_elements_instanced as *const () as usize,
         b"glDrawArraysInstanced" | b"glDrawArraysInstancedARB" | b"glDrawArraysInstancedEXT" if FIX.load(Ordering::Relaxed) => draw_arrays_instanced as *const () as usize,
+        // NV_parameter_buffer_object (absent in Mesa): the vertex parameter buffers kept by the
+        // payload ([`palette_parameters`])
+        b"glBindBuffer" | b"glBindBufferARB" if FIX.load(Ordering::Relaxed) => hook(&ORIG_BIND_BUFFER, f, bind_buffer as *const () as usize),
+        b"glBufferData" | b"glBufferDataARB" if FIX.load(Ordering::Relaxed) => hook(&ORIG_BUFFER_DATA, f, buffer_data as *const () as usize),
+        b"glBufferSubData" | b"glBufferSubDataARB" if FIX.load(Ordering::Relaxed) => hook(&ORIG_BUFFER_SUB_DATA, f, buffer_sub_data as *const () as usize),
+        b"glMapBuffer" | b"glMapBufferARB" if FIX.load(Ordering::Relaxed) => hook(&ORIG_MAP_BUFFER, f, map_buffer as *const () as usize),
+        b"glMapBufferRange" if FIX.load(Ordering::Relaxed) => hook(&ORIG_MAP_BUFFER_RANGE, f, map_buffer_range as *const () as usize),
+        b"glUnmapBuffer" | b"glUnmapBufferARB" if FIX.load(Ordering::Relaxed) => hook(&ORIG_UNMAP_BUFFER, f, unmap_buffer as *const () as usize),
         b"glProgramEnvParameter4fARB" if FIX.load(Ordering::Relaxed) => {
             ORIG_ENV_PARAMETER_4F.store(f, Ordering::Relaxed);
             env_parameter_4f as *const () as usize
@@ -670,6 +702,188 @@ unsafe fn level1_unit(unit: u32) {
     }
 }
 
+/// A GL function replaced: the original kept in `slot`.
+fn hook(slot: &AtomicUsize, orig: usize, with: usize) -> usize {
+    slot.store(orig, Ordering::Relaxed);
+    with
+}
+
+/// GL_VERTEX_PROGRAM_PARAMETER_BUFFER_NV: NV_parameter_buffer_object's vertex target.
+const PARAMETER_BUFFER: u32 = 0x8DA2;
+
+static ORIG_BIND_BUFFER: AtomicUsize = AtomicUsize::new(0);
+static ORIG_BUFFER_DATA: AtomicUsize = AtomicUsize::new(0);
+static ORIG_BUFFER_SUB_DATA: AtomicUsize = AtomicUsize::new(0);
+static ORIG_MAP_BUFFER: AtomicUsize = AtomicUsize::new(0);
+static ORIG_MAP_BUFFER_RANGE: AtomicUsize = AtomicUsize::new(0);
+static ORIG_UNMAP_BUFFER: AtomicUsize = AtomicUsize::new(0);
+
+/// NV_parameter_buffer_object, absent in Mesa (its calls an error the game's next `glGetError`
+/// check takes for its own: Project DIVA Arcade Future Tone's first render target refused, the
+/// game crashed): the buffers bound to its vertex target kept here, by name, never given to GL;
+/// the buffer bound to it, the buffer bound to its slot 0 (with its offset), and a count of
+/// their changes.
+struct ParameterBuffers {
+    contents: std::collections::BTreeMap<u32, Vec<u8>>,
+    bound: u32,
+    slot0: (u32, usize),
+    changes: usize,
+}
+
+static PARAMETER_BUFFERS: std::sync::Mutex<ParameterBuffers> = std::sync::Mutex::new(ParameterBuffers { contents: std::collections::BTreeMap::new(), bound: 0, slot0: (0, 0), changes: 0 });
+/// The vertex programs reading parameter buffer 0 (`nvasm::PALETTE_LOCAL`), by id: the change
+/// count their local parameters hold.
+static PALETTE_PROGRAMS: std::sync::Mutex<std::collections::BTreeMap<u32, usize>> = std::sync::Mutex::new(std::collections::BTreeMap::new());
+
+unsafe extern "system" fn bind_buffer(target: u32, buffer: u32) {
+    if target == PARAMETER_BUFFER {
+        PARAMETER_BUFFERS.lock().unwrap().bound = buffer;
+        return;
+    }
+    let orig: unsafe extern "system" fn(u32, u32) = unsafe { std::mem::transmute(ORIG_BIND_BUFFER.load(Ordering::Relaxed)) };
+    unsafe { orig(target, buffer) }
+}
+
+unsafe extern "system" fn buffer_data(target: u32, size: isize, data: *const u8, usage: u32) {
+    if target == PARAMETER_BUFFER {
+        let mut buffers = PARAMETER_BUFFERS.lock().unwrap();
+        let bound = buffers.bound;
+        let bytes = if data.is_null() { vec![0; size.max(0) as usize] } else { unsafe { std::slice::from_raw_parts(data, size.max(0) as usize) }.to_vec() };
+        buffers.contents.insert(bound, bytes);
+        buffers.changes += 1;
+        return;
+    }
+    let orig: unsafe extern "system" fn(u32, isize, *const u8, u32) = unsafe { std::mem::transmute(ORIG_BUFFER_DATA.load(Ordering::Relaxed)) };
+    unsafe { orig(target, size, data, usage) }
+}
+
+unsafe extern "system" fn buffer_sub_data(target: u32, offset: isize, size: isize, data: *const u8) {
+    if target == PARAMETER_BUFFER {
+        let mut buffers = PARAMETER_BUFFERS.lock().unwrap();
+        let bound = buffers.bound;
+        if let Some(b) = buffers.contents.get_mut(&bound)
+            && let (Ok(at), Ok(n)) = (usize::try_from(offset), usize::try_from(size))
+            && at + n <= b.len()
+            && !data.is_null()
+        {
+            b[at..at + n].copy_from_slice(unsafe { std::slice::from_raw_parts(data, n) });
+        }
+        buffers.changes += 1;
+        return;
+    }
+    let orig: unsafe extern "system" fn(u32, isize, isize, *const u8) = unsafe { std::mem::transmute(ORIG_BUFFER_SUB_DATA.load(Ordering::Relaxed)) };
+    unsafe { orig(target, offset, size, data) }
+}
+
+/// The bound parameter buffer's contents at `offset` (stays in place until the next
+/// `glBufferData`), counted as changed.
+fn map_parameter_buffer(offset: usize) -> *mut c_void {
+    let mut buffers = PARAMETER_BUFFERS.lock().unwrap();
+    buffers.changes += 1;
+    let bound = buffers.bound;
+    match buffers.contents.get_mut(&bound) {
+        Some(b) if offset <= b.len() => unsafe { b.as_mut_ptr().add(offset) }.cast(),
+        _ => std::ptr::null_mut(),
+    }
+}
+
+unsafe extern "system" fn map_buffer(target: u32, access: u32) -> *mut c_void {
+    if target == PARAMETER_BUFFER {
+        return map_parameter_buffer(0);
+    }
+    let orig: unsafe extern "system" fn(u32, u32) -> *mut c_void = unsafe { std::mem::transmute(ORIG_MAP_BUFFER.load(Ordering::Relaxed)) };
+    unsafe { orig(target, access) }
+}
+
+unsafe extern "system" fn map_buffer_range(target: u32, offset: isize, length: isize, access: u32) -> *mut c_void {
+    if target == PARAMETER_BUFFER {
+        return map_parameter_buffer(offset.max(0) as usize);
+    }
+    let orig: unsafe extern "system" fn(u32, isize, isize, u32) -> *mut c_void = unsafe { std::mem::transmute(ORIG_MAP_BUFFER_RANGE.load(Ordering::Relaxed)) };
+    unsafe { orig(target, offset, length, access) }
+}
+
+unsafe extern "system" fn unmap_buffer(target: u32) -> u8 {
+    if target == PARAMETER_BUFFER {
+        PARAMETER_BUFFERS.lock().unwrap().changes += 1;
+        return 1;
+    }
+    let orig: unsafe extern "system" fn(u32) -> u8 = unsafe { std::mem::transmute(ORIG_UNMAP_BUFFER.load(Ordering::Relaxed)) };
+    unsafe { orig(target) }
+}
+
+/// `glBindBuffer{Base,Range,Offset}NV`: the vertex target's slot 0 (the only one the
+/// translated programs read); other targets (transform feedback) dropped.
+fn bind_parameter_slot(target: u32, index: u32, buffer: u32, offset: isize) {
+    if target != PARAMETER_BUFFER {
+        return;
+    }
+    let mut buffers = PARAMETER_BUFFERS.lock().unwrap();
+    buffers.bound = buffer;
+    if index == 0 {
+        buffers.slot0 = (buffer, offset.max(0) as usize);
+        buffers.changes += 1;
+    }
+}
+
+unsafe extern "system" fn bind_buffer_base_nv(target: u32, index: u32, buffer: u32) {
+    bind_parameter_slot(target, index, buffer, 0);
+}
+
+unsafe extern "system" fn bind_buffer_range_nv(target: u32, index: u32, buffer: u32, offset: isize, _size: isize) {
+    bind_parameter_slot(target, index, buffer, offset);
+}
+
+unsafe extern "system" fn bind_buffer_offset_nv(target: u32, index: u32, buffer: u32, offset: isize) {
+    bind_parameter_slot(target, index, buffer, offset);
+}
+
+/// `glProgramBufferParameters*NV`: `count` vectors written at vector `index` of the buffer in
+/// slot `slot` (floats or integers alike: copied as they are).
+unsafe extern "system" fn program_buffer_parameters(target: u32, slot: u32, index: u32, count: i32, params: *const u8) {
+    if target != PARAMETER_BUFFER || slot != 0 || params.is_null() {
+        return;
+    }
+    let mut buffers = PARAMETER_BUFFERS.lock().unwrap();
+    let (buffer, offset) = buffers.slot0;
+    if let Some(b) = buffers.contents.get_mut(&buffer) {
+        let at = offset + index as usize * 16;
+        let n = count.max(0) as usize * 16;
+        if at + n <= b.len() {
+            b[at..at + n].copy_from_slice(unsafe { std::slice::from_raw_parts(params, n) });
+        }
+    }
+    buffers.changes += 1;
+}
+
+/// The bound vertex program reading parameter buffer 0 (Project DIVA Arcade Future Tone's
+/// skinning, its bone matrices): the buffer in slot 0 copied into its local parameters
+/// (`nvasm::PALETTE_LOCAL`) before the draw, when it changed since that program's last copy.
+fn palette_parameters() {
+    let program = BOUND[0].load(Ordering::Relaxed) as u32;
+    let mut programs = PALETTE_PROGRAMS.lock().unwrap();
+    let Some(copied) = programs.get_mut(&program) else { return };
+    let buffers = PARAMETER_BUFFERS.lock().unwrap();
+    if *copied == buffers.changes {
+        return;
+    }
+    *copied = buffers.changes;
+    static LOCALS: OnceLock<usize> = OnceLock::new();
+    let f = *LOCALS.get_or_init(|| {
+        let orig: unsafe extern "system" fn(*const c_char) -> usize = unsafe { std::mem::transmute(ORIG_GL_PROC.load(Ordering::Relaxed)) };
+        unsafe { orig(c"glProgramLocalParameters4fvEXT".as_ptr()) }
+    });
+    let (buffer, offset) = buffers.slot0;
+    let Some(b) = buffers.contents.get(&buffer) else { return };
+    let n = (b.len().saturating_sub(offset) / 16).min(crate::nvasm::PALETTE_LEN as usize);
+    if f == 0 || n == 0 {
+        return;
+    }
+    let locals: unsafe extern "system" fn(u32, u32, i32, *const u8) = unsafe { std::mem::transmute(f) };
+    // GL_VERTEX_PROGRAM_ARB
+    unsafe { locals(0x8620, crate::nvasm::PALETTE_LOCAL, n as i32, b[offset..].as_ptr()) };
+}
+
 /// The bound vertex program's instance (`nvasm::INSTANCE_LOCAL`).
 fn set_instance(instance: i32) {
     static FIRST: std::sync::Once = std::sync::Once::new();
@@ -711,6 +925,7 @@ unsafe extern "system" fn draw_arrays_instanced(mode: u32, first: i32, count: i3
 
 unsafe extern "system" fn draw_arrays(mode: u32, first: i32, count: i32) {
     texel_parameters();
+    palette_parameters();
     level_parameters();
     let orig: unsafe extern "system" fn(u32, i32, i32) = unsafe { std::mem::transmute(ORIG_DRAW_ARRAYS.load(Ordering::Relaxed)) };
     unsafe { orig(mode, first, count) }
@@ -718,6 +933,7 @@ unsafe extern "system" fn draw_arrays(mode: u32, first: i32, count: i32) {
 
 unsafe extern "system" fn draw_elements(mode: u32, count: i32, kind: u32, indices: *const c_void) {
     texel_parameters();
+    palette_parameters();
     level_parameters();
     let orig: unsafe extern "system" fn(u32, i32, u32, *const c_void) = unsafe { std::mem::transmute(ORIG_DRAW_ELEMENTS.load(Ordering::Relaxed)) };
     unsafe { orig(mode, count, kind, indices) }
@@ -725,6 +941,7 @@ unsafe extern "system" fn draw_elements(mode: u32, count: i32, kind: u32, indice
 
 unsafe extern "system" fn draw_range(mode: u32, start: u32, end: u32, count: i32, kind: u32, indices: *const c_void) {
     texel_parameters();
+    palette_parameters();
     level_parameters();
     let orig: unsafe extern "system" fn(u32, u32, u32, i32, u32, *const c_void) = unsafe { std::mem::transmute(ORIG_DRAW_RANGE.load(Ordering::Relaxed)) };
     unsafe { orig(mode, start, end, count, kind, indices) }
@@ -732,6 +949,7 @@ unsafe extern "system" fn draw_range(mode: u32, start: u32, end: u32, count: i32
 
 unsafe extern "system" fn begin(mode: u32) {
     texel_parameters();
+    palette_parameters();
     level_parameters();
     let orig: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(ORIG_BEGIN.load(Ordering::Relaxed)) };
     unsafe { orig(mode) }
@@ -787,6 +1005,13 @@ unsafe extern "system" fn program_string(target: u32, format: u32, len: i32, tex
             texels.remove(&id);
         }
         BOUND_TEXELS.store(units as usize, Ordering::Relaxed);
+        let palette = fixed.as_deref().is_some_and(|f| f.contains(&format!("program.local[{}..", crate::nvasm::PALETTE_LOCAL)));
+        let mut programs = PALETTE_PROGRAMS.lock().unwrap();
+        if palette {
+            programs.insert(id, usize::MAX);
+        } else {
+            programs.remove(&id);
+        }
     } else if target == 0x8804 {
         let units = fixed.as_deref().map_or(0, |f| {
             (0..16u32)
@@ -841,7 +1066,7 @@ unsafe extern "system" fn swap_buffers(hdc: *mut c_void) -> i32 {
     if CROSSHAIRS.load(Ordering::Relaxed) {
         let window = unsafe { windows_sys::Win32::Graphics::Gdi::WindowFromDC(hdc as _) };
         if !window.is_null() {
-            unsafe { wal_payload_common::crosshair::draw_gl_window(window) };
+            unsafe { crate::crosshair::draw_gl_window(window) };
         }
     }
     if SHOT_MS.load(Ordering::Relaxed) == 0 {
@@ -895,13 +1120,13 @@ unsafe fn gl_shot(hdc: *mut c_void, n: usize) {
     let row = (w * 4) as usize;
     let flipped: Vec<u8> = pixels.chunks(row).rev().flatten().copied().collect();
     let path = format!("glshot-{n:04}.bmp");
-    match wal_payload_common::screenshot::write_bmp(&path, w as u32, h as u32, &flipped) {
+    match crate::screenshot::write_bmp(&path, w as u32, h as u32, &flipped) {
         Ok(()) => log!("cg: {path} {w}x{h} (framebuffer {fbo})"),
         Err(e) => log!("cg: {path}: {e}"),
     }
 }
 
-pub(crate) fn init() {
+pub fn init() {
     gl_shots();
     let mode = std::env::var("WAL_RINGEDGE_CG_FIX").unwrap_or_default();
     let log = std::env::var("WAL_RINGEDGE_CG_LOG").is_ok_and(|v| v.trim() == "1");
@@ -987,7 +1212,7 @@ unsafe fn nv40_profiles() {
 /// Hot patch of `module!name` (`mov edi,edi` or a 2 byte nop after 5 padding bytes, as Wine
 /// builds its exports): a jump to `hook` in the padding, a short jump to it at the entry.
 /// Returns the function past its 2 byte prologue (the original).
-pub(crate) unsafe fn hotpatch(module: &CStr, name: &CStr, hook: usize) -> Option<usize> {
+pub unsafe fn hotpatch(module: &CStr, name: &CStr, hook: usize) -> Option<usize> {
     use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
     use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
     let f = unsafe { GetProcAddress(GetModuleHandleA(module.as_ptr().cast()), name.as_ptr().cast()) }? as usize;

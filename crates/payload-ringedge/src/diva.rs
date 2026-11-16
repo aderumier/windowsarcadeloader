@@ -3,8 +3,8 @@
 //! `WAL_RINGEDGE_DIVA=1`.
 //!
 //! - The game's network ([`allnet`]): its own ALL.Net client, its title server
-//!   (`divaserver.rs`), AimeDB, the shop's local file server found by broadcast ([`sendto`]).
-//! - The touch panel: the Elo 2701 controller (`elo.rs`, `WAL_RINGEDGE_ELO`).
+//!   (payload-common `divaserver.rs`), AimeDB, the shop's local file server found by broadcast ([`sendto`]).
+//! - The touch panel: the Elo 2701 controller (payload-common `elo.rs`, `WAL_RINGEDGE_ELO`).
 //! - The Aime NFC reader (TN32MSEC003S, `aimelib` 3.03) on `WAL_RINGEDGE_DIVA_AIME` (default
 //!   `COM2`): `wal_payload_common::sgreader`, generation 1 (`WAL_AIME_READER=tn32`, set in the
 //!   profile). Player 1's `card` input touches it with the player's card; `WAL_RINGEDGE_AUTO_CARD
@@ -63,7 +63,7 @@ fn allnet(diva: bool) {
     wal_payload_common::allnet::redirect_connect(wal_payload_common::allnet::to_server);
     if diva {
         // its title server (the power-on's uri, `WAL_ALLS_TITLE_URI`: `/DivaServlet/`)
-        wal_payload_common::allnet::set_title(crate::divaserver::answer);
+        wal_payload_common::allnet::set_title(wal_payload_common::divaserver::answer);
     } else if std::env::var("WAL_RINGEDGE_ALLNET").is_ok_and(|v| v.trim() == "borderbreak") {
         // Border Break Scramble's title server (`/SBVA/`)
         wal_payload_common::allnet::set_title(crate::bbserver::answer);

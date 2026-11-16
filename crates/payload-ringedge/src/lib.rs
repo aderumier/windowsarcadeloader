@@ -22,20 +22,15 @@
 mod amlog;
 mod bbserver;
 mod card;
-mod cg;
 mod devices;
 mod diva;
-mod divaserver;
-mod elo;
 mod ffb;
 mod happy_playground;
 mod iccard;
-mod glscale;
 mod gunman;
 mod lamp;
 mod microtouch;
 mod mouse;
-mod nvasm;
 mod pcp;
 mod rawmouse;
 mod rfid;
@@ -95,7 +90,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             serial::install_sink(&ports);
         }
         devices::init();
-        cg::init();
+        wal_payload_common::cg::init();
         ffb::init();
         card::start_daemon();
         touch::init();
@@ -106,7 +101,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         // Project DIVA Arcade's network, Aime reader (WAL_RINGEDGE_DIVA=1), touch panel and lamp
         // control board
         diva::init();
-        elo::init();
+        wal_payload_common::elo::init();
         lamp::init();
         // the serial ports the SetupDi enumeration lists (WAL_RINGEDGE_COMPORTS)
         wal_payload_common::comports::init();
@@ -126,7 +121,7 @@ fn zero_heap() {
     if !std::env::var("WAL_RINGEDGE_ZERO_HEAP").is_ok_and(|v| v.trim() == "1") {
         return;
     }
-    match unsafe { cg::hotpatch(c"ntdll.dll", c"RtlAllocateHeap", allocate_heap as *const () as usize) } {
+    match unsafe { wal_payload_common::cg::hotpatch(c"ntdll.dll", c"RtlAllocateHeap", allocate_heap as *const () as usize) } {
         Some(o) => {
             ORIG_ALLOCATE_HEAP.store(o, Ordering::Relaxed);
             log!("ringedge: heap blocks zeroed");

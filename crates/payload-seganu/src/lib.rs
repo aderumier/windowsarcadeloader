@@ -16,10 +16,12 @@
 //!   Luigi's Mansion Arcade's Capcom protector).
 //! * Luigi's Mansion Arcade's I/O board on COM1 (`WAL_SEGANU_LMAIO`, `lmaio.rs`): guns, coins,
 //!   switches.
+//! * Project DIVA Arcade Future Tone's devices and network (`WAL_SEGANU_DIVA`, `diva.rs`).
 
 #![allow(non_snake_case)]
 
 mod devices;
+mod diva;
 mod kancolle;
 mod kcserver;
 mod lmaio;
@@ -55,8 +57,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         devices::init();
         lmaio::init();
         kancolle::init();
+        diva::init();
         // NVIDIA-only OpenGL on other GPUs (KanColle Arcade)
         wal_payload_common::nvgl::init();
+        // NVIDIA assembly programs on other GPUs (Project DIVA Arcade Future Tone)
+        wal_payload_common::cg::init();
         test_menu();
         log!("seganu: initialized");
     }
