@@ -1113,6 +1113,40 @@ income mode 0x20, and (Million Arthur) HTTP posts 0x1B; later 0x4 game start, 0x
   results, character rank, missions, tutorials). Records `magiciansdead\<card>.json` in the D:
   data folder. National matches between cabinets (dedicated servers) are not available.
 
+**Street Fighter V Type Arcade (Unreal Engine 4, 64-bit, `sfv.rs`).** No `NxL2Core.dll`: the
+game's USBIOPlugin loads Taito's USB I/O library `StreetFighterV\Plugins\USBIOPlugin\UIO_AMIC.dll`
+(cdecl exports, `GetProcAddress`), replaced by the payload (`payload_install`, started by
+wal-loader); its NESYS client is `Plugins\NESYSUtil\NESiCAUtilLib.dll` on the payload's pipe.
+* `UIO_AMIC_Update(buf)`: +0 status 0x200, +4 the input size 0x80, +0x10 / +0x12 the 16 USBIO
+  keys (Magician's Dead's layout: lever, buttons 1-6, START, TEST bit 12, SERVICE bit 13,
+  COIN1 bit 15), +0x11 / +0x13 a second word, active low (+0x13 bit 0 EX1, bit 1 EX2, bit 3 a
+  game pad on the board: all zero showed both EX buttons pressed and a pad), +0x18 the coin
+  counter, +0x34 the NESiCA reader (0x1A with the 16-character id at +0x3C; the 20-character AMIC
+  code at +0x6C left zero). The output report at +0x8C: bit 0x40 of +0xB4 asks a card read
+  (`WAL_NESICA_CARD_AUTO`). One player per cabinet (versus is cabinet to cabinet): CPU play.
+  Pad: punches X Y R1, kicks A B R2, EX1 / EX2 on L1 / L2.
+* NESiCAxLive deliveries: the executable mounts `<its drive>\Patch\TitlePlate.Pak` and
+  NESiCAUtilLib's title packs `\Patch\Patch.Pak`, `\Patch\patch_chara_stage.Pak`, `_2`-`_5`
+  (later characters and stages, the toon shader's data asset...). The dump's `Patch` folder at
+  `C:\Patch` (profile `c_folders`); without it the game reads null objects (TitlePlate's
+  `TypeXSpec` at +0x23719DE, the toon shader's data asset at +0x4F5EFD) and stops: the payload
+  logs the missing paks.
+* Text: Scaleform's font library is `fonts_<culture>`; the US locale's English one has no
+  Japanese glyph (empty boxes). `-culture=` is not read: the payload writes `Culture=ja` in the
+  saved `Engine.ini` (`%LOCALAPPDATA%\StreetFighterV\Saved\Config\WindowsNoEditor`).
+* Free play (`WAL_NESICA_FREEPLAY` / `WAL_FREEPLAY`): the settings loader reads `CoinCreditCoin`
+  (0 = the test menu's FREE PLAY, `IsFreePlay` = credit state +0x316 or event mode) with a call
+  at +0x236A5C6, made `xor eax, eax`.
+* NESiCA: `WAL_NESYS_REGISTER=1` (no reissue, unregistered, then "register this card?"). The
+  card server XML: the card insert (data type 1; `{id, type, u32, write type 515, size, XML}`)
+  carries the new card's `<data>`, saved as the card read's answer (type 259, `/root/card`);
+  type 261 reads `/root/card_detail/record` (`<offset>`, `<row_count>`; none for a new card), its
+  write 773 sends `<datas>` of `<data>` records merged by `pcol1`-`pcol3` (`xml_detail_write`);
+  264 / 776 `card_bdata` as Fighting EX Layer. The player name is the GUI card's
+  (`WAL_NESICA_PLAYER_NAME`).
+* Input: XInput (`xinput1_3` ordinals 2 / 3) answers no pad, DirectInput disabled, the real
+  keyboard and mouse filtered.
+
 **Million Arthur white screen (2026-10-11, offline only).** Not seen with NESYS online (user:
 training and story modes fine); offline (NESYS off), with DXVK the picture turns white at the
 first coin after the title (~25 s) and stays white through character select: only the HUD
@@ -8534,6 +8568,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | hide ReShade, `WAL_ANSI_CODEPAGE: 932`, language files with "MS Gothic" instead of "ＭＳ ゴシック" (`files`, fakejapanese: squares otherwise), picture drawn 854x480 in a 1280x720 back buffer and presented to 0,0 1280x720: `WAL_D3D9_WINDOWED_SIZE: 854x480` (also turns its fullscreen Reset windowed, drops the Present rectangles) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`) |
 | `magicians-dead` | Magician's Dead | nesica2 | works (user: 100%), NESiCA cards (new card registration, the loader's game server: profile and plays saved), tutorial and missions with computer players; Leap Motion hand from the right stick, the mouse or the touchpad | `BppGame-Win64-Shipping.exe` (Unreal 4.12, 64-bit) started by wal-loader; payload as `MAGIDEIO.dll` (I/O board, NESiCA reader) and `Leap.dll` (the Leap SDK 3.2 C++ API, a synthetic hand: shapes for the thumb flick, fist, L); grip controller = XInput pad; free play and NESiCA hours patched back (the dump's executable is another loader's build); game server `message.proto` (protobuf over TCP); no national matches |
+| `street-fighter-v` | Street Fighter V Type Arcade | nesica2 | works (user: 100%), NESiCA card (registration, play records saved), free play, arcade against the computer (one player per cabinet) | `StreetFighterV.exe` (Unreal 4, 64-bit) started by wal-loader; payload as `UIO_AMIC.dll` (Taito USB I/O: switches, EX buttons, coins, NESiCA reader); NESiCAxLive delivery paks from the dump's `Patch` folder at `C:\Patch`; `Culture=ja` written (Scaleform fonts); free play by the settings loader; card server XML (card, card_detail records, card_bdata) |
 | `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), its HTTP card-service reads answered (`/root/match_conf`), native d3dx9_42 |
 | `kof-xiv` | The King of Fighters XIV | nesica2 | works (user: 100%), NESiCA network connected | 64-bit NxL2Core.dll replacement (`wal_nesica64.dll`), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), `Resolution=1` (1080p: 1920x1080 window; 0 = 1280x720) |
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | as KOF XIV (64-bit NxL2Core.dll replacement, NESYS `ms`/`ss`, `Resolution=1`), dump's 32-bit dinput8 hidden; runner fix `winedmo-seek-flush` (hung after START: movie seek deadlock) |

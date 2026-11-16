@@ -14,6 +14,9 @@
 //! Magician's Dead (Unreal) loads its I/O board DLL and the Leap Motion SDK: this DLL is both
 //! (`magiciansdead.rs`, `leap.rs`).
 //!
+//! Street Fighter V Type Arcade (Unreal) loads Taito's USB I/O library: this DLL is it
+//! (`sfv.rs`).
+//!
 //! Tetote X Connect (Unity) is loaded at its executable's entry point; its native plugins'
 //! functions are the payload's (`tetote.rs`).
 
@@ -37,6 +40,9 @@ mod nesys;
 mod nesystrace;
 mod nxl2;
 mod rfid;
+// 64-bit only (Street Fighter V Type Arcade)
+#[cfg(target_pointer_width = "64")]
+mod sfv;
 mod theatrhythm;
 mod theatrhythm_mono;
 mod theatrhythm_nesys;
@@ -82,6 +88,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         #[cfg(target_pointer_width = "64")]
         if magiciansdead::detected(module) {
             magiciansdead::init();
+        }
+        #[cfg(target_pointer_width = "64")]
+        if sfv::detected(module) {
+            sfv::init();
         }
         if tetote::detected() {
             tetote::init();

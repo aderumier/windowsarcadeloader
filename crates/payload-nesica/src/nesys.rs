@@ -304,6 +304,43 @@ fn session_xml(param: &[u8]) -> String {
     )
 }
 
+/// The card server's detail records read (`<offset>`, `<row_count>`): `/root/card_detail/record`.
+const CARD_DETAIL_READ: u32 = 261;
+
+/// A detail records write (`<datas>` of `<data>` records, read + 512, Street Fighter V): the
+/// records merged into the saved read answer `saved` (a record of the same `pcol1`-`pcol3`
+/// replaced), the new answer.
+fn xml_detail_write(card: &[u8], saved: &[u8]) -> Option<String> {
+    let text = String::from_utf8_lossy(card);
+    let saved = String::from_utf8_lossy(saved);
+    let blocks = |text: &str, name: &str| -> Vec<String> {
+        let (open, close) = (format!("<{name}>"), format!("</{name}>"));
+        let mut out = Vec::new();
+        let mut rest = text;
+        while let Some(start) = rest.find(&open).map(|i| i + open.len()) {
+            let Some(end) = rest[start..].find(&close) else { break };
+            out.push(rest[start..start + end].to_string());
+            rest = &rest[start + end + close.len()..];
+        }
+        out
+    };
+    let card_id = blocks(&text, "card_id").into_iter().next().unwrap_or_default();
+    let datas = blocks(&text, "datas").into_iter().next()?;
+    let key = |record: &str| ["pcol1", "pcol2", "pcol3"].map(|k| blocks(record, k).into_iter().next().unwrap_or_default());
+    let mut records = blocks(&saved, "record");
+    for data in blocks(&datas, "data") {
+        let data = data.replace("<card_id/>", "");
+        let data = match data.contains("<card_id>") {
+            true => data,
+            false => format!("\r\n\t\t\t<card_id>{card_id}</card_id>{data}"),
+        };
+        records.retain(|r| key(r) != key(&data));
+        records.push(data);
+    }
+    let records: String = records.iter().map(|r| format!("\r\n\t\t<record>{r}</record>")).collect();
+    Some(format!("<?xml version='1.0' encoding='UTF-8'?>\r\n<root>\r\n\t<card_detail>{records}\r\n\t</card_detail>\r\n</root>\r\n"))
+}
+
 /// Card server XML data types (Fighting EX Layer): a write is its read + 512, its `<data>`
 /// fields are those of the read's answer, `/root/<element>`.
 const CARD_XML_READS: [(u32, &str); 2] = [(259, "card"), (264, "card_bdata")];
@@ -467,6 +504,10 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             if card.is_empty() && u32_at(data, 16) == CARD_GET_SESSION {
                 card = session_xml(&data[24.min(data.len())..]).into_bytes();
             }
+            // the card's detail records (Street Fighter V): none yet
+            if card.is_empty() && u32_at(data, 16) == CARD_DETAIL_READ {
+                card = b"<?xml version='1.0' encoding='UTF-8'?>\r\n<root>\r\n\t<card_detail>\r\n\t</card_detail>\r\n</root>\r\n".to_vec();
+            }
             if u32_at(data, 16) == CARD_XML_READS[0].0 && !card.is_empty() {
                 card = with_player_name(card);
             }
@@ -486,6 +527,18 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
         }
         CARD_INSERT_REQUEST => {
             // { char cardId[16]; u32 dataType; u32 dataSize; data }
+            // Street Fighter V: { char cardId[16]; u32 dataType (1); u32; u32 writeType; u32
+            // dataSize; data }, a card server XML write of the new card's fields: saved as the
+            // answer of the card read (type 259)
+            let size = (u32_at(data, 28) as usize).min(data.len().saturating_sub(32));
+            if u32_at(data, 16) == 1
+                && let Some((read_type, answer)) = xml_card_write(&data[32.min(data.len())..32 + size], CARD_XML_READS[0].0 + 512)
+            {
+                let file = card_file(data, read_type);
+                if let Err(e) = std::fs::write(&file, answer) {
+                    log!("nesys: cannot save {file}: {e}");
+                }
+            }
             if register() {
                 log!("nesys: card insert {:?} type {} data {:02x?}", String::from_utf8_lossy(&data[..16.min(data.len())]), u32_at(data, 16), &data[16.min(data.len())..]);
                 let _ = std::fs::write(registered_file(data), b"");
@@ -501,8 +554,14 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
                 log!("nesys: card update type {} data {:?}", u32_at(data, 24), String::from_utf8_lossy(card));
             }
             // card server XML writes: saved as the answer of their read
+            let detail = card_file(data, CARD_DETAIL_READ);
             let (file, saved) = match xml_card_write(card, u32_at(data, 24)) {
                 Some((read_type, answer)) => (card_file(data, read_type), answer.into_bytes()),
+                None if u32_at(data, 24) == CARD_DETAIL_READ + 512
+                    && let Some(answer) = xml_detail_write(card, &std::fs::read(&detail).unwrap_or_default()) =>
+                {
+                    (detail, answer.into_bytes())
+                }
                 None => (file, card.to_vec()),
             };
             if let Err(e) = std::fs::write(&file, &saved) {
