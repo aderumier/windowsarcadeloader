@@ -57,6 +57,7 @@ pub fn card_on_poll_after_press(access_code: &str, delay: Duration, pressed: imp
             let pressed = pressed(crate::input(0));
             if pressed && !held && READ_AT.lock().unwrap().is_none_or(|t| t.elapsed() >= REARM_AFTER) {
                 *ARMED.lock().unwrap() = Some((code.clone(), Instant::now() + delay));
+                log!("sgreader: automatic card armed ({} ms)", delay.as_millis());
             }
             held = pressed;
             std::thread::sleep(Duration::from_millis(50));
@@ -168,6 +169,7 @@ fn nfc(req: &[u8]) -> Option<Vec<u8>> {
                 && card().is_none()
             {
                 insert(&code, Duration::from_secs(3));
+                log!("sgreader: automatic card on the reader");
             }
             card()
         } {

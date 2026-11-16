@@ -93,7 +93,15 @@ fn board() -> Board {
 pub(crate) fn start_pressed(p1: &wal_protocol::StickState) -> bool {
     static HKB: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     let hkb = *HKB.get_or_init(|| std::env::var("WAL_ALLS_BOARD").is_ok_and(|v| v.trim() == "hkb"));
-    p1.pressed(b::START) || (board() == Board::Idac && p1.axis_u16(Axis::Accel) >= 0x8000) || (hkb && p1.pressed(b::B1))
+    p1.pressed(b::START) || (board() == Board::Idac && p1.axis_u16(Axis::Accel) >= 0x8000) || (hkb && p1.pressed(b::B1)) || (board() == Board::Chusan && slider_touched(p1))
+}
+
+/// CHUNITHM's start (no start button: the slider touched): its keys and air (the d-pad, buttons
+/// 1-8), the sticks, the touch surface, the mouse's touch (`kp0`).
+fn slider_touched(p1: &wal_protocol::StickState) -> bool {
+    let keys = b::UP | b::DOWN | b::LEFT | b::RIGHT | b::B1 | b::B2 | b::B3 | b::B4 | b::B5 | b::B6 | b::B7 | b::B8 | b::KP0;
+    let stick = |x: Axis, y: Axis| (p1.axis(x) as i32).pow(2) + (p1.axis(y) as i32).pow(2) >= 16384 * 16384;
+    p1.buttons & keys != 0 || stick(Axis::LeftX, Axis::LeftY) || stick(Axis::RightX, Axis::RightY) || !wal_payload_common::touches().is_empty()
 }
 
 /// The switches of players 1 and 2 from the virtual sticks.

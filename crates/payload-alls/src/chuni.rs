@@ -126,6 +126,15 @@ fn slider(data: &[u8]) -> Vec<u8> {
     out
 }
 
+/// The mouse's place in the picture while its left button (`kp0`) is held: the profile's
+/// `input.gun` maps it to the pedals (the sticks touch the slider).
+fn mouse_touch(p1: &StickState) -> Option<(f32, f32)> {
+    if !p1.pressed(button::KP0) {
+        return None;
+    }
+    wal_payload_common::gun::pedals_in_picture(0)
+}
+
 /// Player 1's touched keys, from the left (0-15).
 fn keys(p1: &StickState) -> [bool; 16] {
     let mut keys = [false; 16];
@@ -143,6 +152,13 @@ fn keys(p1: &StickState) -> [bool; 16] {
         if y >= AIR_ZONE {
             keys[(x as usize * 16 / 65536).min(15)] = true;
         }
+    }
+    // the mouse (NEW!!'s profile: on the pedals, its left button `kp0`): below the picture's top
+    // third, the key under it while the button is held
+    if let Some((x, y)) = mouse_touch(p1)
+        && y >= 1.0 / 3.0
+    {
+        keys[((x * 16.0) as usize).min(15)] = true;
     }
     let pairs = [button::LEFT, button::DOWN, button::UP, button::RIGHT, button::B1, button::B5, button::B2, button::B6];
     for (n, b) in pairs.into_iter().enumerate() {
@@ -189,7 +205,8 @@ const BEAMS: [(u8, u8); 6] = [(0x20, 0), (0, 0x20), (0x10, 0), (0, 0x10), (0x08,
 pub(crate) fn hand() -> u8 {
     let p1 = wal_payload_common::input(0);
     let raised = [button::B3, button::B4, button::B7, button::B8].into_iter().any(|b| p1.pressed(b))
-        || wal_payload_common::touches().iter().any(|&(_, y)| y < AIR_ZONE);
+        || wal_payload_common::touches().iter().any(|&(_, y)| y < AIR_ZONE)
+        || mouse_touch(&p1).is_some_and(|(_, y)| y < 1.0 / 3.0);
     let hand = HAND.load(Ordering::Relaxed);
     let hand = if raised { (hand + 1).min(6) } else { hand.saturating_sub(1) };
     HAND.store(hand, Ordering::Relaxed);
@@ -479,6 +496,8 @@ fn lone_cabinet_in_game() {
 pub(crate) fn init_chusan() {
     serial::install_streaming("COM1", slider, slider_scan);
     wal_payload_common::led::init_pair("COM2", "COM3");
+    // a red dot where the mouse is (the common crosshair option, `WAL_CROSSHAIR`)
+    wal_payload_common::crosshair::init();
     if std::env::var("WAL_ALLS_GAME_ID").is_ok_and(|v| v.trim() == "SDHD") {
         lone_cabinet_in_game();
     }

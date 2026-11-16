@@ -46,6 +46,9 @@ env:
   WAL_ALLS_AIME_PORT: COM4
   WAL_AIME_READER: "15286"
   WAL_ALLS_AUTO_CARD: "1"
+  # the card touched 4 s after the slider: the attract reads (and drops) a card touched at once,
+  # the card prompt after the slider's touch reads it then
+  WAL_ALLS_AUTO_CARD_DELAY_MS: "4000"
   WAL_CHUNI_NEWS: "0"
   WAL_ALLS_TIMEWARP: "1"
   # its fullscreen device lost with the focus (the game quits): windowed, borderless, 16:9
@@ -55,6 +58,15 @@ env:
   WAL_WINDOW_SIZE: screen
   # CRI ADX2's exclusive-mode stream played in shared mode
   WAL_WASAPI_SHARED: "1"
+  # a red dot where the mouse is (the common crosshair option, the mouse on the pedals), always
+  # shown; the desktop's own arrow hidden
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_AXES: pedals
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "1.5"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "0"
+  WAL_HIDE_CURSOR: "1"
   OPENSSL_ia32cap: "~0x20000000"
 
 options:
@@ -64,9 +76,9 @@ options:
         label: Touch the card automatically
         kind: bool
         description: >-
-          After start, the Aime card is touched by itself when the game asks for it (the
-          player's name, scores and progress kept on the card). Off: touch it with the card
-          button.
+          After the slider's first touch, the Aime card is touched by itself when the game asks
+          for it (the player's name, scores and progress kept on the card). Off: touch it with
+          the card button.
   - title: News
     options:
       - key: WAL_CHUNI_NEWS
@@ -78,11 +90,23 @@ options:
 
 # the keyboard as segatools': S D F G H J K L the slider from the left (two keys each), Space the
 # air (raise the hand); 1 start, 5 coin, F1 service, F2 test, F4 card (the defaults). These keys
-# are player 2's and 3's by default: freed there.
+# are player 2's and 3's by default: freed there. The arrows for the menus: left the slider's
+# keys 1-2 (the menus' left), right its keys 5-6 (the menus' right), up nothing.
 input:
   # the touchpad (or a touchscreen) as the slider, finger by finger: each finger the key under it
   # (16 across), a finger in its top third raises the hand (air)
   touch: true
+  # the mouse too, beside the touchpad: its left button touches the key under the red dot (the
+  # picture's top third: the air); on the pedals (the sticks touch the slider), the button on the
+  # card reader's keypad 0 (no keypad on this reader)
+  guns_enabled: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: kp0
+    BTN_RIGHT: none
+    BTN_MIDDLE: none
+    BTN_2: none
   keyboard:
     p1:
       KEY_S: left
@@ -94,6 +118,8 @@ input:
       KEY_K: b2
       KEY_L: b6
       KEY_SPACE: b3
+      KEY_RIGHT: up
+      KEY_UP: none
     p2:
       KEY_S: none
       KEY_D: none
@@ -126,3 +152,4 @@ controls:
   service: Service
   test: Test
   card: Aime card
+  kp0: Mouse touch (the key under the red dot)

@@ -100,7 +100,23 @@ pub fn gun_in_picture() -> Option<(f32, f32)> {
 
 /// Where `player`'s gun points in the game's picture (fractions from its top left), on it.
 pub fn gun_of_player_in_picture(player: usize) -> Option<(f32, f32)> {
-    let (sx, sy) = on_screen(&input(player), screen_size());
+    in_picture(on_screen(&input(player), screen_size()))
+}
+
+/// Where `player`'s mouse points in the game's picture (fractions from its top left), on it, when
+/// the profile maps it to the pedals (`input.gun`: `x: accel`, `y: brake`, 0..32767 across the
+/// screen: the sticks left to other controls, CHUNITHM NEW!!'s slider).
+pub fn pedals_in_picture(player: usize) -> Option<(f32, f32)> {
+    let stick = input(player);
+    let full = |v: i16| (v.max(0) as i32 * 2 - 32768).clamp(-32768, 32767) as i16;
+    let mut as_stick = StickState::default();
+    as_stick.axes[Axis::LeftX as usize] = full(stick.axis(Axis::Accel));
+    as_stick.axes[Axis::LeftY as usize] = full(stick.axis(Axis::Brake));
+    in_picture(on_screen(&as_stick, screen_size()))
+}
+
+/// A screen place in the game's picture (fractions from its top left), on it.
+fn in_picture((sx, sy): (f32, f32)) -> Option<(f32, f32)> {
     let (x, y) = match desktop::size() {
         Some((w, h)) => {
             let (x, y) = desktop::from_screen(sx as f64, sy as f64);

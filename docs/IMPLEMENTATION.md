@@ -7978,6 +7978,15 @@ Mario & Sonic at the Tokyo 2020 Olympic Games Arcade (SDFV, 64-bit, portrait). s
     and 7), searched every 20 ms for the boot's first 15 minutes (`lone_cabinet_in_game`). The
     backup's shared memory view (amdaemon's 4 MB `MapViewOfFile`: the record as CRC-32 over 0x460
     bytes) is not what the game reads the group from.
+  - Controls: the touch surface and the mouse beside it (`input.gun` on the pedals, `x: accel`,
+    `y: brake`, the left button `kp0`: the sticks touch the slider halves): while it is held,
+    the key under the mouse, the picture's top third the air (`gun::pedals_in_picture`), a red
+    dot always shown (`WAL_CROSSHAIR_AXES=pedals`). The keyboard's arrows for the menus: left
+    slider keys 1-2 (the menus' left), right keys 5-6 (the menus' right), up nothing.
+  - The automatic Aime card: no start button, the slider's touch (keys, air, sticks, touch
+    surface, the mouse's `kp0`: `io4::slider_touched`) arms it, 4 s later
+    (`WAL_ALLS_AUTO_CARD_DELAY_MS`: the attract reads and drops a card touched at once, the
+    login prompt then never gets it).
 - O.N.G.E.K.I. (SDDT 1.00, ALLS `ACA1`; `ongeki`, `WAL_ALLS_BOARD=ongeki`): Unity 5.6 (Mono,
   64-bit `mu3.exe`, portrait 1080x1920) beside amdaemon (both in `package\`, game.bat's
   `amdaemon.exe -f -c config_common.json config_server.json config_client.json`, the profile's
@@ -8621,7 +8630,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `crossbeats-rev-sunrise` | crossbeats REV. SUNRiSE | alls | user (2026-11-12): "the game seem to work perfectly" (mouse touch, red dot, Aime login with PIN, profile load); headless tests: boot, ALL.Net, game server tables, coins, touch, card sign-up | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=cxb`): CommIo / CommLamp exports, WM_TOUCH, TN32 Aime reader COM12, options after 0060, billing type 0, ARTEMiS game server (WinHTTP body order fix) |
 | `wonderland-wars` | Wonderland Wars | alls | user (2026-11-13, desktop): boots, touchpad pen OK, guest play; headless: power-on and network tests, shader cache | Nu 1.1 without amdaemon (§6.3l, `WAL_ALLS_BOARD=wlw`): 3M touch COM1, 837-15312 pen board COM12, amVideo ordinals, Cg shader cache, server checks shortened; offline (no game server): guest only |
 | `chunithm-superstar` | CHUNITHM SUPERSTAR | alls | not running (2026-11-09): protected executables, amdaemon dies under Wine (direct system calls) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): profile, IO4 air sensors, slider, LED boards, title server ready |
-| `chunithm-new` | CHUNITHM NEW!! | alls | headless tests (2026-11-16): power-on from a fresh backup, attract, free play, Aime card login, new player, tutorial with the slider; with SEGAguide's unpacked 2.02 executables (the dump's are protected) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): ALL.Net auth 1.0 (Auth V2 not emulable), ARTEMiS NEW title server (matching, Card Maker), cabinet group off in the backup and the game's defaults |
+| `chunithm-new` | CHUNITHM NEW!! | alls | user (2026-11-16, desktop): "game working 100%" (mouse with red dot, menus, Aime card); headless: power-on from a fresh backup, card login, new player, tutorial with the slider; with SEGAguide's unpacked 2.02 executables (the dump's are protected) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=chusan`): ALL.Net auth 1.0 (Auth V2 not emulable), ARTEMiS NEW title server (matching, Card Maker), cabinet group off in the backup and the game's defaults |
 | `ongeki` | O.N.G.E.K.I. | alls | headless tests (2026-11-15): power-on test, attract, new Aime player (registration, name entry, news, story chapter 0) | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=ongeki`): IO4 buttons and lever, LED 15093-06 COM3 and VFD COM2 (Mono DllImports), backup factory settings fixed (group OFF, lever range), ARTEMiS title server in amdaemon (`{allnet}` URI), Mono clock, mu3.ini IgnoreError (no QR cameras) |
 | `ongeki-plus` | O.N.G.E.K.I. PLUS | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (55-60 FPS) | `ongeki`'s (§6.3l), version 1.05: its newer amdaemon's Sleep(0) patch, title URI /SDDT/105/ |
 | `ongeki-summer` | O.N.G.E.K.I. SUMMER | alls | headless tests (2026-11-15): power-on, new Aime player, story, tutorial song (57-60 FPS) | `ongeki`'s (§6.3l), version 1.10: the same amdaemon patch as PLUS, title URI /SDDT/110/ |
