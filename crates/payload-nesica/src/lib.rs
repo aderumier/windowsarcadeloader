@@ -10,6 +10,9 @@
 //!
 //! Theatrhythm Final Fantasy All-Star Carnival (Unity) calls three native plugins instead: the
 //! same DLL is installed under their names (`theatrhythm.rs`).
+//!
+//! Tetote X Connect (Unity) is loaded at its executable's entry point; its native plugins'
+//! functions are the payload's (`tetote.rs`).
 
 #![allow(non_snake_case)]
 
@@ -25,6 +28,8 @@ mod theatrhythm_mono;
 mod theatrhythm_nesys;
 mod theatrhythm_player;
 mod theatrhythm_server;
+mod tetote;
+mod tetote_server;
 
 use std::ffi::c_void;
 use wal_payload_common::{log, patches};
@@ -55,6 +60,9 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if theatrhythm::detected(module) {
             theatrhythm::init();
+        }
+        if tetote::detected() {
+            tetote::init();
         }
         log!("nesica: initialized");
     }

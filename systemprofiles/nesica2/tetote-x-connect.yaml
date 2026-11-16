@@ -1,0 +1,109 @@
+# Tetote X Connect (Square Enix / Taito, NESiCAxLive 2, 2023) - template, override values in
+# userprofiles/nesica2/tetote-x-connect.yaml.
+# Vision.exe (Unity 2018.4, Mono, 64-bit, Direct3D 11): a rhythm game on the cabinet's portrait
+# touch screen. The game's native plugins (I/O board and NESiCA reader, NESYS, settings files,
+# touch panel check) are the payload's functions; NESiCA play with the payload's title server
+# (the players' saves in tetote/players of the run directory); no depth camera (the pose phases
+# play without it) (tetote.rs).
+system: nesica2
+name: Tetote X Connect
+
+# loaded at the executable's entry point: Unity reads the screen's size at its start (the
+# 1080x1920 desktop must be there first)
+payload_loader: true
+dll_overrides:
+  # Wine's winhttp: the dump's Unity Doorstop (winhttp.dll, its BepInEx plugin) not loaded, the
+  # game unmodified
+  winhttp: "b"
+
+# the cabinet's 1080x1920 picture, in a borderless window (a full screen at a portrait size
+# fails on a landscape screen); the game's own check of that size (full screen, the display
+# rotated) is off
+args: [-screen-fullscreen, "0", -popupwindow, -screen-width, "1080", -screen-height, "1920"]
+
+env:
+  # the cabinet's portrait monitor: a 1080x1920 desktop for the game, its window fitted onto the
+  # real screen (aspect kept, centered), black around it
+  WAL_DESKTOP_SIZE: 1080x1920
+  WAL_BEZEL: black
+  # the window not managed: placed by the payload (a window manager's panel pushed it down);
+  # never deactivated
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+  # the NESiCA card touched by itself when the game asks for one (the player's save kept on it)
+  WAL_NESICA_CARD_AUTO: "1"
+  # "0": no title server (a cabinet without network: guest play only)
+  WAL_TETOTE_SERVER: "1"
+  # the players choose the game's language (Japanese, English, Chinese, Spanish) at the start of
+  # a credit
+  WAL_TETOTE_LANGUAGE_SELECT: "1"
+  # a dot where player 1 touches (the game shows no cursor): its size in percent of the screen
+  # height
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_SIZE: "1.5"
+  # the touch surface's fingers: pad (the whole touchpad is the game's picture) or screen (a
+  # touchscreen: the fingers where the picture shows)
+  WAL_TETOTE_TOUCH: pad
+  WAL_FREEPLAY: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Credits are free. Off: a coin per credit (the test menu's price).
+      - key: WAL_TETOTE_LANGUAGE_SELECT
+        label: Language choice
+        kind: bool
+        description: >-
+          The players choose the language (Japanese, English, Chinese, Spanish) at the start of
+          a credit. Off: the test menu's.
+      - key: WAL_TETOTE_TOUCH
+        label: Touch surface
+        kind: choice
+        choices: [pad, screen]
+        description: >-
+          pad: the whole touchpad is the game's picture (several fingers). screen: a
+          touchscreen, the fingers touch where the picture shows.
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or player 1's gun touches.
+  - title: NESiCA card
+    options:
+      - key: WAL_NESICA_CARD_AUTO
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          The NESiCA card is touched by itself when the game asks for one (the player's name,
+          scores and unlocks kept). Off: touch it with the card button, or play as a guest.
+      - key: WAL_TETOTE_SERVER
+        label: Title server
+        kind: bool
+        description: >-
+          The loader's title server: NESiCA play, the players' progress kept. Off: guest play
+          only.
+
+# The touch screen: a touchpad or touchscreen (all its fingers), the mouse or player 1's gun
+# (button 1 touches), player 2's gun a second finger; a pad's left stick points (R1 touches).
+input:
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: b1
+  gamepad:
+    r1: b1
+
+controls:
+  lx: Touch position (x)
+  ly: Touch position (y)
+  b1: Touch the screen
+  b3: Select (test menu)
+  b4: Enter (test menu)
+  coin: Coin
+  service: Service
+  test: Test

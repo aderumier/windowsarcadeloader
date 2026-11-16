@@ -10,6 +10,10 @@
 //! match with).
 //!
 //! `WAL_THEATRHYTHM_SERVER=0`: standalone, as a cabinet without network: guest play only.
+//!
+//! Tetote X Connect's `SimpleNesys.dll` is the same library (`tetote.rs`): its certificate's
+//! `game_server` the payload's title server (`tetote_server.rs`), `WAL_TETOTE_SERVER=0`
+//! standalone.
 
 use std::ffi::{CStr, CString, c_char};
 use std::sync::Mutex;
@@ -39,9 +43,16 @@ const REQUEST_ERROR: i32 = 2;
 
 static STATUS: AtomicI32 = AtomicI32::new(PRE_INIT);
 
-/// Whether the card server answers (`WAL_THEATRHYTHM_SERVER`, on by default).
+/// Whether the card server answers (`WAL_THEATRHYTHM_SERVER`, `WAL_TETOTE_SERVER`: on by
+/// default).
 pub(crate) fn online() -> bool {
-    !std::env::var("WAL_THEATRHYTHM_SERVER").is_ok_and(|v| v.trim() == "0")
+    let var = if crate::tetote::active() { "WAL_TETOTE_SERVER" } else { "WAL_THEATRHYTHM_SERVER" };
+    !std::env::var(var).is_ok_and(|v| v.trim() == "0")
+}
+
+/// The game's name in the log.
+fn tag() -> &'static str {
+    if crate::tetote::active() { "tetote" } else { "theatrhythm" }
 }
 
 fn nesys_call(name: &'static str) {
@@ -49,7 +60,7 @@ fn nesys_call(name: &'static str) {
     let mut seen = SEEN.lock().unwrap();
     if !seen.contains(&name) {
         seen.push(name);
-        log!("theatrhythm: {name} called");
+        log!("{}: {name} called", tag());
     }
 }
 
@@ -61,7 +72,7 @@ fn request(name: &str, answer: Json) -> i32 {
     static NEXT: AtomicI32 = AtomicI32::new(1);
     let handle = NEXT.fetch_add(1, Ordering::Relaxed);
     let text = answer.to_string();
-    log!("theatrhythm: NESYS {name} -> {text}");
+    log!("{}: NESYS {name} -> {text}", tag());
     REQUESTS.lock().unwrap().push((handle, CString::new(text).unwrap_or_default()));
     handle
 }
@@ -76,9 +87,11 @@ fn card(id: *const c_char) -> String {
 #[unsafe(no_mangle)]
 pub extern "C" fn NESYS_INIT(game_id: i32, version: i32) -> i32 {
     let online = online();
-    log!("theatrhythm: NESYS_INIT game {game_id} version {version}: {}", if online { "online, the payload's card server" } else { "standalone" });
+    log!("{}: NESYS_INIT game {game_id} version {version}: {}", tag(), if online { "online, the payload's server" } else { "standalone" });
     STATUS.store(STANDALONE_MODE, Ordering::Relaxed);
-    if online {
+    if online && crate::tetote::active() {
+        crate::tetote_server::start();
+    } else if online {
         server::start();
         crate::theatrhythm_mono::patch();
     }
@@ -168,7 +181,8 @@ pub extern "C" fn NESYS_GET_NETWORK_ERROR_CODE(_handle: i32) -> u64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn NESYS_GET_MAINTENANCE_TIME() -> i32 {
-    NO_MAINTENANCE
+    // Tetote X Connect: -2 is "maintenance will begin shortly", -3 none
+    if crate::tetote::active() { -3 } else { NO_MAINTENANCE }
 }
 
 /// The certificate's information: the shop and the servers.
@@ -179,7 +193,10 @@ pub unsafe extern "C" fn NESYS_GET_CERTINFO(buf: *mut *const c_char, size: *mut 
         return ERR_STANDALONE;
     }
     static INFO: std::sync::OnceLock<CString> = std::sync::OnceLock::new();
-    let info = INFO.get_or_init(|| CString::new(server::cert_info().to_string()).unwrap_or_default());
+    let info = INFO.get_or_init(|| {
+        let info = if crate::tetote::active() { crate::tetote_server::cert_info() } else { server::cert_info() };
+        CString::new(info.to_string()).unwrap_or_default()
+    });
     unsafe {
         if !buf.is_null() {
             *buf = info.as_ptr();
@@ -280,7 +297,7 @@ pub unsafe extern "C" fn NESYS_PARSE_JSON(
     }
     let text = unsafe { CStr::from_ptr(json) }.to_string_lossy();
     let Some(value) = Json::parse(&text) else {
-        log!("theatrhythm: NESYS_PARSE_JSON: not JSON: {text}");
+        log!("{}: NESYS_PARSE_JSON: not JSON: {text}", tag());
         return;
     };
     let names: Vec<&CStr> = (0..count as usize)
