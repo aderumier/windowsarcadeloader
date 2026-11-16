@@ -805,7 +805,7 @@ import it statically, so it loads before the game entry point: no injector neede
   replies built with the `Out` helper following the C struct layouts (sizes documented next to
   each reply). Card data: `card_<id>_<type>.bin` in the D: data folder. `WAL_NESICA_NESYS=0`
   disables it; network values via `WAL_NESICA_IP/_MASK/_GATEWAY/_DNS`. AH2 does not use it.
-* Not ported (yet): `GetIfEntry` hook, NESYS HTTP access (Groove Coaster), game-specific
+* Not ported (yet): `GetIfEntry` hook, game-specific
   patches from `NesicaGeneric.cpp`. Games also try the NESiCAxLive launcher pipe
   (`\\.\pipe\NxLPipe...`); nobody emulates it and the games tested do not need it. Game detection by CRC is not needed: the profile says which game it is.
 
@@ -866,6 +866,57 @@ title); `-w`/`-h` the screen's size. Free play (`WAL_FREEPLAY`) gives the SVP (p
 purchase for free; NESYS online works (green icon). Verified headless: boot, attract, title,
 character select and SVP purchase with the cursor, a stage played (aim, attack, first mission
 cleared).
+
+#### Groove Coaster 2: Heavenly Festival (Type X3)
+
+Taito, 2015 (RHYTHMVADERS 2), `game.exe` 2.06.01 (32-bit, Direct3D 9, portrait 720x1280; the
+dump's `game.exe` is the decrypted build, `game.exe.original` the encrypted one, the dump's
+`dinput8.dll` hidden). Profile `nesica/groove-coaster-2`, `WAL_NESICA_GAME=groovecoaster`
+(`groovecoaster.rs`, `groovecoaster_server.rs`):
+
+* **Screen.** A 720x1280 window, then a 720x1280 full screen `Reset` that no monitor mode
+  matches (`GW_ERR_DX_DEVICE`, `PCMain.cpp` 403): the Sonic Dash Extreme set
+  (`WAL_D3D9_WINDOWED_SIZE`, `WAL_D3D9_KEEP_WINDOW`, `WAL_D3D9_ASPECT=9:16`, a popup window),
+  black strips beside it (`WAL_BEZEL=black`).
+* **Cabinet link.** The LAN thread (UDP 60100) names the cabinet after the last two bytes of
+  the first adapter's MAC (`GetAdaptersInfo`, as hex text): 0 (a VPN or bridge adapter listed
+  first under Wine) keeps the main thread waiting before the first frame. The game sees one
+  adapter, the first with an IP address, with the NESYS MAC `DE:AD:BA:BE:CA:FE`.
+* **DirectInput.** Its debug pad enumeration hung the boot: `WAL_DINPUT_DISABLE=1`.
+* **NESiCA reader** (COM2, the Xio bus, node 1): the Type X3 reader with its security
+  (`WAL_NESICA_RFID_SECURITY=1`), the key read from `C:\TypeXZEROTemp.dat`
+  (`WAL_NESICA_RFID_KEY_FILE`); without it error 302.
+* **NOTICE forever.** The NESYS thread starts NESiCAxLive's update downloader once certified
+  (`TtxUDLSetInterval` / `TtxUDLInit` of `TtxUpdateDownloader.dll`): under Wine it waits forever
+  on a lock of the DLL (an `RtlpWaitForCriticalSection ... blocked by 0000` every 60 s), the
+  NESYS thread stops, the attract never leaves NOTICE. Its six imports are answered by the
+  payload (started, status idle: no update delivery).
+* **Boosters** (two sticks with a button on top, one player): FastIO 0x4120 (the game's
+  `GWInputDeviceXioFio_BOOST`, FastIO firmware 0x823C path: the word's bits 12-17 moved to
+  16-21). The test menu's I/O test: left booster up / down / left / right = player 1 up,
+  player 2 up, player 1 down, player 2 down, its button player 1 button 1; right booster = player
+  1 left, player 2 left, player 1 right, player 2 right, its button player 2 button 1; Select =
+  player 1 start, Enter = player 2 start; coin, service, test as usual. All from player 1's
+  virtual stick (`groovecoaster::switches`, replacing 0x4120's switches): the d-pad or left stick
+  and b1 the left booster, the right stick or b5-b8 and b2 the right one, start Enter, b3 Select.
+* **Free play** (the common option, declared in the profile): the game is in free play when
+  the coins per credit setting is 0, asked of one function (+0x203450): `mov al, 1; ret`.
+* **Card server** (`groovecoaster_server.rs`, the Groove Coaster card server's types and answers,
+  GC-local-server-rewrite): NESYS card select = read (`<root><info>..</info><data>..</data>`
+  documents, data type), card update = write, card insert = registration. Unregistered card:
+  read 259 answers 23, the reissue test 27 (no reissue: else "this IC card is scheduled to be
+  reissued"), then the name entry and the insert (its fields saved as sent: `fcol3` 20601 is the
+  game's version, a card without it is offered the RHYTHMVADERS EX data transfer). Saves in
+  `D:\groovecoaster\<card id>\`: `card.xml` (259, write 771), `detail_<pcol1>_<pcol2>_<pcol3>.xml`
+  (260 one, 261 all, write 772), `bdata.xml` (264, write 776). Everything unlocked: avatars,
+  items (90 each), skins, titles (418/420/422/424, counts from `data/boot/*.dat`), the songs of
+  `data/boot/stage_param.dat` (428, `music_id` / `release_date`), coins 900000 (468); sessions
+  401 / 402 the card server's fixed session; navigator, event reward, extra / AOU songs empty;
+  the other writes (929-980) acknowledged. Rankings (NESYS 0x13) answer none.
+
+Verified headless: boot, attract, test menu and I/O test, free play, guest play (tutorial,
+song select, songs), a new card (registration, name entry), a full credit with the card (song
+records and settings saved) and the returning card.
 
 ### 6.2b NESiCAxLive 2 (system `nesica2`, `crates/payload-nesica/src/nxl2.rs`)
 
@@ -8907,6 +8958,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players | Competitive Edge Games' horse racing derby (Direct3D 8, 32-bit, §6.3i, board `photofinish`): the ball drop holes (pulses) and credit switches given as the keys it polls, its COM1 relay board emulated, free play as `PhotoFinish.ini`'s `FreePlayMode` (start joins, start again races), 4:3 |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 | `left-4-dead-survivors` | Left 4 Dead: Survivors | nesica | user 100% (2026-11-16), NESiCA card (new player, CPU play), mouse and pad | Type X3 Source engine (§6.2): `bin\inputsystem.dll` loads the payload; Type X3 reader security and commands, FastIO hub/universal board registers, HID mouse and winmm grip emulated, the gun's mouse from the sticks or the mouse (menus point and click), `+arcade_NESiCA_Accept 1`, getCardInfo record for a new card, lobby server answered with no rooms |
+| `groove-coaster-2` | Groove Coaster 2: Heavenly Festival | nesica | user 100% (2026-11-16), boosters, NESiCA card (registration, saves), free play | Type X3 portrait rhythm game (§6.2): windowed 9:16 with black bezel, GetAdaptersInfo MAC for the LAN link, update downloader answered (NESYS thread deadlock under Wine), Type X3 reader with C:\TypeXZEROTemp.dat, the boosters on FastIO, free play patch, Groove Coaster card server (registration, player, song records, settings) |
 | `mario-and-sonic-at-tokyo-2020-olympic-games` | Mario & Sonic at the Tokyo 2020 Olympic Games | alls | user 100% (2026-11-08) | the first ALLS game with its own amdaemon (§6.3l): SystemProperty registry, keychip ioctls, IO4 board, LED board 15093 COM1, sysfile.dat DIP switches and free play, ALL.Net answers, Japan clock, amRtc sync patch, portrait 1080x1920 with the dump's bezel |
 | `house-of-the-dead-scarlet-dawn` | The House of the Dead: Scarlet Dawn | alls | user 100% (2026-11-08), 2 guns | UE 4.18 with its 2018 amdaemon (§6.3l, `WAL_ALLS_BOARD=hotd`): generated ICF (platform ACA1), gun sensor board COM1 (aim, triggers, reload off screen), graphics options in Engine.ini (render scale, FSR), gore restoration rebuilt as a patch pak (`WAL_HOTD_GORE`), 16:9 desktop stretched on 4:3 screens |
 | `sega-world-drivers-championship` | Sega World Drivers Championship | alls | user-tested (2026-11-08): power-on test all GOOD, card registration with name entry, a race, the save, the returning player's licence | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=swdc`): wheel I/O board, Aime reader (automatic card), FFB / LED / dashboard boards, main cabinet LAN, English translation, AimeDB and its game server (player saves) |

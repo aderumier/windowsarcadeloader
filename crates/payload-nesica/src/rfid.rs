@@ -14,7 +14,8 @@
 //!
 //! Type X3 games (Left 4 Dead: Survivors) read a 16-byte key from `C:\TypeX3Temp.dat` and,
 //! between polls, send the board a challenge on node `0x80 | n` (`WAL_NESICA_RFID_SECURITY=1`:
-//! the key file is created when missing, zeros, and the challenges are answered with it). Their
+//! the key file is created when missing, zeros, and the challenges are answered with it;
+//! `WAL_NESICA_RFID_KEY_FILE`: another key file, Groove Coaster 2's `C:\TypeXZEROTemp.dat`). Their
 //! reader's commands differ too (same option): `32` drives its lamp (a report only), `26` is the
 //! card presence (one byte), `61` reads the card (8 header bytes, the 16-character id); with
 //! `WAL_NESICA_CARD_AUTO=1` the card is always on the reader (no card input needed).
@@ -182,16 +183,17 @@ fn process(packet: &[u8]) -> Vec<u8> {
     r.finish()
 }
 
-/// The Type X3 key (`C:\TypeX3Temp.dat`), created with zeros when missing.
+/// The Type X3 key (`C:\TypeX3Temp.dat`, `WAL_NESICA_RFID_KEY_FILE`), created with zeros when
+/// missing.
 fn security_key() -> &'static [u8; 16] {
     static KEY: OnceLock<[u8; 16]> = OnceLock::new();
     KEY.get_or_init(|| {
-        const PATH: &str = "C:\\TypeX3Temp.dat";
-        match std::fs::read(PATH) {
+        let path = std::env::var("WAL_NESICA_RFID_KEY_FILE").unwrap_or_else(|_| "C:\\TypeX3Temp.dat".into());
+        match std::fs::read(&path) {
             Ok(d) if d.len() >= 16 => d[..16].try_into().unwrap(),
             _ => {
-                if let Err(e) = std::fs::write(PATH, [0u8; 16]) {
-                    log!("rfid: {PATH} not written: {e}");
+                if let Err(e) = std::fs::write(&path, [0u8; 16]) {
+                    log!("rfid: {path} not written: {e}");
                 }
                 [0; 16]
             }

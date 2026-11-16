@@ -1,0 +1,63 @@
+# Groove Coaster 2: Heavenly Festival (RHYTHMVADERS 2; Taito, NESiCAxLive, Type X3, 2015) -
+# template, override values in userprofiles/nesica/groove-coaster-2.yaml.
+# game.exe (2.06.01, 32-bit, Direct3D 9, portrait 720x1280; the dump's game.exe is the decrypted
+# build, game.exe.original the encrypted one). The cabinet: two boosters (a stick with a button
+# on top each) on the FastIO board, the NESiCA reader on COM2, the card server through NESYS.
+# The payload's groovecoaster.rs / groovecoaster_server.rs (docs §6.2 "Groove Coaster 2").
+system: nesica
+name: "Groove Coaster 2: Heavenly Festival"
+
+# The dump's dinput8.dll (a DirectInput wrapper of another loader): the game enumerates
+# DirectInput pads at boot (its debug pad device) and hung there with it.
+hide: [dinput8.dll]
+
+env:
+  WAL_NESICA_GAME: groovecoaster
+  # the game's debug pad (DirectInput): no input there, the boosters are the FastIO board's
+  WAL_DINPUT_DISABLE: "1"
+  # Type X3 NESiCA reader (COM2): security challenges answered with the key the game reads from
+  # C:\TypeXZEROTemp.dat (created with zeros when missing; without the reader: error 302)
+  WAL_NESICA_RFID_SECURITY: "1"
+  WAL_NESICA_RFID_KEY_FILE: C:\TypeXZEROTemp.dat
+  # Its 720x1280 window, then a 720x1280 full screen mode (none of the monitor's: "GW_ERR_DX_DEVICE",
+  # PCMain.cpp 403): a borderless 9:16 window centered on the screen, its device windowed
+  WAL_D3D9_WINDOWED_SIZE: 720x1280
+  WAL_D3D9_KEEP_WINDOW: "1"
+  WAL_D3D9_ASPECT: "9:16"
+  WAL_WINDOW_SIZE: aspect
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_UNMANAGED: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+  # black strips beside the portrait picture (nothing paints the screen's sides)
+  WAL_BEZEL: black
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins (the test menu's FREE PLAY). Off: the game's own coin
+          setting. Batocera: FREE PLAY in the game's advanced settings.
+
+# Control names (the GUI's mapping rows): one player, two boosters.
+controls:
+  up: Left booster up
+  down: Left booster down
+  left: Left booster left
+  right: Left booster right
+  b1: Left booster button
+  rx: Right booster left / right
+  ry: Right booster up / down
+  b5: Right booster up
+  b6: Right booster down
+  b7: Right booster left
+  b8: Right booster right
+  b2: Right booster button
+  b3: Select (test menu)
+  start: Enter
+  coin: Coin
+  service: Service
+  test: Test
+  card: NESiCA card

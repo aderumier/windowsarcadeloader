@@ -173,6 +173,10 @@ fn native_state() -> [u8; 16] {
             d[base + byte] |= bit as u8;
         });
     }
+    // Groove Coaster 2: the boosters' layout
+    if crate::groovecoaster::detected() {
+        d[..4].copy_from_slice(&crate::groovecoaster::switches().to_le_bytes());
+    }
     let p1: StickState = wal_payload_common::input(0);
     d[8] = p1.axis_u8(Axis::LeftX);
     d[9] = p1.axis_u8(Axis::Accel);

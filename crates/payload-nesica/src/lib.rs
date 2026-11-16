@@ -17,6 +17,8 @@
 //! Street Fighter V Type Arcade (Unreal) loads Taito's USB I/O library: this DLL is it
 //! (`sfv.rs`).
 //!
+//! Groove Coaster 2 (`WAL_NESICA_GAME=groovecoaster`): `groovecoaster.rs`.
+//!
 //! Tetote X Connect (Unity) is loaded at its executable's entry point; its native plugins'
 //! functions are the payload's (`tetote.rs`).
 
@@ -26,6 +28,8 @@ mod crypttrace;
 mod drive;
 mod fastio;
 mod grip;
+mod groovecoaster;
+mod groovecoaster_server;
 mod hidmouse;
 mod lobby;
 // 64-bit only (Magician's Dead; the Leap SDK's MSVC x64 names)
@@ -95,6 +99,9 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if tetote::detected() {
             tetote::init();
+        }
+        if groovecoaster::detected() {
+            groovecoaster::init();
         }
         log!("nesica: initialized");
     }

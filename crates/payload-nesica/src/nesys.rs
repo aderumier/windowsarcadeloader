@@ -279,6 +279,11 @@ fn net(name: &str, default: &str) -> String {
     std::env::var(format!("WAL_NESICA_{name}")).unwrap_or_else(|_| default.to_string())
 }
 
+/// The card id of a card request (16 characters).
+fn card_id_text(data: &[u8]) -> String {
+    data.iter().take(16).take_while(|c| **c != 0).map(|c| *c as char).collect()
+}
+
 fn card_file(card_id: &[u8], data_type: u32) -> String {
     let id: String = card_id.iter().take(16).take_while(|c| **c != 0).map(|c| *c as char).collect();
     format!("{}\\card_{id}_{data_type}.bin", crate::drive::data_dir())
@@ -488,6 +493,33 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
         | GAME_FREE_END_REQUEST => {
             send(pipe, GAME_STATUS_REPLY, &[])
         }
+        // Groove Coaster 2: its card server (groovecoaster_server.rs)
+        CARD_SELECT_REQUEST
+            if crate::groovecoaster::detected()
+                && let Some((status, mut card)) = crate::groovecoaster_server::select(
+                    &card_id_text(data),
+                    u32_at(data, 16),
+                    &String::from_utf8_lossy(&data[24.min(data.len())..]),
+                ) =>
+        {
+            if !card.is_empty() {
+                card.push(0);
+            }
+            send(pipe, CARD_SELECT_REPLY, &Out::default().u32(status).u32(100).u32(100).u32(card.len() as u32).bytes(&card).0);
+        }
+        CARD_UPDATE_REQUEST if crate::groovecoaster::detected() => {
+            let size = (u32_at(data, 28) as usize).min(data.len().saturating_sub(32));
+            let xml = String::from_utf8_lossy(&data[32.min(data.len())..32 + size]).into_owned();
+            let status = crate::groovecoaster_server::update(&card_id_text(data), u32_at(data, 24), &xml);
+            send(pipe, CARD_UPDATE_REPLY, &Out::default().u32(status).u32(100).u32(100).u32(0).0);
+        }
+        CARD_INSERT_REQUEST if crate::groovecoaster::detected() => {
+            log!("nesys: card insert {:?} type {} data {:?}", card_id_text(data), u32_at(data, 16), String::from_utf8_lossy(&data[20.min(data.len())..]));
+            let text = String::from_utf8_lossy(data);
+            let xml = text.find("<?xml").map_or("", |i| &text[i..]);
+            let status = crate::groovecoaster_server::register(&card_id_text(data), xml);
+            send(pipe, CARD_INSERT_REPLY, &Out::default().u32(status).u32(0).u32(0).u32(0).0)
+        }
         CARD_SELECT_REQUEST => {
             // { char cardId[16]; u32 dataType; u32 paramSize; ... }
             let file = card_file(data, u32_at(data, 16));
@@ -572,6 +604,10 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
         // Fighting EX Layer, at a card insertion: { char cardId[16]; u32 }. The reply is a card
         // status as the other card replies (the client parses 0x111-0x119 alike); the game only
         // checks its status (1), without it it waits on the card screen until its timeout.
+        // Groove Coaster 2: no reissue reserved, an unregistered card is a new player
+        CARD_REISSUE_TEST_REQUEST if crate::groovecoaster::detected() => {
+            send(pipe, CARD_REISSUE_TEST_REPLY, &Out::default().u32(CARD_NO_REISSUE).u32(100).u32(100).u32(0).0)
+        }
         CARD_REISSUE_TEST_REQUEST => {
             // `WAL_NESYS_REGISTER=1`: no reissue reserved (status 27): a new registration
             let status = if register() { CARD_NO_REISSUE } else { 1 };
