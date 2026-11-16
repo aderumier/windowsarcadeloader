@@ -33,7 +33,7 @@
 //! the finger then follows the gun.
 //!
 //! The player's touch surface (the profile's `input.touch`, [`surface_fingers`]): its fingers
-//! (up to [`SURFACE_FINGERS`], ids from [`FINGERS`]) are real touches beside the guns' slices:
+//! (up to [`SURFACE_FINGERS`]) are real touches beside the guns' slices:
 //! the whole touchpad is the picture, or with `WAL_PQMT_TOUCH=screen` the surface is the screen
 //! and the picture its part (a touchscreen).
 
@@ -268,7 +268,7 @@ fn finger((fx, fy): (f32, f32)) -> Option<(i32, i32)> {
 const FIXED: [(Native, (f32, f32)); 3] = [(Native::Shield, (0.5, 0.9)), (Native::DodgeLeft, (0.055, 0.94)), (Native::DodgeRight, (0.945, 0.94))];
 /// Fingers: each player's, then each fixed finger of each player.
 const FINGERS: usize = PLAYERS * (1 + FIXED.len());
-/// The touch surface's fingers (ids `FINGERS..`).
+/// The touch surface's fingers (`FINGERS..` in the thread's tables).
 const SURFACE_FINGERS: usize = 10;
 
 /// A point of the player's touch surface (0..65535 across it) in the game's picture: the whole
@@ -337,17 +337,25 @@ fn attach() -> bool {
 }
 
 /// Finger `id`'s point for this frame, at `at` (`None`: lifted): down, moved or up, none if it
-/// stays lifted.
-fn touch_point(id: usize, at: Option<(i32, i32)>, down: &mut [bool], last: &mut [(i32, i32)]) -> Option<TouchPoint> {
+/// stays lifted. The game sees the finger under the lowest id free when it went down (`ids`):
+/// Infinity Blade's Unreal Engine 3 keeps its touches in a table indexed by the id, a touch
+/// surface finger's id past it (16 and up) killed the game.
+fn touch_point(id: usize, at: Option<(i32, i32)>, down: &mut [bool], last: &mut [(i32, i32)], ids: &mut [u16]) -> Option<TouchPoint> {
     let (event, (x, y)) = match (at, down[id]) {
         (Some(at), false) => (TP_DOWN, at),
         (Some(at), true) => (TP_MOVE, at),
         (None, true) => (TP_UP, last[id]),
         (None, false) => return None,
     };
+    if event == TP_DOWN {
+        ids[id] = (0..).find(|n| !(0..down.len()).any(|j| down[j] && ids[j] == *n)).unwrap_or(0);
+    }
     down[id] = event != TP_UP;
     last[id] = (x, y);
-    Some(TouchPoint { point_event: event, id: id as u16, x, y, dx: 16, dy: 16 })
+    if event != TP_MOVE {
+        log!("pqmt: finger {id} (id {}) {} at {x},{y}", ids[id], if event == TP_DOWN { "down" } else { "up" });
+    }
+    Some(TouchPoint { point_event: event, id: ids[id], x, y, dx: 16, dy: 16 })
 }
 
 /// Sends the players' fingers to the game.
@@ -355,6 +363,7 @@ fn touch_thread() {
     let mut attached = false;
     let mut down = [false; FINGERS + SURFACE_FINGERS];
     let mut last = [(0, 0); FINGERS + SURFACE_FINGERS];
+    let mut ids = [0u16; FINGERS + SURFACE_FINGERS];
     let mut surface = [None; SURFACE_FINGERS];
     let mut anchor = [(0.0, 0.0); PLAYERS];
     let gain = swipe_gain();
@@ -384,7 +393,7 @@ fn touch_thread() {
             if id >= PLAYERS {
                 let (native, place) = FIXED[id / PLAYERS - 1];
                 let at = if held(player, native) { finger(place) } else { None };
-                if let Some(point) = touch_point(id, at, &mut down, &mut last) {
+                if let Some(point) = touch_point(id, at, &mut down, &mut last, &mut ids) {
                     points.push(point);
                 }
                 continue;
@@ -409,13 +418,13 @@ fn touch_thread() {
                 static ONCE: Once = Once::new();
                 ONCE.call_once(|| log!("pqmt: P{} touch held off the picture (gun {gun:?}, window {:?})", player + 1, gun::client_area(gun::find_window())));
             }
-            if let Some(point) = touch_point(id, at, &mut down, &mut last) {
+            if let Some(point) = touch_point(id, at, &mut down, &mut last, &mut ids) {
                 points.push(point);
             }
         }
         surface = surface_fingers(&surface);
         for (i, at) in surface.iter().enumerate() {
-            if let Some(point) = touch_point(FINGERS + i, at.and_then(finger), &mut down, &mut last) {
+            if let Some(point) = touch_point(FINGERS + i, at.and_then(finger), &mut down, &mut last, &mut ids) {
                 points.push(point);
             }
         }

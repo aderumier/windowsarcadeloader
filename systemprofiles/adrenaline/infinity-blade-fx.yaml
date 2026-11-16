@@ -1,7 +1,8 @@
 # Infinity Blade FX (Adrenaline Amusements / Chair Entertainment, Unreal Engine 3, 32-bit) -
 # template, override values in userprofiles/adrenaline/infinity-blade-fx.yaml.
-# A touch screen sword game: the sword swings with swipes, taps block and dodge. The mouse (or
-# a gun) touches the screen where it points while its button is held. The payload emulates the
+# A touch screen sword game: the sword swings with swipes, taps block and dodge. A touchpad or
+# touchscreen's fingers are real touches (several at once); beside them the mouse (or a gun)
+# touches the screen where it points while its button is held. The payload emulates the
 # cabinet's PQ Labs touch frame, its Kaboom I/O board (on its serial port: coins, the
 # operator's keypad, the ticket dispenser) and its Matrix dongle (docs §6.3k).
 system: adrenaline
@@ -29,6 +30,9 @@ env:
   WAL_DINPUT_DISABLE: "1"
   # the game draws no gun cursor: the common crosshair option's default
   WAL_CROSSHAIR: "1"
+  # the touch surface's fingers: pad (the whole touchpad is the game's picture) or screen (a
+  # touchscreen: the fingers where the picture shows)
+  WAL_PQMT_TOUCH: pad
 
 options:
   - title: Display
@@ -49,8 +53,18 @@ options:
           the gun from where the trigger was pulled, in the same direction. A short flick of
           the gun is a full sword swipe, without leaving the screen. 1 (the default): the
           finger stays where the gun or mouse points, for the mouse.
+      - key: WAL_PQMT_TOUCH
+        label: Touch surface
+        kind: choice
+        choices: [pad, screen]
+        description: >-
+          pad: the whole touchpad is the game's picture (real multi-touch swipes and taps,
+          beside the guns' and mouse's). screen: a touchscreen, the fingers touch where the
+          picture shows.
 
 input:
+  # the touchpad or touchscreen: all its fingers, real swipes and taps
+  touch: true
   # each player's gun (or mouse) aims, its trigger touches
   guns_enabled: true
   stick_as_dpad: false
