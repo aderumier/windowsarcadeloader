@@ -978,6 +978,39 @@ income mode 0x20, and (Million Arthur) HTTP posts 0x1B; later 0x4 game start, 0x
 * The dump's `Assembly-CSharp.dll` is another loader's modified build (free play, checks
   removed, data in `.\`): the profile installs `Assembly-CSharp_org.dll` (the original) instead.
 
+**Tetote X Connect (Unity 2018.4 Mono, 64-bit, `tetote.rs`).** `Vision.exe`, a portrait
+1080x1920 touch screen rhythm game. The payload is loaded at the entry point (`payload_loader`,
+`WAL_DESKTOP_SIZE: 1080x1920`) and answers the plugins' DllImports through `mono_imports`:
+* `VisionUSBIO.dll`: the I/O board (`IOBUFFER`: InPort bits Coin 0x8000, Service 0x2000, Test
+  0x1000, Enter 0x400, Select 0x800; `Coin`/`CoinDec` handshake: the coins the game consumed taken
+  off the counter at once) and its NESiCA reader (`RFID_ID`: 16 ASCII digits, then UID and AMIC
+  code zeroed). The auto card is on the reader for 15 s after a touch only: the title polls the
+  reader all along.
+* `SimpleNesys.dll`: Theatrhythm's (`theatrhythm_nesys.rs`, dispatching on `tetote::active()`):
+  the certificate's `game_server` is the payload's title server (`tetote_server.rs`,
+  `127.0.0.1:37703`, out of the launchers' input ports); maintenance time -3 (-2 is "maintenance
+  will begin shortly" in this game).
+* `GWSafeFileDLL.dll`: named strings as files of `tetote/system` (`ReadStr` returns a
+  `CoTaskMemAlloc` string, Mono frees it); `SettingValueJson`'s `OperationMode` from the common
+  free play, `LanguageSelectEnable` from `WAL_TETOTE_LANGUAGE_SELECT`. `DeviceCheck.dll`: the
+  touch panel connected.
+* Managed code (thread started at the first `mono_add_internal_call` of UnityPlayer's
+  `GetProcAddress`): `DepthCam2.IsCameraConnected` / `get_hasCameraProblems` IL made false,
+  `DepthCamera.get_hasCameraProblems` replaced in its compiled code (its IL `ldc.i4.1; ret` is one
+  body shared by every `=> true` method: never patch such IL), `DepthCamera.Start`,
+  `AeroBootCheck.CheckAndReset` and `ScreenObserver.Update` (full screen + display rotation every
+  second) replaced. The pose phases play without the camera.
+* Touch: Unity 2018's Windows player reads `WM_TOUCH` (`RegisterTouchWindow`,
+  `GetTouchInputInfo`, `CloseTouchInputHandle` resolved at run time; `GetSystemMetrics`
+  `SM_DIGITIZER`/`SM_MAXIMUMTOUCHES` must report a ready multi-touch digitizer). The payload posts
+  up to 10 fingers per message in the fake desktop's units (Unity takes the `ScreenToClient` point
+  in its own 1080x1920 client): players 1-2's guns with `b1`, and the launcher's touch points
+  (`input.touch`; the whole touchpad is the picture, `WAL_TETOTE_TOUCH=screen` for a
+  touchscreen), ids kept by nearest-finger matching.
+* Title server: env, login (token `wal-<card>`), savedata (empty for a new card: the game creates
+  the player and asks a name), the saves' changed parts merged by key at savedata / tutorial/end /
+  game/end / purchase, `tetote/players/<card>.json`.
+
 **Million Arthur white screen (2026-10-11, offline only).** Not seen with NESYS online (user:
 training and story modes fine); offline (NESYS off), with DXVK the picture turns white at the
 first coin after the title (~25 s) and stays white through character select: only the HUD
@@ -8393,6 +8426,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | as 1.30.00 |
 | `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card saved (user: name shown, no freeze after a match) | Unreal Engine 4: `EXF-Win64-Shipping.exe` started directly, its `NxL2Core.dll` replaced by the 64-bit payload; NESYS `ms`/`ss`, card reissue replies and session (§6.2b), card inserted automatically (`WAL_NESICA_CARD_AUTO`), card writes saved as their reads, ASCII case folding (`WAL_FAST_WCASE`: Wine's towlower stalled the game ~5 s twice after a match) |
 | `theatrhythm-final-fantasy-all-star-carnival` | Theatrhythm Final Fantasy All-Star Carnival | nesica2 | works (user: 100%), NESiCA cards (loader's card server, progress saved), touch screen (mouse, red pointer); right lever on I/J/K/L; no matching with other cabinets | `game.exe` (Unity 5.3, 64-bit); payload as `game_Data/Plugins` ismACIO / NESiCAReader / SimpleNesys (one module); NESYS online with the payload's card server (HTTP, managed `SetProtcol` / Photon `Connect` replaced); touch = Unity's mouse, red dot (Direct3D 11 Present); original `Assembly-CSharp_org.dll` installed |
+| `tetote-x-connect` | Tetote X Connect | nesica2 | works (user: 100%), NESiCA cards (loader's title server, progress saved), touch screen (mouse, touchpad multi-touch); no camera (pose phases play without it) | `Vision.exe` (Unity 2018.4, 64-bit), payload at the entry point, portrait 1080x1920 desktop; plugins via `mono_imports`; camera and display rotation code replaced; touches as `WM_TOUCH` |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) | Source client hl2.exe, -io 1, serial hooks in bin/xioman.dll, complete JVS 0x25 reply, cabinet start and active-low switches, fallback axis calibration; offline; some Japanese labels garbled; testmode.exe absent |

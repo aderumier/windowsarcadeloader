@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (382)
+## Games (383)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -134,6 +134,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `samurai-shodown-180` | Samurai Shodown (1.80.00) | nesica2 | works (user: 100%), NESYS offline; a red banner ただいまネットワークを使ったプレイができません。 (network play unavailable) stays on screen: the game's own offline notice | not in the test |  |
 | `fighting-ex-layer` | Fighting EX Layer | nesica2 | in game (user: card accepted, game starts), NESiCA network connected; card saved (user: name shown, no freeze after a match) | not in the test |  |
 | `theatrhythm-final-fantasy-all-star-carnival` | Theatrhythm Final Fantasy All-Star Carnival | nesica2 | works (user: 100%), NESiCA cards (loader's card server, progress saved), touch screen (mouse, red pointer); right lever on I/J/K/L; no matching with other cabinets | not in the test |  |
+| `tetote-x-connect` | Tetote X Connect | nesica2 | works (user: 100%), NESiCA cards (loader's title server, progress saved), touch screen (mouse, touchpad multi-touch); no camera (pose phases play without it) | not in the test |  |
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | not in the test |  |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | not in the test |  |
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) | not in the test |  |
