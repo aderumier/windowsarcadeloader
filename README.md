@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (385)
+## Games (386)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -128,6 +128,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | not in the test |  |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | not in the test |  |
 | `magicians-dead` | Magician's Dead | nesica2 | works (user: 100%), NESiCA cards (new card registration, the loader's game server: profile and plays saved), tutorial and missions with computer players; Leap Motion hand from the right stick, the mouse or the touchpad | not in the test |  |
+| `street-fighter-v` | Street Fighter V Type Arcade | nesica2 | works (user: 100%), NESiCA card (registration, play records saved), free play, arcade against the computer (one player per cabinet) | not in the test |  |
 | `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | not in the test |  |
 | `kof-xiv` | The King of Fighters XIV | nesica2 | works (user: 100%), NESiCA network connected | not in the test |  |
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | not in the test |  |
