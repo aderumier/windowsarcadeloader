@@ -371,6 +371,26 @@ fn new_card(card_id: &[u8], data_type: u32) -> Option<Vec<u8>> {
     Some(lines.iter().map(|l| format!("{l}\n")).collect::<String>().into_bytes())
 }
 
+/// Card statuses of the NESYS card server: an unregistered card, no reissue reserved.
+const CARD_UNREGISTERED: u32 = 23;
+const CARD_NO_REISSUE: u32 = 27;
+
+/// `WAL_NESYS_REGISTER=1` (Magician's Dead): cards are registered by the game (card insert)
+/// before their data is read.
+fn register() -> bool {
+    std::env::var("WAL_NESYS_REGISTER").is_ok_and(|v| v == "1")
+}
+
+/// The file marking a registered card.
+fn registered_file(card_id: &[u8]) -> String {
+    let id: String = card_id.iter().take(16).take_while(|c| **c != 0).map(|c| *c as char).collect();
+    format!("{}\\card_{id}_registered", crate::drive::data_dir())
+}
+
+fn registered(card_id: &[u8]) -> bool {
+    std::path::Path::new(&registered_file(card_id)).exists()
+}
+
 fn card_status(times: u32, data: &[u8]) -> Vec<u8> {
     Out::default().u32(1).u32(times).u32(times).u32(data.len() as u32).bytes(data).0
 }
@@ -455,9 +475,23 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             if card.len() == 1 {
                 card = vec![0; 16384];
             }
-            send(pipe, CARD_SELECT_REPLY, &card_status(100, &card));
+            // `WAL_NESYS_REGISTER=1`: a card the game has not registered (card insert) is
+            // "unregistered" (status 23): the game offers a reissue, then a new registration; a
+            // registered card without saved data answers no data
+            let status = if register() && !registered(data) { CARD_UNREGISTERED } else { 1 };
+            if register() && (status != 1 || card.iter().all(|b| *b == 0)) {
+                card.clear();
+            }
+            send(pipe, CARD_SELECT_REPLY, &Out::default().u32(status).u32(100).u32(100).u32(card.len() as u32).bytes(&card).0);
         }
-        CARD_INSERT_REQUEST => send(pipe, CARD_INSERT_REPLY, &Out::default().u32(1).u32(0).u32(0).u32(0).0),
+        CARD_INSERT_REQUEST => {
+            // { char cardId[16]; u32 dataType; u32 dataSize; data }
+            if register() {
+                log!("nesys: card insert {:?} type {} data {:02x?}", String::from_utf8_lossy(&data[..16.min(data.len())]), u32_at(data, 16), &data[16.min(data.len())..]);
+                let _ = std::fs::write(registered_file(data), b"");
+            }
+            send(pipe, CARD_INSERT_REPLY, &Out::default().u32(1).u32(0).u32(0).u32(0).0)
+        }
         CARD_UPDATE_REQUEST => {
             // { char cardId[16]; u32 frequency; u32 transferMode; u32 dataType; u32 dataSize; data }
             let size = (u32_at(data, 28) as usize).min(data.len().saturating_sub(32));
@@ -479,7 +513,11 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
         // Fighting EX Layer, at a card insertion: { char cardId[16]; u32 }. The reply is a card
         // status as the other card replies (the client parses 0x111-0x119 alike); the game only
         // checks its status (1), without it it waits on the card screen until its timeout.
-        CARD_REISSUE_TEST_REQUEST => send(pipe, CARD_REISSUE_TEST_REPLY, &card_status(100, &[])),
+        CARD_REISSUE_TEST_REQUEST => {
+            // `WAL_NESYS_REGISTER=1`: no reissue reserved (status 27): a new registration
+            let status = if register() { CARD_NO_REISSUE } else { 1 };
+            send(pipe, CARD_REISSUE_TEST_REPLY, &Out::default().u32(status).u32(100).u32(100).u32(0).0)
+        }
         CARD_REISSUE_REQUEST => send(pipe, CARD_REISSUE_REPLY, &card_status(100, &[])),
         INCOME_START_REQUEST | INCOME_END_REQUEST | INCOME_CONTINUE_REQUEST | INCOME_FREE_START_REQUEST => {
             send(pipe, INCOME_STATUS_REPLY, &Out::default().u32(0).u32(1).0)

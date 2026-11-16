@@ -1,0 +1,71 @@
+# Magician's Dead (Taito / Viking, NESiCAxLive 2, 2016, 64-bit Unreal Engine 4.12) - template,
+# override values in userprofiles/nesica2/magicians-dead.yaml.
+system: nesica2
+name: Magician's Dead
+
+# The cabinet: the grip controller in the left hand (an XInput pad: move, jump, lock-on), the
+# right hand casting spells over a Leap Motion, the I/O board (start, test, service, coin, the
+# NESiCA reader) through BppGame\Binaries\Win64\MAGIDEIO.dll. The payload is all three
+# (magiciansdead.rs, leap.rs): installed as MAGIDEIO.dll and started by wal-loader before the
+# game (its NESYS service and input filters), returned for Leap.dll. The game's NESYS client
+# talks to the payload's pipe itself.
+payload_install: [BppGame/Binaries/Win64/MAGIDEIO.dll]
+payload_loader: true
+
+env:
+  # The certificate's server list, as the other NESiCAxLive 2 games.
+  WAL_NESICA_NESYS_HOST: card_id=7020392010281502,ms=127.0.0.1,ss=127.0.0.1
+  # The card is put on the reader when the game reads it (no card input on a gamepad).
+  WAL_NESICA_CARD_AUTO: "1"
+  # NESiCA play: the dump's executable turns the card off (acceptance hours "closed"), the
+  # payload puts the check back and runs the game server the card's data names (the player's
+  # profile and progress in magiciansdead\ of the D: data folder). "0": guest play only.
+  WAL_MAGICIANS_NESICA: "1"
+  # A new card is registered by the game first (NESYS card insert): unregistered, no reissue
+  # reserved, then "register this NESiCA?".
+  WAL_NESYS_REGISTER: "1"
+  # Only the payload's input: no DirectInput pad (the game's DirectInput plugin).
+  WAL_DINPUT_DISABLE: "1"
+
+# Pad: the grip's stick on the left stick, its lower button A (jump), its upper button L1
+# (lock-on, the menus' decide); the right hand aims with the right stick (its reticle), its
+# shapes held on the buttons: R2 thumb bent (the shots), R1 fist (opened on release), L2 L shape,
+# X index finger, Y scissors, B thrust.
+input:
+  # The mouse is the hand too: its pointer places it (rx, ry: where the right stick would),
+  # left button bends the thumb, right button clenches the fist, middle button the L, the wheel
+  # thrusts (up) or points the index finger (down).
+  guns_enabled: true
+  gun:
+    x: rx
+    y: ry
+    BTN_LEFT: b7
+    BTN_RIGHT: b3
+    BTN_MIDDLE: b8
+    wheel_up: b6
+    wheel_down: b1
+  # A touchpad is the hand as well (leap.rs): the first finger places it, two fingers bend the
+  # thumb, three clench the fist (opened when they lift), four make the L.
+  touch: true
+
+controls:
+  up: Grip up
+  down: Grip down
+  left: Grip left
+  right: Grip right
+  lx: Grip stick (x)
+  ly: Grip stick (y)
+  rx: Hand (x)
+  ry: Hand (y)
+  b1: Hand - index finger
+  b2: Hand - scissors
+  b3: Hand - fist (open on release)
+  b4: Grip upper button (lock-on)
+  b5: Grip lower button (jump, next page)
+  b6: Hand - thrust
+  b7: Hand - bend the thumb
+  b8: Hand - L shape
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

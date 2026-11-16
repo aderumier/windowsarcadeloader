@@ -1069,6 +1069,50 @@ income mode 0x20, and (Million Arthur) HTTP posts 0x1B; later 0x4 game start, 0x
   the player and asks a name), the saves' changed parts merged by key at savedata / tutorial/end /
   game/end / purchase, `tetote/players/<card>.json`.
 
+**Magician's Dead (Unreal Engine 4.12, 64-bit, `magiciansdead.rs`, `leap.rs`,
+`magiciansdead_server.rs`).** No `NxL2Core.dll`. The cabinet is three devices, all the payload:
+* I/O board: `BppGame\Binaries\Win64\MAGIDEIO.dll` (`LoadLibraryW` + `GetProcAddress`), replaced
+  by the payload (`payload_install`, started by wal-loader: NESYS pipe and input filters before
+  the game). `MAGIDEIO_Update(buf)`: +0 status 0x200 (else I/O error), +0x12 / +0x10 the 16 USBIO
+  keys from bit 0 (lever up, down, left, right, switches 1-6, START, DUMMY1, TEST, SERVICE, COIN2,
+  COIN1), +0x18 / +0x1A coin counters, +0x34 the NESiCA reader (0x11: a card, its 16 characters at
+  +0x3C); the game requests a read with bit 0x40 of +0x74 (`WAL_NESICA_CARD_AUTO` then inserts the
+  card). `GetStatus` 0x200.
+* Grip controller (left hand): an XInput pad (the executable's `XINPUT1_3` ordinals 2 / 3
+  hooked): stick, lower button A (jump), upper button LB (lock-on, the menus' decide), L3.
+* Leap Motion (right hand): `Leap.dll` (Leap SDK 3.2 C++ API, delay loaded by the plugin) is
+  the payload too (`LoadLibrary*` of the executable answered with its module): the 223 imports
+  exported under their MSVC names (x64 only: i686 `ld` cannot export them). Objects are the SDK's
+  `{vtable, m_object}` with `m_object` a value (kind, hand / finger / bone, list flags, frame
+  serial); frames are snapshots in a ring of 256, made on `Controller::frame` (the plugin's game
+  thread tick). The right hand is always over the sensor: palm to the screen, fingers up (the
+  attract's pose); its position the right stick, a mouse pointer (profile `gun` x/y -> rx/ry) or
+  the touchpad's first finger (`input.touch`), at most 250 mm/s (aiming never a speed gesture).
+  The skills read hand shapes through the plugin's detectors: the thumb flicked (bend and return
+  within 150 ms: detector +0x2856540 wants a value below -7 then above 6), the fist (grab, opened
+  on release), the L (thumb + index); fingers move at a curl speed (a shape changing at once is
+  dropped as noise). Touchpad: 2 / 3 / 4 fingers = thumb / fist / L. `WAL_LEAP_KEYS=1` also presses
+  the game's Leap keys itself (+0x2857fa0 press / +0x2858200 release, one `FKey` reference consumed).
+* The dump's executable is another loader's build: free play forced (settings byte +0xEA, read at
+  +0x762ACE, set at +0xF029D7: the common free play option written there) and NESiCA turned off
+  (the acceptance hours check +0x75F448 made "closed": the card read and ignored);
+  `WAL_MAGICIANS_NESICA=1` (default) puts the original `jge` back.
+* NESiCA: NESYS card select data type 0. `WAL_NESYS_REGISTER=1` (`nesys.rs`): a card without the
+  `card_<id>_registered` marker is unregistered (status 23), the reissue test answers no reissue
+  (27), the game asks "register this NESiCA?" and sends a card insert (the marker written). The
+  card data (status 1) is 3 characters skipped, then JSON parsed by the JSONQuery plugin:
+  `game_server` (host:port) and `user_id`: the payload writes `card_<id>_0.bin` pointing at its
+  game server.
+* Game server (`magiciansdead_server.rs`): TCP, u32 length + `PbMessage` of the game's
+  `message.proto` (its FileDescriptorProto is in the executable: `protoc --decode`): `Ping`,
+  `RequestLoginPlayer` (profile: id, card, name `WAL_NESICA_PLAYER_NAME`, play count, last played
+  character / mode, battle record), `RequestPlayerInfo` (characters, money, tutorial and mission
+  progress), `RequestSetFeeMode` / `RequestSetPlayMode` (`Response` Ok), `RequestEntryMatching`
+  (the character; the battle runs on the cabinet with computer players: a `NotifyMatchMade` made
+  the card screen's handler crash on a widget it no longer has), `RequestSaveResult` (play count,
+  results, character rank, missions, tutorials). Records `magiciansdead\<card>.json` in the D:
+  data folder. National matches between cabinets (dedicated servers) are not available.
+
 **Million Arthur white screen (2026-10-11, offline only).** Not seen with NESYS online (user:
 training and story modes fine); offline (NESYS off), with DXVK the picture turns white at the
 first coin after the title (~25 s) and stays white through character select: only the HUD
@@ -8486,6 +8530,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | works (user: 100%), opening video | key usf4, hide Microsoft dinput8 (blocks on raw HID devices), 6-button map |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | hide ReShade, `WAL_ANSI_CODEPAGE: 932`, language files with "MS Gothic" instead of "ＭＳ ゴシック" (`files`, fakejapanese: squares otherwise), picture drawn 854x480 in a 1280x720 back buffer and presented to 0,0 1280x720: `WAL_D3D9_WINDOWED_SIZE: 854x480` (also turns its fullscreen Reset windowed, drops the Present rectangles) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`) |
+| `magicians-dead` | Magician's Dead | nesica2 | works (user: 100%), NESiCA cards (new card registration, the loader's game server: profile and plays saved), tutorial and missions with computer players; Leap Motion hand from the right stick, the mouse or the touchpad | `BppGame-Win64-Shipping.exe` (Unreal 4.12, 64-bit) started by wal-loader; payload as `MAGIDEIO.dll` (I/O board, NESiCA reader) and `Leap.dll` (the Leap SDK 3.2 C++ API, a synthetic hand: shapes for the thumb flick, fist, L); grip controller = XInput pad; free play and NESiCA hours patched back (the dump's executable is another loader's build); game server `message.proto` (protobuf over TCP); no national matches |
 | `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), its HTTP card-service reads answered (`/root/match_conf`), native d3dx9_42 |
 | `kof-xiv` | The King of Fighters XIV | nesica2 | works (user: 100%), NESiCA network connected | 64-bit NxL2Core.dll replacement (`wal_nesica64.dll`), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), `Resolution=1` (1080p: 1920x1080 window; 0 = 1280x720) |
 | `snk-heroines` | SNK Heroines Tag Team Frenzy | nesica2 | works (user: 100%), NESiCA network connected | as KOF XIV (64-bit NxL2Core.dll replacement, NESYS `ms`/`ss`, `Resolution=1`), dump's 32-bit dinput8 hidden; runner fix `winedmo-seek-flush` (hung after START: movie seek deadlock) |

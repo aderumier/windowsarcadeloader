@@ -11,6 +11,9 @@
 //! Theatrhythm Final Fantasy All-Star Carnival (Unity) calls three native plugins instead: the
 //! same DLL is installed under their names (`theatrhythm.rs`).
 //!
+//! Magician's Dead (Unreal) loads its I/O board DLL and the Leap Motion SDK: this DLL is both
+//! (`magiciansdead.rs`, `leap.rs`).
+//!
 //! Tetote X Connect (Unity) is loaded at its executable's entry point; its native plugins'
 //! functions are the payload's (`tetote.rs`).
 
@@ -22,6 +25,13 @@ mod fastio;
 mod grip;
 mod hidmouse;
 mod lobby;
+// 64-bit only (Magician's Dead; the Leap SDK's MSVC x64 names)
+#[cfg(target_pointer_width = "64")]
+mod leap;
+#[cfg(target_pointer_width = "64")]
+mod magiciansdead;
+#[cfg(target_pointer_width = "64")]
+mod magiciansdead_server;
 mod mouse;
 mod nesys;
 mod nesystrace;
@@ -68,6 +78,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if theatrhythm::detected(module) {
             theatrhythm::init();
+        }
+        #[cfg(target_pointer_width = "64")]
+        if magiciansdead::detected(module) {
+            magiciansdead::init();
         }
         if tetote::detected() {
             tetote::init();
