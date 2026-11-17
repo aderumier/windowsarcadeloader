@@ -40,7 +40,8 @@ native_map:
   right: stick_right
   b1: button
   b2: select
-  start: none
+  # start: the player's button too
+  start: button
   coin: coin
   test: operator
   service: operator
@@ -51,6 +52,7 @@ controls:
   left: Joystick
   right: Joystick
   b1: The player's button
+  start: The player's button
   b2: Select (operator)
   coin: Coin
   test: Operator menu

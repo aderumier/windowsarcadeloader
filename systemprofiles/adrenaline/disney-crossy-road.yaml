@@ -36,7 +36,8 @@ args: [-screen-fullscreen, "1", -screen-width, "1080", -screen-height, "1920"]
 native_map:
   b1: button
   b2: select
-  start: none
+  # start: the player's button too
+  start: button
   coin: coin
   test: operator
   service: operator
@@ -45,6 +46,7 @@ native_map:
 
 controls:
   b1: Jump (the player's button)
+  start: The player's button
   b2: Select (operator)
   coin: Coin
   test: Operator menu

@@ -31,8 +31,13 @@ env:
 # the start size too (else Unity's last one, saved in the registry)
 args: [-screen-fullscreen, "1", -screen-width, "1080", -screen-height, "1920"]
 
+# start: the player's button too (the other buttons the payload's defaults)
+native_map:
+  start: button
+
 controls:
   b1: Flap (the player's button)
+  start: Flap (the player's button)
   b2: Select (operator)
   coin: Coin
   test: Operator menu
