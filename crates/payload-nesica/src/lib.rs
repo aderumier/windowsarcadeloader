@@ -19,6 +19,8 @@
 //!
 //! Groove Coaster 2 (`WAL_NESICA_GAME=groovecoaster`): `groovecoaster.rs`.
 //!
+//! Gunslinger Stratos 2 (`WAL_NESICA_GAME=gunslinger`, 64-bit, `iDmacDrv64.dll`): `gunslinger.rs`.
+//!
 //! Tetote X Connect (Unity) is loaded at its executable's entry point; its native plugins'
 //! functions are the payload's (`tetote.rs`).
 
@@ -30,6 +32,7 @@ mod fastio;
 mod grip;
 mod groovecoaster;
 mod groovecoaster_server;
+mod gunslinger;
 mod hidmouse;
 mod lobby;
 // 64-bit only (Magician's Dead; the Leap SDK's MSVC x64 names)
@@ -102,6 +105,9 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if groovecoaster::detected() {
             groovecoaster::init();
+        }
+        if gunslinger::detected() {
+            gunslinger::init();
         }
         log!("nesica: initialized");
     }

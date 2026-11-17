@@ -1,7 +1,8 @@
 //! Taito NESiCAxLive (Type X based).
 //!
 //! The game imports `iDmacDrv32.dll` (FastIO driver) statically: our payload replaces it,
-//! so it is loaded before the game code without any injector.
+//! so it is loaded before the game code without any injector. 64-bit games import
+//! `iDmacDrv64.dll`: the payload's x86_64 build.
 //!
 //! Payload options (profile `env`):
 //! - `WAL_NESICA_REG`: registry values, e.g. `Resolution=0` (SD mode), `CoinCredit=1`
@@ -26,6 +27,11 @@ impl System for Nesica {
 
     fn payloads(&self) -> &'static [Payload] {
         &[Payload { file: "wal_nesica.dll", install_as: "iDmacDrv32.dll" }]
+    }
+
+    fn payloads64(&self) -> Option<&'static [Payload]> {
+        // 64-bit Type X3 games (Gunslinger Stratos 2) import iDmacDrv64.dll
+        Some(&[Payload { file: "wal_nesica64.dll", install_as: "iDmacDrv64.dll" }])
     }
 
     fn data_dirs(&self) -> &'static [&'static str] {

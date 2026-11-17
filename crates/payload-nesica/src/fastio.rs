@@ -177,6 +177,10 @@ fn native_state() -> [u8; 16] {
     if crate::groovecoaster::detected() {
         d[..4].copy_from_slice(&crate::groovecoaster::switches().to_le_bytes());
     }
+    // Gunslinger Stratos 2: the guns' switches
+    if crate::gunslinger::detected() {
+        d[..4].copy_from_slice(&crate::gunslinger::switches().to_le_bytes());
+    }
     let p1: StickState = wal_payload_common::input(0);
     d[8] = p1.axis_u8(Axis::LeftX);
     d[9] = p1.axis_u8(Axis::Accel);
@@ -255,6 +259,7 @@ pub unsafe extern "C" fn iDmacDrvRegisterRead(
         0x4120 => le(&native_state()[0..4]),
         0x4124 => ANALOG1.load(Ordering::Relaxed),
         0x41A4 => 0x0110_0000,
+        0x4128 if crate::gunslinger::detected() => crate::gunslinger::analogs(),
         0x4128 => {
             let d = native_state();
             d[8] as u32 | (d[9] as u32) << 8
@@ -284,7 +289,7 @@ fn trace(kind: &str, command: u32, value: u32) {
         }
         Some((_, last)) if *last != value => {
             *last = value;
-            if matches!(command, 0x4120 | 0x4128 | 0x4140 | 0x4144 | 0x41A0 | 0x41C0 | 0x41C4) {
+            if matches!(command, 0x4120 | 0x4124 | 0x4128 | 0x4140 | 0x4144 | 0x41A0 | 0x41C0 | 0x41C4) {
                 log!("fastio: {kind} {command:#06x} -> {value:#010x}");
             }
         }

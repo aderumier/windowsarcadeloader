@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (403)
+## Games (404)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -101,6 +101,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `exception` | Exception | nesica | works fullscreen (user) | not in the test |  |
 | `gouketsuji-ichizoku` | Gouketsuji Ichizoku: Matsuri Senzo Kuyou | nesica | works (user) | not in the test |  |
 | `groove-coaster-2` | Groove Coaster 2: Heavenly Festival | nesica | user 100% (2026-11-16), boosters, NESiCA card (registration, saves), free play | not in the test |  |
+| `gunslinger-stratos-2` | Gunslinger Stratos 2 | nesica | user 100% (2026-11-17), G devices, two lightguns, free play, intro and attract movies; NESiCA play unavailable (no game server) | not in the test |  |
 | `homura` | Homura | nesica | works (user), sound effects and music in game; attract demo silent, as under Windows (original or dump, not the loader) | not in the test |  |
 | `hyper-street-fighter-2` | Hyper Street Fighter II: The Anniversary Edition | nesica | works (user) | not in the test |  |
 | `ikaruga` | Ikaruga | nesica | in game (user) | not in the test |  |

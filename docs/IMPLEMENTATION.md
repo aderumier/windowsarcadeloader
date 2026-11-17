@@ -918,6 +918,64 @@ Verified headless: boot, attract, test menu and I/O test, free play, guest play 
 song select, songs), a new card (registration, name entry), a full credit with the card (song
 records and settings saved) and the returning card.
 
+#### Gunslinger Stratos 2 (Type X3, 64-bit)
+
+Square Enix / Taito, 2015, `game.exe` 2.11 JPN (64-bit, Direct3D 11, the dump patched for
+jconfig: its `iDmacDrv64.dll` replaced by ours). The first 64-bit game of system `nesica`: it
+imports `iDmacDrv64.dll` (by ordinal, the 32-bit driver's ordinals) and gets the payload's x86_64
+build (`wal_nesica64.dll`, the system's `payloads64`). Profile `nesica/gunslinger-stratos-2`,
+`WAL_NESICA_GAME=gunslinger` (`gunslinger.rs`); Japanese text with `WAL_ANSI_CODEPAGE=932`. One
+player, two guns ("G devices": a trigger and a lever each, a stick pushed in too; the jump button
+on the right one).
+
+* **2D sensor CPU boards** (error 10000004): the game's built-in `ohmicX2dll` gun library
+  opens COM1 (left gun) and COM3 (right gun), 38400 baud odd parity, writes to COM1 only and
+  reads both. Answers end with a checksum byte (the bytes' sum 0xFF). `04` the firmware version
+  (at least 0x32), `14` / `18` the test menu's board ID 0 / 1 (echoed); every frame `08`: 11
+  bytes, X (10 bits from the left), Y (10 bits from the bottom), byte 8 0x80 off screen / 0x20
+  trigger, byte 9 0x75 (else retried, then error); `1C`: the gun's 10 light sensors (the G device
+  test's cells), all seeing while the gun is on the screen. The aim: player 1's gun or mouse on the
+  pedal axes (the profile's `input.gun`), the picture's center until it moved, player 2's gun
+  the right gun once it moved. The game maps X/Y through its aim adjustment (10 / 50 / 90 % of
+  the screen); its default is the screen's fraction as sent (G device test verified).
+* **NESiCA reader** (COM2, error 10000003): two clients on the Xio bus, NESYS then the game's
+  own reader thread, each resets (`F0`) and addresses (`F1`) the node; the second one waits after
+  its reset for the sense line (CTS) to drop. `rfid.rs`: the reset now clears `serial::READY`
+  (the node unaddressed until the next `F1`). Type X3 security with `C:\TypeX3Temp.dat`.
+* **FastIO**: the default 0x4000 (status 0x300: no error 10000002). 0x4120 (the G device test):
+  bit 16 / 17 left / right lever pushed, 18 side style, 19 jump, 20 tandem style (the guns
+  joined), 0x10 ENTER, 0x08 SELECT. 0x4128: the levers, one byte per axis (0x80 at rest, 0xFF
+  left / up): left X, right X, left Y, right Y (`gunslinger::analogs`). The coins: 0x4140 a
+  counter (`WAL_FASTIO_COIN=counter`). Controls: left stick or d-pad the left lever, right stick
+  the right one, b1 / b2 left / right trigger, b7 both (the mouse's left button), b3 jump (right
+  button), b4 / b5 lever pushed, b6 side style, b8 tandem style, start ENTER. Two lightguns (the
+  cabinet's way): once player 2's gun moved it is the right gun, each gun's b7 fires its own gun,
+  player 2's b3 / b4 are jump and the right lever pushed (the right gun's buttons).
+* **First boot**: test mode's G device setting (board ID, then the aim adjustment, skipped with
+  jump), saved in `D:\testmode.sav`.
+* **Free play** (the common option): the system settings object (its pointer at +0x21D0758)
+  holds free play (+0xF0) and the time mode (+0xBC, 時間制モード: the factory schedule sells play
+  time Monday to Thursday, coins asked even in free play). The payload keeps the time mode off
+  and free play as the option says (checked every 250 ms; the constructor's store at +0x31A083
+  identifies the build).
+
+* **Movies** (the BYKING intro `byking_logo.wmv`, the attract `gs2_pv*.wmv`, the tutorials): a
+  DirectShow graph rendered into a Video Renderer, the WMV decoder then moved to a Sample Grabber
+  set to ARGB32 and a Null Renderer (the Video Renderer kept, unconnected); the game copies the
+  grabbed buffer into a dynamic Direct3D 11 texture (recorded on its deferred contexts). Three
+  runner bugs, fixed in GE (`~/code/protonge` branch `quartz-sample-grabber-movies`, patches
+  0123-0125, the runner's quartz.dll / msrle32.dll rebuilt): the Color Space Converter had no
+  ARGB32 output (every movie skipped); msrle32 accepted a 24 to 32-bit "conversion" it only copied
+  (no sample reached the grabber); the unconnected Video Renderer showed its window, white, over
+  the game for the whole movie.
+
+Verified headless: boot without errors, test menu (switch test, G device test: levers, triggers,
+pushes, styles, aim at 10 / 50 / 90 %), attract in free play with its movies (the BYKING intro,
+gs2_pv1), a guest play (mode and course select, briefing, the mission). NESiCA play shows
+"NESiCAを使ったプレイは行えません" (no game server: national battles and card saves unavailable).
+Game speed: as the original's (the menus' fast animations compared with YouTube videos).
+User: game 100% working on the desktop (2026-11-17).
+
 ### 6.2b NESiCAxLive 2 (system `nesica2`, `crates/payload-nesica/src/nxl2.rs`)
 
 NESiCAxLive 2 games (Million Arthur Arcana Blood) import `NxL2Core.dll` instead of the FastIO
@@ -8959,6 +9017,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 | `left-4-dead-survivors` | Left 4 Dead: Survivors | nesica | user 100% (2026-11-16), NESiCA card (new player, CPU play), mouse and pad | Type X3 Source engine (§6.2): `bin\inputsystem.dll` loads the payload; Type X3 reader security and commands, FastIO hub/universal board registers, HID mouse and winmm grip emulated, the gun's mouse from the sticks or the mouse (menus point and click), `+arcade_NESiCA_Accept 1`, getCardInfo record for a new card, lobby server answered with no rooms |
 | `groove-coaster-2` | Groove Coaster 2: Heavenly Festival | nesica | user 100% (2026-11-16), boosters, NESiCA card (registration, saves), free play | Type X3 portrait rhythm game (§6.2): windowed 9:16 with black bezel, GetAdaptersInfo MAC for the LAN link, update downloader answered (NESYS thread deadlock under Wine), Type X3 reader with C:\TypeXZEROTemp.dat, the boosters on FastIO, free play patch, Groove Coaster card server (registration, player, song records, settings) |
+| `gunslinger-stratos-2` | Gunslinger Stratos 2 | nesica | user 100% (2026-11-17), G devices, two lightguns, free play, intro and attract movies; NESiCA play unavailable (no game server) | Type X3 64-bit twin-gun game (§6.2): x86_64 iDmacDrv64.dll, the two 2D sensor boards on COM1/COM3 (aim, triggers), levers and buttons on FastIO, two lightguns, reader bus reset fix, time mode kept off for free play, movies through GE quartz/msrle32 fixes (0123-0125) |
 | `mario-and-sonic-at-tokyo-2020-olympic-games` | Mario & Sonic at the Tokyo 2020 Olympic Games | alls | user 100% (2026-11-08) | the first ALLS game with its own amdaemon (§6.3l): SystemProperty registry, keychip ioctls, IO4 board, LED board 15093 COM1, sysfile.dat DIP switches and free play, ALL.Net answers, Japan clock, amRtc sync patch, portrait 1080x1920 with the dump's bezel |
 | `house-of-the-dead-scarlet-dawn` | The House of the Dead: Scarlet Dawn | alls | user 100% (2026-11-08), 2 guns | UE 4.18 with its 2018 amdaemon (§6.3l, `WAL_ALLS_BOARD=hotd`): generated ICF (platform ACA1), gun sensor board COM1 (aim, triggers, reload off screen), graphics options in Engine.ini (render scale, FSR), gore restoration rebuilt as a patch pak (`WAL_HOTD_GORE`), 16:9 desktop stretched on 4:3 screens |
 | `sega-world-drivers-championship` | Sega World Drivers Championship | alls | user-tested (2026-11-08): power-on test all GOOD, card registration with name entry, a race, the save, the returning player's licence | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=swdc`): wheel I/O board, Aime reader (automatic card), FFB / LED / dashboard boards, main cabinet LAN, English translation, AimeDB and its game server (player saves) |

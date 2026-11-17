@@ -95,7 +95,13 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 r.push(REPORT_OK);
                 cmds.len()
             }
-            0xF0 => 2, // bus reset
+            // bus reset: the node loses its address, the sense line (CTS) drops until the next
+            // F1 (Gunslinger Stratos 2: two clients, NESYS then the game's own reader thread,
+            // each resets and addresses the bus; the second one waited for CTS to drop)
+            0xF0 => {
+                serial::READY.store(false, Ordering::Relaxed);
+                2
+            }
             0xF1 => {
                 r.push(REPORT_OK);
                 serial::READY.store(true, Ordering::Relaxed);
