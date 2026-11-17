@@ -10,7 +10,8 @@
 //! * Branches as predicates, every write selected on the current one: fragment `IF` / `ELSE` /
 //!   `ENDIF` and `RET`, vertex forward `BRA` to a label (Project DIVA Arcade's skinning);
 //!   subroutines inlined at their calls ([`subroutines`]); `REP` loops unrolled
-//!   `WAL_RINGEDGE_CG_REPEAT` times, their integer index registers followed ([`loops`]).
+//!   `WAL_RINGEDGE_CG_REPEAT` times, their integer index registers followed ([`loops`]); vertex
+//!   backward `BRA` loops unrolled as forward branches ([`backward_loops`]).
 //! * The vertex address register's 4 components (`_adr.y`): `ARL` again from the component's
 //!   source before each use, through `.x`.
 //! * `NRM`, `SGT`, `SLE`, `SEQ`, `SNE`, `SSG`, absolute values (`|x|`), vertex `LRP` / `CMP`
@@ -31,7 +32,7 @@
 //! `!!NVfp4.0`) through [`gpu_program4`], and NV_gpu_program5 vertex programs (`!!NVvp5.0`,
 //! Project DIVA Arcade Future Tone's skinning: its parameter buffer as local parameters) through
 //! [`gpu_program5`]. Programs with `REP` loops without
-//! `WAL_RINGEDGE_CG_REPEAT`, other loops, backward branches or other formats: `None`.
+//! `WAL_RINGEDGE_CG_REPEAT`, other loops, backward branches over branches or other formats: `None`.
 
 const BASES: [&str; 50] = [
     "TXP", "TEX", "TXB", "TXL", "DP3", "DP4", "DPH", "FLR", "FRC", "RCP", "RSQ", "MAX", "MIN", "MAD", "MUL", "ADD", "SUB", "MOV", "SLT", "SGT", "SGE",
@@ -679,6 +680,64 @@ fn replace_word(s: &str, name: &str, with: Option<&str>) -> Option<String> {
     Some(out)
 }
 
+/// The iterations a backward branch loop is unrolled to ([`backward_loops`]): Initial D's light
+/// loops (`for( i=0; i<sLightNumber; i++ )`), S_MODEL_LIGHT_MAX lights at most.
+const BACKWARD_REPEAT: usize = 4;
+
+/// Vertex loops as Cg's vp40 writes them (`BB2: ... BRA BB2 (NE.x);`, Initial D's precompiled
+/// lit shaders `shader\Cg\vs\vs_L*.asm_gl`) unrolled [`BACKWARD_REPEAT`] times, each copy but
+/// the last followed by a forward branch out of the loop on the opposite condition (the
+/// forward branches' predicates do the rest). Loops with labels or branches inside: `None`.
+fn backward_loops(stmts: Vec<String>) -> Option<Vec<String>> {
+    let target = |s: &str| s.strip_prefix("BRA ").map(|r| r.split(|c: char| c == '(' || c.is_whitespace()).next().unwrap_or("").to_string());
+    let backward = |stmts: &[String], i: usize| target(&stmts[i]).and_then(|t| stmts[..i].iter().position(|s| *s == format!("{t}:")));
+    if !(0..stmts.len()).any(|i| backward(&stmts, i).is_some()) {
+        return Some(stmts);
+    }
+    let mut out = Vec::new();
+    let mut i = 0;
+    let mut loops = 0;
+    while i < stmts.len() {
+        // the loop starting here: its label, its body up to the backward branch
+        let end = stmts[i].strip_suffix(':').and_then(|label| (i + 1..stmts.len()).find(|&j| target(&stmts[j]).as_deref() == Some(label)));
+        let Some(end) = end else {
+            out.push(stmts[i].clone());
+            i += 1;
+            continue;
+        };
+        let body = &stmts[i + 1..end];
+        if body.iter().any(|s| s.ends_with(':') || s.starts_with("BRA ") || s.starts_with("CAL ") || s.starts_with("RET")) {
+            return None;
+        }
+        let rest = stmts[end][4..].trim();
+        let cond = rest.find('(').map(|at| rest[at + 1..].trim().strip_suffix(')').map(str::trim)).unwrap_or(Some("TR"))?;
+        let (code, swizzle) = cond.split_once('.').map_or((cond, None), |(c, s)| (c, Some(s)));
+        let opposite = match code {
+            "EQ" => "NE",
+            "NE" => "EQ",
+            "LT" => "GE",
+            "GE" => "LT",
+            "GT" => "LE",
+            "LE" => "GT",
+            "TR" => "FL",
+            "FL" => "TR",
+            _ => return None,
+        };
+        let opposite = swizzle.map_or(opposite.to_string(), |s| format!("{opposite}.{s}"));
+        let exit = format!("_wX{loops}");
+        loops += 1;
+        for n in 0..BACKWARD_REPEAT {
+            out.extend(body.iter().cloned());
+            if n + 1 < BACKWARD_REPEAT {
+                out.push(format!("BRA {exit} ({opposite})"));
+            }
+        }
+        out.push(format!("{exit}:"));
+        i = end + 1;
+    }
+    Some(out)
+}
+
 pub(crate) fn translate(text: &str) -> Option<String> {
     if text.starts_with("!!NVvp5.0") {
         return translate_converted(&gpu_program4(&gpu_program5(text)?)?);
@@ -724,7 +783,7 @@ fn translate_converted(text: &str) -> Option<String> {
     // the temporaries declared before the first instruction (at `body` in `out`)
     let mut declared: Vec<String> = Vec::new();
     let mut body: Option<usize> = None;
-    for s in subroutines(statements(&text))? {
+    for s in subroutines(backward_loops(statements(&text))?)? {
         let mut s = s.as_str();
         for p in ["SHORT ", "LONG "] {
             if let Some(r) = s.strip_prefix(p) {
