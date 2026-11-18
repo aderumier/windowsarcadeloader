@@ -1,0 +1,57 @@
+# Veggie Blast (UNIS, 2013, Virtools, 32-bit) - template, override values in
+# userprofiles/unis/veggie-blast.yaml.
+# One gun. The dump has no cabinet player: its VeggieBlast.exe is a .NET 4 host (WinForms + WPF)
+# that runs the Virtools engine on RecoveryBootstrap.nmo and plays the game's flow, aim and
+# shots itself, from the Windows mouse and keys; the cabinet's UART board (COM1) is not used.
+# The payload plays that mouse and those keys from the gun (WAL_UNIS_BOARD=veggieblast,
+# payload veggieblast.rs).
+system: unis
+name: Veggie Blast
+
+# an IL-only .NET executable: wal-loader queues the payload as an APC (Wine skips its entry point)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+  # the host's intro movie (WPF MediaElement over Windows Media Player): Wine's EVR, whose
+  # presenter clock WPF waits for, not the prefix's Windows 7 copy
+  evr: "b"
+  dxva2: "b"
+
+# Microsoft's .NET Framework 4.8: the host calls the engine's C++ methods through ThisCall
+# delegates, which wine-mono passes as stdcall (this on the stack, ECX 0: CK2.dll crashes in
+# CKPluginManager::RegisterPlugin)
+prefix: wine-prefix/dotnet48
+prefix_tricks: [dotnet48]
+
+env:
+  WAL_UNIS_BOARD: veggieblast
+  # the game draws its own reticle
+  WAL_CROSSHAIR: "0"
+  # the host's easy mode (slower targets, 90 s rounds), the dump's setting
+  WAL_UNIS_VEGGIEBLAST_EASY: "1"
+  # paced by DXVK's 60 fps limit, without vsync: on a GNOME desktop the engine's window, hidden
+  # under the topmost intro window playing its movie, waited on its vsync presents (the load
+  # stalled ~20 s, "not responding")
+  DXVK_CONFIG: "d3d9.presentInterval = 0; dxvk.maxFrameRate = 60"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_UNIS_VEGGIEBLAST_EASY
+        label: Easy mode
+        kind: bool
+        description: >-
+          Slower targets and 90-second rounds. Off: the cabinet's speed and round time.
+
+input:
+  # the gun (or mouse) aims, its trigger shoots
+  guns_enabled: true
+  stick_as_dpad: false
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger
+  b2: Bomb
+  start: Start
+  coin: Coin

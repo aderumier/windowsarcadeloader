@@ -5,6 +5,12 @@
 //! calls `LoadLibraryW(payload)`, restores the entry point bytes and jumps back to it. No
 //! remote thread is used (unreliable under Wine before the process is initialized).
 //!
+//! An IL-only .NET executable's entry point never runs under Wine: its loader starts
+//! `mscoree._CorExeMain` instead (`fixup_imports_ilonly`). Its payload is a user APC
+//! (`LoadLibraryW(payload)`) queued on the suspended main thread: Wine's initial thread delivers
+//! it once the process's DLLs are attached (`NtContinue(context, TRUE)`), before
+//! `_CorExeMain`.
+//!
 //! For games that do not import a driver DLL the payload could replace. The loader waits for
 //! the game and exits with its exit code. Built for the game's bitness (i686, x86-64 as
 //! `wal-loader64.exe`).
@@ -23,9 +29,10 @@ mod teratoma;
 use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE};
 use windows_sys::Win32::System::Diagnostics::Debug::{FlushInstructionCache, ReadProcessMemory, WriteProcessMemory};
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
-use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAllocEx, VirtualProtectEx};
+use windows_sys::Win32::Foundation::PAPCFUNC;
+use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE, VirtualAllocEx, VirtualProtectEx};
 use windows_sys::Win32::System::Threading::{
-    CREATE_SUSPENDED, CreateProcessW, STARTF_USESHOWWINDOW, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION, ResumeThread, STARTUPINFOW,
+    CREATE_SUSPENDED, CreateProcessW, QueueUserAPC, STARTF_USESHOWWINDOW, GetExitCodeProcess, INFINITE, PROCESS_INFORMATION, ResumeThread, STARTUPINFOW,
     TerminateProcess, WaitForSingleObject,
 };
 
@@ -174,8 +181,25 @@ fn stub(load_library: usize, path_at: usize, saved_at: usize, entry: usize, mem:
     (stub, jmp_abs(mem))
 }
 
-/// Patches the entry point of the suspended `process` to load `payload` first.
-unsafe fn inject(process: HANDLE, payload: &str) -> Result<(), String> {
+/// Whether the image at `image` (PE header at `e_lfanew`) is an IL-only .NET image (its CLR
+/// header's `COMIMAGE_FLAGS_ILONLY`).
+unsafe fn il_only(process: HANDLE, image: usize, e_lfanew: usize) -> Result<bool, String> {
+    // data directory 14 (the CLR header): PE32 optional header +96, PE32+ +112
+    let optional = image + e_lfanew + 0x18;
+    let magic: u16 = unsafe { read(process, optional)? };
+    let directories = optional + if magic == 0x20B { 112 } else { 96 };
+    let clr: u32 = unsafe { read(process, directories + 14 * 8)? };
+    if clr == 0 {
+        return Ok(false);
+    }
+    // IMAGE_COR20_HEADER: cb, versions, metadata (8), flags
+    let flags: u32 = unsafe { read(process, image + clr as usize + 16)? };
+    Ok(flags & 1 != 0)
+}
+
+/// Patches the entry point of the suspended `process` (main thread `thread`) to load `payload`
+/// first.
+unsafe fn inject(process: HANDLE, thread: HANDLE, payload: &str) -> Result<(), String> {
     unsafe {
         let mut info: ProcessBasicInformation = std::mem::zeroed();
         let status = NtQueryInformationProcess(process, 0, (&mut info as *mut ProcessBasicInformation).cast(), size_of::<ProcessBasicInformation>() as u32, std::ptr::null_mut());
@@ -194,6 +218,21 @@ unsafe fn inject(process: HANDLE, payload: &str) -> Result<(), String> {
 
         let load_library = GetProcAddress(GetModuleHandleA(c"kernel32.dll".as_ptr().cast()), c"LoadLibraryW".as_ptr().cast())
             .ok_or("LoadLibraryW not found")? as usize;
+
+        if il_only(process, image, e_lfanew as usize)? {
+            let path = wide(payload);
+            let mem = VirtualAllocEx(process, std::ptr::null(), path.len() * 2, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE) as usize;
+            if mem == 0 {
+                return Err(format!("VirtualAllocEx failed: {}", GetLastError()));
+            }
+            write(process, mem, &path.iter().flat_map(|c| c.to_le_bytes()).collect::<Vec<_>>())?;
+            let routine: PAPCFUNC = Some(std::mem::transmute::<usize, unsafe extern "system" fn(usize)>(load_library));
+            if QueueUserAPC(routine, thread, mem) == 0 {
+                return Err(format!("QueueUserAPC failed: {}", GetLastError()));
+            }
+            eprintln!("wal-loader: payload {payload} queued as an APC (IL-only .NET executable)");
+            return Ok(());
+        }
 
         // memory: [stub STUB bytes][saved entry bytes 16][payload path]
         let path = wide(payload);
@@ -261,7 +300,7 @@ fn main() {
         let result = if teratoma {
             teratoma::boot(&pi, &args[1], &payload)
         } else {
-            inject(pi.hProcess, &payload)
+            inject(pi.hProcess, pi.hThread, &payload)
         };
         if let Err(e) = result {
             eprintln!("wal-loader: {e}");

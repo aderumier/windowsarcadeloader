@@ -35,6 +35,8 @@ static PEEK_MESSAGE_A: AtomicUsize = AtomicUsize::new(0);
 static PEEK_MESSAGE_W: AtomicUsize = AtomicUsize::new(0);
 static GET_MESSAGE_A: AtomicUsize = AtomicUsize::new(0);
 static GET_MESSAGE_W: AtomicUsize = AtomicUsize::new(0);
+static NT_PEEK_MESSAGE: AtomicUsize = AtomicUsize::new(0);
+static NT_GET_MESSAGE: AtomicUsize = AtomicUsize::new(0);
 static KEY_HELD: OnceLock<fn(i32) -> bool> = OnceLock::new();
 /// The real mouse's moves dropped too ([`own_mouse`]).
 static OWN_MOUSE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -196,6 +198,36 @@ pub fn own_mouse(unity: usize) {
     }
 }
 
+/// Every message loop of the process filtered and every cursor poll answered with the payload's
+/// cursor (after [`init`]): user32's own calls to win32u (`NtUserPeekMessage`,
+/// `NtUserGetMessage`, `NtUserGetCursorPos`) hooked, for a program whose user32 calls no module
+/// import hook reaches (a .NET program's `DllImport`s, resolved by the runtime).
+pub fn own_process_input() {
+    OWN_MOUSE.store(true, Ordering::Relaxed);
+    let user32 = unsafe { GetModuleHandleW(windows_sys::w!("user32.dll")) as usize };
+    let hooks: [(&str, usize, Option<&AtomicUsize>); 3] = [
+        ("NtUserPeekMessage", nt_peek_message as *const () as usize, Some(&NT_PEEK_MESSAGE)),
+        ("NtUserGetMessage", nt_get_message as *const () as usize, Some(&NT_GET_MESSAGE)),
+        ("NtUserGetCursorPos", get_cursor_pos as *const () as usize, None),
+    ];
+    for (name, hook, orig) in hooks {
+        match unsafe { iat::hook_module(user32, "win32u.dll", name, hook) } {
+            Some(o) => {
+                if let Some(slot) = orig {
+                    slot.store(o, Ordering::Relaxed);
+                }
+            }
+            None => log!("filter: user32 does not import win32u!{name}"),
+        }
+    }
+}
+
+/// The payload's cursor at screen point (`x`, `y`), for the cursor polls ([`own_mouse`],
+/// [`own_process_input`]).
+pub fn set_cursor(x: i32, y: i32) {
+    CURSOR.store((x as u32 as u64) << 32 | y as u32 as u64, Ordering::Relaxed);
+}
+
 /// Posts a mouse message (`WM_MOUSEMOVE`, `WM_LBUTTONDOWN`...) at client point (`x`, `y`) of the
 /// game window `hwnd`, `buttons` its `MK_` flags: the filter lets it through.
 pub fn post_mouse(hwnd: P, message: u32, x: i32, y: i32, buttons: usize) {
@@ -205,7 +237,7 @@ pub fn post_mouse(hwnd: P, message: u32, x: i32, y: i32, buttons: usize) {
     let lparam = ((y as u16 as isize) << 16) | x as u16 as isize;
     let mut at = POINT { x, y };
     unsafe { ClientToScreen(hwnd, &mut at) };
-    CURSOR.store((at.x as u32 as u64) << 32 | at.y as u32 as u64, Ordering::Relaxed);
+    set_cursor(at.x, at.y);
     unsafe { PostMessageW(hwnd, message, buttons | MOUSE_MARK, lparam) };
 }
 
@@ -345,6 +377,14 @@ unsafe extern "system" fn peek_message_w(msg: *mut MSG, hwnd: P, min: u32, max: 
 
 unsafe extern "system" fn get_message_a(msg: *mut MSG, hwnd: P, min: u32, max: u32) -> i32 {
     unsafe { get(&GET_MESSAGE_A, msg, hwnd, min, max) }
+}
+
+unsafe extern "system" fn nt_peek_message(msg: *mut MSG, hwnd: P, min: u32, max: u32, remove: u32) -> i32 {
+    unsafe { peek(&NT_PEEK_MESSAGE, msg, hwnd, min, max, remove) }
+}
+
+unsafe extern "system" fn nt_get_message(msg: *mut MSG, hwnd: P, min: u32, max: u32) -> i32 {
+    unsafe { get(&NT_GET_MESSAGE, msg, hwnd, min, max) }
 }
 
 unsafe extern "system" fn get_message_w(msg: *mut MSG, hwnd: P, min: u32, max: u32) -> i32 {

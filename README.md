@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (405)
+## Games (406)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -363,6 +363,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players | not in the test |  |
 | `mighty-moto` | Mighty Moto | unis | user 100% (2026-11-05) | not in the test |  |
 | `big-foot-crush` | Big Foot Crush | unis | user 100% (2026-11-06) | not in the test |  |
+| `veggie-blast` | Veggie Blast | unis | works (headless tests: boot, attract, coin / start, aim and shots, free play and easy options), 1 gun; the .NET host's intro movie (10-bit HEVC, WPF MediaElement) needs the GE-Proton runner's winedmo / wmp / evr fixes (GE patches 0126-0128) | not in the test |  |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches | not in the test |  |
 | `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) | not in the test |  |
 | `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved | not in the test |  |

@@ -27,6 +27,9 @@
 //! Big Foot Crush (Unity 2022, Mono, 32-bit; `WAL_UNIS_BOARD=bigfootcrush`): `bigfootcrush.rs` posts
 //! its keys from player 1's stick and answers its cabinets' link (the operator menu).
 //!
+//! Veggie Blast (Virtools, 32-bit, run by a .NET host; `WAL_UNIS_BOARD=veggieblast`):
+//! `veggieblast.rs` plays the host's cursor, mouse buttons and keys from player 1's stick.
+//!
 //! Crazy Speed Arcade (Ogre, 32-bit; `WAL_UNIS_BOARD=game232`): `game232.rs` emulates its COM1
 //! driving board (started with the payload by `wal-loader`).
 //!
@@ -45,6 +48,7 @@ mod nighthunter_mission4;
 mod qumo;
 mod shunxiang;
 mod usbplugins;
+mod veggieblast;
 mod wickedtuna;
 
 use std::ffi::c_void;
@@ -80,6 +84,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let key_held: fn(i32) -> bool = match board.trim() {
             "mightymoto" => mightymoto::key_held,
             "bigfootcrush" => bigfootcrush::key_held,
+            "veggieblast" => veggieblast::key_held,
             _ => |_| false,
         };
         wal_payload_common::input_filter::init(unity, key_held);
@@ -92,6 +97,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             "wickedtuna" => wickedtuna::init(),
             "mightymoto" => mightymoto::init(),
             "bigfootcrush" => bigfootcrush::init(),
+            "veggieblast" => veggieblast::init(),
             other => wal_payload_common::log!("unis: unknown board {other}"),
         }
     }
