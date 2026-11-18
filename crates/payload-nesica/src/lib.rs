@@ -19,7 +19,7 @@
 //!
 //! Groove Coaster 2 (`WAL_NESICA_GAME=groovecoaster`): `groovecoaster.rs`.
 //!
-//! Gunslinger Stratos 2 (`WAL_NESICA_GAME=gunslinger`, 64-bit, `iDmacDrv64.dll`): `gunslinger.rs`.
+//! Gunslinger Stratos 2 / 3 (`WAL_NESICA_GAME=gunslinger`, 64-bit, `iDmacDrv64.dll`): `gunslinger.rs`.
 //!
 //! Tetote X Connect (Unity) is loaded at its executable's entry point; its native plugins'
 //! functions are the payload's (`tetote.rs`).

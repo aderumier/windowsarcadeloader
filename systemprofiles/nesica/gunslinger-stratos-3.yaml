@@ -1,0 +1,59 @@
+# Gunslinger Stratos 3 (Square Enix / Taito, NESiCAxLive, Type X3, 2017) - template, override
+# values in userprofiles/nesica/gunslinger-stratos-3.yaml.
+# game.exe (2.46 JPN, 64-bit, Direct3D 11) imports iDmacDrv64.dll: the payload's x86_64 build.
+# The cabinet: two guns ("G devices", each a trigger and a lever, the right one a jump button)
+# seen by their 2D sensor boards (COM1, COM3), the FastIO board, the NESiCA reader (COM2), the
+# voice chat headset amplifier (COM4). The payload's gunslinger.rs (docs §6.2 "Gunslinger
+# Stratos 3").
+system: nesica
+name: Gunslinger Stratos 3
+
+env:
+  WAL_NESICA_GAME: gunslinger
+  # Japanese text (Shift-JIS converted by the game)
+  WAL_ANSI_CODEPAGE: "932"
+  # Type X3 NESiCA reader (COM2): security challenges answered with the key of C:\TypeX3Temp.dat
+  WAL_NESICA_RFID_SECURITY: "1"
+  # the coins are a counter the game consumes (0x4140)
+  WAL_FASTIO_COIN: counter
+  # The sound engine (Silicon Studio's Wwise, XAudio2 2.7) opens the device whose name contains
+  # "スピーカー" (the cabinet's speakers), else none: sound device error 10000008. Its pattern
+  # (Shift-JIS, +0x27703B8) emptied: the first device.
+  # The voice chat (TeamSpeak 3) has no server: its HUD update (+0x6BC300) always skips, as with
+  # voice chat off (no red "ボイスチャットサーバーに接続できません" box).
+  WAL_PATCHES: "0x27703B8:00,0x6BC383:E96B0A000090"
+
+input:
+  # The gun or the mouse aims both guns: its position across the screen on the pedal axes
+  # (unused here); left button both triggers, right button jump, middle the left lever pushed.
+  guns_enabled: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: b7
+    BTN_RIGHT: b3
+    BTN_MIDDLE: b4
+
+# Control names (the GUI's mapping rows).
+controls:
+  up: Move forward
+  down: Move back
+  left: Move left
+  right: Move right
+  rx: Right lever (x)
+  ry: Right lever (y)
+  accel: Aim (x)
+  brake: Aim (y)
+  b1: Left trigger
+  b2: Right trigger
+  b3: Jump
+  b4: Left lever push
+  b5: Right lever push
+  b6: Side style
+  b7: Both triggers
+  b8: Tandem style
+  start: Enter
+  coin: Coin
+  service: Service
+  test: Test
+  card: NESiCA card

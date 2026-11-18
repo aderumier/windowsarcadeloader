@@ -29,6 +29,9 @@
 //! start ENTER. Two lightguns (the cabinet's way): once player 2's gun moved it is the right gun,
 //! each gun's b7 (its trigger) fires its own gun, player 2's b3 / b4 are jump and the right lever
 //! pushed (the right gun's buttons).
+//!
+//! Gunslinger Stratos 3 (2017, the same cabinet and code base): the same devices, plus the
+//! headset amplifier on COM4 ([`amplifier`]); its settings fields differ ([`SETTINGS`]).
 
 use wal_payload_common::{gun, log, serial};
 use wal_protocol::{Axis, StickState, button};
@@ -41,28 +44,58 @@ pub(crate) fn detected() -> bool {
 pub(crate) fn init() {
     serial::install("COM1", board1);
     serial::install("COM3", board2);
+    // Gunslinger Stratos 3: the headset amplifier (only opened by that game)
+    serial::install("COM4", amplifier);
     log!("gunslinger: 2D sensor boards on COM1, COM3");
     std::thread::spawn(settings);
 }
 
-/// The game's system settings object (its pointer at +0x21D0758, set by its constructor at
-/// +0x31A083: `mov [rip+...], rcx`).
-const SETTINGS: usize = 0x21D0758;
-const SETTINGS_STORE: usize = 0x31A083;
-const SETTINGS_STORE_BYTES: [u8; 7] = [0x48, 0x89, 0x0D, 0xCE, 0x66, 0xEB, 0x01];
+/// The game's system settings object, per executable: the RVA of its constructor's store of
+/// its pointer (`mov [rip+...], rcx`), that instruction, the pointer's RVA, the time mode field
+/// (kept off) and the free play field.
+struct Settings {
+    store: usize,
+    bytes: [u8; 7],
+    pointer: usize,
+    time_mode: Option<usize>,
+    free_play: usize,
+}
 
-/// The settings kept: time mode off (+0xBC), free play (+0xF0) from the common option.
+const SETTINGS: [Settings; 2] = [
+    // Gunslinger Stratos 2 (2.11 JPN): time mode +0xBC (the factory Monday-Thursday schedule
+    // forces coins), free play +0xF0
+    Settings {
+        store: 0x31A083,
+        bytes: [0x48, 0x89, 0x0D, 0xCE, 0x66, 0xEB, 0x01],
+        pointer: 0x21D0758,
+        time_mode: Some(0xBC),
+        free_play: 0xF0,
+    },
+    // Gunslinger Stratos 3 (2.46 JPN): free play +0x100 (the credit control's free play is
+    // +0x100 or +0xBC)
+    Settings {
+        store: 0x3F0903,
+        bytes: [0x48, 0x89, 0x0D, 0xFE, 0xB3, 0xD1, 0x02],
+        pointer: 0x310BD08,
+        time_mode: None,
+        free_play: 0x100,
+    },
+];
+
+/// The settings kept: time mode off, free play from the common option.
 fn settings() {
     let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
-    if unsafe { ((exe + SETTINGS_STORE) as *const [u8; 7]).read_unaligned() } != SETTINGS_STORE_BYTES {
+    let Some(game) =
+        SETTINGS.iter().find(|g| unsafe { ((exe + g.store) as *const [u8; 7]).read_unaligned() } == g.bytes)
+    else {
         log!("gunslinger: unknown executable: settings left alone");
         return;
-    }
+    };
     let free = wal_payload_common::free_play("WAL_NESICA_FREEPLAY");
     let mut logged = false;
     loop {
         std::thread::sleep(std::time::Duration::from_millis(250));
-        let obj = unsafe { *((exe + SETTINGS) as *const usize) };
+        let obj = unsafe { *((exe + game.pointer) as *const usize) };
         if obj == 0 {
             continue;
         }
@@ -70,15 +103,18 @@ fn settings() {
         unsafe {
             if !logged {
                 logged = true;
-                log!("gunslinger: settings time mode {} free play {}", *field(0xBC), *field(0xF0));
+                let time_mode = game.time_mode.map(|off| *field(off));
+                log!("gunslinger: settings time mode {time_mode:?} free play {}", *field(game.free_play));
             }
-            if *field(0xBC) != 0 {
-                *field(0xBC) = 0;
+            if let Some(off) = game.time_mode
+                && *field(off) != 0
+            {
+                *field(off) = 0;
             }
             if let Some(on) = free
-                && *field(0xF0) != on as u32
+                && *field(game.free_play) != on as u32
             {
-                *field(0xF0) = on as u32;
+                *field(game.free_play) = on as u32;
             }
         }
     }
@@ -140,6 +176,46 @@ fn board1(packet: &[u8]) -> Vec<u8> {
 /// COM3: the game never writes there.
 fn board2(packet: &[u8]) -> Vec<u8> {
     packet.iter().flat_map(|&c| answer(1, c)).collect()
+}
+
+/// The headset amplifier's levels (Gunslinger Stratos 3's voice chat): volume, headphone
+/// volume, microphone gain, microphone on.
+static AMPLIFIER: std::sync::Mutex<[u8; 4]> = std::sync::Mutex::new([20, 15, 15, 0]);
+
+/// COM4 (Gunslinger Stratos 3, 9600 baud): the headset amplifier, text commands ending with
+/// LF, answers ending with CR. `GNA` its name, `GVE` its version, `GAP` its levels
+/// (`VNddHVddMGddHS0dMS0d`: volume at most 40, headphone volume and microphone gain at most 31,
+/// headset plugged, microphone on), `SVNdd` / `SHVdd` / `SMGdd` set them, `SMR0` / `SMR1` the
+/// microphone; the setters' answer is any 3 characters.
+fn amplifier(packet: &[u8]) -> Vec<u8> {
+    let text = String::from_utf8_lossy(packet);
+    let command = text.trim_end();
+    let mut levels = AMPLIFIER.lock().unwrap();
+    let level = |max: u8| command.get(3..5).and_then(|v| v.parse::<u8>().ok()).map(|v| v.min(max));
+    let answer = match command.get(..3).unwrap_or("") {
+        "GNA" => "WAL HEADSET AMP".to_string(),
+        "GVE" => "1.00".to_string(),
+        "GAP" => {
+            let [vn, hv, mg, mic] = *levels;
+            format!("VN{vn:02}HV{hv:02}MG{mg:02}HS00MS0{mic}")
+        }
+        set @ ("SVN" | "SHV" | "SMG" | "SMR") => {
+            match set {
+                "SVN" => levels[0] = level(40).unwrap_or(levels[0]),
+                "SHV" => levels[1] = level(31).unwrap_or(levels[1]),
+                "SMG" => levels[2] = level(31).unwrap_or(levels[2]),
+                _ => levels[3] = (command.get(3..4) == Some("1")) as u8,
+            }
+            set.to_string()
+        }
+        _ => {
+            log!("gunslinger: amplifier command {command:?} unknown");
+            return Vec::new();
+        }
+    };
+    let mut reply = answer.into_bytes();
+    reply.push(b'\r');
+    reply
 }
 
 /// Whether `player`'s gun or mouse moved (its `accel` / `brake`, 0 until then).
