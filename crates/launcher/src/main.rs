@@ -558,7 +558,9 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
             rundir::copy_large_address_aware(&exe, &run_dir.join(exe_subdir).join(exe_name))?;
         }
         for (file, sections) in &profile.readonly_sections {
-            rundir::readonly_sections(&game_root.join(file), &run_dir.join(file), sections)?;
+            let src = game_root.join(file);
+            let copied = (profile.exe_fixed_base || profile.large_address_aware) && src == exe;
+            rundir::readonly_sections(&src, &run_dir.join(file), sections, copied)?;
         }
     }
     wine.map_c_folders(&profile.c_folders, &run_dir, game_root)?;

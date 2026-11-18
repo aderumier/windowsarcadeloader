@@ -289,9 +289,10 @@ pub fn copy_fixed_base(src: &Path, dst: &Path) -> Result<()> {
 }
 
 /// Clears IMAGE_SCN_MEM_WRITE of the sections `names` (e.g. `.rdata`) in the run directory's
-/// executable `dst`: a copy of `src`, or the copy another option already made.
-pub fn readonly_sections(src: &Path, dst: &Path, names: &[String]) -> Result<()> {
-    let copied = fs::symlink_metadata(dst).is_ok_and(|m| m.file_type().is_file());
+/// executable `dst`: a copy of `src`, or (`copied`) the copy another option made in this launch.
+/// A copy left by a previous launch is never reused: it may be truncated (the box powered off
+/// while writing it) or come from an older dump.
+pub fn readonly_sections(src: &Path, dst: &Path, names: &[String], copied: bool) -> Result<()> {
     let mut data = fs::read(if copied { dst } else { src }).with_context(|| format!("reading {}", src.display()))?;
     let pe = data.get(0x3C..0x40).map(|b| u32::from_le_bytes(b.try_into().unwrap()) as usize).context("not a PE file")?;
     if data.get(pe..pe + 4) != Some(b"PE\0\0") || data.len() < pe + 24 {
