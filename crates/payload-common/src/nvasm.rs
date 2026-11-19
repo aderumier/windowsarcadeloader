@@ -13,7 +13,7 @@
 //!   `WAL_RINGEDGE_CG_REPEAT` times, their integer index registers followed ([`loops`]); vertex
 //!   backward `BRA` loops unrolled as forward branches ([`backward_loops`]).
 //! * The vertex address register's 4 components (`_adr.y`): `ARL` again from the component's
-//!   source before each use, through `.x`.
+//!   source (kept in a temporary at the `ARL`) before each use, through `.x`.
 //! * `NRM`, `SGT`, `SLE`, `SEQ`, `SNE`, `SSG`, absolute values (`|x|`), vertex `LRP` / `CMP`
 //!   and vertex `_SAT` with ARB instructions; `TXL` as `TXB` (the level as a bias: exact for
 //!   the base and last levels, the others on a texture drawn 1:1); vertex `TEX` at a constant
@@ -1015,7 +1015,13 @@ fn translate_converted(text: &str) -> Option<String> {
                 s => s,
             };
             let comps: Vec<char> = sw.trim_start_matches('.').chars().collect();
-            let sources: [String; 4] = std::array::from_fn(|i| format!("{value}.{}", comps[i]));
+            // the source kept as it is now: the program writes it again before using the other
+            // components (Initial D 8's two bone skinning: `ARL A0.xy, R0; DP4 R0.y, ...,
+            // c[A0.x + 12]; ... c[A0.y + 12]`, its second bone's matrix read at the dot product)
+            let kept = format!("_wS{reg}");
+            add_temp(&mut temps, &kept);
+            out.push(format!("MOV {kept}, {value};"));
+            let sources: [String; 4] = std::array::from_fn(|i| format!("{kept}.{}", comps[i]));
             out.push(format!("ARL {reg}.x, {};", sources[0]));
             match addresses.iter_mut().find(|(n, _, _)| n == reg) {
                 Some(a) => *a = (reg.to_string(), sources, 0),
