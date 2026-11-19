@@ -54,7 +54,8 @@ fn aime(port: &str) {
 /// payload's ALL.Net server (`wal_payload_common::allnet`); it sets the clock to the server's
 /// time (refused by Wine: the power-on never ended), the setters doing nothing.
 /// Also another RingEdge game's own ALL.Net client (`WAL_RINGEDGE_ALLNET=1`, Border Break
-/// Scramble): the same, without DIVA's title server (the router's port 80 is ALL.Net's).
+/// Scramble, Shining Force Cross): the same, with their own title servers (else the router's
+/// port 80 is ALL.Net's).
 fn allnet(diva: bool) {
     wal_payload_common::clock::hook_setters();
     let ip = crate::pcp::local_address().unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2)).octets();
@@ -73,6 +74,13 @@ fn allnet(diva: bool) {
         crate::bbserver::set_role();
         crate::bbserver::extend_markers();
         crate::bbserver::free_play();
+    } else if std::env::var("WAL_RINGEDGE_ALLNET").is_ok_and(|v| v.trim() == "shiningforce") {
+        // Shining Force Cross's title server (`/SBVB/`)
+        wal_payload_common::allnet::set_title(crate::sfcserver::answer);
+        wal_payload_common::allnet::set_title_rd2();
+        crate::sfcserver::init();
+        // its billing (alpb, ib.naominet.jp:8443): SYSTEM (ALPB) at boot
+        wal_payload_common::billing::init();
     } else {
         wal_payload_common::allnet::set_router_is_allnet();
     }

@@ -157,6 +157,12 @@ unsafe extern "system" fn gl_proc(name: *const c_char) -> usize {
                 _ => {}
             }
         }
+        // NV_fence (Shining Force Cross's, called unchecked): ARB sync objects
+        if FIX.load(Ordering::Relaxed)
+            && let Some(f) = fence_nv(name.to_bytes(), &orig)
+        {
+            return f;
+        }
         // NV_gpu_program4's integer parameters (Border Break Scramble's, called unchecked at its
         // battle's start): the float ones, its programs translated to float ARB programs
         if FIX.load(Ordering::Relaxed)
@@ -373,6 +379,113 @@ unsafe extern "system" fn local_i4uiv(target: u32, index: u32, v: *const u32) {
 unsafe extern "system" fn multisample_coverage(target: u32, coverage: i32, color: i32, format: u32, width: i32, height: i32) {
     let f: unsafe extern "system" fn(u32, i32, u32, i32, i32) = unsafe { std::mem::transmute(ORIG_MULTISAMPLE.load(Ordering::Relaxed)) };
     unsafe { f(target, if color > 0 { color } else { coverage }, format, width, height) }
+}
+
+/// NV_fence's names, each with its ARB sync object (0 before its first glSetFenceNV).
+static FENCES: std::sync::Mutex<Vec<(u32, usize)>> = std::sync::Mutex::new(Vec::new());
+static NEXT_FENCE: AtomicUsize = AtomicUsize::new(1);
+static ORIG_FENCE_SYNC: AtomicUsize = AtomicUsize::new(0);
+static ORIG_CLIENT_WAIT_SYNC: AtomicUsize = AtomicUsize::new(0);
+static ORIG_DELETE_SYNC: AtomicUsize = AtomicUsize::new(0);
+
+/// NV_fence's functions over ARB_sync (`glFenceSync`, `glClientWaitSync`, `glDeleteSync`).
+fn fence_nv(name: &[u8], orig: &unsafe extern "system" fn(*const c_char) -> usize) -> Option<usize> {
+    let f: usize = match name {
+        b"glGenFencesNV" => gen_fences_nv as *const () as usize,
+        b"glDeleteFencesNV" => delete_fences_nv as *const () as usize,
+        b"glSetFenceNV" => set_fence_nv as *const () as usize,
+        b"glTestFenceNV" => test_fence_nv as *const () as usize,
+        b"glFinishFenceNV" => finish_fence_nv as *const () as usize,
+        b"glIsFenceNV" => is_fence_nv as *const () as usize,
+        b"glGetFenceivNV" => get_fence_iv_nv as *const () as usize,
+        _ => return None,
+    };
+    for (slot, n) in [(&ORIG_FENCE_SYNC, c"glFenceSync"), (&ORIG_CLIENT_WAIT_SYNC, c"glClientWaitSync"), (&ORIG_DELETE_SYNC, c"glDeleteSync")] {
+        if slot.load(Ordering::Relaxed) == 0 {
+            slot.store(unsafe { orig(n.as_ptr()) }, Ordering::Relaxed);
+        }
+    }
+    if ORIG_FENCE_SYNC.load(Ordering::Relaxed) == 0 || ORIG_CLIENT_WAIT_SYNC.load(Ordering::Relaxed) == 0 || ORIG_DELETE_SYNC.load(Ordering::Relaxed) == 0 {
+        return None;
+    }
+    Some(f)
+}
+
+fn fence_sync(fence: u32) -> Option<usize> {
+    FENCES.lock().unwrap().iter().find(|(n, _)| *n == fence).map(|(_, s)| *s)
+}
+
+/// `glClientWaitSync` on a fence's sync object: true when signaled (or never set).
+fn wait_fence(fence: u32, timeout: u64) -> bool {
+    let Some(sync) = fence_sync(fence).filter(|s| *s != 0) else { return true };
+    let f: unsafe extern "system" fn(usize, u32, u64) -> u32 = unsafe { std::mem::transmute(ORIG_CLIENT_WAIT_SYNC.load(Ordering::Relaxed)) };
+    // GL_SYNC_FLUSH_COMMANDS_BIT; GL_ALREADY_SIGNALED 0x911A, GL_CONDITION_SATISFIED 0x911C
+    matches!(unsafe { f(sync, 1, timeout) }, 0x911A | 0x911C)
+}
+
+fn delete_sync(sync: usize) {
+    if sync != 0 {
+        let f: unsafe extern "system" fn(usize) = unsafe { std::mem::transmute(ORIG_DELETE_SYNC.load(Ordering::Relaxed)) };
+        unsafe { f(sync) };
+    }
+}
+
+unsafe extern "system" fn gen_fences_nv(n: i32, fences: *mut u32) {
+    let mut list = FENCES.lock().unwrap();
+    for i in 0..n.max(0) as usize {
+        let name = NEXT_FENCE.fetch_add(1, Ordering::Relaxed) as u32;
+        list.push((name, 0));
+        unsafe { *fences.add(i) = name };
+    }
+}
+
+unsafe extern "system" fn delete_fences_nv(n: i32, fences: *const u32) {
+    let names = unsafe { std::slice::from_raw_parts(fences, n.max(0) as usize) };
+    let mut list = FENCES.lock().unwrap();
+    list.retain(|(name, sync)| {
+        let keep = !names.contains(name);
+        if !keep {
+            delete_sync(*sync);
+        }
+        keep
+    });
+}
+
+unsafe extern "system" fn set_fence_nv(fence: u32, _condition: u32) {
+    let f: unsafe extern "system" fn(u32, u32) -> usize = unsafe { std::mem::transmute(ORIG_FENCE_SYNC.load(Ordering::Relaxed)) };
+    // GL_SYNC_GPU_COMMANDS_COMPLETE
+    let sync = unsafe { f(0x9117, 0) };
+    let mut list = FENCES.lock().unwrap();
+    match list.iter_mut().find(|(n, _)| *n == fence) {
+        Some(entry) => {
+            delete_sync(entry.1);
+            entry.1 = sync;
+        }
+        None => list.push((fence, sync)),
+    }
+}
+
+unsafe extern "system" fn test_fence_nv(fence: u32) -> u8 {
+    wait_fence(fence, 0) as u8
+}
+
+unsafe extern "system" fn finish_fence_nv(fence: u32) {
+    while !wait_fence(fence, 1_000_000_000) {}
+}
+
+unsafe extern "system" fn is_fence_nv(fence: u32) -> u8 {
+    fence_sync(fence).is_some_and(|s| s != 0) as u8
+}
+
+unsafe extern "system" fn get_fence_iv_nv(fence: u32, pname: u32, params: *mut i32) {
+    unsafe {
+        *params = match pname {
+            // GL_FENCE_STATUS_NV
+            0x84F3 => wait_fence(fence, 0) as i32,
+            // GL_FENCE_CONDITION_NV: GL_ALL_COMPLETED_NV
+            _ => 0x84F2,
+        }
+    };
 }
 
 static ORIG_ENVS: AtomicUsize = AtomicUsize::new(0);

@@ -2493,6 +2493,23 @@ game's amLib (its own error strings name every function):
   837-14572, moved to payload-common `jvs_board.rs`) answers through `serial::transact`. The
   sense line is DSR: modem status 0x10 before the address, 0x30 after (with the Type X values
   amJvs assigns 31 boards: error 6401 "JVS I/O board is not connected").
+- **Shining Force Cross Raid / Elysion** (`WAL_RINGEDGE_ALLNET=shiningforce`,
+  `sfcserver.rs`). Project DIVA Arcade's engine with an online title server: its HTTP client
+  (`RINGEDGE-PRJF/1.0`, `/SBVB/` on the router) posts fixed size big-endian structures, zlib
+  packed (`x-rd2-*` headers), each starting with the protocol version (Raid `0xC93D8B0E`,
+  Elysion `0xDDBC372D`) and its command; the answers must have the exact size of their
+  `NetData*Response` class (vtable + 0x30, the command at + 0x34): per-game tables. The
+  player's data is the IC card's: `start_response` and `item_response` hand back the
+  request's `card_body` (6604 / 8342 bytes on the wire), the game writes the card after a
+  quest. The card is the game's development card in files (`iccd::usb::DeviceUSB`:
+  `iccard.txt` / `iccard.bin` at a drive's root, the profile's `I:`), handed out by a patched
+  card manager getter, inserted / ejected by the development keyboard's Delete key (the card
+  input; the profile puts it in on the first start, `WAL_RINGEDGE_SFC_CARD_AUTO`); a blank card of the game's format created when the drive holds none (key record
+  twice with a CRC-32 low half, body CRC). The game's `uncompress` call passes an
+  uninitialized length (redirected), its network check compares the address with
+  `192.168.68.0` (rewritten to the machine's network). Free play: the credit object's
+  `is_freeplay` answers yes (Elysion: its vtable slot 0x14; slot 0x10 is `jvs_is_error`,
+  error 6401 when it answers yes). Ticket / GP purchase then costs nothing.
 
 ### 6.3e Sega Amusements Shell (`crates/payload-segashell`)
 
@@ -9066,6 +9083,8 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `radikal-bikers` | Radikal Bikers | arcadepc | user 100% (2026-11-14) | Gaelco 3D board emulator `radikalb.exe` (Direct3D 8, §6.3i, board `radikalbikers`): setup dialog answered, its input reader from the virtual stick, `radikalb.dat` saved on change, free play by a coin on start |
 | `project-diva-arcade` | Hatsune Miku Project DIVA Arcade | ringedge | user 100% (2026-11-15, desktop) | RingEdge 2 (§6.3d), SBTY 6.00.01, OpenGL: NVIDIA assembly translated for Mesa, touch panel and pointer, lamp control board (`WAL_RINGEDGE_DIVA_LAMP`), free play, open all day (closing time), automatic card after start or a touch; Y: a folder of its own (the game formats it) |
 | `border-break-scramble` | Border Break Scramble | ringedge2 | user (2026-11-15): "working 100% excluding online mode" | RingEdge 2 NRS engine (§6.3d), SBVA 4.5.0, OpenGL: its NV_gpu_program4 shaders translated, JVS left grip and move stick, raw input aim mouse listed, the mouse or stick as touch pointer (red dot), free play, the extended image's markers |
+| `shining-force-cross-raid` | Shining Force Cross Raid | ringedge | headless tests (2026-11-19): IC card in files, free play tickets, a scenario quest to its end (card saved), input test; user: works on the desktop (2026-11-19) | RingEdge (§6.3d), SBVB 1.05, Project DIVA Arcade's engine (OpenGL, NVIDIA programs translated): its title server (`sfcserver.rs`, binary structures zlib packed, the card's data handed back), the development IC card in files (card input = its Delete key, a blank card created), CTR-251500 touch panel and pointer, JVS stick and buttons, ALL.Net and billing, free play, open all day |
+| `shining-force-cross-elysion` | Shining Force Cross Elysion | ringedge | headless tests (2026-11-19): IC card in files, free play GP, a scenario quest to its end (card saved); user test pending | Raid's profile and title server (§6.3d), Ver.C 2.06: its own protocol (22 commands), card format and addresses |
 | `kancolle-arcade` | KanColle Arcade | seganu | user 100% (2026-11-15): guest and Aime card play | Sega Nu (§6.3m), SDBZ 7.40, 64-bit: NVIDIA-only OpenGL translated (`WAL_NVGL`: unified memory, command lists, bindless), WGL_NV_DX_interop for its movies, ALL.Net, billing, ICF, AimeDB, Aime COM10, 3M touch COM1, its title server (admirals, sorties, drops, progress per Aime card) |
 | `crossbeats-rev` | crossbeats REV. | alls | user 100% (2026-11-16, desktop): mouse with the red dot, touchpad multi-touch | SUNRiSE's predecessor (§6.3l, `WAL_ALLS_BOARD=cxb`), SDCA: options read up to the executable's last folder, the game server answering requests up to version 10102 (ARTEMiS' REV. tables, songs and events the options hold, REV.'s saves), touches in its 1920x1080 layout (`WAL_CXB_TOUCH`) |
 

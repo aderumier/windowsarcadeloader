@@ -176,14 +176,32 @@ fn handle(stream: &mut TcpStream) -> std::io::Result<()> {
         if std::env::var("WAL_ALLNET_LOG_HEAD").is_ok_and(|v| v.trim() == "1") {
             log!("allnet: {}", head.trim().replace("\r\n", " | "));
         }
-        let mut body = title(&path, body);
+        // a title server packing its bodies with the `x-rd2-*` headers (`set_title_rd2`): zlib
+        // both ways
+        let rd2 = TITLE_RD2.load(Ordering::Relaxed) && header("x-rd2-uncomp-len").is_some();
+        let mut body = if rd2 {
+            title(&path, &miniz_oxide::inflate::decompress_to_vec_zlib(body).unwrap_or_default())
+        } else {
+            title(&path, body)
+        };
         // a title server answering as ALL.Net does (`set_title_dfi`): deflated then base64,
         // `Pragma: DFI`, when the request was
         let dfi = TITLE_DFI.load(Ordering::Relaxed) && header("Pragma").is_some_and(|v| v.eq_ignore_ascii_case("DFI"));
         if dfi {
             body = format!("{}\r\n", base64_encode(&miniz_oxide::deflate::compress_to_vec_zlib(&body, 6))).into_bytes();
         }
-        let pragma = if dfi { "Pragma: DFI\r\n" } else { "" };
+        let mut pragma = if dfi { "Pragma: DFI\r\n".to_string() } else { String::new() };
+        if rd2 {
+            let packed = miniz_oxide::deflate::compress_to_vec_zlib(&body, 6);
+            pragma = format!(
+                "Pragma: DFI\r\nx-rd2-comp-crc: {}\r\nx-rd2-comp-len: {}\r\nx-rd2-uncomp-crc: {}\r\nx-rd2-uncomp-len: {}\r\n",
+                crc32(&packed),
+                packed.len(),
+                crc32(&body),
+                body.len()
+            );
+            body = packed;
+        }
         let mut r = format!("HTTP/1.1 200 OK\r\nDate: {}\r\nContent-Type: application/octet-stream\r\n{pragma}Content-Length: {}\r\nConnection: close\r\n\r\n", http_date(), body.len()).into_bytes();
         r.extend_from_slice(&body);
         return stream.write_all(&r);
@@ -261,6 +279,27 @@ static TITLE_DFI: AtomicBool = AtomicBool::new(false);
 /// (Border Break Scramble's client decodes them as ALL.Net's).
 pub fn set_title_dfi() {
     TITLE_DFI.store(true, Ordering::Relaxed);
+}
+
+static TITLE_RD2: AtomicBool = AtomicBool::new(false);
+
+/// The title server's bodies zlib packed both ways (Shining Force Cross's `NrsHttp`), the
+/// answers with `Pragma: DFI` and the packed body's CRC-32 and length (`x-rd2-comp-crc`,
+/// `x-rd2-comp-len`; the requests' `x-rd2-crc`), the unpacked body's (`x-rd2-uncomp-crc`,
+/// `x-rd2-uncomp-len`), the CRCs in decimal (the game's `_atoi64`).
+pub fn set_title_rd2() {
+    TITLE_RD2.store(true, Ordering::Relaxed);
+}
+
+fn crc32(data: &[u8]) -> u32 {
+    let mut crc = !0u32;
+    for &b in data {
+        crc ^= b as u32;
+        for _ in 0..8 {
+            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+        }
+    }
+    !crc
 }
 
 /// The router's own address is an ALL.Net host (the title server is in ALL.Net's server, here

@@ -21,7 +21,8 @@
 //! none: the screen as is).
 //! `WAL_RINGEDGE_TOUCH_POINTER=pedals-stick`: the pointer is the mouse mapped to the pedals or
 //! the left stick, whichever moved last (Border Break Scramble, whose left stick walks the mech:
-//! [`wal_payload_common::gun::pedals_or_stick`]).
+//! [`wal_payload_common::gun::pedals_or_stick`]); `pedals-right-stick`: the mouse or the right
+//! stick (Shining Force Cross, whose left stick moves the character).
 
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU64, Ordering};
 use std::sync::OnceLock;
@@ -31,9 +32,11 @@ use wal_protocol::{Axis, button};
 
 /// The baud rate code of the last `P` (`p` queries it).
 static BAUD: AtomicU8 = AtomicU8::new(6);
-/// Touched at the last report, and the time of that report (ms).
+/// Touched at the last report, the time of that report (ms) and its place (the release is
+/// reported there, as a panel does: not where the pointer went after it).
 static TOUCHED: AtomicBool = AtomicBool::new(false);
 static LAST_MS: AtomicU64 = AtomicU64::new(0);
+static LAST_XY: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 /// The screen's size and the calibration's p1, p2 (game pixels).
 static CAL: OnceLock<Calibration> = OnceLock::new();
 
@@ -114,10 +117,14 @@ fn reply(data: &[u8]) -> Vec<u8> {
     out
 }
 
-/// `WAL_RINGEDGE_TOUCH_POINTER=pedals-stick`.
-fn pedals_pointer() -> bool {
-    static ON: OnceLock<bool> = OnceLock::new();
-    *ON.get_or_init(|| std::env::var("WAL_RINGEDGE_TOUCH_POINTER").is_ok_and(|v| v.trim() == "pedals-stick"))
+/// `WAL_RINGEDGE_TOUCH_POINTER`: `pedals-stick` (Some(false)), `pedals-right-stick` (Some(true)).
+fn pedals_pointer() -> Option<bool> {
+    static ON: OnceLock<Option<bool>> = OnceLock::new();
+    *ON.get_or_init(|| match std::env::var("WAL_RINGEDGE_TOUCH_POINTER").as_deref().map(str::trim) {
+        Ok("pedals-stick") => Some(false),
+        Ok("pedals-right-stick") => Some(true),
+        _ => None,
+    })
 }
 
 fn now_ms() -> u64 {
@@ -139,13 +146,20 @@ fn stream() -> Vec<u8> {
     }
     TOUCHED.store(down, Ordering::Relaxed);
     LAST_MS.store(now, Ordering::Relaxed);
-    let (u, v) = if pedals_pointer() {
-        let (x, y) = wal_payload_common::gun::pedals_or_stick();
+    let (u, v) = if let Some(right) = pedals_pointer() {
+        let (x, y) = if right { wal_payload_common::gun::pedals_or_right_stick() } else { wal_payload_common::gun::pedals_or_stick() };
         ((x as i32 + 32768) as f32 / 65535.0, (y as i32 + 32768) as f32 / 65535.0)
     } else {
         (p1.axis_u16(Axis::LeftX) as f32 / 65535.0, p1.axis_u16(Axis::LeftY) as f32 / 65535.0)
     };
-    let (x, y) = CAL.get_or_init(Calibration::from_env).report(u, v);
+    let (x, y) = if down {
+        let (x, y) = CAL.get_or_init(Calibration::from_env).report(u, v);
+        LAST_XY.store((x as u32) << 16 | y as u32, Ordering::Relaxed);
+        (x, y)
+    } else {
+        let xy = LAST_XY.load(Ordering::Relaxed);
+        ((xy >> 16) as u16, xy as u16)
+    };
     let state = match (was, down) {
         (false, true) => 0x01,
         (true, true) => 0x02,

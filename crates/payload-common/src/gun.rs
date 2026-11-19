@@ -135,22 +135,44 @@ fn in_picture((sx, sy): (f32, f32)) -> Option<(f32, f32)> {
 /// `accel` / `brake` 0..32767 across the screen, which the game does not read). Player 1's place
 /// in the stick's -32768..32767.
 pub fn pedals_or_stick() -> (i16, i16) {
-    static LAST: std::sync::Mutex<Option<[(i16, i16); 2]>> = std::sync::Mutex::new(None);
-    static PEDALS_LAST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    let stick = input(0);
-    let full = |v: i16| (v.max(0) as i32 * 2 - 32768).clamp(-32768, 32767) as i16;
-    let pedals = (full(stick.axis(Axis::Accel)), full(stick.axis(Axis::Brake)));
-    let left = (stick.axis(Axis::LeftX), stick.axis(Axis::LeftY));
-    let mut last = LAST.lock().unwrap();
-    if let Some([was_pedals, was_left]) = *last {
-        if pedals != was_pedals {
-            PEDALS_LAST.store(true, Ordering::Relaxed);
-        } else if left != was_left {
-            PEDALS_LAST.store(false, Ordering::Relaxed);
-        }
+    static LAST: PedalsOr = PedalsOr::new();
+    LAST.place(Axis::LeftX, Axis::LeftY)
+}
+
+/// The same with the right stick (Shining Force Cross: its left stick moves the character, the
+/// right one is free).
+pub fn pedals_or_right_stick() -> (i16, i16) {
+    static LAST: PedalsOr = PedalsOr::new();
+    LAST.place(Axis::RightX, Axis::RightY)
+}
+
+/// The pedals (the mouse) and a stick at the last call, and which of them moved last.
+struct PedalsOr {
+    last: std::sync::Mutex<Option<[(i16, i16); 2]>>,
+    pedals_last: std::sync::atomic::AtomicBool,
+}
+
+impl PedalsOr {
+    const fn new() -> PedalsOr {
+        PedalsOr { last: std::sync::Mutex::new(None), pedals_last: std::sync::atomic::AtomicBool::new(false) }
     }
-    *last = Some([pedals, left]);
-    if PEDALS_LAST.load(Ordering::Relaxed) { pedals } else { left }
+
+    fn place(&self, x: Axis, y: Axis) -> (i16, i16) {
+        let stick = input(0);
+        let full = |v: i16| (v.max(0) as i32 * 2 - 32768).clamp(-32768, 32767) as i16;
+        let pedals = (full(stick.axis(Axis::Accel)), full(stick.axis(Axis::Brake)));
+        let other = (stick.axis(x), stick.axis(y));
+        let mut last = self.last.lock().unwrap();
+        if let Some([was_pedals, was_other]) = *last {
+            if pedals != was_pedals {
+                self.pedals_last.store(true, Ordering::Relaxed);
+            } else if other != was_other {
+                self.pedals_last.store(false, Ordering::Relaxed);
+            }
+        }
+        *last = Some([pedals, other]);
+        if self.pedals_last.load(Ordering::Relaxed) { pedals } else { other }
+    }
 }
 
 /// The screen's size in pixels.

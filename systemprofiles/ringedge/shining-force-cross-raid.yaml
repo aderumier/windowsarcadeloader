@@ -1,0 +1,131 @@
+# Shining Force Cross Raid (Sega RingEdge, OpenGL/GLUT), game id SBVB, Version 1.05 (Ver.A
+# bugfix 02, 2011-08-03). Runs project_f-ringedge-release.exe (Project DIVA Arcade's engine).
+# An online game: its title server (the player data, the shop's settings, the events) is the
+# payload's (crates/payload-ringedge/src/sfcserver.rs), its IC card a card in files.
+# Override values in userprofiles/ringedge/shining-force-cross-raid.yaml.
+system: ringedge
+name: Shining Force Cross Raid
+
+env:
+  # the keychip: the game id (the DS28CN01 challenge file SBVB_Table.dat), the system flag's
+  # billing bit (0x20) and the billing type 1 (billing.nearfull's high 16 bits): without them
+  # SYSTEM (ALPB) NG at boot (the billing library's state, FUN_00e77250), ERROR 8113 after it
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBVB;keychip.appboot.systemflag=20;keychip.billing.nearfull=00010200
+  WAL_RINGEDGE_DS_FILE: SBVB_Table.dat
+  # the main board's DIP switches: SW7 a horizontal 1280x720 monitor (mxGetHwInfo.ini)
+  WAL_RINGEDGE_DIPSW: "41"
+  # the EEPROM static record's region (Japan): amCredit counts no coin without it; the board
+  # serial number the billing reports (MAIN ID on the attract)
+  WAL_RINGEDGE_REGION: "01"
+  WAL_RINGEDGE_BOARD_SERIAL: AAVE-01A00000001
+  # the network: the card's link up with its addresses, the keychip's network address dotted
+  # (as Project DIVA Arcade)
+  WAL_RINGEDGE_NIC_STATUS: "1"
+  WAL_RINGEDGE_NETWORKADDR_DOTTED: "1"
+  # its network check wants the shop network 192.168.68.x (NETWORK(SYS) NG else, then ERROR
+  # 8006): the string it compares with (0x160a670) becomes the machine's network
+  WAL_RINGEDGE_SFC_NETWORK: "0x120a670"
+  # its ALL.Net client (alAbEx): the routers and ALL.Net's hosts are the payload's, the
+  # power-on accepted, its billing (alpb, ib.naominet.jp:8443) answered with a SHA-1 PKI (its
+  # OpenSSL 0.9.8)
+  WAL_ALLS_ALLNET: "1"
+  WAL_RINGEDGE_ALLNET: shiningforce
+  WAL_BILLING_SHA1: "1"
+  # the title server's answers: the game's own unpacking call (0x8aad1a) passes an
+  # uninitialized output length, the payload's unpacks them
+  WAL_RINGEDGE_SFC_UNCOMPRESS: "0x4aad1a"
+  # - 0x58c6b0: the shop's closing time configured (mov al,0: open all day; the attract's
+  #   "本日のゲームスタートは締め切りました", start refused, after the backup's closing hour)
+  # - 0x908640: the IC card manager's device: its development card in files (mov eax,[ecx+4]),
+  #   not the Maxell reader's (WAL_RINGEDGE_SFC_CARD)
+  WAL_PATCHES: "0x18c6b0:32C0C3,0x508640:8B4104C3"
+  WAL_PATCHES_EXE: project_f-ringedge-release.exe
+  # free play (the common option): its free play check (0xe76dc0, the test menu's FREE PLAY)
+  # answers yes: games started without coins
+  WAL_RINGEDGE_FREEPLAY_PATCHES: "0xa76dc0:B001C3"
+
+  # the IC card: the card in files of the card drive I: (iccard.txt its id, iccard.bin its
+  # data), inserted or ejected by the card input (the development keyboard's Delete for the
+  # card task: its key query 0xe744e0, keyboard 0x3751d88, the task's call returning to
+  # 0x902b64); a new card, blank in Raid's format (0x722810, 4023 bytes), when the drive holds
+  # none
+  WAL_RINGEDGE_SFC_CARD: "0xa744e0:0x3351d88:0x502b64"
+  # the card put in on the first start (the card input ejects / inserts it again)
+  WAL_RINGEDGE_SFC_CARD_AUTO: "1"
+  WAL_RINGEDGE_SFC_NEW_CARD: "I:722810:4023:1ec=01,1ef=ff,1f0=ff,1f1=ff,1f2=ff,21e=01,221=01,224=01,225=02,228=01,22a=01,22c=01"
+  # the Maxell IC card reader/writer on COM2 the boot checks (IC R/W), present without a card
+  WAL_RINGEDGE_IC_CARD: COM2
+
+  # the JVS board (amJvs on COM4 too): 20 general purpose outputs and the analog stick on
+  # channels 0 and 1 (else ERROR 6402, the board does not fulfill the game's spec)
+  WAL_TYPEX_JVS_PORT: "mxjvs,COM4"
+  WAL_TYPEX_JVS_OUTPUTS: "20"
+  WAL_TYPEX_JVS_ANALOG_INPUTS: "lx,ly"
+  # the touch panel: Sega's CTR-251500 controller on COM1, its 1280x720 screen, the game's
+  # calibration (rom/calib/calibration_1280x720.properties, on 4095 minus the panel's Y: X
+  # mirrored on the panel); the pointer: the mouse (on the pedals) or the right stick, the last
+  # moved (the left stick moves the character)
+  WAL_RINGEDGE_TOUCH: COM1
+  WAL_RINGEDGE_TOUCH_SCREEN: 1280x720
+  WAL_RINGEDGE_TOUCH_CALIBRATION: "1267.8,4.2,11.6,698.2"
+  WAL_RINGEDGE_TOUCH_POINTER: pedals-right-stick
+  # the touch pointer: a small red dot (drawn over the picture by the OpenGL fix-up), hidden
+  # after 5 s without moving
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_AXES: pedals-right-stick
+  WAL_CROSSHAIR_STYLE: disc
+  WAL_CROSSHAIR_SIZE: "2"
+  WAL_CROSSHAIR_COLOR: FF2020
+  WAL_CROSSHAIR_HIDE: "5"
+
+  # full screen: the game draws its 1280x720 screen, scaled to the screen (aspect kept) in a
+  # borderless window; no mouse cursor
+  WAL_RINGEDGE_GL_SCALE: 1280x720
+  WAL_WINDOW_POPUP: "1"
+  WAL_HIDE_CURSOR: "1"
+  # its NVIDIA OpenGL shaders on other GPUs (as Project DIVA Arcade, the same engine)
+  WAL_RINGEDGE_CG_FIX: auto
+  WAL_RINGEDGE_CG_SHADOW: "1"
+  WAL_RINGEDGE_CG_REPEAT: "5"
+
+# the card drive: the player's IC card (a folder of the dump)
+drives:
+  i: card
+
+# The analog stick moves the character; the touch screen (the mouse, or the right stick with
+# button 8) picks the menus, the targets and the skills.
+input:
+  stick_as_dpad: false
+  guns_enabled: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: b8
+    BTN_RIGHT: none
+    BTN_MIDDLE: none
+    BTN_2: none
+  # a pad: A attack, B jump, X force, Y use, R1 view, R2 the touch
+  gamepad:
+    a: b2
+    b: b1
+    x: b3
+    y: b5
+    r1: b4
+    r2: b8
+
+controls:
+  lx: Analog stick X
+  ly: Analog stick Y
+  rx: Touch pointer X
+  ry: Touch pointer Y
+  b1: Jump (J)
+  b2: Attack (A)
+  b3: Force (F)
+  b4: View (V)
+  b5: Use (U)
+  b8: Touch
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test
+  card: IC card (insert / eject)

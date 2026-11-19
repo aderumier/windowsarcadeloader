@@ -4,7 +4,9 @@
 //! stub that formats the message.
 //!
 //! `WAL_RINGEDGE_GAMELOG=<rva>`: the same for a game's own printf-like log function
-//! `(const char *format, ...)` (Transformers: Human Alliance's ArcadeInit messages).
+//! `(const char *format, ...)` (Transformers: Human Alliance's ArcadeInit messages);
+//! `<rva>@<n>`: the format after `n` other arguments (Shining Force Cross's logger
+//! `(logger, level, const char *format, ...)`: `@2`).
 //!
 //! Each amLib module only logs when its own level variable is at least 1:
 //! `WAL_RINGEDGE_AMLOG_LEVELS=<rva>[=<level>],...` sets them (default level 1: errors).
@@ -39,19 +41,23 @@ unsafe extern "C" {
     fn amlog_stub();
 }
 
-// (format, ...): format at [esp + 4], arguments after it.
+// (n leading arguments, format, ...): format at [esp + 4 + 4 * n], arguments after it.
 core::arch::global_asm!(
     ".globl {name}",
     "{name}:",
-    "lea eax, [esp + 8]",
-    "push eax",
-    "push dword ptr [esp + 8]",
+    "mov ecx, dword ptr [{skip}]",
+    "lea eax, [esp + 4 + ecx * 4]",
+    "lea edx, [eax + 4]",
+    "push edx",
+    "push dword ptr [eax]",
     "call {log}",
     "add esp, 8",
     "ret",
     name = sym gamelog_stub,
+    skip = sym GAMELOG_SKIP,
     log = sym gamelog_va,
 );
+static mut GAMELOG_SKIP: u32 = 0;
 
 unsafe extern "C" {
     fn gamelog_stub();
@@ -90,7 +96,8 @@ extern "C" fn gamelog_va(fmt: *const c_char, args: *const c_void) {
     if fmt.is_null() {
         return;
     }
-    let mut buf = [0 as c_char; 1024];
+    // long lines whole (Shining Force Cross's network structures, tens of KB)
+    let mut buf = vec![0 as c_char; 0x40000];
     unsafe { _vsnprintf(buf.as_mut_ptr(), buf.len() - 1, fmt, args) };
     let msg = unsafe { std::ffi::CStr::from_ptr(buf.as_ptr()) }.to_string_lossy();
     log!("game: {}", msg.trim_end());
@@ -143,9 +150,13 @@ fn parse_hex(s: &str) -> Option<usize> {
 
 pub(crate) fn init() {
     let base = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
-    if let Some(rva) = std::env::var("WAL_RINGEDGE_GAMELOG").ok().and_then(|v| parse_hex(&v)) {
-        unsafe { jump_to(base, rva, gamelog_stub as *const () as usize) };
-        log!("amlog: game log function at +{rva:#x}");
+    if let Ok(value) = std::env::var("WAL_RINGEDGE_GAMELOG") {
+        let (rva, skip) = value.trim().split_once('@').unwrap_or((value.trim(), "0"));
+        if let (Some(rva), Ok(skip)) = (parse_hex(rva), skip.parse::<u32>()) {
+            unsafe { GAMELOG_SKIP = skip };
+            unsafe { jump_to(base, rva, gamelog_stub as *const () as usize) };
+            log!("amlog: game log function at +{rva:#x}");
+        }
     }
     if std::env::var_os("WAL_RINGEDGE_JVS_DUMP").is_some() {
         unsafe { JVS_INIT_CONTINUATION = base + 0x8dff4; }

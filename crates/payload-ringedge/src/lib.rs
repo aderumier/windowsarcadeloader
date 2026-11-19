@@ -35,6 +35,7 @@ mod pcp;
 mod rawmouse;
 mod rfid;
 mod satellite;
+mod sfcserver;
 mod touch;
 
 use std::ffi::c_void;
