@@ -17,6 +17,10 @@ name: Border Break Scramble
 # Its own wine prefix: two RingEdge games can't run at once (amLib binds the fixed pcp ports
 # 40100-40191 on 127.0.0.1), so Border Break must not share `full` with Project DIVA etc.
 prefix: wine-prefix/bb-test
+# Unpacked from the shared prefix's archive (full.tar.gz, its verbs preinstalled): created from
+# scratch, winetricks downloaded and unpacked every verb on the first start (7z failed on
+# vcrun2003 on Batocera).
+prefix_archive: wine-prefix/full
 
 # game.bat runs tools\ringedge\mxGetHwInfo.exe (a cabinet hardware probe: it only validates the
 # PCI graphic/sound IDs in HwInfo.ini and returns errorlevel 0) then nrs.bat, which finally runs

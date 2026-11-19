@@ -22,6 +22,8 @@ pub struct Wine {
     /// Runner whose DXVK is used when `runner` ships none (profile `dxvk_from`).
     dxvk_runner: Option<PathBuf>,
     pub prefix: PathBuf,
+    /// `<archive>.tar.gz` / `<archive>.version` a new prefix is unpacked from.
+    archive: PathBuf,
     /// Compute everything but change nothing on disk.
     pub dry_run: bool,
     env: Vec<(String, String)>,
@@ -110,8 +112,9 @@ impl Wine {
             bail!("wine runner not found: {}", runner.display());
         }
         let prefix = config.path(&config.prefix);
+        let archive = if config.prefix_archive.as_os_str().is_empty() { prefix.clone() } else { config.path(&config.prefix_archive) };
         let dxvk_runner = (!config.dxvk_from.is_empty()).then(|| config.path(&config.runners_dir).join(&config.dxvk_from));
-        let mut wine = Wine { runner, dxvk_runner, prefix, dry_run, env: Vec::new(), overrides: Vec::new() };
+        let mut wine = Wine { runner, dxvk_runner, prefix, archive, dry_run, env: Vec::new(), overrides: Vec::new() };
 
         let lib32 = if config.lib32_dirs.is_empty() {
             existing_unique(&["/lib32", "/usr/lib32"])
@@ -529,7 +532,8 @@ impl Wine {
         Ok(())
     }
 
-    /// A prefix built elsewhere (`<prefix>.tar.gz`, winetricks verbs installed), unpacked when
+    /// A prefix built elsewhere (`<prefix>.tar.gz`, or the profile's `prefix_archive`, winetricks
+    /// verbs installed), unpacked when
     /// the prefix does not exist yet. Without its runner stamp, the runner update below rewrites
     /// what points into the runner of the machine that built it (font paths, links); verbs
     /// added since are installed by `apply_tricks` (`.wal-tricks` of the archive).
@@ -541,11 +545,12 @@ impl Wine {
     /// that have a prefix already, with no winetricks download there.
     fn unpack_prefix(&self) -> Result<()> {
         let name = self.prefix.file_name().unwrap_or_default().to_string_lossy().into_owned();
-        let archive = self.prefix.with_file_name(format!("{name}.tar.gz"));
+        let archive_name = self.archive.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let archive = self.archive.with_file_name(format!("{archive_name}.tar.gz"));
         if !archive.is_file() {
             return Ok(());
         }
-        let version = fs::read_to_string(self.prefix.with_file_name(format!("{name}.version")))
+        let version = fs::read_to_string(self.archive.with_file_name(format!("{archive_name}.version")))
             .ok()
             .map(|v| v.trim().to_string())
             .filter(|v| !v.is_empty());
@@ -800,7 +805,7 @@ mod tests {
         let prefix = root.join("prefix");
         let game = root.join("game");
         fs::create_dir_all(prefix.join("dosdevices")).unwrap();
-        let wine = Wine { runner: PathBuf::new(), dxvk_runner: None, prefix, dry_run: false, env: vec![], overrides: vec![] };
+        let wine = Wine { runner: PathBuf::new(), dxvk_runner: None, prefix: prefix.clone(), archive: prefix, dry_run: false, env: vec![], overrides: vec![] };
         let drives = [("f".into(), PathBuf::from("F")), ("g".into(), PathBuf::from("G"))].into();
         wine.map_game_drives(&drives, &game).unwrap();
         for (letter, data) in [("f", "primary settings"), ("g", "backup settings")] {

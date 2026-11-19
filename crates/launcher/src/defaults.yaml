@@ -31,6 +31,10 @@ runners_dir: wine-runners
 # A new prefix is unpacked from <prefix>.tar.gz when present (tools/prefix-archive.sh: no
 # winetricks downloads on the first start), else created from scratch.
 prefix: wine-prefix/full
+# Archive of a game's own prefix (<prefix_archive>.tar.gz and .version), empty: the prefix's
+# own (<prefix>.tar.gz). wine-prefix/full: an own prefix starts as a copy of the shared one,
+# its verbs preinstalled (no winetricks downloads on the first start), updated with it.
+prefix_archive: ""
 # New WoW64 mode (WINEARCH=wow64): 32-bit games use the 64-bit host libraries, no lib32
 # packages needed. false: classic mode, 32-bit games need 32-bit host libraries
 # (pulse, alsa, freetype... in lib32_dirs).

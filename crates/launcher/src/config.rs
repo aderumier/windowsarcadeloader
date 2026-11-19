@@ -47,6 +47,9 @@ pub struct Profile {
     pub runner: String,
     pub runners_dir: PathBuf,
     pub prefix: PathBuf,
+    /// Archive a new prefix is unpacked from (`<archive>.tar.gz`, `<archive>.version`), empty:
+    /// the prefix's own.
+    pub prefix_archive: PathBuf,
     pub payloads_dir: PathBuf,
     pub payload_install: Vec<String>,
     pub payload_loader: bool,
