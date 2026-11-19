@@ -3922,6 +3922,7 @@ dependencies = [
 name = "wal-payload-nesica"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "wal-payload-common",
  "wal-protocol",
  "windows-sys 0.61.2",

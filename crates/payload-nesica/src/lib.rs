@@ -21,6 +21,9 @@
 //!
 //! Gunslinger Stratos 2 / 3 (`WAL_NESICA_GAME=gunslinger`, 64-bit, `iDmacDrv64.dll`): `gunslinger.rs`.
 //!
+//! Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage (`WAL_NESICA_GAME=lovelive`,
+//! 64-bit, loaded at its executable's entry point): `lovelive.rs`.
+//!
 //! Tetote X Connect (Unity) is loaded at its executable's entry point; its native plugins'
 //! functions are the payload's (`tetote.rs`).
 
@@ -35,6 +38,9 @@ mod groovecoaster_server;
 mod gunslinger;
 mod hidmouse;
 mod lobby;
+mod lovelive;
+mod lovelive_player;
+mod lovelive_server;
 // 64-bit only (Magician's Dead; the Leap SDK's MSVC x64 names)
 #[cfg(target_pointer_width = "64")]
 mod leap;
@@ -108,6 +114,9 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if gunslinger::detected() {
             gunslinger::init();
+        }
+        if lovelive::detected() {
+            lovelive::init();
         }
         log!("nesica: initialized");
     }

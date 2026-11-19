@@ -1,0 +1,80 @@
+# Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage (Square Enix / Taito,
+# NESiCAxLive, Type X4, 2018) - template, override values in
+# userprofiles/nesica/love-live-school-idol-festival-after-school-activity-next-stage.yaml.
+# ll3.exe (2.4.1.000 JPN, 64-bit, Direct3D 11): the satellite (rhythm game) cabinet. Its I/O
+# board (nine rhythm buttons, DECIDE / CANCEL, the test panel, coins, the NESiCA reader) is a
+# WinUSB device, COM2 the Type X4 watchdog; NESiCA play with the payload's title server (the
+# players' saves in WindowsLoader/lovelive of the game folder). The payload's lovelive.rs,
+# lovelive_server.rs, lovelive_player.rs (docs §6.2 "Love Live!").
+system: nesica
+name: "Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage"
+
+# loaded at the executable's entry point (the game imports no Taito driver)
+payload_loader: true
+
+# the cabinet's ll3.bat: its window mode, the screen's size (a borderless window over the whole
+# screen: WAL_WINDOW_POPUP)
+args: [-highquality, -singlemonitor, -windowmode, -wx, "0", -wy, "0", -sw, "{screen_width}", -sh, "{screen_height}"]
+
+env:
+  WAL_NESICA_GAME: lovelive
+  # Japanese text (Shift-JIS converted by the game)
+  WAL_ANSI_CODEPAGE: "932"
+  # the NESYS certificate's server: the title server's address (the game appends /basicinfo/)
+  WAL_NESICA_NESYS_HOST: http://127.0.0.1:37704
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_ACTIVE: "1"
+  # "0": no title server (a cabinet without network: guest play only)
+  WAL_LOVELIVE_SERVER: "1"
+  WAL_FREEPLAY: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Credits are free (the test menu's free play). Off: the game's own setting.
+      - key: WAL_LOVELIVE_SERVER
+        label: Title server
+        kind: bool
+        description: >-
+          The loader's title server: NESiCA play (the card input, or the GUI's NESiCA card
+          touched within 20 s of a button), the player's name, level, cards and scores kept.
+          Off: guest play only.
+
+# Touch: a touchpad or touchscreen (all its fingers, the whole pad is the picture) and the mouse
+# (left button) press the rhythm button of the note target touched, the nine circles of a song's
+# arc (the mouse's position on the pedal axes).
+input:
+  touch: true
+  guns_enabled: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: kp0
+
+# The arc of nine buttons on a pad: L2 L1 d-pad left / down (1-4), d-pad up (5), A B (6, 7),
+# R1 R2 (8, 9); start DECIDE, d-pad right CANCEL.
+controls:
+  b8: Rhythm button 1
+  b4: Rhythm button 2
+  left: Rhythm button 3
+  down: Rhythm button 4
+  up: Rhythm button 5
+  b5: Rhythm button 6
+  b6: Rhythm button 7
+  b3: Rhythm button 8
+  b7: Rhythm button 9
+  start: Decide
+  right: Cancel
+  b1: Select (test menu)
+  b2: Enter (test menu)
+  coin: Coin
+  service: Service
+  test: Test
+  card: NESiCA card
+  accel: Touch position (x)
+  brake: Touch position (y)
+  kp0: Touch a note target

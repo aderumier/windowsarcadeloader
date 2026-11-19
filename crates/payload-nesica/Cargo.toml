@@ -12,6 +12,8 @@ crate-type = ["cdylib"]
 [dependencies]
 wal-protocol = { path = "../protocol" }
 wal-payload-common = { path = "../payload-common" }
+# the Love Live title server's session cipher (lovelive_server.rs)
+aes = "0.8"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",

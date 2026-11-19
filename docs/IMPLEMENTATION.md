@@ -1009,6 +1009,56 @@ continues), attract in free play with its movies (BYKING intro, gs3_pv1), a gues
 screen, character, mode and course select, briefing, the mission: moving, aiming, shooting).
 NESiCA play unavailable (no game server).
 
+#### Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage (Type X4, 64-bit)
+
+Square Enix / Taito, 2018, `ll3.exe` 2.4.1.000 JPN (64-bit, Direct3D 11), the satellite (rhythm
+game) cabinet. Profile `nesica/love-live-school-idol-festival-after-school-activity-next-stage`,
+`WAL_NESICA_GAME=lovelive` (`lovelive.rs`, `lovelive_server.rs`, `lovelive_player.rs`). The game
+imports no Taito driver: `payload_loader` (the payload installed as `iDmacDrv64.dll`, loaded at
+the entry point by wal-loader64).
+
+* **I/O board** (error 3 without it): a WinUSB device (static `winusb.dll` imports, hooked),
+  the interface {46C3136F-0FD5-4973-BC5A-F4A9F3528139} (`SetupDiGetClassDevsA`, opened with
+  `CreateFileA`), device descriptor VID 0x0AE4 PID 0x0901 bcdDevice 0x0032 (read as BCD 32),
+  bulk pipes 0x81 / 0x02, 64-byte reports. Read: byte 6 bits 0-6 rhythm buttons 1-7, 0x80
+  ENTER; byte 4: 0x01 / 0x02 buttons 8 / 9, 0x04 CANCEL, 0x08 DECIDE, 0x10 SELECT, 0x20 TEST,
+  0x40 SERVICE, 0x80 COIN; bytes 12-13 the coin counter (14 bits), 14-15 the last decrement
+  applied (the game resends its decrement, written report bytes 0x0C-0x0D, until it is echoed);
+  byte 0x28 the NESiCA reader (0x11: a card, its 16-character id at 0x30). Written: byte 0x28 bit
+  6 a card read wanted. The board layout matches taitools' `ll3hook` (public domain).
+* **COM2** is the Type X4 watchdog (`Tx4Wdt`, JVS framing: `01` status, `05` timeout, `04`
+  start, `01` every frame), answered OK by `rfid.rs`'s port; no reader there.
+* **NESiCA card**: the game polls the reader in its attract too: the card input's card, or with
+  `WAL_NESICA_CARD_AUTO=1` (the GUI's card) the card only within 20 s of a player's button. The
+  game then sends NESYS card select data type 0; the reply's data must be exactly the 16
+  characters of the card (else the title server's `auth` gets empty ids).
+* **Touch**: the game reads Windows touches (`RegisterTouchWindow`, `WM_TOUCH`; contacts cleared
+  every frame, id 0 skipped; a touch device check over the HID class), but its satellite screens
+  act on none (the touch panel is the center terminal's). The touch surface's fingers (the whole
+  touchpad is the picture) and the mouse's left button (`kp0`, its position on the pedal axes)
+  press the rhythm button of the note target touched instead: the nine circles of a song's arc,
+  button 1 the top left one along the arc to button 9 the top right one (verified: buttons 1-4
+  judge the left circles), within 0.11 of the picture height.
+* **Free play** (the common option): the settings block (`*(*(+0xB4CD78) + 0x20)`, from
+  `D:\LL3\setting_ls4_satellite.dat`), free play at +0x5C, kept every 250 ms.
+* **Title server** (`lovelive_server.rs`, port of LLServer, BocuD, MIT): the NESYS certificate's
+  trailing string is the server's URL as is (`WAL_NESICA_NESYS_HOST=http://127.0.0.1:37704`, the
+  game appends `/basicinfo/`); the terminal id is the NESYS adapter MAC (12 characters, else no
+  request). `basicinfo` answers its JSON (`base_url`, `download_url`, `key`, `iv`,
+  `tenpo_index`) as one RSA-2048 block (PKCS#1 type 1, private key): the game decrypts it with the
+  PEM public key of its executable (+0x596600), replaced at start by LLServer's (same length).
+  Then `unlock`, `gameconfig`: the network icon green. Game requests on `/game`: AES-128-CFB
+  (key the first 16 characters of `key`, IV `iv`, PKCS#7), JSON `{protocol, param, sessionkey,
+  terminal}` answered `{result, response}` by `lovelive_player.rs` (LLServer's 30 protocols: auth,
+  userdata get / initialize / set, gameentry, gameresult, gametotalresult, gameexit, travel,
+  achievements, gacha, prints...). Players in `D:\lovelive\<card id>.json`. `WAL_LOVELIVE_SERVER=0`:
+  no server (guest play, "NESiCA cannot be used now"); `WAL_LOVELIVE_SERVER_LOG=1`: every request.
+
+Verified headless: boot, attract (the server's ranking), test menu, I/O tests (all nine buttons,
+DECIDE, CANCEL, SELECT, ENTER), free play, guest play into a song, NESiCA play: a new card's
+registration, a credit of two songs (results, total result, exit, the player saved: level, exp,
+lives, history) and the returning card (`userdata.get`, no registration).
+
 ### 6.2b NESiCAxLive 2 (system `nesica2`, `crates/payload-nesica/src/nxl2.rs`)
 
 NESiCAxLive 2 games (Million Arthur Arcana Blood) import `NxL2Core.dll` instead of the FastIO
@@ -9070,6 +9120,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `groove-coaster-2` | Groove Coaster 2: Heavenly Festival | nesica | user 100% (2026-11-16), boosters, NESiCA card (registration, saves), free play | Type X3 portrait rhythm game (§6.2): windowed 9:16 with black bezel, GetAdaptersInfo MAC for the LAN link, update downloader answered (NESYS thread deadlock under Wine), Type X3 reader with C:\TypeXZEROTemp.dat, the boosters on FastIO, free play patch, Groove Coaster card server (registration, player, song records, settings) |
 | `gunslinger-stratos-2` | Gunslinger Stratos 2 | nesica | user 100% (2026-11-17), G devices, two lightguns, free play, intro and attract movies; NESiCA play unavailable (no game server) | Type X3 64-bit twin-gun game (§6.2): x86_64 iDmacDrv64.dll, the two 2D sensor boards on COM1/COM3 (aim, triggers), levers and buttons on FastIO, two lightguns, reader bus reset fix, time mode kept off for free play, movies through GE quartz/msrle32 fixes (0123-0125) |
 | `gunslinger-stratos-3` | Gunslinger Stratos 3 | nesica | works (headless tests: first boot G device setup, test menu, attract with its movies, free play, guest play into a mission); NESiCA play and voice chat unavailable (no game servers) | Gunslinger Stratos 2's cabinet (§6.2): the same G devices and FastIO, the headset amplifier on COM4 emulated, the sound engine's "スピーカー" device name match patched (sound device error 10000008), the voice chat HUD skipped (no server: red box), free play in its settings object (+0x100) |
+| `love-live-school-idol-festival-after-school-activity-next-stage` | Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage | nesica | works (headless tests: test menu and I/O tests, free play, guest play, NESiCA play with the payload's title server: registration, a credit of two songs saved, returning card) | the WinUSB I/O board (buttons, coins, NESiCA reader), the watchdog on COM2, free play in its settings block, the title server (LLServer port: RSA basicinfo with the game's key replaced, AES /game), NESYS card select 16-byte id (§6.2) |
 | `mario-and-sonic-at-tokyo-2020-olympic-games` | Mario & Sonic at the Tokyo 2020 Olympic Games | alls | user 100% (2026-11-08) | the first ALLS game with its own amdaemon (§6.3l): SystemProperty registry, keychip ioctls, IO4 board, LED board 15093 COM1, sysfile.dat DIP switches and free play, ALL.Net answers, Japan clock, amRtc sync patch, portrait 1080x1920 with the dump's bezel |
 | `house-of-the-dead-scarlet-dawn` | The House of the Dead: Scarlet Dawn | alls | user 100% (2026-11-08), 2 guns | UE 4.18 with its 2018 amdaemon (§6.3l, `WAL_ALLS_BOARD=hotd`): generated ICF (platform ACA1), gun sensor board COM1 (aim, triggers, reload off screen), graphics options in Engine.ini (render scale, FSR), gore restoration rebuilt as a patch pak (`WAL_HOTD_GORE`), 16:9 desktop stretched on 4:3 screens |
 | `sega-world-drivers-championship` | Sega World Drivers Championship | alls | user-tested (2026-11-08): power-on test all GOOD, card registration with name entry, a race, the save, the returning player's licence | ALLS with amdaemon (§6.3l, `WAL_ALLS_BOARD=swdc`): wheel I/O board, Aime reader (automatic card), FFB / LED / dashboard boards, main cabinet LAN, English translation, AimeDB and its game server (player saves) |

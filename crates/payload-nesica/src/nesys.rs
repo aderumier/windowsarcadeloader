@@ -540,6 +540,14 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             if card.is_empty() && u32_at(data, 16) == CARD_DETAIL_READ {
                 card = b"<?xml version='1.0' encoding='UTF-8'?>\r\n<root>\r\n\t<card_detail>\r\n\t</card_detail>\r\n</root>\r\n".to_vec();
             }
+            // Love Live! (data type 0, the card service's read): the card's physical NESiCA id,
+            // exactly its 16 characters (other sizes: the game's ids left empty); its title
+            // server keeps the player
+            if u32_at(data, 16) == 0 && crate::lovelive::detected() {
+                let id = data.get(..16).unwrap_or_default();
+                send(pipe, CARD_SELECT_REPLY, &Out::default().u32(1).u32(100).u32(100).u32(16).bytes(id).0);
+                return;
+            }
             if u32_at(data, 16) == CARD_XML_READS[0].0 && !card.is_empty() {
                 card = with_player_name(card);
             }
