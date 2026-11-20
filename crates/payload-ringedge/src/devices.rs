@@ -63,6 +63,8 @@ const SMBUS_PATH: &str = "\\\\.\\mxsmbus";
 /// The real handle of `\\.\mxsram` (the SRAM file).
 static SRAM_HANDLE: AtomicUsize = AtomicUsize::new(0);
 static EEPROM: Mutex<Option<std::fs::File>> = Mutex::new(None);
+/// The EEPROM's credit record reads FREE PLAY ([`free_play_record`]).
+static FREE_PLAY_RECORD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// `WAL_RINGEDGE_BOARD=ringedge2`: a RingEdge 2 board.
 fn ringedge2() -> bool {
@@ -132,6 +134,11 @@ pub(crate) fn init() {
             }
             write_static_record(&f);
             write_game_settings(&f);
+            // the common free play option through the system menu's credit settings
+            if std::env::var("WAL_RINGEDGE_FREEPLAY_EEPROM").is_ok_and(|v| v.trim() == "1") && wal_payload_common::free_play("WAL_RINGEDGE_FREEPLAY") == Some(true) {
+                FREE_PLAY_RECORD.store(true, std::sync::atomic::Ordering::Relaxed);
+                write_free_play_record(&f);
+            }
             *EEPROM.lock().unwrap() = Some(f);
         }
         Err(e) => log!("devices: cannot open {eeprom}: {e}"),
@@ -419,6 +426,7 @@ fn smbus_block(req: &[u8], out: &mut [u8]) -> usize {
                     let buf = &mut out[7..7 + len];
                     buf.fill(0xFF);
                     let _ = f.read(buf);
+                    free_play_record(register, buf);
                 }
                 8 => {
                     let _ = f.write_all(&req[7..7 + len]);
@@ -432,6 +440,44 @@ fn smbus_block(req: &[u8], out: &mut [u8]) -> usize {
     }
     smbus_trace("block", req, &out[..n]);
     n
+}
+
+/// `WAL_RINGEDGE_FREEPLAY_EEPROM=1` with the common free play option (`WAL_RINGEDGE_FREEPLAY`,
+/// else `WAL_FREEPLAY`): the EEPROM's credit record (amSysData record 1 at 0x20, its copy at
+/// 0x220, 32 bytes: CRC-32 of bytes 4-31, then the system menu's credit settings) with FREE
+/// PLAY on (byte 0xa, amCredit's configuration copied at amCreditInit: its coin and credit
+/// checks skipped), written at start (a new EEPROM: amLib's default settings, as maimai GreeN
+/// writes them, with it) and read so ([`free_play_record`]: a later change in the system menu).
+/// Off: the system menu's setting.
+fn write_free_play_record(mut f: &std::fs::File) {
+    let mut record = [0u8; 32];
+    if f.seek(SeekFrom::Start(0x20)).and_then(|_| f.read_exact(&mut record)).is_err() || u32::from_le_bytes(record[..4].try_into().unwrap()) != crc32(&record[4..]) {
+        record = [0; 32];
+        record[8..24].copy_from_slice(&[0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
+    }
+    record[0xa] = 1;
+    let crc = crc32(&record[4..]);
+    record[..4].copy_from_slice(&crc.to_le_bytes());
+    for at in [0x20, 0x220] {
+        if f.seek(SeekFrom::Start(at)).and_then(|_| f.write_all(&record)).is_err() {
+            log!("devices: cannot write the EEPROM's credit record");
+            return;
+        }
+    }
+    log!("devices: free play (the EEPROM's credit record)");
+}
+
+/// The credit record read with FREE PLAY on ([`write_free_play_record`]), its CRC made again.
+fn free_play_record(register: usize, record: &mut [u8]) {
+    if !FREE_PLAY_RECORD.load(std::sync::atomic::Ordering::Relaxed) || !matches!(register, 0x20 | 0x220) || record.len() != 32 {
+        return;
+    }
+    if u32::from_le_bytes(record[..4].try_into().unwrap()) != crc32(&record[4..]) || record[0xa] == 1 {
+        return;
+    }
+    record[0xa] = 1;
+    let crc = crc32(&record[4..]);
+    record[..4].copy_from_slice(&crc.to_le_bytes());
 }
 
 /// The PCA9535 I/O expander of the main board (amDipsw).

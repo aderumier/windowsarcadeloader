@@ -24,11 +24,11 @@ const ESC: u8 = 0xD0;
 /// The board's address when the host broadcasts (one board).
 const BOARD: u8 = 1;
 
-/// Each port's bytes not answered yet (CHUNITHM: two boards).
-static RX: [Mutex<Vec<u8>>; 2] = [Mutex::new(Vec::new()), Mutex::new(Vec::new())];
+/// Each port's bytes not answered yet (CHUNITHM: two boards; maimai: four).
+static RX: [Mutex<Vec<u8>>; 4] = [Mutex::new(Vec::new()), Mutex::new(Vec::new()), Mutex::new(Vec::new()), Mutex::new(Vec::new())];
 static RESPONSES: AtomicBool = AtomicBool::new(true);
 /// Each port's board is an 837-15070 (Initial D THE ARCADE, KanColle Arcade); in its boot loader.
-static BOARD_15070: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(false)];
+static BOARD_15070: [AtomicBool; 4] = [AtomicBool::new(false), AtomicBool::new(false), AtomicBool::new(false), AtomicBool::new(false)];
 static BOOT_15070: AtomicBool = AtomicBool::new(false);
 
 const EEPROM: &str = "Y:\\idac\\led15070.eeprom";
@@ -254,6 +254,14 @@ fn packet_second(data: &[u8]) -> Vec<u8> {
     port_packet(1, data)
 }
 
+fn packet_third(data: &[u8]) -> Vec<u8> {
+    port_packet(2, data)
+}
+
+fn packet_fourth(data: &[u8]) -> Vec<u8> {
+    port_packet(3, data)
+}
+
 /// The board on `port` (`COM1`; Sega World Drivers Championship's indicator LEDs: `COM2`).
 pub fn init(port: &str) {
     serial::install(port, packet);
@@ -263,6 +271,16 @@ pub fn init(port: &str) {
 pub fn init_pair(first: &str, second: &str) {
     serial::install(first, packet);
     serial::install(second, packet_second);
+}
+
+/// Up to four 837-15070 boards, one per port (maimai GreeN: its two players' LED boards on
+/// `COM5`-`COM8`).
+pub fn init_15070_ports(ports: &[&str]) {
+    let handlers: [fn(&[u8]) -> Vec<u8>; 4] = [packet, packet_second, packet_third, packet_fourth];
+    for (i, (port, handler)) in ports.iter().zip(handlers).enumerate() {
+        BOARD_15070[i].store(true, Ordering::Relaxed);
+        serial::install(port, handler);
+    }
 }
 
 /// An 837-15070 board on `port` (Initial D THE ARCADE: `COM2`).

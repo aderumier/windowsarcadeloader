@@ -1,0 +1,157 @@
+# maimai GreeN (Sega RingEdge 2, Direct3D 9), Chinese edition (舞萌), game id SBYC, 1.01.00: a
+# rhythm game played on 8 buttons around a round touch screen, two players side by side. Runs
+# maimai_dump_.exe (the unpacked maimai.exe, protector-packed).
+# amLib is linked in (no amdaemon): the RingEdge payload emulates the system (keychip, SMBus
+# EEPROM, the JVS I/O board, the amAuth/amMaster services) in the game's process, plus the
+# game's touch sensors and LED boards (WAL_RINGEDGE_MAIMAI, crates/payload-ringedge/src/maimai.rs).
+# Override values in userprofiles/ringedge/maimai-green.yaml.
+system: ringedge
+name: maimai GreeN
+
+# two RingEdge games can't run at once (amLib binds the fixed pcp ports 40100-40191 on
+# 127.0.0.1): a prefix of its own, unpacked from the shared prefix's archive
+prefix: wine-prefix/maimai-test
+prefix_archive: wine-prefix/full
+
+# the game's settings (its TemporaryConfigGame.txt, read at start): the dump's, with
+# - WINDOW_SIZE 2160x1920: the cabinet's two portrait 1080x1920 monitors side by side (each
+#   player's circle the lower square of that monitor; the dump's 1920x1080 squeezed both)
+# - NOSERIAL 0: the touch sensors on COM3 (the dump's 1 ignored them)
+# - ENABLE_INNER_TOUCH 0, MOUSE_VISIBLE 0: no touch emulated by the game's own mouse code, no
+#   cursor
+# - BUTTON_TESTSERVICE_EMULATE 0: the main board's TEST / SERVICE switches (the dump's 1 took
+#   them from a button combination)
+# The dump's OFFLINE_MODE 1 / DUMMY_GAME_SERVER 1 stay: the Chinese edition's server
+# (ch.maimai-net.com/maimai/api) is not ALL.Net's MaimaiServlet ARTEMiS serves; players play as
+# GUEST.
+files:
+  TemporaryConfigGame.txt: systemprofiles/ringedge/files/maimai-green/TemporaryConfigGame.txt
+
+env:
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip's game id and the DS28CN01 challenge file amDongle checks against (shipped in
+  # the dump)
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBYC
+  WAL_RINGEDGE_DS_FILE: data/SBYC_Table.dat
+  # the test menu (the test switch: the game hands over to application 3): maimai.exe gametest
+  # (gametest.bat)
+  WAL_RINGEDGE_FOREGROUND: 3=gametest
+  # the JVS I/O board's features the game requires (JvsNode spec check FUN_00682ce0, else
+  # "JVS I/O board does not fulfill the game spec", error 6402): at least 4 switches, 6 analog
+  # channels (unused: declared, fixed values) and 6 general purpose outputs (its button lamps)
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ","
+  WAL_TYPEX_JVS_OUTPUTS: "32"
+
+  # free play (the common option): the system menu's FREE PLAY, in the EEPROM's credit record
+  # (devices.rs): "FREE PLAY" shown, games started without coins
+  WAL_RINGEDGE_FREEPLAY_EEPROM: "1"
+
+  # maimai's devices (maimai.rs): the LED boards on COM5-COM8, the touch sensors on COM3
+  WAL_RINGEDGE_MAIMAI: "1"
+  # player 1's Aime reader on COM2: segatools' generation 1 (TN32MSEC003S, aimelib 3.01)
+  WAL_AIME_READER: tn32
+
+  # full screen: the game's 2160x1920 picture (two portrait screens) scaled to the screen,
+  # aspect kept, in a borderless window
+  WAL_D3D9_WINDOWED_SIZE: 2160x1920
+  WAL_D3D9_ASPECT: "9:8"
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the coins and credits of the system test menu.
+
+# the 8 buttons around each screen: the JVS board's switches (maimai.rs inverts them, active low)
+native_map:
+  b1: right
+  b2: left
+  b3: btn2
+  b4: btn3
+  b5: btn4
+  b6: btn5
+  b7: btn6
+  b8: btn7
+  up: none
+  down: none
+  left: none
+  right: none
+  start: none
+
+# the touch screens: a touchpad or touchscreen (the fingers), the mouse (its position, the left
+# button) or the left stick with kp0, on either player's screen. Buttons 1-8 clockwise from the
+# top right of the circle.
+input:
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: kp0
+  # the right half of the ring on R1 Y B A (1-4), the left half on d-pad down / left / up and L1
+  # (5-8); R2 the touch
+  gamepad:
+    r1: b1
+    y: b2
+    b: b3
+    a: b4
+    dpdown: b5
+    dpleft: b6
+    dpup: b7
+    l1: b8
+    r2: kp0
+  # the keyboard (segatools' maimai keys): W E D C X Z A Q player 1's buttons 1-8, the keypad's
+  # 8 9 6 3 2 1 4 7 player 2's; 5 coin, F1 service, F2 test (the defaults)
+  keyboard:
+    p1:
+      KEY_W: b1
+      KEY_E: b2
+      KEY_D: b3
+      KEY_C: b4
+      KEY_X: b5
+      KEY_Z: b6
+      KEY_A: b7
+      KEY_Q: b8
+      KEY_V: none
+    p2:
+      KEY_R: none
+      KEY_F: none
+      KEY_D: none
+      KEY_G: none
+      KEY_A: none
+      KEY_S: none
+      KEY_Q: none
+      KEY_W: none
+      KEY_KP8: b1
+      KEY_KP9: b2
+      KEY_KP6: b3
+      KEY_KP3: b4
+      KEY_KP2: b5
+      KEY_KP1: b6
+      KEY_KP4: b7
+      KEY_KP7: b8
+    p4:
+      KEY_KP8: none
+      KEY_KP2: none
+      KEY_KP4: none
+      KEY_KP6: none
+
+controls:
+  b1: Button 1 (top right)
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4
+  b5: Button 5 (bottom left)
+  b6: Button 6
+  b7: Button 7
+  b8: Button 8
+  lx: Touch position
+  ly: Touch position
+  kp0: Touch
+  coin: Coin
+  service: Service
+  test: Test

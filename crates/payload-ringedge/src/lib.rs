@@ -29,6 +29,7 @@ mod happy_playground;
 mod iccard;
 mod gunman;
 mod lamp;
+mod maimai;
 mod microtouch;
 mod mouse;
 mod pcp;
@@ -104,6 +105,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         diva::init();
         wal_payload_common::elo::init();
         lamp::init();
+        // maimai GreeN's LED boards, touch sensors and Aime readers (WAL_RINGEDGE_MAIMAI=1)
+        maimai::init();
         // the serial ports the SetupDi enumeration lists (WAL_RINGEDGE_COMPORTS)
         wal_payload_common::comports::init();
         // the touch pointer of the touch screen games (the common crosshair option, `WAL_CROSSHAIR`)
