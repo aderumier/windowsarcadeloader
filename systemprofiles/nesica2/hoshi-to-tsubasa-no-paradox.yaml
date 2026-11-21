@@ -1,0 +1,165 @@
+# Hoshi to Tsubasa no Paradox (Square Enix / Byking, NESiCAxLive 2, 2016-2020, 64-bit Unreal
+# Engine 4.16) - template, override values in userprofiles/nesica2/hoshi-to-tsubasa-no-paradox.yaml.
+# AcrGame-Win64-Shipping.exe 1.1.5.0: the mech cockpit cabinet (two levers with triggers,
+# buttons and a weapon wheel, two pedals, a touch screen under the main monitor). The payload's
+# galaxy.rs (docs §6.2b "Hoshi to Tsubasa no Paradox").
+system: nesica2
+name: Hoshi to Tsubasa no Paradox
+
+# The cabinet's two USB I/O boards (levers, pedals, buttons, coins, the NESiCA reader) are reached
+# through AcrGame\Binaries\Win64\GALAXYIO.dll (LoadLibrary + GetProcAddress): the payload replaces
+# it and is started by wal-loader before the game (its NESYS service and input filters).
+payload_install: [WindowsNoEditor/AcrGame/Binaries/Win64/GALAXYIO.dll]
+payload_loader: true
+
+env:
+  # The cabinet's D: drive, as dumped (the test menu's settings and calibration, the game's data
+  # tables, its book keeping).
+  WAL_NESICA_DDRIVE: ..\..\..\..\D DRIVE CONTENTS
+  WAL_FREEPLAY: "1"
+  # The attract's sound (the test menu's demo sound, off in the dump), 0-100.
+  WAL_GALAXY_DEMO_VOLUME: "100"
+  # The touch screen (the sub monitor) drawn in a corner of the main picture.
+  WAL_GALAXY_SUB_SIZE: "34"
+  WAL_GALAXY_SUB_PLACE: top-left
+  # The game makes its main window a framed 1920x1080 one: a borderless window over the whole
+  # screen instead (the sub monitor's window, owned by it, is left as it is).
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # The picture's cost: Unreal's scalability (3: the cabinet's) and the 3D resolution (percent).
+  WAL_GALAXY_QUALITY: "3"
+  WAL_GALAXY_SCREEN_PERCENTAGE: "100"
+  # the NESiCA card touched by itself when the game asks for one (the player's progress kept on
+  # it, by the loader's game server)
+  WAL_NESICA_CARD_AUTO: "1"
+  # "0": no game server (the game plays offline: guest play only, computer players)
+  WAL_GALAXY_SERVER: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Credits are free (the test menu's free play). Off: the game's own setting.
+      - key: WAL_GALAXY_DEMO_VOLUME
+        label: Attract sound
+        kind: number
+        min: 0
+        max: 100
+        description: >-
+          The attract's sound volume (the test menu's demo sound). 0: silent attract.
+  - title: Graphics
+    options:
+      - key: WAL_GALAXY_QUALITY
+        label: Quality
+        kind: number
+        min: 0
+        max: 3
+        description: >-
+          Unreal's scalability (shadows, effects, post processing, textures...): 3 the cabinet's,
+          0 the fastest.
+      - key: WAL_GALAXY_SCREEN_PERCENTAGE
+        label: 3D resolution
+        kind: number
+        min: 25
+        max: 100
+        description: >-
+          The 3D scene's resolution in percent of the screen's (the interface stays sharp). Lower
+          is faster on a weak GPU.
+  - title: NESiCA card
+    options:
+      - key: WAL_NESICA_CARD_AUTO
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          The NESiCA card is touched by itself when the game asks for one (the pilot, partner,
+          robot and progress kept). Off: touch it with the card button, or play as a guest.
+      - key: WAL_GALAXY_SERVER
+        label: Game server
+        kind: bool
+        description: >-
+          The loader's game server: NESiCA play, the player's progress kept. Off: the game plays
+          offline (guest play only).
+  - title: Touch screen
+    options:
+      - key: WAL_GALAXY_SUB_SIZE
+        label: Size
+        kind: number
+        min: 10
+        max: 100
+        description: >-
+          The cabinet's touch screen (its sub monitor) drawn over the main picture: its height in
+          percent of the screen's.
+      - key: WAL_GALAXY_SUB_PLACE
+        label: Place
+        kind: choice
+        choices: [top-left, top-right, bottom-left, bottom-right, bottom, window]
+        description: >-
+          Where the touch screen is drawn. window: the game's own second window (a second
+          monitor), not drawn over the main picture.
+
+# The mouse is the touch screen's finger: its pointer on the pedal axes (the game reads none),
+# its whole range the touch screen, its left button touches. No touchpad (a laptop's palms
+# touched while playing on the keyboard).
+input:
+  # the pad's hotkey shows / hides the touch screen
+  gamepad:
+    guide: kp1
+  # the levers are the sticks, the d-pad the wheel and respawn: the left stick drives no d-pad
+  stick_as_dpad: false
+  guns_enabled: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: kp0
+  # The keyboard: I J K L are the left lever (move), the arrows the right one (the view), Q the
+  # weapon wheel, E respawn, R the AR skill, Tab shows / hides the touch screen; the other keys as
+  # every game: Shift / Space fire left / right, Ctrl / Alt the levers' second switches, Z V the
+  # left pedal, X C the right one, 1 touches, 5 coin. The launch ("push the levers forward") waits
+  # for both levers: I and Up together.
+  keyboard:
+    p1:
+      KEY_I: -ly
+      KEY_K: ly
+      KEY_J: -lx
+      KEY_L: lx
+      KEY_UP: -ry
+      KEY_DOWN: ry
+      KEY_LEFT: -rx
+      KEY_RIGHT: rx
+      KEY_Q: up
+      KEY_E: left
+      KEY_R: right
+      KEY_TAB: kp1
+
+# Pad: the levers on the sticks (left: move, right: view), fire on L1 / R1 (the levers'
+# triggers), the levers' second switches on X / Y, the pedals on L2 / R2 and A / B (left: boost
+# jump, right: dash, full drive), the AR skill (the left thumb button) on the d-pad's right, the
+# weapon wheel on its up / down, respawn on its left; the hotkey (guide) shows / hides the touch
+# screen; START touches the touch screen where the mouse points (the start button on the title,
+# "play without a card", the menus).
+controls:
+  lx: Left lever (x)
+  ly: Left lever (y)
+  rx: Right lever (x)
+  ry: Right lever (y)
+  b4: Fire left (left trigger)
+  b3: Fire right (right trigger)
+  b1: Left lever button
+  b2: Right lever button
+  b5: Left pedal
+  b8: Left pedal
+  b6: Right pedal
+  b7: Right pedal
+  right: AR skill (left thumb button)
+  up: Weapon wheel
+  down: Weapon wheel
+  left: Respawn
+  start: Touch the touch screen
+  kp0: Touch the touch screen (mouse)
+  kp1: Show / hide the touch screen
+  coin: Coin
+  service: Service
+  test: Test

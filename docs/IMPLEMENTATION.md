@@ -1305,6 +1305,105 @@ income mode 0x20, and (Million Arthur) HTTP posts 0x1B; later 0x4 game start, 0x
   results, character rank, missions, tutorials). Records `magiciansdead\<card>.json` in the D:
   data folder. National matches between cabinets (dedicated servers) are not available.
 
+**Hoshi to Tsubasa no Paradox (Square Enix / Byking, Unreal Engine 4.16, 64-bit, `galaxy.rs`,
+`subwindow_d3d11.rs`).** `AcrGame-Win64-Shipping.exe` 1.1.5.0 (its PDB in the dump: the names and
+types below). No `NxL2Core.dll`; the game's NESYS client (NesysClientPlugin) talks to the
+payload's pipe. Profile `nesica2/hoshi-to-tsubasa-no-paradox`, the D: drive the dump's
+`D DRIVE CONTENTS` (`WAL_NESICA_DDRIVE`).
+* I/O: the cabinet's two USB boards through `AcrGame\Binaries\Win64\GALAXYIO.dll` (`UGALAXYIOWrapper`,
+  `LoadLibrary` + `GetProcAddress`), replaced by the payload (`payload_install`, wal-loader).
+  `GALAXYIO_Update(IoBuffer*, int*)`, `GetStatus` 0x200. `IoBuffer`: +0 `InPort` (the 28 `EIoIN`
+  switches: SELECT, TEST, SERVICE, ENTER, COIN2/1 at 6/7, wheel encoder A/B, thumb pushes, the
+  two switches of each lever 12-15, RESPAWN 16, seat belt / sensor, emergency stop, safety
+  A/B/C 20-22, pedals 24-27; the game XORs 0x0F300000: safety and pedals active low), +4
+  `InAnalog[16]` (the sub board's [8..15]: thumb sticks, then the levers read inverted, 0xFFFF -
+  v, against the test menu's calibration `TestMode\Stick\StickData.json`: the payload sends the
+  pad's sticks inside it, signed for the axis mappings of `DefaultInput.ini`: right positive on
+  both X axes, forward positive on the left Y axis (`MoveForward`) and negative on the right one
+  (`LookUpRate`, scale 1 where the gamepad's is -1)), +0x24 `InEncoder[8]` ([4] the right lever's weapon wheel: the game
+  sums |steps| and changes weapon past 8 at once: 12 a press), +0xC0 `Coin[2]` (the count not yet
+  decremented: credits = count - credits held) and +0xC4 `CoinDec`, +0xC8 the NESiCA reader
+  (command 0xC2 reading, status 0x11 card / 0x20 none, serial at +0xD1). The game's start is
+  not a switch: the USBIO switches map only TEST, SERVICE and the coins to its UI; it starts by
+  the touch screen (its `OutGameStart` action is the development keyboard's Enter).
+* Cabinet check: the boards' tick (`UUSBIOTickableObject`, `UGALAXYIOWrapper::UpdateIOWrapper`:
+  the switches and levers turned into Unreal keys `USBIO_*`) starts only on a cabinet:
+  `ACPP_GameModeBoot::InitHardware` reads the game instance's flag +0x4B3 ("Not USBIO exist"
+  without it), set by `UCPP_GameInstance::OnViewportCreate` only for two monitors
+  (`CPP_MonitorResolutions::GetCaps`: `SM_CMONITORS` 2, one of them 1024x768, the main one
+  1920x1080). Without it the game read the boards (from its LED and motor setters) but no lever,
+  trigger or TEST reached it. The payload sets the flag (+0x2804F92). With it the boot checks
+  the motion seat (`ACPP_SeatDataCheck`, "可動シートに着座中です", the servos): the machine IDs 0
+  and 2-4 are seat cabinets, `UGALAXYIOWrapper::IsMachineSeat` (+0x2A0FF00) answers no.
+* NESiCA reception hours (the test menu's, 8:00 to 20:45 in the dump: "閉店中です" outside
+  them): `UTestModeWork::IsNesicaReceptionTime` (+0x27FF360) answers yes. Free play (common
+  option): `SystemFreePlay` of `TestMode\System\System.json` written at start. Coins count only
+  outside the boot sequence (`UUSBIOTickableObject::IsCreditUpdate`).
+* Game server (`galaxy_server.rs`, `WAL_GALAXY_SERVER`, default on): the game server's addresses
+  come from the NESYS certificate's server string (`FNesysServerInfoParser`: `key=value` cells,
+  `httphost`, `tcphost`, `env`; `nesys::GAME_SERVER` when the profile sets no
+  `WAL_NESICA_NESYS_HOST`). Without them the game plays offline: the card screen offers
+  "カードを使用せずプレイ" only (guest play, computer players). The payload's server (protocol
+  notes of ArcadeMachinist's StarwingParadox mock server, no code from it):
+  * HTTP on 127.0.0.1:37705, `POST /<api>`, form bodies (lists as JSON text), JSON answers with
+    `X-GALAXY-API-ID` echoed: `version` (client / data 70571), `resource` (the game data tables:
+    the cabinet's copies in `D:\Saved\ACRSaved\SaveData`, served as `GET /sw-data/<name>.csv`),
+    `player/profile/load` (by `nesys_id`, the card: created on first use, the arcade server's
+    defaults), `player/register`, `player/login`, `player/login_bonus`, `game_data/load`,
+    `game_data/load/mission`, `game_data/save` (each list merged by its keys: missions by
+    `mission_id`, mecha set parts by `mecha_set_id` + `part_id`...), `battle/record*`,
+    `matching/server`, `matching/match_id/generate`, `ranking/*` (empty); others `{"result": 1}`.
+    Records `galaxy\<card id>.json` in the D: data folder.
+  * The matching server (TCP 127.0.0.1:37706, `PbMessage` framing of the game's `message.proto`,
+    its descriptor in the executable): `Ping` answered `Pong` (`UOnlineObserverWork`'s WebServer
+    bit: offline without it), `RequestEntryMatching`, `RequestCancelMatching`; others `Response`
+    Ok.
+  * The card screen allows card play only with a network interface (`CheckInfoNESYS`: the shop
+    table and the LAN interface's MAC address): NESYS request 0x28 (`CLibMain::RequestNwifInfo`)
+    answered as 0x17 (adapter info, reply 0x11F: status, DHCP, gateway, IP, mask, DHCP server,
+    DNS, MAC strings of 32 bytes).
+  * The card: the GALAXYIO reader (`WAL_NESICA_CARD_AUTO`, default on: touched when the game
+    reads); then "このカードでよろしいですか？" (yes), the mode, a new player's warning, how to play,
+    player data, introduction and the first tutorial battle.
+* Window buttons (`UCPP_WindowButtonWidget`: the card screen's yes / no, the mode select...): a
+  type 1 button decides on a release only while hovered (+0x41B, `OnHoveredFunction`) and the
+  game listens on its click (+0x3B0, `OnClickedFunction`); Slate never hovers nor clicks it from
+  the payload's mouse (its press and release reach it). A press (`OnPressedFunction` +0x1E08910,
+  detour) hovers it first, its release (`OnReleasedFunction` +0x1E09480) clicks it, as a finger on
+  the cabinet's panel does.
+* Two windows: the main one (1920x1080) and the sub monitor's (the touch screen under it,
+  1024x768, a child window placed by `MakeChildWindow` on a second monitor when there is one).
+  One screen (`WAL_GALAXY_SUB_PLACE`, `WAL_GALAXY_SUB_SIZE`, default top left, 34% of the
+  height; `window`: left as the game makes it): the sub window is moved off the screen and its
+  picture composed into the main one (`wal_payload_common::subwindow_d3d11`: the source swap
+  chain's back buffer copied at its `Present`, drawn as a quad at the main one's). Slate's hit
+  test finds no widget in a window off the screen: `FSlateApplication::OnMovedWindow`
+  (+0x35024C0, detour) ignores the payload's move, and the sub window's `ClientToScreen` and the
+  cursor answer Slate's place for it (where the game made it).
+* Touch: the cabinet's panel is a mouse to the game (`SBumButton` acts on the cursor pointer
+  only, index 10; the child viewport turns left clicks into `ACPP_ChildPlayerController`
+  touches): left button messages posted to the sub window through the input filter
+  (`post_mouse`, `own_mouse`). The finger: a touchpad's (`input.touch`, the whole pad the sub
+  monitor), else `touch` (START, the mouse's left button `kp0`) at the pointer: the mouse (the
+  profile's `input.gun` on the pedal axes, its whole range the sub monitor; the main picture takes
+  no clicks; no stick or key moves it), drawn on the sub picture (a white square) for 3 s after a move. `SetWindowFeedbackSetting`
+  (absent from Wine, the game aborted) accepted; XInput answers no pad.
+* Movies (WmfMedia): the game seeks them while they play; the runner's winedmo emptied the
+  demuxer's reads while it seeked and the ASF demuxer lost the keyframe (`CP_HUD_v6.wmv`, one
+  keyframe: grey blocks to its end): GE-Proton patch `ge-video-rework/0116` (winedmo.dll rebuilt
+  in the runner). The HUD then holds its last frame while the cockpit scene loads (the game's).
+* Pad: levers on the sticks, their triggers (ShotL / ShotR) on L1 / R1, their second switches
+  (LButton, Step / RButton) on X / Y, pedals on L2 / R2 and A / B (left / right, both sensors),
+  the left thumb button (AR skill) on the d-pad's right (the right one is a second RButton), wheel
+  on the d-pad's up / down, respawn on left, START touches. Keyboard (profile): I J K L the left
+  lever, the arrows the right one, Q the wheel, E respawn, R the AR skill. The launch
+  ("レバーを前に倒して出撃！") waits for both levers forward, and the tutorial ignores the levers while its
+  instruction panels play. Verified headless (an input script; the tutorial's steps also pass on
+  their timers: the controller's `MoveInputMoveForward` / `MoveInputMoveRight` /
+  `MoveInputTurnRate` / `MoveInputLookUpRate` / `InputActionShotRPress` logged with each lever and
+  trigger): boot, attract (both pictures), the touch screen's start, guest play to the tutorial
+  battle, its Move panel's "Check 操作OK", flying, firing.
+
 **Street Fighter V Type Arcade (Unreal Engine 4, 64-bit, `sfv.rs`).** No `NxL2Core.dll`: the
 game's USBIOPlugin loads Taito's USB I/O library `StreetFighterV\Plugins\USBIOPlugin\UIO_AMIC.dll`
 (cdecl exports, `GetProcAddress`), replaced by the payload (`payload_install`, started by
@@ -8821,6 +8920,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `ultra-street-fighter-4` | Ultra Street Fighter 4 | nesica | works (user: 100%), opening video | key usf4, hide Microsoft dinput8 (blocks on raw HID devices), 6-button map |
 | `vampire-savior` | Vampire Savior: The Lord of Vampire | nesica | works (user) | NESYS on ("server not connected" when disabled) |
 | `yatagarasu` | Yatagarasu: Attack on Cataclysm | nesica | works (user: 100%), fullscreen with its side portraits, Japanese text | hide ReShade, `WAL_ANSI_CODEPAGE: 932`, language files with "MS Gothic" instead of "ＭＳ ゴシック" (`files`, fakejapanese: squares otherwise), picture drawn 854x480 in a 1280x720 back buffer and presented to 0,0 1280x720: `WAL_D3D9_WINDOWED_SIZE: 854x480` (also turns its fullscreen Reset windowed, drops the Present rectangles) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`) |
+| `hoshi-to-tsubasa-no-paradox` | Hoshi to Tsubasa no Paradox | nesica2 | works: NESiCA play (the loader's game server) and guest play; the touch screen drawn over the main picture, touched with the mouse (START or its button), shown / hidden with the pad's hotkey or Tab | `AcrGame-Win64-Shipping.exe` (Unreal 4.16, 64-bit) started by wal-loader; payload as `GALAXYIO.dll` (the two USB I/O boards, NESiCA reader); NESiCA hours, free play, the cabinet check and the game server (HTTP API + matching) from the payload; sub monitor window composed into the main one (Direct3D 11), Slate's place for it kept |
 | `magicians-dead` | Magician's Dead | nesica2 | works (user: 100%), NESiCA cards (new card registration, the loader's game server: profile and plays saved), tutorial and missions with computer players; Leap Motion hand from the right stick, the mouse or the touchpad | `BppGame-Win64-Shipping.exe` (Unreal 4.12, 64-bit) started by wal-loader; payload as `MAGIDEIO.dll` (I/O board, NESiCA reader) and `Leap.dll` (the Leap SDK 3.2 C++ API, a synthetic hand: shapes for the thumb flick, fist, L); grip controller = XInput pad; free play and NESiCA hours patched back (the dump's executable is another loader's build); game server `message.proto` (protobuf over TCP); no national matches |
 | `street-fighter-v` | Street Fighter V Type Arcade | nesica2 | works (user: 100%), NESiCA card (registration, play records saved), free play, arcade against the computer (one player per cabinet) | `StreetFighterV.exe` (Unreal 4, 64-bit) started by wal-loader; payload as `UIO_AMIC.dll` (Taito USB I/O: switches, EX buttons, coins, NESiCA reader); NESiCAxLive delivery paks from the dump's `Patch` folder at `C:\Patch`; `Culture=ja` written (Scaleform fonts); free play by the settings loader; card server XML (card, card_detail records, card_bdata) |
 | `million-arthur-arcana-blood` | Million Arthur Arcana Blood | nesica2 | works (user: 100%: training and story modes), NESiCA network connected | NxL2Core.dll replaced by the NESiCA payload (`nxl2.rs`: inputs, coins, settings, card), NESYS on with `ms`/`ss` in the certificate's server list (`WAL_NESICA_NESYS_HOST`), its HTTP card-service reads answered (`/root/match_conf`), native d3dx9_42 |

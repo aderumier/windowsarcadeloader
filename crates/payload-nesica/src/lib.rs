@@ -17,6 +17,8 @@
 //! Street Fighter V Type Arcade (Unreal) loads Taito's USB I/O library: this DLL is it
 //! (`sfv.rs`).
 //!
+//! Hoshi to Tsubasa no Paradox (Unreal) loads its I/O boards' DLL: this DLL is it (`galaxy.rs`).
+//!
 //! Groove Coaster 2 (`WAL_NESICA_GAME=groovecoaster`): `groovecoaster.rs`.
 //!
 //! Gunslinger Stratos 2 / 3 (`WAL_NESICA_GAME=gunslinger`, 64-bit, `iDmacDrv64.dll`): `gunslinger.rs`.
@@ -32,6 +34,11 @@
 mod crypttrace;
 mod drive;
 mod fastio;
+// 64-bit only (Hoshi to Tsubasa no Paradox)
+#[cfg(target_pointer_width = "64")]
+mod galaxy;
+#[cfg(target_pointer_width = "64")]
+mod galaxy_server;
 mod grip;
 mod groovecoaster;
 mod groovecoaster_server;
@@ -105,6 +112,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         #[cfg(target_pointer_width = "64")]
         if sfv::detected(module) {
             sfv::init();
+        }
+        #[cfg(target_pointer_width = "64")]
+        if galaxy::detected(module) {
+            galaxy::init();
         }
         if tetote::detected() {
             tetote::init();

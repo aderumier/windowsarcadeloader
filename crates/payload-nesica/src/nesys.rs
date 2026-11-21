@@ -47,6 +47,9 @@ mod cmd {
     pub const SET_INCOME_MODE_REQUEST: u32 = 0x20;
     pub const GAMESTATUS_RESET_REQUEST: u32 = 0x23;
     pub const ROW_EVENTDATA_LIST_REQUEST: u32 = 0x24;
+    // the network interface (`CLibMain::RequestNwifInfo` of later libraries: Hoshi to Tsubasa no
+    // Paradox's card screen allows card play only with its MAC address), answered as 0x17
+    pub const NWIF_INFO_REQUEST: u32 = 0x28;
     pub const GAME_FREE_START_REQUEST: u32 = 0x29;
     pub const GAME_FREE_END_REQUEST: u32 = 0x2A;
     pub const INCOME_FREE_START_REQUEST: u32 = 0x2B;
@@ -78,6 +81,10 @@ mod cmd {
     pub const GAMESTATUS_RESET_REPLY: u32 = 0x127;
     pub const ROW_EVENTDATA_LIST_REPLY: u32 = 0x128;
 }
+
+/// The certificate's server list of a game server the payload runs (Hoshi to Tsubasa no
+/// Paradox's `httphost=...,tcphost=...`), when the profile sets no `WAL_NESICA_NESYS_HOST`.
+pub(crate) static GAME_SERVER: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 const BUFFER: usize = 8192;
 const MAC: &str = "DEADBABECAFE";
@@ -457,7 +464,11 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             thread::sleep(Duration::from_millis(30));
             // the server's `key=value,...` list (`WAL_NESICA_NESYS_HOST`): KOF XIV also reads
             // `ms` and `ss` (NULL dereference without them)
-            let server = std::env::var("WAL_NESICA_NESYS_HOST").unwrap_or_else(|_| "card_id=7020392010281502".into());
+            // (else a game server's own, `GAME_SERVER`)
+            let server = std::env::var("WAL_NESICA_NESYS_HOST")
+                .ok()
+                .or_else(|| GAME_SERVER.get().cloned())
+                .unwrap_or_else(|| "card_id=7020392010281502".into());
             let news = "./WindowsLoader/news.png";
             let reply = Out::default()
                 // NESYS_TENPO_TABLE
@@ -653,7 +664,7 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
         GLOBALADDR_REQUEST => {
             send(pipe, GLOBALADDR_REPLY, &Out::default().u32(1).u32(0x1a6).str(&net("GLOBAL_IP", "127.1.3.37"), 16).0)
         }
-        ADAPTER_INFO_REQUEST => {
+        ADAPTER_INFO_REQUEST | NWIF_INFO_REQUEST => {
             let reply = Out::default()
                 .u32(1)
                 .u32(0) // DHCP disabled

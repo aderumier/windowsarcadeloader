@@ -148,6 +148,9 @@ pub mod images_d3d11;
 // a touch screen's pointer over Direct3D 11 pictures
 #[cfg(windows)]
 pub mod pointer_d3d11;
+// a second window's picture (a cabinet's second monitor) in the main one, Direct3D 11
+#[cfg(windows)]
+pub mod subwindow_d3d11;
 // parallel port force feedback boards (inpout32 Out32)
 pub mod port_ffb;
 #[cfg(windows)]
