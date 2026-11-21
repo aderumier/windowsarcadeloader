@@ -19,6 +19,7 @@
 
 #![allow(non_snake_case)]
 
+mod allnetproc;
 mod amlog;
 mod bbserver;
 mod card;
@@ -30,6 +31,7 @@ mod iccard;
 mod gunman;
 mod lamp;
 mod maimai;
+mod maimai_server;
 mod microtouch;
 mod mouse;
 mod pcp;

@@ -1,5 +1,6 @@
-//! maimai GreeN, game id `SBYC` (Sega RingEdge 2, Direct3D 9; the Chinese edition): the devices
-//! the base RingEdge payload does not already answer. Enabled by `WAL_RINGEDGE_MAIMAI=1`.
+//! maimai GreeN, game id `SBYC` (Sega RingEdge 2, Direct3D 9; the Chinese edition), and maimai
+//! FiNALE, `SDEY` (the same cabinet): the devices the base RingEdge payload does not already
+//! answer. Enabled by `WAL_RINGEDGE_MAIMAI=1`.
 //!
 //! - The LED boards: four 837-15070 boards (`E0 dest src len cmd... sum` frames, 115200 baud,
 //!   reset, EEPROM reads), two per player, on the first free ports from `COM5` on
@@ -17,7 +18,8 @@
 //!   A3 B3 A4 B4, A5 B5 A6 B6, A7 B7 A8 B8 C (bits 0-4; the touch sensor test's layout): A the
 //!   outer ring, B the inner ring, C the center, each A / B sensor the eighth of the ring facing
 //!   button `n` (button 1 right of the top, clockwise). No frame for 6 seconds: "Touch Sensor
-//!   Error".
+//!   Error". `WAL_RINGEDGE_MAIMAI_TOUCH_RUN=1`: streaming from the start (FiNALE looks for the
+//!   frames before any command: "Touch Sensor Not Found", error 3102, else).
 //!   The touches: the touch surface's fingers, else player 1's pointer (the mouse, or the left
 //!   stick) while kp0 is held (the profile maps the mouse button to it), on either player's
 //!   screen (the window shows both 1080x1920 screens side by side, `WAL_D3D9_ASPECT`); each
@@ -26,7 +28,8 @@
 //!   player (the profile's `native_map`), active low: their bits set while released
 //!   ([`buttons_released`]; every button reads pressed else). Button 5 is the entry (START).
 //! - Player 1's Aime reader on `COM2` (aimelib 3.01, generation 1: `WAL_AIME_READER=tn32`),
-//!   the card input touching it with the player's card (`WAL_RINGEDGE_AIME_CODE`).
+//!   the card input touching it with the player's card (`WAL_RINGEDGE_AIME_CODE`;
+//!   `WAL_RINGEDGE_AUTO_CARD=1`: touched by itself after the entry button).
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -164,6 +167,11 @@ fn aime(port: &str) {
     let exe = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) } as usize;
     sgreader::init(port, &[exe]);
     let code = access_code();
+    // `WAL_RINGEDGE_AUTO_CARD=1`: after button 5 (the entry), the card touched when the game polls
+    // the reader (3 s later: the entry screen's card prompt, not the attract)
+    if std::env::var("WAL_RINGEDGE_AUTO_CARD").is_ok_and(|v| v.trim() == "1") {
+        sgreader::card_on_poll_after_press(&code, std::time::Duration::from_secs(3), |p1| p1.pressed(button::B5));
+    }
     std::thread::spawn(move || {
         let mut held = false;
         loop {
@@ -177,14 +185,71 @@ fn aime(port: &str) {
     });
 }
 
+static EXIT_PROCESS: AtomicUsize = AtomicUsize::new(0);
+/// When player 1's test switch was last pressed (seconds since the payload's start), plus one.
+static TEST_PRESSED_AT: AtomicUsize = AtomicUsize::new(0);
+static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+/// The test menu's arguments (`WAL_RINGEDGE_MAIMAI_TEST_ARGS`).
+static TEST_ARGS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// `ExitProcess`: maimai FiNALE leaves on the test switch, the cabinet then starting its test
+/// menu (`maimai.exe gametest`, gametest.bat), and the test menu leaves when exited, the cabinet
+/// starting the game again (game.bat): the launcher starts it again with those arguments.
+unsafe extern "system" fn exit_process(code: u32) {
+    let args = TEST_ARGS.get().map_or("", |a| a.as_str());
+    let in_test_menu = std::env::args().skip(1).any(|a| a.eq_ignore_ascii_case(args));
+    let now = START.get().map_or(0, |s| s.elapsed().as_secs() as usize);
+    let pressed = TEST_PRESSED_AT.load(Ordering::Relaxed);
+    if in_test_menu {
+        log!("maimai: the test menu left: the game started again");
+        wal_payload_common::request_relaunch("");
+    } else if pressed != 0 && now + 1 - pressed <= 30 {
+        log!("maimai: the game left on the test switch: started again with '{args}'");
+        wal_payload_common::request_relaunch(args);
+    }
+    let real: unsafe extern "system" fn(u32) = unsafe { std::mem::transmute(EXIT_PROCESS.load(Ordering::Relaxed)) };
+    unsafe { real(code) }
+}
+
+/// The test menu's relaunch ([`exit_process`]), when `WAL_RINGEDGE_MAIMAI_TEST_ARGS` is set.
+fn test_relaunch() {
+    let Ok(args) = std::env::var("WAL_RINGEDGE_MAIMAI_TEST_ARGS") else { return };
+    let _ = TEST_ARGS.set(args.trim().to_string());
+    let _ = START.set(std::time::Instant::now());
+    let f = exit_process as *const () as usize;
+    // the game's own calls and its C runtime's exit
+    let mut hooked = unsafe { wal_payload_common::iat::hook("kernel32.dll", "ExitProcess", f) };
+    let crt = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleA(c"msvcr90.dll".as_ptr().cast()) } as usize;
+    if crt != 0 {
+        hooked = unsafe { wal_payload_common::iat::hook_module(crt, "kernel32.dll", "ExitProcess", f) }.or(hooked);
+    }
+    match hooked {
+        Some(o) => EXIT_PROCESS.store(o, Ordering::Relaxed),
+        None => return log!("maimai: ExitProcess not hooked: no test menu relaunch"),
+    }
+    std::thread::spawn(|| {
+        loop {
+            if input(0).pressed(button::TEST) {
+                TEST_PRESSED_AT.store(START.get().map_or(0, |s| s.elapsed().as_secs() as usize) + 1, Ordering::Relaxed);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    });
+}
+
 /// The game's devices, when `WAL_RINGEDGE_MAIMAI=1` (after the base payload's hooks).
 pub(crate) fn init() {
     if !std::env::var("WAL_RINGEDGE_MAIMAI").is_ok_and(|v| v.trim() == "1") {
         return;
     }
     wal_payload_common::led::init_15070_ports(&["COM5", "COM6", "COM7", "COM8"]);
+    // the stream running from the start (FiNALE's check at boot)
+    if std::env::var("WAL_RINGEDGE_MAIMAI_TOUCH_RUN").is_ok_and(|v| v.trim() == "1") {
+        HALTED.store(false, Ordering::Relaxed);
+    }
     serial::install_streaming("COM3", touch_packet, touch_stream);
     wal_payload_common::jvs_board::set_switches_hook(buttons_released);
     aime("COM2");
+    test_relaunch();
     log!("maimai: LED boards on COM5-COM8, touch sensors on COM3");
 }

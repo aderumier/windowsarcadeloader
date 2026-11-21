@@ -111,6 +111,15 @@ fn led_info() -> &'static [u8] {
 
 const NFC: u8 = 0x00;
 const LED: u8 = 0x08;
+/// Player 2's reader and LED board on the same line (`WAL_AIME_READER_2P=1`: maimai FiNALE
+/// resets address 1 at boot, "Aime Reader BAD" without an answer), never with a card.
+const NFC_2P: u8 = 0x01;
+const LED_2P: u8 = 0x09;
+
+fn second_reader() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var("WAL_AIME_READER_2P").is_ok_and(|v| v.trim() == "1"))
+}
 
 /// The unescaped frame (`len` .. the last body byte), its checksum checked.
 fn decode(bytes: &[u8]) -> Option<Vec<u8>> {
@@ -228,6 +237,10 @@ fn handle(bytes: &[u8]) -> Vec<u8> {
                 let reply = match req[1] {
                     NFC => nfc(&req),
                     LED => led(&req),
+                    // player 2's reader: polled, no card
+                    NFC_2P if second_reader() && req[3] == 0x42 => Some(answer(&req, 0, &[0])),
+                    NFC_2P if second_reader() => nfc(&req),
+                    LED_2P if second_reader() => led(&req),
                     _ => None,
                 };
                 out.extend(reply.unwrap_or_default());
@@ -241,6 +254,9 @@ fn handle(bytes: &[u8]) -> Vec<u8> {
 
 /// The reader on `port`, for the serial calls of `modules`.
 pub fn init(port: &str, modules: &[usize]) {
+    // read now: an environment lookup inside a hook sets the thread's last error
+    generation();
+    let second = second_reader();
     crate::serial::install_in(port, handle, modules);
-    log!("sgreader: Aime reader on {port}");
+    log!("sgreader: Aime reader on {port}{}", if second { ", player 2's beside it" } else { "" });
 }

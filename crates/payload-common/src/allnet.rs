@@ -105,8 +105,8 @@ pub fn set_game_server(address: String) {
     let _ = GAME_SERVER.set(address);
 }
 
-fn power_on(req: &[(String, String)]) -> String {
-    let format = value(req, "format_ver");
+/// The title server's URI the power-on hands out for the game `game_id`.
+pub fn title_uri(game_id: &str) -> String {
     let host = dns::dotted(dns::router());
     // the title server's URI (`WAL_ALLS_TITLE_URI`: an ABAAS game's GS server name, a bare host;
     // `{gs}` the payload's game server itself: Chrono Regalia's Mono sockets, not in the game
@@ -114,7 +114,14 @@ fn power_on(req: &[(String, String)]) -> String {
     // (O.N.G.E.K.I.'s title server, in amdaemon's ALL.Net server, reached from its Mono)
     let gs = GAME_SERVER.get().cloned().unwrap_or_default();
     let own = format!("127.0.0.1:{}", port());
-    let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).map(|u| u.replace("{router}", &host).replace("{gs}", &gs).replace("{allnet}", &own)).unwrap_or_else(|| format!("http://{host}/{}/", value(req, "game_id")));
+    let uri = std::env::var("WAL_ALLS_TITLE_URI").ok().filter(|u| !u.trim().is_empty()).map(|u| u.replace("{router}", &host).replace("{gs}", &gs).replace("{allnet}", &own)).unwrap_or_else(|| format!("http://{host}/{game_id}/"));
+    uri.trim().to_string()
+}
+
+fn power_on(req: &[(String, String)]) -> String {
+    let format = value(req, "format_ver");
+    let host = dns::dotted(dns::router());
+    let uri = title_uri(value(req, "game_id"));
     // the title server's host (`WAL_ALLS_TITLE_HOST`: Initial D THE ARCADE's game server URL,
     // `<host>initiald/...`, https:// when it has no scheme; Initial D ARCADE STAGE Zero's
     // `{router}:10000`, its game server's address)
@@ -184,6 +191,10 @@ fn handle(stream: &mut TcpStream) -> std::io::Result<()> {
         } else {
             title(&path, body)
         };
+        // a title server's whole HTTP answer (its own status: maimai FiNALE's old server's 404)
+        if body.starts_with(b"HTTP/1.") {
+            return stream.write_all(&body);
+        }
         // a title server answering as ALL.Net does (`set_title_dfi`): deflated then base64,
         // `Pragma: DFI`, when the request was
         let dfi = TITLE_DFI.load(Ordering::Relaxed) && header("Pragma").is_some_and(|v| v.eq_ignore_ascii_case("DFI"));
