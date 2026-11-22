@@ -1,0 +1,50 @@
+# Red Gun (a Unity 4 mobile shooting game, RedGun.exe, Mono, 32-bit; the dump is a PC repack for
+# light guns) - template, override values in userprofiles/arcadepc/red-gun.yaml.
+# One player: the payload answers the repack's mouse and arrow polls with the gun
+# (WAL_ARCADEPC_BOARD=redgun, docs §6.3i) and draws its crosshair. The trigger shoots and taps
+# the menus, the gun's second button (or a shot off the screen) goes to cover and out again (the
+# cover reloads), the pad's directions step out of cover. A PC game: no coins, no credits.
+system: arcadepc
+name: Red Gun
+
+# Unity's own log beside the game (Direct3D 9: the crosshair's overlay)
+args: [-logFile, Player.log]
+
+# The game does not load an XInput DLL: the payload is loaded at its entry point.
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+env:
+  WAL_ARCADEPC_BOARD: redgun
+  WAL_CROSSHAIR: "1"
+  # no Windows arrow over the picture
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_CROSSHAIR
+        label: Crosshair
+        kind: bool
+        description: >-
+          The gun's crosshair drawn over the picture (the game draws no pointer of its own).
+
+input:
+  # one lightgun (or mouse): the pointer aims, left button shoots
+  guns_enabled: true
+  stick_as_dpad: false
+  # a shot off the screen goes to cover
+  gun:
+    offscreen: b6
+
+controls:
+  lx: Gun aim (x)
+  ly: Gun aim (y)
+  b1: Trigger (shoot, menus)
+  b2: Cover / out of cover (reloads)
+  b6: Gun off screen (the trigger goes to cover)
+  up: Out of cover (up)
+  down: Out of cover (down)
+  left: Out of cover (left)
+  right: Out of cover (right)

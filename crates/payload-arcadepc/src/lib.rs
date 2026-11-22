@@ -191,6 +191,9 @@
 //!
 //! Family Guy Bowling Arcade (`WAL_ARCADEPC_BOARD=teamplay`): `teamplay.rs` is the Linux
 //! cabinet's Team Play I/O library (`teamplayio`, `serialio`) for its DllImports.
+//!
+//! Red Gun (`WAL_ARCADEPC_BOARD=redgun`, x86 build): `redgun.rs` answers its PC repack's mouse
+//! and arrow polls (`RGDesktopInput`'s `DllImport`s) with the gun.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
 //! (`WAL_CROSSHAIR`) draws player 1's crosshair (`pointer_d3d11`;
 //! the JX boards' other players' too).
@@ -273,6 +276,8 @@ mod pvz;
 mod quakearcade;
 #[cfg(target_arch = "x86")]
 mod radikalbikers;
+#[cfg(target_arch = "x86")]
+mod redgun;
 #[cfg(target_arch = "x86")]
 mod rerave;
 #[cfg(target_arch = "x86")]
@@ -584,6 +589,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "pvz" => {
                 pads::disconnect();
                 pvz::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "redgun" => {
+                pads::disconnect();
+                redgun::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "rerave" => {

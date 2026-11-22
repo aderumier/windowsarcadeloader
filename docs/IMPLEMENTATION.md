@@ -5645,6 +5645,33 @@ patches the executable's IAT to play the `AVI\*.mp4` videos with MFPlay in place
   directions (`input_filter::init(exe)` + `own_mouse`: the real keyboard and mouse filtered).
 - **Free play.** No setting: the price of a credit (`settings\coinsetting.txt`, game object +0x120
   at 0x4cc340) kept at 0, start then a shot begins a game; the community library shows FREEPLAY.
+#### Red Gun
+
+A Unity 4 mobile shooting game (`RedGun.exe`, Mono, 32-bit; touches, GameCenter): the dump is a
+PC repack for light guns whose `Assembly-CSharp.dll` / `Assembly-CSharp-firstpass.dll` call its
+own `RG*.dll` assemblies (input, display stretch and 1.5x supersampling, story scroll, menu
+fixes, portable saves in the run folder's `SaveData\profile.dat`). No original assembly exists
+without them: they stay; the repack's launcher, AutoHotkey scripts, cursor hider, emblem, log
+and its player's save were removed from the dump (`red-gun.windowsloader` = `RedGun.exe`). Board
+`redgun` (`redgun.rs`, x86 build), loaded by `payload_loader`.
+
+- **Input.** Every touch goes through `RGDesktopInput`: `MousePosition` (`GetCursorPos`,
+  `ScreenToClient`, the active window's client area), the mouse buttons and arrows
+  (`GetAsyncKeyState`, only while `GetActiveWindow` is `GetForegroundWindow`). Its `user32.dll`
+  `DllImport`s are the payload's (`mono_imports`): `GetCursorPos` answers the gun in client
+  pixels (kept at its last place off the screen), `ScreenToClient` keeps them, both window
+  queries the game's window, `GetAsyncKeyState` the launcher's buttons: trigger = left button
+  (shoot, tap the menus and the story's Play button), b2 or a shot off the screen (b6) = right
+  button (to cover and out: the cover reloads), the pad's directions = the arrows (out of cover
+  that way). `input_filter::init(exe)`: the real keyboard and mouse never reach the game (the
+  repack's F8-F10 Sinden border keys included).
+- **Picture.** Direct3D 9 (the repack's launcher forced OpenGL): the common crosshair
+  (`WAL_CROSSHAIR`, on: the game draws no pointer) and `WAL_HIDE_CURSOR`. The repack stretches
+  the 3:2 cameras over the screen (`-rg-original-aspect` would pillarbox them).
+- Verified headless (2026-11-22): title, stage select tapped with the gun, the story's Play
+  button, a stage (shots, cover and peek with b2 and a shot off the screen, the enemies' hits),
+  the crosshair at the gun.
+
 - **Display.** The library makes the game's popup window its monitor's size (`MonitorFromPoint` /
   `GetMonitorInfoW` in its `CreateWindowExA` hook) and draws the 4:3 picture in its middle: its
   `GetMonitorInfoW` answers the screen's centered 4:3 rectangle, the window is the picture and the
@@ -9418,6 +9445,7 @@ NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance s
 `game.exe` that creates the NESiCAxLive launcher events/shared memory/pipe (`NxLEvent_*`,
 `NxLMMF_*`, `\\.\pipe\NxLPipe*`) and starts the real game (`game2.exe launcher`,
 `game_liong.exe -s`): the profiles run that stub, the child loads our iDmacDrv32.dll from the
+| `red-gun` | Red Gun | arcadepc | headless OK (2026-11-22), 1 gun | Unity 4 mobile shooter in a PC light gun repack (§6.3i, board `redgun`): the repack's `RGDesktopInput` user32 imports answered with the gun (trigger, b2 / off-screen shot = cover), crosshair, repack launcher / scripts removed from the dump |
 run directory.
 
 winmm joysticks are hidden from every game (`WAL_JOYSTICK_DISABLE=0` shows them): a cabinet has
