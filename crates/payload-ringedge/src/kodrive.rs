@@ -5,9 +5,7 @@
 //! functions (`0x4885C0`, `0x4885D0`, `0x4885F0`): linked, they answer the link's cabinet number
 //! less one (LINK ID 0 leads the race), `WAL_LINK_CABINETS` (2 to 6) and group A, so the test
 //! menu has nothing to set; its 192.168.99 addresses are the cabinets' PCs (`link::virtual_net`)
-//! and amNetwork gives it its own ([`address`]).
-
-use std::sync::OnceLock;
+//! and amNetwork gives it its own (`pcp::set_game_link_address`).
 
 use wal_payload_common::{link, log, patches};
 
@@ -18,13 +16,6 @@ const FUNCTIONS: [(usize, [u8; 14]); 3] = [
     (0x4885D0, [0xA1, 0x3C, 0x65, 0xBC, 0x02, 0x8B, 0x48, 0x0C, 0x8A, 0x41, 0x30, 0xC0, 0xE8, 0x04]),
     (0x4885F0, [0xA1, 0x3C, 0x65, 0xBC, 0x02, 0x8B, 0x48, 0x0C, 0x8A, 0x41, 0x31, 0x24, 0x0F, 0xC3]),
 ];
-
-static ADDRESS: OnceLock<std::net::Ipv4Addr> = OnceLock::new();
-
-/// Linked, the cabinet's address on the game's network (amNetwork's answer).
-pub(crate) fn address() -> Option<std::net::Ipv4Addr> {
-    ADDRESS.get().copied()
-}
 
 pub(crate) fn init() {
     if !patches::exe_name().to_ascii_lowercase().starts_with("m-driver_ringwide") {
@@ -54,6 +45,6 @@ pub(crate) fn init() {
     ));
     let first = 1 + 12 * (3 * n - 6);
     link::virtual_net([192, 168, 99], first as u8);
-    let _ = ADDRESS.set(std::net::Ipv4Addr::new(192, 168, 99, (first + k - 1) as u8));
+    crate::pcp::set_game_link_address(std::net::Ipv4Addr::new(192, 168, 99, (first + k - 1) as u8));
     log!("kodrive: linked, LINK ID {k} of {n}, group A, 192.168.99.{}{}", first + k - 1, if k == 1 { " (it leads the race)" } else { "" });
 }

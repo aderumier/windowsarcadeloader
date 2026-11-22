@@ -8875,11 +8875,24 @@ that reads the cabinets' count at its start, before the others have joined, also
   `0x4885D0`, `0x4885F0`, the known build checked): linked, they answer the cabinet's number less
   one (LINK ID 0 leads the race), `WAL_LINK_CABINETS` (2 to 6) and group A; its 192.168.99
   addresses are the cabinets' PCs, amNetwork gives it its own and a static address
-  (`dhcp_status` 0; 3, the DHCP's, is "Error 8002 Network setting error (SYSTEM)"). Verified with
+  (`dhcp_status` 0, `pcp::set_game_link_address`; 3, the DHCP's, is "Error 8002 Network setting
+  error (SYSTEM)"). Verified with
   two instances: the network test GOOD on both, MULTI PLAY AVAILABLE, track and car chosen
   together, one race (each car marked RIVAL on the other's screen, the same clock, 8/8 and 7/8),
   about 300 frames per 10 s each way. Its one button (START / WEAPON) is the JVS board's button 1:
   the profile's start presses it too (`native_map`), the game never started from the start bit.
+* **Sega Racing Classic** (ringedge, `racingclassic.rs`): Sega's comm library (UDP only): node k
+  (MAIN 0, a SUB its CAR NUMBER less one) is 192.168.75.(1 + k); the SUBs write to MAIN's UDP
+  26666, MAIN answers with the nodes' addresses, then each sends its frames to every node's UDP
+  26665. Its test menu's GAME ASSIGNMENTS (START UP MODE, CAR NUMBER, TOTAL NODES) are options of
+  its settings object (`0x834dd8`, a slot per option, each option's method 1 its stored choice,
+  an index in its table of values; the known build checked): linked, those three get a copy of
+  their method table whose method 1 returns the choice of the link's value (cabinet 1 MAIN of
+  `WAL_LINK_CABINETS` nodes, 2 to 4, the others SUB, CAR NUMBER their number), so every reader
+  (the startup screen, the network, the test menu) sees them; its 192.168.75 addresses are the
+  cabinets' PCs, amNetwork gives it its own and a static address. Verified with two instances:
+  one race of two (2nd / 2 and 1st / 2 in turn), the results 2nd and 1st, about 600 frames per
+  10 s each way.
 * **Sonic & Sega All-Stars Racing** (ringedge, `ssasr.rs`): UDP only (its sync on 47616 / 47872
   broadcast to its network, its match presence to 255.255.255.255:48879), from the address
   amNetwork gives it (linked: the cabinet's link address, `pcp.rs`), else, a loopback one being
@@ -9273,7 +9286,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide; cabinet link across PCs (§6.8) |
-| `sega-racing-classic` | SEGA Racing Classic | ringedge | works (user: 100%) | RingWide |
+| `sega-racing-classic` | SEGA Racing Classic | ringedge | works (user: 100%) | cabinet link across PCs (§6.8); RingWide |
 | `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%) | cabinet link across PCs (§6.8); RingWide |
 | `melty-blood-actress-again-current-code-ringwide` | Melty Blood Actress Again Current Code (RingWide) | ringedge | works (user: 100%), 4:3 | RingWide: fake DirectInput button box (`WAL_DINPUT_BOARD`), EEPROM region record, DIP switches 1024x768 |
 | `initial-d-arcade-stage-6` | Initial D Arcade Stage 6 AA | ringedge | works (user: full screen, inputs, cards, offline); force feedback not felt on a wheel | OpenGL Cg shader fix (`WAL_RINGEDGE_CG_FIX`), drive board on COM1, IC card emulated |

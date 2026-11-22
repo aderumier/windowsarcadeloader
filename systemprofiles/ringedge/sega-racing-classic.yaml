@@ -34,6 +34,10 @@ input:
       KEY_V: right
 
 env:
+  # cabinets on other PCs (the GUI's Common options): off, alone; 2 racing (2 to 4, its test
+  # menu's TOTAL NODES)
+  WAL_LINK: "0"
+  WAL_LINK_CABINETS: "2"
   # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
   WAL_RINGEDGE_PLATFORM: AAM
   WAL_RINGEDGE_DS_FILE: rom/SBTN_Table.dat

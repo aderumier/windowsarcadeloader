@@ -14,8 +14,8 @@
 //!   pointer (`WAL_RINGEDGE_MOUSE`, `mouse.rs`).
 //! * Medal cabinet boards: Medal no Gunman's (`gunman.rs`), Lady Luck's (`satellite.rs`).
 //! * Cabinets linked across PCs (`WAL_LINK`, payload-common `link.rs`): K.O. Drive's
-//!   (`kodrive.rs`), Sonic & Sega All-Stars Racing's (`ssasr.rs`), the others' (amNetwork's
-//!   address: the cabinet's link address, `pcp.rs`).
+//!   (`kodrive.rs`), Sega Racing Classic's (`racingclassic.rs`), Sonic & Sega All-Stars Racing's
+//!   (`ssasr.rs`), the others' (amNetwork's address: the cabinet's link address, `pcp.rs`).
 //! * Profile code patches (`WAL_PATCHES`), free play ones (`WAL_RINGEDGE_FREEPLAY_PATCHES`, with
 //!   the common free play option); `WAL_RINGEDGE_CWD`: the game's working directory,
 //!   relative to its own.
@@ -39,6 +39,7 @@ mod maimai_server;
 mod microtouch;
 mod mouse;
 mod pcp;
+mod racingclassic;
 mod rawmouse;
 mod rfid;
 mod satellite;
@@ -87,9 +88,10 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             patches::apply_list(&list);
         }
         amlog::init();
-        // the cabinets on other PCs (WAL_LINK): K.O. Drive's, Sonic & Sega All-Stars Racing's, the
-        // other games' (the link's address their own, amNetwork's answer)
+        // the cabinets on other PCs (WAL_LINK): K.O. Drive's, Sega Racing Classic's, Sonic & Sega
+        // All-Stars Racing's, the other games' (the link's address their own, amNetwork's answer)
         kodrive::init();
+        racingclassic::init();
         ssasr::init();
         wal_payload_common::link::init();
         // JVS sense line: amJvs reads DSR (0x20) as "board addressed"

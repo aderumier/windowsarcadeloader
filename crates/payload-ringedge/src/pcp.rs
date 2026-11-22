@@ -349,15 +349,28 @@ fn answer(request: &str) -> String {
     }
 }
 
+static GAME_LINK_ADDRESS: std::sync::OnceLock<std::net::Ipv4Addr> = std::sync::OnceLock::new();
+
+/// A linked game's own address on its cabinets' network (K.O. Drive, Sega Racing Classic):
+/// amNetwork's answer, static.
+pub(crate) fn set_game_link_address(ip: std::net::Ipv4Addr) {
+    let _ = GAME_LINK_ADDRESS.set(ip);
+}
+
+fn game_link_address() -> Option<std::net::Ipv4Addr> {
+    GAME_LINK_ADDRESS.get().copied()
+}
+
 /// The network service (amNetwork): the machine's network card, up, its address from DHCP.
 /// Each query's answer carries its keyword (`query_dhcp_status` -> `dhcp_status=`; without
 /// it amNetwork reports "Response Error!!! No Keyword").
 fn network_answer(request: &str) -> String {
     let name = request.split('&').find_map(|p| p.strip_prefix("request=")).unwrap_or("");
-    // linked K.O. Drive: its address on its cabinets' network; another linked game: the
-    // cabinet's link address (its broadcasts to its network then reach the cabinets)
+    // a linked game with addresses of its own (K.O. Drive, Sega Racing Classic): its address on
+    // its cabinets' network; another linked game: the cabinet's link address (its broadcasts to
+    // its network then reach the cabinets)
     let linked = wal_payload_common::link::own().map(std::net::Ipv4Addr::from);
-    let ip = crate::kodrive::address().or(linked).or_else(local_address).unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2));
+    let ip = game_link_address().or(linked).or_else(local_address).unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2));
     let o = ip.octets();
     let gateway = format!("{}.{}.{}.1", o[0], o[1], o[2]);
     // `WAL_RINGEDGE_NIC_STATUS=1`: the card's link up, its addresses in the same answer (amNetwork
@@ -369,9 +382,10 @@ fn network_answer(request: &str) -> String {
     let value = match name {
         // 0: amNetwork asks the addresses one by one
         "query_nic_status" => Some(("status", "0".to_string())),
-        // 0..4; 3: the address obtained (the game then asks for the card's state); linked K.O.
-        // Drive: 0, its static address (3: "Error 8002 Network setting error (SYSTEM)")
-        "query_dhcp_status" => Some(("dhcp_status", if crate::kodrive::address().is_some() { "0" } else { "3" }.to_string())),
+        // 0..4; 3: the address obtained (the game then asks for the card's state); a linked game
+        // with addresses of its own: 0, its static address (K.O. Drive, 3: "Error 8002 Network
+        // setting error (SYSTEM)")
+        "query_dhcp_status" => Some(("dhcp_status", if game_link_address().is_some() { "0" } else { "3" }.to_string())),
         "query_ip_address" => Some(("ip_address", ip.to_string())),
         "query_subnetmask" => Some(("subnetmask", "255.255.255.0".to_string())),
         "query_gateway" | "query_primary_dns" => {
