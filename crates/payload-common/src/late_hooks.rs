@@ -97,7 +97,11 @@ pub fn hook(dll: &'static str, name: &'static str, f: usize, orig: &'static Atom
         }
     }
     if orig.load(Ordering::Relaxed) == 0 {
-        orig.store(export(dll, name), Ordering::Relaxed);
+        // the last hook recorded of the function, chained as in the modules it is applied to
+        // later (Veggie Blast's IL-only executable imports nothing: the Sinden frame's
+        // GetProcAddress replaced the Direct3D 9 shims' in its rasterizer, calling the real one)
+        let below = earlier.iter().rev().find(|h| h.0 == dll && h.1 == name).map(|h| h.2);
+        orig.store(below.unwrap_or_else(|| export(dll, name)), Ordering::Relaxed);
     }
     HOOKS.lock().unwrap().push((dll, name, f, orig));
     hook_loads(&modules);
@@ -153,6 +157,37 @@ fn loaded(module: usize) {
     }
     hook_loads(&[module]);
     log!("late hooks: {} ({} hooks)", file.rsplit('\\').next().unwrap_or(&file), hooks.len());
+}
+
+/// Every DLL of the game's directory hooked as it loads, whoever loads it: a .NET host's
+/// P/Invoke libraries are loaded by its runtime, never through a hooked `LoadLibrary` (Veggie
+/// Blast's Virtools engine `ck2.dll`, then its Direct3D 9 rasterizer: no Sinden frame).
+/// `LdrRegisterDllNotification`, called with the DLL's imports resolved, before its `DllMain`.
+pub fn watch_all_loads() {
+    #[repr(C)]
+    struct Loaded {
+        flags: u32,
+        full_name: *const u16,
+        base_name: *const u16,
+        base: usize,
+    }
+    type Callback = unsafe extern "system" fn(u32, *const Loaded, *mut core::ffi::c_void);
+    type Register = unsafe extern "system" fn(u32, Callback, *mut core::ffi::c_void, *mut *mut core::ffi::c_void) -> i32;
+    const LOADED: u32 = 1;
+
+    unsafe extern "system" fn notified(reason: u32, data: *const Loaded, _context: *mut core::ffi::c_void) {
+        if let Some(data) = (unsafe { data.as_ref() }).filter(|_| reason == LOADED) {
+            loaded(data.base);
+        }
+    }
+
+    let ntdll = unsafe { GetModuleHandleA(c"ntdll.dll".as_ptr().cast()) };
+    let Some(register) = (unsafe { GetProcAddress(ntdll, c"LdrRegisterDllNotification".as_ptr().cast()) }) else {
+        return;
+    };
+    let register: Register = unsafe { std::mem::transmute(register) };
+    let mut cookie = std::ptr::null_mut();
+    unsafe { register(0, notified, std::ptr::null_mut(), &mut cookie) };
 }
 
 fn orig(i: usize) -> usize {

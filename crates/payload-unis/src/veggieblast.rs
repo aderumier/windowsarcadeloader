@@ -179,6 +179,8 @@ fn settings() {
 
 pub fn init() {
     settings();
+    // the engine's DLLs, loaded by the .NET runtime: the Direct3D 9 hooks (the Sinden frame)
+    wal_payload_common::late_hooks::watch_all_loads();
     own_process_input();
     std::thread::spawn(input_thread);
     log!("veggieblast: the host's cursor, mouse buttons and keys played by player 1's stick");
