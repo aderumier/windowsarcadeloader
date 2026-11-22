@@ -20,6 +20,9 @@
 //!   last: Border Break Scramble's touch pointer, [`crate::gun::pedals_or_stick`]), or
 //!   `pedals-right-stick` (the same with the right stick: Shining Force Cross).
 //! - `WAL_CROSSHAIR_HIDE`: seconds without moving before it hides (5; 0: never).
+//! - `WAL_CROSSHAIR_PLAYERS`: the game's players, whose crosshairs show (2: the launcher's
+//!   players 3 and 4, a third and fourth lightgun plugged, have none in a two player game;
+//!   Gashaaaan's 4).
 //!
 //! Before each `Present` (payload-common's Direct3D 9 overlay) the crosshairs are drawn into the
 //! game's back buffer as alpha-blended quads, the game's render states, render target and depth
@@ -47,6 +50,14 @@ pub(crate) fn idle() -> Option<Duration> {
     *IDLE.get_or_init(|| {
         let secs = std::env::var("WAL_CROSSHAIR_HIDE").ok().and_then(|v| v.trim().parse::<f32>().ok()).unwrap_or(5.0);
         (secs > 0.0).then(|| Duration::from_secs_f32(secs))
+    })
+}
+
+/// The game's players (`WAL_CROSSHAIR_PLAYERS`, 2): the others' guns draw no crosshair.
+fn players() -> usize {
+    static PLAYERS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *PLAYERS.get_or_init(|| {
+        std::env::var("WAL_CROSSHAIR_PLAYERS").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(2).clamp(1, MAX_PLAYERS)
     })
 }
 
@@ -289,7 +300,7 @@ static LAST_TOUCH: Mutex<Option<((i16, i16), (i16, i16))>> = Mutex::new(None);
 fn aims(state: &mut State) -> [Option<(i16, i16)>; MAX_PLAYERS] {
     let now = Instant::now();
     let mut shown = [None; MAX_PLAYERS];
-    for (player, (last, moved)) in state.aims.iter_mut().enumerate() {
+    for (player, (last, moved)) in state.aims.iter_mut().enumerate().take(players()) {
         let stick = crate::input(player);
         let aim = match axes() {
             Axes::Pedals => {

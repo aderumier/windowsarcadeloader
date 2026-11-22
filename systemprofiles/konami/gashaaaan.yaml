@@ -29,6 +29,7 @@ env:
   WAL_CROSSHAIR_STYLE: ring-cross
   WAL_CROSSHAIR_SIZE: "6"
   WAL_CROSSHAIR_TINT: "1"
+  WAL_CROSSHAIR_PLAYERS: "4"
 
 # The game's own options, for the GUI's Options tab (its env variables above).
 options:
