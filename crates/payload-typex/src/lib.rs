@@ -16,7 +16,7 @@
 //! * Force feedback computed from the game's memory (`WAL_TYPEX_FFB`, `ffb.rs`).
 //! * Cabinets linked across PCs (`WAL_LINK`, payload-common `link.rs`): Battle Gear 4's
 //!   (`bg4link.rs`), Chase H.Q. 2's (`chq2link.rs`), D1GP's (`d1gplink.rs`), Valve Limit R's
-//!   (`vlrlink.rs`).
+//!   (`vlrlink.rs`), Wacky Races' (`wackylink.rs`).
 //! * Mahjong panel read as a keyboard (`WAL_TYPEX_MAHJONG`, `mahjong.rs`).
 //! * Elevator Action Death Parade's attraction doors drawn over the picture (`WAL_TYPEX_DOORS`,
 //!   `doors.rs`).
@@ -52,6 +52,7 @@ mod sram;
 mod switcher;
 mod touch;
 mod vlrlink;
+mod wackylink;
 mod wheel;
 mod wontertainment;
 mod wontertainment_cards;
@@ -100,6 +101,9 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if vlrlink::is_game() {
             vlrlink::init();
+        }
+        if std::env::var("WAL_TYPEX_FFB").is_ok_and(|g| g.trim() == "wacky-races") {
+            wackylink::init();
         }
         touch::init();
         punch::init();

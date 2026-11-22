@@ -2,6 +2,9 @@
 # userprofiles/typex/wacky-races.yaml.
 system: typex
 name: Wacky Races
+# Its cabinet link is DirectPlay 8 (peer, port 13405): Microsoft's dpnet (wine's
+# IDirectPlay8Peer::Host is a stub).
+tricks: [directplay]
 
 # The dump's Launcher.exe (its root copy, set up to play at once; data\Launcher.exe is the
 # original), wr.ini: 800x600 fullscreen, settings in sv\.
@@ -48,6 +51,8 @@ env:
   WAL_TYPEX_JVS_ANALOG_INPUTS: ",,lx,accel,brake"
   # Force feedback: the wheel motor command of its I/O output word (payload ffb.rs).
   WAL_TYPEX_FFB: wacky-races
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # It reads START / VIEW on the PC keyboard too (Enter, Right Shift).
   WAL_KEYBOARD_STATE_DISABLE: "1"
 
