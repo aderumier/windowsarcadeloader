@@ -28,6 +28,16 @@ input:
   guns_enabled: true
   stick_as_dpad: false
 
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's free play (GameSetting.ini 免费模式, FREE PLAY on the screens): starts
+          without coins. Off: each player's own coins (a coin a credit).
+
 controls:
   lx: Cannon aim (x)
   ly: Cannon aim (y)

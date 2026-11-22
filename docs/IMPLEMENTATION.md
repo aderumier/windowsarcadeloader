@@ -4901,6 +4901,21 @@ board (`CommSetting.ini`: 32-bit protocol over USB).
   (`Mono::il_code`, `mono_method_get_header`): `Lock(false)`, and `PS_SeleteLevel.Lock` (only
   called there) skips its colliders part, so a stage already played stays closed (`Init`). The
   bytes are checked first: another build stays locked (logged).
+- **The repack's input layer (`MRG.PolarInput.dll`).** The share's dump is a PC repack: its
+  `Assembly-CSharp.dll` asks `MRGBridge` for every key (the board's or its own keyboard / mouse
+  bindings, `PolarWars.ini`), which answers nothing for a disabled player (player 2 by default:
+  no start) and whose `FixJoin` took player 2 out of a game. At the board's first call the
+  payload resolves `MRGBridge` (by type name, loading the assembly) and replaces its methods'
+  compiled code (`Mono::replace`; that assembly's IL is mapped read only): `GameKey`, `Setting`
+  and `Menu` read `InputManager`'s key arrays (`bKeyStates` / `bKeyDownStates`, the settings'
+  pair: the board's keys, held or pressed this frame); at the title screen's start
+  `IsEnabled` (the coin start's players: each pays) and `FixJoin` (the game's free play joins
+  both players on either start) keep only the players who pressed their start that frame
+  (both in the attract's demo, `GameData.isAutoPlay`); a player joins later with its start.
+  The dump is laid out as the original (the game below `UnrealGame/JiDiDaZhan/`), the profile's
+  files in place.
+- **Free play** (the common `WAL_FREEPLAY`, on): `Settings/GameSetting.ini`'s `免费模式`
+  (`True` / `False`, the profile's UTF-16 copy) written at start; off: each player's own coins.
 - **Boot updater.** The scene before the title flashes the board's firmware
   (`IOUpdate_Data`) with 64-byte bootloader frames: those reads fail, it gives up in about 3 s
   ("Cancel the update").
@@ -9151,7 +9166,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `space-warp-66` | Space Warp 66 | arcadepc | user 100% (2026-11-06), 1 spinner, bezel | Touchmagix (Unity 2019.3, Mono, 64-bit, OpenGL, §6.3i): the payload (`xinput1_3.dll`) emulates its two serial boards and answers its Linux commands; the spinner is the mouse, left stick or left / right; 9:16 window at the screen's height, the dump's bezel |
 | `pigs-might-fly` | Pigs Might Fly | arcadepc | user 100% (2026-11-06) | Gamewax (Direct3D 9, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (`wal-loader`) is its USB board (vendor 0x1043), the game run without its Shell (`SHELLENABLE=0`, `/h=1`); upright portrait picture in the dump's bezel; no tickets paid; no operator menu |
 | `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | DND Arcade (Direct3D 8, 32-bit, §6.3i): the payload is its `SDC2.dll` force feedback wheel board (axes, buttons, coin counter, motor as constant force); patches: the link's bind length, its host request to 127.0.0.1; no frame limit (loading); 1920x1080 settings; runner patch 0112 (VMR-9 device multithreaded) |
-| `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage) |
+| `polar-wars` | Polar Wars | arcadepc | works (user: 100%, 2026-11-22 again), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage); the repack's MRG input layer replaced (the board's keys, the players who press start); free play |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
 | `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | `GamePlayer.exe` (Virtools 3.5, 32-bit, §6.3j) started by wal-loader with the payload: COM1 gun board (guns, triggers, start, coins, operator keys), the HID board's device object replaced (dongle), `GameConfig` (composition, folders, 1920x1080 full screen), fake DirectInput (COM-created) |

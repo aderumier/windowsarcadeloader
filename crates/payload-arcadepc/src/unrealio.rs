@@ -34,6 +34,20 @@
 //! `PS_SeleteLevel.Lock` (only called there) skips its colliders part: the stage can be shot to
 //! pick it, a stage played stays closed (`Init`).
 //!
+//! The repack's PC input layer (`MRG.PolarInput.dll`, its `PolarWars.ini`): the dump's
+//! `InputManager` asks `MRGBridge` for every key (the board's, or its own keyboard / mouse
+//! bindings), which answers nothing for a player its ini leaves disabled (player 2 by default:
+//! no start, `FixJoin` took player 2 out of a game started). The payload is the input: at the
+//! board's first call (MRG's assembly loaded by its type name if needed, before any key is read)
+//! `MRGBridge`'s `GameKey`, `Setting` and `Menu` become the board's keys alone (the payload's
+//! functions reading `InputManager`'s key arrays, held or pressed this frame: what MRG's
+//! `Hardware` read). At the title screen's start, `IsEnabled` (the coin start's players) and
+//! `FixJoin` (its free play joins both players) keep the players who pressed their start this
+//! frame (both in the attract's demo). A dump without MRG is left as it is.
+//!
+//! Free play (the common `WAL_FREEPLAY`): `Settings/GameSetting.ini`'s `免费模式` (the profile's
+//! copy, UTF-16, or the dump's, UTF-8) written at start, `True` / `False`.
+//!
 //! Natives: `trigger start coin` (each player), `setting left right up` (the operator's).
 
 use std::sync::{Mutex, OnceLock};
@@ -195,9 +209,115 @@ fn unlock_last_stage() {
     }
 }
 
+/// `InputManager`'s static key arrays (their fields' static addresses): `bKeyStates`,
+/// `bKeyDownStates`, `bSettingKeyStates`, `bSettingKeyDownStates`.
+static KEY_ARRAYS: OnceLock<[usize; 4]> = OnceLock::new();
+
+/// Element `index` of the `bool[]` in the static field at `slot` (false out of its bounds).
+fn key_state(slot: usize, index: i32) -> bool {
+    let array = unsafe { *(slot as *const usize) };
+    if array == 0 || index < 0 {
+        return false;
+    }
+    let len = unsafe { *((array + mono::ARRAY_DATA - size_of::<usize>()) as *const usize) };
+    (index as usize) < len && unsafe { *((array + mono::ARRAY_DATA + index as usize) as *const u8) } != 0
+}
+
+/// `MRGBridge.GameKey(index, edge)`: the board's key (held, or pressed this frame).
+extern "C" fn game_key(index: i32, edge: i32) -> i32 {
+    KEY_ARRAYS.get().is_some_and(|a| key_state(a[(edge != 0) as usize], index)) as i32
+}
+
+/// `MRGBridge.Setting(index, edge)` and `Menu(index, edge)`: the board's operator key.
+extern "C" fn setting_key(index: i32, edge: i32) -> i32 {
+    KEY_ARRAYS.get().is_some_and(|a| key_state(a[2 + (edge != 0) as usize], index)) as i32
+}
+
+/// `GameData`'s `isAutoPlay` (its static address), `playerDatas` (its static address), and
+/// `PlayerData`'s `bPlaying`, `bPlayed` offsets.
+static PLAYERS_DATA: OnceLock<[usize; 4]> = OnceLock::new();
+
+/// Whether `player` joins the game the title screen starts: the attract's demo, or that player's
+/// start pressed this frame (`bKeyDownStates`, keys 0 and 1 the start keys).
+fn joins(player: i32) -> bool {
+    let auto_play = PLAYERS_DATA.get().is_some_and(|d| unsafe { *(d[0] as *const u8) } != 0);
+    (0..PLAYERS as i32).contains(&player) && (auto_play || KEY_ARRAYS.get().is_some_and(|a| key_state(a[1], player)))
+}
+
+/// `MRGBridge.IsEnabled(id)` (the title screen's coin start, `PlayerAllJionGame`: each enabled
+/// player with a credit pays and joins): the players who pressed their start.
+extern "C" fn player_enabled(id: i32) -> i32 {
+    joins(id) as i32
+}
+
+/// `MRGBridge.FixJoin()` (right after the title screen's start; its free play joins both players
+/// whichever start was pressed): the players who did not press their start taken out again.
+extern "C" fn fix_join() {
+    let Some(&[_, datas, playing, played]) = PLAYERS_DATA.get() else { return };
+    let array = unsafe { *(datas as *const usize) };
+    if array == 0 {
+        return;
+    }
+    for player in 0..PLAYERS {
+        let data = unsafe { *((array + mono::ARRAY_DATA + player * size_of::<usize>()) as *const usize) };
+        if data != 0 && !joins(player as i32) {
+            unsafe {
+                *((data + playing) as *mut u8) = 0;
+                *((data + played) as *mut u8) = 0;
+            }
+        }
+    }
+}
+
+/// `MRGBridge`'s input methods replaced by the board's keys alone (at the board's first call:
+/// the game's managed thread, before any key is read). MRG's assembly maps its IL read only: its
+/// compiled code jumps to the payload's functions, which read `InputManager`'s key arrays (what
+/// its `Hardware` read, the board's keys as the original game had them).
+fn bypass_mrg() {
+    let Some(m) = mono::mono() else { return };
+    let game = m.image("Assembly-CSharp");
+    let class = m.class_of_type_name(game, "MRGBridge, MRG.PolarInput");
+    if class.is_null() {
+        return;
+    }
+    let input = m.class(game, "", "InputManager");
+    let names = ["bKeyStates", "bKeyDownStates", "bSettingKeyStates", "bSettingKeyDownStates"];
+    let slots = names.map(|name| m.static_addr(input, m.field(input, name)) as usize);
+    if slots.contains(&0) {
+        log!("unrealio: InputManager's key arrays not found, MRG input layer left");
+        return;
+    }
+    let _ = KEY_ARRAYS.set(slots);
+    let (data, player) = (m.class(game, "", "GameData"), m.class(game, "", "PlayerData"));
+    let field = |name: &str| m.field(player, name);
+    let (auto_play, datas) = (m.field(data, "isAutoPlay"), m.field(data, "playerDatas"));
+    if [auto_play, datas, field("bPlaying"), field("bPlayed")].iter().any(|f| f.is_null()) {
+        log!("unrealio: GameData's players not found, MRG input layer left");
+        return;
+    }
+    let _ = PLAYERS_DATA.set([
+        m.static_addr(data, auto_play) as usize,
+        m.static_addr(data, datas) as usize,
+        m.offset(field("bPlaying")),
+        m.offset(field("bPlayed")),
+    ]);
+    let replaced = [
+        ("GameKey", 2, game_key as *const () as usize),
+        ("Setting", 2, setting_key as *const () as usize),
+        ("Menu", 2, setting_key as *const () as usize),
+        ("IsEnabled", 1, player_enabled as *const () as usize),
+        ("FixJoin", 0, fix_join as *const () as usize),
+    ]
+    .map(|(name, args, target)| (name, m.replace(m.method(class, name, args), target)));
+    log!("unrealio: MRG input layer bypassed (the board's keys, the players who press start): {replaced:?}");
+}
+
 extern "C" fn create_instance(com: *mut *const u8) -> i32 {
     static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(unlock_last_stage);
+    ONCE.call_once(|| {
+        unlock_last_stage();
+        bypass_mrg();
+    });
     if !com.is_null() {
         unsafe { *com = INSTANCE.as_ptr() };
     }
@@ -246,7 +366,40 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
     })
 }
 
+/// `GameSetting.ini`'s free play (`免费模式`) set from `WAL_FREEPLAY`.
+fn free_play() {
+    let Some(free) = wal_payload_common::free_play("WAL_UNREALIO_FREEPLAY") else { return };
+    let path = "Settings/GameSetting.ini";
+    let Ok(bytes) = std::fs::read(path) else {
+        log!("unrealio: no {path}: free play not set");
+        return;
+    };
+    let utf16 = bytes.starts_with(&[0xFF, 0xFE]);
+    let text = if utf16 {
+        String::from_utf16_lossy(&bytes[2..].chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>())
+    } else {
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
+    let key = "免费模式=";
+    let Some(start) = text.find(key).map(|at| at + key.len()) else {
+        log!("unrealio: no free play setting in {path}");
+        return;
+    };
+    let end = start + text[start..].find(|c: char| !c.is_ascii_alphabetic()).unwrap_or(text.len() - start);
+    let new = format!("{}{}{}", &text[..start], if free { "True" } else { "False" }, &text[end..]);
+    let out = if utf16 {
+        [0xFF, 0xFE].into_iter().chain(new.encode_utf16().flat_map(u16::to_le_bytes)).collect()
+    } else {
+        new.into_bytes()
+    };
+    match std::fs::write(path, out) {
+        Ok(()) => log!("unrealio: free play {}", if free { "on" } else { "off" }),
+        Err(e) => log!("unrealio: {path}: {e}"),
+    }
+}
+
 pub fn init() {
+    free_play();
     mono_imports::hook(resolve);
     log!("unrealio: UnrealIO USB board");
 }
