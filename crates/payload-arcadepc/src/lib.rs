@@ -61,7 +61,8 @@
 //! `comeonbaby.rs` is their parallel port board's reader.
 //!
 //! Xtom 3D (`WAL_ARCADEPC_BOARD=dosbox`, x86 build, a Glide DOSBox): `dosbox.rs` is DOSBox's
-//! SDL keyboard (the virtual sticks' keys) and gives the guest's Glide a window of its own.
+//! SDL keyboard (the virtual sticks' keys) and gives the guest's Glide a window of its own;
+//! `music.rs` plays the dump's soundtrack (its sound board is not emulated).
 //!
 //! Robin Hood (`WAL_ARCADEPC_BOARD=robinhood`, x86 build): `robinhood.rs` emulates its serial
 //! board (keys, coins, tickets); its crossbow is the common DirectInput joystick.
@@ -250,6 +251,8 @@ mod mame;
 mod marssortie;
 #[cfg(target_arch = "x86")]
 mod monsterous;
+#[cfg(target_arch = "x86")]
+mod music;
 #[cfg(target_arch = "x86")]
 mod ngun;
 #[cfg(target_arch = "x86")]
@@ -536,6 +539,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "dosbox" => {
                 pads::disconnect();
                 dosbox::init();
+                music::init();
             }
             #[cfg(target_arch = "x86_64")]
             _ if board.trim() == "hotd2" => {
