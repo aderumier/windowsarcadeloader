@@ -6423,7 +6423,15 @@ hidden): the 640x480 mode scaled to the screen, 4:3 kept. Board `dreamhunting`
   (`input_filter::own_mouse`). With the payload's crosshair none is posted (no reticle; a mouse
   parked off the picture stopped the walk); with the option off, a move at the gun's place in the
   picture as it moves (the reticle at the shots' place).
-- No Sinden border yet.
+- **Sinden border** (`border_ddraw.rs`): with the frame the mode change is not done and the
+  window is screen-sized, so the primary is the screen's size and the game's `Blt` of its back
+  buffer to `(0, 0, 640, 480)` showed the picture 1:1 in the top left corner, no frame. That
+  `Blt` (hooked before the crosshair's) draws instead into a primary-sized surface of the
+  payload's holding the frame (drawn at its creation), the back buffer scaled to the largest
+  centered 4:3 rectangle of the frame's opening, then copied whole to the primary; the gun is
+  mapped to that rectangle (a shot on the frame: the trigger alone, the reload). Verified headless
+  (2026-11-22, 1920x1080: the picture 1338x1004 at 291,38 inside the white frame; a shot at the
+  screen's (0.25, 0.75) is the game's (88, 368)).
 - Verified on Xvfb (2026-11-12, 1920x1080: the picture 4:3, black sides): attract, free play
   title, the trigger's start, arena select, shots landing where aimed (the game's shot place
   logged: corners and center within a pixel), bullets spent, walking and turning, coins with

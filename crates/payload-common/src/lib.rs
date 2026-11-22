@@ -47,6 +47,8 @@ pub mod border;
 mod border_d3d11;
 #[cfg(windows)]
 mod border_d3d8;
+#[cfg(all(windows, target_arch = "x86"))]
+pub mod border_ddraw;
 #[cfg(windows)]
 pub mod crosshair;
 #[cfg(windows)]

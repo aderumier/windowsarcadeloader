@@ -158,10 +158,14 @@ static BOARD: Mutex<Board> = Mutex::new(Board {
 });
 
 /// The 4:3 picture's place on a `sw` x `sh` screen (fractions: x, y, width, height): the
-/// largest centered rectangle, as the game's 640x480 mode is scaled to the screen.
+/// largest centered rectangle, as the game's 640x480 mode is scaled to the screen; with the
+/// Sinden frame, in its opening (border_ddraw scales the picture there).
 fn picture(sw: f32, sh: f32) -> [f32; 4] {
     if sw <= 0.0 || sh <= 0.0 {
         return [0.0, 0.0, 1.0, 1.0];
+    }
+    if let Some([l, t, r, b]) = wal_payload_common::border_ddraw::picture(sw as u32, sh as u32, 4, 3) {
+        return [l as f32 / sw, t as f32 / sh, (r - l) as f32 / sw, (b - t) as f32 / sh];
     }
     let (w, h) = if sw * 3.0 > sh * 4.0 { (sh * 4.0 / 3.0 / sw, 1.0) } else { (1.0, sw * 3.0 / 4.0 / sh) };
     [(1.0 - w) / 2.0, (1.0 - h) / 2.0, w, h]
@@ -348,6 +352,8 @@ pub fn init() {
     // the real mouse's moves dropped: the game's reticle is the gun's (`reticle`)
     input_filter::own_mouse(0);
     serial::install_streaming(PORT, handler, idle);
+    // the Sinden frame (its Blt hook before the crosshair's, which calls it)
+    wal_payload_common::border_ddraw::init();
     // the common crosshair option: the gun's crosshair drawn into the picture (the game has none)
     OWN_CROSSHAIR.store(wal_payload_common::crosshair::init_ddraw(in_picture, 1), Ordering::Relaxed);
     log!("dreamhunting: the gun board on {PORT} ({sw}x{sh} screen), free play {}", if free { "on" } else { "off" });
