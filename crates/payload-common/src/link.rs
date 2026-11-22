@@ -652,7 +652,7 @@ unsafe extern "system" fn bind(s: usize, addr: *const u8, len: i32) -> i32 {
     let own = own().unwrap_or(a);
     // instances on one PC: another cabinet's loopback address is not this PC's (a game telling
     // whether an address is its own by binding it: Ford Racing's race host)
-    if on_loopback() && a != own && pc_of(to_real(a)).is_some() {
+    if on_loopback() && to_real(a) != own && pc_of(to_real(a)).is_some() {
         log!("link: bind {}: another cabinet's address, refused", dotted(a));
         unsafe { windows_sys::Win32::Networking::WinSock::WSASetLastError(windows_sys::Win32::Networking::WinSock::WSAEADDRNOTAVAIL) };
         return -1;
@@ -1154,8 +1154,8 @@ pub fn init() -> usize {
     static STARTED: AtomicBool = AtomicBool::new(false);
     if !STARTED.swap(true, Ordering::Relaxed) {
         std::thread::spawn(move || if l.cabinet == 1 { serve_master(l) } else { serve_cabinet(l) });
+        unsafe { hook_module(iat::game_module()) };
     }
-    unsafe { hook_module(iat::game_module()) };
     count()
 }
 

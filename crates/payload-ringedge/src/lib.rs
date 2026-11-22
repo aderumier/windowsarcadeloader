@@ -13,7 +13,9 @@
 //!   (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`); the game's Windows mouse from player 1's
 //!   pointer (`WAL_RINGEDGE_MOUSE`, `mouse.rs`).
 //! * Medal cabinet boards: Medal no Gunman's (`gunman.rs`), Lady Luck's (`satellite.rs`).
-//! * K.O. Drive's cabinets linked across PCs (`WAL_LINK`, `kodrive.rs`).
+//! * Cabinets linked across PCs (`WAL_LINK`, payload-common `link.rs`): K.O. Drive's
+//!   (`kodrive.rs`), Sonic & Sega All-Stars Racing's (`ssasr.rs`), the others' (amNetwork's
+//!   address: the cabinet's link address, `pcp.rs`).
 //! * Profile code patches (`WAL_PATCHES`), free play ones (`WAL_RINGEDGE_FREEPLAY_PATCHES`, with
 //!   the common free play option); `WAL_RINGEDGE_CWD`: the game's working directory,
 //!   relative to its own.
@@ -41,6 +43,7 @@ mod rawmouse;
 mod rfid;
 mod satellite;
 mod sfcserver;
+mod ssasr;
 mod touch;
 
 use std::ffi::c_void;
@@ -84,8 +87,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             patches::apply_list(&list);
         }
         amlog::init();
-        // K.O. Drive's cabinets on other PCs (WAL_LINK)
+        // the cabinets on other PCs (WAL_LINK): K.O. Drive's, Sonic & Sega All-Stars Racing's, the
+        // other games' (the link's address their own, amNetwork's answer)
         kodrive::init();
+        ssasr::init();
+        wal_payload_common::link::init();
         // JVS sense line: amJvs reads DSR (0x20) as "board addressed"
         serial::MODEM_STATUS[0].store(0x10, Ordering::Relaxed);
         serial::MODEM_STATUS[1].store(0x30, Ordering::Relaxed);

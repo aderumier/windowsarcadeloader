@@ -354,8 +354,10 @@ fn answer(request: &str) -> String {
 /// it amNetwork reports "Response Error!!! No Keyword").
 fn network_answer(request: &str) -> String {
     let name = request.split('&').find_map(|p| p.strip_prefix("request=")).unwrap_or("");
-    // linked K.O. Drive: its address on its cabinets' network
-    let ip = crate::kodrive::address().or_else(local_address).unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2));
+    // linked K.O. Drive: its address on its cabinets' network; another linked game: the
+    // cabinet's link address (its broadcasts to its network then reach the cabinets)
+    let linked = wal_payload_common::link::own().map(std::net::Ipv4Addr::from);
+    let ip = crate::kodrive::address().or(linked).or_else(local_address).unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2));
     let o = ip.octets();
     let gateway = format!("{}.{}.{}.1", o[0], o[1], o[2]);
     // `WAL_RINGEDGE_NIC_STATUS=1`: the card's link up, its addresses in the same answer (amNetwork

@@ -55,6 +55,8 @@ env:
   WAL_PATCHES: "0x1AEAB:EB"
   # the test button (application 3): its test menu program
   WAL_RINGEDGE_FOREGROUND: "3=exe=gametest.exe"
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
 
 controls:
   b1: Item

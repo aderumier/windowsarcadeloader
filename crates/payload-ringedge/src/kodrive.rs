@@ -38,7 +38,7 @@ pub(crate) fn init() {
         log!("kodrive: cabinet {k} of {n} (WAL_LINK_CABINETS): its test menu's LINK ID left as it is");
         return;
     }
-    if FUNCTIONS.iter().any(|(va, was)| unsafe { std::slice::from_raw_parts(*va as *const u8, was.len()) } != was) {
+    if FUNCTIONS.iter().any(|(va, was)| !wal_payload_common::crash::readable(*va, was.len()) || unsafe { std::slice::from_raw_parts(*va as *const u8, was.len()) } != was) {
         log!("kodrive: not the known build: its test menu's LINK ID, TOTAL MACHINE and GROUP ID left as they are");
         return;
     }

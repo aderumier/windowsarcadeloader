@@ -8853,6 +8853,14 @@ that reads the cabinets' count at its start, before the others have joined, also
   together, one race (each car marked RIVAL on the other's screen, the same clock, 8/8 and 7/8),
   about 300 frames per 10 s each way. Its one button (START / WEAPON) is the JVS board's button 1:
   the profile's start presses it too (`native_map`), the game never started from the start bit.
+* **Sonic & Sega All-Stars Racing** (ringedge, `ssasr.rs`): UDP only (its sync on 47616 / 47872
+  broadcast to its network, its match presence to 255.255.255.255:48879), from the address
+  amNetwork gives it (linked: the cabinet's link address, `pcp.rs`), else, a loopback one being
+  refused, its backup 192.168.88.<CABINET ID> (`0x416e48`, its test menu's setting, each cabinet
+  its own): linked, the backup is the link's number (the setting made it too, the known build
+  checked) and 192.168.88.k is cabinet k's PC. Verified with two instances (the start pressed
+  once both were in attract): racer select, the course vote ("WAITING FOR ENTRIES"), one race on
+  the same clock (8/8 and 7/8), about 510 datagrams per 10 s each way.
 * Two instances of one SquashFS image on a PC share its mount point
   (`/run/user/<uid>/wal-squashfs/<image name>`): the second one breaks the first. A test links
   two names of the image (symbolic links), each with its own `prefix:` and `squashfs_saves:`.
@@ -9239,7 +9247,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
 | `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide; cabinet link across PCs (§6.8) |
 | `sega-racing-classic` | SEGA Racing Classic | ringedge | works (user: 100%) | RingWide |
-| `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%) | RingWide |
+| `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%) | cabinet link across PCs (§6.8); RingWide |
 | `melty-blood-actress-again-current-code-ringwide` | Melty Blood Actress Again Current Code (RingWide) | ringedge | works (user: 100%), 4:3 | RingWide: fake DirectInput button box (`WAL_DINPUT_BOARD`), EEPROM region record, DIP switches 1024x768 |
 | `initial-d-arcade-stage-6` | Initial D Arcade Stage 6 AA | ringedge | works (user: full screen, inputs, cards, offline); force feedback not felt on a wheel | OpenGL Cg shader fix (`WAL_RINGEDGE_CG_FIX`), drive board on COM1, IC card emulated |
 | `initial-d-arcade-stage-7` | Initial D Arcade Stage 7 AAX | ringedge | works (full screen, cards, offline) | as Initial D 6: shader cache writes redirected, IC card chip emulated |
