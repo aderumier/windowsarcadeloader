@@ -9014,6 +9014,13 @@ that reads the cabinets' count at its start, before the others have joined, also
   PC name the cabinet's address (`link::name_is_address`), DirectPlay's sockets the link's.
   Verified with two instances: STARTING SERVER / "You joined a multiplayer game", the same
   track, the race 1st and 2nd.
+* **Crazy Ride** (unis, `usbplugins.rs`): the matching screen (shown only when
+  `Setting_System`'s `bEnableOnline` is true; the file is missing in the dump) opens
+  `Plugins\McastUDP.dll`'s sockets: UDP 8888 and its group 234.2.2.1, then TCP 4399. Linked,
+  `IniFile.dll`'s `BIND_ReadInI_WChar` reads `bEnableOnline` true, `BIND_ICMPPing` (the start's
+  ping, which the game waits for) answers 1 ms, and McastUDP.dll's sockets are the link's from
+  the game's first lookup in it. Verified with two instances: "Searching for other players",
+  "Linking succeed", TCP connected both ways, the race started together.
 * **K.O. Drive** (ringedge, `kodrive.rs`): Sega's link library (UDP 11882, POWER-ON NETWORK
   TEST): node i of TOTAL MACHINE n in group g is 192.168.99.(1 + i + 6 (g + 2 (3 n - 6))). Its LINK
   ID, TOTAL MACHINE and GROUP ID (its test menu's) are read by three functions (`0x4885C0`,
@@ -9501,7 +9508,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns | UNIS's qumo guns (Unity 5.5, 64-bit, §6.3j): the payload (`xinput1_3.dll`) emulates the USB HID board (`SetupDi`, `HidD_GetAttributes`, overlapped reads and writes: Mono `DllImport`s) and the Sense4 dongle; identity gun calibration file; Wine's `winhttp` (no BepInEx) |
 | `night-hunter-after-dark-chapter-ii-3-0-2` | Night Hunter: After Dark Chapter II (3.0.2) | unis | user 100% (2026-11-03), 2 guns, 4 missions selectable (Lost Trails) | as `night-hunter-after-dark-chapter-ii` (the same board code), four missions: the mission select at the start and the fourth open (profile config), the fourth island on the select (patched `level0` copy) |
 | `raccoon-rampage` | Raccoon Rampage | unis | user 100% (2026-11-05), 4 guns | UE4 4.26 (§6.3j): the payload (`xinput1_3.dll`) answers `UsbPluginsDll.dll`'s I/O, coin and dongle functions through the executable's `GetProcAddress`; `GunDataToScreen` replaced (aim without calibration), `IsGunCalibrate` true |
-| `crazy-ride` | Crazy Ride | unis | user 100% (2026-11-05), wheel, force feedback | UE4 4.19 (§6.3j): `UsbPluginsDll_R.dll` answers (I/O, wheel, coins, dongle, wheel motor: spring and vibration), the input calibration (CRLF ini), one 16:9 screen (split screen off), 1920x1080 desktop fitted, arrows steer and drive |
+| `crazy-ride` | Crazy Ride | unis | user 100% (2026-11-05), wheel, force feedback | cabinet link across PCs (§6.8); UE4 4.19 (§6.3j): `UsbPluginsDll_R.dll` answers (I/O, wheel, coins, dongle, wheel motor: spring and vibration), the input calibration (CRLF ini), one 16:9 screen (split screen off), 1920x1080 desktop fitted, arrows steer and drive |
 | `crazy-speed-arcade` | Crazy Speed Arcade | unis | user 100% (2026-11-05), wheel | Ogre 32-bit (§6.3j): COM1 game232 board (menu up / down buttons on the d-pad and Page Up / Down, the arrows steer and drive), 1360x768 windowed d3d9 on a 1360x768 desktop fitted, native D3DX, WMI / machine id / dongle action cipher / network thread patches, mirror material |
 | `elevator-action-invasion` | Elevator Action Invasion | unis | user 100% (2026-11-05), 2 guns, virtual elevator doors and bezel, every level unlocked | UE4 4.26 (§6.3j): `UsbPluginsDll.dll` answers (ESIO board, USB guns with `iUSB` and a calibration, coins), every level unlocked (`GetLevelIsUnlock` patch), the elevator doors moved as the game commands and drawn over the portrait picture (`WAL_UNIS_DOORS`, Direct3D 11), 1080x1920 desktop, bezel |
 | `wicked-tuna` | Wicked Tuna | unis | user 100% (2026-11-05), 4 rods on light guns or pads | Unity 2018 (§6.3j): the payload (`xinput1_3.dll`, `xinput1_4` disabled) answers `iobaordCom.dll` (four rods' serial board): gun x the rod's direction (own column or whole screen), y its angle, trigger the hook, a held button the reel; calibrated `logs/Data.dat`; rear-speaker Bass streams on the front speakers |

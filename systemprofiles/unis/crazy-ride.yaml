@@ -33,6 +33,8 @@ env:
   # the window's client size in the desktop's units (GetClientRect, WM_SIZE): the game sizes
   # its picture from it
   WAL_DESKTOP_CLIENT: "1"
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
 
 # The game's own options, for the GUI's Options tab (its env variables above).
 options:

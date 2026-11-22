@@ -53,6 +53,14 @@
 //! - **Coins.** `BIND_GetInternalCoins()`: the credits; `BIND_DecCoins(count)`,
 //!   `BIND_AddKeyboardCoins(count)`. The dump's pay setting is free play.
 //!
+//! - **Cabinets on other PCs** (`WAL_LINK`, payload-common `link.rs`): the matching screen
+//!   (Matching2, shown only when `Setting_System`'s `bEnableOnline` is true: false when the file
+//!   is missing, as in the dump) opens `Plugins\McastUDP.dll`'s sockets: UDP 8888 and its group
+//!   234.2.2.1, then TCP. Linked, `IniFile.dll`'s `BIND_ReadInI_WChar` reads `bEnableOnline`
+//!   true, `BIND_ICMPPing` (the start's ping of the network's .1, which the game waits for)
+//!   answers 1 ms, and McastUDP.dll's sockets are the link's (its multicast to each cabinet's PC),
+//!   from the game's first lookup of one of its functions. Alone, all three are the game's.
+//!
 //! Natives: `start pause coin` (player 1), `test down enter` (the operator's); the wheel `lx`, the
 //! gas `accel`, the brake `brake`.
 //!
@@ -569,6 +577,11 @@ static REAL_GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
 unsafe extern "system" fn get_proc_address(module: HMODULE, name: *const u8) -> usize {
     let real: unsafe extern "system" fn(HMODULE, *const u8) -> usize =
         unsafe { std::mem::transmute(REAL_GET_PROC_ADDRESS.load(Ordering::Relaxed)) };
+    if game() == Game::CrazyRide && wal_payload_common::link::linked() && !module.is_null() && name as usize > 0xFFFF {
+        if let Some(f) = unsafe { crazy_ride_link(module, CStr::from_ptr(name.cast()).to_bytes(), real) } {
+            return f;
+        }
+    }
     // by name (not an ordinal), in the game's plugin DLL
     if name as usize > 0xFFFF && module == unsafe { GetModuleHandleW(game().dll()) } {
         let n = unsafe { CStr::from_ptr(name.cast()) }.to_bytes();
@@ -585,6 +598,64 @@ unsafe extern "system" fn get_proc_address(module: HMODULE, name: *const u8) -> 
         }
     }
     unsafe { real(module, name) }
+}
+
+static REAL_READ_INI: AtomicUsize = AtomicUsize::new(0);
+
+/// Crazy Ride linked: McastUDP.dll's sockets the link's (at the game's first lookup in it),
+/// `IniFile.dll`'s settings reader and `BIND_ICMPPing` the payload's.
+unsafe fn crazy_ride_link(module: HMODULE, name: &[u8], real: unsafe extern "system" fn(HMODULE, *const u8) -> usize) -> Option<usize> {
+    if module == unsafe { GetModuleHandleW(windows_sys::w!("McastUDP.dll")) } {
+        static HOOKED: AtomicBool = AtomicBool::new(false);
+        if !HOOKED.swap(true, Ordering::Relaxed) {
+            unsafe { wal_payload_common::link::hook_module(module as usize) };
+            log!("unis: McastUDP.dll's sockets the link's");
+        }
+    } else if name == b"BIND_ReadInI_WChar" && module == unsafe { GetModuleHandleW(windows_sys::w!("IniFile.dll")) } {
+        let f = unsafe { real(module, c"BIND_ReadInI_WChar".as_ptr().cast()) };
+        if f != 0 {
+            REAL_READ_INI.store(f, Ordering::Relaxed);
+            return Some(read_ini as *const () as usize);
+        }
+    } else if name == b"BIND_ICMPPing" && module == unsafe { GetModuleHandleW(game().dll()) } {
+        return Some(icmp_ping as *const () as usize);
+    }
+    None
+}
+
+/// `BIND_ReadInI_WChar(file, section, value[260], key, flag)`: the value's length when found.
+/// `bEnableOnline` (`Setting_System`) reads true: the matching screen opens the network.
+unsafe extern "system" fn read_ini(a: *const u16, b: *const u16, value: *mut u16, c: *const u16, flag: u8) -> i32 {
+    let is_key = |p: *const u16| {
+        !p.is_null() && {
+            let n = (0..).take_while(|&i| unsafe { *p.add(i) } != 0).count();
+            String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(p, n) }).eq_ignore_ascii_case("bEnableOnline")
+        }
+    };
+    if !value.is_null() && (is_key(a) || is_key(b) || is_key(c)) {
+        static LOGGED: AtomicBool = AtomicBool::new(false);
+        if !LOGGED.swap(true, Ordering::Relaxed) {
+            log!("unis: bEnableOnline read as true (linked): the matching screen opens the network");
+        }
+        for (i, ch) in "true\0".encode_utf16().enumerate() {
+            unsafe { *value.add(i) = ch };
+        }
+        return 4;
+    }
+    let f: unsafe extern "system" fn(*const u16, *const u16, *mut u16, *const u16, u8) -> i32 =
+        unsafe { std::mem::transmute(REAL_READ_INI.load(Ordering::Relaxed)) };
+    unsafe { f(a, b, value, c, flag) }
+}
+
+/// `BIND_ICMPPing(host, &state, &time, &ttl, count, timeout)`: done (state 0), 1 ms, TTL 128
+/// (the game waits while state is 1).
+unsafe extern "system" fn icmp_ping(_host: *const u16, state: *mut i32, time: *mut i32, ttl: *mut i32, _count: i32, _timeout: i32) -> i32 {
+    for (p, v) in [(state, 0), (time, 1), (ttl, 128)] {
+        if !p.is_null() {
+            unsafe { *p = v };
+        }
+    }
+    1
 }
 
 /// Each gun's last place in the game's picture (pixels), kept while it points off it.
@@ -741,7 +812,10 @@ pub fn init() {
             patch_exports();
             one_screen();
         }
-        Game::CrazyRide => {}
+        Game::CrazyRide => {
+            // its cabinets on other PCs (McastUDP.dll's sockets, hooked when the game asks it)
+            wal_payload_common::link::init();
+        }
     }
     log!("unis: usbplugins board, {:?}", game());
 }
