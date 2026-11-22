@@ -143,6 +143,8 @@ env:
   # the pointer (touch and dot): the mouse (on the pedals) or the left stick, the last moved
   WAL_RINGEDGE_TOUCH_POINTER: pedals-stick
   WAL_CROSSHAIR_AXES: pedals-stick
+  # not a light gun game (guns_enabled is only the mouse as touch pointer): no Sinden border
+  WAL_SINDEN_BORDER: "0"
   # COM2 is the cabinet's IC card reader/writer, checked at boot ("CHECKING IC CARD R/W", error
   # 23 without an answer): emulated without a card
   WAL_RINGEDGE_IC_CARD: COM2
