@@ -8749,14 +8749,19 @@ Common options "Cabinet link", "Cabinet number" (`WAL_CABINET`, `auto` by defaul
 * **The game's sockets** (its executable's `ws2_32` / `wsock32` imports, by name or by number,
   `iphlpapi`): a broadcast (`x.x.x.255`) or a multicast datagram (`sendto`, `WSASendTo`) goes to
   each cabinet's PC, its own too, one datagram each; the PC's cards (`SIO_GET_INTERFACE_LIST`,
-  `GetAdaptersInfo`) are the card of its address (and the loopback), `gethostbyname` of its own
-  name that address alone; `link::virtual_net` makes a game's own cabinet addresses
-  (`net.(first + k - 1)`) the PCs both ways (`bind`, `connect`, `recvfrom`, `accept`,
-  `getpeername`); `link::name_is_address` makes `gethostname` the address. With loopback
-  addresses the game's binds to every address are made the cabinet's own, an unbound socket is
-  bound to it before its first `sendto` / `connect` (the system would send from 127.0.0.1: Ford
-  Racing's race search, its host answering there), the loopback card is left out and another
-  cabinet's address cannot be bound. The log notes the first datagrams with each cabinet, the
+  `GetAdaptersInfo`, `GetAdaptersAddresses`) are the card of its address (and the loopback),
+  `gethostbyname` of its own name that address alone; `link::virtual_net` makes a game's own
+  cabinet addresses (`net.(first + k - 1)`) the PCs both ways (`bind`, `connect`, `recvfrom`,
+  `accept`, `getpeername`); `link::name_is_address` makes `gethostname` the address. The game's
+  ports under 1024 (Showdown's 1000 / 1001: a user's process cannot bind them on Linux) are
+  40000 + port on the network, on every cabinet, translated back in what the game sees
+  (`getsockname`, the peers). With loopback addresses the game's binds to every address are made
+  the cabinet's own, an unbound socket is bound to it before its first `sendto` / `connect` (the
+  system would send from 127.0.0.1: Ford Racing's race search, its host answering there), the
+  loopback card is left out, another cabinet's address cannot be bound, and the game's
+  connections to 127.0.0.1 go to its own address, where the payload's servers listen
+  (`link::local_server`: segashell's Shell on 18888, else both games reached the first
+  instance's). The log notes the first datagrams with each cabinet, the
   unicast datagrams to other addresses, and every 10 s the datagrams counted with each cabinet.
 * **Ford Racing Full Blown** (europar, `settings.rs`): its own protocol (`SEGA_PROTOCOL_*`,
   broadcasts to ports 53001..53003, its card by `SIO_GET_INTERFACE_LIST`), then Netmat's race
@@ -8779,6 +8784,12 @@ Common options "Cabinet link", "Cabinet number" (`WAL_CABINET`, `auto` by defaul
   prologue checked, a detour) makes them 0 first. Verified with two instances: WAIT TO START
   MULTIPLAYER, MULTIPLAYER WAITING FOR CHALLENGERS, name entry together, one race (6/6 and 5/6),
   about 600 datagrams per 10 s each way.
+* **DiRT Showdown** (segashell, `settings.rs`): `[Network] CabinetID` of `ShellData.ini` is the
+  link's number; its card by `GetAdaptersAddresses`, discovery broadcast to UDP 1240, the link on
+  TCP / UDP 1001 (41001 on the network), the session on 1000 / 1250. Verified with two
+  instances (coins inserted: the profile's free play is off): CHALLENGE AVAILABLE on one while the
+  other waits for challengers, name entry together, the event vote, both players on the vehicle
+  choice, one Demolition event (the same clock, each its own position and score).
 * Two instances of one SquashFS image on a PC share its mount point
   (`/run/user/<uid>/wal-squashfs/<image name>`): the second one breaks the first. A test links
   two names of the image (symbolic links), each with its own `prefix:` and `squashfs_saves:`.
@@ -9177,7 +9188,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | `all_test/game/Gold/motobike.exe` (unprotected build), `motobikeio.dll` replaced (handlebar, throttle, brake, boost, menu buttons, coin counter, board memory in `assets/motobikeio.mem`, uncalibrated channels full range), dongle class answered, start = its own Enter key (real keyboard and XInput hidden), WMV9 movies, full screen |
 | `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | `FordRacing/fordracing.exe`, `inpout32.dll` replaced: Happ UGCI HID board (wheel, pedals, shift up/down, start, view), the GameShell's credits (coins, free play option), parallel port force feedback, 1024x768 (option); cabinet link across PCs (§6.8); test menu (the GameShell's) not yet |
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | cabinet link across PCs (§6.8); `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
-| `showdown` | Showdown | segashell | works (user: 100%) | `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
+| `showdown` | Showdown | segashell | works (user: 100%) | cabinet link across PCs (§6.8); `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
 | `grid` | GRID | europar | works (user: 100%) | cabinet link across PCs (§6.8); `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
 | `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | `Daytona/Daytona.exe` (the dump's original `bkp.exe`), wal-loader: fake DirectInput "SEGA IO Controller" (wheel, gas, brake, start, shift up/down, H gears, views), the Sega Shell over TCP 18888 (credits, free play, security answers), InpWrapper force feedback, Wine's qcap disabled (heap corruption), a borderless window of the screen's size |
 | `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | `Sega/Daytona/Daytona.exe`, as the first edition; the shell's cabinet SKU (else NETWORK DISCOVERY) |

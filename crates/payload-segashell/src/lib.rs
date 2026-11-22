@@ -40,6 +40,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         }
         patches::apply();
         resolution();
+        // the cabinets on other PCs (WAL_LINK): Showdown's broadcasts, its card
+        wal_payload_common::link::init();
         settings::init();
         rapture3d::init();
         board::init();

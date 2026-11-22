@@ -123,7 +123,8 @@ static GAME: Mutex<Option<TcpStream>> = Mutex::new(None);
 static CREDITS: Mutex<u8> = Mutex::new(0);
 
 pub(crate) fn start() {
-    let listener = match TcpListener::bind(("127.0.0.1", PORT)) {
+    // two linked instances on one PC (a test): each its own loopback address
+    let listener = match TcpListener::bind((std::net::Ipv4Addr::from(wal_payload_common::link::local_server()), PORT)) {
         Ok(l) => l,
         Err(e) => {
             log!("shell: cannot listen on {PORT}: {e}");

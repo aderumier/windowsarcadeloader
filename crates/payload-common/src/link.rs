@@ -20,9 +20,9 @@
 //! * a broadcast (`255.255.255.255`, `x.x.x.255`) or a multicast datagram goes to each cabinet's
 //!   PC, its own too (a broadcast comes back to its sender), as one datagram each: the PCs'
 //!   firewalls see plain datagrams, a PC on another network is reached too;
-//! * the PC's cards (`SIO_GET_INTERFACE_LIST`, `GetAdaptersInfo`) are the card of its address and
-//!   the loopback, and its own name (`gethostbyname`) is that address alone: a VPN's or a virtual
-//!   card's address would be given to the other cabinets otherwise;
+//! * the PC's cards (`SIO_GET_INTERFACE_LIST`, `GetAdaptersInfo`, `GetAdaptersAddresses`) are the
+//!   card of its address (and the loopback), and its own name (`gethostbyname`) is that address
+//!   alone: a VPN's or a virtual card's address would be given to the other cabinets otherwise;
 //! * a game whose cabinets have addresses of their own ([`virtual_net`]: cabinet k at
 //!   `net.(first + k - 1)`) has them made the cabinets' PCs both ways (`net.255` a broadcast).
 //!
@@ -33,7 +33,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use windows_sys::Win32::NetworkManagement::IpHelper::{GetIpAddrTable, IP_ADAPTER_INFO, MIB_IPADDRTABLE};
+use windows_sys::Win32::NetworkManagement::IpHelper::{GetIpAddrTable, IP_ADAPTER_ADDRESSES_LH, IP_ADAPTER_INFO, MIB_IPADDRTABLE};
 
 use crate::{iat, log};
 
@@ -522,6 +522,16 @@ fn on_loopback() -> bool {
     own().is_some_and(|a| a[0] == 127)
 }
 
+/// The address a payload's server for the game listens on: 127.0.0.1, or (instances on one PC)
+/// this cabinet's loopback address, where the game's connections to 127.0.0.1 go (each
+/// instance's game reaches its own payload).
+pub fn local_server() -> [u8; 4] {
+    match own() {
+        Some(a) if a[0] == 127 => a,
+        _ => [127, 0, 0, 1],
+    }
+}
+
 /// An IPv4 `sockaddr_in`'s address (`None`: another family).
 unsafe fn inet(addr: *const u8, len: i32) -> Option<[u8; 4]> {
     if addr.is_null() || len < 16 || unsafe { *addr } != 2 {
@@ -530,10 +540,28 @@ unsafe fn inet(addr: *const u8, len: i32) -> Option<[u8; 4]> {
     Some(unsafe { [*addr.add(4), *addr.add(5), *addr.add(6), *addr.add(7)] })
 }
 
+/// The game's ports under 1024 (Showdown's 1000 / 1001) are 40000 + port on the network: a
+/// user's process cannot bind them on Linux (Wine's under it); every linked cabinet moves them
+/// the same way, the game sees its own.
+const PORT_SHIFT: u16 = 40000;
+
+fn port_out(p: u16) -> u16 {
+    if (1..1024).contains(&p) { p + PORT_SHIFT } else { p }
+}
+
+fn port_in(p: u16) -> u16 {
+    if (PORT_SHIFT + 1..PORT_SHIFT + 1024).contains(&p) { p - PORT_SHIFT } else { p }
+}
+
+/// `addr` (a `sockaddr_in`) to `a`: its port moved ([`port_out`]) when `a` is a cabinet's PC.
 fn with_address(addr: *const u8, a: [u8; 4]) -> [u8; 16] {
     let mut m = [0u8; 16];
     unsafe { std::ptr::copy_nonoverlapping(addr, m.as_mut_ptr(), 16) };
     m[4..8].copy_from_slice(&a);
+    if pc_of(a).is_some() {
+        let p = port_out(u16::from_be_bytes([m[2], m[3]]));
+        m[2..4].copy_from_slice(&p.to_be_bytes());
+    }
     m
 }
 
@@ -580,11 +608,13 @@ static SEND_TO: AtomicUsize = AtomicUsize::new(0);
 static RECV_FROM: AtomicUsize = AtomicUsize::new(0);
 static ACCEPT: AtomicUsize = AtomicUsize::new(0);
 static GET_PEER_NAME: AtomicUsize = AtomicUsize::new(0);
+static GET_SOCK_NAME: AtomicUsize = AtomicUsize::new(0);
 static GET_HOST_BY_NAME: AtomicUsize = AtomicUsize::new(0);
 static GET_HOST_NAME: AtomicUsize = AtomicUsize::new(0);
 static WSA_IOCTL: AtomicUsize = AtomicUsize::new(0);
 static WSA_SEND_TO: AtomicUsize = AtomicUsize::new(0);
 static GET_ADAPTERS_INFO: AtomicUsize = AtomicUsize::new(0);
+static GET_ADAPTERS_ADDRESSES: AtomicUsize = AtomicUsize::new(0);
 
 type BindFn = unsafe extern "system" fn(usize, *const u8, i32) -> i32;
 type SendToFn = unsafe extern "system" fn(usize, *const u8, i32, i32, *const u8, i32) -> i32;
@@ -596,6 +626,7 @@ type HostNameFn = unsafe extern "system" fn(*mut u8, i32) -> i32;
 type IoctlFn = unsafe extern "system" fn(usize, u32, *const u8, u32, *mut u8, u32, *mut u32, *mut u8, usize) -> i32;
 type WsaSendToFn = unsafe extern "system" fn(usize, *const WsaBuf, u32, *mut u32, u32, *const u8, i32, *mut u8, usize) -> i32;
 type AdaptersInfoFn = unsafe extern "system" fn(*mut IP_ADAPTER_INFO, *mut u32) -> u32;
+type AdaptersAddressesFn = unsafe extern "system" fn(u32, u32, *mut std::ffi::c_void, *mut IP_ADAPTER_ADDRESSES_LH, *mut u32) -> u32;
 
 fn real<F: Copy>(slot: &AtomicUsize) -> F {
     let p = slot.load(Ordering::Relaxed);
@@ -616,7 +647,9 @@ unsafe extern "system" fn bind(s: usize, addr: *const u8, len: i32) -> i32 {
         return -1;
     }
     let mine = to_real(a) == own || (a == [0; 4] && on_loopback());
-    let m = with_address(addr, if mine { own } else { a });
+    let mut m = with_address(addr, if mine { own } else { a });
+    let p = port_out(u16::from_be_bytes([m[2], m[3]]));
+    m[2..4].copy_from_slice(&p.to_be_bytes());
     let r = unsafe { f(s, m.as_ptr(), 16) };
     log!("link: bind {}:{} -> {r}{}", dotted(a), u16::from_be_bytes([m[2], m[3]]), if mine && a != own { format!(" (on {})", dotted(own)) } else { String::new() });
     r
@@ -631,12 +664,19 @@ unsafe extern "system" fn connect(s: usize, addr: *const u8, len: i32) -> i32 {
             log!("link: connect {}:{} (cabinet {})", dotted(to_real(a)), u16::from_be_bytes([m[2], m[3]]), pc_of(to_real(a)).unwrap_or(0));
             unsafe { f(s, m.as_ptr(), 16) }
         }
-        Some(a) => {
-            if let Some(pc) = pc_of(a) {
-                log!("link: connect {}:{} (cabinet {pc})", dotted(a), u16::from_be_bytes(unsafe { [*addr.add(2), *addr.add(3)] }));
-            }
-            unsafe { f(s, addr, len) }
+        // instances on one PC: 127.0.0.1 is this cabinet's loopback address ([`local_server`])
+        Some([127, 0, 0, 1]) if on_loopback() => {
+            let m = with_address(addr, local_server());
+            unsafe { f(s, m.as_ptr(), 16) }
         }
+        Some(a) => match pc_of(a) {
+            Some(pc) => {
+                let m = with_address(addr, a);
+                log!("link: connect {}:{} (cabinet {pc})", dotted(a), u16::from_be_bytes([m[2], m[3]]));
+                unsafe { f(s, m.as_ptr(), 16) }
+            }
+            None => unsafe { f(s, addr, len) },
+        },
         None => unsafe { f(s, addr, len) },
     }
 }
@@ -751,6 +791,10 @@ unsafe fn from_game(addr: *mut u8, len: *const i32) {
         return;
     }
     if let Some(a) = unsafe { inet(addr, *len) } {
+        if pc_of(a).is_some() {
+            let p = port_in(u16::from_be_bytes(unsafe { [*addr.add(2), *addr.add(3)] }));
+            unsafe { std::ptr::copy_nonoverlapping(p.to_be_bytes().as_ptr(), addr.add(2), 2) };
+        }
         let g = to_game(a);
         unsafe { std::ptr::copy_nonoverlapping(g.as_ptr(), addr.add(4), 4) };
     }
@@ -778,6 +822,17 @@ unsafe extern "system" fn accept(s: usize, addr: *mut u8, len: *mut i32) -> usiz
             log!("link: accepted cabinet {pc}");
         }
         unsafe { from_game(addr, len) };
+    }
+    r
+}
+
+/// The socket's own address: its port as the game bound it ([`port_out`]).
+unsafe extern "system" fn get_sock_name(s: usize, addr: *mut u8, len: *mut i32) -> i32 {
+    let f: PeerFn = real(&GET_SOCK_NAME);
+    let r = unsafe { f(s, addr, len) };
+    if r == 0 && !len.is_null() && unsafe { inet(addr, *len) }.is_some() {
+        let p = port_in(u16::from_be_bytes(unsafe { [*addr.add(2), *addr.add(3)] }));
+        unsafe { std::ptr::copy_nonoverlapping(p.to_be_bytes().as_ptr(), addr.add(2), 2) };
     }
     r
 }
@@ -976,6 +1031,70 @@ unsafe extern "system" fn get_adapters_info(info: *mut IP_ADAPTER_INFO, size: *m
     r
 }
 
+/// The PC's cards (`GetAdaptersAddresses`, Showdown's): the card of its address alone, first (a
+/// copy of it in the list's first entry); none has it (the loopback addresses): the first card
+/// that is not the loopback, its first IPv4 address made this cabinet's.
+unsafe extern "system" fn get_adapters_addresses(family: u32, flags: u32, reserved: *mut std::ffi::c_void, list: *mut IP_ADAPTER_ADDRESSES_LH, size: *mut u32) -> u32 {
+    let f: AdaptersAddressesFn = real(&GET_ADAPTERS_ADDRESSES);
+    let r = unsafe { f(family, flags, reserved, list, size) };
+    let Some(own) = own() else { return r };
+    if r != 0 || list.is_null() {
+        return r;
+    }
+    // IF_TYPE_SOFTWARE_LOOPBACK
+    const LOOPBACK: u32 = 24;
+    let ipv4 = |u: *mut windows_sys::Win32::NetworkManagement::IpHelper::IP_ADAPTER_UNICAST_ADDRESS_LH| -> Option<*mut u8> {
+        let a = unsafe { (*u).Address.lpSockaddr } as *mut u8;
+        (!a.is_null() && unsafe { *a } == 2).then_some(a)
+    };
+    let (mut mine, mut first): (*mut IP_ADAPTER_ADDRESSES_LH, *mut IP_ADAPTER_ADDRESSES_LH) = (std::ptr::null_mut(), std::ptr::null_mut());
+    let mut a = list;
+    while !a.is_null() {
+        let mut u = unsafe { (*a).FirstUnicastAddress };
+        while !u.is_null() {
+            if let Some(sa) = ipv4(u) {
+                if unsafe { std::slice::from_raw_parts(sa.add(4), 4) } == own {
+                    mine = a;
+                }
+                if first.is_null() && unsafe { (*a).IfType } != LOOPBACK {
+                    first = a;
+                }
+            }
+            u = unsafe { (*u).Next };
+        }
+        if !mine.is_null() {
+            break;
+        }
+        a = unsafe { (*a).Next };
+    }
+    let chosen = if !mine.is_null() { mine } else { first };
+    if chosen.is_null() {
+        return r;
+    }
+    unsafe {
+        if mine.is_null() {
+            // the loopback addresses: its first IPv4 address made this cabinet's
+            let mut u = (*chosen).FirstUnicastAddress;
+            while !u.is_null() {
+                if let Some(sa) = ipv4(u) {
+                    std::ptr::copy_nonoverlapping(own.as_ptr(), sa.add(4), 4);
+                    break;
+                }
+                u = (*u).Next;
+            }
+        }
+        if chosen != list {
+            std::ptr::copy_nonoverlapping(chosen, list, 1);
+        }
+        (*list).Next = std::ptr::null_mut();
+    }
+    static LOGGED: AtomicUsize = AtomicUsize::new(0);
+    if LOGGED.fetch_add(1, Ordering::Relaxed) < 3 {
+        log!("link: the PC's cards (GetAdaptersAddresses): {} alone", dotted(own));
+    }
+    r
+}
+
 /// Makes the sockets of the module at `base` (the game executable, or a DLL of its own with
 /// sockets) the link's: nothing alone.
 ///
@@ -985,11 +1104,12 @@ pub unsafe fn hook_module(base: usize) {
     if !linked() {
         return;
     }
-    let hooks: [(u16, &str, usize, &AtomicUsize); 9] = [
+    let hooks: [(u16, &str, usize, &AtomicUsize); 10] = [
         (1, "accept", accept as *const () as usize, &ACCEPT),
         (2, "bind", bind as *const () as usize, &BIND),
         (4, "connect", connect as *const () as usize, &CONNECT),
         (5, "getpeername", get_peer_name as *const () as usize, &GET_PEER_NAME),
+        (6, "getsockname", get_sock_name as *const () as usize, &GET_SOCK_NAME),
         (17, "recvfrom", recv_from as *const () as usize, &RECV_FROM),
         (20, "sendto", send_to as *const () as usize, &SEND_TO),
         (52, "gethostbyname", get_host_by_name as *const () as usize, &GET_HOST_BY_NAME),
@@ -1009,6 +1129,9 @@ pub unsafe fn hook_module(base: usize) {
     }
     if let Some(o) = unsafe { iat::hook_module(base, "iphlpapi.dll", "GetAdaptersInfo", get_adapters_info as *const () as usize) } {
         let _ = GET_ADAPTERS_INFO.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
+    }
+    if let Some(o) = unsafe { iat::hook_module(base, "iphlpapi.dll", "GetAdaptersAddresses", get_adapters_addresses as *const () as usize) } {
+        let _ = GET_ADAPTERS_ADDRESSES.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
     }
 }
 

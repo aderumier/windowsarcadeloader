@@ -5,6 +5,8 @@
 //!   that the game refuses, e.g. Showdown's `Audio/AttractMusic`, 0-3, written as a volume by
 //!   later Shells)
 //! * `WAL_SEGASHELL_FREEPLAY=0|1`: `Credit/Freeplay`
+//! * linked across PCs (`WAL_LINK`, payload-common `link.rs`): `Network/CabinetID`, the link's
+//!   cabinet number (Showdown)
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -33,6 +35,10 @@ fn overrides() -> &'static [(String, String, String)] {
         // `WAL_SEGASHELL_FREEPLAY`, else the common `WAL_FREEPLAY`
         if let Some(on) = wal_payload_common::free_play("WAL_SEGASHELL_FREEPLAY") {
             list.push(("Credit".into(), "Freeplay".into(), if on { "1" } else { "0" }.into()));
+        }
+        // linked across PCs (`WAL_LINK`): the cabinet's number
+        if wal_payload_common::link::linked() {
+            list.insert(0, ("Network".into(), "CabinetID".into(), wal_payload_common::link::cabinet().to_string()));
         }
         list
     })

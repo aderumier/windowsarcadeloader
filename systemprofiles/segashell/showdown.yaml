@@ -31,6 +31,8 @@ input:
 env:
   # the Shell's protocol of this game (DSW packets, the cabinet's configuration on launch)
   WAL_SEGASHELL_PROTOCOL: dsw
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # the cabinet's c:\sega\Shell and c:\sega\ShellData (shell settings, operator settings):
   # the dump's own folders, from the game's directory; its DirectInput devices are taken only
   # when a USB device of the same vendor / product is found (and is not an XInput pad,
