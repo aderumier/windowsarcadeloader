@@ -6354,10 +6354,25 @@ targets' sensors.
   tenth target, `0x402330`) with credits fires a coin (`0x411ac0`) and hits its target.
 - **Aim and fire.** The payload keeps an aimed target (the stick or d-pad: left / right along
   its row, up / down the nearest of the next row; the bottom middle one at start), drawn as a
-  yellow ring into the screen surface before `SDL_Flip` (main and bonus screens); fire posts its
-  digit (again every 250 ms while held, as the cabinet's button). In the instructions (shown at
-  a credit's first coin and in the attract) fire is their "fire button to skip": the screen's
+  yellow ring into the screen surface before `SDL_Flip` (main screen); fire posts its digit
+  (again every 250 ms while held, as the cabinet's button). In the instructions (shown at a
+  credit's first coin and in the attract) fire is their "fire button to skip": the screen's
   timer ends at once (`0x6077fc` = 1, what the board's fire switch does).
+- **Gun.** The gun (or mouse: `guns_enabled`, its place on the pedals, which the game does not
+  read, the stick left to the aim) aims too: as it moves, the target whose ring (radius 61 in
+  the picture) holds its place is the aimed one; off the targets no ring, the trigger (fire)
+  fires nothing. A white cross is drawn at its place (the common `WAL_CROSSHAIR`, on in the
+  profile, hidden 5 s after it last moved; `WAL_HIDE_CURSOR`): the launcher's mouse place
+  (relative moves added up) drifts from the desktop's cursor, so aiming with that cursor missed.
+- **Bonus maze.** The bonus screen (eight monsters jailed: BIG BONUS) is a maze whose character
+  the cabinet's joystick steers: the board's joystick bits (`0x602184`, cleared each frame,
+  then ORed with the desktop mode's arrow keys `0x607820`; 1 right, 2 down, 4 left, 8 up,
+  read by `0x407a70`). Nothing set them (the stick only moved the aim): the payload holds the
+  stick's directions in `0x607820` during the bonus (no aim, ring or shots there).
+- **Volume.** The operator menu's sound effects and music volumes (`0x6078cc`, `0x6078ca`,
+  0 to 100; `Setup\menu.txt`'s default 20, quiet) are set at the first frame (after the saved
+  options are read) to `WAL_MONSTEROUS_SFX_VOLUME` / `WAL_MONSTEROUS_MUSIC_VOLUME` (GUI options,
+  100 by default) and applied as the menu does (`0x410810` the channels, `0x410780` the music).
 - **Coins.** A coin (or the service button) is the game's coin in (`0x40c3c0` with the coin's
   value `0x6078de`). Free play (the common `WAL_FREEPLAY`, on by default): a coin whenever the
   credits (`0x6065d8`) are spent.
@@ -6376,12 +6391,25 @@ targets' sensors.
   (`WAL_DESKTOP_SIZE`, borderless; stretched over a 4:3 screen with KEEP ASPECT RATIO off,
   `WAL_DESKTOP_STRETCH`); SDL's `windib` draws its surface with `BitBlt`, a `StretchBlt` to the
   window's client area here (`COLORONCOLOR`: `HALFTONE` slowed the loading screen's many
-  flips several times over). `WAL_MONSTEROUS_TRACE=1`: the scene, level, credits logged each
-  second.
+  flips several times over). `SDL_SetVideoMode` gets `SDL_NOFRAME`: `windib` creates its
+  window 0x0 (which the popup option leaves as it is) with a caption, then sized framed
+  (1286x800) and fitted twice on the GNOME desktop (2894x1800, the picture larger than the
+  screen); frameless it is fitted once (1920x1152 at 0,24 on 1920x1200). With the Sinden frame
+  (the window screen-sized) the picture goes to the largest centered rectangle of its aspect in
+  the frame's opening (`border_ddraw::picture`), the frame drawn around it with GDI (the black
+  parts clipped out of the ring and the picture: each pixel drawn once, no flicker).
+  `WAL_MONSTEROUS_TRACE=1`: the scene, level, credits logged each second, the gun's place as it
+  moves.
 - Verified headless (2026-11-12): boot (fresh saves: no setup alarm), attract instructions,
   coin, the instructions skipped by fire, shots aimed and fired (monsters hit, jailed, coins
   won), free play refills, the operator menu (on, next item, off), its sound stream playing.
 - The user: 100% (2026-11-12, desktop).
+- Verified headless (2026-11-22): volumes 20 -> 100 at the first frame; the bonus maze (reached
+  with the game's own trigger, `0x4018a0` with the eight jail slots set, in a test build) with
+  the stick: left then up, cell by cell (`MazeRouteCalc`, eyes eaten), still when released.
+  The Sinden frame (1920x1080: the picture 1673x1004 in its opening), the gun on target 0
+  (yellow ring, the cross in it) and between 9 and 0 (the cross alone). The user: 100%
+  (2026-11-22, desktop: frameless, the frame, the mouse aiming with the cross).
 
 #### Dream Hunting
 
@@ -9512,7 +9540,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player | LuckSheng's off-road racing cabinet (Unity 2020.3, IL2CPP, 64-bit, §6.3i): the repack's launcher stub renamed to the product name, its BepInEx plugin disabled, the payload is the COM1 board's `cncommwrapper.dll` (wheel, pedals, switches, coins), silent for 0.5 s after open (the game's receive thread race), free play as `GameData.ini`'s `Coin_Rate` |
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | user 100% (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
 | `in-the-groove-2` | In The Groove 2 | arcadepc | user 100% (2026-11-12), 2 players | Roxor's dance game, the OpenITG beta 2 build (StepMania 3.95, OpenGL, 32-bit, §6.3i, board `itg`): the payload is its DirectInput keyboard (both players' pads and menu buttons, polled), sets free play and the window in its `StepMania.ini`; a borderless screen-sized window, its 640x480 viewports scaled to 4:3 (black bars) |
-| `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
+| `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the gun or mouse aims (a cross, the Sinden frame), the bonus maze, the volumes, the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
 | `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (player 1 alone) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | user 100% (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
 | `omatsuri-yasan-kingyo-sukui` | Omatsuri Yasan Kingyo Sukui | arcadepc | user 100% (2026-11-15), 1 player | Cave's goldfish scooping touch game (Direct3D 9, 32-bit, 1024x768, §6.3i, board `omatsuri`): the payload emulates the COM3 I/O board (coins, service, test), plays the touch screen (cursor + DirectInput mouse button events), passes the machine check (`common.log`), native `d3dx9_36` (mesh crash), free play as credits kept at 1 |

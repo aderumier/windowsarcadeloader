@@ -3,8 +3,8 @@
 # A coin pusher's screen game: the cabinet fires the player's coins (shots) at ten targets in
 # front of the screen, a monster on the hit target is caught or wins coins. The game runs in
 # its own desktop mode (NOIO: the cabinet's Logic board simulated by the game), whose debug
-# keys the payload plays: the aimed target chosen with the stick and drawn as a ring, the fire
-# button shoots it, the coins, the operator menu (docs §6.3i).
+# keys the payload plays: the aimed target chosen with the stick or the gun (the nearest to
+# where it points) and drawn as a ring, the fire button (the trigger) shoots it, the coins, the operator menu (docs §6.3i).
 system: arcadepc
 name: Monsterous
 
@@ -24,6 +24,13 @@ env:
   WAL_DESKTOP_SIZE: 1280x768
   WAL_WINDOW_POPUP: "1"
   WAL_DESKTOP_STRETCH: "1"
+  # the operator menu's volumes (its default 20 of 100 is quiet), set at each start
+  WAL_MONSTEROUS_SFX_VOLUME: "100"
+  WAL_MONSTEROUS_MUSIC_VOLUME: "100"
+  # the gun's crosshair (the common crosshair option's default): the mouse's place is the
+  # launcher's, which the desktop's cursor (hidden) does not follow
+  WAL_CROSSHAIR: "1"
+  WAL_HIDE_CURSOR: "1"
 
 options:
   - title: Game
@@ -34,13 +41,35 @@ options:
         description: >-
           A coin is added whenever the shots are spent. Off: the coins (one shot per coin at
           the default settings).
+      - key: WAL_MONSTEROUS_SFX_VOLUME
+        label: Sound effects volume
+        kind: number
+        min: 0
+        max: 100
+        description: >-
+          The operator menu's sound effects volume, set at each start (the game's default 20).
+      - key: WAL_MONSTEROUS_MUSIC_VOLUME
+        label: Music volume
+        kind: number
+        min: 0
+        max: 100
+        description: The operator menu's music volume, set at each start (the game's default 20).
+
+input:
+  # the gun (or mouse) aims at the target nearest to where it points, its trigger fires: its
+  # position on the pedals, which the game does not read (the stick keeps stepping the aim);
+  # with a Sinden plugged in the frame is drawn (the common WAL_SINDEN_BORDER's auto)
+  guns_enabled: true
+  gun:
+    x: accel
+    y: brake
 
 controls:
-  up: Aim at the row above (menu previous)
-  down: Aim at the row below (menu next)
-  left: Aim left
-  right: Aim right
-  b1: Fire (skip the instructions, menu select)
+  up: Aim at the row above (bonus maze up, menu previous)
+  down: Aim at the row below (bonus maze down, menu next)
+  left: Aim left (bonus maze left)
+  right: Aim right (bonus maze right)
+  b1: Fire / gun trigger (skip the instructions, menu select)
   start: Fire
   coin: Coin
   service: Service coin

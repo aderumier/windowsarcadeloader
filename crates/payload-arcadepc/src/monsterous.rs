@@ -13,9 +13,23 @@
 //!   d-pad: left / right along its row, up / down to the nearest of the next row; the bottom
 //!   middle one at start), drawn as a ring on the picture (`SDL_Flip`'s screen surface), and
 //!   the fire button posts its digit (again every 250 ms while held, as the cabinet's button)
-//!   in the main and bonus screens (`0x431d58`: 0, 1). In the instructions (6-9, shown at a
+//!   in the main screen (`0x431d58` 0). The gun (or mouse, on the pedals: `input.gun`) aims
+//!   too: as it moves, a target it points at (in its ring) is the aimed one, none off the
+//!   targets (no ring, the trigger fires nothing); its trigger is the fire button. The common
+//!   crosshair option (`WAL_CROSSHAIR`, the profile's default on: the mouse's place is the
+//!   launcher's, not the desktop's cursor) draws a cross at the gun's place while it moved in the
+//!   last 5 seconds. In the instructions (6-9, shown at a
 //!   credit's first coin and in the attract) it is the cabinet's "fire button to skip": the
 //!   screen's timer ends at once (`0x6077fc` = 1, as the board's fire switch does, `0x40c800`).
+//! - **Bonus.** The bonus screen (1) is a maze whose character the cabinet's joystick steers:
+//!   the board's joystick bits (`0x602184`, cleared each frame by `0x40cb20`, then ORed with
+//!   the desktop mode's arrow keys `0x607820` by `0x4032d0`; read by `0x407a70`: 1 right,
+//!   2 down, 4 left, 8 up). The payload holds the stick's directions in `0x607820` there (no
+//!   aim, no ring, no shots).
+//! - **Volume.** The operator menu's sound effects and music volumes (`0x6078cc`, `0x6078ca`,
+//!   0 to 100, `Setup\menu.txt`'s default 20: quiet) are set at the first frame to
+//!   `WAL_MONSTEROUS_SFX_VOLUME` / `WAL_MONSTEROUS_MUSIC_VOLUME` (the profile's 100) and
+//!   applied (`0x410810`: the channels, `0x410780`: the music), as the menu does.
 //! - **Coins.** A coin is the game's coin in (`0x40c3c0`, the coin's value `0x6078de`), the
 //!   service button the same (a service credit). Free play (the common `WAL_FREEPLAY`): a coin
 //!   whenever the credits (`0x6065d8`) are spent.
@@ -34,6 +48,11 @@
 //! - **Picture.** SDL's `windib` driver draws its 1280x768 surface into its window with
 //!   `BitBlt`: the window, on a 1280x768 desktop fitted onto the screen (`WAL_DESKTOP_SIZE`), is
 //!   larger, so `SDL.dll`'s `BitBlt` is a `StretchBlt` to the window's client area.
+//!   With the Sinden frame (the window screen-sized) the picture goes to the largest centered
+//!   rectangle of its aspect in the frame's opening, the frame drawn around it (`GDI`, the black
+//!   parts clipped out of the ring and the picture: no flicker).
+//!   `SDL_SetVideoMode` gets `SDL_NOFRAME`: `windib` creates its window without a size (left
+//!   as it is by the popup option) and gives it a caption, its frame then seen on the screen.
 //! - `WAL_MONSTEROUS_TRACE=1`: the scene, level, credits, shots and targets' states logged each
 //!   second.
 //!
@@ -48,7 +67,11 @@ use std::time::{Duration, Instant};
 use wal_payload_common::mapping::ButtonMap;
 use wal_payload_common::{iat, input, log};
 use windows_sys::Win32::Foundation::RECT;
-use windows_sys::Win32::Graphics::Gdi::{COLORONCOLOR, SetStretchBltMode, StretchBlt, WindowFromDC};
+use wal_protocol::Axis;
+use windows_sys::Win32::Graphics::Gdi::{
+    COLORONCOLOR, CreateSolidBrush, DeleteObject, ExcludeClipRect, FillRect, GetStockObject, BLACK_BRUSH, HBRUSH, RestoreDC, SaveDC, SetStretchBltMode,
+    StretchBlt, WindowFromDC,
+};
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
 use windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect;
 
@@ -78,6 +101,16 @@ const SETUP_OK: u16 = 0x2a;
 /// The video mode's size.
 const MODE_W: usize = 0x60609c;
 const MODE_H: usize = 0x6060a0;
+/// The desktop mode's arrow keys, ORed into the board's joystick bits each frame (the bonus
+/// maze's character): right, down, left, up.
+const ARROWS: usize = 0x607820;
+const ARROW_BITS: [(Native, u32); 4] = [(Native::Right, 1), (Native::Down, 2), (Native::Left, 4), (Native::Up, 8)];
+/// The operator menu's volumes (i16, 0-100) and the functions applying them (cdecl, no
+/// arguments).
+const SFX_VOLUME: usize = 0x6078cc;
+const MUSIC_VOLUME: usize = 0x6078ca;
+const APPLY_SFX_VOLUME: usize = 0x410810;
+const APPLY_MUSIC_VOLUME: usize = 0x410780;
 
 const TARGETS: usize = 10;
 const FIRE_REPEAT: Duration = Duration::from_millis(250);
@@ -139,13 +172,26 @@ struct State {
     started: bool,
     menu_key: bool,
     last_trace: Option<Instant>,
+    /// The gun's place at the last frame (the pedals' raw values).
+    gun: Option<(i16, i16)>,
 }
 
-static STATE: Mutex<State> = Mutex::new(State { held: Vec::new(), queue: VecDeque::new(), aim: 8, next_fire: None, started: false, menu_key: false, last_trace: None });
+static STATE: Mutex<State> = Mutex::new(State { held: Vec::new(), queue: VecDeque::new(), aim: 8, next_fire: None, started: false, menu_key: false, last_trace: None, gun: None });
 static TRACE: AtomicBool = AtomicBool::new(false);
 static AIM: AtomicUsize = AtomicUsize::new(8);
+/// The gun's crosshair drawn (`WAL_CROSSHAIR`), the gun's place in the picture and when it
+/// last moved.
+static CROSSHAIR: AtomicBool = AtomicBool::new(false);
+static GUN_PLACE: Mutex<Option<((i32, i32), Instant)>> = Mutex::new(None);
+const CROSSHAIR_HIDE: Duration = Duration::from_secs(5);
+/// A target aimed (the gun off the targets: none).
+static AIMED: AtomicBool = AtomicBool::new(true);
 static FREE_PLAY: AtomicBool = AtomicBool::new(false);
 static COINS: AtomicU32 = AtomicU32::new(0);
+/// The picture's rectangle in the window's client area (left, top, right, bottom), its window.
+static PICTURE: Mutex<Option<([i32; 4], usize)>> = Mutex::new(None);
+/// The volumes set at the first frame (-1: the game's).
+static VOLUMES: Mutex<(i32, i32)> = Mutex::new((-1, -1));
 
 fn read_i16(addr: usize) -> i16 {
     unsafe { std::ptr::read_volatile(addr as *const i16) }
@@ -185,6 +231,28 @@ fn step(t: &[(i32, i32); TARGETS], from: usize, dir: Native) -> usize {
     }
 }
 
+/// Where the gun (the pedals: 0..32767 across the screen) points in the game's picture (its
+/// pixels), `None` off it.
+fn gun_in_picture((gx, gy): (i16, i16)) -> Option<(i32, i32)> {
+    let ([l, t, r, b], hwnd) = (*PICTURE.lock().unwrap())?;
+    let (left, top, ..) = wal_payload_common::gun::client_area(hwnd as _)?;
+    let (sw, sh) = wal_payload_common::gun::screen_size();
+    let x = f32::from(gx.max(0)) / 32767.0 * sw - left - l as f32;
+    let y = f32::from(gy.max(0)) / 32767.0 * sh - top - t as f32;
+    let (pw, ph) = ((r - l) as f32, (b - t) as f32);
+    let (mw, mh) = unsafe { (*(MODE_W as *const i32), *(MODE_H as *const i32)) };
+    ((0.0..pw).contains(&x) && (0.0..ph).contains(&y)).then(|| ((x / pw * mw as f32) as i32, (y / ph * mh as f32) as i32))
+}
+
+/// The ring's radius (its outer edge).
+const RING: i32 = 61;
+
+/// The target whose ring holds a place in the picture.
+fn pointed(t: &[(i32, i32); TARGETS], (x, y): (i32, i32)) -> Option<usize> {
+    let d2 = |i: usize| i64::from(t[i].0 - x).pow(2) + i64::from(t[i].1 - y).pow(2);
+    (0..TARGETS).filter(|&i| d2(i) <= i64::from(RING * RING)).min_by_key(|&i| d2(i))
+}
+
 fn press(queue: &mut VecDeque<(u32, bool)>, sym: u32) {
     queue.push_back((sym, true));
     queue.push_back((sym, false));
@@ -214,10 +282,36 @@ fn update(s: &mut State) {
             unsafe { check.write_volatile(SETUP_OK) };
             log!("monsterous: setup alarm cleared (no saved options)");
         }
+        let (sfx, music) = *VOLUMES.lock().unwrap();
+        for (addr, volume, apply, what) in [(SFX_VOLUME, sfx, APPLY_SFX_VOLUME, "sound effects"), (MUSIC_VOLUME, music, APPLY_MUSIC_VOLUME, "music")] {
+            if volume >= 0 {
+                let was = read_i16(addr);
+                unsafe { (addr as *mut i16).write_volatile(volume as i16) };
+                let f: unsafe extern "C" fn() = unsafe { std::mem::transmute(apply) };
+                unsafe { f() };
+                log!("monsterous: {what} volume {was} -> {volume}");
+            }
+        }
         log!("monsterous: targets {:?}", targets());
     }
+    let stick = input(0);
+    let gun = (stick.axis(Axis::Accel), stick.axis(Axis::Brake));
+    if s.gun.is_some_and(|was| was != gun) {
+        let place = gun_in_picture(gun);
+        *GUN_PLACE.lock().unwrap() = place.map(|p| (p, Instant::now()));
+        let aim = place.and_then(|place| pointed(&targets(), place));
+        if let Some(aim) = aim {
+            s.aim = aim;
+            AIM.store(aim, Ordering::Relaxed);
+        }
+        AIMED.store(aim.is_some(), Ordering::Relaxed);
+        if TRACE.load(Ordering::Relaxed) {
+            log!("monsterous: gun {gun:?} picture {:?} rect {:?} aim {aim:?}", gun_in_picture(gun), *PICTURE.lock().unwrap());
+        }
+    }
+    s.gun = Some(gun);
     let mut now = Vec::new();
-    map().for_each_pressed(&input(0), |n| {
+    map().for_each_pressed(&stick, |n| {
         if !now.contains(&n) {
             now.push(n);
         }
@@ -244,7 +338,8 @@ fn update(s: &mut State) {
             d(0x6074c8), d(0x6077d8), (0..TARGETS).map(|i| d(0x42d8b0 + 4 * i)).collect::<Vec<_>>()
         );
     }
-    let fire = s.held.contains(&Native::Fire) && scene <= 1;
+    let bonus = scene == 1;
+    let fire = s.held.contains(&Native::Fire) && scene == 0;
     for n in pressed {
         match n {
             Native::Menu => {
@@ -254,8 +349,12 @@ fn update(s: &mut State) {
             }
             Native::Coin | Native::Service => coin_in(),
             Native::Up | Native::Down | Native::Fire if menu => {}
+            Native::Up | Native::Down | Native::Left | Native::Right if bonus => {}
             Native::Up | Native::Down | Native::Left | Native::Right => {
-                s.aim = step(&targets(), s.aim, n);
+                // from the last aimed target (the gun's), shown again
+                if AIMED.swap(true, Ordering::Relaxed) {
+                    s.aim = step(&targets(), s.aim, n);
+                }
                 AIM.store(s.aim, Ordering::Relaxed);
             }
             Native::Fire if scene >= 2 => unsafe { (SCENE_TIMER as *mut u32).write_volatile(1) },
@@ -263,7 +362,12 @@ fn update(s: &mut State) {
         }
     }
     unsafe { (OPERATOR as *mut u32).write_volatile(switches) };
-    if fire && !menu {
+    let arrows = ARROW_BITS.iter().filter(|&&(n, _)| bonus && !menu && s.held.contains(&n)).fold(0, |a, &(_, bit)| a | bit);
+    unsafe {
+        let p = ARROWS as *mut u32;
+        p.write_volatile(p.read_volatile() & !0xf | arrows);
+    }
+    if fire && !menu && AIMED.load(Ordering::Relaxed) {
         let t = Instant::now();
         if s.next_fire.is_none_or(|next| t >= next) {
             press(&mut s.queue, digit(s.aim));
@@ -328,19 +432,28 @@ static FLIP: AtomicUsize = AtomicUsize::new(0);
 static GET_KEY_STATE: AtomicUsize = AtomicUsize::new(0);
 static MAP_RGB: AtomicUsize = AtomicUsize::new(0);
 
-/// The aimed target's ring, drawn into the screen surface before it is shown.
+/// The aimed target's ring and the gun's crosshair, drawn into the screen surface before it is shown.
 unsafe extern "C" fn flip(screen: P) -> i32 {
     let f: unsafe extern "C" fn(P) -> i32 = unsafe { std::mem::transmute(FLIP.load(Ordering::Relaxed)) };
     let scene = read_i16(SCENE);
-    if !screen.is_null() && read_i16(MENU_ON) == 0 && scene <= 1 {
-        unsafe { draw_ring(screen as *const u8, targets()[AIM.load(Ordering::Relaxed)]) };
+    if !screen.is_null() && read_i16(MENU_ON) == 0 {
+        if scene == 0 && AIMED.load(Ordering::Relaxed) {
+            unsafe { draw_ring(screen as *const u8, targets()[AIM.load(Ordering::Relaxed)]) };
+        }
+        let gun = *GUN_PLACE.lock().unwrap();
+        if CROSSHAIR.load(Ordering::Relaxed)
+            && let Some((place, _)) = gun.filter(|g| g.1.elapsed() < CROSSHAIR_HIDE)
+        {
+            unsafe { draw_cross(screen as *const u8, place) };
+        }
     }
     unsafe { f(screen) }
 }
 
+/// Pixels of a 32-bit SDL surface drawn with `paint(map_rgb, put)`.
 /// SDL_Surface (SDL 1.2, win32): flags, format @4, w @8, h @12, pitch (u16) @16, pixels @20;
 /// SDL_PixelFormat: palette, BitsPerPixel @4, BytesPerPixel @5.
-unsafe fn draw_ring(surface: *const u8, (cx, cy): (i32, i32)) {
+unsafe fn paint(surface: *const u8, f: impl FnOnce(&dyn Fn(u8, u8, u8) -> u32, &dyn Fn(i32, i32, u32))) {
     let map_rgb = MAP_RGB.load(Ordering::Relaxed);
     unsafe {
         let format = *(surface.add(4) as *const *const u8);
@@ -351,27 +464,65 @@ unsafe fn draw_ring(surface: *const u8, (cx, cy): (i32, i32)) {
             return;
         }
         let map_rgb: unsafe extern "C" fn(*const u8, u8, u8, u8) -> u32 = std::mem::transmute(map_rgb);
-        let (light, dark) = (map_rgb(format, 255, 236, 0), map_rgb(format, 40, 20, 0));
-        for dy in -64..=64i32 {
-            for dx in -64..=64i32 {
-                let r2 = dx * dx + dy * dy;
-                let c = if (52 * 52..58 * 58).contains(&r2) {
-                    light
-                } else if (49 * 49..52 * 52).contains(&r2) || (58 * 58..61 * 61).contains(&r2) {
-                    dark
-                } else {
-                    continue;
-                };
-                let (x, y) = (cx + dx, cy + dy);
-                if x >= 0 && y >= 0 && x < w && y < h {
-                    *(pixels.add(y as usize * pitch + x as usize * 4) as *mut u32) = c;
+        let rgb = |r, g, b| map_rgb(format, r, g, b);
+        let put = |x: i32, y: i32, c: u32| {
+            if x >= 0 && y >= 0 && x < w && y < h {
+                *(pixels.add(y as usize * pitch + x as usize * 4) as *mut u32) = c;
+            }
+        };
+        f(&rgb, &put);
+    }
+}
+
+/// The gun's crosshair: a white cross with a black outline.
+unsafe fn draw_cross(surface: *const u8, (cx, cy): (i32, i32)) {
+    unsafe {
+        paint(surface, |rgb, put| {
+            let (white, black) = (rgb(255, 255, 255), rgb(0, 0, 0));
+            for (half, width, c) in [(17, 3, black), (15, 1, white)] {
+                for d in -half..=half {
+                    for t in -width..=width {
+                        put(cx + d, cy + t, c);
+                        put(cx + t, cy + d, c);
+                    }
                 }
             }
-        }
+        })
+    };
+}
+
+/// The aimed target's ring (yellow, a dark outline).
+unsafe fn draw_ring(surface: *const u8, (cx, cy): (i32, i32)) {
+    unsafe {
+        paint(surface, |rgb, put| {
+            let (light, dark) = (rgb(255, 236, 0), rgb(40, 20, 0));
+            for dy in -64..=64i32 {
+                for dx in -64..=64i32 {
+                    let r2 = dx * dx + dy * dy;
+                    let c = if (52 * 52..58 * 58).contains(&r2) {
+                        light
+                    } else if (49 * 49..52 * 52).contains(&r2) || (58 * 58..61 * 61).contains(&r2) {
+                        dark
+                    } else {
+                        continue;
+                    };
+                    put(cx + dx, cy + dy, c);
+                }
+            }
+        })
     }
 }
 
 static BIT_BLT: AtomicUsize = AtomicUsize::new(0);
+static SET_VIDEO_MODE: AtomicUsize = AtomicUsize::new(0);
+const SDL_NOFRAME: u32 = 0x20;
+
+/// `SDL_SetVideoMode(w, h, bpp, flags)`: a window without a frame.
+unsafe extern "C" fn set_video_mode(w: i32, h: i32, bpp: i32, flags: u32) -> P {
+    let f: unsafe extern "C" fn(i32, i32, i32, u32) -> P = unsafe { std::mem::transmute(SET_VIDEO_MODE.load(Ordering::Relaxed)) };
+    log!("monsterous: video mode {w}x{h}x{bpp} flags {flags:#x} -> {:#x}", flags | SDL_NOFRAME);
+    unsafe { f(w, h, bpp, flags | SDL_NOFRAME) }
+}
 static STRETCHED: AtomicBool = AtomicBool::new(false);
 
 /// SDL's `windib` updates: its 1280x768 surface stretched to the window's client area.
@@ -384,27 +535,66 @@ unsafe extern "system" fn bit_blt(dc: P, x: i32, y: i32, cx: i32, cy: i32, src: 
         return unsafe { f(dc, x, y, cx, cy, src, x1, y1, rop) };
     }
     let (w, h) = (r.right - r.left, r.bottom - r.top);
-    if (w, h) == (mw, mh) || w <= 0 || h <= 0 {
+    if w <= 0 || h <= 0 {
+        return unsafe { f(dc, x, y, cx, cy, src, x1, y1, rop) };
+    }
+    let framed = wal_payload_common::border_ddraw::picture(w as u32, h as u32, mw as u32, mh as u32);
+    let [l, t, pr, pb] = framed.unwrap_or([0, 0, w, h]);
+    *PICTURE.lock().unwrap() = Some(([l, t, pr, pb], hwnd as usize));
+    if framed.is_none() && (w, h) == (mw, mh) {
         return unsafe { f(dc, x, y, cx, cy, src, x1, y1, rop) };
     }
     if !STRETCHED.swap(true, Ordering::Relaxed) {
-        log!("monsterous: picture {mw}x{mh} stretched to {w}x{h}");
+        log!("monsterous: picture {mw}x{mh} stretched to {}x{} at {l},{t} in {w}x{h}{}", pr - l, pb - t, if framed.is_some() { " (Sinden frame)" } else { "" });
     }
-    let sx = |v: i32| (i64::from(v) * i64::from(w) / i64::from(mw)) as i32;
-    let sy = |v: i32| (i64::from(v) * i64::from(h) / i64::from(mh)) as i32;
+    if framed.is_some() && (x, y, cx, cy) == (0, 0, mw, mh) {
+        unsafe { draw_frame(dc, w, h, [l, t, pr, pb]) };
+    }
+    let (pw, ph) = (pr - l, pb - t);
+    let sx = |v: i32| l + (i64::from(v) * i64::from(pw) / i64::from(mw)) as i32;
+    let sy = |v: i32| t + (i64::from(v) * i64::from(ph) / i64::from(mh)) as i32;
     unsafe {
         SetStretchBltMode(dc as _, COLORONCOLOR);
         StretchBlt(dc as _, sx(x), sy(y), sx(x + cx) - sx(x), sy(y + cy) - sy(y), src as _, x1, y1, cx, cy, rop)
     }
 }
 
+/// The Sinden frame around the picture `p` of a `w` x `h` client area: black, the colored ring
+/// (its black outline left), each pixel drawn once.
+unsafe fn draw_frame(dc: P, w: i32, h: i32, p: [i32; 4]) {
+    let Some((_, bx, by, rgb)) = wal_payload_common::border::geometry(w as u32, h as u32) else {
+        return;
+    };
+    let (ox, oy) = wal_payload_common::border::outline(w as u32, h as u32);
+    let strips = wal_payload_common::border::strips(w, h, bx, by, ox, oy);
+    let rect = |r: [i32; 4]| RECT { left: r[0], top: r[1], right: r[2], bottom: r[3] };
+    unsafe {
+        let saved = SaveDC(dc as _);
+        for r in strips.iter().chain([&p]) {
+            ExcludeClipRect(dc as _, r[0], r[1], r[2], r[3]);
+        }
+        FillRect(dc as _, &rect([0, 0, w, h]), GetStockObject(BLACK_BRUSH) as HBRUSH);
+        RestoreDC(dc as _, saved);
+        // COLORREF: 0x00bbggrr
+        let brush = CreateSolidBrush((rgb >> 16 & 0xff) | (rgb & 0xff00) | (rgb & 0xff) << 16);
+        for r in strips {
+            FillRect(dc as _, &rect(r), brush);
+        }
+        DeleteObject(brush as _);
+    }
+}
+
 pub fn init() {
+    CROSSHAIR.store(std::env::var("WAL_CROSSHAIR").is_ok_and(|v| v.trim() == "1"), Ordering::Relaxed);
     TRACE.store(std::env::var("WAL_MONSTEROUS_TRACE").is_ok_and(|v| v == "1"), Ordering::Relaxed);
     if let Some(on) = wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY") {
         FREE_PLAY.store(on, Ordering::Relaxed);
         log!("monsterous: free play {}", if on { "on" } else { "off" });
     }
-    let hooks: [(&str, usize, &AtomicUsize); 3] = [
+    let volume = |name: &str| std::env::var(name).ok().and_then(|v| v.trim().parse::<i32>().ok()).map_or(-1, |v| v.clamp(0, 100));
+    *VOLUMES.lock().unwrap() = (volume("WAL_MONSTEROUS_SFX_VOLUME"), volume("WAL_MONSTEROUS_MUSIC_VOLUME"));
+    let hooks: [(&str, usize, &AtomicUsize); 4] = [
+        ("SDL_SetVideoMode", set_video_mode as *const () as usize, &SET_VIDEO_MODE),
         ("SDL_PollEvent", poll_event as *const () as usize, &POLL_EVENT),
         ("SDL_Flip", flip as *const () as usize, &FLIP),
         ("SDL_GetKeyState", get_key_state as *const () as usize, &GET_KEY_STATE),
