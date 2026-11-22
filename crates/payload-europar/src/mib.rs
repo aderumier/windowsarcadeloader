@@ -31,6 +31,8 @@
 //! (OpenCV 3.3's `VideoCapture(0)`, DirectShow, opened whatever `config.ini`'s `ENABLE_WEBCAM`)
 //! takes the first camera: the Sinden guns' are hidden from it (`webcam::skip_sinden`).
 //! `WAL_EUROPAR_UNLOCK` (on unless 0) unlocks every mission and stage ([`unlock`]).
+//! The cabinet's two triggers of a player are its two guns (`PlayerGunL` / `PlayerGunR`, one
+//! aim): with the lightguns plugged (`WAL_GUN_COUNT`) a player has two guns ([`guns_of`]).
 
 use std::ffi::{CStr, c_char, c_void};
 use std::sync::Mutex;
@@ -117,6 +119,13 @@ fn managed_string(s: P) -> String {
 }
 
 fn pressed(key: Key) -> bool {
+    if board() == Board::Mig
+        && let Key::Code(code) = key
+        && (7..=10).contains(&(code - JOYSTICK_BUTTON0))
+    {
+        let n = (code - JOYSTICK_BUTTON0 - 7) as usize;
+        return trigger(n / 2, n % 2 == 1);
+    }
     buttons().iter().any(|&(k, player, b)| k == key && wal_payload_common::input(player).pressed(b))
 }
 
@@ -137,7 +146,7 @@ unsafe extern "C" fn get_axis(name: P) -> f32 {
         unlock();
     }
     let player = axis / 2;
-    if let Some((x, y)) = wal_payload_common::gun::gun_of_player_in_picture(player) {
+    if let Some((x, y)) = aim(player) {
         AIM[player * 2].store(x.to_bits(), Ordering::Relaxed);
         AIM[player * 2 + 1].store(y.to_bits(), Ordering::Relaxed);
     }
@@ -222,8 +231,7 @@ fn unlock() {
     // a gun)
     static TRIGGERS: [AtomicBool; 2] = [const { AtomicBool::new(false) }; 2];
     for (player, held) in TRIGGERS.iter().enumerate() {
-        let input = wal_payload_common::input(player);
-        let pressed = input.pressed(button::B1) || input.pressed(button::B2);
+        let pressed = trigger(player, false) || trigger(player, true);
         if pressed && !held.swap(pressed, Ordering::Relaxed) {
             choose_stage(player);
         }
@@ -263,7 +271,7 @@ fn choose_stage(player: usize) {
     if entered == 0 || crate::shell_mib::now_ms() < entered + 1000 {
         return;
     }
-    let x = wal_payload_common::gun::gun_of_player_in_picture(player).map_or(f32::from_bits(AIM[player * 2].load(Ordering::Relaxed)), |(x, _)| x);
+    let x = aim(player).map_or(f32::from_bits(AIM[player * 2].load(Ordering::Relaxed)), |(x, _)| x);
     let stage = ((x * 3.0) as i32).clamp(0, 2);
     let Some(m) = mono::mono() else { return };
     let image = m.image("Assembly-CSharp");
@@ -284,6 +292,131 @@ fn choose_stage(player: usize) {
         m.invoke(m.method(interact, &format!("PlayerClick{}", stage + 1), 0), select, &mut []);
     }
     log!("mib: player {} chose stage {}", player + 1, stage + 1);
+}
+
+/// The lightguns plugged (`WAL_GUN_COUNT`: the launcher's players 1, 2... in device order).
+static GUN_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+/// A player's guns in Mission: Impossible.
+#[derive(Clone, Copy, PartialEq)]
+enum Guns {
+    /// Not a lightgun (a mouse, a pad): its first button the left trigger, its second the right.
+    Own,
+    /// One lightgun for both guns: its trigger fires both.
+    Merged,
+    /// Two lightguns (the launcher's players): the left gun's trigger, the right gun's.
+    Dual(usize, usize),
+}
+
+/// A player's guns: with four lightguns two each (player 1 the guns of players 1 and 3, player
+/// 2 those of 2 and 4: the launcher's players 1 and 2 stay the game's, their pads' start and
+/// coin too); with two, one each while both play (merged), both player 1's while player 2 does
+/// not play.
+fn guns_of(player: usize) -> Guns {
+    let count = GUN_COUNT.load(Ordering::Relaxed);
+    if player + 2 < count {
+        Guns::Dual(player, player + 2)
+    } else if count == 2 && player == 0 && !player_2_plays() {
+        Guns::Dual(0, 1)
+    } else if player < count {
+        Guns::Merged
+    } else {
+        Guns::Own
+    }
+}
+
+/// A player's left or right trigger.
+fn trigger(player: usize, right: bool) -> bool {
+    let held = |p: usize, b: u32| wal_payload_common::input(p).pressed(b);
+    match guns_of(player) {
+        Guns::Own => held(player, if right { button::B2 } else { button::B1 }),
+        Guns::Merged => held(player, button::B1) || right && held(player, button::B2),
+        Guns::Dual(left, second) => {
+            if right {
+                held(second, button::B1) || held(left, button::B2)
+            } else {
+                held(left, button::B1)
+            }
+        }
+    }
+}
+
+/// The triggers held at the last [`aim`] (the launcher's players), and each player's aiming gun.
+static AIM_HELD: [AtomicBool; 4] = [const { AtomicBool::new(false) }; 4];
+static AIM_GUN: [AtomicUsize; 2] = [AtomicUsize::new(0), AtomicUsize::new(1)];
+
+/// A player's aim in the picture: its gun's, with two guns the one whose trigger was pressed
+/// last (the game has one aim a player).
+fn aim(player: usize) -> Option<(f32, f32)> {
+    let gun = match guns_of(player) {
+        Guns::Dual(left, second) => {
+            let mut gun = AIM_GUN[player].load(Ordering::Relaxed);
+            if gun != left && gun != second {
+                gun = left;
+            }
+            for g in [left, second] {
+                let held = wal_payload_common::input(g).pressed(button::B1);
+                if held && !AIM_HELD[g].swap(held, Ordering::Relaxed) {
+                    gun = g;
+                }
+                AIM_HELD[g].store(held, Ordering::Relaxed);
+            }
+            AIM_GUN[player].store(gun, Ordering::Relaxed);
+            gun
+        }
+        _ => player,
+    };
+    wal_payload_common::gun::gun_of_player_in_picture(gun)
+}
+
+/// Whether player 2 plays, read once a frame: its start taken (`CreditManager.m_startFlag`,
+/// the lobby) or its `Player` playing (`Player.IsPlayingGame(chkCont: true, chkWait: true)`:
+/// `PlayerMode` 1-11 the game, 16-19 the continue, 0 with `m_bInWaitQueueFlag` waiting to join).
+fn player_2_plays() -> bool {
+    static FRAME: AtomicUsize = AtomicUsize::new(usize::MAX);
+    static PLAYS: AtomicBool = AtomicBool::new(false);
+    let frame_count = FRAME_COUNT.load(Ordering::Relaxed);
+    let frame = if frame_count == 0 { 0 } else { unsafe { std::mem::transmute::<usize, unsafe extern "C" fn() -> i32>(frame_count)() } } as usize;
+    if FRAME.swap(frame, Ordering::Relaxed) == frame {
+        return PLAYS.load(Ordering::Relaxed);
+    }
+    let plays = (|| {
+        let m = mono::mono()?;
+        let image = m.image("Assembly-CSharp");
+        // an instance's object (a class's `Instance` property's backing field)
+        let instance = |class: P| {
+            let at = m.static_addr(class, m.field(class, "<Instance>k__BackingField"));
+            (!at.is_null()).then(|| unsafe { mono::read::<usize>(at, 0) } as *mut u8).filter(|o| !o.is_null())
+        };
+        let credits = m.class(image, "", "CreditManager");
+        if let Some(credits_object) = instance(credits) {
+            let flags = unsafe { mono::read::<usize>(credits_object, m.offset(m.field(credits, "m_startFlag"))) } as *mut u8;
+            if !flags.is_null()
+                && unsafe { mono::read::<usize>(flags, 3 * size_of::<usize>()) } >= 2
+                && unsafe { mono::read::<u8>(flags, mono::ARRAY_DATA + 1) } != 0
+            {
+                return Some(true);
+            }
+        }
+        let manager = m.class(image, "", "PlayerManager");
+        let players = unsafe { mono::read::<usize>(instance(manager)?, m.offset(m.field(manager, "m_players"))) } as *mut u8;
+        if players.is_null() || unsafe { mono::read::<usize>(players, 3 * size_of::<usize>()) } < 2 {
+            return Some(false);
+        }
+        let player = unsafe { mono::read::<usize>(players, mono::ARRAY_DATA + size_of::<usize>()) } as *mut u8;
+        if player.is_null() {
+            return Some(false);
+        }
+        let class = m.class(image, "", "Player");
+        let mode = unsafe { mono::read::<i32>(player, m.offset(m.field(class, "m_playerMode"))) };
+        let waiting = unsafe { mono::read::<u8>(player, m.offset(m.field(class, "m_bInWaitQueueFlag"))) } != 0;
+        Some((1..=11).contains(&mode) || (16..=19).contains(&mode) || mode == 0 && waiting)
+    })()
+    .unwrap_or(false);
+    if PLAYS.swap(plays, Ordering::Relaxed) != plays {
+        log!("mib: player 2 {}", if plays { "plays: one gun a player" } else { "out: player 1 has both guns" });
+    }
+    plays
 }
 
 /// The stage select's time, 1.2 s (`NONE_SELECT_TIME`: it shows the next stage, then plays it),
@@ -480,6 +613,8 @@ pub(crate) fn init(board: &str) {
     FREE_PLAY.store(free_play && board == Board::Mib, Ordering::Relaxed);
     let unlock = board == Board::Mig && std::env::var("WAL_EUROPAR_UNLOCK").map_or(true, |v| v.trim() != "0");
     UNLOCK.store(unlock, Ordering::Relaxed);
+    let guns = std::env::var("WAL_GUN_COUNT").ok().and_then(|n| n.trim().parse().ok()).unwrap_or(0);
+    GUN_COUNT.store(guns, Ordering::Relaxed);
 
     crate::shell_mib::init(if board == Board::Mig { &crate::shell_mib::MIG } else { &crate::shell_mib::MIB }, free_play);
     match board {
@@ -491,5 +626,5 @@ pub(crate) fn init(board: &str) {
         Some(o) => UNITY_GET_PROC_ADDRESS.store(o, Ordering::Relaxed),
         None => log!("mib: UnityPlayer does not import GetProcAddress: no gun input"),
     }
-    log!("mib: shell, guns, free play {free_play}, unlock {unlock}");
+    log!("mib: shell, guns ({guns} lightguns), free play {free_play}, unlock {unlock}");
 }

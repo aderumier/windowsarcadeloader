@@ -36,7 +36,8 @@ options:
           of a mission (else the next one only).
 
 input:
-  # each gun (or mouse) aims, its triggers shoot
+  # each gun (or mouse) aims, its triggers shoot; with lightguns a player has two guns (four
+  # plugged: two each; two: one each while both play, both player 1's while alone), docs §6.3g
   guns_enabled: true
   stick_as_dpad: false
 

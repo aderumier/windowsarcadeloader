@@ -750,6 +750,12 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     if profile.input.touch && !opts.no_input && let Some(screen) = touch::surface() {
         cmd.env("WAL_TOUCH_SURFACE", if screen { "touchscreen" } else { "touchpad" });
     }
+    // the lightguns plugged (`input.guns_enabled`), for games giving a player several guns
+    if profile.input.guns_enabled && !opts.no_input {
+        let count = guns::count();
+        eprintln!("launcher: {count} lightgun(s) (WAL_GUN_COUNT)");
+        cmd.env("WAL_GUN_COUNT", count.to_string());
+    }
     let mut child = cmd.spawn().context("starting wine")?;
     // its window to the front (a frontend keeping the focus hid it)
     let mut focus = if opts.headless { None } else { focus::Focus::new(child.id()) };

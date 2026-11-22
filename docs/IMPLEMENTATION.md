@@ -3005,6 +3005,17 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
     top (-1..1 to 0..4096, then the calibration, unclamped). The wrapper's `GetKeyInt` /
     `GetKeyDownInt` / `GetKeyUpInt` answer those key codes (no keyboard key), `GetAxis` the
     guns (`2 * x - 1`, kept while off screen). The game draws its own crosshairs.
+  - *Two guns a player.* The two triggers are the player's two guns (`PlayerGunL` /
+    `PlayerGunR`, one aim). The launcher tells the payload how many real lightguns are plugged
+    (`WAL_GUN_COUNT`: tagged guns, else untagged absolute pointers; never mice nor touchpads,
+    which take the players after the guns). Four: player 1 the guns of launcher players 1 and
+    3, player 2 those of 2 and 4 (players 1 and 2 stay the game's players, their pads' start
+    and coin too), each gun's trigger one side. Three: player 1 two, player 2 one. Two: one
+    each while both play, its trigger firing both sides (merged), both player 1's while player
+    2 does not play (`CreditManager.m_startFlag[1]`, or `PlayerManager`'s player 2 in the game,
+    the continue or the join queue: `Player.m_playerMode` 1-11 / 16-19, 0 with
+    `m_bInWaitQueueFlag`, read once a frame). A player with two guns aims with the one whose
+    trigger was pressed last. Without lightguns (mice, pads): B1 the left trigger, B2 the right.
   - *Camera.* The lobby's player photo is OpenCV's `VideoCapture(0)` through DirectShow: the
     first video device, opened and set to 720x540 whatever `config.ini`'s `ENABLE_WEBCAM`
     (`WebCamera.ConnectWebCam`; the flag only hides the picture). On Batocera that device is

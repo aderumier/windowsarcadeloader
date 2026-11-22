@@ -109,6 +109,14 @@ fn is_touchpad(path: &Path, dev: &Device) -> bool {
         && dev.supported_keys().is_some_and(|k| k.contains(KeyCode::BTN_TOUCH))
 }
 
+/// The lightguns plugged, players 1, 2... (told to the game before it starts: `WAL_GUN_COUNT`;
+/// Mission: Impossible gives a player two guns with four of them).
+pub fn count() -> usize {
+    let devices: Vec<(PathBuf, Device)> = evdev::enumerate().collect();
+    let tagged = devices.iter().any(|(p, _)| is_tagged_gun(p));
+    devices.iter().filter(|(p, d)| if tagged { is_tagged_gun(p) } else { is_untagged_gun(p, d) }).count().min(MAX_PLAYERS)
+}
+
 /// Finds the guns, then the mice for the remaining players, and starts a reader thread for
 /// each one, sending its updates to `tx`.
 pub fn start(use_mice: bool, max_mice: usize, mouse_screen: [u32; 2], wrap: bool, grab: bool, tx: Sender<PointerEvent>) -> Vec<Pointer> {
