@@ -59,6 +59,9 @@ env:
   # free play (common option) in ac.dll's settings; the test switch's test menu (testmode.exe)
   # started by the launcher after the game, the game again after it
   WAL_TYPEX_HL2AC: "1"
+  # NESYS card play with the GUI's NESiCA card when it has one (players saved in
+  # WindowsLoader\nesys), else guest play
+  WAL_NESICA_CARD: "1"
   # the test menu: its own XIO library, started by itself
   WAL_EXE_ENV: "testmode.exe: WAL_TYPEX_JVS_DLLS=xioman_testmode.dll, WAL_TYPEX_XIO_INIT="
   # mouse aim: the engine's mouse look, this many percent of a cursor pixel a mouse count

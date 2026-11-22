@@ -1518,6 +1518,23 @@ switcher's handler). Settings: launcher.dll reads and writes `D:\config.bin` wit
 static C runtime, outside the redirected CRT DLLs: `WAL_DRIVE_LATE_DLLS=1` puts the D: hooks in
 the game folder's DLLs loaded later too (`late_hooks`), so the game and the test menu share
 `WindowsLoader\config.bin`.
+NESYS card (`hl2nesys.rs`): with the GUI's NESiCA card (the launcher passes it to a game whose
+profile sets `WAL_NESICA_CARD: "1"`), card play without Taito's servers. `nesys.dll`'s card
+functions answer "inserted" with `g_Global`+0x4C6's number (launcher.dll's development
+`-cardid`): written there once launcher.dll's start (which clears it) is over, as a NESYS
+number (its card thread accepts only 4410 / 4411 / 4420 / 4421 numbers, else "invalid card":
+4420 and the NESiCA number's last 12 digits), with `-nesys`'s flags (`m_bNesys`, online). Its
+player requests (`Nesys_LoginUser`, `RequestUser`, `RegistUser`, `UpdateUser`, `UpdateCard`,
+`VerupCard`, `Attestation`, normally HTTP CGIs of the lobby server from a worker thread) are
+replaced by a jump at their entry: answered at once, the state globals (`Nesys_GetState` /
+`GetError` / `GetEndState`, addresses from their `mov eax,[addr]`) set as the worker would:
+login done for a known card, failed -1 for a new one. Its card thread turns those into the
+game's states (`HL2NET_GetState`: -1 new card, 10 player loaded), asks the player after a login
+and copies the record to `g_Global`. A player is `WindowsLoader\nesys\<card>.bin`: the record
+(`NESYS_USER_DATA`, 0x58 bytes) and `g_Global`'s user data (+0xBC78..+0xC988, +0x5F8..+0x608).
+Verified headless: a new card through the NESYS card check, registration screens, terms,
+name entry and job select (saved), the card read again as the known player (loaded), a match.
+Online battles (cabinet matching) stay unanswered (a CPU match after the matching wait).
 
 Type X / X2 games (and NESiCA games built on Type X I/O like 3D Cosplay Mahjong) talk to a
 JVS I/O board on `COM2` and import no driver DLL, so the payload is injected by
@@ -5628,23 +5645,6 @@ Ironbird's 2016 shooting game, the Steam release (`bin_x86\game.exe`, OpenGL leg
 - Verified headless (2026-11-10): menu, PLAY clicked with the gun, boosts screen, gameplay with
   shots scoring at the aimed enemies, the crosshair exactly at the gun.
 
-#### Pull The Trigger
-
-Digital Silkroad's 2003 one-gun shooter (two players are two cabinets linked: LINK PLAY). The dump
-runs `PTW-BootTest.exe`, the decrypted build of the WibuKey-protected (`.wkcrypt`) `PTW.exe`
-(OpenGL, 640x480, 32-bit), with its community `PttBootTest.dll` (imported by the executable: it
-patches the executable's IAT to play the `AVI\*.mp4` videos with MFPlay in place of the MCI
-`.avi` ones, stretch the window to the screen and draw FREEPLAY). Board `pullthetrigger`
-(`pullthetrigger.rs`, x86 build), loaded by `payload_loader`.
-
-- **Input.** The cabinet's gun board is a serial one on COM2 (MarshallSoft `wsc32.dll`): absent,
-  the game logs "iolink setup fail" and goes on. Its window procedure takes the same from the
-  mouse and keyboard: the gun is posted as the mouse (client pixels), trigger = left button;
-  start = S, coin = Insert, cover = Space held (the pedal: b2, keyboard C's b7), test = Home (the
-  SYSTEM MENU, at the title), Page Up / Page Down / Delete / End its navigation from the
-  directions (`input_filter::init(exe)` + `own_mouse`: the real keyboard and mouse filtered).
-- **Free play.** No setting: the price of a credit (`settings\coinsetting.txt`, game object +0x120
-  at 0x4cc340) kept at 0, start then a shot begins a game; the community library shows FREEPLAY.
 #### Red Gun
 
 A Unity 4 mobile shooting game (`RedGun.exe`, Mono, 32-bit; touches, GameCenter): the dump is a
@@ -5672,6 +5672,23 @@ and its player's save were removed from the dump (`red-gun.windowsloader` = `Red
   button, a stage (shots, cover and peek with b2 and a shot off the screen, the enemies' hits),
   the crosshair at the gun.
 
+#### Pull The Trigger
+
+Digital Silkroad's 2003 one-gun shooter (two players are two cabinets linked: LINK PLAY). The dump
+runs `PTW-BootTest.exe`, the decrypted build of the WibuKey-protected (`.wkcrypt`) `PTW.exe`
+(OpenGL, 640x480, 32-bit), with its community `PttBootTest.dll` (imported by the executable: it
+patches the executable's IAT to play the `AVI\*.mp4` videos with MFPlay in place of the MCI
+`.avi` ones, stretch the window to the screen and draw FREEPLAY). Board `pullthetrigger`
+(`pullthetrigger.rs`, x86 build), loaded by `payload_loader`.
+
+- **Input.** The cabinet's gun board is a serial one on COM2 (MarshallSoft `wsc32.dll`): absent,
+  the game logs "iolink setup fail" and goes on. Its window procedure takes the same from the
+  mouse and keyboard: the gun is posted as the mouse (client pixels), trigger = left button;
+  start = S, coin = Insert, cover = Space held (the pedal: b2, keyboard C's b7), test = Home (the
+  SYSTEM MENU, at the title), Page Up / Page Down / Delete / End its navigation from the
+  directions (`input_filter::init(exe)` + `own_mouse`: the real keyboard and mouse filtered).
+- **Free play.** No setting: the price of a credit (`settings\coinsetting.txt`, game object +0x120
+  at 0x4cc340) kept at 0, start then a shot begins a game; the community library shows FREEPLAY.
 - **Display.** The library makes the game's popup window its monitor's size (`MonitorFromPoint` /
   `GetMonitorInfoW` in its `CreateWindowExA` hook) and draws the 4:3 picture in its middle: its
   `GetMonitorInfoW` answers the screen's centered 4:3 rectangle, the window is the picture and the
@@ -9167,7 +9184,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) | Source client hl2.exe, -io 1, serial hooks in bin/xioman.dll, complete JVS 0x25 reply, cabinet start and active-low switches, fallback axis calibration; offline; some Japanese labels garbled; testmode.exe absent |
-| `half-life-2-survivor` | Half-Life 2: Survivor | typex | works (user: WASD, mouse aim, fire; headless: attract, coins and free play, a match played, test menu) | Source client hl2.exe -ac, `Xio_Init` before `HL2IO_Init` (`WAL_TYPEX_XIO_INIT`), DXVK video memory cap (the engine's probe ate the APU's RAM), free play, test menu, movement / buttons as the engine's binds and aim as its mouse look from the launcher (`WAL_TYPEX_HL2AC`, the cabinet's sticks and switches unused by the client), fake DirectInput and filtered messages in late DLLs, D: redirect in late DLLs (`WAL_DRIVE_LATE_DLLS`: config.bin), survived.dll and Microsoft d3d9.dll hidden, movie info windows hidden, 1360x768 gamescope; offline (no NESYS card) |
+| `half-life-2-survivor` | Half-Life 2: Survivor | typex | user 100% (2026-11-22, desktop): WASD, mouse aim, fire; headless: NESYS card registration, returning card, matches, test menu | Source client hl2.exe -ac, `Xio_Init` before `HL2IO_Init` (`WAL_TYPEX_XIO_INIT`), DXVK video memory cap (the engine's probe ate the APU's RAM), free play, test menu, movement / buttons as the engine's binds and aim as its mouse look from the launcher (`WAL_TYPEX_HL2AC`, the cabinet's sticks and switches unused by the client), fake DirectInput and filtered messages in late DLLs, D: redirect in late DLLs (`WAL_DRIVE_LATE_DLLS`: config.bin), survived.dll and Microsoft d3d9.dll hidden, movie info windows hidden, 1360x768 gamescope; NESYS card play with the GUI's NESiCA card (local players, `hl2nesys.rs`) |
 | `sonic-blast-heroes` | Sonic Blast Heroes | typex | works (user: 100%) | wal-loader, JVS (Confirm = down, Selection = up), game_release.exe (game.exe encrypted), code page 932, the game's keyboard pad and safety sensor forced, punch from a trigger's pressure or a full force button (`WAL_TYPEX_PUNCH`, punch.rs) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
@@ -9466,6 +9483,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `cut-the-rope` | Cut The Rope | arcadepc | user 100% (2026-11-13) | ZeptoLab's redemption conversion (.NET MonoGame, portrait 1080x1920, §6.3i, board `cuttherope`): under Wine the game reads the MonoGame mouse (touches) and keyboard (operator keys), played from the gun or mouse and the virtual sticks; free play seeded in `options.dat` (c_folders) |
 | `go-go-drummer-babe` | Go Go Drummer Babe | arcadepc | user 100% (2026-11-13) | HGE drum medal game (Direct3D 8, 640x480, §6.3i, board `gogodrummer`): the HGE keyboard answered from the virtual sticks (drums '5'-'8' on L1/L2/R1/R2, coin '1'), free play in `Set.ini` |
 | `radikal-bikers` | Radikal Bikers | arcadepc | user 100% (2026-11-14) | Gaelco 3D board emulator `radikalb.exe` (Direct3D 8, §6.3i, board `radikalbikers`): setup dialog answered, its input reader from the virtual stick, `radikalb.dat` saved on change, free play by a coin on start |
+| `red-gun` | Red Gun | arcadepc | headless OK (2026-11-22), 1 gun | Unity 4 mobile shooter in a PC light gun repack (§6.3i, board `redgun`): the repack's `RGDesktopInput` user32 imports answered with the gun (trigger, b2 / off-screen shot = cover), crosshair, repack launcher / scripts removed from the dump |
 | `project-diva-arcade` | Hatsune Miku Project DIVA Arcade | ringedge | user 100% (2026-11-15, desktop) | RingEdge 2 (§6.3d), SBTY 6.00.01, OpenGL: NVIDIA assembly translated for Mesa, touch panel and pointer, lamp control board (`WAL_RINGEDGE_DIVA_LAMP`), free play, open all day (closing time), automatic card after start or a touch; Y: a folder of its own (the game formats it) |
 | `border-break-scramble` | Border Break Scramble | ringedge2 | user (2026-11-15): "working 100% excluding online mode" | RingEdge 2 NRS engine (§6.3d), SBVA 4.5.0, OpenGL: its NV_gpu_program4 shaders translated, JVS left grip and move stick, raw input aim mouse listed, the mouse or stick as touch pointer (red dot), free play, the extended image's markers |
 | `shining-force-cross-raid` | Shining Force Cross Raid | ringedge | headless tests (2026-11-19): IC card in files, free play tickets, a scenario quest to its end (card saved), input test; user: works on the desktop (2026-11-19) | RingEdge (§6.3d), SBVB 1.05, Project DIVA Arcade's engine (OpenGL, NVIDIA programs translated): its title server (`sfcserver.rs`, binary structures zlib packed, the card's data handed back), the development IC card in files (card input = its Delete key, a blank card created), CTR-251500 touch panel and pointer, JVS stick and buttons, ALL.Net and billing, free play, open all day |
@@ -9483,7 +9501,6 @@ NxL launcher stand-ins: Psychic Force 2012, Tottemo E Mahjong and Dragon Dance s
 `game.exe` that creates the NESiCAxLive launcher events/shared memory/pipe (`NxLEvent_*`,
 `NxLMMF_*`, `\\.\pipe\NxLPipe*`) and starts the real game (`game2.exe launcher`,
 `game_liong.exe -s`): the profiles run that stub, the child loads our iDmacDrv32.dll from the
-| `red-gun` | Red Gun | arcadepc | headless OK (2026-11-22), 1 gun | Unity 4 mobile shooter in a PC light gun repack (§6.3i, board `redgun`): the repack's `RGDesktopInput` user32 imports answered with the gun (trigger, b2 / off-screen shot = cover), crosshair, repack launcher / scripts removed from the dump |
 run directory.
 
 winmm joysticks are hidden from every game (`WAL_JOYSTICK_DISABLE=0` shows them): a cabinet has

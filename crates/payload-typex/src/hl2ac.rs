@@ -157,6 +157,8 @@ fn binds() {
             }
             window = w;
             log!("hl2ac: binds to window {window:?}");
+            // the NESYS card, once launcher.dll's start (which clears it) is over
+            crate::hl2nesys::insert_card();
         }
         let stick = wal_payload_common::input(0);
         let (x, y) = (stick.axis(Axis::LeftX) as i32, stick.axis(Axis::LeftY) as i32);
@@ -265,6 +267,8 @@ unsafe extern "C" fn income_open() -> bool {
         }
         if let Some(g) = global(ac) {
             unsafe { full_range_sticks(g) };
+            // NESYS card play with the launcher's NESiCA card
+            crate::hl2nesys::init(g);
         }
         // the cursor polls of the DLLs launcher.dll imports (tier0.dll's: the engine's mouse
         // look), loaded with it, out of the late hooks' reach

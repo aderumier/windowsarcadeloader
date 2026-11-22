@@ -576,8 +576,9 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         let map: Vec<String> = profile.native_map.iter().map(|(k, v)| format!("{k}={v}")).collect();
         wine.set_env(env::MAP, &map.join(","));
     }
-    // the player's NESiCA card (GUI), before the profile's own values
-    if matches!(system.name(), "nesica" | "nesica2") {
+    // the player's NESiCA card (GUI), before the profile's own values; a game of another
+    // system opts in (`WAL_NESICA_CARD: "1"`: Half-Life 2: Survivor's NESYS card)
+    if matches!(system.name(), "nesica" | "nesica2") || profile.env.get("WAL_NESICA_CARD").is_some_and(|v| v == "1") {
         match nesica_card::load(&profile.root) {
             Ok(Some(card)) => nesica_card::env(&card).into_iter().for_each(|(k, v)| wine.set_env(k, &v)),
             Ok(None) => {}
