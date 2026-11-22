@@ -35,6 +35,8 @@ env:
   WAL_CROSSHAIR_SIZE: "1"
   WAL_CROSSHAIR_COLOR: FF2020
   WAL_CROSSHAIR_HIDE: "0"
+  # one player: player 2's gun or mouse neither touches nor shows a dot
+  WAL_CROSSHAIR_PLAYERS: "1"
 
 input:
   # the touch screen: a touch screen's first finger, else the gun (or the mouse) points and the

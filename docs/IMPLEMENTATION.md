@@ -6369,8 +6369,9 @@ Board `rerave` (`rerave.rs`, x86 build), loaded at the entry point (`payload_loa
   b1 / start the touch (messages and raw reports; Unity's `GetCursorPos` answered:
   `input_filter`, the real keyboard and mouse filtered).
 - **Touch pointer** (the common `WAL_CROSSHAIR`, on; the GUI's Touch screen options): a small
-  red dot where the gun or mouse touches (`crosshair::init`, Direct3D 9: style `disc`, 1 % of
-  the screen's height, never hidden), the system cursor hidden (`WAL_HIDE_CURSOR`).
+  red dot where player 1's gun or mouse touches (`crosshair::init`, Direct3D 9: style `disc`,
+  1 % of the screen's height, never hidden, `WAL_CROSSHAIR_PLAYERS` 1: no player 2 dot), the
+  system cursor hidden (`WAL_HIDE_CURSOR`).
 - **Picture.** A 1920x1080 desktop stretched over the screen (`WAL_DESKTOP_SIZE`,
   `WAL_DESKTOP_STRETCH`, the device windowed): on a 1600x1200 screen Unity chose 1600x900. The
   common `dxgi_size` (on a desktop other than the screen) now pins `dxgi.dll`: Unity 3.5 loads
@@ -9219,7 +9220,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | user 100% (2026-11-12), 1 player (2 in turn) | The Wreck-It Ralph promotional arcade game (OpenGL, 32-bit, portrait, §6.3i, board `felix`): its keys posted from the virtual sticks, its window's zoom fitted to the screen's height (3:4, black sides), free play as its `-user=free` |
 | `in-the-groove-2` | In The Groove 2 | arcadepc | user 100% (2026-11-12), 2 players | Roxor's dance game, the OpenITG beta 2 build (StepMania 3.95, OpenGL, 32-bit, §6.3i, board `itg`): the payload is its DirectInput keyboard (both players' pads and menu buttons, polled), sets free play and the window in its `StepMania.ini`; a borderless screen-sized window, its 640x480 viewports scaled to 4:3 (black bars) |
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | Game Concepts' coin pusher screen game (SDL 1.2, 32-bit, §6.3i, board `monsterous`): the game's own desktop mode (its board simulated), the payload aims at its ten targets with the stick (a ring drawn), fires them (its digit keys), the coins, free play, the operator menu's switches; its 1280x768 picture stretched to the window |
-| `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (players 1 and 2 on it) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
+| `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (player 1 alone) | Step Revolution's touch screen rhythm game (Unity 3.5, 32-bit, §6.3i): the payload is the cabinet's RaveSvc service (coins, settings), replaces the SenseLock dongle checks, plays the touch with a touch screen, the gun or the mouse, free play as the game's Event Mode, a 1920x1080 desktop stretched |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | user 100% (2026-11-12), 2 players | Cave's shooting game (Direct3D 9, 32-bit, 640x480, §6.3i, board `cave`): the payload emulates the COM3 I/O board (4-byte messages on change: sticks, 3 buttons, start, service, test, coins), clears the file loader's allocation (a boot divide by zero), free play as the SYSTEM menu's COIN MODE |
 | `omatsuri-yasan-kingyo-sukui` | Omatsuri Yasan Kingyo Sukui | arcadepc | user 100% (2026-11-15), 1 player | Cave's goldfish scooping touch game (Direct3D 9, 32-bit, 1024x768, §6.3i, board `omatsuri`): the payload emulates the COM3 I/O board (coins, service, test), plays the touch screen (cursor + DirectInput mouse button events), passes the machine check (`common.log`), native `d3dx9_36` (mesh crash), free play as credits kept at 1 |
 | `omatsuri-yasan-ganso-takoyaki` | Omatsuri Yasan Ganso Takoyaki | arcadepc | user 100% (2026-11-15), 1 player | Cave's takoyaki cooking touch game (Direct3D 9, 32-bit, 1024x768, §6.3i, board `omatsuri`): as Kingyo Sukui, plus the prize dispenser's answer |
