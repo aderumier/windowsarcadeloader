@@ -392,8 +392,21 @@ unsafe extern "C" fn unregister_callback(object: usize) {
 unsafe extern "C" fn run_callbacks() {
     let orig: unsafe extern "C" fn() = unsafe { std::mem::transmute(ORIG_RUN_CALLBACKS.load(Ordering::Relaxed)) };
     unsafe { orig() };
+    // the game's thread: a level start in a network game unmasks SSE's exceptions (MXCSR
+    // 0x1da5, divide by zero), and the payload's vectorized float code (gun::in_picture's divps,
+    // its unused lanes 0 / 0) died of STATUS_FLOAT_MULTIPLE_TRAPS, the game closed: the tick runs
+    // with every exception masked, the game's MXCSR back after it.
+    let mut mxcsr = 0u32;
+    unsafe {
+        std::arch::asm!("stmxcsr [{0}]", in(reg) &raw mut mxcsr);
+        std::arch::asm!("ldmxcsr [{0}]", in(reg) &raw const MXCSR_MASKED);
+    }
     tick();
+    unsafe { std::arch::asm!("ldmxcsr [{0}]", in(reg) &raw const mxcsr) };
 }
+
+/// The MXCSR's default: every exception masked, round to nearest.
+static MXCSR_MASKED: u32 = 0x1f80;
 
 fn method(slot: usize) -> usize {
     NET_METHODS[slot].load(Ordering::Relaxed)
