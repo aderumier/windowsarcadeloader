@@ -20,13 +20,16 @@
 //! * Force feedback: the bytes the game writes to the parallel port (`Out32`, payload-common's
 //!   `port_ffb`).
 //! * `settings.rs`: operator settings (resolution, free play) from profile options.
-//! * `grid.rs`: GRID's LAN discovery server, linked (`WAL_LINK`, payload-common `link.rs`).
+//! * `grid.rs`: GRID's LAN discovery server, linked (`WAL_LINK`, payload-common `link.rs`);
+//!   `daytona.rs`: Daytona Championship USA's network and camera, linked.
 //! * `testmenu.rs`: TEST runs the GameShell's test menu (the payload is loaded there too).
 //! * Profile code patches (`WAL_PATCHES`).
 
 #![allow(non_snake_case)]
 
-// 32-bit GRID
+// 32-bit Daytona Championship USA, GRID
+#[cfg(target_arch = "x86")]
+mod daytona;
 #[cfg(target_arch = "x86")]
 mod grid;
 mod happ;
@@ -96,6 +99,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             wal_payload_common::link::init();
             #[cfg(target_arch = "x86")]
             grid::init();
+            #[cfg(target_arch = "x86")]
+            if std::env::var("WAL_EUROPAR_SHELL_TCP").is_ok() {
+                daytona::init();
+            }
             settings::init();
             inpwrapper::init();
             happ::init(false);

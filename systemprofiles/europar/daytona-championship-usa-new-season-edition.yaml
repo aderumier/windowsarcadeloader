@@ -50,6 +50,9 @@ env:
   WAL_EUROPAR_INPWRAPPER: "1"
   WAL_EUROPAR_FFB_FORMAT: daytona
   WAL_EUROPAR_FFB: "100"
+  # cabinets on other PCs (the GUI's Common options): off, alone; 2 racing (NumCabinets)
+  WAL_LINK: "0"
+  WAL_LINK_CABINETS: "2"
   # the shell's answers to the security challenges accepted (0x584600, stdcall, returns true)
   WAL_PATCHES: "0x184600:B001C20800"
 

@@ -837,11 +837,14 @@ unsafe extern "system" fn accept(s: usize, addr: *mut u8, len: *mut i32) -> usiz
     r
 }
 
-/// The socket's own address: its port as the game bound it ([`port_out`]).
+/// The socket's own address as the game bound it: its port ([`port_out`]), its address of the
+/// game's network ([`virtual_net`]).
 unsafe extern "system" fn get_sock_name(s: usize, addr: *mut u8, len: *mut i32) -> i32 {
     let f: PeerFn = real(&GET_SOCK_NAME);
     let r = unsafe { f(s, addr, len) };
     if r == 0 && !len.is_null() && unsafe { inet(addr, *len) }.is_some() {
+        unsafe { from_game(addr, len) };
+        // a socket bound to every address: its port alone
         let p = port_in(u16::from_be_bytes(unsafe { [*addr.add(2), *addr.add(3)] }));
         unsafe { std::ptr::copy_nonoverlapping(p.to_be_bytes().as_ptr(), addr.add(2), 2) };
     }
@@ -914,12 +917,13 @@ unsafe extern "system" fn get_host_by_name(name: *const u8) -> *mut HostEnt {
     let shown = if asked.is_empty() { &me[..me.len().min(255)] } else { &asked[..n] };
     h.name = [0; 256];
     h.name[..shown.len()].copy_from_slice(shown);
-    h.address = own;
+    // the game's own address of its network ([`virtual_net`]: Daytona's 192.168.1.k)
+    h.address = to_game(own);
     h.list = [h.address.as_ptr(), std::ptr::null()];
     h.ent = HostEnt { name: h.name.as_ptr(), aliases: h.aliases.as_ptr(), addrtype: 2, length: 4, addr_list: h.list.as_ptr() };
     static LOGGED: AtomicUsize = AtomicUsize::new(0);
     if LOGGED.fetch_add(1, Ordering::Relaxed) < 3 {
-        log!("link: gethostbyname({:?}): {} alone", String::from_utf8_lossy(&asked), dotted(own));
+        log!("link: gethostbyname({:?}): {} alone", String::from_utf8_lossy(&asked), dotted(to_game(own)));
     }
     &mut h.ent
 }

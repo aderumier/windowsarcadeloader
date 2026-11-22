@@ -6,8 +6,9 @@
 //!   1600x1200); SEGA Rally 3's `HorizontalResolution` / `VerticalResolution` (`config.ini`)
 //! * `WAL_EUROPAR_FREEPLAY=0|1`: `FreePlay` (the shell needs it too, `shell.rs`; SEGA Rally 3:
 //!   `[Credit] Freeplay`)
-//! * `WAL_CABINET` (linked, `WAL_LINK`): Ford Racing's `CabinetPostion`, SEGA Rally 3's and
-//!   GRID's `[Network] CabinetID` (`ShellData.ini`), each cabinet its own
+//! * `WAL_CABINET` (linked, `WAL_LINK`): Ford Racing's `CabinetPostion`, SEGA Rally 3's,
+//!   GRID's and Daytona Championship USA's `CabinetID`, each cabinet its own; `WAL_LINK_CABINETS`:
+//!   Daytona Championship USA's `NumCabinets`
 //! * `WAL_EUROPAR_PATCHES_<width>`: code patches (the `WAL_PATCHES` format) applied when
 //!   `WAL_EUROPAR_RESOLUTION` has that width (SEGA Rally 3's in-race 2D positions, computed
 //!   from the screen width: tuned per width)
@@ -51,6 +52,11 @@ unsafe extern "system" fn get_private_profile_int(section: *const u8, key: *cons
     if linked_cabinet_key(key) {
         v = wal_payload_common::link::cabinet() as u32;
         log!("settings: cabinet position {v} (the link's)");
+    }
+    // the linked cabinets' count (Daytona Championship USA's)
+    if key_is(key, "NumCabinets") && let Some(n) = wal_payload_common::link::cabinets() {
+        v = n as u32;
+        log!("settings: {n} cabinets (the link's)");
     }
     let size = option("WAL_EUROPAR_RESOLUTION").and_then(|m| {
         let (w, h) = m.split_once('x')?;

@@ -153,7 +153,8 @@ pub(crate) fn init() -> bool {
         set_free_play(on);
     }
     log!("shell: TCP port {port}, free play {}", FREE_PLAY.load(Ordering::Relaxed));
-    match TcpListener::bind(("127.0.0.1", port)) {
+    // two linked instances on one PC (a test): each its own loopback address
+    match TcpListener::bind((std::net::Ipv4Addr::from(wal_payload_common::link::local_server(port)), port)) {
         Ok(listener) => {
             std::thread::spawn(move || {
                 for game in listener.incoming().flatten() {
