@@ -88,6 +88,8 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             log!("europar: initialized in the test menu");
         } else {
             patches::apply();
+            // the cabinets on other PCs (WAL_LINK): Ford Racing's broadcasts, its card
+            wal_payload_common::link::init();
             settings::init();
             inpwrapper::init();
             happ::init(false);

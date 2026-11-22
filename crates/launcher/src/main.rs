@@ -570,6 +570,7 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     let run_exe_dir = run_dir.join(exe_subdir);
 
     wine.set_env(env::PORT, &profile.port.to_string());
+    wine.set_env(env::GAME_ID, profile.id.rsplit('/').next().unwrap_or(&profile.id));
     wine.set_env(env::LOG, &wine.windows_path(&run_dir.join(format!("wal-{}.log", system.name()))));
     if !profile.native_map.is_empty() {
         let map: Vec<String> = profile.native_map.iter().map(|(k, v)| format!("{k}={v}")).collect();

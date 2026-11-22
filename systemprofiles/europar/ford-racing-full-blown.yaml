@@ -30,6 +30,8 @@ env:
   # free play (over data/gamesettings.ini's): off, a coin per game
   WAL_EUROPAR_FREEPLAY: "0"
   WAL_EUROPAR_FFB: "100"
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
 
 options:
   - title: Display

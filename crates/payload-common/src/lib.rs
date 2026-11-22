@@ -112,6 +112,9 @@ pub mod json;
 pub mod jvs;
 #[cfg(windows)]
 pub mod jvs_board;
+// cabinets linked across PCs (the game's sockets, the master's announcements)
+#[cfg(windows)]
+pub mod link;
 pub mod log;
 pub mod mapping;
 // Unity games' managed code (Mono's embedding API)

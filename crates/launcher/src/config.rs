@@ -21,6 +21,14 @@ pub const VOLUME_ENV: &str = "WAL_VOLUME";
 /// The common free play option (`1`/`0`, default `1`: `defaults.yaml`), for the systems whose
 /// payload can set free play ([`FREEPLAY_SYSTEMS`]).
 pub const FREEPLAY_ENV: &str = "WAL_FREEPLAY";
+/// The cabinet link across PCs (`1`/`0`, default `0`: alone), in `env`: a game profile setting
+/// it (a game whose payload can link its cabinets) gets the link's common options: this
+/// cabinet's number ([`CABINET_ENV`], `auto` by default (`defaults.yaml`): the first cabinet
+/// started is the master, 1) and the master's address ([`LINK_MASTER_ENV`], empty: found by its
+/// announcements on the network).
+pub const LINK_ENV: &str = "WAL_LINK";
+pub const CABINET_ENV: &str = "WAL_CABINET";
+pub const LINK_MASTER_ENV: &str = "WAL_LINK_MASTER";
 pub const FREEPLAY_SYSTEMS: &[&str] = &["apm3", "konami", "segashell", "europar", "unis", "namcoes3", "seganu"];
 const DEFAULTS: &str = include_str!("defaults.yaml");
 
@@ -372,7 +380,8 @@ impl Profile {
     /// The common options of the games able to use them, for the GUI's Options tab (unless the
     /// game declares the option itself, with its own label): the crosshairs of the games whose
     /// profile sets [`CROSSHAIR_ENV`] (their default), free play for [`FREEPLAY_SYSTEMS`], the
-    /// volume ([`VOLUME_ENV`]) for every game.
+    /// cabinet link of the games whose profile sets [`LINK_ENV`], the volume ([`VOLUME_ENV`]) for
+    /// every game.
     fn add_common_options(&mut self) {
         let declared = |key: &str| self.options.iter().flat_map(|g| &g.options).any(|o| o.key == key);
         let option = |key: &str, label: &str, description: &str| GameOption {
@@ -400,6 +409,34 @@ impl Profile {
                 "Games start without coins (off: insert coins). Batocera: FREE PLAY in the game's advanced \
                  settings.",
             ));
+        }
+        if self.env.contains_key(LINK_ENV) && !declared(LINK_ENV) {
+            common.push(option(
+                LINK_ENV,
+                "Cabinet link",
+                "Races or matches between cabinets on other PCs of the network, each running this game. Off: \
+                 this cabinet plays alone.",
+            ));
+            common.push(GameOption {
+                kind: OptionKind::Choice,
+                choices: ["auto", "1", "2", "3", "4", "5", "6", "7", "8"].map(String::from).to_vec(),
+                ..option(
+                    CABINET_ENV,
+                    "Cabinet number",
+                    "Auto: the first cabinet started is the master (1) and announces itself on the network, \
+                     the others find it and get the next numbers (2, 3...). 1: always the master; 2 to 8: \
+                     joins the master as that cabinet.",
+                )
+            });
+            common.push(GameOption {
+                kind: OptionKind::Text,
+                ..option(
+                    LINK_MASTER_ENV,
+                    "Master cabinet IP",
+                    "The master cabinet's address (its PC's, e.g. 192.168.1.20). Empty: found on the network \
+                     (the master announces itself); set it when the network does not pass broadcasts.",
+                )
+            });
         }
         if !declared(VOLUME_ENV) {
             common.push(GameOption {
@@ -760,6 +797,22 @@ options:
         let keys: Vec<&str> = p.options[0].options.iter().map(|o| o.key.as_str()).collect();
         assert_eq!(keys, [CROSSHAIR_ENV, FREEPLAY_ENV, VOLUME_ENV]);
         // another system: not shown
+        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV]);
+    }
+
+    #[test]
+    fn common_link_options() {
+        let load = |yaml: &str| {
+            let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
+            merge(&mut v, serde_yaml_ng::from_str(yaml).unwrap());
+            Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap()
+        };
+        // a game able to link: off by default, its number found, the master found on the network
+        let p = load("system: typex\nenv: {WAL_LINK: \"0\"}\n");
+        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_MASTER_ENV, VOLUME_ENV]);
+        assert_eq!(p.env.get(CABINET_ENV).map(String::as_str), Some("auto"));
+        assert_eq!(p.env.get(LINK_MASTER_ENV).map(String::as_str), Some(""));
+        // another game: not shown
         assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV]);
     }
 

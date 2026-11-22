@@ -137,6 +137,7 @@ sent on change (and refreshed every second by the payload): `FFB_CONSTANT` (1,
 | `WAL_PORT` | TCP port to connect to |
 | `WAL_LOG` | Windows path of the payload log file |
 | `WAL_MAP` | `virtual=native,...` override of the payload's default mapping (from profile `native_map`; `native+native` presses several) |
+| `WAL_GAME_ID` | the game's id (its profile's file name): the linked cabinets' masters of other games told apart (§6.8) |
 | `WAL_<SYSTEM>_*` | system options, from profile `env` (see the system module docs) |
 
 ## 5. Launcher (`crates/launcher`)
@@ -8724,6 +8725,50 @@ leaves the process: the stream's volume in the sound server stays at 100%. A pro
 default (After Dark: 60); the GUI shows it in every game's Common options
 (`config::VOLUME_ENV`).
 
+### 6.8 Cabinet link across PCs (`WAL_LINK`, payload-common `link.rs`)
+
+Cabinets of a linked game (races between cabinets) on other PCs of the network, each running
+the game through the launcher. Off by default (`WAL_LINK` `0`: the game alone, as before, no
+hook); a game able to link sets `WAL_LINK: "0"` in its profile `env`, which gives it the GUI's
+Common options "Cabinet link", "Cabinet number" (`WAL_CABINET`, `auto` by default:
+`defaults.yaml`) and "Master cabinet IP" (`WAL_LINK_MASTER`, empty) (`config::LINK_ENV`).
+
+* **Finding each other.** Starting (`link::init`, from `DllMain`), a cabinet listens 3 s for a
+  master of its game (`WAL_GAME_ID`) announcing itself (UDP broadcast `WALLINK1 A <game> <address
+  or ->` to port 33791 every half second, a socket with `SO_REUSEADDR`: several cabinets of a PC
+  hear it). None heard: it is the master, cabinet 1, and announces itself. One heard: it joins it
+  (`WALLINK1 J <game> <number asked, 0 any>` to the master's UDP port 33790, every second); the
+  master gives it a number (the one asked for when free, else the first free from 2; a PC joining
+  again keeps its own) and answers with the table (`WALLINK1 T you=<k> 2=<address> ...`, the
+  cabinets' addresses as the master saw them). `WAL_CABINET` 1 makes the cabinet the master
+  without listening, 2..8 joins as that number; `WAL_LINK_MASTER` names the master instead of its
+  announcements (a network that does not pass broadcasts). A cabinet's address is the card the
+  route to the master takes; `WAL_LINK_ADDRESS` (no GUI) names another one: loopback addresses for
+  two instances on one PC (a test). A master started after a cabinet is found later; the
+  cabinet's number stays 2 then (the game read it already).
+* **The game's sockets** (its executable's `ws2_32` / `wsock32` imports, by name or by number,
+  `iphlpapi`): a broadcast (`x.x.x.255`) or a multicast datagram (`sendto`, `WSASendTo`) goes to
+  each cabinet's PC, its own too, one datagram each; the PC's cards (`SIO_GET_INTERFACE_LIST`,
+  `GetAdaptersInfo`) are the card of its address (and the loopback), `gethostbyname` of its own
+  name that address alone; `link::virtual_net` makes a game's own cabinet addresses
+  (`net.(first + k - 1)`) the PCs both ways (`bind`, `connect`, `recvfrom`, `accept`,
+  `getpeername`); `link::name_is_address` makes `gethostname` the address. With loopback
+  addresses the game's binds to every address are made the cabinet's own, an unbound socket is
+  bound to it before its first `sendto` / `connect` (the system would send from 127.0.0.1: Ford
+  Racing's race search, its host answering there), the loopback card is left out and another
+  cabinet's address cannot be bound. The log notes the first datagrams with each cabinet, the
+  unicast datagrams to other addresses, and every 10 s the datagrams counted with each cabinet.
+* **Ford Racing Full Blown** (europar, `settings.rs`): its own protocol (`SEGA_PROTOCOL_*`,
+  broadcasts to ports 53001..53003, its card by `SIO_GET_INTERFACE_LIST`), then Netmat's race
+  session (a search on its broadcast port, the host on 54002 / 55002). `CabinetPostion`
+  (`data/GameSettings.ini`) is the link's cabinet number. Verified with two instances on one PC
+  (127.0.0.2 / 127.0.0.3, the second found the first in 40 ms): MULTIPLAYER, each cabinet's
+  car seen on the other's screen ("Plyr 2" ahead of player 1), about 75 datagrams per 10 s each
+  way during the race.
+* Two instances of one SquashFS image on a PC share its mount point
+  (`/run/user/<uid>/wal-squashfs/<image name>`): the second one breaks the first. A test links
+  two names of the image (symbolic links), each with its own `prefix:` and `squashfs_saves:`.
+
 ## 7. Adding a system
 
 1. Payload crate `crates/payload-<system>` (cdylib, depends on `wal-protocol`,
@@ -9116,7 +9161,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user: 100%): the cabinet's shell `Tsunami\TVTSHELL.EXE` (dump `games/arcadepc/revolt`), its console then `ReVolt.exe -coinop`; coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | wal-loader, `TsuInput` + `TsuMotion` (idle motion seat) COM objects emulated in the payload, Wine DirectDraw, Wine DirectInput with host joysticks hidden, dump's `tsunet.dll` registered in-proc + adapter-walk patched; `tvtopcon.rs`: the cabinet software (shell, console `tvtopcon.exe`, `Launch.exe`) — Re-Volt registered in `Software\Tsunami\Apps` (profile's `launch.reg`), hardware version and null motion driver (`mdi_null.dll`) set, the console's adapter walk, license and boot waits patched, its programs started through `wal-loader`, its display mode changes kept to the operator console and undone (a 16-bit desktop hid the car bodies), the shell's reboot ending it; a dump whose `.windowsloader` is `ReVolt.exe` runs `-launchGame` (profile `args`) — see docs/REVOLT-DEBUG.md |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | `bin/racing.exe` (debug build), `usb_io.dll` replaced (wheel, gas, brake, coin switch, boost; start = its own Enter key, real keyboard and XInput hidden), force feedback (centering spring by speed, off-road vibration), WMV9 movies (`WMV9VCM.dll` in `bin/`, Wine AVIStreamRead fix), asserts answered, missing checkpoint billboards skipped, full screen |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | `all_test/game/Gold/motobike.exe` (unprotected build), `motobikeio.dll` replaced (handlebar, throttle, brake, boost, menu buttons, coin counter, board memory in `assets/motobikeio.mem`, uncalibrated channels full range), dongle class answered, start = its own Enter key (real keyboard and XInput hidden), WMV9 movies, full screen |
-| `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | `FordRacing/fordracing.exe`, `inpout32.dll` replaced: Happ UGCI HID board (wheel, pedals, shift up/down, start, view), the GameShell's credits (coins, free play option), parallel port force feedback, 1024x768 (option); test menu (the GameShell's) not yet |
+| `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | `FordRacing/fordracing.exe`, `inpout32.dll` replaced: Happ UGCI HID board (wheel, pedals, shift up/down, start, view), the GameShell's credits (coins, free play option), parallel port force feedback, 1024x768 (option); cabinet link across PCs (§6.8); test menu (the GameShell's) not yet |
 | `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
 | `showdown` | Showdown | segashell | works (user: 100%) | `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
 | `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |

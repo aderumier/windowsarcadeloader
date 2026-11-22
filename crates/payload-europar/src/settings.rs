@@ -6,6 +6,7 @@
 //!   1600x1200); SEGA Rally 3's `HorizontalResolution` / `VerticalResolution` (`config.ini`)
 //! * `WAL_EUROPAR_FREEPLAY=0|1`: `FreePlay` (the shell needs it too, `shell.rs`; SEGA Rally 3:
 //!   `[Credit] Freeplay`)
+//! * `WAL_CABINET` (linked, `WAL_LINK`): Ford Racing's `CabinetPostion`, each cabinet its own
 //! * `WAL_EUROPAR_PATCHES_<width>`: code patches (the `WAL_PATCHES` format) applied when
 //!   `WAL_EUROPAR_RESOLUTION` has that width (SEGA Rally 3's in-race 2D positions, computed
 //!   from the screen width: tuned per width)
@@ -39,6 +40,11 @@ unsafe extern "system" fn get_private_profile_int(section: *const u8, key: *cons
         crate::shell::set_free_play(v != 0);
         log!("settings: free play {}", if v != 0 { "on" } else { "off" });
     }
+    // the linked cabinets' places (Ford Racing's), each its own: the link's cabinet number
+    if key_is(key, "CabinetPostion") && wal_payload_common::link::linked() {
+        v = wal_payload_common::link::cabinet() as u32;
+        log!("settings: cabinet position {v} (the link's)");
+    }
     let size = option("WAL_EUROPAR_RESOLUTION").and_then(|m| {
         let (w, h) = m.split_once('x')?;
         Some((w.trim().parse::<u32>().ok()?, h.trim().parse::<u32>().ok()?))
@@ -61,6 +67,15 @@ unsafe extern "system" fn get_private_profile_string(
     size: u32,
     file: *const u8,
 ) -> u32 {
+    let linked_position = (key_is(key, "CabinetPostion") && wal_payload_common::link::linked()).then(|| wal_payload_common::link::cabinet().to_string());
+    if let Some(v) = linked_position.filter(|_| !out.is_null() && size > 1) {
+        unsafe {
+            std::ptr::copy_nonoverlapping(v.as_ptr(), out, v.len().min(size as usize - 1));
+            *out.add(v.len().min(size as usize - 1)) = 0;
+        }
+        log!("settings: cabinet position {v} (the link's)");
+        return v.len() as u32;
+    }
     if key_is(key, "Resolution") && !out.is_null() && size > 0 {
         if let Some(mode) = option("WAL_EUROPAR_RESOLUTION") {
             let n = mode.len().min(size as usize - 1);

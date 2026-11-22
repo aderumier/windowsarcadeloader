@@ -32,6 +32,8 @@ pub mod env {
     pub const MAP: &str = "WAL_MAP";
     /// "1": the game was started again at its payload's request ([`Message::Relaunch`]).
     pub const RELAUNCH: &str = "WAL_RELAUNCH";
+    /// The game's id (its profile's file name): the linked cabinets' masters told apart.
+    pub const GAME_ID: &str = "WAL_GAME_ID";
 }
 
 /// Digital inputs of the virtual stick, as bits of [`StickState::buttons`].

@@ -157,6 +157,12 @@ env:
   # The game's sound level in percent (its process's audio session volume, every audio API):
   # the common option, the GUI's Common options.
   WAL_VOLUME: "100"
+  # The cabinet link across PCs, for the games whose profile sets WAL_LINK ("0": alone, their
+  # default): this cabinet's number (auto: the first cabinet started is the master, 1, and
+  # announces itself, the others find it and get the next numbers; 1..8 forced) and the
+  # master's address (empty: found by its announcements). The GUI's Common options.
+  WAL_CABINET: "auto"
+  WAL_LINK_MASTER: ""
 # The game's own options, for the GUI's Options tab (only games declaring any show it):
 # its environment variables with a label, a control (text, a bool 1/0 checkbox, a number
 # (slider when min and max are set), a choice among the values), a range and a hover
