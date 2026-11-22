@@ -41,6 +41,8 @@ input:
       KEY_D: right
 
 env:
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # the movies are WMV9 AVIs read through AVIFile: WMV9VCM.dll (from wmv9VCMsetup.exe) in
   # all_test/game/Gold, registered at startup; their audio read sizes asked the Windows way
   WAL_VFW_CODECS: vidc.wmv3=WMV9VCM.dll

@@ -21,6 +21,8 @@ input:
       KEY_S: down
 
 env:
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # its 1360x768 window (racing.cfg: fullscreen = 0, a windowed device) made a borderless
   # window over the whole screen, its picture stretched to it, 16:9 kept
   WAL_WINDOW_SIZE: screen

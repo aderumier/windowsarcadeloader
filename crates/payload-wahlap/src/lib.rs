@@ -12,6 +12,10 @@
 //!   real keyboard and XInput pads hidden from it.
 //! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`: the movies are WMV9 AVIs).
 //! * Profile code patches (`WAL_PATCHES`).
+//! * Cabinets on other PCs (`WAL_LINK`, payload-common `link.rs`): Storm Racer G finds them on
+//!   its multicast group (`racing.cfg`'s 234.7.7.7, UDP 5002) then connects in TCP (5001), Storm
+//!   Rider by a broadcast on UDP 9000, its address from `gethostbyname` of the PC's name, then
+//!   TCP 5001 / UDP 5002 (the first to start a race serves it): the link's sockets, nothing else.
 
 #![allow(non_snake_case)]
 
@@ -37,6 +41,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         keys::init();
         motobikeio::init();
         usbio::init();
+        wal_payload_common::link::init();
         log!("wahlap: initialized");
     }
     TRUE
