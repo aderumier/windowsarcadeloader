@@ -77,6 +77,8 @@ env:
   # Force feedback from its memory (payload ffb.rs): centering spring in a race, wall and car
   # hits push the wheel, car contacts vibrate.
   WAL_TYPEX_FFB: battle-gear-4
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # Gas, brake and clutch on JVS analog channels 3, 4 and 6 (clutch: the right stick's lower
   # half, 0 at rest).
   WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,accel,brake,,+ry"

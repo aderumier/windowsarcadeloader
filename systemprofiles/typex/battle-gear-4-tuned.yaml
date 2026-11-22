@@ -51,6 +51,8 @@ env:
   # Force feedback from its memory (payload ffb.rs): centering spring in a race, wall and car
   # hits push the wheel, car contacts vibrate.
   WAL_TYPEX_FFB: battle-gear-4
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # Gas and brake on JVS analog channels 3 and 4 (its I/O test).
   WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,accel,brake"
   # Key reader (Taito JVS commands of the main board).

@@ -11,7 +11,7 @@
 //! library): applied by a thread as soon as the module is loaded (checked every 50 ms, 10 min).
 
 use windows_sys::Win32::System::LibraryLoader::{GetModuleFileNameW, GetModuleHandleW};
-use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAlloc, VirtualProtect};
 
 use crate::log;
 
@@ -64,6 +64,33 @@ unsafe fn write(at: usize, bytes: &[u8]) {
         VirtualProtect(addr.cast(), bytes.len(), PAGE_EXECUTE_READWRITE, &mut old);
         std::ptr::copy_nonoverlapping(bytes.as_ptr(), addr, bytes.len());
         VirtualProtect(addr.cast(), bytes.len(), old, &mut old);
+    }
+}
+
+/// A jump from the game's code at `at` to `hook`, once its first bytes are `prologue` (whole,
+/// position independent instructions, 5 bytes at least): the trampoline (those bytes, then a jump
+/// back after them), the original function to call, or `None` (another build: left as it is).
+///
+/// # Safety
+/// `hook` must have the replaced function's signature and calling convention.
+pub unsafe fn detour(at: usize, prologue: &[u8], hook: usize) -> Option<usize> {
+    if prologue.len() < 5 || !crate::crash::readable(at, prologue.len()) || unsafe { std::slice::from_raw_parts(at as *const u8, prologue.len()) } != prologue {
+        return None;
+    }
+    unsafe {
+        let t = VirtualAlloc(std::ptr::null(), prologue.len() + 5, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) as *mut u8;
+        if t.is_null() {
+            return None;
+        }
+        std::ptr::copy_nonoverlapping(prologue.as_ptr(), t, prologue.len());
+        let back = t.add(prologue.len());
+        *back = 0xE9;
+        std::ptr::write_unaligned(back.add(1) as *mut i32, (at + prologue.len()).wrapping_sub(back as usize + 5) as i32);
+        let mut jump = vec![0x90u8; prologue.len()];
+        jump[0] = 0xE9;
+        jump[1..5].copy_from_slice(&(hook.wrapping_sub(at + 5) as i32).to_le_bytes());
+        write(at, &jump);
+        Some(t as usize)
     }
 }
 

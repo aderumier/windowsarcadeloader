@@ -14,6 +14,8 @@
 //! * Steering (wheel motor) board of driving games on a serial port (`WAL_TYPEX_WHEEL_PORT`,
 //!   `wheel.rs`).
 //! * Force feedback computed from the game's memory (`WAL_TYPEX_FFB`, `ffb.rs`).
+//! * Cabinets linked across PCs (`WAL_LINK`, payload-common `link.rs`): Battle Gear 4's
+//!   (`bg4link.rs`).
 //! * Mahjong panel read as a keyboard (`WAL_TYPEX_MAHJONG`, `mahjong.rs`).
 //! * Elevator Action Death Parade's attraction doors drawn over the picture (`WAL_TYPEX_DOORS`,
 //!   `doors.rs`).
@@ -31,6 +33,7 @@
 
 #![allow(non_snake_case)]
 
+mod bg4link;
 mod doors;
 mod ffb;
 mod guns;
@@ -79,6 +82,12 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         guns::init();
         doors::init();
         ffb::init();
+        // Battle Gear 4's cabinets on other PCs (WAL_LINK): the game named by its force feedback
+        if let Ok(game) = std::env::var("WAL_TYPEX_FFB")
+            && game.trim().starts_with("battle-gear-4")
+        {
+            bg4link::init(game.trim());
+        }
         touch::init();
         punch::init();
         kon_cards::init();
