@@ -26,9 +26,18 @@ use crate::demul;
 /// Where a gun off the picture aims: far outside it.
 const OFF: (f32, f32) = (-10000.0, -10000.0);
 
-/// The game's picture in Unity's pixels.
+/// The game's picture in Unity's pixels: the portrait desktop, or in landscape the screen's
+/// size (`topgun2_landscape`'s `Screen.SetResolution`; a fixed 1920x1080 put the aim beside
+/// the gun on a 1600x1200 screen).
 fn picture() -> (f32, f32) {
-    desktop::size().map_or((1920.0, 1080.0), |(w, h)| (w as f32, h as f32))
+    desktop::size().map_or_else(
+        || {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+            let (w, h) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+            if w > 0 && h > 0 { (w as f32, h as f32) } else { (1920.0, 1080.0) }
+        },
+        |(w, h)| (w as f32, h as f32),
+    )
 }
 
 /// Player `i`'s aim in Unity's screen pixels (from the bottom left).
