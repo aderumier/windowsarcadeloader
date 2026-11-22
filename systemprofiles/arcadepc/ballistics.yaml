@@ -11,8 +11,14 @@ name: Ballistics
 payload_loader: true
 dll_overrides:
   xinput1_3: "n,b"
-# wined3d: DXVK's Direct3D 8 drew Sky Town's buildings and sky white
-dxvk: false
+  # dgVoodoo 2.79.3's D3D8.dll (added to the dump: Direct3D 8 on 11, DXVK's): DXVK's Direct3D 8
+  # drew Sky Town's buildings, its sky and the tubes white; wined3d with the 800x600 device
+  # windowed in a larger window drew every picture after the first race's end (and the time
+  # extended) enlarged, cut to its top left corner
+  d3d8: "n,b"
+files:
+  # its settings: windowed borderless, the screen's size, 4:3 kept (black sides), no watermark
+  dgVoodoo.conf: systemprofiles/arcadepc/files/ballistics/dgVoodoo.conf
 
 env:
   WAL_ARCADEPC_BOARD: ballistics
@@ -28,13 +34,6 @@ env:
   WAL_DINPUT_WHEEL_FFB: "0"
   # the game stops without a DirectInput keyboard (none of its keys used)
   WAL_DINPUT_WHEEL_SYSTEM: "1"
-  # its 800x600 full screen device (the display settings, accepted at the first start):
-  # windowed in a borderless window, the screen's centered 4:3 rectangle, black around
-  WAL_D3D9_WINDOWED_SIZE: 800x600
-  WAL_D3D9_ASPECT: "4:3"
-  WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: aspect
-  WAL_BEZEL: black
   WAL_HIDE_CURSOR: "1"
 
 input:

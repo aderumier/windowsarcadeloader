@@ -5316,17 +5316,23 @@ motion seat's `dbox*.dll`). `.windowsloader`: `Ballistics.exe`. Board `ballistic
 - **Display settings.** `display_settings.txt` holds the adapter and mode of the settings dialog;
   when it does not match the adapter the boot shows the dialog (the dump's came from another PC): the
   payload's dialog procedure presses OK after the game's set it up (full screen 800x600, 32-bit)
-  and the game writes the file into the dump (the SquashFS overlay on Batocera). The device is
-  made windowed 800x600 in a borderless window, the screen's centered 4:3 rectangle, black
-  around (`WAL_D3D9_WINDOWED_SIZE`, `WAL_D3D9_ASPECT`, `WAL_WINDOW_SIZE=aspect`).
-- **Direct3D 8.** wined3d (`dxvk: false`): DXVK's Direct3D 8 drew Sky Town's buildings and sky
-  white (textures missing); wined3d draws them.
+  and the game writes the file into the dump (the SquashFS overlay on Batocera).
+- **Direct3D 8.** dgVoodoo 2.79.3's `D3D8.dll` added to the dump (`d3d8` native, Direct3D 8 on
+  11, DXVK's), with the profile's `dgVoodoo.conf` (windowed borderless at the screen's size, the
+  800x600 picture kept 4:3, black sides, no watermark). DXVK's Direct3D 8 draws Sky Town's
+  buildings, its sky and the tubes white. wined3d (used until 2026-11-22, the device windowed
+  800x600 in the screen's 4:3 window) drew every picture after the first race's end (and the
+  time extended) enlarged by the window's ratio to the back buffer (x1.8 on a 1080 screen), cut
+  to its top left corner, the menus and the next races too; the game changes no viewport, render
+  target, window or device then (an 800x600 window did not have it).
 - **Motion seat.** `dbox.dll` (loaded with `LoadLibraryA`, its functions optional) is not loaded:
   its `programInit` crashed on its absent COM server.
 - No operator menu (the settings are `Common\Options.txt`, all of whose entries must exist).
 - Verified headless (2026-11-09): attract, coins (credits 4/4, the name entry), free play's
   "PRESS ANY BUTTON TO PLAY", name / track / speeder selection, a Sky Town race (throttle,
-  steering off a wall, brake, flip, booster).
+  steering off a wall, brake, flip, booster). 2026-11-22 (dgVoodoo): the race's end, the name
+  entry, track and speeder selection, the attract and the next race whole, Sky Town textured,
+  4:3 with black sides on the screen.
 
 #### Bug Busters
 
@@ -9325,7 +9331,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `robin-hood` | Robin Hood | arcadepc | user 100% (2026-11-09), 1 gun | ICE's ticket redemption crossbow game (Direct3D 9, 32-bit, §6.3i): the serial board emulated (switches, coins, tickets paid at once), the crossbow's DirectInput joystick X from the gun's X position, the linked HASP HL API patched, free play option over `coinfree`, the dump's root as working directory |
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns | Lightgun game (Direct3D 9, 32-bit, §6.3i): the parallel port gun board emulated (`inpout32`'s `Inp32` / `Out32`: aim, triggers, switches, a gun sample per shot), the Dinkey dongle's checks patched, free play option, crosshairs, the dump's bezel |
 | `dcop` | DCOP | arcadepc | user 100% (2026-11-09), 1 gun | Klockworks' live-action police shooter (Unity 2020.3, 64-bit, §6.3i): the game plays with the mouse (left shoots, right reloads, any key starts / continues: free play by design), played by the gun (`dcop.rs`: `post_mouse`, `GetCursorPos`); the dump's DemulShooter plugin kept (Uduino serial off, NVRAM saves, pause menu on 0), told to hide the game's cursor; common crosshair, 16:9 borderless window (other screens: a 1920x1080 desktop, fitted or stretched with KEEP ASPECT RATIO off) |
-| `ballistics` | Ballistics | arcadepc | user 100% (2026-11-09), 1 player (steering, throttle, buttons) | Grin's tube racer, arcade version (Direct3D 8 on wined3d, §6.3i): the cabinet's HAPP UGCI GameFrame as the common fake DirectInput joystick (by name, X steering, Y throttle, buttons by name) next to a DirectInput keyboard, coins as the coin program's `COINDROP` window messages, free play as the game's price 0, no hourly restart, the display settings dialog accepted, the D-Box seat's library not loaded, 4:3 window |
+| `ballistics` | Ballistics | arcadepc | user 100% (2026-11-09), 1 player (steering, throttle, buttons) | Grin's tube racer, arcade version (Direct3D 8 through dgVoodoo on DXVK, §6.3i): the cabinet's HAPP UGCI GameFrame as the common fake DirectInput joystick (by name, X steering, Y throttle, buttons by name) next to a DirectInput keyboard, coins as the coin program's `COINDROP` window messages, free play as the game's price 0, no hourly restart, the display settings dialog accepted, the D-Box seat's library not loaded, dgVoodoo's 4:3 picture, black sides |
 | `bug-busters` | Bug Busters | arcadepc | user 100% (2026-11-09), 2 guns | MIZI Production's spray gun game, PC release (DirectDraw on wined3d, 32-bit, §6.3i): the guns and the dead serial I/O board's switches written into the game (`bugbusters.rs`: records, tank reloads, start / test / service flags, coins with their sounds), the CD check patched, free play as the game's price 0, test opens the setup menu from the title, the game's own pointers as the crosshair option, 4:3 centered by Wine's mode scaling (aim checked on 16:9 and 5:4), the Sinden border drawn into the game's back buffer before each present |
 | `arctic-thunder` | Arctic Thunder | arcadepc | user 100% (2026-11-09), 1 player (handlebar, throttle, attack) | Midway's snowmobile racer (Glide 3 on the dump's nGlide, 32-bit, goose library, §6.3i): the payload is the coin and security manager wincsm whose memory goose reads (switches, handlebar / throttle, credits, coin lock), the textures' disk-serial RC4 key (0x0a6a209a, base provider) and their read-only + hidden marks, FP exceptions kept masked, free play as `COIN_FREE_ONLY`, no feedback calibration, 4:3; test starts the operator diagnostics (`diag.exe`, payload as its wincsm too), Exit returns to the game |
 | `ultimate-arctic-thunder` | Ultimate Arctic Thunder | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, attack) | Arctic Thunder's 2004 build (§6.3i): dump = the `Midway games` folder; same board by `snow.exe` build: its own texture key (0x0cc4cc8d), its parallel port dongle (`kfunc` answered by the payload, its `ppmon.exe` monitor not started), diagnostics and Exit as Arctic Thunder's |
