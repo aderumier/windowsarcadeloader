@@ -8938,6 +8938,16 @@ that reads the cabinets' count at its start, before the others have joined, also
   the first edition `0x4e4870`, a detour, `patches::detour`, the known builds checked). Verified
   with two Tuned instances: the menus waiting for the others, the starting grid with PL 2, one
   race (PL.2 marked on cabinet 1's screen), about 600 datagrams per 10 s each way.
+* **Chase H.Q. 2** (typex, `chq2link.rs`): Microsoft's DirectPlay (`dpnet.dll`, the profile's
+  `directplay`), 2 cabinets, UDP 13400. Its network ID (bits 17-18 of its settings word
+  `0x170bf28`) chooses at its network check (`0x465bf0`): 0 hosts, the others connect to
+  `chq2.ini`'s HOSTADDR. Linked (detours, the known build checked): LINKHOST (its number reader
+  `0x401fa0`) 1 on cabinet 1 alone, HOSTADDR (its text reader `0x401f30`) cabinet 1's PC, the
+  network ID the cabinet's number less one; DirectPlay's own sockets are the link's once it
+  loads (`link::hook_module_when_loaded`, its `GetProcAddress` of the PC's cards' functions too:
+  else it bound every card of the PC). Verified with two instances: "2-PLAYERS CAN COMPETE" in
+  the attract, the start pressed together: the head-to-head rule, YOU 0-0 RIVAL, the rival marked,
+  the same clock.
 * **K.O. Drive** (ringedge, `kodrive.rs`): Sega's link library (UDP 11882, POWER-ON NETWORK
   TEST): node i of TOTAL MACHINE n in group g is 192.168.99.(1 + i + 6 (g + 2 (3 n - 6))). Its LINK
   ID, TOTAL MACHINE and GROUP ID (its test menu's) are read by three functions (`0x4885C0`,
@@ -9216,7 +9226,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |
 | `blazblue-continuum-shift` | BlazBlue Continuum Shift | typex | works (user: 100%) | wal-loader, JVS, no patch (generic Type X2 build) |
-| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | wal-loader, JVS (wheel, gas, brake on analog channels 2-4; START on btn7, PATO-NITRO btn8, SHIFT up, SHIFT-NITRO down), native DirectPlay 8 (`tricks: [directplay]`: wine's IDirectPlay8Peer::Host is a stub, NETWORK CHECKING forever), its own 800x600 mode (no `WAL_D3D9_FULLSCREEN_SIZE`: it drew an 800x600 viewport in the corner), WMV9 codec (`WAL_VFW_CODECS`), known patch skipping the pedal calibration, force feedback from its motor command (`WAL_TYPEX_FFB`, untested on a wheel) |
+| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | cabinet link across PCs (§6.8); wal-loader, JVS (wheel, gas, brake on analog channels 2-4; START on btn7, PATO-NITRO btn8, SHIFT up, SHIFT-NITRO down), native DirectPlay 8 (`tricks: [directplay]`: wine's IDirectPlay8Peer::Host is a stub, NETWORK CHECKING forever), its own 800x600 mode (no `WAL_D3D9_FULLSCREEN_SIZE`: it drew an 800x600 viewport in the corner), WMV9 codec (`WAL_VFW_CODECS`), known patch skipping the pedal calibration, force feedback from its motor command (`WAL_TYPEX_FFB`, untested on a wheel) |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | wal-loader, JVS, native DirectMusic prefix (exits at start with wine's), `reshade_files` dgVoodoo D3D8 + ReShade dxgi, `tricks: [d3dcompiler_47]`, dgVoodoo.conf with Direct3D 11 output (`files`: the dump asks D3D12, NULL device crash) |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | wal-loader, JVS, native DirectMusic prefix, its window mode (`args: [-window]`) in a screen-sized popup (`WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE: screen`): Wine drew its fullscreen 640x480 unscaled in the top-left corner |
 | `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | wal-loader, JVS, guns in the gun board record (4 x 10 bytes, `COM1,!COM3`; no patch of its per-frame gun update, which copies it), volume knob on analog 0 (its volume write not patched out), `WAL_PIN_CWD`, WMV9 + Indeo 5 codecs (`WAL_VFW_CODECS`; ir50_32.dll copied into the dump), `dxvk: false` (first attract video crashed), windowed 1280x720 device in a screen-sized popup window (any screen mode; a 1280x720 window went past an 800x600 screen) |

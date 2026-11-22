@@ -1153,6 +1153,52 @@ pub unsafe fn hook_module(base: usize) {
     }
 }
 
+static GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
+
+/// A hooked DLL's `GetProcAddress`: the PC's cards' functions the link's (their originals kept).
+unsafe extern "system" fn get_proc_address(module: usize, name: *const u8) -> usize {
+    let f: unsafe extern "system" fn(usize, *const u8) -> usize = real(&GET_PROC_ADDRESS);
+    let r = unsafe { f(module, name) };
+    if r == 0 || (name as usize) < 0x10000 {
+        return r;
+    }
+    let n = unsafe { std::ffi::CStr::from_ptr(name.cast()) }.to_bytes();
+    let (slot, hook): (&AtomicUsize, usize) = match n {
+        b"GetAdaptersAddresses" => (&GET_ADAPTERS_ADDRESSES, get_adapters_addresses as *const () as usize),
+        b"GetAdaptersInfo" => (&GET_ADAPTERS_INFO, get_adapters_info as *const () as usize),
+        b"gethostbyname" => (&GET_HOST_BY_NAME, get_host_by_name as *const () as usize),
+        _ => return r,
+    };
+    let _ = slot.compare_exchange(0, r, Ordering::Relaxed, Ordering::Relaxed);
+    hook
+}
+
+/// Linked, the sockets of the DLL `name` made the link's as soon as the game loads it (Windows'
+/// DirectPlay, `dpnet.dll`: Chase H.Q. 2, D1GP), checked every 50 ms for 10 minutes; the PC's
+/// cards' functions it finds by name (`GetProcAddress`) the link's too.
+pub fn hook_module_when_loaded(name: &'static str) {
+    if !linked() {
+        return;
+    }
+    std::thread::spawn(move || {
+        let wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
+        for _ in 0..12000 {
+            let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(wide.as_ptr()) } as usize;
+            if base != 0 {
+                unsafe {
+                    hook_module(base);
+                    // DirectPlay finds iphlpapi's functions by name
+                    if let Some(o) = iat::hook_module(base, "kernel32.dll", "GetProcAddress", get_proc_address as *const () as usize) {
+                        let _ = GET_PROC_ADDRESS.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
+                    }
+                }
+                return log!("link: {name} loaded: its sockets the link's");
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    });
+}
+
 /// The cabinet's role found ([`start`]: up to 3 s listening for a master, on the calling thread),
 /// its table kept ([`serve_master`], [`serve_cabinet`]) and the game executable's sockets made the
 /// link's ([`hook_module`]). The cabinets' count known by now, `0` alone. From `DllMain` too.
