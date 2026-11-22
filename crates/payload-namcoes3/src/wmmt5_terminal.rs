@@ -164,7 +164,9 @@ pub(crate) fn start(base: usize) {
                 log!("wmmt5 terminal: cabinet software revision {revision}");
                 last_revision = revision;
             }
-            if let Err(e) = socket.send_to(&packet(frame, true, free_play, revision), (Ipv4Addr::LOCALHOST, PORT)) {
+            // linked, the cabinet's socket is on its address of the link
+            let to = wal_payload_common::link::own().filter(|_| wal_payload_common::link::linked()).map_or(Ipv4Addr::LOCALHOST, Ipv4Addr::from);
+            if let Err(e) = socket.send_to(&packet(frame, true, free_play, revision), (to, PORT)) {
                 if frame < 5 {
                     log!("wmmt5 terminal: send: {e}");
                 }

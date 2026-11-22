@@ -21,6 +21,8 @@ drives:
   g: G
 
 env:
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # The store terminal's settings: free play (0: coins)
   WAL_NAMCOES3_FREEPLAY: "1"
   # The Banapassport card's 20-digit access code (empty: a card made for this dump)

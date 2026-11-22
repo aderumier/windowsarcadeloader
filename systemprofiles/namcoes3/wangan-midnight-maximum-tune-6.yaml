@@ -18,6 +18,8 @@ drives:
   g: G
 
 env:
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # The game makes a windowed device: a borderless window the size of the screen (the
   # picture is scaled to it).
   WAL_WINDOW_POPUP: "1"

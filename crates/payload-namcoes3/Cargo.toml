@@ -13,6 +13,7 @@ crate-type = ["cdylib"]
 wal-protocol = { path = "../protocol" }
 wal-payload-common = { path = "../payload-common" }
 wal-namcoes3srv = { path = "../namcoes3srv" }
+miniz_oxide = "0.8"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",

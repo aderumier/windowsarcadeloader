@@ -9030,6 +9030,20 @@ that reads the cabinets' count at its start, before the others have joined, also
   it, the others join (start on the second cabinet during the first's track select). The link's
   sockets, nothing else. Verified with two instances: NEW CHALLENGER, WAITING OTHER PLAYERS 1P /
   2P, one race (12/12 and 11/12, the other's bike marked).
+* **Wangan Midnight Maximum Tune 5 / 5DX / 5DX+ / 6 / 6R / 6RR** (namcoes3, `wmmt5.rs`): the
+  cabinets announce themselves to the store group 225.0.0.1:50765 (overlapped `WSASendTo`) and
+  count each other by board ID (`setting.lua`'s `mPcbId`, the second byte), their own
+  announcement included. Linked, cabinet k is 192.168.92.(10 + k) for the game (its card in
+  `GetIpAddrTable`, link.rs), its announcements go to every cabinet (alone: the loopback), its
+  board ID is k - 1 (both drives' `setting.lua.gz` rewritten at the start), its dongle serial's
+  last digit plus k - 1 (HASP memory, the auth daemon's cabinet config, 6R's USB key: "Duplicate
+  Board ID error" / E1905 otherwise); the emulated terminal sends to the cabinet's address and
+  the built-in servers listen on `link::local_server`. Instances on one PC: the game's UDP
+  socket connected to 8.8.8.8 (to learn its card) is connected to the cabinet's own address.
+  Verified with two instances: 5, "1P/2P play available", 乱入歓迎 (VS welcome) on cabinet 1,
+  店内乱入対戦しますか？ YES on cabinet 2, the VS screen, the race 1/2 and 2/2 (GUEST marked);
+  6RR, both in the attract, "1P/2P play available". 5DX, 5DX+, 6, 6R: the same code, not run
+  linked.
 * **K.O. Drive** (ringedge, `kodrive.rs`): Sega's link library (UDP 11882, POWER-ON NETWORK
   TEST): node i of TOTAL MACHINE n in group g is 192.168.99.(1 + i + 6 (g + 2 (3 n - 6))). Its LINK
   ID, TOTAL MACHINE and GROUP ID (its test menu's) are read by three functions (`0x4885C0`,
@@ -9208,12 +9222,12 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `pokken-tournament` | Pokkén Tournament | namcoes3 | user 100% (24.05 with Banapassport cards, 26.02 offline), 1 player per cabinet, English text | updates 24.05 and 26.02 (64-bit, §6.3c): the payload as the game's `xinput1_3.dll` (the cabinet controller as XInput pad 0, its USB id), Namco JVS on COM3 (`wajvio.dll`), dongle / cabinet serial, ping and subnet patches, Japanese locale, cards (AMCUS, COM4 reader, jackal server), GE patches 0110 / 0111 (movies), saves in the dump's `Win32\save_data`; no cabinet link |
 | `jojos-bizarre-adventure-last-survivor` | JoJo's Bizarre Adventure - Last Survivor | namcoes3 | works offline (headless tests: system check, coins, start, PP purchase, mode select, operator menu), touch with the mouse, English text; no game server: national / store battles off | update 28.02 (64-bit UE4, §6.3c): the payload as the game's `xinput1_3.dll`, cabinet serial and AMActivator, USIO board with sticks, Aime reader (COM1) and display (COM2) of `libamw.dll`, tablet touch panel, store network (netsh, adapters, ping), English `Game.locres` |
 | `star-wars-battle-pod` | Star Wars Battle Pod - The Force Awakens | namcoes3 | boots (2026-10-06), not user-verified | 64-bit payload as the launcher's and the game's `hasp_windows_x64_100610.dll` (by ordinal, §6.3c): HASP serial, NA-JV board on COM3 (flight stick, throttle, trigger/weapon/view), USB key enumeration, projector check skipped, flat screen |
-| `wangan-midnight-maximum-tune-5` | Wangan Midnight Maximum Tune 5 | namcoes3 | works (user: game works; headless: cards, new player, car, race, save) | `hasp_windows_x64_109906.dll` payload (§6.3c), JVS on COM3, emulated terminal, Banapass cards on COM4, built-in game server (wm5srv) |
-| `wangan-midnight-maximum-tune-5dx` | Wangan Midnight Maximum Tune 5DX | namcoes3 | works (user), full screen; cards and game server | as `wangan-midnight-maximum-tune-5` with the 5DX version table and server schema |
-| `wangan-midnight-maximum-tune-5dxp` | Wangan Midnight Maximum Tune 5DX+ | namcoes3 | works (user), English; cards and game server | as 5DX: the 5DX+ version table and server schema |
-| `wangan-midnight-maximum-tune-6` | Wangan Midnight Maximum Tune 6 | namcoes3 | works (user: 100%), cards and game server | as 5DX+: the WMMT6 version table, `bngrw.dll` card hooks, Wm6 server schema |
-| `wangan-midnight-maximum-tune-6r` | Wangan Midnight Maximum Tune 6R | namcoes3 | works (user: 100%) | as WMMT6: the 6R version table, newer IAuth, nbamUsbFinder serial |
-| `wangan-midnight-maximum-tune-6rr` | Wangan Midnight Maximum Tune 6RR | namcoes3 | works (user: 100%) | as 6R: the 6RR dongle serial, cabinet link group 0, Wm6RR server schema |
+| `wangan-midnight-maximum-tune-5` | Wangan Midnight Maximum Tune 5 | namcoes3 | works (user: game works; headless: cards, new player, car, race, save) | cabinet link across PCs (§6.8); `hasp_windows_x64_109906.dll` payload (§6.3c), JVS on COM3, emulated terminal, Banapass cards on COM4, built-in game server (wm5srv) |
+| `wangan-midnight-maximum-tune-5dx` | Wangan Midnight Maximum Tune 5DX | namcoes3 | works (user), full screen; cards and game server | cabinet link across PCs (§6.8); as `wangan-midnight-maximum-tune-5` with the 5DX version table and server schema |
+| `wangan-midnight-maximum-tune-5dxp` | Wangan Midnight Maximum Tune 5DX+ | namcoes3 | works (user), English; cards and game server | cabinet link across PCs (§6.8); as 5DX: the 5DX+ version table and server schema |
+| `wangan-midnight-maximum-tune-6` | Wangan Midnight Maximum Tune 6 | namcoes3 | works (user: 100%), cards and game server | cabinet link across PCs (§6.8); as 5DX+: the WMMT6 version table, `bngrw.dll` card hooks, Wm6 server schema |
+| `wangan-midnight-maximum-tune-6r` | Wangan Midnight Maximum Tune 6R | namcoes3 | works (user: 100%) | cabinet link across PCs (§6.8); as WMMT6: the 6R version table, newer IAuth, nbamUsbFinder serial |
+| `wangan-midnight-maximum-tune-6rr` | Wangan Midnight Maximum Tune 6RR | namcoes3 | works (user: 100%) | cabinet link across PCs (§6.8); as 6R: the 6RR dongle serial, cabinet link group 0, Wm6RR server schema |
 | `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) | dump built from the game's install disc (unshield), original executable: HASP4 dongle answered in memory (`hasp.rs`), W: drive, USBIO board and gun watchdog patches (`WAL_PATCHES`), operator keys only (`keyboard.rs`); the game's own `msvcr71` / `msvcp71` (Wine's clamps the level dependency CRCs: missing models, statue enemies), initial `systemcfg.lua` |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies | wal-loader; payload `aliens.rs` (`WAL_GLOBALVR_ALIENS`): gun reader replaced (trigger, special, flamethrower, X/Y; reload = shot off screen), panel keys' `GetAsyncKeyState` answered from the sticks (start, test F1/F2, select, volume), coins into the board's coin queue; Creative OpenAL from the dump's DATA (`files: {dump}/...`); DivX 5 movies not decoded, their error boxes patched out, 1920x1080 game in a gamescope screen scaled to the real one (`-S fit`: smaller screens showed it cut off) |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved | PC port dump: `the_swarm_controls.exe` run directly with its adapter's arguments; the payload is its .NET input adapter (`WAL_GLOBALVR_SWARM`: shared memory `Local\SwarmPcInputV1`, console and front end commands; `pc_start_mode.lua` a profile file rewritten before each run, players' state from memory, end of stage from `game.log`; imports the dump left unresolved go to msvcr90, a Lua error no longer crashes the game) |

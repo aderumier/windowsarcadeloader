@@ -93,8 +93,9 @@ pub unsafe extern "C" fn hasp_read(_h: u32, file: u32, offset: u32, len: u32, bu
     } else if crate::lla::is_lla() {
         mem[0xD00..0xD0C].copy_from_slice(crate::lla::SERIAL);
     } else if let Some(version) = crate::wmmt5::version() {
-        mem[0xD00..0xD0C].copy_from_slice(version.serial.as_bytes());
-        mem[0xD3E..0xD40].copy_from_slice(&crate::wmmt5::serial_check(version.serial));
+        let serial = crate::wmmt5::cabinet_serial(version.serial);
+        mem[0xD00..0xD0C].copy_from_slice(serial.as_bytes());
+        mem[0xD3E..0xD40].copy_from_slice(&crate::wmmt5::serial_check(&serial));
     } else if crate::game_base() != 0 {
         mem[0xD00..0xD0C].copy_from_slice(&crate::patches::serial(0x1573d28));
         static LOGGED: std::sync::Once = std::sync::Once::new();

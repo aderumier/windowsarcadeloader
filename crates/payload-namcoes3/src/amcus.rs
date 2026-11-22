@@ -66,7 +66,10 @@ pub(crate) fn set_cabinet_network(network: [&'static str; 6]) {
 fn identity() -> Identity {
     IDENTITY.get().copied().unwrap_or_else(|| {
         let v = crate::wmmt5::current();
-        Identity { game_id: GAME_ID, game_cd: v.game_cd, game_ver: v.game_ver, serial: v.serial, scheme: "https://", path: "", net_id: "" }
+        // the dongle's (linked, each cabinet its own: wmmt5::cabinet_serial)
+        static SERIAL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        let serial = SERIAL.get_or_init(|| crate::wmmt5::cabinet_serial(v.serial));
+        Identity { game_id: GAME_ID, game_cd: v.game_cd, game_ver: v.game_ver, serial, scheme: "https://", path: "", net_id: "" }
     })
 }
 

@@ -334,7 +334,14 @@ pub(crate) fn attach(exe: &str, base: usize, version: &'static Version) {
         return;
     }
     GAME_BASE.store(base, Ordering::Relaxed);
+    // cabinets on other PCs (WAL_LINK): cabinet k at 192.168.92.(10 + k), its board ID k - 1
+    if wal_payload_common::link::init() != 0 {
+        wal_payload_common::link::virtual_net([192, 168, 92], 11);
+    }
     initial_settings();
+    if wal_payload_common::link::linked() {
+        linked_pcb_id(wal_payload_common::link::cabinet() as i32 - 1);
+    }
     crate::wmmt5_net::init(base);
     crate::wmmt5_terminal::start(base);
     patches(base, version);
@@ -362,14 +369,14 @@ pub(crate) fn attach(exe: &str, base: usize, version: &'static Version) {
     crate::jvs::init(&[base]);
     card_reader(base, version);
     if let Some(serial) = version.usb_serial {
-        usb_finder(base, serial);
+        usb_finder(base, &cabinet_serial(serial));
     }
     // the game server (the ALL.Net answer's uri, amcus.rs)
     // and the store terminal's HTTPS proxy, where a drive cabinet sends its requests while the
     // terminal links (its address, port 50765: wmmt5_terminal.rs)
     wal_namcoes3srv::wmmt5::start(
         version.server,
-        &[crate::amcus::game_server(), crate::wmmt5_terminal::PROXY.to_string()],
+        &[local(crate::amcus::game_server()), local(crate::wmmt5_terminal::PROXY.to_string())],
         "F:\\wm5srv",
         |line| log!("{line}"),
         std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1"),
@@ -446,6 +453,71 @@ fn initial_settings() {
             Err(e) => log!("wmmt5: {path}: {e}"),
         }
     }
+}
+
+/// A built-in server's address: linked, the cabinet's own loopback one for a 127.0.0.1 address
+/// (two cabinets on one PC: each its own, the game's connections there taken to it).
+fn local(addr: String) -> String {
+    match addr.strip_prefix("127.0.0.1:").and_then(|p| p.parse::<u16>().ok()) {
+        Some(port) if wal_payload_common::link::linked() => format!("{}:{port}", wal_payload_common::link::dotted(wal_payload_common::link::local_server(port))),
+        _ => addr,
+    }
+}
+
+/// A dongle serial of the cabinet: linked, its last digit plus the cabinet's number less one
+/// (each cabinet of a store its own: "Duplicate Board ID error" otherwise).
+pub(crate) fn cabinet_serial(serial: &str) -> String {
+    let k = wal_payload_common::link::cabinet().saturating_sub(1) as u8;
+    let mut b = serial.as_bytes().to_vec();
+    if let Some(last) = b.last_mut().filter(|d| d.is_ascii_digit()) {
+        *last = b'0' + (*last - b'0' + k) % 10;
+    }
+    String::from_utf8(b).unwrap_or_else(|_| serial.to_string())
+}
+
+/// Linked: `setting.lua`'s board ID (`mPcbId`, the test menu's 基板ID) the cabinet's, on both
+/// drives (the game counts the cabinets by it: "Duplicate Board ID error" when two share it).
+fn linked_pcb_id(id: i32) {
+    for drive in ["F", "G"] {
+        let path = format!("{drive}:\\setting.lua.gz");
+        let Ok(gz) = std::fs::read(&path) else { continue };
+        let Some(text) = gunzip(&gz) else {
+            log!("wmmt5: {path}: not a gzip file, board ID left");
+            continue;
+        };
+        let text = String::from_utf8_lossy(&text).into_owned();
+        let line = format!("mPcbId = {id}");
+        let out: Vec<String> = text.split('\n').map(|l| if l.trim_start().starts_with("mPcbId") { line.clone() } else { l.to_string() }).collect();
+        let out = out.join("\n");
+        if out == text {
+            continue;
+        }
+        match std::fs::write(&path, gzip_stored(out.as_bytes())) {
+            Ok(()) => log!("wmmt5: {path}: board ID {id} (the link's cabinet {})", id + 1),
+            Err(e) => log!("wmmt5: {path}: {e}"),
+        }
+    }
+}
+
+/// The data of a gzip file.
+fn gunzip(gz: &[u8]) -> Option<Vec<u8>> {
+    if gz.len() < 18 || gz[..3] != [0x1F, 0x8B, 8] {
+        return None;
+    }
+    let flags = gz[3];
+    let mut at = 10;
+    if flags & 4 != 0 {
+        at += 2 + u16::from_le_bytes([*gz.get(at)?, *gz.get(at + 1)?]) as usize;
+    }
+    for bit in [8, 16] {
+        if flags & bit != 0 {
+            at += gz.get(at..)?.iter().position(|&b| b == 0)? + 1;
+        }
+    }
+    if flags & 2 != 0 {
+        at += 2;
+    }
+    miniz_oxide::inflate::decompress_to_vec(gz.get(at..gz.len() - 8)?).ok()
 }
 
 /// A gzip file holding `data` uncompressed (one stored deflate block).

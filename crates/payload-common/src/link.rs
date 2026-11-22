@@ -33,7 +33,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use windows_sys::Win32::NetworkManagement::IpHelper::{GetIpAddrTable, IP_ADAPTER_ADDRESSES_LH, IP_ADAPTER_INFO, MIB_IPADDRTABLE};
+use windows_sys::Win32::NetworkManagement::IpHelper::{GetIpAddrTable, IP_ADAPTER_ADDRESSES_LH, IP_ADAPTER_INFO, MIB_IPADDRROW_XP, MIB_IPADDRTABLE};
 
 use crate::{iat, log};
 
@@ -626,6 +626,7 @@ static WSA_IOCTL: AtomicUsize = AtomicUsize::new(0);
 static WSA_SEND_TO: AtomicUsize = AtomicUsize::new(0);
 static GET_ADAPTERS_INFO: AtomicUsize = AtomicUsize::new(0);
 static GET_ADAPTERS_ADDRESSES: AtomicUsize = AtomicUsize::new(0);
+static GET_IP_ADDR_TABLE: AtomicUsize = AtomicUsize::new(0);
 
 type BindFn = unsafe extern "system" fn(usize, *const u8, i32) -> i32;
 type SendToFn = unsafe extern "system" fn(usize, *const u8, i32, i32, *const u8, i32) -> i32;
@@ -686,6 +687,13 @@ unsafe extern "system" fn connect(s: usize, addr: *const u8, len: i32) -> i32 {
                 log!("link: connect {}:{} (cabinet {pc})", dotted(a), u16::from_be_bytes([m[2], m[3]]));
                 unsafe { f(s, m.as_ptr(), 16) }
             }
+            // instances on one PC: a datagram socket connected outside (to learn the card it
+            // goes out of, WMMT's 8.8.8.8: no route from a loopback address) is connected to
+            // this cabinet's address
+            None if on_loopback() && a[0] != 127 && !broadcast(a) && !multicast(a) && is_datagram(s) => {
+                let m = with_address(addr, own().unwrap_or([127, 0, 0, 1]));
+                unsafe { f(s, m.as_ptr(), 16) }
+            }
             None => unsafe { f(s, addr, len) },
         },
         None => unsafe { f(s, addr, len) },
@@ -721,6 +729,15 @@ fn send(a: [u8; 4], addr: *const u8, n: i32, data: *const u8, one: &dyn Fn(&[u8;
         }
     }
     r
+}
+
+/// A datagram socket (`SO_TYPE` `SOCK_DGRAM`).
+fn is_datagram(s: usize) -> bool {
+    use windows_sys::Win32::Networking::WinSock::{SO_TYPE, SOL_SOCKET, getsockopt};
+    let mut t = 0i32;
+    let mut len = 4i32;
+    let r = unsafe { getsockopt(s, SOL_SOCKET, SO_TYPE, (&mut t as *mut i32).cast(), &mut len) };
+    r == 0 && t == 2
 }
 
 /// Instances on one PC: a socket the game sends from or connects without binding it is bound to
@@ -1047,6 +1064,34 @@ unsafe extern "system" fn get_adapters_info(info: *mut IP_ADAPTER_INFO, size: *m
     r
 }
 
+/// The PC's addresses (`GetIpAddrTable`, WMMT's): the card of its address alone (none has it,
+/// the loopback addresses: the first that is not the loopback), shown at the game's address,
+/// then the loopback.
+unsafe extern "system" fn get_ip_addr_table(table: *mut MIB_IPADDRTABLE, size: *mut u32, order: i32) -> u32 {
+    let f: unsafe extern "system" fn(*mut MIB_IPADDRTABLE, *mut u32, i32) -> u32 = real(&GET_IP_ADDR_TABLE);
+    let r = unsafe { f(table, size, order) };
+    let Some(own) = own() else { return r };
+    if r != 0 || table.is_null() {
+        return r;
+    }
+    let n = unsafe { (*table).dwNumEntries } as usize;
+    let rows = unsafe { std::slice::from_raw_parts_mut((*table).table.as_mut_ptr(), n) };
+    let addr = |r: &MIB_IPADDRROW_XP| r.dwAddr.to_ne_bytes();
+    let Some(mine) = rows.iter().position(|r| addr(r) == own).or_else(|| rows.iter().position(|r| addr(r)[0] != 127)) else { return r };
+    let mut card = rows[mine];
+    card.dwAddr = u32::from_ne_bytes(to_game(own));
+    card.dwMask = u32::from_ne_bytes(own_mask());
+    let mut kept = vec![card];
+    kept.extend(rows.iter().filter(|r| addr(r)[0] == 127 && addr(r) != own).copied());
+    rows[..kept.len()].copy_from_slice(&kept);
+    unsafe { (*table).dwNumEntries = kept.len() as u32 };
+    static LOGGED: AtomicUsize = AtomicUsize::new(0);
+    if LOGGED.fetch_add(1, Ordering::Relaxed) < 3 {
+        log!("link: the PC's addresses (GetIpAddrTable): {} (card {}) and the loopback", dotted(to_game(own)), card.dwIndex);
+    }
+    r
+}
+
 /// The PC's cards (`GetAdaptersAddresses`, Showdown's): the card of its address alone, first (a
 /// copy of it in the list's first entry); none has it (the loopback addresses): the first card
 /// that is not the loopback, its first IPv4 address made this cabinet's.
@@ -1150,6 +1195,9 @@ pub unsafe fn hook_module(base: usize) {
     }
     if let Some(o) = unsafe { iat::hook_module(base, "iphlpapi.dll", "GetAdaptersAddresses", get_adapters_addresses as *const () as usize) } {
         let _ = GET_ADAPTERS_ADDRESSES.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
+    }
+    if let Some(o) = unsafe { iat::hook_module(base, "iphlpapi.dll", "GetIpAddrTable", get_ip_addr_table as *const () as usize) } {
+        let _ = GET_IP_ADDR_TABLE.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
     }
 }
 

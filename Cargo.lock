@@ -3903,6 +3903,7 @@ dependencies = [
 name = "wal-payload-namcoes3"
 version = "0.1.0"
 dependencies = [
+ "miniz_oxide 0.8.9",
  "wal-namcoes3srv",
  "wal-payload-common",
  "wal-protocol",

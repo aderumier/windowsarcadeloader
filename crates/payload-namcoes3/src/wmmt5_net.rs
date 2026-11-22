@@ -132,13 +132,16 @@ unsafe extern "system" fn wsa_send_to(
     if !to.is_null() && tolen >= 8 {
         let addr = unsafe { std::slice::from_raw_parts(to, 8) };
         let link = addr[0..2] == 2u16.to_le_bytes() && addr[2..4] == 50765u16.to_be_bytes() && addr[4..8] == [225, 0, 0, 1];
+        // linked (WAL_LINK), the group's packets go to every cabinet, this one too (link.rs)
+        let link = link && !wal_payload_common::link::linked();
         if link {
             local[..4].copy_from_slice(&addr[..4]);
             local[4..8].copy_from_slice(&[127, 0, 0, 1]);
             dest = local.as_ptr();
         }
         let head: Vec<u8> = if !bufs.is_null() && count > 0 { unsafe { std::slice::from_raw_parts((*bufs).buf, ((*bufs).len as usize).min(2)) }.to_vec() } else { Vec::new() };
-        if link && let Some(&group) = head.first() {
+        let group_packet = addr[2..4] == 50765u16.to_be_bytes() && addr[4..8] == [225, 0, 0, 1];
+        if group_packet && let Some(&group) = head.first() {
             // the terminal joins the cabinet's link group
             crate::wmmt5_terminal::LINK_GROUP.store(group, Ordering::Relaxed);
         }
