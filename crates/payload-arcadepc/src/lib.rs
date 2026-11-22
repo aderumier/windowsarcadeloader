@@ -46,7 +46,11 @@
 //! (the original library's calls forwarded, its parallel port board emulated).
 //!
 //! Wasteland Racers 2071 (`WAL_ARCADEPC_BOARD=sdc2`, x86 build): `sdc2.rs` is its `SDC2.dll`
-//! (the force feedback wheel board: wheel, pedals, buttons).
+//! (the force feedback wheel board: wheel, pedals, buttons). Its cabinets on other PCs
+//! (`WAL_LINK`): the host elected by UDP broadcasts on 2070 (the lowest address hosts), the race
+//! in DirectPlay 8 (the profile's Microsoft dpnet), joined by the host's PC name: linked, the
+//! election's address is 255.255.255.255 again (alone, the profile's 127.0.0.1), its PC name its
+//! address and DirectPlay's sockets the link's.
 //!
 //! Pigs Might Fly (`WAL_ARCADEPC_BOARD=gamewax`, x86 build): `gamewax.rs` emulates its USB board
 //! and overrides its settings (no Shell).
@@ -413,6 +417,12 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if matches!(board.trim(), "interface" | "sdc2") => {
                 pads::disconnect();
                 wal_payload_common::patches::apply();
+                if board.trim() == "sdc2" && wal_payload_common::link::init() != 0 {
+                    // the election's requests to every cabinet (this one too): its broadcast
+                    wal_payload_common::patches::apply_list("0x2FD0B8:3235352E3235352E3235352E32353500");
+                    wal_payload_common::link::name_is_address();
+                    wal_payload_common::link::hook_module_when_loaded("dpnet.dll");
+                }
                 // the game's window messages: the executable's
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);

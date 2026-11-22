@@ -9,6 +9,9 @@ name: Wasteland Racers 2071
 payload_install: [SDC2.dll]
 # loaded at the start (the game loads SDC2.dll after its Direct3D device): wal-loader
 payload_loader: true
+# Its cabinet link races in DirectPlay 8: Microsoft's dpnet (wine's IDirectPlay8Peer::Host is a
+# stub).
+tricks: [directplay]
 
 files:
   # the board in use (UseForceFeedbackWheel 1) and the pedals' calibration: the payload's range
@@ -29,6 +32,8 @@ env:
   # 255.255.255.255 and answers its own, which Linux does not deliver back to the sender; the
   # requests go to 127.0.0.1 (0x2fd0b8, the address string), this cabinet alone.
   WAL_PATCHES: "0x2ED42:B91000000090,0x2FD0B8:3132372E302E302E3100"
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # The map's loader draws its loading bar and presents a frame after each object it loads:
   # held to 60 presents per second the load lasted minutes, the full bar on the screen (and
   # the window not answering). No limit: the game times itself.

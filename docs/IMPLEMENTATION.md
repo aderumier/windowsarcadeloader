@@ -9007,6 +9007,13 @@ that reads the cabinets' count at its start, before the others have joined, also
   Verified with two instances: MATCHING / STORE "2 players", the same race with two COM cars,
   each car seen on the other's screen. (A fresh image's first boot shows backup data error 5514:
   the next boot plays.)
+* **Wasteland Racers 2071** (arcadepc, `lib.rs`'s `sdc2` board): the host elected by UDP
+  broadcasts on 2070 (the lowest address hosts), the race in DirectPlay 8 (now the profile's
+  `directplay`: alone it plays the same, checked), joined by the host's PC name. Linked, the
+  election's address is 255.255.255.255 again (alone the profile's 127.0.0.1, `0x2fd0b8`), the
+  PC name the cabinet's address (`link::name_is_address`), DirectPlay's sockets the link's.
+  Verified with two instances: STARTING SERVER / "You joined a multiplayer game", the same
+  track, the race 1st and 2nd.
 * **K.O. Drive** (ringedge, `kodrive.rs`): Sega's link library (UDP 11882, POWER-ON NETWORK
   TEST): node i of TOTAL MACHINE n in group g is 192.168.99.(1 + i + 6 (g + 2 (3 n - 6))). Its LINK
   ID, TOTAL MACHINE and GROUP ID (its test menu's) are read by three functions (`0x4885C0`,
@@ -9485,7 +9492,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `hog-wild` | Hog Wild | arcadepc | user 100% (2026-11-05) | Uniana (Direct3D 8, 32-bit, §6.3i): the payload is its `Interface.dll` (the original `CInterface` library forwarded, its parallel port board emulated: buttons, handle ADC); patches: the boot's volume serial check skipped (hung in Wine), the menus' handle reading restored; 4:3 window, black sides; no force feedback |
 | `space-warp-66` | Space Warp 66 | arcadepc | user 100% (2026-11-06), 1 spinner, bezel | Touchmagix (Unity 2019.3, Mono, 64-bit, OpenGL, §6.3i): the payload (`xinput1_3.dll`) emulates its two serial boards and answers its Linux commands; the spinner is the mouse, left stick or left / right; 9:16 window at the screen's height, the dump's bezel |
 | `pigs-might-fly` | Pigs Might Fly | arcadepc | user 100% (2026-11-06) | Gamewax (Direct3D 9, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (`wal-loader`) is its USB board (vendor 0x1043), the game run without its Shell (`SHELLENABLE=0`, `/h=1`); upright portrait picture in the dump's bezel; no tickets paid; no operator menu |
-| `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | DND Arcade (Direct3D 8, 32-bit, §6.3i): the payload is its `SDC2.dll` force feedback wheel board (axes, buttons, coin counter, motor as constant force); patches: the link's bind length, its host request to 127.0.0.1; no frame limit (loading); 1920x1080 settings; runner patch 0112 (VMR-9 device multithreaded) |
+| `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | cabinet link across PCs (§6.8); DND Arcade (Direct3D 8, 32-bit, §6.3i): the payload is its `SDC2.dll` force feedback wheel board (axes, buttons, coin counter, motor as constant force); patches: the link's bind length, its host request to 127.0.0.1; no frame limit (loading); 1920x1080 settings; runner patch 0112 (VMR-9 device multithreaded) |
 | `polar-wars` | Polar Wars | arcadepc | works (user: 100%, 2026-11-22 again), 2 guns, last stage unlocked | Maiqiang (Unity 5.6, 32-bit, §6.3i): exe below the dump root (`.windowsloader`); the payload (as `UnrealHid.dll`, `wal-loader`) is the UnrealIO USB board; linear calibration and potentiometer gun version from profile files; the scenario select's IL patched (last stage); the repack's MRG input layer replaced (the board's keys, the players who press start); free play |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | the "Boys" cabinet (Unity 2021.3, 64-bit, §6.3i): rebuilt dump, English; the payload emulates the BoysUSB HID board and the JHCap2 camera (black pictures), replaces the laser tracking (`Mono::replace`: each gun's place), creates `C:\\Boys` (no HASP); calibration in the dump's `TopData.db` |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | UNIS's shunxiang guns (Unity 5.4, 64-bit, §6.3j): rebuilt dump; the payload (`xinput1_3.dll`) emulates the COM3 board, the `LC64.dll` camera tracker and the DllBindFunc / Sense4 dongles through Mono's `GetProcAddress`; the game scene's gun hardware reads the active board (`Mono::replace`); crosshair |
