@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (410)
+## Games (414)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -35,7 +35,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 <!-- GAMELIST BEGIN (tools/gamelist.py) -->
 | Game id | Game | System | Status | Regression test | Run |
 |---|---|---|---|---|---|
-| `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented | not in the test |  |
+| `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented; cabinet link across PCs | not in the test |  |
 | `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns | not in the test |  |
 | `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) | not in the test |  |
 | `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab | not in the test |  |
@@ -141,11 +141,12 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | not in the test |  |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | not in the test |  |
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) | not in the test |  |
+| `half-life-2-survivor` | Half-Life 2: Survivor | typex | user 100% (2026-11-22, desktop): WASD, mouse aim, fire; headless: NESYS card registration, returning card, matches, test menu | not in the test |  |
 | `sonic-blast-heroes` | Sonic Blast Heroes | typex | works (user: 100%) | not in the test |  |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | not in the test |  |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | not in the test |  |
 | `blazblue-continuum-shift` | BlazBlue Continuum Shift | typex | works (user: 100%) | not in the test |  |
-| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos) | not in the test |  |
+| `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos); cabinet link across PCs | not in the test |  |
 | `gigawing-generations` | GigaWing Generations | typex | works (user), Landscape/Bezel dump rotated by its ReShade | not in the test |  |
 | `chaos-breaker-typex` | Chaos Breaker | typex | works (user: perfect) | not in the test |  |
 | `gaia-attack-4` | Gaia Attack 4 | typex | works (user: 100%, 4 guns, coins, sound, videos) | not in the test |  |
@@ -178,12 +179,12 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `super-street-fighter-iv-ae` | Super Street Fighter IV Arcade Edition (export, standalone) | typex | works (user: 100%), intro video plays | not in the test |  |
 | `super-street-fighter-iv-ae-cabinet` | Super Street Fighter IV Arcade Edition | typex | works (user: 100%) | not in the test |  |
 | `super-street-fighter-iv-ae-2012` | Super Street Fighter IV Arcade Edition Ver. 2012 | typex | works (user: 100%) | not in the test |  |
-| `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins | not in the test |  |
-| `d1gp-arcade` | D1GP Arcade | typex | works (user: wheel, pedals, buttons, test menu); TODO: force feedback check on a wheel, magnetic card reader (saves) | not in the test |  |
-| `wacky-races` | Wacky Races | typex | works (user: controls, start, view) | not in the test |  |
-| `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%) | not in the test |  |
-| `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu | not in the test |  |
-| `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test) | not in the test |  |
+| `valve-limit-r` | Valve Limit R | typex | works (user), wheel, pedals, races start at once; TODO: option to hide the passenger girl's cut-ins; cabinet link across PCs | not in the test |  |
+| `d1gp-arcade` | D1GP Arcade | typex | works (user: wheel, pedals, buttons, test menu); TODO: force feedback check on a wheel, magnetic card reader (saves); cabinet link across PCs | not in the test |  |
+| `wacky-races` | Wacky Races | typex | works (user: controls, start, view); cabinet link across PCs | not in the test |  |
+| `battle-gear-4` | Battle Gear 4 | typex | works (user: 100%); cabinet link across PCs | not in the test |  |
+| `battle-gear-4-tuned` | Battle Gear 4 Tuned | typex | works (user: wheel, pedals, buttons, intro, music, coins), test menu; cabinet link across PCs | not in the test |  |
+| `battle-gear-4-tuned-pro` | Battle Gear 4 Tuned (professional) | typex | works (user: H shifter, clutch, coins in the I/O test); cabinet link across PCs | not in the test |  |
 | `harikiri-professional-baseball` | Harikiri Professional Baseball | typex | works (user: 100%), offline mode, touch = mouse or gun with a pointer dot | not in the test |  |
 | `fast-and-furious` | The Fast and the Furious | rawthrills | works (user: 100%) | not in the test |  |
 | `fast-and-furious-drift` | The Fast and the Furious Drift | rawthrills | works (user: 100%) | not in the test |  |
@@ -283,9 +284,9 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `kemono-friends-3-planet-tours` | Kemono Friends 3 Planet Tours | alls | user (2026-11-16, desktop): "game 100% working"; headless: self test, attract, new Aime player (name, tutorial, card printed, saved), returning player, card scene, battle | not in the test |  |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | not in the test |  |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | not in the test |  |
-| `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | not in the test |  |
-| `sega-racing-classic` | SEGA Racing Classic | ringedge | works (user: 100%) | not in the test |  |
-| `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%) | not in the test |  |
+| `ko-drive` | K.O. Drive | ringedge | works (user: 100%); cabinet link across PCs | not in the test |  |
+| `sega-racing-classic` | SEGA Racing Classic | ringedge | works (user: 100%); cabinet link across PCs | not in the test |  |
+| `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%); cabinet link across PCs | not in the test |  |
 | `melty-blood-actress-again-current-code-ringwide` | Melty Blood Actress Again Current Code (RingWide) | ringedge | works (user: 100%), 4:3 | not in the test |  |
 | `initial-d-arcade-stage-6` | Initial D Arcade Stage 6 AA | ringedge | works (user: full screen, inputs, cards, offline); force feedback not felt on a wheel | not in the test |  |
 | `initial-d-arcade-stage-7` | Initial D Arcade Stage 7 AAX | ringedge | works (full screen, cards, offline) | not in the test |  |
@@ -296,12 +297,12 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user: 100%): the cabinet's shell `Tsunami\TVTSHELL.EXE` (dump `games/arcadepc/revolt`), its console then `ReVolt.exe -coinop`; coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) | not in the test |  |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | not in the test |  |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | not in the test |  |
-| `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | not in the test |  |
-| `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | not in the test |  |
-| `showdown` | Showdown | segashell | works (user: 100%) | not in the test |  |
-| `grid` | GRID | europar | works (user: 100%) | not in the test |  |
-| `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | not in the test |  |
-| `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | not in the test |  |
+| `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%); cabinet link across PCs | not in the test |  |
+| `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%); cabinet link across PCs | not in the test |  |
+| `showdown` | Showdown | segashell | works (user: 100%); cabinet link across PCs | not in the test |  |
+| `grid` | GRID | europar | works (user: 100%); cabinet link across PCs | not in the test |  |
+| `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic); cabinet link across PCs | not in the test |  |
+| `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic); cabinet link across PCs | not in the test |  |
 | `men-in-black` | Men In Black | europar | works (headless test: attract, coins and free play, both players, guns aimed and shooting; user played on the desktop) | not in the test |  |
 | `mission-impossible-arcade` | Mission: Impossible Arcade | europar | works (headless test: attract, coins and free play, both players, guns aimed, both triggers shooting in a mission, mission 3 and a later stage chosen) | not in the test |  |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) | not in the test |  |
@@ -346,7 +347,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `space-warp-66` | Space Warp 66 | arcadepc | user 100% (2026-11-06), 1 spinner, bezel | not in the test |  |
 | `pigs-might-fly` | Pigs Might Fly | arcadepc | user 100% (2026-11-06) | not in the test |  |
 | `wasteland-racers-2071` | Wasteland Racers 2071 | arcadepc | user 100% (2026-11-05) | not in the test |  |
-| `polar-wars` | Polar Wars | arcadepc | works (user: 100%), 2 guns, last stage unlocked | not in the test |  |
+| `polar-wars` | Polar Wars | arcadepc | works (user: 100%, 2026-11-22 again), 2 guns, last stage unlocked | not in the test |  |
 | `skull-of-shadow` | Skull of Shadow | arcadepc | user 100% (2026-10-26), 4 guns | not in the test |  |
 | `dino-invasion` | Dino Invasion | unis | user 100% (2026-10-26), 4 guns | not in the test |  |
 | `after-dark` | After Dark | unis | user 100% (2026-11-03), 2 guns | not in the test |  |
@@ -382,7 +383,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `flappy-tickets` | Flappy Tickets | adrenaline | user 100% (2026-11-03), 2 buttons, portrait, stretched bezel | not in the test |  |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns | not in the test |  |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns | not in the test |  |
-| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape), 2 camera guns, landscape option | not in the test |  |
+| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape; 2026-11-22: aim at any screen size), 2 camera guns, landscape option | not in the test |  |
 | `galaxian-3` | Galaxian 3 | arcadepc | user 100% (2026-11-09), 4 guns (of the cabinet's 6) | not in the test |  |
 | `burning-striker` | Burning Striker | arcadepc | user 100% (2026-11-09), 2 players (stick, 3 buttons) | not in the test |  |
 | `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-14), 2 players (stick, 2 buttons, start) | not in the test |  |
@@ -415,7 +416,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `fix-it-felix-jr` | Fix-It Felix Jr. | arcadepc | user 100% (2026-11-12), 1 player (2 in turn) | not in the test |  |
 | `in-the-groove-2` | In The Groove 2 | arcadepc | user 100% (2026-11-12), 2 players | not in the test |  |
 | `monsterous` | Monsterous | arcadepc | user 100% (2026-11-12), 1 player | not in the test |  |
-| `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (players 1 and 2 on it) | not in the test |  |
+| `rerave` | ReRave | arcadepc | user 100% (2026-11-12), 1 touch (player 1 alone) | not in the test |  |
 | `deathsmiles-ii` | Deathsmiles II | arcadepc | user 100% (2026-11-12), 2 players | not in the test |  |
 | `omatsuri-yasan-kingyo-sukui` | Omatsuri Yasan Kingyo Sukui | arcadepc | user 100% (2026-11-15), 1 player | not in the test |  |
 | `omatsuri-yasan-ganso-takoyaki` | Omatsuri Yasan Ganso Takoyaki | arcadepc | user 100% (2026-11-15), 1 player | not in the test |  |
@@ -439,10 +440,13 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `cut-the-rope` | Cut The Rope | arcadepc | user 100% (2026-11-13) | not in the test |  |
 | `go-go-drummer-babe` | Go Go Drummer Babe | arcadepc | user 100% (2026-11-13) | not in the test |  |
 | `radikal-bikers` | Radikal Bikers | arcadepc | user 100% (2026-11-14) | not in the test |  |
+| `red-gun` | Red Gun | arcadepc | headless OK (2026-11-22), 1 gun | not in the test |  |
 | `project-diva-arcade` | Hatsune Miku Project DIVA Arcade | ringedge | user 100% (2026-11-15, desktop) | not in the test |  |
 | `border-break-scramble` | Border Break Scramble | ringedge2 | user (2026-11-15): "working 100% excluding online mode" | not in the test |  |
 | `shining-force-cross-raid` | Shining Force Cross Raid | ringedge | headless tests (2026-11-19): IC card in files, free play tickets, a scenario quest to its end (card saved), input test; user: works on the desktop (2026-11-19) | not in the test |  |
 | `shining-force-cross-elysion` | Shining Force Cross Elysion | ringedge | headless tests (2026-11-19): IC card in files, free play GP, a scenario quest to its end (card saved); user: works on the desktop (2026-11-19) | not in the test |  |
+| `maimai-green` | maimai GreeN | ringedge | headless tests (2026-11-20): offline, guest play, test menu; user test pending | not in the test |  |
+| `maimai-finale` | maimai FiNALE | ringedge | user: perfect (2026-11-22, desktop); online (ARTEMiS), both players' Aime cards | not in the test |  |
 | `kancolle-arcade` | KanColle Arcade | seganu | user 100% (2026-11-15): guest and Aime card play | not in the test |  |
 | `crossbeats-rev` | crossbeats REV. | alls | user 100% (2026-11-16, desktop): mouse with the red dot, touchpad multi-touch | not in the test |  |
 <!-- GAMELIST END -->
