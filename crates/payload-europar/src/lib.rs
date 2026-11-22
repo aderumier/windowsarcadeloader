@@ -20,11 +20,15 @@
 //! * Force feedback: the bytes the game writes to the parallel port (`Out32`, payload-common's
 //!   `port_ffb`).
 //! * `settings.rs`: operator settings (resolution, free play) from profile options.
+//! * `grid.rs`: GRID's LAN discovery server, linked (`WAL_LINK`, payload-common `link.rs`).
 //! * `testmenu.rs`: TEST runs the GameShell's test menu (the payload is loaded there too).
 //! * Profile code patches (`WAL_PATCHES`).
 
 #![allow(non_snake_case)]
 
+// 32-bit GRID
+#[cfg(target_arch = "x86")]
+mod grid;
 mod happ;
 mod inpwrapper;
 mod mib;
@@ -90,6 +94,8 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
             patches::apply();
             // the cabinets on other PCs (WAL_LINK): Ford Racing's broadcasts, its card
             wal_payload_common::link::init();
+            #[cfg(target_arch = "x86")]
+            grid::init();
             settings::init();
             inpwrapper::init();
             happ::init(false);

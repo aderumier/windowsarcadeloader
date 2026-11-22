@@ -6,7 +6,8 @@
 //!   1600x1200); SEGA Rally 3's `HorizontalResolution` / `VerticalResolution` (`config.ini`)
 //! * `WAL_EUROPAR_FREEPLAY=0|1`: `FreePlay` (the shell needs it too, `shell.rs`; SEGA Rally 3:
 //!   `[Credit] Freeplay`)
-//! * `WAL_CABINET` (linked, `WAL_LINK`): Ford Racing's `CabinetPostion`, each cabinet its own
+//! * `WAL_CABINET` (linked, `WAL_LINK`): Ford Racing's `CabinetPostion`, SEGA Rally 3's and
+//!   GRID's `[Network] CabinetID` (`ShellData.ini`), each cabinet its own
 //! * `WAL_EUROPAR_PATCHES_<width>`: code patches (the `WAL_PATCHES` format) applied when
 //!   `WAL_EUROPAR_RESOLUTION` has that width (SEGA Rally 3's in-race 2D positions, computed
 //!   from the screen width: tuned per width)
@@ -25,6 +26,12 @@ fn key_is(key: *const u8, name: &str) -> bool {
     !key.is_null() && unsafe { std::ffi::CStr::from_ptr(key.cast()) }.to_bytes().eq_ignore_ascii_case(name.as_bytes())
 }
 
+/// The cabinet's number in the link (linked only): Ford Racing's `CabinetPostion`
+/// (`data/GameSettings.ini`), SEGA Rally 3's and GRID's `[Network] CabinetID` (`ShellData.ini`).
+fn linked_cabinet_key(key: *const u8) -> bool {
+    (key_is(key, "CabinetPostion") || key_is(key, "CabinetID")) && wal_payload_common::link::linked()
+}
+
 fn option(var: &str) -> Option<String> {
     std::env::var(var).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
 }
@@ -40,8 +47,8 @@ unsafe extern "system" fn get_private_profile_int(section: *const u8, key: *cons
         crate::shell::set_free_play(v != 0);
         log!("settings: free play {}", if v != 0 { "on" } else { "off" });
     }
-    // the linked cabinets' places (Ford Racing's), each its own: the link's cabinet number
-    if key_is(key, "CabinetPostion") && wal_payload_common::link::linked() {
+    // the linked cabinets' places, each its own: the link's cabinet number
+    if linked_cabinet_key(key) {
         v = wal_payload_common::link::cabinet() as u32;
         log!("settings: cabinet position {v} (the link's)");
     }
@@ -67,7 +74,7 @@ unsafe extern "system" fn get_private_profile_string(
     size: u32,
     file: *const u8,
 ) -> u32 {
-    let linked_position = (key_is(key, "CabinetPostion") && wal_payload_common::link::linked()).then(|| wal_payload_common::link::cabinet().to_string());
+    let linked_position = linked_cabinet_key(key).then(|| wal_payload_common::link::cabinet().to_string());
     if let Some(v) = linked_position.filter(|_| !out.is_null() && size > 1) {
         unsafe {
             std::ptr::copy_nonoverlapping(v.as_ptr(), out, v.len().min(size as usize - 1));

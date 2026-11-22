@@ -43,6 +43,8 @@ env:
   # it reads the PC keyboard and joysticks through DirectInput
   WAL_DINPUT_DISABLE: "1"
   WAL_KEYBOARD_STATE_DISABLE: "1"
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
 
 options:
   - title: Display

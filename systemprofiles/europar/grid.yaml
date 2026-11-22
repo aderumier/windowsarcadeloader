@@ -25,6 +25,8 @@ input:
       KEY_DOWN: brake
 
 env:
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # the cabinet's board, a DirectInput game controller "SEGA IO Controller"
   # (ActionMap/actionMapSEGAController.xml): X the wheel, Z the brake, Rx the gas, buttons
   # 0 start, 1 view, 2 reset car, 3 gear up (menus up), 4 gear down (menus down), 9 look back

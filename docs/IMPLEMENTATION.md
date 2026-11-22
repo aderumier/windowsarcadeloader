@@ -8765,6 +8765,20 @@ Common options "Cabinet link", "Cabinet number" (`WAL_CABINET`, `auto` by defaul
   (127.0.0.2 / 127.0.0.3, the second found the first in 40 ms): MULTIPLAYER, each cabinet's
   car seen on the other's screen ("Plyr 2" ahead of player 1), about 75 datagrams per 10 s each
   way during the race.
+* **SEGA Rally 3** (europar): Demonware's LAN play (`WSOCK32.dll` by number: the cabinets find
+  each other by a broadcast to UDP 50000, then a session on UDP 3074 and TCP 8086, the PC's card
+  by `GetAdaptersInfo`); `[Network] CabinetID` of `ShellData.ini` is the link's number (the dump's
+  2 kept alone). Verified with two instances: "Quick Race - 1 or 2 Players" (the mode after
+  Championship), "WAITING FOR CHALLENGER" / "WAITING FOR PLAYERS", the menus' countdowns the
+  same, one 6-car race (5/6 and 6/6, the same clock, each car on the other's screen).
+* **GRID** (europar, `grid.rs`): Codemasters' party (searches broadcast to UDP 12001, the party on
+  TCP 7343, the race on 7342; its address the first of `gethostbyname` of the PC's name);
+  `[Network] CabinetID` is the link's number. Its discovery server answers a search only when the
+  search's territory and track pack are its own: its own read as none (`0xFFFFFFFF`), the
+  searches' 0, no answer (each cabinet raced alone); linked, its poll (`0xA6CA40`, 1.1's
+  prologue checked, a detour) makes them 0 first. Verified with two instances: WAIT TO START
+  MULTIPLAYER, MULTIPLAYER WAITING FOR CHALLENGERS, name entry together, one race (6/6 and 5/6),
+  about 600 datagrams per 10 s each way.
 * Two instances of one SquashFS image on a PC share its mount point
   (`/run/user/<uid>/wal-squashfs/<image name>`): the second one breaks the first. A test links
   two names of the image (symbolic links), each with its own `prefix:` and `squashfs_saves:`.
@@ -9162,9 +9176,9 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | `bin/racing.exe` (debug build), `usb_io.dll` replaced (wheel, gas, brake, coin switch, boost; start = its own Enter key, real keyboard and XInput hidden), force feedback (centering spring by speed, off-road vibration), WMV9 movies (`WMV9VCM.dll` in `bin/`, Wine AVIStreamRead fix), asserts answered, missing checkpoint billboards skipped, full screen |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | `all_test/game/Gold/motobike.exe` (unprotected build), `motobikeio.dll` replaced (handlebar, throttle, brake, boost, menu buttons, coin counter, board memory in `assets/motobikeio.mem`, uncalibrated channels full range), dongle class answered, start = its own Enter key (real keyboard and XInput hidden), WMV9 movies, full screen |
 | `ford-racing-full-blown` | Ford Racing Full Blown | europar | works (user: 100%) | `FordRacing/fordracing.exe`, `inpout32.dll` replaced: Happ UGCI HID board (wheel, pedals, shift up/down, start, view), the GameShell's credits (coins, free play option), parallel port force feedback, 1024x768 (option); cabinet link across PCs (§6.8); test menu (the GameShell's) not yet |
-| `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
+| `sega-rally-3` | SEGA Rally 3 | europar | works (user: 100%) | cabinet link across PCs (§6.8); `Rally/Rally.exe`, payload as `xinput1_3.dll` (native override; `inpout32.dll` loaded at run time = the payload): HID board vendor 0x1043 (wheel, gas, brake, shift up/down, handbrake, view, start), force feedback port 0x1020, credits counted in the game (coin = 1 credit, free play option), 1280x720 or 1920x1080 (in-race texts recentered) |
 | `showdown` | Showdown | segashell | works (user: 100%) | `Showdown/Showdown.exe` (§6.3e), Rapture3D 2.7.4 DLLs in the dump, the Shell's DSW protocol (cabinet configuration, credits, free play option), fake DirectInput "SEGA IO Controller" (wheel, pedals, start, view, boost, reset, music), parallel port force feedback (0x378), Shell paths and settings patched, PC inputs hidden |
-| `grid` | GRID | europar | works (user: 100%) | `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
+| `grid` | GRID | europar | works (user: 100%) | cabinet link across PCs (§6.8); `Sega/Grid/GRID.exe`, payload as `inpout32.dll`: its board a fake DirectInput "SEGA IO Controller" (wheel X, brake Z, gas Rx, start, view, reset, gears, look back), the Sega Shell window on its command line (`/h=`, coins, credits), force feedback port 0x1020, boot crash skipped, XInput hidden |
 | `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | `Daytona/Daytona.exe` (the dump's original `bkp.exe`), wal-loader: fake DirectInput "SEGA IO Controller" (wheel, gas, brake, start, shift up/down, H gears, views), the Sega Shell over TCP 18888 (credits, free play, security answers), InpWrapper force feedback, Wine's qcap disabled (heap corruption), a borderless window of the screen's size |
 | `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic) | `Sega/Daytona/Daytona.exe`, as the first edition; the shell's cabinet SKU (else NETWORK DISCOVERY) |
 | `men-in-black` | Men In Black | europar | works (headless test: attract, coins and free play, both players, guns aimed and shooting; user played on the desktop) | `MIB.exe` (Unity 2020 Mono, 64-bit), wal-loader64: Unity's input functions answered with the guns, the shell over TCP 18888 (credits, free play, security answers), `ShellData` settings from the profile, no lamp board |
