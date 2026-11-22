@@ -6,6 +6,9 @@ name: Valve Limit R
 # Direct3D 9 game (DXVK). The game is launcher.exe: some dumps ship a game.exe hex-edited to
 # load another JVS emulator (JVSEmuVL.dll) and wrapper DLLs (dinput8, dgVoodoo): hidden.
 hide: [game.exe, JVSEmuVL.dll, dinput8.dll, D3D8.dll, D3D9.dll, D3DImm.dll, DDraw.dll]
+# Its cabinet link is DirectPlay 8 (peer, port 13400): Microsoft's dpnet (wine's
+# IDirectPlay8Peer::Host is a stub).
+tricks: [directplay]
 
 # Cabinet: wheel (steering board on COM1), gas and brake pedals (JVS analog channels 1 and 2),
 # NITRO, VIEW, SIDE-BRAKE, SHIFT UP, SHIFT DOWN (JVS up, down, left, right, button 1).
@@ -49,6 +52,8 @@ input:
   #     "G29": {player: 1, map: {axis0: lx, axis2: -accel, axis3: -brake, button0: b1}}
 
 env:
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
   # Gas and brake on JVS analog channels 1 and 2 (channel 0 unused: the wheel position comes
   # from the steering board).
   WAL_TYPEX_JVS_ANALOG_INPUTS: ",accel,brake"
