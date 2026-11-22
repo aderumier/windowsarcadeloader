@@ -440,7 +440,7 @@ after 30 s). Picture and sound checks can miss a dark or silent moment of an att
 | `cut-the-rope` | Cut The Rope | arcadepc | user 100% (2026-11-13) | not in the test |  |
 | `go-go-drummer-babe` | Go Go Drummer Babe | arcadepc | user 100% (2026-11-13) | not in the test |  |
 | `radikal-bikers` | Radikal Bikers | arcadepc | user 100% (2026-11-14) | not in the test |  |
-| `red-gun` | Red Gun | arcadepc | headless OK (2026-11-22), 1 gun | not in the test |  |
+| `red-gun` | Red Gun | arcadepc | user 100% (2026-11-22), 1 gun | not in the test |  |
 | `project-diva-arcade` | Hatsune Miku Project DIVA Arcade | ringedge | user 100% (2026-11-15, desktop) | not in the test |  |
 | `border-break-scramble` | Border Break Scramble | ringedge2 | user (2026-11-15): "working 100% excluding online mode" | not in the test |  |
 | `shining-force-cross-raid` | Shining Force Cross Raid | ringedge | headless tests (2026-11-19): IC card in files, free play tickets, a scenario quest to its end (card saved), input test; user: works on the desktop (2026-11-19) | not in the test |  |
