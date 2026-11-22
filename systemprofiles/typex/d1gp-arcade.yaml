@@ -81,6 +81,9 @@ env:
   # Force feedback: its Immersion TouchSense library calls (the wheel's spring that follows
   # the car, tire and engine effects), answered by the payload (immersion.rs, ffb.rs).
   WAL_TYPEX_FFB: d1gp
+  # cabinets on other PCs (the GUI's Common options): off, alone (linked, the link task's three
+  # standalone patches above are undone by the payload, d1gplink.rs)
+  WAL_LINK: "0"
 
 # Control names (the GUI's mapping rows).
 controls:

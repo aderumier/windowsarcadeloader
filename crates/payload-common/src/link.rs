@@ -1174,14 +1174,17 @@ unsafe extern "system" fn get_proc_address(module: usize, name: *const u8) -> us
 }
 
 /// Linked, the sockets of the DLL `name` made the link's as soon as the game loads it (Windows'
-/// DirectPlay, `dpnet.dll`: Chase H.Q. 2, D1GP), checked every 50 ms for 10 minutes; the PC's
-/// cards' functions it finds by name (`GetProcAddress`) the link's too.
+/// DirectPlay, `dpnet.dll`: Chase H.Q. 2, D1GP), loaded by the payload first; the PC's cards'
+/// functions it finds by name (`GetProcAddress`) the link's too.
 pub fn hook_module_when_loaded(name: &'static str) {
     if !linked() {
         return;
     }
     std::thread::spawn(move || {
         let wide: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
+        // loaded first by the payload (out of DllMain), so that its hooks are there before the
+        // game's first use of it (DirectPlay looks its functions up as it starts)
+        unsafe { windows_sys::Win32::System::LibraryLoader::LoadLibraryW(wide.as_ptr()) };
         for _ in 0..12000 {
             let base = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(wide.as_ptr()) } as usize;
             if base != 0 {
