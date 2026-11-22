@@ -9,6 +9,13 @@
 //! ACTION, 0x40 / 0x80 the shift lever's SHIFT UP / SHIFT DOWN. The game turns them into its
 //! switch flags (0xa7e784, rva 0x41037), next to the wheel's and pedals' own (past half way).
 //!
+//! Cabinets on other PCs (`WAL_LINK`, payload-common `link.rs`): a broadcast to
+//! 255.255.255.255, the cabinets' lobby, its address from the PC's cards (`GetAdaptersInfo`).
+//! Each cabinet needs its own CABINET ID (the test menu's NETWORK OPTIONS, "THE DUPLICATED
+//! CABINET ID EXISTS" otherwise): linked, the live network settings' CABINET ID (`0x33209a4`,
+//! the shown number less one; the block at `0x332099c` copied by the game at each use) is held
+//! at the link's cabinet number (gti3.exe's build checked).
+//!
 //! Native inputs for `native_map`: `test service coin start action shift_up shift_down
 //! select_up select_down select_left select_right`.
 
@@ -185,4 +192,31 @@ pub(crate) fn packet() -> [u8; 15] {
     }
     board.coin_held = coin;
     raw
+}
+
+/// Linked (`WAL_LINK`): the link's cabinet number held as its CABINET ID.
+pub(crate) fn link() {
+    use wal_payload_common::link;
+    // the factory settings' copy to the live block: `mov esi,0x331ff74; mov edi,0x332099c`
+    const CHECK: (usize, [u8; 10]) = (0x5180DF, [0xBE, 0x74, 0xFF, 0x31, 0x03, 0xBF, 0x9C, 0x09, 0x32, 0x03]);
+    const CABINET_ID: usize = 0x33209A4;
+    if link::init() == 0 {
+        return;
+    }
+    if !wal_payload_common::crash::readable(CHECK.0, CHECK.1.len())
+        || unsafe { std::slice::from_raw_parts(CHECK.0 as *const u8, CHECK.1.len()) } != CHECK.1
+    {
+        return log!("gti_club: not the known build: CABINET ID left to the test menu");
+    }
+    let id = link::cabinet() as u32 - 1;
+    std::thread::spawn(move || {
+        loop {
+            let p = CABINET_ID as *mut u32;
+            if unsafe { p.read_volatile() } != id {
+                unsafe { p.write_volatile(id) };
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    });
+    log!("gti_club: linked, CABINET ID {}", id + 1);
 }

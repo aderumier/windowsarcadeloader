@@ -25,6 +25,8 @@ env:
   WAL_D3D9_WINDOWED_SIZE: 1360x768
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
 
 # Cabinet: motorized wheel, gas and brake pedals (HGTH board), a shift lever (SHIFT UP / SHIFT
 # DOWN), START, ACTION and the four SELECT buttons (HBHI board).

@@ -326,6 +326,8 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if gti_club::detected() {
             gti_club::init(module);
+            // its cabinets on other PCs (WAL_LINK): its own CABINET ID
+            gti_club::link();
             log!("konami: HBHI board, HGTH wheel board and card reader emulated (GTI Club)");
             return TRUE;
         }
