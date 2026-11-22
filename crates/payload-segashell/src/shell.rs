@@ -124,7 +124,7 @@ static CREDITS: Mutex<u8> = Mutex::new(0);
 
 pub(crate) fn start() {
     // two linked instances on one PC (a test): each its own loopback address
-    let listener = match TcpListener::bind((std::net::Ipv4Addr::from(wal_payload_common::link::local_server()), PORT)) {
+    let listener = match TcpListener::bind((std::net::Ipv4Addr::from(wal_payload_common::link::local_server(PORT)), PORT)) {
         Ok(l) => l,
         Err(e) => {
             log!("shell: cannot listen on {PORT}: {e}");

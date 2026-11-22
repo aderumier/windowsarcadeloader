@@ -19,6 +19,11 @@ input:
       KEY_UP: accel
       KEY_DOWN: brake
 
+# its one button, START and the weapon, is the JVS board's button 1 (byte 0 bit 1, as its test
+# mode shows it), not the start bit: the start button presses both
+native_map:
+  start: start+btn1
+
 env:
   # the main board's monitor resolution (DIP switches 5-7): the cabinet's 1024x600, switch 6
   # on (the default 1920x1080: the test menu draws for 1920x1080, too big in the 1024x600 back
@@ -46,6 +51,10 @@ env:
   # the test is skipped (straight to centering the wheel)
   WAL_PATCHES: "0xA5269:9090909090"
   WAL_RINGEDGE_FOREGROUND: "3=exe=TestMode.exe -t"
+  # cabinets on other PCs (the GUI's Common options): off, alone; 2 racing (2 to 6, its test
+  # menu's TOTAL MACHINE)
+  WAL_LINK: "0"
+  WAL_LINK_CABINETS: "2"
 
 controls:
   lx: Wheel

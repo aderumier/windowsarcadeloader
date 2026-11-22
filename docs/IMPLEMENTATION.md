@@ -8781,7 +8781,9 @@ Cabinets of a linked game (races between cabinets) on other PCs of the network, 
 the game through the launcher. Off by default (`WAL_LINK` `0`: the game alone, as before, no
 hook); a game able to link sets `WAL_LINK: "0"` in its profile `env`, which gives it the GUI's
 Common options "Cabinet link", "Cabinet number" (`WAL_CABINET`, `auto` by default:
-`defaults.yaml`) and "Master cabinet IP" (`WAL_LINK_MASTER`, empty) (`config::LINK_ENV`).
+`defaults.yaml`) and "Master cabinet IP" (`WAL_LINK_MASTER`, empty) (`config::LINK_ENV`); a game
+that reads the cabinets' count at its start, before the others have joined, also sets
+`WAL_LINK_CABINETS` (its default, 2: "Cabinets in the link", `link::cabinets`).
 
 * **Finding each other.** Starting (`link::init`, from `DllMain`), a cabinet listens 3 s for a
   master of its game (`WAL_GAME_ID`) announcing itself (UDP broadcast `WALLINK1 A <game> <address
@@ -8809,9 +8811,9 @@ Common options "Cabinet link", "Cabinet number" (`WAL_CABINET`, `auto` by defaul
   the cabinet's own, an unbound socket is bound to it before its first `sendto` / `connect` (the
   system would send from 127.0.0.1: Ford Racing's race search, its host answering there), the
   loopback card is left out, another cabinet's address cannot be bound, and the game's
-  connections to 127.0.0.1 go to its own address, where the payload's servers listen
-  (`link::local_server`: segashell's Shell on 18888, else both games reached the first
-  instance's). The log notes the first datagrams with each cabinet, the
+  connections to 127.0.0.1 on a payload server's port go to its own address, where that server
+  listens (`link::local_server(port)`: segashell's Shell on 18888, RingEdge's PCP services; else
+  both games reached the first instance's). The log notes the first datagrams with each cabinet, the
   unicast datagrams to other addresses, and every 10 s the datagrams counted with each cabinet.
 * **Ford Racing Full Blown** (europar, `settings.rs`): its own protocol (`SEGA_PROTOCOL_*`,
   broadcasts to ports 53001..53003, its card by `SIO_GET_INTERFACE_LIST`), then Netmat's race
@@ -8840,6 +8842,17 @@ Common options "Cabinet link", "Cabinet number" (`WAL_CABINET`, `auto` by defaul
   instances (coins inserted: the profile's free play is off): CHALLENGE AVAILABLE on one while the
   other waits for challengers, name entry together, the event vote, both players on the vehicle
   choice, one Demolition event (the same clock, each its own position and score).
+* **K.O. Drive** (ringedge, `kodrive.rs`): Sega's link library (UDP 11882, POWER-ON NETWORK
+  TEST): node i of TOTAL MACHINE n in group g is 192.168.99.(1 + i + 6 (g + 2 (3 n - 6))). Its LINK
+  ID, TOTAL MACHINE and GROUP ID (its test menu's) are read by three functions (`0x4885C0`,
+  `0x4885D0`, `0x4885F0`, the known build checked): linked, they answer the cabinet's number less
+  one (LINK ID 0 leads the race), `WAL_LINK_CABINETS` (2 to 6) and group A; its 192.168.99
+  addresses are the cabinets' PCs, amNetwork gives it its own and a static address
+  (`dhcp_status` 0; 3, the DHCP's, is "Error 8002 Network setting error (SYSTEM)"). Verified with
+  two instances: the network test GOOD on both, MULTI PLAY AVAILABLE, track and car chosen
+  together, one race (each car marked RIVAL on the other's screen, the same clock, 8/8 and 7/8),
+  about 300 frames per 10 s each way. Its one button (START / WEAPON) is the JVS board's button 1:
+  the profile's start presses it too (`native_map`), the game never started from the start bit.
 * Two instances of one SquashFS image on a PC share its mount point
   (`/run/user/<uid>/wal-squashfs/<image name>`): the second one breaks the first. A test links
   two names of the image (symbolic links), each with its own `prefix:` and `squashfs_saves:`.
@@ -9224,7 +9237,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `kemono-friends-3-planet-tours` | Kemono Friends 3 Planet Tours | alls | user (2026-11-16, desktop): "game 100% working"; headless: self test, attract, new Aime player (name, tutorial, card printed, saved), returning player, card scene, battle | Nu SX with amdaemon (§6.3l, `WAL_ALLS_BOARD=kemono`): keychip model type, cabinet user / Windows 8.1, LED board via SerialPortAPI, CHC-C300 printer, two virtual webcams with the printed cards in the card slot, its own title server (players, ranking) |
 | `teratoma` | Teratoma: The Last Rebellion | ringedge | works (user: 100%) | Skonec 2014 lightgun game on the Operation G.H.O.S.T. engine (amLib, gs2.ini, game id `SBWA`, RingWide platform AAM). `TT.exe` is packed: `wal-loader` (`WAL_LOADER_TERATOMA`, `crates/loader/src/teratoma.rs`, SHA-256 checked) runs the unpacker past its checks and loads the payload from the game's startup call. Its code calls the system through the packer's stubs: `WAL_PACKED_IMPORTS=kernel32.dll,setupapi.dll,d3d9.dll` hot patches kernelbase's functions (setupapi's and d3d9's: the unpacked import table's pointers). Its 1280x720 fullscreen device (no such mode on a 1600x1200 Xorg screen) made a 1280x720 back buffer in a borderless screen-sized window, stretched (`WAL_D3D9_WINDOWED_SIZE`, `WAL_WINDOW_POPUP`, `WAL_WINDOW_SIZE`). The dump's `root/lua/Sound/Sound.lua` wraps the game's (music and gun shot at 0.25, dialogue doubled): the game's own script, extracted from it, put back (`files`). The dump's gs2.ini (PC mouse mode) replaced by a profile file with `EnableAMLib`, `EnableJvs`, `GunController` on: amLib's JVS on `mxjvs`, the game's own JVS reader (guns, buttons, coins) on the first COM port Windows lists (`COM*`), an overlapped reader (`WaitCommEvent`, reads armed after each reply: `WAL_SERIAL_PENDING_READS`, replies 2 ms after the write's completion, else polled 5 times a second). Test menu: F2 sets `root/TestMode.sac` and asks amMaster for the next application, it stays: the payload ends it after 2 s, the launcher starts it again. The protector's watchdog threads end the game about a minute into a level (`TerminateProcess` from +0x28162a6, not every run): ignored (`WAL_IGNORE_TERMINATE_FROM`). `logo.avi` and the promo movie are WMV2 re-encodes in the dump; the in-game movies WMV3 |
 | `chaos-code-ringwide` | Chaos Code (RingWide) | ringedge | works (user: 100%) | RingWide boards in the RingEdge payload |
-| `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide |
+| `ko-drive` | K.O. Drive | ringedge | works (user: 100%) | RingWide; cabinet link across PCs (§6.8) |
 | `sega-racing-classic` | SEGA Racing Classic | ringedge | works (user: 100%) | RingWide |
 | `sonic-sega-all-stars-racing` | Sonic & Sega All-Stars Racing | ringedge | works (user: 100%) | RingWide |
 | `melty-blood-actress-again-current-code-ringwide` | Melty Blood Actress Again Current Code (RingWide) | ringedge | works (user: 100%), 4:3 | RingWide: fake DirectInput button box (`WAL_DINPUT_BOARD`), EEPROM region record, DIP switches 1024x768 |

@@ -29,6 +29,9 @@ pub const FREEPLAY_ENV: &str = "WAL_FREEPLAY";
 pub const LINK_ENV: &str = "WAL_LINK";
 pub const CABINET_ENV: &str = "WAL_CABINET";
 pub const LINK_MASTER_ENV: &str = "WAL_LINK_MASTER";
+/// How many cabinets race, for the games that read it at their start (their profile sets it,
+/// its default).
+pub const LINK_CABINETS_ENV: &str = "WAL_LINK_CABINETS";
 pub const FREEPLAY_SYSTEMS: &[&str] = &["apm3", "konami", "segashell", "europar", "unis", "namcoes3", "seganu"];
 const DEFAULTS: &str = include_str!("defaults.yaml");
 
@@ -428,6 +431,19 @@ impl Profile {
                      joins the master as that cabinet.",
                 )
             });
+            if self.env.contains_key(LINK_CABINETS_ENV) {
+                common.push(GameOption {
+                    kind: OptionKind::Number,
+                    min: Some(2),
+                    max: Some(8),
+                    ..option(
+                        LINK_CABINETS_ENV,
+                        "Cabinets in the link",
+                        "How many cabinets race together, the same on each (the game reads it at its start, \
+                         before the others have joined).",
+                    )
+                });
+            }
             common.push(GameOption {
                 kind: OptionKind::Text,
                 ..option(
@@ -814,6 +830,9 @@ options:
         assert_eq!(p.env.get(LINK_MASTER_ENV).map(String::as_str), Some(""));
         // another game: not shown
         assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV]);
+        // a game reading the cabinets' count at its start: shown too
+        let p = load("system: ringedge\nenv: {WAL_LINK: \"0\", WAL_LINK_CABINETS: \"2\"}\n");
+        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_CABINETS_ENV, LINK_MASTER_ENV, VOLUME_ENV]);
     }
 
     #[test]

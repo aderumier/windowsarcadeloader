@@ -153,7 +153,8 @@ pub(crate) fn start() {
         (AUTH_DATA, "auth data"),
     ];
     for (port, name) in services {
-        match TcpListener::bind(("127.0.0.1", port)) {
+        // two linked instances on one PC (a test): each its own loopback address
+        match TcpListener::bind((std::net::Ipv4Addr::from(wal_payload_common::link::local_server(port)), port)) {
             Ok(listener) => {
                 std::thread::spawn(move || {
                     for stream in listener.incoming().flatten() {
@@ -353,7 +354,8 @@ fn answer(request: &str) -> String {
 /// it amNetwork reports "Response Error!!! No Keyword").
 fn network_answer(request: &str) -> String {
     let name = request.split('&').find_map(|p| p.strip_prefix("request=")).unwrap_or("");
-    let ip = local_address().unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2));
+    // linked K.O. Drive: its address on its cabinets' network
+    let ip = crate::kodrive::address().or_else(local_address).unwrap_or(std::net::Ipv4Addr::new(192, 168, 0, 2));
     let o = ip.octets();
     let gateway = format!("{}.{}.{}.1", o[0], o[1], o[2]);
     // `WAL_RINGEDGE_NIC_STATUS=1`: the card's link up, its addresses in the same answer (amNetwork
@@ -365,8 +367,9 @@ fn network_answer(request: &str) -> String {
     let value = match name {
         // 0: amNetwork asks the addresses one by one
         "query_nic_status" => Some(("status", "0".to_string())),
-        // 0..4; 3: the address obtained (the game then asks for the card's state)
-        "query_dhcp_status" => Some(("dhcp_status", "3".to_string())),
+        // 0..4; 3: the address obtained (the game then asks for the card's state); linked K.O.
+        // Drive: 0, its static address (3: "Error 8002 Network setting error (SYSTEM)")
+        "query_dhcp_status" => Some(("dhcp_status", if crate::kodrive::address().is_some() { "0" } else { "3" }.to_string())),
         "query_ip_address" => Some(("ip_address", ip.to_string())),
         "query_subnetmask" => Some(("subnetmask", "255.255.255.0".to_string())),
         "query_gateway" | "query_primary_dns" => {

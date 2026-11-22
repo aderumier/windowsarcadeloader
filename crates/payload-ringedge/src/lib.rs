@@ -13,6 +13,7 @@
 //!   (`WAL_RINGEDGE_MICROTOUCH`, `microtouch.rs`); the game's Windows mouse from player 1's
 //!   pointer (`WAL_RINGEDGE_MOUSE`, `mouse.rs`).
 //! * Medal cabinet boards: Medal no Gunman's (`gunman.rs`), Lady Luck's (`satellite.rs`).
+//! * K.O. Drive's cabinets linked across PCs (`WAL_LINK`, `kodrive.rs`).
 //! * Profile code patches (`WAL_PATCHES`), free play ones (`WAL_RINGEDGE_FREEPLAY_PATCHES`, with
 //!   the common free play option); `WAL_RINGEDGE_CWD`: the game's working directory,
 //!   relative to its own.
@@ -28,6 +29,7 @@ mod diva;
 mod ffb;
 mod happy_playground;
 mod iccard;
+mod kodrive;
 mod gunman;
 mod lamp;
 mod maimai;
@@ -82,6 +84,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             patches::apply_list(&list);
         }
         amlog::init();
+        // K.O. Drive's cabinets on other PCs (WAL_LINK)
+        kodrive::init();
         // JVS sense line: amJvs reads DSR (0x20) as "board addressed"
         serial::MODEM_STATUS[0].store(0x10, Ordering::Relaxed);
         serial::MODEM_STATUS[1].store(0x30, Ordering::Relaxed);

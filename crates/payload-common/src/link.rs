@@ -302,6 +302,12 @@ pub fn count() -> usize {
     table().iter().rposition(Option::is_some).map_or(0, |i| i + 1)
 }
 
+/// `WAL_LINK_CABINETS`: how many cabinets race (2..8, default 2), for a game that reads it once
+/// at its start (K.O. Drive's TOTAL MACHINE), before the others have joined. `None` alone.
+pub fn cabinets() -> Option<usize> {
+    linked().then(|| std::env::var("WAL_LINK_CABINETS").ok().and_then(|v| v.trim().parse::<usize>().ok()).unwrap_or(2).clamp(2, MAX))
+}
+
 /// This cabinet's number, 1.. (`1` alone or the master).
 pub fn cabinet() -> usize {
     link().map_or(1, |l| l.cabinet)
@@ -522,15 +528,20 @@ fn on_loopback() -> bool {
     own().is_some_and(|a| a[0] == 127)
 }
 
-/// The address a payload's server for the game listens on: 127.0.0.1, or (instances on one PC)
-/// this cabinet's loopback address, where the game's connections to 127.0.0.1 go (each
-/// instance's game reaches its own payload).
-pub fn local_server() -> [u8; 4] {
+/// The address a payload's server for the game listens on, its TCP `port` registered: 127.0.0.1,
+/// or (instances on one PC) this cabinet's loopback address, where the game's connections to
+/// 127.0.0.1 on a registered port go (each instance's game reaches its own payload).
+pub fn local_server(port: u16) -> [u8; 4] {
     match own() {
-        Some(a) if a[0] == 127 => a,
+        Some(a) if a[0] == 127 => {
+            LOCAL_PORTS.lock().unwrap().push(port);
+            a
+        }
         _ => [127, 0, 0, 1],
     }
 }
+
+static LOCAL_PORTS: Mutex<Vec<u16>> = Mutex::new(Vec::new());
 
 /// An IPv4 `sockaddr_in`'s address (`None`: another family).
 unsafe fn inet(addr: *const u8, len: i32) -> Option<[u8; 4]> {
@@ -665,8 +676,8 @@ unsafe extern "system" fn connect(s: usize, addr: *const u8, len: i32) -> i32 {
             unsafe { f(s, m.as_ptr(), 16) }
         }
         // instances on one PC: 127.0.0.1 is this cabinet's loopback address ([`local_server`])
-        Some([127, 0, 0, 1]) if on_loopback() => {
-            let m = with_address(addr, local_server());
+        Some([127, 0, 0, 1]) if LOCAL_PORTS.lock().unwrap().contains(&u16::from_be_bytes(unsafe { [*addr.add(2), *addr.add(3)] })) => {
+            let m = with_address(addr, own().unwrap_or([127, 0, 0, 1]));
             unsafe { f(s, m.as_ptr(), 16) }
         }
         Some(a) => match pc_of(a) {
