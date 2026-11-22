@@ -42,6 +42,8 @@ env:
   WAL_NAMCOES3_PROFILE_NAME: "Unlocked"
   # The card goes in by itself on the game's card screen.
   WAL_NAMCOES3_AUTO_CARD: "1"
+  # cabinets on other PCs (the GUI's Common options): off, alone
+  WAL_LINK: "0"
 
 # The game's own options, for the GUI's Options tab (its env variables above).
 options:

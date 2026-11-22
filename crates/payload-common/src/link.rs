@@ -990,7 +990,7 @@ unsafe extern "system" fn wsa_ioctl(s: usize, code: u32, input: *const u8, in_si
     }
     // IFF_UP 1, IFF_BROADCAST 2, IFF_LOOPBACK 4, IFF_MULTICAST 0x10; the loopback left out with
     // loopback addresses (Ford Racing took 127.0.0.1 for the master's then)
-    let list = [interface(0x13, own, own_mask()), interface(0x15, [127, 0, 0, 1], [255, 0, 0, 0])];
+    let list = [interface(0x13, to_game(own), own_mask()), interface(0x15, [127, 0, 0, 1], [255, 0, 0, 0])];
     let n = if on_loopback() { 1 } else { 2 };
     unsafe {
         std::ptr::copy_nonoverlapping(list.as_ptr().cast::<u8>(), out, n * INTERFACE_INFO);
@@ -998,7 +998,7 @@ unsafe extern "system" fn wsa_ioctl(s: usize, code: u32, input: *const u8, in_si
     }
     static LOGGED: AtomicUsize = AtomicUsize::new(0);
     if LOGGED.fetch_add(1, Ordering::Relaxed) < 3 {
-        log!("link: the PC's cards (SIO_GET_INTERFACE_LIST): {} and the loopback", dotted(own));
+        log!("link: the PC's cards (SIO_GET_INTERFACE_LIST): {} and the loopback", dotted(to_game(own)));
     }
     r
 }
@@ -1019,6 +1019,7 @@ unsafe extern "system" fn get_adapters_info(info: *mut IP_ADAPTER_INFO, size: *m
         b
     };
     let wanted = text(own);
+    let shown = text(to_game(own));
     let mut mine = std::ptr::null_mut();
     let mut a = info;
     while !a.is_null() {
@@ -1032,8 +1033,8 @@ unsafe extern "system" fn get_adapters_info(info: *mut IP_ADAPTER_INFO, size: *m
         if !mine.is_null() && mine != info {
             std::ptr::copy_nonoverlapping(mine, info, 1);
         }
-        if mine.is_null() {
-            (*info).IpAddressList.IpAddress.String = wanted;
+        if mine.is_null() || shown != wanted {
+            (*info).IpAddressList.IpAddress.String = shown;
             (*info).IpAddressList.IpMask.String = text(own_mask());
             (*info).IpAddressList.Next = std::ptr::null_mut();
         }
@@ -1041,7 +1042,7 @@ unsafe extern "system" fn get_adapters_info(info: *mut IP_ADAPTER_INFO, size: *m
     }
     static LOGGED: AtomicUsize = AtomicUsize::new(0);
     if LOGGED.fetch_add(1, Ordering::Relaxed) < 3 {
-        log!("link: the PC's cards (GetAdaptersInfo): {} alone", dotted(own));
+        log!("link: the PC's cards (GetAdaptersInfo): {} alone", dotted(to_game(own)));
     }
     r
 }
@@ -1087,12 +1088,14 @@ unsafe extern "system" fn get_adapters_addresses(family: u32, flags: u32, reserv
         return r;
     }
     unsafe {
-        if mine.is_null() {
-            // the loopback addresses: its first IPv4 address made this cabinet's
+        let shown = to_game(own);
+        if mine.is_null() || shown != own {
+            // the loopback addresses: its first IPv4 address made this cabinet's (the game's own
+            // address of its network, `virtual_net`)
             let mut u = (*chosen).FirstUnicastAddress;
             while !u.is_null() {
                 if let Some(sa) = ipv4(u) {
-                    std::ptr::copy_nonoverlapping(own.as_ptr(), sa.add(4), 4);
+                    std::ptr::copy_nonoverlapping(shown.as_ptr(), sa.add(4), 4);
                     break;
                 }
                 u = (*u).Next;

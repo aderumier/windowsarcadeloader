@@ -8919,6 +8919,18 @@ that reads the cabinets' count at its start, before the others have joined, also
   black 320x240 picture. The Shell's TCP service listens on `link::local_server`. Verified with
   two instances of each edition: the network test GOOD, "2/2 READY", the track vote, one race
   (each car on the other's screen, 2/2 and 1/2), about 360 datagrams per 10 s each way.
+* **Mario Kart Arcade GP DX** (namcoes3x, 32-bit): each cabinet broadcasts "MK3" 0x12 0x10, its
+  mode, group and PCB-ID less one to UDP 20199 every 10 s; a cabinet heard joins, its packets to
+  UDP 20100 + group. Cabinet k is 192.168.112.(10 + k) (`link::virtual_net`; the cabinet network's
+  fakes, `netlog.rs`, the AMCUS cabinet config's address, PCB id and dongle serial follow the
+  cabinet's number; the link's card lists now give the game's own address of its network). Its
+  PCB-ID (test menu ゲーム設定 → 基板ID, each cabinet its own: two alike stop on E24-03
+  "duplicate PCB-ID") is held at the link's number in 1.18.16's settings (`[[[0xec2a08] + 0x190]
+  + 0x34] + 0x70`, PCB-ID less one, read into its link's own index `0xa7af18`); 1.10's is not
+  known (its test menu). Verified with two 1.18.16 instances: LOCAL NETWORK CHECK LINK OK, the
+  attract in sync ("Versus can be played with 2 players"), b2 on both: "Waiting for other
+  players", a four-kart race (the two cabinets' Marios, Yoshi and Luigi), 350 to 700 datagrams
+  per 10 s each way.
 * **K.O. Drive** (ringedge, `kodrive.rs`): Sega's link library (UDP 11882, POWER-ON NETWORK
   TEST): node i of TOTAL MACHINE n in group g is 192.168.99.(1 + i + 6 (g + 2 (3 n - 6))). Its LINK
   ID, TOTAL MACHINE and GROUP ID (its test menu's) are read by three functions (`0x4885C0`,
@@ -9086,7 +9098,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 
 | Game id | Game | System | Result | Needed |
 |---|---|---|---|---|
-| `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented | version-aware dongle skip (v1.10.22 and v1.18.16), offline router/network bypass, 61-slot IPC compatibility object, Namco ES3 JVS steering and pedals, test-menu settings saved on F:/G: game drives, fullscreen DXVK; force feedback from the game's steering-force float (1.18 offsets implemented; physical wheel output unverified) |
+| `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented | cabinet link across PCs (§6.8, 1.18.16; 1.10: PCB-ID in the test menu); version-aware dongle skip (v1.10.22 and v1.18.16), offline router/network bypass, 61-slot IPC compatibility object, Namco ES3 JVS steering and pedals, test-menu settings saved on F:/G: game drives, fullscreen DXVK; force feedback from the game's steering-force float (1.18 offsets implemented; physical wheel output unverified) |
 | `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns | `PBX100-2-NA-MPR0-A63.exe` (Unity 5.1, Mono, §6.3c): `Plugins/bnusio.dll` replaced (USIO switches and coins, gun board), loaded by wal-loader at the entry point; profile `Setting.ini` (`CONTROLLER 0`); real keyboard/mouse filtered; cabinet serial in the registry; the game's own crosshairs shown; BepInEx (`winhttp.dll`) hidden |
 | `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) | `ACE7_WIN_10.exe` (Direct3D 9, 32-bit): `bngrw.dll` payload loaded by wal-loader at the entry point, selected by the build; JVS on COM3 (flight layout: control lever, throttle lever, machine gun, missile, third button), device errors and extra serial device checks patched, dome lookup texture replaced by a flat screen map, saves next to the executable, borderless window fitted on the screen, XInput and real keyboard/mouse filtered |
 | `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab | `RSLauncher.exe` + UE3 game (64-bit, §6.3c): the payload replaces both `hasp_windows_x64_106993.dll` (dongle serial for both checks), JVS on COM3, Banapass reader on COM4 (no card), NEC projector on COM1, the gun camera on COM2 with the crosshair mapping inverted, the dumps' flat screen patch, English patch through JPN, F:/G: save drives |

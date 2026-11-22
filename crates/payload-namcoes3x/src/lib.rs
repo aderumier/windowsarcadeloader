@@ -63,6 +63,39 @@ pub(crate) fn game_version() -> Option<MkdxVersion> {
     })
 }
 
+/// Linked across PCs (`WAL_LINK`): the cabinet's PCB-ID (its test menu's ゲーム設定 → 基板ID, 1 to 4,
+/// each cabinet its own: two alike stop on E24-03 "duplicate PCB-ID") is the link's cabinet
+/// number. 1.18.16 keeps it in its settings, `[[[0xec2a08] + 0x190] + 0x34] + 0x70` (PCB-ID less
+/// one, read into its link's own index `0xa7af18`): held there from the settings' start on.
+fn link_pcb_id() {
+    if game_version() != Some(MkdxVersion::V11816) {
+        return wal_payload_common::log!("namcoes3: link: PCB-ID not known for this version: set it in the test menu, each cabinet its own");
+    }
+    let base = game_base();
+    let at = |n: usize| base + n - 0x400000;
+    let index = (wal_payload_common::link::cabinet() as u32).clamp(1, 4) - 1;
+    let mut logged = false;
+    loop {
+        let field = safe_read::<usize>(at(0xec2a08))
+            .filter(|&p| p != 0)
+            .and_then(|p| safe_read::<usize>(p + 0x190))
+            .filter(|&p| p != 0)
+            .and_then(|p| safe_read::<usize>(p + 0x34))
+            .filter(|&p| p != 0)
+            .map(|p| p + 0x70);
+        if let Some(field) = field {
+            if safe_read::<u32>(field) != Some(index) {
+                unsafe { (field as *mut u32).write_volatile(index) };
+            }
+            if !logged {
+                logged = true;
+                wal_payload_common::log!("namcoes3: link: PCB-ID {} (the cabinet's number)", index + 1);
+            }
+        }
+        std::thread::sleep(Duration::from_millis(if logged { 100 } else { 2 }));
+    }
+}
+
 fn thread_input() {
     wal_payload_common::start("namcoes3-mariokart");
     wal_payload_common::log!("namcoes3: executable build {:?}", game_version());
@@ -80,6 +113,12 @@ fn thread_input() {
             wal_payload_common::log!("namcoes3: hooked game IPC COM activation");
         }
         netlog::init();
+        // Mario Kart's cabinets on other PCs (WAL_LINK): cabinet k at 192.168.112.(10 + k), the
+        // link's hooks over the cabinet network's fakes
+        if game_version().is_some() && wal_payload_common::link::init() > 0 {
+            wal_payload_common::link::virtual_net([192, 168, 112], 11);
+            std::thread::spawn(link_pcb_id);
+        }
         // The built-in unlocked-profile card server, on the redirected card-server address.
         if std::env::var("WAL_NAMCOES3_PROFILE_SERVER").is_ok_and(|v| v.trim() == "1") {
             if let Some((host, port)) = netlog::card_server() {

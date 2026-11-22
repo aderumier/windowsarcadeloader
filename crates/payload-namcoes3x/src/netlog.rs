@@ -35,8 +35,11 @@ static GETADDRINFO: AtomicUsize = AtomicUsize::new(0);
 static WSA_IOCTL: AtomicUsize = AtomicUsize::new(0);
 
 /// The cabinet's network (bananatools' MKDX setup): the boot local network check wants an
-/// interface address 192.168.112.11-20 and an adapter with a gateway.
-const CABINET_IP: [u8; 4] = [192, 168, 112, 11];
+/// interface address 192.168.112.11-20 and an adapter with a gateway: cabinet k's 10 + k
+/// (linked across PCs, `WAL_LINK`; alone 11).
+fn cabinet_ip() -> [u8; 4] {
+    [192, 168, 112, 10 + wal_payload_common::link::cabinet().min(10) as u8]
+}
 const CABINET_MASK: [u8; 4] = [255, 255, 255, 0];
 const CABINET_GATEWAY: [u8; 4] = [192, 168, 112, 1];
 
@@ -306,13 +309,13 @@ unsafe extern "system" fn get_adapters_info(info: *mut u8, len: *mut u32) -> u32
         *(info.add(412) as *mut u32) = 1; // Index
         *(info.add(416) as *mut u32) = 6; // MIB_IF_TYPE_ETHERNET
     }
-    put(432, &dotted(CABINET_IP)); // IpAddressList
+    put(432, &dotted(cabinet_ip())); // IpAddressList
     put(448, &dotted(CABINET_MASK));
     put(472, &dotted(CABINET_GATEWAY)); // GatewayList
     put(488, "255.255.255.255");
     unsafe { *len = SIZE };
     static LOGGED: std::sync::Once = std::sync::Once::new();
-    LOGGED.call_once(|| wal_payload_common::log!("netlog: GetAdaptersInfo -> fake adapter {} gateway {}", dotted(CABINET_IP), dotted(CABINET_GATEWAY)));
+    LOGGED.call_once(|| wal_payload_common::log!("netlog: GetAdaptersInfo -> fake adapter {} gateway {}", dotted(cabinet_ip()), dotted(CABINET_GATEWAY)));
     0
 }
 
@@ -331,14 +334,14 @@ unsafe extern "system" fn wsa_ioctl(
             std::ptr::write_bytes(outbuf, 0, 76);
             *(outbuf as *mut u32) = 1 | 4; // IFF_UP | IFF_BROADCAST
         }
-        sockaddr(4, CABINET_IP);
+        sockaddr(4, cabinet_ip());
         sockaddr(28, [192, 168, 112, 255]);
         sockaddr(52, CABINET_MASK);
         if !bytes.is_null() {
             unsafe { *bytes = 76 };
         }
         static LOGGED: std::sync::Once = std::sync::Once::new();
-        LOGGED.call_once(|| wal_payload_common::log!("netlog: SIO_GET_INTERFACE_LIST -> {}", dotted(CABINET_IP)));
+        LOGGED.call_once(|| wal_payload_common::log!("netlog: SIO_GET_INTERFACE_LIST -> {}", dotted(cabinet_ip())));
         return 0;
     }
     let f: unsafe extern "system" fn(usize, u32, *mut c_void, u32, *mut u8, u32, *mut u32, *mut c_void, *mut c_void) -> i32 =

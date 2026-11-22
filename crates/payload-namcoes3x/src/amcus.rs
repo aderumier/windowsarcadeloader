@@ -134,9 +134,13 @@ unsafe extern "system" fn get_cabinet_config(_this: P, out: *mut u8) -> i32 {
     unsafe {
         std::ptr::write_bytes(out, 0, 168);
         put_str(out, 0, 16, "STANDALONE");
-        put_str(out, 16, 16, "ABGN6789012"); // PCB id
-        put_str(out, 32, 16, "271013020001"); // dongle serial
-        for (i, ip) in ["192.168.112.1", "192.168.112.1", "192.168.112.11", "255.255.255.0", "192.168.112.1", "192.168.112.1"]
+        // linked across PCs (`WAL_LINK`): each cabinet its own ids and address (cabinet k at
+        // 192.168.112.(10 + k)); alone, cabinet 1's
+        let k = wal_payload_common::link::cabinet();
+        put_str(out, 16, 16, &format!("ABGN678901{}", k % 10)); // PCB id
+        put_str(out, 32, 16, &format!("27101302000{}", k % 10)); // dongle serial
+        let local = format!("192.168.112.{}", 10 + k);
+        for (i, ip) in ["192.168.112.1", "192.168.112.1", local.as_str(), "255.255.255.0", "192.168.112.1", "192.168.112.1"]
             .iter()
             .enumerate()
         {
