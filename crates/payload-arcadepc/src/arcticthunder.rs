@@ -35,9 +35,11 @@
 //!   the first track texture an assertion). The dumps' serial numbers give 0x0a6a209a (Arctic
 //!   Thunder) and 0x0cc4cc8d (Ultimate) (found by
 //!   trying the 2^28 numbers against the textures' known first bytes, `05 80 00 00`): goose's
-//!   serial reader returns it, and gobj's `GetFileAttributesA` reports an encrypted texture (its
-//!   first dword not `0x8005`) read-only and hidden. goose asks the default RSA provider
-//!   (`CryptAcquireContextA` without a name): Windows 2000's was the base provider (40-bit RC4
+//!   serial reader returns it, and gobj's and goose's `GetFileAttributesA` report an encrypted
+//!   texture (its first dword not `0x8005`) read-only and hidden (goose's `decrypt_file_to_buffer`
+//!   checks them too: snow.exe's background subtextures, `bgXNN_tN` swapped in during a race,
+//!   were read encrypted, "Bad texel format" assertion in Haunted Forest's second half). goose
+//!   asks the default RSA provider (`CryptAcquireContextA` without a name): Windows 2000's was the base provider (40-bit RC4
 //!   keys), Wine's is the enhanced one (128-bit): goose's calls get the base provider.
 //! - **Ultimate's dongle.** Ultimate's `snow.exe` adds a parallel port dongle (`\\.\KeyDongle0`,
 //!   `kfunc` at `0x401030`) and its monitor (`0x401620(0)` starts `ppmon.exe`, which has 10 s to
@@ -80,7 +82,7 @@ use wal_payload_common::{input, log};
 use wal_protocol::Axis;
 use windows_sys::Win32::Foundation::{DUPLICATE_SAME_ACCESS, DuplicateHandle, HANDLE};
 use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
-use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
+use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAlloc, VirtualProtect};
 use windows_sys::Win32::System::Registry::{HKEY, HKEY_LOCAL_MACHINE, KEY_WRITE, REG_DWORD, RegCloseKey, RegCreateKeyExA, RegSetValueExA};
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
@@ -111,13 +113,17 @@ struct Build {
     /// call (`(0)` starts `ppmon.exe <pid> <cookie>`, the dongle's monitor, which must clear the
     /// cookie within 10 s or the game ends, "Driver not found"), relative to the executable.
     dongle: Option<(usize, usize)>,
+    /// The select screens' handlebar (`fld [handlebar]; ret`, relative to the executable).
+    menu_handlebar: usize,
+    /// The track select's store of the chosen level when its timer ends (`mov [level], reg`).
+    level_store: usize,
 }
 
 const BUILDS: &[Build] = &[
     // Arctic Thunder 1.002, Dec 18 2000
-    Build { name: "Arctic Thunder", timestamp: 0x3A3E_5052, password: 0x0A6A_209A, dongle: None },
+    Build { name: "Arctic Thunder", timestamp: 0x3A3E_5052, password: 0x0A6A_209A, dongle: None, menu_handlebar: 0xA2E10, level_store: 0xA6785 },
     // Ultimate Arctic Thunder (2004)
-    Build { name: "Ultimate Arctic Thunder", timestamp: 0x4096_A14B, password: 0x0CC4_CC8D, dongle: Some((0x1030, 0x1620)) },
+    Build { name: "Ultimate Arctic Thunder", timestamp: 0x4096_A14B, password: 0x0CC4_CC8D, dongle: Some((0x1030, 0x1620)), menu_handlebar: 0x5C250, level_store: 0x5E4B4 },
 ];
 /// The dongle call's first bytes (`sub esp, 0x108`), the session call's (`sub esp, 4; call`).
 const DONGLE_CODE: [u8; 6] = [0x81, 0xEC, 0x08, 0x01, 0x00, 0x00];
@@ -295,6 +301,67 @@ fn throttle(accel: i16, held: bool) -> u32 {
     if held { 1020 } else { (accel.max(0) as u32 * 255 / 32767) * 4 }
 }
 
+/// The handlebar's full turn moves the select screens' highlight across them in this time.
+const MENU_SWEEP: Duration = Duration::from_millis(1600);
+
+/// The select screens' handlebar (driver, track, the game's settings): their highlight is the
+/// handlebar's place (left end the first, right end the last item), which a keyboard's ramped
+/// axis (full turn, released at once to the center) or a pad's stick cannot hold. Here the
+/// handlebar scrolls it instead: turned it moves the highlight (faster the more it is turned),
+/// centered it stays. A screen starts centered.
+extern "C" fn menu_handlebar() -> f32 {
+    static PLACE: std::sync::Mutex<(f32, Option<std::time::Instant>)> = std::sync::Mutex::new((0.0, None));
+    let now = std::time::Instant::now();
+    let mut place = PLACE.lock().unwrap();
+    let (value, last) = &mut *place;
+    let elapsed = last.map_or(Duration::MAX, |l| now.duration_since(l));
+    *last = Some(now);
+    if elapsed > Duration::from_secs(1) {
+        *value = 0.0;
+        return 0.0;
+    }
+    let x = (input(0).axis(Axis::LeftX) as f32 / 32767.0).clamp(-1.0, 1.0);
+    if x.abs() > 0.2 {
+        let dt = elapsed.min(Duration::from_millis(100)).as_secs_f32();
+        *value = (*value + x * 2.0 * dt / MENU_SWEEP.as_secs_f32()).clamp(-0.999, 0.999);
+    }
+    *value
+}
+
+/// The track select ends (its timer, or the throttle and its short countdown) by storing the
+/// highlighted track as the game's level before it replaces "none" (19: the highlight still
+/// moving, its index -1) with the first track: level 19 stayed, and the race start's audits
+/// stopped on it ("audits_level_increment(): Bad level number", the game closed). A keyboard
+/// or a pad moves the highlight far more than the cabinet's handlebar. The store is replaced
+/// by a call to a stub doing the replacement first: `cmp reg, 19; jne; xor reg, reg`, the
+/// original `mov [level], reg`, `ret`.
+fn fix_level_store(at: usize) {
+    let code = unsafe { std::slice::from_raw_parts(at as *const u8, 6) };
+    // mov [abs], eax (A3 abs) or mov [abs], reg (89 00rrr101 abs)
+    let (reg, store) = match code {
+        [0xA3, ..] => (0, &code[..5]),
+        [0x89, modrm, ..] if modrm & 0xC7 == 0x05 => ((modrm >> 3) & 7, &code[..6]),
+        _ => {
+            log!("arcticthunder: unknown level store, track select's level not checked");
+            return;
+        }
+    };
+    let mut stub = vec![0x83, 0xF8 | reg, 19, 0x75, 0x02, 0x31, 0xC0 | reg << 3 | reg];
+    stub.extend_from_slice(store);
+    stub.push(0xC3);
+    let len = store.len();
+    let mem = unsafe { VirtualAlloc(std::ptr::null(), stub.len(), MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) } as usize;
+    if mem == 0 {
+        return;
+    }
+    unsafe { std::ptr::copy_nonoverlapping(stub.as_ptr(), mem as *mut u8, stub.len()) };
+    let mut call = vec![0xE8, 0, 0, 0, 0];
+    call[1..].copy_from_slice(&mem.wrapping_sub(at + 5).to_le_bytes());
+    call.resize(len, 0x90);
+    patch(at, &call);
+    log!("arcticthunder: track select's level 19 replaced before its store");
+}
+
 /// The pricing goose hands the game: one credit a coin, one to start and to continue.
 fn pricing() -> [u8; 0x94] {
     let mut p = [0u8; 0x94];
@@ -404,6 +471,7 @@ fn run() {
 
 static GOOSE: AtomicUsize = AtomicUsize::new(0);
 static GET_FILE_ATTRIBUTES: AtomicUsize = AtomicUsize::new(0);
+static GOBJ_HOOKED: AtomicBool = AtomicBool::new(false);
 /// The `LoadLibraryA` imports of snow.exe and goose.dll (the originals).
 static LOAD_LIBRARY: [AtomicUsize; 2] = [const { AtomicUsize::new(0) }; 2];
 
@@ -427,15 +495,20 @@ unsafe fn load_library(i: usize, name: *const u8) -> usize {
 }
 
 fn hook_gobj(gobj: usize) {
-    if GET_FILE_ATTRIBUTES.load(Ordering::Relaxed) != 0 {
-        return;
+    if !GOBJ_HOOKED.swap(true, Ordering::Relaxed) {
+        hook_attributes(gobj, "gobj.dll");
     }
-    match unsafe { wal_payload_common::iat::hook_module(gobj, "KERNEL32.dll", "GetFileAttributesA", get_file_attributes as *const () as usize) } {
+}
+
+/// `module`'s `GetFileAttributesA` import: [`get_file_attributes`] (the original is kernel32's
+/// for every module).
+fn hook_attributes(module: usize, name: &str) {
+    match unsafe { wal_payload_common::iat::hook_module(module, "KERNEL32.dll", "GetFileAttributesA", get_file_attributes as *const () as usize) } {
         Some(o) => {
-            GET_FILE_ATTRIBUTES.store(o, Ordering::Relaxed);
-            log!("arcticthunder: gobj.dll's encrypted textures");
+            let _ = GET_FILE_ATTRIBUTES.compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
+            log!("arcticthunder: {name}'s encrypted textures");
         }
-        None => log!("arcticthunder: no gobj.dll GetFileAttributesA import, textures not decrypted"),
+        None => log!("arcticthunder: no {name} GetFileAttributesA import, textures not decrypted"),
     }
 }
 
@@ -449,7 +522,8 @@ fn encrypted_texture(path: &str) -> bool {
     std::fs::File::open(path).and_then(|mut f| f.read_exact(&mut head)).is_ok_and(|_| u32::from_le_bytes(head) != WMS_MAGIC)
 }
 
-/// gobj's `GetFileAttributesA`: the encrypted textures read-only and hidden, as on the cabinet.
+/// gobj's and goose's `GetFileAttributesA`: the encrypted textures read-only and hidden, as on the
+/// cabinet.
 unsafe extern "system" fn get_file_attributes(name: *const u8) -> u32 {
     let f: unsafe extern "system" fn(*const u8) -> u32 = unsafe { std::mem::transmute(GET_FILE_ATTRIBUTES.load(Ordering::Relaxed)) };
     let attributes = unsafe { f(name) };
@@ -693,6 +767,17 @@ fn init_game() {
             log!("arcticthunder: unknown dongle call, not emulated");
         }
     }
+    fix_level_store(exe + build.level_store);
+    let getter = unsafe { std::slice::from_raw_parts((exe + build.menu_handlebar) as *const u8, 7) };
+    if getter[..2] == [0xD9, 0x05] && getter[6] == 0xC3 {
+        // jmp menu_handlebar
+        let mut code = [0xE9, 0, 0, 0, 0];
+        code[1..].copy_from_slice(&(menu_handlebar as *const () as usize).wrapping_sub(exe + build.menu_handlebar + 5).to_le_bytes());
+        patch(exe + build.menu_handlebar, &code);
+        log!("arcticthunder: select screens' handlebar scrolls");
+    } else {
+        log!("arcticthunder: unknown select screens' handlebar, kept");
+    }
     let mut code = [0xB8, 0, 0, 0, 0, 0xC3];
     code[1..5].copy_from_slice(&build.password.to_le_bytes());
     patch(goose + GOOSE_DISK_SERIAL, &code);
@@ -704,6 +789,9 @@ fn init_game() {
         Some(o) => ACQUIRE_CONTEXT.store(o, Ordering::Relaxed),
         None => log!("arcticthunder: no goose.dll CryptAcquireContextA import"),
     }
+    // goose's decrypt_file_to_buffer checks the attributes itself: snow.exe's background
+    // subtextures (snbgrnd's bgXNN_tN, loaded during a race) were read encrypted
+    hook_attributes(goose, "goose.dll");
     let gobj = unsafe { GetModuleHandleW(windows_sys::w!("gobj.dll")) } as usize;
     if gobj != 0 {
         hook_gobj(gobj);
