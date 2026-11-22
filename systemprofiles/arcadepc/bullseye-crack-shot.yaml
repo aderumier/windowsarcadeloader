@@ -17,6 +17,9 @@ env:
   # the cabinet art around the picture
   WAL_DESKTOP_SIZE: 1080x1920
   WAL_BEZEL: Bezel.png
+  # its opening against the game's window (the art at the screen's height): fitted to the
+  # screen, the 16:9 art was letterboxed under the full-height game on a 4:3 screen
+  WAL_BEZEL_FIT: "1"
 
 input:
   guns_enabled: true
