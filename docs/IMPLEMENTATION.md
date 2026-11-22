@@ -5879,6 +5879,19 @@ entry point (`payload_loader`, `xinput1_3` native), board `bountyhunter` (`bount
   object exists (`[0x4cfd50]` holds packed data until then: its value before the program runs is
   ignored). The dump's `setup.dat` is hidden: the game's default (1 coin, 1 credit), then the
   run folder's.
+- **Fights.** Timers on `timeGetTime` (`0x4155d0` sets `[start, unit]`, `0x4155f0` gives the
+  units elapsed); the fight's unit is the operator settings' `+0x490` (15 ms, `DataSetting.exe`'s
+  target timer; the dump's file and the game's defaults agree) times the opponent's speed (1 to
+  4, 2 for the first boss). While the opponent attacks (`0x4022f0`), a target lights every 11
+  units, appears for 10 frames, then must be struck within 11 units (330 ms against the first
+  boss), else the opponent hits (`0x403a30`: a 42-frame hit, `+0x2d4`); the player's own targets
+  last 31 units. A pad struck that is not lit and ready (another pad, or the right one while its
+  target still appears) is the opponent's hit too (`0x4021f0`): with a gamepad's eight buttons,
+  four to six hits in a second or two. `WAL_BOUNTYHUNTER_FORGIVING` (GUI "Forgiving strikes",
+  default 1) ignores those strikes (`0x402292`'s `jz` to the function's end);
+  `WAL_BOUNTYHUNTER_TARGET_TIME` (GUI "Target time", percent, profile 300: 1 s against the
+  first boss) scales `+0x490` once the game's object exists. The frame-counted parts keep
+  60 fps: `DXVK_CONFIG` `dxgi.maxFrameRate = 60` (this DXVK ignores `DXVK_FRAME_RATE`).
 - **Display.** The dump's rotation setup (ArcCabView): dgVoodoo's `D3D8.dll` (Direct3D 11),
   ReShade 4.9's `d3d11.dll` rotating the picture into the dump's bezel (`reshade_files`,
   `d3dcompiler_47`), on DXVK: on wined3d, ReShade's OpenGL hooks looped in

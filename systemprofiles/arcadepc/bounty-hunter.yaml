@@ -28,6 +28,15 @@ env:
   WAL_ARCADEPC_BOARD: bountyhunter
   # its DirectInput keyboard (Escape quits): the payload's, without keys
   WAL_DINPUT_DISABLE: "1"
+  # 60 frames a second: the game's timers are real time, but an opponent's attack winds up for
+  # 42 frames (0x4022f0, +0x2d4) before it hits: on a 120 Hz or unsynced desktop the attacks
+  # hit before the player could strike the pads
+  DXVK_CONFIG: "dxgi.maxFrameRate = 60"
+  # the fights' timer unit in percent of the operator settings' (the arcade's: 330 ms to strike an
+  # attack's pad against the first boss): three times, 1 s
+  WAL_BOUNTYHUNTER_TARGET_TIME: "300"
+  # a wrong strike during an attack (not the lit pad, or too early) is not the opponent's hit
+  WAL_BOUNTYHUNTER_FORGIVING: "1"
 
 input:
   stick_as_dpad: false
@@ -41,6 +50,21 @@ options:
         description: >-
           Games start without coins (the setup menu shows 0 coins). Off: the setup menu's coins
           per credit.
+      - key: WAL_BOUNTYHUNTER_TARGET_TIME
+        label: Target time
+        kind: number
+        min: 50
+        max: 400
+        description: >-
+          How long the fights' targets stay lit and how often the opponent attacks, in percent of
+          the arcade's (100: 330 ms to strike an attack's pad against the first boss, shorter
+          against the faster ones). 200: twice as long.
+      - key: WAL_BOUNTYHUNTER_FORGIVING
+        label: Forgiving strikes
+        kind: bool
+        description: >-
+          While the opponent attacks, a pad struck that is not lit (or before its target is
+          ready) is ignored. Off: the arcade's rule, each wrong strike is the opponent's hit.
 
 controls:
   b1: Punch pad left (high)

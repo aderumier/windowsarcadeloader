@@ -37,6 +37,17 @@
 //! - **Free play.** `setup.dat` holds `coins per credit, credits per coin` (`0x415500`), copied
 //!   in the game's object (`[0x4cfd50]`, `+0x1e0`): 0 coins plays free (any switch starts, the
 //!   title's credit count hidden). The common `WAL_FREEPLAY` sets it once the object exists.
+//! - **Target time.** The fights run on `timeGetTime` timers (`0x4155d0` / `0x4155f0`) whose
+//!   unit is the operator settings' `+0x490` (15, `DataSetting.exe`'s target timer) times the
+//!   opponent's speed (1 to 4): an attack's pad is struck within 11 units (330 ms against the
+//!   first boss), a new one lights every 11 units, the player's own targets last 31 units.
+//!   `WAL_BOUNTYHUNTER_TARGET_TIME` (percent, default 100: the arcade's) scales `+0x490` once the
+//!   settings are read.
+//! - **Wrong strikes.** While the opponent attacks, a pad struck that is not lit and ready (its
+//!   target still appearing for its first 10 frames, or none at all) is the opponent's hit
+//!   (`0x4021f0` calls `0x403a30`): with a pad's eight buttons, every wrong press cost a hit
+//!   (four to six in a second or two). `WAL_BOUNTYHUNTER_FORGIVING=1` (default) ignores them
+//!   (`0x402292`'s `jz` to the function's end); 0: the arcade's.
 //!
 //! Natives: `punch_lh punch_rh punch_ll punch_rl foot_lh foot_rh foot_ll foot_rl coin service
 //! test`.
@@ -62,12 +73,17 @@ const SWITCHES: u8 = 4;
 const GAME: usize = 0x4cfd50;
 /// The object's coins per credit.
 const COINS_PER_CREDIT: usize = 0x1e0;
+/// The object's operator settings (`BountyHunter.GC`, read at `0x4141c0`), their timer unit.
+const SETTINGS: usize = 0x1f0f8;
+const TIMER_UNIT: usize = 0x490;
 /// Bytes of the unpacked program (the coins check of the attract loop, `0x4139d1`): the
 /// unpacker is done with the code once they are there.
 const UNPACKED: (usize, [u8; 7]) = (0x4139d1, [0x83, 0xBE, 0xE0, 0x01, 0x00, 0x00, 0x01]);
 /// The key messages' branch of the game's window procedure (`je` to `WM_KEYDOWN`), replaced
 /// with a jump to its default procedure call (`0x413f08`).
 const KEYS_PATCH: &str = "0x13c32:E9D102000090";
+/// A wrong strike during an attack: `jz` past the opponent's hit (`0x403a30`) to the end.
+const FORGIVING_PATCH: &str = "0x2293:4A";
 /// The leak tracker's allocation and free, and the game's C runtime `malloc` / `free`.
 const TRACKED_ALLOC: usize = 0x475f30;
 const TRACKED_FREE: usize = 0x476110;
@@ -181,17 +197,29 @@ fn writable(addr: usize) -> bool {
     n != 0 && info.State == MEM_COMMIT && info.Protect & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE) != 0
 }
 
-/// Free play: waits for the game's object (`[GAME]` holds the packed data until the game sets
-/// it: `before`, read before the program runs).
-fn free_play(before: usize) {
-    loop {
+/// The settings applied to the game's object: waits for it (`[GAME]` holds the packed data until
+/// the game sets it: `before`, read before the program runs).
+fn settings(before: usize, free_play: bool, target_time: u32) {
+    let game = loop {
         let game = unsafe { std::ptr::read_volatile(GAME as *const usize) };
         if game != before && game != 0 && writable(game + COINS_PER_CREDIT) {
-            unsafe { ((game + COINS_PER_CREDIT) as *mut i32).write_volatile(0) };
-            log!("bountyhunter: free play");
-            return;
+            break game;
         }
         std::thread::sleep(Duration::from_millis(50));
+    };
+    if free_play {
+        unsafe { ((game + COINS_PER_CREDIT) as *mut i32).write_volatile(0) };
+        log!("bountyhunter: free play");
+    }
+    if target_time != 100 {
+        let gc = unsafe { std::ptr::read_volatile((game + SETTINGS) as *const usize) };
+        if gc != 0 && writable(gc + TIMER_UNIT) {
+            let unit = (gc + TIMER_UNIT) as *mut i32;
+            let old = unsafe { unit.read_volatile() };
+            let new = (old as i64 * target_time as i64 / 100).clamp(1, 10_000) as i32;
+            unsafe { unit.write_volatile(new) };
+            log!("bountyhunter: target timer unit {old} -> {new} ({target_time}%)");
+        }
     }
 }
 
@@ -237,10 +265,17 @@ unsafe extern "system" fn get_proc_address(module: *mut c_void, name: *const u8)
         patches::apply_list(&jump(TRACKED_ALLOC, alloc as *const () as usize));
         patches::apply_list(&jump(TRACKED_FREE, free as *const () as usize));
         log!("bountyhunter: program unpacked, key messages skipped, allocations untracked");
+        if std::env::var("WAL_BOUNTYHUNTER_FORGIVING").map_or(true, |v| v.trim() != "0") {
+            patches::apply_list(FORGIVING_PATCH);
+            log!("bountyhunter: wrong strikes ignored");
+        }
         // off: the operator's setup.dat
-        if wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY") == Some(true) {
+        let free_play = wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY") == Some(true);
+        let target_time =
+            std::env::var("WAL_BOUNTYHUNTER_TARGET_TIME").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(100u32).max(1);
+        if free_play || target_time != 100 {
             let before = unsafe { std::ptr::read_volatile(GAME as *const usize) };
-            std::thread::spawn(move || free_play(before));
+            std::thread::spawn(move || settings(before, free_play, target_time));
         }
     }
     if name as usize > 0xFFFF
