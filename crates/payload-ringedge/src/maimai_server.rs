@@ -31,6 +31,23 @@ static LOCK: Mutex<()> = Mutex::new(());
 /// network process's accounting is enabled after it ([`crate::allnetproc`]).
 pub(crate) static GAME_SETTING_SENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// The players' sessions (user id, Unix time of its `UserLoginApi`; ended by `UserLogoutApi`):
+/// that player's automatic card waits (`crate::maimai`).
+static SESSIONS: Mutex<Vec<(String, i64)>> = Mutex::new(Vec::new());
+
+/// The player of `user` is logged in (for 20 minutes at most: a session the game never closed).
+pub(crate) fn player_session(user: &str) -> bool {
+    SESSIONS.lock().unwrap().iter().any(|(u, since)| u == user && now() - since < 20 * 60)
+}
+
+fn session(user: &str, logged_in: bool) {
+    let mut sessions = SESSIONS.lock().unwrap();
+    sessions.retain(|(u, since)| u != user && now() - since < 20 * 60);
+    if logged_in {
+        sessions.push((user.to_string(), now()));
+    }
+}
+
 /// The tables' AES-128 key (`WAL_RINGEDGE_MAIMAI_TABLE_KEY`, hex: another version's), maimai
 /// FiNALE's (the game image's +0x6B8500).
 const TABLE_KEY: &str = "4e2039d03c7ac1a36d10bac801321d26";
@@ -427,6 +444,7 @@ fn answer(api: &str, req: &Json) -> Json {
         "UpsertClientSettingApi" | "UpsertClientUploadApi" | "UpsertClientBookkeepingApi" | "UpsertClientTestmodeApi" => ok(api),
         "GetUserPreviewApi" => user_preview(u, &doc),
         "UserLoginApi" => {
+            session(&user, true);
             changed = keep;
             user_login(&mut doc, req)
         }
@@ -458,7 +476,10 @@ fn answer(api: &str, req: &Json) -> Json {
             }
             ok("UpsertUserAllApi")
         }
-        "UserLogoutApi" => Json::obj().with("returnCode", 1i64),
+        "UserLogoutApi" => {
+            session(&user, false);
+            Json::obj().with("returnCode", 1i64)
+        }
         "GetUserDataApi" => match doc.get("userData") {
             Some(d) => Json::obj().with("userId", u.clone()).with("userData", d.clone()),
             None => Json::Null,

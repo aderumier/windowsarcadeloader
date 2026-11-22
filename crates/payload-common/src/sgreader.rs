@@ -15,17 +15,58 @@ use crate::log;
 /// The card on the reader (an Aime card's access code, 10 BCD bytes), until when.
 static CARD: Mutex<Option<([u8; 10], Instant)>> = Mutex::new(None);
 
-/// Puts the card of `access_code` (20 digits) on the reader for `time`.
-pub fn insert(access_code: &str, time: Duration) {
+/// Player 2's card on its reader ([`NFC_2P`]), until when.
+static CARD_2P: Mutex<Option<([u8; 10], Instant)>> = Mutex::new(None);
+
+/// An access code (20 digits) as 10 BCD bytes.
+fn bcd(access_code: &str) -> Option<[u8; 10]> {
     let d = access_code.as_bytes();
     if d.len() != 20 || !d.iter().all(u8::is_ascii_digit) {
-        return log!("sgreader: access code {access_code:?} is not 20 digits");
+        log!("sgreader: access code {access_code:?} is not 20 digits");
+        return None;
     }
     let mut bcd = [0u8; 10];
     for (b, pair) in bcd.iter_mut().zip(d.chunks(2)) {
         *b = (pair[0] - b'0') << 4 | (pair[1] - b'0');
     }
-    *CARD.lock().unwrap() = Some((bcd, Instant::now() + time));
+    Some(bcd)
+}
+
+/// Puts the card of `access_code` (20 digits) on the reader for `time`.
+pub fn insert(access_code: &str, time: Duration) {
+    if let Some(code) = bcd(access_code) {
+        *CARD.lock().unwrap() = Some((code, Instant::now() + time));
+    }
+}
+
+/// Puts the card of `access_code` on player 2's reader for `time` (`WAL_AIME_READER_2P`).
+pub fn insert_2p(access_code: &str, time: Duration) {
+    if let Some(code) = bcd(access_code) {
+        *CARD_2P.lock().unwrap() = Some((code, Instant::now() + time));
+    }
+}
+
+/// Player 2's reader: its card polled and read like player 1's (no automatic card), the other
+/// commands answered by [`nfc`].
+fn nfc_2p(req: &[u8]) -> Option<Vec<u8>> {
+    let card = CARD_2P.lock().unwrap().filter(|(_, until)| Instant::now() < *until).map(|(c, _)| c);
+    match req[3] {
+        0x42 => Some(match card {
+            Some(code) => answer(req, 0, &[1, 0x10, 4, code[0], code[1], code[2], code[3]]),
+            None => answer(req, 0, &[0]),
+        }),
+        0x52 => Some(match (card, req.get(5 + 4)) {
+            (Some(code), Some(&n)) => {
+                if n == 2 {
+                    *CARD_2P.lock().unwrap() = None;
+                    log!("sgreader: player 2's card read");
+                }
+                answer(req, 0, &block(&code, n))
+            }
+            _ => answer(req, 1, &[]),
+        }),
+        _ => nfc(req),
+    }
 }
 
 /// The card [`card_on_poll_after`] puts on the reader at the polls, until it is read, and from
@@ -112,7 +153,8 @@ fn led_info() -> &'static [u8] {
 const NFC: u8 = 0x00;
 const LED: u8 = 0x08;
 /// Player 2's reader and LED board on the same line (`WAL_AIME_READER_2P=1`: maimai FiNALE
-/// resets address 1 at boot, "Aime Reader BAD" without an answer), never with a card.
+/// resets address 1 at boot, "Aime Reader BAD" without an answer), its card put on with
+/// [`insert_2p`].
 const NFC_2P: u8 = 0x01;
 const LED_2P: u8 = 0x09;
 
@@ -237,9 +279,7 @@ fn handle(bytes: &[u8]) -> Vec<u8> {
                 let reply = match req[1] {
                     NFC => nfc(&req),
                     LED => led(&req),
-                    // player 2's reader: polled, no card
-                    NFC_2P if second_reader() && req[3] == 0x42 => Some(answer(&req, 0, &[0])),
-                    NFC_2P if second_reader() => nfc(&req),
+                    NFC_2P if second_reader() => nfc_2p(&req),
                     LED_2P if second_reader() => led(&req),
                     _ => None,
                 };

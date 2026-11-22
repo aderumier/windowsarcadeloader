@@ -45,6 +45,10 @@
 //! * `WAL_D3D9_SOURCE=<x>,<y>,<w>,<h>`: windowed devices present only that rectangle of the back
 //!   buffer (when the game gives none), scaled to the window. For games drawing a picture
 //!   letterboxed in their back buffer (Phantom Breaker: Another Code, 16:9 in 800x600).
+//! * `WAL_D3D9_BEZEL=<image.png>` (a path from the game's working directory, or absolute): with
+//!   `WAL_D3D9_ASPECT`, the image drawn around the picture in the letterbox, scaled to the
+//!   window with its aspect kept, black around it (maimai FiNALE's player 1 screen alone,
+//!   [`letterbox_bezel`]).
 //!
 //! * `WAL_D3D9_QUERY_FIX=1`: `IDirect3DQuery9::GetData` writes at most the requested size.
 //!   KOF '98 UMFE / 2002 UM poll an event query into a 1-byte variable at the top of their
@@ -1287,6 +1291,7 @@ unsafe fn letterbox(dev: P, src: P, window: P) -> Option<P> {
             let [x,y,r,b]=outer;
             rect=[x+rect[0]*(r-x)/cw,y+rect[1]*(b-y)/ch,x+rect[2]*(r-x)/cw,y+rect[3]*(b-y)/ch];
         }
+        letterbox_bezel(dev, target, cw, ch);
         let hr = stretch(dev, back, src as *const i32, target, rect.as_ptr(), D3DTEXF_LINEAR);
         if hr < 0 && !LETTERBOX_STRETCH_LOGGED.swap(true, Ordering::Relaxed) {
             log!("d3d9: letterbox StretchRect failed: {hr:#x}");
@@ -1926,6 +1931,62 @@ unsafe fn border_end(dev: P, chain: Option<P>, saved: bool) {
 }
 
 static BORDER_BEZEL9: Mutex<Option<(usize, usize, usize)>> = Mutex::new(None);
+
+/// `WAL_D3D9_BEZEL`'s image (read once).
+fn letterbox_bezel_image() -> Option<&'static crate::d3d9_quads::Image> {
+    static IMAGE: std::sync::OnceLock<Option<crate::d3d9_quads::Image>> = std::sync::OnceLock::new();
+    IMAGE
+        .get_or_init(|| {
+            let path = std::env::var("WAL_D3D9_BEZEL").ok().filter(|p| !p.trim().is_empty())?;
+            match crate::images_d3d11::read_png(std::path::Path::new(path.trim())) {
+                Ok(image) => {
+                    log!("d3d9: bezel {} ({}x{})", path.trim(), image.w, image.h);
+                    Some(crate::d3d9_quads::Image { w: image.w, h: image.h, bgra: image.bgra })
+                }
+                Err(e) => {
+                    log!("d3d9: bezel {}: {e}", path.trim());
+                    None
+                }
+            }
+        })
+        .as_ref()
+}
+
+/// The device's texture of `WAL_D3D9_BEZEL` and its state block.
+static LETTERBOX_BEZEL: Mutex<Option<(usize, usize, usize)>> = Mutex::new(None);
+
+/// `WAL_D3D9_BEZEL`: its image drawn on the letterbox's target (`cw`x`h`), aspect kept, before
+/// the picture over it.
+unsafe fn letterbox_bezel(dev: P, target: P, cw: i32, ch: i32) {
+    let Some(image) = letterbox_bezel_image() else { return };
+    let mut state = LETTERBOX_BEZEL.lock().unwrap();
+    if state.as_ref().is_some_and(|s| s.0 != dev as usize) {
+        let (_, tex, states) = state.take().unwrap();
+        unsafe {
+            release(tex as P);
+            release(states as P);
+        }
+    }
+    if state.is_none() {
+        let tex = unsafe { crate::d3d9_quads::texture(dev, image) };
+        let states = unsafe { crate::d3d9_quads::state_block(dev) };
+        if tex.is_null() || states.is_null() {
+            unsafe {
+                release(tex);
+                release(states);
+            }
+            return;
+        }
+        *state = Some((dev as usize, tex as usize, states as usize));
+    }
+    let (_, tex, states) = state.unwrap();
+    let r = fit(cw, ch, image.w, image.h);
+    unsafe {
+        crate::d3d9_quads::draw_on(dev, states as P, target, |_, _| {
+            crate::d3d9_quads::quad(dev, tex as P, (r[0] as f32, r[1] as f32, (r[2] - r[0]) as f32, (r[3] - r[1]) as f32));
+        });
+    }
+}
 unsafe fn border_bezel9(dev: P, target: P, rect: [i32; 4]) {
     let Some(image) = crate::border::backdrop() else {
         return;

@@ -55,6 +55,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         if card::daemon() {
             return TRUE;
         }
+        // maimai's player 1 screen alone: the Direct3D 9 shims' settings (read at start)
+        maimai::screen_env();
         wal_payload_common::start("ringedge");
         // the game's working directory, relative to its own (its files are found from there)
         if let Ok(dir) = std::env::var("WAL_RINGEDGE_CWD") {

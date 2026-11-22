@@ -27,6 +27,12 @@ fn multitouch(dev: &Device) -> Option<bool> {
     mt.iter().all(|c| abs.contains(*c)).then(|| dev.properties().contains(PropType::DIRECT))
 }
 
+/// The touch surface [`start`] will open: `Some(true)` a touchscreen, `Some(false)` a touchpad,
+/// `None` none (told to the game before it starts: `WAL_TOUCH_SURFACE`).
+pub fn surface() -> Option<bool> {
+    evdev::enumerate().filter_map(|(_, d)| multitouch(&d)).max()
+}
+
 /// Opens the touch surface (a touchscreen, else the first touchpad) and reads it in a thread.
 pub fn start() -> Touches {
     let touches = Touches::default();
