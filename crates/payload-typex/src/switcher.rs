@@ -51,7 +51,7 @@ pub fn init(payload: HINSTANCE) {
 
 /// `ExitWindowsEx`: the cabinet's restart (the test menu's EXIT): the game started again by the
 /// launcher, this program ends.
-unsafe extern "system" fn exit_windows(flags: u32, _reason: u32) -> i32 {
+pub(crate) unsafe extern "system" fn exit_windows(flags: u32, _reason: u32) -> i32 {
     log!("switcher: cabinet restart ({flags:#x}): the game again (launcher)");
     wal_payload_common::request_relaunch("");
     // the request sent before the process goes
@@ -144,7 +144,7 @@ unsafe extern "system" fn create_process(
 }
 
 /// A PROCESS_INFORMATION of a program not started: handles the caller can wait on and close.
-unsafe fn fake_process(pi: usize) {
+pub(crate) unsafe fn fake_process(pi: usize) {
     use windows_sys::Win32::System::Threading::CreateEventA;
     if pi == 0 {
         return;

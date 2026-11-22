@@ -24,6 +24,7 @@
 //! * Sonic Blast Heroes' punching pad from a gamepad trigger (`WAL_TYPEX_PUNCH`, `punch.rs`).
 //! * Video for Windows codecs shipped with the game (`WAL_VFW_CODECS`).
 //! * Servers the cabinet starts beside the game (`WAL_TYPEX_SERVERS`, `servers.rs`).
+//! * Taito's Half-Life 2 arcade framework's settings, free play (`WAL_TYPEX_HL2AC`, `hl2ac.rs`).
 //! * The cabinet's program switcher (`WAL_TYPEX_SWITCHER`, `switcher.rs`): game <-> test menu
 //!   through the launcher.
 
@@ -32,6 +33,7 @@
 mod doors;
 mod ffb;
 mod guns;
+mod hl2ac;
 mod immersion;
 mod kon_cards;
 mod mahjong;
@@ -80,6 +82,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         kon_cards::init();
         wontertainment::init();
         sram::init();
+        hl2ac::init();
         servers::init();
         wal_payload_common::vfw::init();
         // Taito crypto service (KOF XIII Climax): only for a profile naming its key

@@ -9,6 +9,9 @@
 //! Done with IAT hooks on the game executable and on the
 //! C runtime DLLs it has loaded: games doing `fopen("D:/...")` go through the CRT's own
 //! kernel32 imports (Chaos Code crashed on `fseek` of a NULL `FILE` otherwise).
+//! `WAL_DRIVE_LATE_DLLS=1`: the DLLs of the game's directory it loads later too
+//! (`late_hooks`): Half-Life 2: Survivor's `bin\launcher.dll` reads `D:\config.bin` with its
+//! own C runtime.
 
 
 #![allow(non_snake_case)]
@@ -450,6 +453,12 @@ macro_rules! hooks {
             )*
             for crt in CRT_MODULES {
                 redirect_module(crt);
+            }
+            if std::env::var("WAL_DRIVE_LATE_DLLS").is_ok_and(|v| v == "1") {
+                $(
+                    crate::late_hooks::hook("kernel32.dll", stringify!($name), $name as *const () as usize, &ORIG[$idx]);
+                )*
+                log!("drive: redirect in the game's later DLLs too");
             }
         }
 

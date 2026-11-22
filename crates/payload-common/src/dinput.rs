@@ -4,6 +4,10 @@
 //! keyboard's `2`, which the launcher also maps to P2 start (the keyboard is not grabbed, the
 //! game window sees it).
 //!
+//! `WAL_DINPUT_LATE=1`: the game folder's DLLs loaded later get it too (`late_hooks`): Half-Life
+//! 2: Survivor's late-loaded `engine.dll` read the PC mouse through DirectInput (the view
+//! spun with the real mouse).
+//!
 //! `DirectInputCreateA/W/Ex` and `DirectInput8Create` return a static fake interface (the
 //! IDirectInput8 vtable, a superset of the older ones): `EnumDevices` lists nothing (the system
 //! keyboard and mouse once a payload set up the keyboard: [`set_keyboard`]),
@@ -688,6 +692,15 @@ pub fn init() {
                     ORIG_CO_CREATE_INSTANCE.store(o, std::sync::atomic::Ordering::Relaxed);
                 }
             }
+        }
+        if std::env::var("WAL_DINPUT_LATE").is_ok_and(|v| v.trim() == "1") {
+            use std::sync::atomic::AtomicUsize;
+            static LATE: [AtomicUsize; 4] = [const { AtomicUsize::new(0) }; 4];
+            crate::late_hooks::hook("dinput.dll", "DirectInputCreateA", create as *const () as usize, &LATE[0]);
+            crate::late_hooks::hook("dinput.dll", "DirectInputCreateW", create_w as *const () as usize, &LATE[1]);
+            crate::late_hooks::hook("dinput.dll", "DirectInputCreateEx", create_iid as *const () as usize, &LATE[2]);
+            crate::late_hooks::hook("dinput8.dll", "DirectInput8Create", create_iid as *const () as usize, &LATE[3]);
+            log!("dinput: the game's later DLLs too");
         }
         // games loading DirectInput at run time (Ford Racing: LoadLibrary("dinput8.dll"))
         // init runs once per hooked module set (Mario Kart: twice): a second hook returns our

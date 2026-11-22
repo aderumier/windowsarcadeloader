@@ -1,0 +1,139 @@
+# Half-Life 2: Survivor (Taito / Valve, Taito Type X, Source engine) - template, override
+# values in userprofiles/typex/half-life-2-survivor.yaml.
+system: typex
+name: "Half-Life 2: Survivor"
+
+# the dump ships Microsoft's Direct3D 9 runtime; survived.dll (loaded by its rebuilt hl2.exe)
+# opens a debug console window over the game
+hide: [d3d9.dll, survived.dll]
+
+# Cabinet (as Cyber Diver's, the same Taito Source framework): a movement stick, the head's
+# flight stick (up / down, its twist turning the head), a weapon wheel, the handles' buttons.
+# XIO: start is system switch 1 (JVS down), button 1 the menus' decide; the client never moves,
+# fires, ducks or jumps from the sticks and switches (0x20000 fire, 0x10000 alt fire, the
+# handles' active-low 0x800 duck / 0x400 jump): the payload presses the engine's binds instead
+# (WAL_TYPEX_HL2AC).
+native_map:
+  start: down
+  up: none
+  down: none
+  left: none
+  right: none
+  b3: btn7
+  b4: btn8
+  b5: none
+  b6: none
+
+# The cabinet's 1360x768 window (the Source launcher's -width / -height). Not -nomouse: the
+# arcade client reads the cabinet's sticks and switches in the engine's mouse input (no stick,
+# no fire with it); the payload keeps the real mouse away (WAL_TYPEX_HL2AC). +mlook: the mouse's
+# y looks up / down.
+args: [-window, -novid, -game, hl2mp, -ac, -width, "1360", -height, "768", +mlook]
+
+# The engine lays its 2D screens out for its window's client size: at the screen's size (the
+# device's own or a screen-sized popup with WAL_D3D9_WINDOWED_SIZE) they sat in the top left
+# corner. A 1360x768 gamescope screen, scaled to the real one (as Cyber Diver's).
+gamescope:
+  enabled: true
+  width: 1360
+  height: 768
+  args: [-S, fit, -f]
+
+env:
+  # The engine measures the video memory by creating textures until one fails: DXVK on an
+  # APU never fails (GTT is system RAM), ~20 GB in a second and the OOM killer. DXVK fails
+  # the default pool's allocations past 1 GB, as a card of that size would.
+  DXVK_CONFIG: "d3d9.memoryTrackTest = True; d3d9.maxAvailableMemory = 1024"
+  WAL_ANSI_CODEPAGE: "932"
+  WAL_ANSI_CODEPAGE_DLLS: engine.dll,client.dll,vgui2.dll,vguimatsurface.dll,vstdlib.dll,tier0.dll
+  WAL_FONT_CODEPAGE: "932"
+  WAL_TYPEX_JVS_DLLS: xioman.dll
+  # XIO started before launcher.dll's HL2IO_Init: the original hl2.exe did, the dump's rebuilt
+  # one does not (COM2 never opened: no coin, switch or stick)
+  WAL_TYPEX_XIO_INIT: "ac.dll!?HL2IO_Init@@YA_NXZ"
+  # bin\engine.dll (loaded later) reads the PC mouse through DirectInput: a fake one, no device
+  WAL_DINPUT_DISABLE: "1"
+  WAL_DINPUT_LATE: "1"
+  # bin\launcher.dll reads the test menu's D:\config.bin with its own C runtime
+  WAL_DRIVE_LATE_DLLS: "1"
+  # free play (common option) in ac.dll's settings; the test switch's test menu (testmode.exe)
+  # started by the launcher after the game, the game again after it
+  WAL_TYPEX_HL2AC: "1"
+  # the test menu: its own XIO library, started by itself
+  WAL_EXE_ENV: "testmode.exe: WAL_TYPEX_JVS_DLLS=xioman_testmode.dll, WAL_TYPEX_XIO_INIT="
+  # mouse aim: the engine's mouse look, this many percent of a cursor pixel a mouse count
+  WAL_TYPEX_HL2AC_MOUSE: "800"
+  WAL_TYPEX_JVS_LAYOUT: cyber-diver
+  # XIO channels: 1 the head stick's up / down, 2 its twist, 3 / 4 (inverted) the movement
+  # stick. The client moves neither from them (the payload drives the engine's movement keys
+  # and mouse look, WAL_TYPEX_HL2AC): the head stick's centered, the movement stick's kept for
+  # the test menu's I/O test.
+  WAL_TYPEX_JVS_ANALOG: 8000,8000,8000,8000,8000,8000,8000,8000
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,-ly,-lx"
+
+input:
+  stick_as_dpad: false
+  # a pad: R1 fire, L1 alt fire, A jump, B duck, X reload
+  gamepad:
+    r1: b1
+    l1: b2
+    a: b4
+    b: b3
+    x: b5
+  # the mouse aims: its position wraps (a counter) on the pedal axes (unused here), the payload
+  # turns its motion into the engine's mouse look; left button fire, right alt fire
+  guns_enabled: true
+  guns_mice: 1
+  mouse_screen: [32768, 32768]
+  mouse_wrap: true
+  gun:
+    x: accel
+    y: brake
+    BTN_LEFT: b1
+    BTN_RIGHT: b2
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: -ly
+      KEY_DOWN: ly
+      KEY_A: -lx
+      KEY_D: lx
+      KEY_W: -ly
+      KEY_S: ly
+      KEY_J: -rx
+      KEY_L: rx
+      KEY_I: -ry
+      KEY_K: ry
+
+options:
+  - title: Controls
+    options:
+      - key: WAL_TYPEX_HL2AC_MOUSE
+        label: Mouse aim speed
+        kind: number
+        min: 0
+        max: 1000
+        description: >-
+          How fast the mouse turns the view, in percent (0: the mouse does not aim).
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: insert coins (2 a credit). Batocera: FREE PLAY in the
+          game's advanced settings.
+
+controls:
+  lx: Move sideways
+  ly: Move forward / back
+  rx: Turn the head left / right (the stick's twist)
+  ry: Look up / down
+  accel: Turn the head left / right (the mouse)
+  brake: Look up / down (the mouse)
+  b1: Fire
+  b2: Alt fire
+  b3: Duck
+  b4: Jump
+  b5: Reload

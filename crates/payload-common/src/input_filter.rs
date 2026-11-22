@@ -89,6 +89,21 @@ pub fn init(unity: usize, key_held: fn(i32) -> bool) {
     messages(unity);
 }
 
+/// The keyboard and mouse messages of every module of the game's folder filtered, the DLLs it
+/// loads later too (`late_hooks`; after [`init`]): a Source engine game's message loops are in
+/// its late-loaded `engine.dll`, `vgui2.dll` and `tier0.dll` (Half-Life 2: Survivor).
+pub fn messages_late() {
+    let messages: [(&'static str, usize, &'static AtomicUsize); 4] = [
+        ("PeekMessageA", peek_message_a as *const () as usize, &PEEK_MESSAGE_A),
+        ("PeekMessageW", peek_message_w as *const () as usize, &PEEK_MESSAGE_W),
+        ("GetMessageA", get_message_a as *const () as usize, &GET_MESSAGE_A),
+        ("GetMessageW", get_message_w as *const () as usize, &GET_MESSAGE_W),
+    ];
+    for (name, hook, orig) in messages {
+        crate::late_hooks::hook("user32.dll", name, hook, orig);
+    }
+}
+
 /// The keyboard and mouse messages of one more module's `PeekMessage` / `GetMessage` calls
 /// filtered too (after [`init`]): a second message loop (an MFC program's, in `mfc100u.dll`
 /// and in its executable).

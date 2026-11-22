@@ -1475,6 +1475,50 @@ user-confirmed working 100%. Code page 932 hooks are enabled in the Source DLLs,
 dynamic Japanese labels remain garbled. Test launches `testmode.exe`, absent from this dump;
 the failed external-process launch hangs the client.
 
+Half-Life 2: Survivor (Ver2.07J) is the same Taito Source framework (`hl2.exe -game hl2mp
+-ac`, `xioman.dll` on COM2, `ac.dll`'s `CHL2Global g_Global` settings). The dumps' `hl2.exe` is
+a rebuilt Source 2007 launcher loading `survived.dll` (a debug console window over the game:
+hidden, as the dump's Microsoft `d3d9.dll`), and it never calls `Xio_Init`, which the original
+did: COM2 stayed closed, no coin, switch or stick. `WAL_TYPEX_XIO_INIT=ac.dll!?HL2IO_Init@@YA_NXZ`
+calls it before launcher.dll's `HL2IO_Init`, on the game's thread (late import hook; not in
+the payload's `DllMain`, XIO's reader thread would wait on the loader lock). The engine probes
+the video memory by creating textures until one fails: on an APU DXVK never fails, about
+20 GB of GTT in a second and the kernel's OOM killer (the desktop session went down with it);
+`DXVK_CONFIG` `d3d9.memoryTrackTest` with `d3d9.maxAvailableMemory = 1024` fails the default
+pool past 1 GB (GTT stays near 250 MB in play). Free play (`WAL_TYPEX_HL2AC=1`, `hl2ac.rs`):
+`g_Global`'s `m_bFreePlay` (+0x504) and coin weight `m_CreditWeight` (+0x10, 0) set before
+launcher.dll's `NesysIncomeOpen` (right after its `D:\config.bin` read); the flag alone left the
+game start screen waiting. Coins, start (JVS down) and the menus' decide (button 1) work
+through XIO, but the cabinet's sticks (analog 1/2 the head stick: up / down and its twist, 3/4
+movement) and fire / duck / jump switches never moved the player or fired: the arcade client
+plays through the engine's PC input. So the payload drives that, and only that (input from the
+launcher): the real keyboard and mouse messages are filtered in the late-loaded engine DLLs
+(`input_filter::messages_late`), the engine's DirectInput is the fake one (`WAL_DINPUT_DISABLE`
+with `WAL_DINPUT_LATE`), player 1's left stick posts the engine's movement keys W / S / A / D
+past half way, b1 / b2 its MOUSE1 / MOUSE2 (fire, alt fire), b3 / b4 / b5 Ctrl / Space / R
+(duck, jump, reload), all marked for the filter. Aim is the engine's mouse look: it recenters
+the cursor (`SetCursorPos`) and polls it (`GetCursorPos`, in tier0.dll, a static import of
+launcher.dll the late hooks miss: hooked at `NesysIncomeOpen`); the polls answer the recentered
+point plus the launcher's mouse motion (a wrapping counter on the pedal axes,
+`WAL_TYPEX_HL2AC_MOUSE` percent, default 800) and the right stick's tilt (fractions of a pixel
+kept: the look is very sensitive). Not `-nomouse`: the arcade client reads its input inside the
+engine's mouse code (nothing moved or fired with it). launcher.dll's factory stick calibration
+is replaced by the full range while uncalibrated (for the test menu's I/O test). The attract
+movies' info windows (`movinfowin_top` / `_bottom`, black GDI popups created visible, shown
+only when a flag changes) are created hidden: black boxes over the game otherwise. Its 2D
+screens follow the window's client size, so a 1360x768 gamescope screen (a screen-sized window
+or the engine's fullscreen left them in a corner).
+Offline: "NESYS card can't be used now", the game start screen's START plays without a card.
+Test switch: `ac.dll` calls `Xio_Exit`, starts `testmode.exe` and terminates the game; its
+`CreateProcessA` (hooked in ac.dll once loaded) asks the launcher to start `exe=testmode.exe`
+after the game and answers with a fake process. The test menu (`WAL_EXE_ENV`: its own
+`xioman_testmode.dll`, which calls `Xio_Init` itself) opens on its stick ADJUSTMENT when no
+calibration is saved; its exit restarts the cabinet (`ExitWindowsEx`): the game again (the
+switcher's handler). Settings: launcher.dll reads and writes `D:\config.bin` with its own
+static C runtime, outside the redirected CRT DLLs: `WAL_DRIVE_LATE_DLLS=1` puts the D: hooks in
+the game folder's DLLs loaded later too (`late_hooks`), so the game and the test menu share
+`WindowsLoader\config.bin`.
+
 Type X / X2 games (and NESiCA games built on Type X I/O like 3D Cosplay Mahjong) talk to a
 JVS I/O board on `COM2` and import no driver DLL, so the payload is injected by
 **`wal-loader.exe`** (`wal-loader <payload> <game.exe> [args]`): the game is created
@@ -9031,6 +9075,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `3d-cosplay-mahjong` | 3D Cosplay Mahjong | typex | in game (mahjong hand) | wal-loader, JVS, 1280x800, `tricks: [d3dx9_33]` |
 | `battle-fantasia` | Battle Fantasia | typex | works (user: 100%) | wal-loader, JVS, 1280x800, game patches, runner hotfix (winedmo) |
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) | Source client hl2.exe, -io 1, serial hooks in bin/xioman.dll, complete JVS 0x25 reply, cabinet start and active-low switches, fallback axis calibration; offline; some Japanese labels garbled; testmode.exe absent |
+| `half-life-2-survivor` | Half-Life 2: Survivor | typex | works (user: WASD, mouse aim, fire; headless: attract, coins and free play, a match played, test menu) | Source client hl2.exe -ac, `Xio_Init` before `HL2IO_Init` (`WAL_TYPEX_XIO_INIT`), DXVK video memory cap (the engine's probe ate the APU's RAM), free play, test menu, movement / buttons as the engine's binds and aim as its mouse look from the launcher (`WAL_TYPEX_HL2AC`, the cabinet's sticks and switches unused by the client), fake DirectInput and filtered messages in late DLLs, D: redirect in late DLLs (`WAL_DRIVE_LATE_DLLS`: config.bin), survived.dll and Microsoft d3d9.dll hidden, movie info windows hidden, 1360x768 gamescope; offline (no NESYS card) |
 | `sonic-blast-heroes` | Sonic Blast Heroes | typex | works (user: 100%) | wal-loader, JVS (Confirm = down, Selection = up), game_release.exe (game.exe encrypted), code page 932, the game's keyboard pad and safety sensor forced, punch from a trigger's pressure or a full force button (`WAL_TYPEX_PUNCH`, punch.rs) |
 | `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) | wal-loader, JVS (`block-king` layout), touch sensor driver answered (`WAL_TYPEX_LSDRV`), shared touch for 4 guns (`WAL_TYPEX_GUNS`), patch of its touch position writes, `WAL_DINPUT_DISABLE` (it also read the PC mouse: a second shot at the cursor for each click) |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) | wal-loader, JVS, 1280x800, patch 0xECFD0 |

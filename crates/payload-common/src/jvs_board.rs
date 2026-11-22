@@ -11,6 +11,9 @@
 //!
 //! `WAL_TYPEX_JVS_DLLS`: comma-separated I/O DLL paths to load and hook before startup
 //! (e.g. `bin/xioman.dll` for Source-engine cabinets). Default: executable only.
+//! `WAL_TYPEX_XIO_INIT=<dll>!<export>`: XIO's `Xio_Init` (the I/O module's board start) called
+//! before the game's first call of that import: Half-Life 2: Survivor's original `hl2.exe` did,
+//! the dumps' rebuilt one does not (no switch, coin or stick without it).
 //!
 //! Analog channels: `WAL_TYPEX_JVS_ANALOG` (fixed values, e.g. a volume knob) and
 //! `WAL_TYPEX_JVS_ANALOG_INPUTS` (player 1's axes, e.g. the pedals of driving games; `p2:lx`:
@@ -536,6 +539,10 @@ pub fn init(default_port: &str) {
                 if std::env::var("WAL_TYPEX_XIO_CALIBRATION").is_ok_and(|v| v == "1") {
                     unsafe { install_xio_calibration(module); }
                 }
+                // empty: none (a program of the game that starts XIO itself, its test menu)
+                if let Some(at) = std::env::var("WAL_TYPEX_XIO_INIT").ok().filter(|v| !v.trim().is_empty()) {
+                    install_xio_init(module, &at);
+                }
             }
         }
     }
@@ -544,6 +551,39 @@ pub fn init(default_port: &str) {
         serial::install_in(port, process, &modules);
     }
     log!("jvs: I/O board on {port}");
+}
+
+static XIO_INIT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+static XIO_INIT_BEFORE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// `Xio_Init` of `module` called before the game's first call of the import `at`
+/// (`dll!export`, a function without arguments): on the game's thread, not in the payload's
+/// `DllMain` (its reader thread would wait for the loader lock).
+fn install_xio_init(module: windows_sys::Win32::Foundation::HMODULE, at: &str) {
+    use windows_sys::Win32::System::LibraryLoader::GetProcAddress;
+    let Some((dll, name)) = at.trim().split_once('!') else {
+        log!("jvs: bad WAL_TYPEX_XIO_INIT {at:?} (dll!export)");
+        return;
+    };
+    let Some(init) = (unsafe { GetProcAddress(module, c"?Xio_Init@@YA_NXZ".as_ptr().cast()) }) else {
+        log!("jvs: no Xio_Init in the I/O module");
+        return;
+    };
+    XIO_INIT.store(init as usize, Ordering::Relaxed);
+    let (dll, name): (&'static str, &'static str) = (Box::leak(dll.into()), Box::leak(name.into()));
+    crate::late_hooks::hook(dll, name, xio_init_before as *const () as usize, &XIO_INIT_BEFORE);
+    log!("jvs: Xio_Init before {dll}!{name}");
+}
+
+unsafe extern "C" fn xio_init_before() -> usize {
+    let init = XIO_INIT.swap(0, Ordering::Relaxed);
+    if init != 0 {
+        let init: unsafe extern "C" fn() -> bool = unsafe { std::mem::transmute(init) };
+        let ok = unsafe { init() };
+        log!("jvs: Xio_Init -> {ok}");
+    }
+    let original: unsafe extern "C" fn() -> usize = unsafe { std::mem::transmute(XIO_INIT_BEFORE.load(Ordering::Relaxed)) };
+    unsafe { original() }
 }
 
 static XIO_CALIBRATION: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
