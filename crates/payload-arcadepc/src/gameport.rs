@@ -7,7 +7,8 @@
 //! start key and the gun's two buttons (`Get<P>Frie1/2`: one shoots, both the bomb / big
 //! water), the gun's aim as 10-bit ADC readings (`GetWadc<n>pX/Y`, `Get<P>WadcX/Y` with four
 //! players; 0 is ignored); the operator's setting, left, right and ticket keys; the cabinet's
-//! outputs (lamps, ticket printers, motors, water pump and valves): accepted and ignored.
+//! outputs (lamps, motors, water pump and valves) to the network outputs ([`OUTPUTS`], named after
+//! the U-Shoot plugins' patches of `dllInstance`), the ticket printers ignored.
 //!
 //! Mono resolves them (`mono_imports.rs`) to the payload's: no board, no serial port.
 //!
@@ -174,6 +175,59 @@ fn player_of(name: &str) -> Option<usize> {
     n.filter(|p| *p < PLAYERS)
 }
 
+/// The board's outputs, `Set<name>(dll, value)` (BOOL or int) each to a network output.
+macro_rules! outputs {
+    ($(($dll:literal, $out:literal, $f:ident)),* $(,)?) => {
+        $(extern "C" fn $f(_: P, v: i32) {
+            wal_payload_common::outputs::set($out, v);
+        })*
+        const OUTPUTS: &[(&str, &str, extern "C" fn(P, i32))] = &[$(($dll, $out, $f)),*];
+    };
+}
+
+outputs!(
+    ("SetLetfLight", "LmpLeft", o_left),
+    ("SetMidLight", "LmpMiddle", o_mid),
+    ("SetRightLight", "LmpRight", o_right),
+    ("SetP1Light", "P1_Lmp", o_p1),
+    ("SetP2Light", "P2_Lmp", o_p2),
+    ("SetP3Light", "P3_Lmp", o_p3),
+    ("SetP4Light", "P4_Lmp", o_p4),
+    ("SetStartButtomLight1p", "P1_LmpStart", o_start1),
+    ("SetStartButtomLight2p", "P2_LmpStart", o_start2),
+    ("SetStartButtomLight3p", "P3_LmpStart", o_start3),
+    ("SetStartButtomLight4p", "P4_LmpStart", o_start4),
+    ("SetP1GiveSpeed", "P1_GunMotor", o_motor1),
+    ("SetP2GiveSpeed", "P2_GunMotor", o_motor2),
+    ("SetP3GiveSpeed", "P3_GunMotor", o_motor3),
+    ("SetP4GiveSpeed", "P4_GunMotor", o_motor4),
+    ("SetP1ElecShake", "P1_ChairShake", o_shake1),
+    ("SetP2ElecShake", "P2_ChairShake", o_shake2),
+    ("SetP3ElecShake", "P3_ChairShake", o_shake3),
+    ("SetP4ElecShake", "P4_ChairShake", o_shake4),
+    ("SetP1WaterRotatingmotor", "P1_WaterRotate", o_rotate1),
+    ("SetP2WaterRotatingmotor", "P2_WaterRotate", o_rotate2),
+    ("SetP3WaterRotatingmotor", "P3_WaterRotate", o_rotate3),
+    ("SetP4WaterRotatingmotor", "P4_WaterRotate", o_rotate4),
+    ("SetP1WaterElecValue1", "P1_WaterFire", o_water1),
+    ("SetP2WaterElecValue1", "P2_WaterFire", o_water2),
+    ("SetP3WaterElecValue1", "P3_WaterFire", o_water3),
+    ("SetP4WaterElecValue1", "P4_WaterFire", o_water4),
+    ("SetP1WaterElecValue2", "P1_BigGun", o_big1),
+    ("SetP2WaterElecValue2", "P2_BigGun", o_big2),
+    ("SetP3WaterElecValue2", "P3_BigGun", o_big3),
+    ("SetP4WaterElecValue2", "P4_BigGun", o_big4),
+    ("SetLightbelt1", "LmpLightBelt1", o_belt1),
+    ("SetLightbelt2", "LmpLightBelt2", o_belt2),
+    ("SetLightbelt3", "LmpLightBelt3", o_belt3),
+    ("SetLightbelt4", "LmpLightBelt4", o_belt4),
+    ("SetWaterpump", "WaterPump", o_pump),
+    ("SetWaterAtomizer", "Atomizer", o_atomizer),
+    ("SetWaterAtomizer2", "Atomizer2", o_atomizer2),
+    ("SetAtomizerOpen", "AtomizerOpen", o_atomizer_open),
+    ("SetOpenLed", "LmpLed", o_led),
+);
+
 /// The board's functions.
 fn resolve(name: &str, module: &str) -> Option<usize> {
     if module != "gameport.dll" {
@@ -206,6 +260,9 @@ fn resolve(name: &str, module: &str) -> Option<usize> {
             } else {
                 None
             };
+            if let Some((_, _, out)) = OUTPUTS.iter().find(|(n, _, _)| *n == name) {
+                return f(*out as usize);
+            }
             match (kind, player) {
                 (Some(kind), Some(p)) => player_function(kind, p),
                 // the outputs, the board's state (no error, no empty ticket hopper, water fine)

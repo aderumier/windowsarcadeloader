@@ -66,6 +66,8 @@ OUTPUTS = {
     "mech-dinosaur": "lamps, ball / water guns, seat shaker",
     "wisdom-zombies": "lamps, water guns, gun motors, seat shaker (not seen)",
     "top-gun-2": "lamps (not seen)",
+    "mech-tornado": "lamps, water guns, motors, shaker, pump",
+    "fire-hero": "lamps, water guns, gun motors, chair shaker, pump",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",

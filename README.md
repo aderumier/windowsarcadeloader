@@ -260,7 +260,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `lets-go-safari` | Let's Go Safari | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `sonic-dash-extreme` | Sonic Dash Extreme | seganu | headless tests (2026-11-08): attract, coins, start, character select, play, tickets dispensed during play and at the end, back to attract, test menu and back; not user-verified |  | lamps (JVS) | not in the test |  |
-| `luigis-mansion-arcade` | Luigi's Mansion Arcade | seganu | user (2026-11-08): "game is working perfect" (aim, start, play); headless tests: attract, coins, service, free play from a blank backup |  | lamps (JVS) | not in the test |  |
+| `luigis-mansion-arcade` | Luigi's Mansion Arcade | seganu | user (2026-11-08): "game is working perfect" (aim, start, play); headless tests: attract, coins, service, free play from a blank backup; user (2026-11-23): stage 3 plays (its stage select door, locked in this build, opened by a game patch) |  | lamps (JVS) | not in the test |  |
 | `project-diva-arcade-future-tone` | Hatsune Miku Project DIVA Arcade Future Tone | seganu | user (2026-11-16): "game working 100%" (picture, sound, play); headless tests: startup checks, attract (3D PVs), touch, new Aime card registration, a song played to its result (level up saved), next stage |  | lamps (JVS) | not in the test |  |
 | `mario-and-sonic-at-rio-2016-olympic-games` | Mario & Sonic at the Rio 2016 Olympic Games | alls | headless tests (2026-11-08): power-on test, attract, coins, mode / character / event select, 100m race to the result, test menu input test; user (2026-11-08): Aime name registration, two card sessions, the save kept |  | lamps (IO4) | not in the test |  |
 | `initial-d-arcade-stage-zero` | Initial D ARCADE STAGE Zero | alls | user 100% (2026-11-10), English option user OK; headless tests: attract, guest story race, new Aime player (registration, team, car, race, saved), returning player loaded, test menu network test |  | lamps (IO4) | not in the test |  |
@@ -341,8 +341,8 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun |  | lamps, recoil, ammo, prize doors, tickets | not in the test |  |
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun |  | lamps, recoil, prize doors, tickets | not in the test |  |
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns |  |  | not in the test |  |
-| `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns |  |  | not in the test |  |
-| `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons |  |  | not in the test |  |
+| `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns |  | lamps, water guns, motors, shaker, pump | not in the test |  |
+| `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons |  | lamps, water guns, gun motors, chair shaker, pump | not in the test |  |
 | `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns |  |  | not in the test |  |
 | `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | user 100%, 1 gun |  |  | not in the test |  |
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons |  |  | not in the test |  |

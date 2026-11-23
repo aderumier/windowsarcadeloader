@@ -9207,6 +9207,9 @@ else the profile's file name (`sega-racing-classic`).
   `P1_BallShooter`), Wisdom Zombies (0-3 / 4-6 the small / big water guns, 10-13 the gun
   motors), Top Gun 2 (11 the cabinet lamp, 17 / 18 the guns' lamps); a blinking pair a start
   lamp.
+* The gameport board games (`gameport.rs`: Mech Tornado, Fire Hero): its `Set<name>(dll,
+  value)` outputs, each to a name (start and player lamps, light belts, gun motors, chair
+  shakers, water guns and rotating motors, pump, atomizers).
 * The dumps carrying DemulShooter's own BepInEx plugin (Quick Shot, DCOP): its output packets
   (`u32` length, header 2, the payload) decoded by `demul.rs` (`dcop.rs`'s plugin client too),
   the game told by the payload's size: 13 bytes Top Gun's plugin (`ToByteArray`: playing,
@@ -9285,7 +9288,8 @@ else the profile's file name (`sega-racing-classic`).
   Transformers: Shadows Rising (recoil, damage, start and gun lamps); Top Gun (a recoil a shot,
   screen side and key lights); Quick Shot (recoil, ammo, credits, the lights, doors) and DCOP
   (recoil, gun light, ammo, life, red light) from their plugins' packets; Mech Dinosaur (its
-  ball gun motor while shooting, bonus weapon lamps, seat shaker). Not seen: Wisdom Zombies
+  ball gun motor while shooting, bonus weapon lamps, seat shaker); Mech Tornado and Fire Hero
+  (water guns, motors, shakers, lamps, pump). Not seen: Wisdom Zombies
   (only its bonus lamp in the attract), Top Gun 2 (its board never opened in the headless run).
 
 ## 7. Adding a system
