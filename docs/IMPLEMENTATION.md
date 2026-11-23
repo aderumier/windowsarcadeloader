@@ -9264,6 +9264,10 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Action Deka (`deka.rs`, `gdki.rs`): the EZ-USB lamp function (`0x482b20`: bits 24 / 25 the
+  start lamps), the GDKI hand controllers' outputs (device 7 + 2 × player + hand, channels 0 /
+  1 / 2 the LED's red, green, blue, 5 the vibration, levels 0..255), named after the operator
+  menu's lamp and mechanism checks.
 * After Dark 1.1 / 2.3 (`afterdark.rs`): the PC's serial frames' byte 2: bit 0 / 1 the guns'
   vibration on each shot (`P1_GunMotor`, the custom recoil as it starts), 0x04 / 0x08 the
   start lamps; the byte as `RawLamps` (0x20, 0x40 unknown).
@@ -9402,6 +9406,7 @@ else the profile's file name (`sega-racing-classic`).
   Shooter (its dimmed lamps, the cannon's colours, credits); Far Cry Paradise Lost (413 recoil
   pulses, 30 hits, life, kill digits); Wicked Tuna (rod shaker, rod and reel resistance, hook
   button lamp, cabinet shake); After Dark 2.3 (65 gun vibrations and recoils, start lamps);
+  Action Deka (the hands' LEDs and vibration, start lamps);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the

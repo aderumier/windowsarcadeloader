@@ -49,9 +49,22 @@ pub extern "C" fn ac_io_gdki_get_control_status_buffer(device: u32, out: *mut u8
     unsafe { std::ptr::copy_nonoverlapping(buf.as_ptr(), out, buf.len()) };
 }
 
-/// The controllers' outputs (channels 0, 1, 2, 5: lamps, vibration): no device.
+/// The controllers' outputs, to the network outputs: device 7 + 2 × player + hand (left, right),
+/// channels 0, 1, 2 its LED's red, green, blue, 5 its vibration (the operator menu's lamp and
+/// mechanism checks), levels 0..255 (`P1_LmpLeft_R`, ... `P1_LeftVibration`).
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_gdki_set_output_level(_device: u32, _channel: u32, _level: u8) {}
+pub extern "C" fn ac_io_gdki_set_output_level(device: u32, channel: u32, level: u8) {
+    let Some(index) = device.checked_sub(FIRST).filter(|i| *i < CONTROLLERS) else { return };
+    let (player, hand) = (index / 2 + 1, ["Left", "Right"][index as usize % 2]);
+    let name = match channel {
+        0 => format!("P{player}_Lmp{hand}_R"),
+        1 => format!("P{player}_Lmp{hand}_G"),
+        2 => format!("P{player}_Lmp{hand}_B"),
+        5 => format!("P{player}_{hand}Vibration"),
+        _ => return,
+    };
+    wal_payload_common::outputs::set(&name, level as i32);
+}
 
 // The system plug, on the card reader.
 

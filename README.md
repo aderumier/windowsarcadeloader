@@ -333,7 +333,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `rainbow-bombergirl` | Rainbow Bomber Girl | konami | works (user: 100%) |  |  | not in the test |  |
 | `castlevania-the-arcade` | Castlevania: The Arcade | konami | works (user: 100%), Little Witch unlocked; attract movie black |  | lamps, damage, life, ammo | not in the test |  |
 | `silent-hill-the-arcade` | Silent Hill: The Arcade | konami | works (user: 100%) |  | lamps, recoil | not in the test |  |
-| `action-deka` | Action Deka | konami | works (user: 100%) |  |  | not in the test |  |
+| `action-deka` | Action Deka | konami | works (user: 100%) |  | lamps, hand controllers' RGB LEDs and vibration | not in the test |  |
 | `hyper-sports-2011-remake` | Hyper Sports 2011 Remake | konami | works (user: 100%) |  |  | not in the test |  |
 | `thrill-drive-4` | Thrill Drive 4: Crazy Streets | konami | works (user: 100%) |  |  | not in the test |  |
 | `chase-chase-jokers` | Chase Chase Jokers | konami | works (user: 100%) |  |  | not in the test |  |

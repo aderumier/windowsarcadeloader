@@ -10,6 +10,7 @@
 //! - Switches (`usbPadRead`, active high): TEST 0x8000, SERVICE 0x4000, P1 START 0x800,
 //!   P2 START 0x400 (the facade's switches 0-3; switch 4 is 0x2000).
 //! - Coins: the board's 16-bit coin counter, the game counts its steps.
+//! - Lamps (`0x482b20`): the start lamps, bits 24 / 25: the network outputs.
 //! - The tactile sound board (`data/tacsound/*.tac` uploaded, then played per controller): no
 //!   device.
 //!
@@ -109,6 +110,14 @@ extern "C" fn usb_open(_mode: u32) -> i32 {
 
 extern "C" fn usb_done() -> i32 {
     DONE
+}
+
+/// The cabinet's lamps (`0x482b20`, its one argument): bit 24 player 1's start lamp, bit 25
+/// player 2's (the operator menu's lamp check's P1 / P2 START), to the network outputs.
+extern "C" fn usb_lamp(bits: u32) -> i32 {
+    wal_payload_common::outputs::set("P1_LmpStart", (bits >> 24 & 1) as i32);
+    wal_payload_common::outputs::set("P2_LmpStart", (bits >> 25 & 1) as i32);
+    0
 }
 
 extern "C" fn usb_done1(_a: u32) -> i32 {
@@ -349,7 +358,7 @@ fn overrides() -> Vec<(usize, [u8; 6], usize)> {
         (0x482ac0, [0xa1, 0x04, 0x80, 0x89, 0x00, 0x8b], f(usb_yes as *const ())),
         (0x482ae0, [0xa1, 0x08, 0x80, 0x89, 0x00, 0x8b], f(usb_pad_read as *const ())),
         (0x482b00, [0xa1, 0x08, 0x80, 0x89, 0x00, 0x8b], f(usb_done1 as *const ())),
-        (0x482b20, [0xa1, 0x08, 0x80, 0x89, 0x00, 0x8b], f(usb_done1 as *const ())),
+        (0x482b20, [0xa1, 0x08, 0x80, 0x89, 0x00, 0x8b], f(usb_lamp as *const ())),
         (0x482b40, [0xa1, 0x08, 0x80, 0x89, 0x00, 0x8b], f(usb_done1 as *const ())),
         (0x482b60, [0x8b, 0x44, 0x24, 0x04, 0xe9, 0x37], f(usb_coin as *const ())),
         (0x482b70, [0x8b, 0x44, 0x24, 0x04, 0x8b, 0x0d], f(usb_done1 as *const ())),
