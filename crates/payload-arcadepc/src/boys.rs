@@ -8,8 +8,10 @@
 //!   byte: `1 << (n - 1)`), the frame count at 30, the sum's complement of the 31 bytes before at
 //!   31. Byte 1 the operator's keys (up 1, right 2, left / service coin 3, menu / down 4), byte 2
 //!   the coins (player n: bit 8 - n), byte 3 the triggers, byte 4 the start keys (same bits),
-//!   byte 10 the guns' lasers seen (`GunShot`, player n: bit 4 - n). The PC's reports (lamps,
-//!   motors, tickets, the lasers' timing) are ignored.
+//!   byte 10 the guns' lasers seen (`GunShot`, player n: bit 4 - n). The PC's reports (its
+//!   `Write` places in the same file): bytes 12..15 each gun's shaker motor (`MotorShakeGun<n>`:
+//!   `P1_GunMotor`, and `P1_CtmRecoil` while it runs), to the network outputs; the rest (lamps,
+//!   tickets, the lasers' timing) ignored.
 //! - **Gun camera** (`JHCap2.dll`): a camera filming the screen, each gun's laser spot found in
 //!   its pictures when the board says that gun's laser is on (`GunShot`). The camera answers
 //!   black 320x240 pictures (no camera error); the game's tracking of a laser seen
@@ -106,7 +108,18 @@ extern "C" fn hid_open(vendor: u16, product: u16, _serial: *const c_void) -> *co
 
 extern "C" fn hid_close(_device: *const c_void) {}
 
-extern "C" fn hid_write(_device: *const c_void, _data: *const u8, length: i32) -> i32 {
+extern "C" fn hid_write(_device: *const c_void, data: *const u8, length: i32) -> i32 {
+    if !data.is_null() && length > 0 && wal_payload_common::outputs::enabled() {
+        let w = unsafe { std::slice::from_raw_parts(data, length as usize) };
+        // a report id first when the write is one byte longer than a report
+        let r = if w.len() > REPORT { &w[1..] } else { w };
+        for (p, at) in (12..16).enumerate() {
+            if let Some(v) = r.get(at) {
+                wal_payload_common::outputs::set(["P1_GunMotor", "P2_GunMotor", "P3_GunMotor", "P4_GunMotor"][p], *v as i32);
+                wal_payload_common::outputs::set(["P1_CtmRecoil", "P2_CtmRecoil", "P3_CtmRecoil", "P4_CtmRecoil"][p], (*v != 0) as i32);
+            }
+        }
+    }
     length
 }
 

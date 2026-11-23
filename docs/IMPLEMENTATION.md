@@ -9227,6 +9227,9 @@ else the profile's file name (`sega-racing-classic`).
 * The gameport board games (`gameport.rs`: Mech Tornado, Fire Hero): its `Set<name>(dll,
   value)` outputs, each to a name (start and player lamps, light belts, gun motors, chair
   shakers, water guns and rotating motors, pump, atomizers).
+* Skull of Shadow (`boys.rs`): the PC's HID reports (a report id, then the `TopUart.ini`
+  `Write` places): bytes 12..15 each gun's shaker motor (`MotorShakeGun<n>`: `P1_GunMotor`,
+  `P1_CtmRecoil` while it runs).
 * Mars Sortie (`marssortie.rs`): `MRCQ.Hardware.SetOutputKey(name, on)` / `GetOutputKey(name)`
   replaced (the state kept by the payload: the absent board's bytes were all it fed): `fire01`..
   `fire04` each station's recoil, `start01`..`04` its start lamp, `flashLight`, the rest by name.
@@ -9310,7 +9313,7 @@ else the profile's file name (`sega-racing-classic`).
   (recoil, gun light, ammo, life, red light) from their plugins' packets; Mech Dinosaur (its
   ball gun motor while shooting, bonus weapon lamps, seat shaker); Mech Tornado and Fire Hero
   (water guns, motors, shakers, lamps, pump); Mars Sortie (213 recoil pulses, start lamps,
-  lasers). Not seen: Wisdom Zombies
+  lasers); Skull of Shadow (its gun motor a shot, 89). Not seen: Wisdom Zombies
   (only its bonus lamp in the attract), Top Gun 2 (its board never opened in the headless run).
 
 ## 7. Adding a system

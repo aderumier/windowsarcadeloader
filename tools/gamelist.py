@@ -69,6 +69,7 @@ OUTPUTS = {
     "mech-tornado": "lamps, water guns, motors, shaker, pump",
     "fire-hero": "lamps, water guns, gun motors, chair shaker, pump",
     "mars-sortie": "start lamps, recoil, flashlight, lasers",
+    "skull-of-shadow": "gun motors (recoil)",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",
