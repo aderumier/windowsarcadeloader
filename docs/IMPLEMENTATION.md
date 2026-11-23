@@ -6725,11 +6725,15 @@ is the `.windowsloader`. Board `quakearcade` (`quakearcade.rs`), loaded at the e
   second full-screen window ("Quake AVI") created visible over the game's: on the cabinet the
   3dfx card drew the game on its own output. The payload creates it hidden, shows it on top
   from `MCI_PLAY` to `MCI_STOP` / `MCI_CLOSE`, and fits each movie opened to it (`MCI_PUT` of
-  MCIAVI's window and destination: it drew 640x480 in the corner).
+  MCIAVI's window, and its destination the window's centered `WAL_D3D9_ASPECT` rectangle: it
+  drew 640x480 in the corner).
 - **Picture.** The 640x480 full-screen mode is not set (`WAL_NO_MODE_CHANGE`): a borderless
-  window of the screen's centered 4:3 rectangle, the lower left 640x480 corner scaled to it
-  (`WAL_GL_CORNER`, as SiN). A larger mode (`-width 1440 -height 1080`) stops at a
-  1080-texel texture ("GL_LoadTexture: too big"); `-window` mode errors at start.
+  screen-sized window, the lower left 640x480 corner scaled to its centered 4:3 rectangle
+  (`WAL_GL_CORNER`, as SiN). A window of the 4:3 rectangle alone (2026-11-23) was pushed under
+  GNOME's top bar, the HUD cut at the bottom. `-fullsbar`: GLQuake draws its status bar only
+  when it changes and keeps it in the back buffers, cleared by the scaling (the HUD only showed
+  when shooting); with it the bar is drawn each frame. A larger mode (`-width 1440 -height
+  1080`) stops at a 1080-texel texture ("GL_LoadTexture: too big"); `-window` mode errors at start.
 - **Free play** (the common `WAL_FREEPLAY`, on by default): the operator's free time
   (`a_freetime`, a toggle, 0x47e718: "Free Play" in place of the credits), added to the
   command line; the attract then skips its movies. `a_freeplay` (the other operator key) only

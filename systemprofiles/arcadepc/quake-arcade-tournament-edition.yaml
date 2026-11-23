@@ -16,19 +16,22 @@ dll_overrides:
 
 # -nogci: the GCI board off (else OUT OF ORDER); -basedir .: the run directory's path is too
 # long for the game's map path buffer (64 bytes: "<basedir>/id1/maps/<map>.bsp" overflowed it
-# and crashed the first map); -nojoy -noipx as the cabinet's glquake.bat
-args: [-nojoy, -noipx, -nogci, -basedir, .]
+# and crashed the first map); -fullsbar: the status bar drawn each frame (GLQuake draws it only
+# when it changes and keeps it in the back buffers: the payload's scaling clears them, the HUD
+# only showed when shooting); -nojoy -noipx as the cabinet's glquake.bat
+args: [-nojoy, -noipx, -nogci, -basedir, ., -fullsbar]
 
 # the 3dfx MiniGL (Glide): Wine's OpenGL instead
 hide: [OPENGL32.DLL]
 
 env:
   WAL_ARCADEPC_BOARD: quakearcade
-  # the game's 640x480 full-screen mode not set: a borderless window of the screen's centered
-  # 4:3 rectangle, the 640x480 picture (its lower left corner) scaled to it
+  # the game's 640x480 full-screen mode not set: a borderless screen-sized window (a smaller
+  # one is pushed under GNOME's top bar, the HUD cut), the 640x480 picture (its lower left
+  # corner) and the movies scaled to its centered 4:3 rectangle
   WAL_NO_MODE_CHANGE: "1"
   WAL_WINDOW_POPUP: "1"
-  WAL_WINDOW_SIZE: aspect
+  WAL_WINDOW_SIZE: screen
   WAL_D3D9_ASPECT: "4:3"
   WAL_GL_CORNER: 640x480
   WAL_BEZEL: black

@@ -278,15 +278,23 @@ struct PutParms {
     rect: windows_sys::Win32::Foundation::RECT,
 }
 
-/// A movie opened (`device`): its picture and its window the movies' window's size (MCIAVI
-/// draws it at its own size, 640x480, in the window's corner).
+/// A movie opened (`device`): its window the movies' window's size, its picture that window's
+/// centered `WAL_D3D9_ASPECT` rectangle (the screen-sized window on the desktop), else all of it
+/// (MCIAVI draws it at its own size, 640x480, in the window's corner).
 unsafe fn fit_movie(f: MciSendCommandA, device: u32, movies: HWND) {
     let mut r = windows_sys::Win32::Foundation::RECT { left: 0, top: 0, right: 0, bottom: 0 };
     if unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetClientRect(movies, &mut r) } == 0 || r.right <= 0 || r.bottom <= 0 {
         return;
     }
-    for what in [MCI_DGV_PUT_WINDOW, MCI_DGV_PUT_DESTINATION] {
-        let put = PutParms { callback: 0, rect: r };
+    let mut picture = r;
+    if let Some((aw, ah)) = wal_payload_common::screenshot::d3d9_aspect() {
+        let (cw, ch, aw, ah) = (r.right as i64, r.bottom as i64, aw as i64, ah as i64);
+        let (w, h) = if cw * ah > ch * aw { (ch * aw / ah, ch) } else { (cw, cw * ah / aw) };
+        // the rectangle's right and bottom are its width and height
+        picture = windows_sys::Win32::Foundation::RECT { left: ((cw - w) / 2) as i32, top: ((ch - h) / 2) as i32, right: w as i32, bottom: h as i32 };
+    }
+    for (what, rect) in [(MCI_DGV_PUT_WINDOW, r), (MCI_DGV_PUT_DESTINATION, picture)] {
+        let put = PutParms { callback: 0, rect };
         unsafe { f(device, MCI_PUT, what | MCI_DGV_RECT, &put as *const PutParms as usize) };
     }
 }
