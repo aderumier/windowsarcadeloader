@@ -70,6 +70,8 @@ OUTPUTS = {
     "fire-hero": "lamps, water guns, gun motors, chair shaker, pump",
     "mars-sortie": "start lamps, recoil, flashlight, lasers",
     "skull-of-shadow": "gun motors (recoil)",
+    "tomb-raider": "start lamps, recoil motors",
+    "rabbids-hollywood": "start lamps, recoil motors",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",

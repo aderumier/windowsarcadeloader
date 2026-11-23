@@ -368,8 +368,8 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `big-foot-crush` | Big Foot Crush | unis | user 100% (2026-11-06) |  |  | not in the test |  |
 | `veggie-blast` | Veggie Blast | unis | headless (2026-11-18) |  |  | not in the test |  |
 | `skylanders-cloud-patrol` | Skylanders Cloud Patrol | adrenaline | user 100% (2026-11-02), guns as touches |  |  | not in the test |  |
-| `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) |  |  | not in the test |  |
-| `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved |  |  | not in the test |  |
+| `rabbids-hollywood` | Rabbids Hollywood | adrenaline | user 100% (2026-11-02), 4 guns (Sixense trackers emulated) |  | start lamps, recoil motors | not in the test |  |
+| `tomb-raider` | Tomb Raider | adrenaline | user 100% (2026-11-03), 4 guns (Sixense trackers emulated), operator settings saved |  | start lamps, recoil motors | not in the test |  |
 | `drakon-realm-keepers` | Drakon: Realm Keepers | adrenaline | user 100% (2026-11-03), 2 turrets |  |  | not in the test |  |
 | `rampage` | Rampage | adrenaline | user 100% (2026-11-02), 3 players |  |  | not in the test |  |
 | `hot-wheels-kings-of-the-road` | Hot Wheels: Kings of the Road | adrenaline | works headless (2026-11-02), 4 of 6 seats |  |  | not in the test |  |

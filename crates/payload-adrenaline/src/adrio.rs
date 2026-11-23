@@ -212,6 +212,46 @@ unsafe fn write<T>(p: *mut T, v: T) {
 }
 
 /// The functions without results: no error.
+/// The guns' motors (`KaboomOutput.MotorPwmId`: 0..3 each player's big one, 4..7 its small one):
+/// `SetMotorPwmDutyCycle(motor, duty, ms)` a recoil (`P1_GunRecoil` for the big one,
+/// `P1_GunMotor` the small, `P1_CtmRecoil` either) for its duration.
+const BIG: [&str; 4] = ["P1_GunRecoil", "P2_GunRecoil", "P3_GunRecoil", "P4_GunRecoil"];
+const SMALL: [&str; 4] = ["P1_GunMotor", "P2_GunMotor", "P3_GunMotor", "P4_GunMotor"];
+const CTM: [&str; 4] = ["P1_CtmRecoil", "P2_CtmRecoil", "P3_CtmRecoil", "P4_CtmRecoil"];
+
+extern "C" fn set_motor_pwm(motor: u32, duty: u32, ms: u32) -> u8 {
+    let (motor, ms) = ((motor & 0xFF) as usize, (ms & 0xFFFF).clamp(20, 1000) as u64);
+    if motor < 8 && duty & 0xFF != 0 {
+        let p = motor % 4;
+        wal_payload_common::outputs::pulse(if motor < 4 { BIG[p] } else { SMALL[p] }, ms);
+        wal_payload_common::outputs::pulse(CTM[p], ms);
+    }
+    NO_ERROR
+}
+
+extern "C" fn stop_motor_pwm(_motor: u32) -> u8 {
+    NO_ERROR
+}
+
+/// The start buttons' lights (`AdrioPlayerButtonLightTy` by value: bit n player n + 1).
+static BUTTON_LIGHTS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+fn button_lights(bits: u32) {
+    for p in 0..4 {
+        wal_payload_common::outputs::set(["P1_LmpStart", "P2_LmpStart", "P3_LmpStart", "P4_LmpStart"][p], (bits >> p & 1) as i32);
+    }
+}
+
+extern "C" fn set_button_light(lights: u32) -> u8 {
+    button_lights(BUTTON_LIGHTS.fetch_or(lights & 0xFFFF, Ordering::Relaxed) | (lights & 0xFFFF));
+    NO_ERROR
+}
+
+extern "C" fn clr_button_light(lights: u32) -> u8 {
+    button_lights(BUTTON_LIGHTS.fetch_and(!(lights & 0xFFFF), Ordering::Relaxed) & !(lights & 0xFFFF));
+    NO_ERROR
+}
+
 extern "C" fn ok() -> u8 {
     NO_ERROR
 }
@@ -338,9 +378,13 @@ pub fn resolve(name: &str) -> Option<usize> {
         "GetEventMaskAdrio5" => get_event_mask as *const () as usize,
         "GetPlayerButtonStatus" => get_player_button_status as *const () as usize,
         "GetMotorPwmDutyCycle" => get_motor_pwm as *const () as usize,
-        // reset, event masks, lights, coin outputs, motors
-        "ResetTarget" | "SetEventMaskAdrio5" | "ClrEventMaskAdrio5" | "ResetPlayerButtonCount" | "SetPlayerButtonLight" | "ClrPlayerButtonLight" | "SetCoinOutput"
-        | "ClrCoinOutput" | "SetMotorPwmDutyCycle" | "StopMotorPwm" => ok as *const () as usize,
+        // the guns' motors and the start buttons' lights: the network outputs
+        "SetMotorPwmDutyCycle" => set_motor_pwm as *const () as usize,
+        "StopMotorPwm" => stop_motor_pwm as *const () as usize,
+        "SetPlayerButtonLight" => set_button_light as *const () as usize,
+        "ClrPlayerButtonLight" => clr_button_light as *const () as usize,
+        // reset, event masks, coin outputs
+        "ResetTarget" | "SetEventMaskAdrio5" | "ClrEventMaskAdrio5" | "ResetPlayerButtonCount" | "SetCoinOutput" | "ClrCoinOutput" => ok as *const () as usize,
         _ => return None,
     };
     Some(f)
