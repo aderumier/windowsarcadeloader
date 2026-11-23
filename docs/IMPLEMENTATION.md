@@ -9238,7 +9238,9 @@ else the profile's file name (`sega-racing-classic`).
   duration), `Set` / `ClrPlayerButtonLight` (the start lights' bit mask: `P1_LmpStart`...).
 * Unity games read in their managed state (`mono::array_items`, the static roots the U-Shoot
   plugins read): Wild West Shoot Out (`wws.rs`: `GameData.playerData`, while `playing` a recoil
-  each `shootNum` increase, `P1_Damaged` when `life` goes down, the coins).
+  each `shootNum` increase, `P1_Damaged` when `life` goes down, the coins), Dino Invasion
+  (`shunxiang.rs`: `game_players.my_static_game_players.mysubs`, an `ArrayList` of
+  `game_player`: while `my_is_user` a recoil each time `mybullet_count` goes down, the coins).
 * The UNIS gun cabinets (`usbplugins.rs`: Raccoon Rampage, Elevator Action Invasion):
   `UsbPluginsDll.dll`'s `BIND_SetGunShock(player, on)` (player from 0: `P1_GunRecoil`,
   `P1_CtmRecoil`) and `BIND_SetGunShakeVal(player, level)` (`P1_GunMotor`) wrapped, sent, then
@@ -9334,7 +9336,8 @@ else the profile's file name (`sega-racing-classic`).
   (water guns, motors, shakers, lamps, pump); Mars Sortie (213 recoil pulses, start lamps,
   lasers); Skull of Shadow (its gun motor a shot, 89); Tomb Raider and Rabbids Hollywood (a gun
   motor pulse a shot, the start lights); Point Blank X (139 recoil pulses, start and gun LEDs);
-  Raccoon Rampage (its recoils); Wild West Shoot Out (43 recoil pulses, damage, life, credits).
+  Raccoon Rampage (its recoils); Wild West Shoot Out (43 recoil pulses, damage, life, credits);
+  Dino Invasion (a recoil a shot, its ammo).
   Not seen: Elevator Action Invasion (its shakers at 0 in the
   attract). Not seen: Wisdom Zombies
   (only its bonus lamp in the attract), Top Gun 2 (its board never opened in the headless run).

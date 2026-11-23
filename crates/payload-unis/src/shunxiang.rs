@@ -290,9 +290,59 @@ fn follow_active_board() {
             .count();
         }
         log!("shunxiang: the scene's gun hardware reads the active board ({replaced}/8)");
+        outputs(m, image);
         return;
     }
     log!("shunxiang: the gun hardware's class not found");
+}
+
+/// Dino Invasion's outputs, read in its managed state (the U-Shoot plugin's roots):
+/// `game_players.my_static_game_players.mysubs` (its `game_control_bridge`'s `ArrayList` of
+/// `game_player`): while
+/// `my_is_user`, a recoil each time `mybullet_count` goes down (`P1_CtmRecoil`), `P1_Ammo`; the
+/// coins `game_system_control_insert_currency.my_coin_count_s` (`Credits`, player 1's).
+fn outputs(m: &'static wal_payload_common::mono::Mono, image: wal_payload_common::mono::P) {
+    use wal_payload_common::mono::{array_items, read};
+    use wal_payload_common::outputs::{Falling, poll, set};
+    if !wal_payload_common::outputs::enabled() {
+        return;
+    }
+    let (players_class, player) = (m.class(image, "", "game_players"), m.class(image, "", "game_player"));
+    let currency = m.class(image, "", "game_system_control_insert_currency");
+    let slot = m.static_addr(players_class, m.field(players_class, "my_static_game_players")) as usize;
+    let coins = m.static_addr(currency, m.field(currency, "my_coin_count_s")) as usize;
+    let (subs, bullets, user) = (m.offset(m.field(players_class, "mysubs")), m.offset(m.field(player, "mybullet_count")), m.offset(m.field(player, "my_is_user")));
+    if slot == 0 || subs == 0 || bullets == 0 {
+        log!("shunxiang: no game_players (not Dino Invasion), no outputs");
+        return;
+    }
+    // the ArrayList's fields, from its class (the first list read)
+    let mut list_fields: Option<(usize, usize)> = None;
+    let mut recoil: [Falling; 4] = Default::default();
+    poll("dino invasion", 16, move || {
+        let players = unsafe { read::<*const u8>(slot as *const u8, 0) };
+        let list = if players.is_null() { std::ptr::null() } else { unsafe { read::<*const u8>(players, subs) } };
+        if list.is_null() {
+            return;
+        }
+        let (items, size) = *list_fields.get_or_insert_with(|| {
+            let class = m.class_of(list as *mut _);
+            (m.offset(m.field(class, "_items")), m.offset(m.field(class, "_size")))
+        });
+        let n = unsafe { read::<i32>(list, size) }.clamp(0, 4) as usize;
+        let all = unsafe { array_items(read::<*const u8>(list, items)) };
+        for (p, d) in all.iter().take(n).enumerate() {
+            let a = (!d.is_null() && unsafe { read::<u8>(*d, user) } != 0).then(|| unsafe { read::<i32>(*d, bullets) } as i64);
+            recoil[p].update(a, ["P1_CtmRecoil", "P2_CtmRecoil", "P3_CtmRecoil", "P4_CtmRecoil"][p]);
+            set(["P1_Ammo", "P2_Ammo", "P3_Ammo", "P4_Ammo"][p], a.unwrap_or(0) as i32);
+        }
+        if coins != 0 {
+            let array = unsafe { read::<*const u8>(coins as *const u8, 0) };
+            if !array.is_null() {
+                set("Credits", unsafe { read::<i32>(array, 4 * size_of::<usize>()) });
+            }
+        }
+    });
 }
 
 pub fn init() {
