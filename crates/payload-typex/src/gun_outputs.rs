@@ -18,9 +18,15 @@
 //! * Elevator Action Death Parade: outputs at +0x204EBB/BC/BE, recoil at +0x3ED23 (the call of
 //!   `0xC56E0`), damage at +0x6E29A, the player in edx; ammo and life in the players' records.
 //! * Music GunGun! 2 (1.01): outputs at +0x2BC311/12.
+//! * Mobile Suit Gundam Spirits of Zeon (1.01, the patched I/O build): start lamps +0x26FA49 /
+//!   +0x26FA4B bit 7, gun motors +0x26FB1C / +0x26FB20; the gun rumble calls (`0xD0B40`, the
+//!   player its first argument) of a gun's and a cannon's shot (+0xA60FF, +0xA7649: recoil), of
+//!   a hit and three others (+0x9B06B, +0xA70F3, +0xE19CA, +0xE1A31: damage); the weapon's ammo
+//!   ([esi+0x54]: player +0xC0, weapon +8, its ammo +0x2C + 4 × weapon) at +0xA7BA3, the life
+//!   ([esi+0x1C] player, +0x4C) at +0x99964; while +0x26FB9C / +0x26FB9D is 1.
 
 use wal_payload_common::log;
-use wal_payload_common::outputs::hook::{Flags, Player, player_flag};
+use wal_payload_common::outputs::hook::{Flags, Player, Slots, player_flag, stub};
 use wal_payload_common::outputs::{mem, poll_build, pulse, set};
 
 /// Bit `bit` of the byte at `addr`.
@@ -35,6 +41,27 @@ fn flag(name: &str, site: usize, original: &[u8], reg: u8, skip_unless_zero: Opt
         log!("gun outputs: {name} at {site:#x}: another build, not hooked");
     }
     f
+}
+
+/// A stub of the game's code (`code` given its slots' address), logged when the build differs.
+fn code(name: &str, site: usize, original: &[u8], code: impl FnOnce(u32) -> Vec<u8>) -> Option<Slots> {
+    let s = unsafe { stub(site, original, |slots| code(slots as u32)) };
+    if s.is_none() {
+        log!("gun outputs: {name} at {site:#x}: another build, not hooked");
+    }
+    s
+}
+
+/// A stub before a call whose first argument (`[esp]`) is the player (0 or 1): its flag.
+fn call_player_flag(name: &str, site: usize, original: &[u8]) -> Option<Flags> {
+    code(name, site, original, |slots| {
+        // pushfd; push eax; mov eax, [esp+8]; cmp eax, 1; ja; mov dword [eax*4+slots], 1;
+        // pop eax; popfd
+        let mut c = vec![0x9C, 0x50, 0x8B, 0x44, 0x24, 0x08, 0x83, 0xF8, 0x01, 0x77, 0x0B, 0xC7, 0x04, 0x85];
+        c.extend_from_slice(&slots.to_le_bytes());
+        c.extend_from_slice(&[1, 0, 0, 0, 0x58, 0x9D]);
+        c
+    })
 }
 
 /// `P<n>_<what>` for players 1 to `players`, made once (static names).
@@ -145,6 +172,55 @@ pub(crate) fn init(game: &str) {
                 set("LmpMBtn", bit(o1, 6));
                 set("LmpRBtn", bit(o1, 4));
                 set("Credits", mem::u8(mem::u32(b + 0x2DBE08) as usize + 0x18) as i32);
+            });
+        }
+        "gundam-spirits-of-zeon" | "gundam-spirits-of-zeon-2p" => {
+            let call = |name: &str, rva: usize, rel: [u8; 4]| call_player_flag(name, b + rva, &[0xE8, rel[0], rel[1], rel[2], rel[3]]);
+            let recoil = [call("recoil", 0xA60FF, [0x3C, 0xAA, 0x02, 0x00]), call("recoil", 0xA7649, [0xF2, 0x94, 0x02, 0x00])];
+            let damage = [
+                call("damage", 0x9B06B, [0xD0, 0x5A, 0x03, 0x00]),
+                call("damage", 0xA70F3, [0x48, 0x9A, 0x02, 0x00]),
+                call("damage", 0xE19CA, [0x71, 0xF1, 0xFE, 0xFF]),
+                call("damage", 0xE1A31, [0x0A, 0xF1, 0xFE, 0xFF]),
+            ];
+            // pushfd; push eax; push ebx; push ecx; mov ecx, [esi+54]; test ecx, ecx; jz; mov eax,
+            // [ecx+C0] (player); cmp eax, 1; ja; mov ebx, [ecx+8] (weapon); cmp ebx, 2; ja; mov
+            // ebx, [ecx+ebx*4+2C]; mov [eax*4+slots], ebx; pop ecx; pop ebx; pop eax; popfd
+            let ammo = code("ammo", b + 0xA7BA3, &[0x8B, 0x4E, 0x54, 0x89, 0x42, 0x0C], |slots| {
+                let mut c = vec![0x9C, 0x50, 0x53, 0x51, 0x8B, 0x4E, 0x54, 0x85, 0xC9, 0x74, 0x1E, 0x8B, 0x81, 0xC0, 0, 0, 0];
+                c.extend_from_slice(&[0x83, 0xF8, 0x01, 0x77, 0x13, 0x8B, 0x59, 0x08, 0x83, 0xFB, 0x02, 0x77, 0x0B, 0x8B, 0x5C, 0x99, 0x2C, 0x89, 0x1C, 0x85]);
+                c.extend_from_slice(&slots.to_le_bytes());
+                c.extend_from_slice(&[0x59, 0x5B, 0x58, 0x9D]);
+                c
+            });
+            // pushfd; push eax; push ecx; mov ecx, [esi+1C] (player); cmp ecx, 1; ja; mov eax,
+            // [esi+4C]; mov [ecx*4+slots], eax; pop ecx; pop eax; popfd
+            let life = code("life", b + 0x99964, &[0x8B, 0x46, 0x4C, 0x8B, 0x4E, 0x50], |slots| {
+                let mut c = vec![0x9C, 0x50, 0x51, 0x8B, 0x4E, 0x1C, 0x83, 0xF9, 0x01, 0x77, 0x0A, 0x8B, 0x46, 0x4C, 0x89, 0x04, 0x8D];
+                c.extend_from_slice(&slots.to_le_bytes());
+                c.extend_from_slice(&[0x59, 0x58, 0x9D]);
+                c
+            });
+            let (r, d) = (names("CtmRecoil", 2), names("Damaged", 2));
+            poll_build("gundam spirits of zeon", 0x46F37AF8, 16, move || {
+                set("P1_LmpStart", bit(b + 0x26FA49, 7));
+                set("P2_LmpStart", bit(b + 0x26FA4B, 7));
+                set("P1_GunMotor", bit(b + 0x26FB1C, 0));
+                set("P2_GunMotor", bit(b + 0x26FB20, 0));
+                let playing = [mem::u8(b + 0x26FB9C) == 1, mem::u8(b + 0x26FB9D) == 1];
+                for (p, on) in playing.iter().enumerate() {
+                    // a flag of a player not playing: dropped
+                    let fired = recoil.iter().flatten().fold(false, |any, f| f.take(p) || any);
+                    let hit = damage.iter().flatten().fold(false, |any, f| f.take(p) || any);
+                    if *on && fired {
+                        set(r[p], 1);
+                    }
+                    if *on && hit {
+                        set(d[p], 1);
+                    }
+                    set(["P1_Ammo", "P2_Ammo"][p], if *on { ammo.map_or(0, |s| s.get(p) as i32) } else { 0 });
+                    set(["P1_Life", "P2_Life"][p], if *on { life.map_or(0, |s| s.get(p) as i32) } else { 0 });
+                }
             });
         }
         _ => {}

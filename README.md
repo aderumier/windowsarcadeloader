@@ -158,8 +158,8 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `kof-98-um-typex` | The King of Fighters '98 Ultimate Match | typex | works (user: perfect) |  | lamps (JVS) | not in the test |  |
 | `kof-sky-stage` | The King of Fighters Sky Stage | typex | works (user), rotated by the dump's ReShade |  | lamps (JVS) | not in the test |  |
 | `haunted-museum` | Haunted Museum | typex | works (user: 100%, guns, service/test, sound) |  | lamps, recoil, damage, life | not in the test |  |
-| `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video fixed with `WAL_D3D9_POW2`) |  | lamps (JVS) | not in the test |  |
-| `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: perfect, in gamescope, guns) |  | lamps (JVS) | not in the test |  |
+| `gundam-spirits-of-zeon` | Mobile Suit Gundam: Spirits of Zeon | typex | works (user: guns, inputs, coins; intro video fixed with `WAL_D3D9_POW2`) |  | lamps, recoil, gun motors, damage, ammo, life | not in the test |  |
+| `gundam-spirits-of-zeon-2p` | Mobile Suit Gundam: Spirits of Zeon (2 players) | typex | works (user: perfect, in gamescope, guns) |  | lamps, recoil, gun motors, damage, ammo, life | not in the test |  |
 | `haunted-museum-2` | Haunted Museum II | typex | works (user: guns, inputs, sound, video) |  | lamps, recoil | not in the test |  |
 | `k-on-after-school-rhythm-selection` | K-On! After School Rhythm Selection | typex | works (headless tests: boot, card purchase, 3 virtual cards scanned, song select, rhythm game) |  | lamps (JVS) | not in the test |  |
 | `king-of-fighters-maximum-impact-regulation-a` | King of Fighters Maximum Impact Regulation A | typex | works (user: 100%), intro movie |  | lamps (JVS) | not in the test |  |

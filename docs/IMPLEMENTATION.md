@@ -9264,6 +9264,10 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Mobile Suit Gundam Spirits of Zeon (typex `gun_outputs.rs`, the patched I/O 1.01 build both
+  dumps run): start lamps and gun motors in its output bytes; DemulShooter's caves as stubs:
+  the gun rumble calls (the player their first argument) of the shots (recoil) and of a hit
+  (damage), the weapon's ammo and the life copied where the game reads them.
 * Hot Shots Fire Rescue (`uaf.rs`): DemulShooter's code caves in the same `GameAssembly.dll`
   as stubs: `UAF_ControlManager.OpenLight` / `CloseLight` the lamps (2 blinking, 100 ms),
   the seat and cannon shakers, the water mist, `SgPlayer.PlayEffectHitted` the hits (while
@@ -9370,7 +9374,8 @@ else the profile's file name (`sega-racing-classic`).
   Raccoon Rampage (its recoils); Wild West Shoot Out (43 recoil pulses, damage, life, credits);
   Galaxy Rangers (about 100 recoil pulses, damage, life, credits); Happy Water Sprite II (its
   game LED, start LEDs, pump, water gun); Hot Shots Fire Rescue (blinking start lamps, gun
-  lamps, seat shake, big gun, a hit, credits);
+  lamps, seat shake, big gun, a hit, credits); Gundam Spirits of Zeon (17 recoil pulses, ammo,
+  life, gun motor);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the

@@ -33,6 +33,8 @@ PROFILES = ROOT / "systemprofiles"
 # seen": wired, not seen working in a test
 GUN = "lamps, recoil, damage, life, ammo"
 OUTPUTS = {
+    "gundam-spirits-of-zeon": "lamps, recoil, gun motors, damage, ammo, life",
+    "gundam-spirits-of-zeon-2p": "lamps, recoil, gun motors, damage, ammo, life",
     "lethal-enforcers-3": GUN,
     "lethal-enforcers-3-2p": GUN,
     "haunted-museum": GUN.replace(", ammo", ""),
