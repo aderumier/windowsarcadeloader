@@ -455,7 +455,12 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                 }
                 4
             }
-            0x32 | 0x34 => 2 + arg(1),
+            0x32 => {
+                // the lamps, to the network outputs (RawLamps..., lamp0...)
+                wal_payload_common::outputs::gpo_bytes(cmds.get(i + 2..(i + 2 + arg(1)).min(cmds.len())).unwrap_or(&[]));
+                2 + arg(1)
+            }
+            0x34 => 2 + arg(1),
             0x33 => 2 + 2 * arg(1),
             0x35 | 0x36 => 4,
             0x37 | 0x38 => 3,
@@ -568,7 +573,20 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                     cmds.len() - i
                 }
             },
-            0x78..=0x80 => 15,
+            0x78..=0x80 => {
+                // 0x78-0x7A: the cabinet's LEDs (Mario Kart Arcade GP DX), 9 RGB LEDs each, 4 bits
+                // a colour from the first byte's high nibble: to the network outputs as
+                // led<n>_r / _g / _b (0-15, n 0..26, the colours' order supposed)
+                if (0x78..=0x7A).contains(&cmds[i]) && cmds.len() >= i + 15 && wal_payload_common::outputs::enabled() {
+                    let first = (cmds[i] - 0x78) as usize * 9;
+                    for k in 0..27 {
+                        let b = cmds[i + 1 + k / 2];
+                        let v = if k % 2 == 1 { b & 0x0F } else { b >> 4 };
+                        wal_payload_common::outputs::set(&format!("led{}_{}", first + k / 3, ["r", "g", "b"][k % 3]), v as i32);
+                    }
+                }
+                15
+            }
             c => {
                 log!("jvs: unknown command {c:02x}");
                 *rep.last_mut().unwrap() = 0x02; // parameter error

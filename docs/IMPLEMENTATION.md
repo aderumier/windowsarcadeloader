@@ -9124,7 +9124,8 @@ else the profile's file name (`sega-racing-classic`).
   `lamp1`... (output n + 1, bit 7 - n % 8 of byte n / 8); `RawDrive` (each byte to a Sega drive
   board); the games' own (U-Shoot's names: `P1_GunRecoil`, `P1_LmpStart`...).
 * Sources: the common JVS board (`jvs_board.rs`, command `32`: every Type X, RingEdge, Nu and
-  ALLS JVS game), ALLS's IO4 board (general outputs, report 10 command 04), Wasteland Racers
+  ALLS JVS game) and the Namco JVS boards (`payload-namcoes3` / `payload-namcoes3x` `jvs.rs`:
+  Wangan Midnight, Mario Kart Arcade GP DX, Point Blank X...), ALLS's IO4 board (general outputs, report 10 command 04), Wasteland Racers
   2071's SDC2 `SetDigitalOut` (16 lamps), the RingEdge drive board's packets (`WAL_RINGEDGE_FFB`,
   Initial D, SEGA Racing Classic's Model 2 command byte), SiN's gun solenoid (`P1_GunRecoil`);
   Storm Racer G / Storm Rider's USB board (`UsbIO_SetLedLightStatu`: `lamp0`-`lamp5`;
@@ -9133,7 +9134,7 @@ else the profile's file name (`sega-racing-classic`).
   `MachineSideLight_`... 0/1, `SpeedLight`, `StopLight`, `BrakeLight` 0-3, `GameStateLight`,
   `StartLight`), GTI Club 3's HBHI lamps (`lamp0`-`lamp7`, brightness `bright0`-`bright7`
   0-31), the Namco JVS LED commands 0x78-0x7A (Mario Kart Arcade GP DX: `led0_r`..`led26_b`,
-  0-15; not sent by 1.18 in its attract, unverified); Night Hunter: After Dark Chapter II's
+  0-15, `payload-namcoes3x`; not sent by 1.18 in its attract, unverified); Night Hunter: After Dark Chapter II's
   qumo board report (`qumo.rs`, the game's `hid_for_qumo` layout: `P1_GunRecoil` /
   `P2_GunRecoil` 0-3, `P1_AirFront`, `P2_AirFront`, `P1_AirRear`, `P2_AirRear`, `Blower_Level`,
   `LmpEstop`, `P1_Lmp_R` / `_B`, `P2_Lmp_R` / `_B`); Men In Black's shell message 511
