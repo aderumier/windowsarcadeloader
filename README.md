@@ -241,7 +241,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `melty-blood-actress-again-current-code-re2` | Melty Blood Actress Again Current Code (RE2) | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `phantom-breaker-another-code` | Phantom Breaker: Another Code | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `ge-sen-love-plus-pengo` | Ge-Sen Love Plus Pengo! | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
-| `transformers-human-alliance` | Transformers: Human Alliance | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
+| `transformers-human-alliance` | Transformers: Human Alliance | ringedge | works (user: 100%) |  | lamps, recoil, gun motors, damage, life | not in the test |  |
 | `guilty-gear-xrd-rev2` | Guilty Gear Xrd Rev 2 | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `guilty-gear-xrd-sign` | Guilty Gear Xrd -SIGN- | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `guilty-gear-xrd-revelator` | Guilty Gear Xrd -REVELATOR- | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
@@ -297,7 +297,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `initial-d-arcade-stage-8` | Initial D Arcade Stage 8 Infinity | ringedge | works (full screen, cards, offline) |  | lamps (JVS), drive board | not in the test |  |
 | `pleasant-goat-and-big-big-wolf-happy-happy-playground` | Pleasant Goat and Big Big Wolf Happy Happy Playground | ringedge | title, attract and coins verified; gameplay, sound, payout not verified |  | lamps (JVS) | not in the test |  |
 | `puyo-puyo-quest-arcade` | Puyo Puyo!! Quest Arcade | ringedge | user 100% (2026-11-13, desktop); headless: coins, login, map |  | lamps (JVS) | not in the test |  |
-| `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) |  |  | not in the test |  |
+| `transformers-shadows-rising` | Transformers: Shadows Rising | segashell | works (user: 100%), test menu (user) |  | lamps, recoil, damage | not in the test |  |
 | `revolt` | Re-Volt (Tsunami cabinet) | tsunami | works (user: 100%): the cabinet's shell `Tsunami\TVTSHELL.EXE` (dump `games/arcadepc/revolt`), its console then `ReVolt.exe -coinop`; coin then the gas pedal starts a race; wheel, pedals and cabinet buttons through the TsuInput object (GetJoyInfo) |  |  | not in the test |  |
 | `storm-racer-g` | Storm Racer G | wahlap | works (user: 100%) | cabinet link | lamps, PWM lights | not in the test |  |
 | `storm-rider` | Storm Rider | wahlap | works (user: 100%) | cabinet link | lamps, PWM lights | not in the test |  |

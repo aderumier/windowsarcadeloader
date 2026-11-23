@@ -17,6 +17,7 @@
 //!   (`WAL_SEGASHELL_TEST_MENU`), which gets its own patches and inputs.
 
 mod board;
+mod gun_outputs;
 mod input;
 mod rapture3d;
 mod settings;
@@ -33,6 +34,7 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
         wal_payload_common::start("segashell");
+        gun_outputs::init();
         if testmenu::is_test_menu() {
             testmenu::init_shell();
             log!("segashell: test menu initialized");

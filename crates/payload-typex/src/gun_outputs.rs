@@ -20,7 +20,7 @@
 //! * Music GunGun! 2 (1.01): outputs at +0x2BC311/12.
 
 use wal_payload_common::log;
-use wal_payload_common::outputs::hook::{Flags, player_flag};
+use wal_payload_common::outputs::hook::{Flags, Player, player_flag};
 use wal_payload_common::outputs::{mem, poll_build, pulse, set};
 
 /// Bit `bit` of the byte at `addr`.
@@ -30,7 +30,7 @@ fn bit(addr: usize, bit: u8) -> i32 {
 
 /// A hook of the game's code, logged when the build differs.
 fn flag(name: &str, site: usize, original: &[u8], reg: u8, skip_unless_zero: Option<usize>) -> Option<Flags> {
-    let f = unsafe { player_flag(site, original, Some(reg), skip_unless_zero) };
+    let f = unsafe { player_flag(site, original, Player::Reg(reg), skip_unless_zero) };
     if f.is_none() {
         log!("gun outputs: {name} at {site:#x}: another build, not hooked");
     }

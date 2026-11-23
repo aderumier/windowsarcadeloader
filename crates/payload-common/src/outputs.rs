@@ -222,64 +222,60 @@ impl Falling {
     }
 }
 
-/// A player flag set by the game's own code (DemulShooter's code caves, 32-bit games): at a
-/// site of whole instructions (5 bytes at least), a jump to a stub that sets dword
-/// `flags[player]` to 1, the player being the value of register `reg` (0 eax, 1 ecx, 2 edx, 3
-/// ebx; `None`: player 0), when `skip_unless_zero` is `None` or the dword at `[reg * 8 + that
-/// address]` is 0, then runs the site's own instructions (a 5-byte `call` relocated, any other
-/// position independent bytes as they are) and jumps back.
-/// [`take`] reads and clears a flag. `None` when the site's bytes are not `original` (another
-/// build: left as it is).
+/// The game's own code reporting its outputs (DemulShooter's code caves, 32-bit games): a jump at
+/// a site of whole instructions (5 bytes at least) to a stub of the caller's bytes, then the
+/// site's own instructions (a 5-byte `call` relocated, any other position independent bytes as
+/// they are) and a jump back. [`stub`] is the general form (the bytes get the address of 16
+/// dwords of their own, [`Slots`]); [`player_flag`] sets a player's flag. `None` when the site's
+/// bytes are not `original` (another build: left as it is).
 #[cfg(all(windows, target_arch = "x86"))]
 pub mod hook {
     use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAlloc, VirtualProtect};
 
-    /// The flags of a hook: one dword a player (4).
+    /// A hook's 16 dwords (its flags, or the values its stub copies).
     #[derive(Clone, Copy)]
-    pub struct Flags(usize);
+    pub struct Slots(pub usize);
 
-    impl Flags {
-        /// Player `p`'s flag was set since the last call (cleared).
-        pub fn take(self, p: usize) -> bool {
-            let f = (self.0 + 4 * p) as *mut u32;
-            p < 4 && unsafe { std::ptr::replace(f, 0) } != 0
+    impl Slots {
+        /// Dword `i`.
+        pub fn get(self, i: usize) -> u32 {
+            unsafe { std::ptr::read_volatile((self.0 + 4 * i) as *const u32) }
+        }
+
+        /// Dword `i` was set since the last call (cleared): a player's flag.
+        pub fn take(self, i: usize) -> bool {
+            i < 16 && unsafe { std::ptr::replace((self.0 + 4 * i) as *mut u32, 0) } != 0
         }
     }
 
+    pub type Flags = Slots;
+
+    /// Where [`player_flag`] reads the player.
+    #[derive(Clone, Copy)]
+    pub enum Player {
+        /// Player 1.
+        Fixed,
+        /// The value of a register (0 eax, 1 ecx, 2 edx, 3 ebx, 5 ebp, 6 esi, 7 edi).
+        Reg(u8),
+        /// The byte at a register (not esp) plus a displacement.
+        ByteAt(u8, i8),
+    }
+
     /// # Safety
-    /// `site` must be the start of the instruction(s) of `original` in the game's code.
-    pub unsafe fn player_flag(site: usize, original: &[u8], reg: Option<u8>, skip_unless_zero: Option<usize>) -> Option<Flags> {
+    /// `site` must be the start of the instructions of `original` in the game's code, and the
+    /// stub's bytes must keep the registers and flags the following code reads.
+    pub unsafe fn stub(site: usize, original: &[u8], build: impl FnOnce(usize) -> Vec<u8>) -> Option<Slots> {
         let len = original.len();
-        if len < 5 || reg.is_some_and(|r| r > 3) || !crate::crash::readable(site, len) || unsafe { std::slice::from_raw_parts(site as *const u8, len) } != original {
+        if len < 5 || !crate::crash::readable(site, len) || unsafe { std::slice::from_raw_parts(site as *const u8, len) } != original {
             return None;
         }
-        let block = unsafe { VirtualAlloc(std::ptr::null(), 0x100, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) } as usize;
+        let block = unsafe { VirtualAlloc(std::ptr::null(), 0x200, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) } as usize;
         if block == 0 {
             return None;
         }
-        let (flags, stub) = (block, block + 0x10);
-        let mut c: Vec<u8> = Vec::new();
-        match reg {
-            Some(reg) => {
-                if let Some(addr) = skip_unless_zero {
-                    // cmp dword [reg * 8 + addr], 0; jne original (the flag's 17 bytes)
-                    c.extend_from_slice(&[0x83, 0x3C, 0xC5 | reg << 3]);
-                    c.extend_from_slice(&(addr as u32).to_le_bytes());
-                    c.extend_from_slice(&[0x00, 0x0F, 0x85, 17, 0, 0, 0]);
-                }
-                // push reg; shl reg, 2; add reg, flags; mov dword [reg], 1; pop reg
-                c.extend_from_slice(&[0x50 + reg, 0xC1, 0xE0 + reg, 0x02, 0x81, 0xC0 + reg]);
-                c.extend_from_slice(&(flags as u32).to_le_bytes());
-                c.extend_from_slice(&[0xC7, reg, 1, 0, 0, 0, 0x58 + reg]);
-            }
-            None => {
-                // mov dword [flags], 1
-                c.extend_from_slice(&[0xC7, 0x05]);
-                c.extend_from_slice(&(flags as u32).to_le_bytes());
-                c.extend_from_slice(&[1, 0, 0, 0]);
-            }
-        }
-        let rel = |c: &Vec<u8>, target: usize| target.wrapping_sub(stub + c.len() + 4) as u32;
+        let (slots, code) = (block, block + 0x40);
+        let mut c = build(slots);
+        let rel = |c: &Vec<u8>, target: usize| target.wrapping_sub(code + c.len() + 4) as u32;
         if original[0] == 0xE8 && len == 5 {
             let target = (site + 5).wrapping_add(i32::from_le_bytes(original[1..5].try_into().unwrap()) as usize);
             c.push(0xE8);
@@ -292,14 +288,57 @@ pub mod hook {
         let r = rel(&c, site + len);
         c.extend_from_slice(&r.to_le_bytes());
         unsafe {
-            std::ptr::copy_nonoverlapping(c.as_ptr(), stub as *mut u8, c.len());
+            std::ptr::copy_nonoverlapping(c.as_ptr(), code as *mut u8, c.len());
             let mut old = 0;
             VirtualProtect(site as *const _, len, PAGE_EXECUTE_READWRITE, &mut old);
             std::ptr::write_bytes((site + 5) as *mut u8, 0x90, len - 5);
-            std::ptr::write_unaligned((site + 1) as *mut u32, stub.wrapping_sub(site + 5) as u32);
+            std::ptr::write_unaligned((site + 1) as *mut u32, code.wrapping_sub(site + 5) as u32);
             *(site as *mut u8) = 0xE9;
             VirtualProtect(site as *const _, len, old, &mut old);
         }
-        Some(Flags(flags))
+        Some(Slots(slots))
+    }
+
+    /// A stub setting dword `slots[player]` to 1, when `skip_unless_zero` is `None` or the dword
+    /// at `[reg * 8 + that address]` is 0 (a register player only), registers and flags kept.
+    ///
+    /// # Safety
+    /// As [`stub`].
+    pub unsafe fn player_flag(site: usize, original: &[u8], player: Player, skip_unless_zero: Option<usize>) -> Option<Slots> {
+        unsafe {
+            stub(site, original, |slots| {
+                let s = (slots as u32).to_le_bytes();
+                let mut c: Vec<u8> = vec![0x9C]; // pushfd
+                match player {
+                    Player::Fixed => {
+                        // mov dword [slots], 1
+                        c.extend_from_slice(&[0xC7, 0x05]);
+                        c.extend_from_slice(&s);
+                        c.extend_from_slice(&[1, 0, 0, 0]);
+                    }
+                    Player::Reg(reg) => {
+                        if let Some(addr) = skip_unless_zero {
+                            // cmp dword [reg * 8 + addr], 0; jne past the flag (17 bytes)
+                            c.extend_from_slice(&[0x83, 0x3C, 0xC5 | reg << 3]);
+                            c.extend_from_slice(&(addr as u32).to_le_bytes());
+                            c.extend_from_slice(&[0x00, 0x0F, 0x85, 17, 0, 0, 0]);
+                        }
+                        // push reg; shl reg, 2; add reg, slots; mov dword [reg], 1; pop reg
+                        c.extend_from_slice(&[0x50 + reg, 0xC1, 0xE0 + reg, 0x02, 0x81, 0xC0 + reg]);
+                        c.extend_from_slice(&s);
+                        c.extend_from_slice(&[0xC7, reg, 1, 0, 0, 0, 0x58 + reg]);
+                    }
+                    Player::ByteAt(reg, disp) => {
+                        // push eax; movzx eax, byte [reg + disp]; shl eax, 2; add eax, slots;
+                        // mov dword [eax], 1; pop eax
+                        c.extend_from_slice(&[0x50, 0x0F, 0xB6, 0x40 | reg, disp as u8, 0xC1, 0xE0, 0x02, 0x05]);
+                        c.extend_from_slice(&s);
+                        c.extend_from_slice(&[0xC7, 0x00, 1, 0, 0, 0, 0x58]);
+                    }
+                }
+                c.push(0x9D); // popfd
+                c
+            })
+        }
     }
 }

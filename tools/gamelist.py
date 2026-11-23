@@ -58,6 +58,8 @@ OUTPUTS = {
     "lets-go-island-ringwide": "lamps, recoil, gun motors, damage, life",
     "medal-no-gunman": "recoil, ammo",
     "sega-golden-gun": "lamps, recoil, damage, life, ammo",
+    "transformers-human-alliance": "lamps, recoil, gun motors, damage, life",
+    "transformers-shadows-rising": "lamps, recoil, damage",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",

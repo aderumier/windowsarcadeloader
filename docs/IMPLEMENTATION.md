@@ -9206,7 +9206,12 @@ else the profile's file name (`sega-racing-classic`).
   executable's link time (`outputs::mem::timestamp`, `poll_build`) is the build's. The RingWide
   ones (`payload-ringedge` `gun_outputs.rs`, the game told by that link time: Dream Raiders,
   Let's Go Island, Medal no Gunman, SEGA Golden Gun): their output bytes by name (the guns'
-  recoil / motor bits as `P1_CtmRecoil`), life, ammo, credits.
+  recoil / motor bits as `P1_CtmRecoil`), life, ammo, credits; the RingEdge Transformers: Human
+  Alliance there too (lamps, gun motors, life, its shot code caves of each player); Transformers:
+  Shadows Rising (`payload-segashell` `gun_outputs.rs`): every output from its code caves
+  (`outputs::hook::stub`, the caller's bytes before the site's instructions with 16 dwords of
+  their own: the start lamps' registers, the gun lamps' call arguments; `player_flag` with
+  `Player::ByteAt` for the shot and the hit, the player a byte of the game's record).
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
   `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;
@@ -9219,7 +9224,9 @@ else the profile's file name (`sega-racing-classic`).
   Castlevania its lamps, life, damage. Not seen headless: Wartran Troopers (a black screen after
   its configuration file), The House of the Dead: Overkill (its menus). RingWide: Dream Raiders
   (lamps, gun motors, blower), Let's Go Island (lamps, gun motors, damage, life), Medal no
-  Gunman (114 recoil pulses, ammo), SEGA Golden Gun (259 recoil, ammo, damage, life).
+  Gunman (114 recoil pulses, ammo), SEGA Golden Gun (259 recoil, ammo, damage, life);
+  Transformers: Human Alliance (recoil a shot of its machine gun, gun motor, lamps, damage, life),
+  Transformers: Shadows Rising (recoil, damage, start and gun lamps).
 
 ## 7. Adding a system
 

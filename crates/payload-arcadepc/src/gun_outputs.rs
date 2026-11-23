@@ -178,7 +178,7 @@ pub(crate) fn init(board: &str) {
 /// A DemulShooter code cave as a player flag (player 1), logged when the build differs.
 #[cfg(target_arch = "x86")]
 fn cave(name: &str, site: usize, original: &[u8]) -> Option<wal_payload_common::outputs::hook::Flags> {
-    let f = unsafe { wal_payload_common::outputs::hook::player_flag(site, original, None, None) };
+    let f = unsafe { wal_payload_common::outputs::hook::player_flag(site, original, wal_payload_common::outputs::hook::Player::Fixed, None) };
     if f.is_none() {
         wal_payload_common::log!("gun outputs: {name} at {site:#x}: another build, not hooked");
     }

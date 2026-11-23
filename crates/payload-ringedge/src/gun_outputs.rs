@@ -12,6 +12,11 @@
 //!   +0x30, life (float) +0x18.
 //! * Medal no Gunman (gunman_dxF.exe): the guns' cylinders [[+0x6C9B30] + 0x34 / 0x38] + 0x1C8
 //!   (the ammo, while credits +0x6CBB40 are there).
+//! * Transformers: Human Alliance (RingEdge, TF_Gun_R_Ring_dumped.exe): output bytes [+0x1A3CBA0]
+//!   + 8 / 9 (start, gun and break lamps, the billboard, the gun motors); the players
+//!   [[+0x1A3CC1C] + 0x34 / 0x38]: state +0x5C (3, 4 playing), life +0x60; credits +0x964E60;
+//!   the shot code caves of each player (+0x2D518 / +0x2D548, `mov eax, [ecx + 0x34 / 0x38]; test
+//!   eax, eax`) as player flags: `P1_CtmRecoil`.
 //! * SEGA Golden Gun (RingGunR_RingWide.exe): output byte [+0x27034A8] + 8 (start lamps, the
 //!   guns' recoil bits); in a game ([[+0x27034BC] + 0x34] 12) the players [[+0x27034E4] + 0x34 /
 //!   0x38]: state +0x38 (3, 4 playing), life +0x3C, ammo +0x38C; credits +0x65C410.
@@ -115,6 +120,43 @@ pub(crate) fn init() {
                     set(["P1_Clip", "P2_Clip"][p], (a > 0) as i32);
                 }
                 set("Credits", mem::u32(b + 0x65C410) as i32);
+            });
+        }
+        #[cfg(target_arch = "x86")]
+        0x53A7881E => {
+            use wal_payload_common::outputs::hook::{Player, player_flag};
+            log!("gun outputs: Transformers: Human Alliance");
+            let shots = [
+                unsafe { player_flag(b + 0x2D518, &[0x8B, 0x41, 0x34, 0x85, 0xC0], Player::Fixed, None) },
+                unsafe { player_flag(b + 0x2D548, &[0x8B, 0x41, 0x38, 0x85, 0xC0], Player::Fixed, None) },
+            ];
+            if shots.iter().any(Option::is_none) {
+                log!("gun outputs: Transformers shot sites: another build, not hooked");
+            }
+            let mut damage: [Falling; 2] = Default::default();
+            poll("transformers human alliance", 16, move || {
+                let o = mem::u32(b + 0x1A3CBA0) as usize + 8;
+                let (o1, o2) = (mem::u8(o), mem::u8(o + 1));
+                set("P1_LmpStart", bit(o1, 7));
+                set("P2_LmpStart", bit(o1, 4));
+                set("P1_LmpGun", bit(o1, 1));
+                set("P2_LmpGun", bit(o1, 0));
+                set("LmpBillboard", bit(o2, 2));
+                set("P1_LmpBreak", bit(o2, 7));
+                set("P2_LmpBreak", bit(o2, 6));
+                set("P1_GunMotor", bit(o1, 6));
+                set("P2_GunMotor", bit(o1, 3));
+                let players = mem::u32(b + 0x1A3CC1C) as usize;
+                for p in 0..2 {
+                    if shots[p].is_some_and(|f| f.take(0)) {
+                        wal_payload_common::outputs::pulse(["P1_CtmRecoil", "P2_CtmRecoil"][p], 50);
+                    }
+                    let rec = if players != 0 { mem::u32(players + 0x34 + 4 * p) as usize } else { 0 };
+                    let l = (rec != 0 && matches!(mem::u8(rec + 0x5C), 3 | 4)).then(|| mem::u8(rec + 0x60) as i64);
+                    damage[p].update(l, ["P1_Damaged", "P2_Damaged"][p]);
+                    set(["P1_Life", "P2_Life"][p], l.unwrap_or(0) as i32);
+                }
+                set("Credits", mem::u8(b + 0x964E60) as i32);
             });
         }
         _ => {}
