@@ -476,6 +476,13 @@ impl Profile {
                 max: Some(65535),
                 ..option(crate::net_outputs::PORT_ENV, "Outputs port", "The network outputs' TCP port (MAME's: 8000).")
             });
+            for (key, label, description) in [
+                ("WAL_OUTPUTS_RECOIL_ON", "Recoil pulse (ms)", "How long a recoil output (P1_CtmRecoil) stays on, as DemulShooter's setting (10)."),
+                ("WAL_OUTPUTS_RECOIL_OFF", "Recoil pause (ms)", "After a recoil pulse, the time before the next one may start (DemulShooter's: 30)."),
+                ("WAL_OUTPUTS_DAMAGED", "Damage pulse (ms)", "How long a hit output (P1_Damaged) stays on, as DemulShooter's setting (200)."),
+            ] {
+                common.push(GameOption { kind: OptionKind::Number, min: Some(1), max: Some(2000), ..option(key, label, description) });
+            }
         }
         if self.input.guns_enabled {
             for (key, label, kind, choices, description) in [
@@ -773,7 +780,7 @@ options:
         let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
         merge(&mut v, serde_yaml_ng::from_str("system: test\n").unwrap());
         let p = Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap();
-        assert_eq!(common_keys(&p), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
+        assert_eq!(common_keys(&p), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT, "WAL_OUTPUTS_RECOIL_ON", "WAL_OUTPUTS_RECOIL_OFF", "WAL_OUTPUTS_DAMAGED"]);
         assert_eq!(p.env.get(VOLUME_ENV).map(String::as_str), Some("100"));
     }
 
@@ -811,10 +818,10 @@ options:
         // declared by the game itself (its own label): not added again
         let p = load("system: test\nenv: {WAL_CROSSHAIR: \"1\"}\noptions: [{options: [{key: WAL_CROSSHAIR, label: Pointer, kind: bool}]}]\n");
         assert_eq!(p.options.len(), 2);
-        assert_eq!(common_keys(&p), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
+        assert_eq!(common_keys(&p), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT, "WAL_OUTPUTS_RECOIL_ON", "WAL_OUTPUTS_RECOIL_OFF", "WAL_OUTPUTS_DAMAGED"]);
         assert_eq!(p.options[1].options[0].label.as_deref(), Some("Pointer"));
         // a game without crosshairs: the volume alone
-        assert_eq!(common_keys(&load("system: test\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
+        assert_eq!(common_keys(&load("system: test\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT, "WAL_OUTPUTS_RECOIL_ON", "WAL_OUTPUTS_RECOIL_OFF", "WAL_OUTPUTS_DAMAGED"]);
     }
 
     #[test]
@@ -829,9 +836,9 @@ options:
         assert_eq!(p.env.get(FREEPLAY_ENV).map(String::as_str), Some("1"));
         assert_eq!(p.options.len(), 1);
         let keys: Vec<&str> = p.options[0].options.iter().map(|o| o.key.as_str()).collect();
-        assert_eq!(keys, [CROSSHAIR_ENV, FREEPLAY_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
+        assert_eq!(keys, [CROSSHAIR_ENV, FREEPLAY_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT, "WAL_OUTPUTS_RECOIL_ON", "WAL_OUTPUTS_RECOIL_OFF", "WAL_OUTPUTS_DAMAGED"]);
         // another system: not shown
-        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
+        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT, "WAL_OUTPUTS_RECOIL_ON", "WAL_OUTPUTS_RECOIL_OFF", "WAL_OUTPUTS_DAMAGED"]);
     }
 
     #[test]
@@ -843,14 +850,14 @@ options:
         };
         // a game able to link: off by default, its number found, the master found on the network
         let p = load("system: typex\nenv: {WAL_LINK: \"0\"}\n");
-        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_MASTER_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
+        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_MASTER_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT, "WAL_OUTPUTS_RECOIL_ON", "WAL_OUTPUTS_RECOIL_OFF", "WAL_OUTPUTS_DAMAGED"]);
         assert_eq!(p.env.get(CABINET_ENV).map(String::as_str), Some("auto"));
         assert_eq!(p.env.get(LINK_MASTER_ENV).map(String::as_str), Some(""));
         // another game: not shown
-        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
+        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT, "WAL_OUTPUTS_RECOIL_ON", "WAL_OUTPUTS_RECOIL_OFF", "WAL_OUTPUTS_DAMAGED"]);
         // a game reading the cabinets' count at its start: shown too
         let p = load("system: ringedge\nenv: {WAL_LINK: \"0\", WAL_LINK_CABINETS: \"2\"}\n");
-        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_CABINETS_ENV, LINK_MASTER_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
+        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_CABINETS_ENV, LINK_MASTER_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT, "WAL_OUTPUTS_RECOIL_ON", "WAL_OUTPUTS_RECOIL_OFF", "WAL_OUTPUTS_DAMAGED"]);
     }
 
     #[test]

@@ -9277,6 +9277,11 @@ else the profile's file name (`sega-racing-classic`).
   its `Ctm` outputs are computed from the game's state (`P1_CtmRecoil` when the ammo goes down,
   `P1_Damaged` when the life does), its plugin based games (Unity: Mech Tornado, Wild West
   Shoot Out, Point Blank X) not ported.
+* Pulses as DemulShooter's (its `AsyncGameOutput`): `P1_CtmRecoil` and `P1_Damaged` are events,
+  any value but 0 a pulse (1, then 0), a new one ignored until its pause ends: the recoil
+  `WAL_OUTPUTS_RECOIL_ON` ms on (10) and `WAL_OUTPUTS_RECOIL_OFF` ms of pause (30), a hit
+  `WAL_OUTPUTS_DAMAGED` ms on (200) and 100 ms of pause: DemulShooter's settings and defaults,
+  the GUI's Common options beside the network outputs'.
 * Names: `RawLamps`, `RawLamps1`... (a JVS board's general purpose output bytes) and `lamp0`,
   `lamp1`... (output n + 1, bit 7 - n % 8 of byte n / 8); `RawDrive` (each byte to a Sega drive
   board); the games' own (U-Shoot's names: `P1_GunRecoil`, `P1_LmpStart`...).

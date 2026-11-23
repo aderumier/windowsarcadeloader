@@ -6,7 +6,8 @@
 //! * `RawLamps`, `RawLamps1`... (a JVS board's general purpose output bytes) and `lamp0`,
 //!   `lamp1`... (each output, lamp n bit 7 - n % 8 of byte n / 8): [`gpo`], [`lamps`]
 //! * `RawDrive`: each byte the game sends to a Sega drive board, in order ([`drive`])
-//! * the games' own names (`P1_LmpStart`, `P1_GunRecoil`...): [`set`], [`pulse`]
+//! * the games' own names (`P1_LmpStart`, `P1_GunRecoil`...): [`set`], [`pulse`]; DemulShooter's
+//!   event outputs (`P1_CtmRecoil`, `P1_Damaged`) always pulses with its timings ([`set`])
 //!
 //! Nothing is kept or sent with the option off.
 
@@ -44,6 +45,18 @@ pub fn set(name: &str, value: i32) {
     if !enabled() {
         return;
     }
+    // DemulShooter's event outputs: a value other than 0 starts a pulse, 0 is the pulse's end
+    if let Some((on, off)) = event_timing(name) {
+        if value != 0 {
+            start_pulse(name, on, off);
+        }
+        return;
+    }
+    store_and_send(name, value);
+}
+
+/// The value sent when it changed.
+fn store_and_send(name: &str, value: i32) {
     let mut values = VALUES.lock().unwrap();
     match values.iter_mut().find(|(n, _)| n == name) {
         Some((_, v)) if *v == value => return,
@@ -53,22 +66,62 @@ pub fn set(name: &str, value: i32) {
     send(name, value);
 }
 
+/// DemulShooter's event outputs (its `AsyncGameOutput`): 1 for `on` ms, then 0, a new event
+/// ignored until `off` ms more: the custom recoil (`P1_CtmRecoil`: `WAL_OUTPUTS_RECOIL_ON` /
+/// `WAL_OUTPUTS_RECOIL_OFF`, DemulShooter's 10 / 30 ms by default) and a hit (`P1_Damaged`:
+/// `WAL_OUTPUTS_DAMAGED`, 200 ms, then 100 ms). The GUI's Common options.
+fn event_timing(name: &str) -> Option<(u64, u64)> {
+    static TIMES: OnceLock<(u64, u64, u64)> = OnceLock::new();
+    let &(recoil_on, recoil_off, damaged) = TIMES.get_or_init(|| {
+        let ms = |key: &str, default: u64| std::env::var(key).ok().and_then(|v| v.trim().parse().ok()).unwrap_or(default);
+        (ms("WAL_OUTPUTS_RECOIL_ON", 10), ms("WAL_OUTPUTS_RECOIL_OFF", 30), ms("WAL_OUTPUTS_DAMAGED", 200))
+    });
+    if name.ends_with("_CtmRecoil") {
+        Some((recoil_on, recoil_off))
+    } else if name.ends_with("_Damaged") {
+        Some((damaged, 100))
+    } else {
+        None
+    }
+}
+
+/// When each pulsing output takes a new pulse again.
+static PULSE_READY: Mutex<Vec<(String, std::time::Instant)>> = Mutex::new(Vec::new());
+
+/// `name` at 1 for `on` ms, then 0; ignored while a pulse and its `off` ms after it run.
+fn start_pulse(name: &str, on: u64, off: u64) {
+    let now = std::time::Instant::now();
+    {
+        let mut ready = PULSE_READY.lock().unwrap();
+        let until = now + Duration::from_millis(on + off);
+        match ready.iter_mut().find(|(n, _)| n == name) {
+            Some((_, t)) if *t > now => return,
+            Some((_, t)) => *t = until,
+            None => ready.push((name.to_string(), until)),
+        }
+    }
+    store_and_send(name, 1);
+    let name = name.to_string();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(on));
+        store_and_send(&name, 0);
+    });
+}
+
 /// Output `name`'s last value, when set.
 pub fn value(name: &str) -> Option<i32> {
     VALUES.lock().unwrap().iter().find(|(n, _)| n == name).map(|(_, v)| *v)
 }
 
-/// Output `name` at 1 for `ms` milliseconds, then 0 (a gun's recoil solenoid, a short flash):
-/// a pulse still on is not restarted.
+/// Output `name` at 1 for `ms` milliseconds, then 0 (a gun's recoil solenoid, a ticket motor):
+/// another pulse ignored while it runs; DemulShooter's event outputs (`P1_CtmRecoil`,
+/// `P1_Damaged`) with its own timings.
 pub fn pulse(name: &'static str, ms: u64) {
-    if !enabled() || VALUES.lock().unwrap().iter().any(|(n, v)| n == name && *v != 0) {
+    if !enabled() {
         return;
     }
-    set(name, 1);
-    std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(ms));
-        set(name, 0);
-    });
+    let (on, off) = event_timing(name).unwrap_or((ms, 0));
+    start_pulse(name, on, off);
 }
 
 /// General purpose output byte `index` of a JVS board (byte 0: outputs 1 to 8 in bits 7 to 0):

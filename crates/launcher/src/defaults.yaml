@@ -167,6 +167,11 @@ env:
   # and drive board on a TCP port ("0": off). The GUI's Common options.
   WAL_OUTPUTS: "0"
   WAL_OUTPUTS_PORT: "8000"
+  # Their recoil and hit pulses, in ms (DemulShooter's settings and defaults): the recoil's on
+  # time and the pause before the next one, the hit's on time.
+  WAL_OUTPUTS_RECOIL_ON: "10"
+  WAL_OUTPUTS_RECOIL_OFF: "30"
+  WAL_OUTPUTS_DAMAGED: "200"
 # The game's own options, for the GUI's Options tab (only games declaring any show it):
 # its environment variables with a label, a control (text, a bool 1/0 checkbox, a number
 # (slider when min and max are set), a choice among the values), a range and a hover
