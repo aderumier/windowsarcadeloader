@@ -74,6 +74,12 @@ env:
   # the players' names (the name entry's kana) converted in Shift-JIS: the western code page
   # gave "??????"
   WAL_ANSI_CODEPAGE: "932"
+  # the startup's STEER ADJUSTMENTS ("center the steering wheel, then press START", shown when
+  # the backup's steering center is not valid) done without START: the wheel's position
+  # taken as its center at once (the START button is held off until the game server's
+  # configuration: idz::hold_start, the screen waited forever)
+  WAL_PATCHES: "0x6b6454:9090"
+  WAL_PATCHES_EXE: InitialD0_DX11_Nu.exe
   # the unpacked programs' sizes (segatools' idzhook crt.c)
   WAL_ALLS_STAT_BYPASS: InitialD0_DX11_Nu.exe,amdaemon.exe
   # ALL.Net's authentication accepted (the payload's server), the game server (the players'
