@@ -1,0 +1,72 @@
+# Tatsunoko vs. Capcom: Cross Generation of Heroes (Capcom, 2008, the Wii-based RVA-001
+# arcade board) - template, override values in userprofiles/arcadepc/tatsunoko-vs-capcom.yaml.
+# A Dolphin build with the RVA board's devices (its JVS I/O, backup memory) runs the game
+# installed in its NAND as the system menu (User\, portable). Dolphin's JVS I/O reads two
+# GameCube pads, which Dolphin reads from its DirectInput keyboard: the payload is that
+# keyboard, from the virtual sticks (the real keyboard never reaches it;
+# WAL_ARCADEPC_BOARD=dolphin, docs §6.3i).
+system: arcadepc
+name: "Tatsunoko vs. Capcom: Cross Generation of Heroes"
+
+# -b: quit with the game, no main window; -n: boot the NAND title (the game as system menu)
+args: [-b, -n, "0000000100000002"]
+
+# loaded at the executable's entry point (Dolphin imports no DLL of ours)
+payload_loader: true
+dll_overrides:
+  xinput1_3: "n,b"
+
+files:
+  # the pads on keys (GCPadNew.ini: player 1 arrows Q W E R T, coin 5 (L), test 9 (C-stick
+  # right), service 0 (C-stick up); player 2 I J K L A S D F G, coin 6, service 8), no hotkeys
+  User/Config/GCPadNew.ini: systemprofiles/arcadepc/files/tatsunoko-vs-capcom/GCPadNew.ini
+  User/Config/Hotkeys.ini: systemprofiles/arcadepc/files/tatsunoko-vs-capcom/Hotkeys.ini
+  # the dump's settings, full screen, no stop confirmation, no on-screen messages, audio
+  # stretching (no crackle on a slow frame)
+  User/Config/Dolphin.ini: systemprofiles/arcadepc/files/tatsunoko-vs-capcom/Dolphin.ini
+  # the internal resolution (WAL_DOLPHIN_IR: 1 native, 2, 3), no MSAA. The dump's 3x with 2x
+  # MSAA ran its fights at 55% on a Radeon 860M, 2x at 57-73% (the fire stage), native at 100%.
+  User/Config/GFX.ini: "systemprofiles/arcadepc/files/tatsunoko-vs-capcom/GFX-{WAL_DOLPHIN_IR}.ini"
+
+env:
+  WAL_ARCADEPC_BOARD: dolphin
+  # the fake DirectInput: its keyboard the payload's
+  WAL_DINPUT_DISABLE: "1"
+  WAL_HIDE_CURSOR: "1"
+  WAL_DOLPHIN_IR: "1"
+
+options:
+  - title: Display
+    options:
+      - key: WAL_DOLPHIN_IR
+        label: Internal resolution
+        kind: choice
+        choices: ["1", "2", "3"]
+        description: >-
+          Dolphin's rendering resolution: 1 the board's own (640x528, full speed on an
+          integrated GPU), 2 or 3 times it (sharper, a faster GPU; slowdowns and crackling
+          sound otherwise).
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The game's FREE PLAY (the test menu's system configuration), set in the board's SRAM
+          at each launch; off: the coin mode.
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Light
+  b2: Medium
+  b3: Heavy
+  b6: Partner
+  b5: Light
+  b4: Partner
+  start: Start
+  coin: Coin
+  service: Service
+  test: Test

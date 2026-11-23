@@ -6750,6 +6750,43 @@ is the `.windowsloader`. Board `quakearcade` (`quakearcade.rs`), loaded at the e
   pushed away looks up); its left / right / middle buttons attack, jump, change weapon.
 - The user: 100% (2026-11-15, desktop).
 
+#### Tatsunoko vs. Capcom: Cross Generation of Heroes
+
+Capcom's 2008 arcade game on the Wii-based RVA-001 board, run by crediar's Dolphin branch with
+the board's devices (`EXI_DeviceRVA`: its JVS I/O, its SRAM; build `BETA-3FRVA`, 64-bit, the
+x64 payload). The game is installed in the NAND as the system menu (`User\Wii\title\00000001\
+00000002`, its `data\RVA.txt` switching the console to arcade mode), booted with `Dolphin.exe
+-b -n 0000000100000002` (`portable.txt`: `User\` beside the executable).
+
+- **Build.** The dump's first Dolphin (an older RVA build, other JVS code) was replaced by
+  `BETA-3FRVA` (the same `EXI_DeviceRVA.cpp` as crediar's source, 2025-08-09); the RVA device
+  needs MEM1 64 MB and MEM2 128 MB (a message box otherwise: the profile's `Dolphin.ini`
+  `MEM1Size = 0x04000000`, the dump's was 0x03200000) and `SlotA = 14` (RVA). The upstream
+  Triforce builds (2603-2) have no RVA device.
+- **Inputs (`dolphin.rs`, `WAL_ARCADEPC_BOARD=dolphin`).** The RVA JVS I/O reads two GameCube
+  pads: Start, A / B / X / Y shots 1 to 4 (Light, Medium, Heavy, Partner), the main stick or
+  d-pad the lever, L each player's coin (a press, counted), pad 1's C-stick right the test
+  switch, a pad's C-stick up its service switch. Dolphin reads the PC keyboard only through
+  DirectInput (`DINPUT8.dll`): the profile's `GCPadNew.ini` binds the pads to keys (player 1
+  arrows Q W E R T, coin 5, test 9, service 0; player 2 I J K L A S D F G, coin 6, service 8)
+  and the common fake DirectInput (`WAL_DINPUT_DISABLE`) gives it a keyboard whose keys are the
+  virtual sticks' (`dinput::set_keyboard`): the real keyboard never reaches it. `Hotkeys.ini`
+  binds nothing (Dolphin's defaults on that keyboard: F1-F8 load states, Esc stops). Test menu:
+  down moves, shot 1 selects, START leaves a page.
+- **Free play.** SYSTEM CONFIGURATION's FREE PLAY is byte 0x806 of `User\Arcade\
+  SRAM_TatsunokoVSCapcom.bin` (32 KB); its first two bytes (big endian) are the sum of the
+  other bytes less 0x1700. The payload sets the byte from `WAL_FREEPLAY` before Dolphin opens
+  the file, the sum moved with it. A dump without the file gets the game's defaults at its
+  first boot.
+- **Display.** `Dolphin.ini`: Vulkan, full screen, no on-screen messages, no stop confirmation,
+  audio stretching. `GFX.ini` per internal resolution (`WAL_DOLPHIN_IR`, default 1: native),
+  no MSAA (a 2D game). Measured on a Radeon 860M (Dolphin's speed counter, the attract's
+  fights): the dump's 3x with 2x MSAA 53-60% (lag, crackling sound), 2x 57-73% in the fire
+  stage, native 100% (short shader compilation dips); asynchronous ubershaders at 2x 39-55%.
+- Verified headless (2026-11-23): boot (Eighting logo, title), coins (credits), START to the
+  character select, player 2's start and lever, the test menu (system configuration), free
+  play set by the payload ("FREE PLAY", START without a coin).
+
 ### 6.3j UNIS (`crates/payload-unis`)
 
 UNIS's PC-based arcade games. System `unis`, payload `wal_unis.dll` (64-bit; `wal_unis32.dll`

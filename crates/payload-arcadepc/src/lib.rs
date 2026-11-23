@@ -198,6 +198,9 @@
 //!
 //! Red Gun (`WAL_ARCADEPC_BOARD=redgun`, x86 build): `redgun.rs` answers its PC repack's mouse
 //! and arrow polls (`RGDesktopInput`'s `DllImport`s) with the gun.
+//!
+//! Tatsunoko vs. Capcom (`WAL_ARCADEPC_BOARD=dolphin`, x64 build, a Dolphin with the RVA arcade
+//! board): `dolphin.rs` is Dolphin's DirectInput keyboard, its GameCube pads' keys.
 //! 32-bit games get the x86 build (`wal_arcadepc32.dll`). Both: the common crosshair option
 //! (`WAL_CROSSHAIR`) draws player 1's crosshair (`pointer_d3d11`;
 //! the JX boards' other players' too).
@@ -222,6 +225,8 @@ mod comeonbaby;
 mod cuttherope;
 mod dcop;
 mod demul;
+#[cfg(target_arch = "x86_64")]
+mod dolphin;
 #[cfg(target_arch = "x86")]
 mod dreamhunting;
 #[cfg(target_arch = "x86")]
@@ -599,6 +604,11 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             _ if board.trim() == "pvz" => {
                 pads::disconnect();
                 pvz::init();
+            }
+            #[cfg(target_arch = "x86_64")]
+            _ if board.trim() == "dolphin" => {
+                pads::disconnect();
+                dolphin::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "redgun" => {
