@@ -950,16 +950,33 @@ development build). Profile `nesica/puzzle-and-dragons-battle-tournament`,
   `COS2`, 0x218 bytes: the bytes free play and free play tickets, then the continues and costs)
   with one call (+0x3EEDF); the payload takes its destination there and keeps its free play byte
   at 1 (the test menu's play settings show ON). Off: the game's own setting.
-* **Title server**: online, the game sends its own HTTPS API (`/puzzle/game/registTenpo`,
-  `reportError`, `getSystemParams`, `lockCard`, `savePlayHistory`, `/puzzle/helper/*`...: form
-  posts `data={json}`) through NESYS command 0x27 (URL, port 443, headers, body), to the
-  certificate's game server; unanswered, the title stays black after a touch. No server is
-  emulated yet: `WAL_NESICA_NESYS_OFFLINE=1`, the network reported down, offline play (story,
-  in-store versus, tutorial; national battle, gacha, NESiCA saves and continues unavailable).
+* **Title server** (`puzzledragons_server.rs`): the game sends its own HTTPS API
+  (`/puzzle/game/registTenpo`, `reportError`, `version`, `getSystemParams`, `chkUpdatable`,
+  `lockCard`, `savePlayHistory`, `checkNGWord`, `/puzzle/helper/*`, rankings, missions...: form
+  posts `data={json}`, its request table at +0x544AF8) through NESYS command 0x27, a GET
+  (`/dist/SimpleVSTeamMasterInfo.csv`) through 0x26 (`nesys.rs` `https_access`: URL, port at
+  +0xC46, id at +0xC4C, size at +0xC58, header at +0xC5C, body at +0x105D; the replies those of
+  0x1A / 0x1B, 0x121 then 0x122). A reply's body is a result line (1 OK; 9002, 9012-9023 errors:
+  the checker +0x5DD70) and the JSON its request's parser reads: every request is answered
+  `1` and `{}` (no helpers, rankings, missions: the game's own), the CSV 404 (the game keeps its
+  own table). NESYS's server check `http://data.nesys.jp/alive/<n>/Alive.txt` answers `60` (a
+  number, alive from 21; the body is copied into a 64-byte stack buffer: a longer one ended the
+  game at the start of a credit).
+* **NESiCA play**: a card the game has not registered (`WAL_NESYS_REGISTER=1`: status 23, no
+  reissue) is a new player (terms, name entry, avatar, team); the card insert's JSON save (type
+  1) and the card updates (type 0, after each step: customize, battles, gacha) are kept as
+  `card_<id>_<type>.bin` in `WindowsLoader`; the card read (type 0) answers the latest. The
+  automatic card (`WAL_NESICA_CARD_TAKE_OFF=10`) is put on the reader by a touch and stays
+  there until the end of the credit (NESYS game end, the card's `unlockCard`: also the profile
+  screen's timeout or "another card"), then off for 10 s at least: the title reads a card on the
+  reader by itself (an always present card started credit after credit), the game ends a credit
+  when the card leaves, its last screen ("do not forget your NESiCA") waits until it is off.
 
 Verified headless: boot, attract, test menu (switch test, NESiCA test, play settings), free
 play and coins, character / team / puzzle side / mode / story / helper selection by touch, a
-story battle (orbs dragged, attacks, enemy turns).
+story battle (orbs dragged, attacks, enemy turns); online: a new card's registration (name
+entry), a credit with the card (customize, story battles, the gacha egg), its saves, the
+returning card read back with its progress.
 
 #### Gunslinger Stratos 2 (Type X3, 64-bit)
 
@@ -9814,7 +9831,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 | `left-4-dead-survivors` | Left 4 Dead: Survivors | nesica | user 100% (2026-11-16), NESiCA card (new player, CPU play), mouse and pad | Type X3 Source engine (§6.2): `bin\inputsystem.dll` loads the payload; Type X3 reader security and commands, FastIO hub/universal board registers, HID mouse and winmm grip emulated, the gun's mouse from the sticks or the mouse (menus point and click), `+arcade_NESiCA_Accept 1`, getCardInfo record for a new card, lobby server answered with no rooms |
 | `groove-coaster-2` | Groove Coaster 2: Heavenly Festival | nesica | user 100% (2026-11-16), boosters, NESiCA card (registration, saves), free play | Type X3 portrait rhythm game (§6.2): windowed 9:16 with black bezel, GetAdaptersInfo MAC for the LAN link, update downloader answered (NESYS thread deadlock under Wine), Type X3 reader with C:\TypeXZEROTemp.dat, the boosters on FastIO, free play patch, Groove Coaster card server (registration, player, song records, settings) |
-| `puzzle-and-dragons-battle-tournament` | Puzzle & Dragons Battle Tournament | nesica | headless (2026-11-23): offline play (story battle), free play, test menu | Type X3 touch puzzle game (§6.2): Windows touches (`wmtouch.rs`: digitizer, WM_TOUCH from the mouse / gun / touchpad), SELECT on FastIO 0x08, coin counters, Type X3 reader, free play byte of the play settings kept on; no title server (NESYS offline) |
+| `puzzle-and-dragons-battle-tournament` | Puzzle & Dragons Battle Tournament | nesica | headless (2026-11-23): NESiCA play (registration, saves, returning card), story battles, gacha, free play, test menu; user: free play, red dot | Type X3 touch puzzle game (§6.2): Windows touches (`wmtouch.rs`: digitizer, WM_TOUCH from the mouse / gun / touchpad), SELECT on FastIO 0x08, coin counters, Type X3 reader, free play byte of the play settings kept on; NESYS HTTPS requests (0x26 / 0x27) to its title server (`puzzledragons_server.rs`), NESiCA registration and JSON card saves, Alive.txt answer |
 | `gunslinger-stratos-2` | Gunslinger Stratos 2 | nesica | user 100% (2026-11-17), G devices, two lightguns, free play, intro and attract movies; NESiCA play unavailable (no game server) | Type X3 64-bit twin-gun game (§6.2): x86_64 iDmacDrv64.dll, the two 2D sensor boards on COM1/COM3 (aim, triggers), levers and buttons on FastIO, two lightguns, reader bus reset fix, time mode kept off for free play, movies through GE quartz/msrle32 fixes (0123-0125) |
 | `gunslinger-stratos-3` | Gunslinger Stratos 3 | nesica | works (headless tests: first boot G device setup, test menu, attract with its movies, free play, guest play into a mission); NESiCA play and voice chat unavailable (no game servers) | Gunslinger Stratos 2's cabinet (§6.2): the same G devices and FastIO, the headset amplifier on COM4 emulated, the sound engine's "スピーカー" device name match patched (sound device error 10000008), the voice chat HUD skipped (no server: red box), free play in its settings object (+0x100) |
 | `love-live-school-idol-festival-after-school-activity-next-stage` | Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage | nesica | works (headless tests: test menu and I/O tests, free play, guest play, NESiCA play with the payload's title server: registration, a credit of two songs saved, returning card) | the WinUSB I/O board (buttons, coins, NESiCA reader), the watchdog on COM2, free play in its settings block, the title server (LLServer port: RSA basicinfo with the game's key replaced, AES /game), NESYS card select 16-byte id (§6.2) |

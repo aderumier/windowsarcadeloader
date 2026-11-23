@@ -63,6 +63,8 @@ mod nesystrace;
 mod nxl2;
 #[cfg(target_pointer_width = "32")]
 mod puzzledragons;
+#[cfg(target_pointer_width = "32")]
+mod puzzledragons_server;
 mod rfid;
 // 64-bit only (Street Fighter V Type Arcade)
 #[cfg(target_pointer_width = "64")]

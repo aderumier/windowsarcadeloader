@@ -16,9 +16,12 @@ env:
   WAL_FASTIO_COIN: counter
   # the test menu's SELECT switch is bit 0x08 (ENTER is start)
   WAL_MAP: "b3=ext4"
-  # no title server (its HTTPS API through NESYS): the network down, offline play (story,
-  # in-store versus, tutorial; NESiCA and continues unavailable)
-  WAL_NESICA_NESYS_OFFLINE: "1"
+  # NESiCA: a card the game has not registered is a new player (registration, name entry);
+  # its JSON save kept in the WindowsLoader folder. The automatic card is put on the reader by a
+  # touch and taken off at the end of the credit, for 10 s at least (the title reads a card on
+  # the reader by itself; the last screen waits until the card is off).
+  WAL_NESYS_REGISTER: "1"
+  WAL_NESICA_CARD_TAKE_OFF: "10"
   # its DirectInput (debug keyboard / pads): no input there, the touches and FastIO only
   WAL_DINPUT_DISABLE: "1"
   # a dot where player 1 touches (the game shows no pointer): its size in percent of the screen

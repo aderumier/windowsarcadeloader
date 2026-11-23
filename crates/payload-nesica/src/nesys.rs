@@ -47,6 +47,10 @@ mod cmd {
     pub const SET_INCOME_MODE_REQUEST: u32 = 0x20;
     pub const GAMESTATUS_RESET_REQUEST: u32 = 0x23;
     pub const ROW_EVENTDATA_LIST_REQUEST: u32 = 0x24;
+    // the HTTP(S) access of later libraries (Puzzle & Dragons Battle Tournament's title server:
+    // `https://<game server>/puzzle/...`), answered as 0x1A / 0x1B
+    pub const HTTPSACCESS_GET_REQUEST: u32 = 0x26;
+    pub const HTTPSACCESS_REQUEST: u32 = 0x27;
     // the network interface (`CLibMain::RequestNwifInfo` of later libraries: Hoshi to Tsubasa no
     // Paradox's card screen allows card play only with its MAC address), answered as 0x17
     pub const NWIF_INFO_REQUEST: u32 = 0x28;
@@ -229,8 +233,14 @@ fn http_access(pipe: &Pipe, data: &[u8]) {
         let (status, body) = v.split_once(':')?;
         Some((status.parse::<u32>().ok()?, body.replace("\\n", "\n").into_bytes()))
     });
+    // Puzzle & Dragons Battle Tournament's server check (`http://data.nesys.jp/alive/<n>/Alive.txt`):
+    // a number, alive from 21 on ("x": down), copied into a 64-byte buffer (a longer body
+    // overflows its stack: the game ended at the start of a credit)
+    let alive = url.contains("/alive/") && std::env::var("WAL_NESICA_GAME").is_ok_and(|g| g.trim() == "puzzledragons");
     let custom_body;
-    let (status, status_line, reply_body): (u32, &str, &[u8]) = if object_storage && let Some((status, body)) = object_reply {
+    let (status, status_line, reply_body): (u32, &str, &[u8]) = if alive {
+        (200, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", b"60")
+    } else if object_storage && let Some((status, body)) = object_reply {
         custom_body = body;
         (status, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n", &custom_body)
     } else if object_storage {
@@ -253,6 +263,47 @@ fn http_access(pipe: &Pipe, data: &[u8]) {
         .u32(reply_body.len() as u32)
         .bytes(reply_body);
     send(pipe, HTTPACCESS_REPLY, &reply.0);
+}
+
+/// The HTTP(S) access requests of later libraries (0x26 GET, 0x27 POST): `{ char url[0x401]; char proxy[0x401];
+/// char user[0x21]; char password[0x21]; char cert[0x401]; u16 port (+0xC46); u16 proxy port;
+/// u32 id (+0xC4C); i32 timeout (ms); u32 method; u32 size (+0xC58); char header[0x401]
+/// (+0xC5C); data (+0x105D) }` (a GET ends at the size). Answered with the same replies as 0x1A /
+/// 0x1B (0x121, then 0x122 with the status line, status, id and the body), the body from the
+/// game's title server; 404 for the paths it does not serve (Puzzle & Dragons' GET of
+/// `/dist/SimpleVSTeamMasterInfo.csv`, an update of its own data's table).
+fn https_access(pipe: &Pipe, data: &[u8]) {
+    use cmd::{HTTPACCESS_REPLY, HTTPACCESS_START};
+    const BODY: usize = 0x105D;
+    let url = c_str(data.get(..0x401).unwrap_or_default());
+    let id = u32_at(data, 0xC4C);
+    let size = (u32_at(data, 0xC58) as usize).min(data.len().saturating_sub(BODY));
+    let body = data.get(BODY..BODY + size).unwrap_or_default();
+    let path = url.split_once("://").map_or(url.as_str(), |(_, rest)| rest.find('/').map_or("", |i| &rest[i..]));
+    #[cfg(target_pointer_width = "32")]
+    let reply = crate::puzzledragons_server::reply(path, body);
+    #[cfg(target_pointer_width = "64")]
+    let reply: Option<Vec<u8>> = {
+        let _ = (path, body);
+        None
+    };
+    let (status, line, reply) = match reply {
+        Some(reply) => (200, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", reply),
+        None => {
+            log!("nesys: https {url}: 404");
+            (404, "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n", Vec::new())
+        }
+    };
+    send(pipe, HTTPACCESS_START, &Out::default().u32(1).0);
+    let out = Out::default()
+        .str(line, 1025)
+        .align4()
+        .u32(status)
+        .u32(0)
+        .u32(id)
+        .u32(reply.len() as u32)
+        .bytes(&reply);
+    send(pipe, HTTPACCESS_REPLY, &out.0);
 }
 
 /// Little-endian struct builder following the C layout of the replies.
@@ -502,6 +553,9 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
         DISCONNECT_REQUEST => send(pipe, DISCONNECT_REPLY, &[]),
         GAME_START_REQUEST | GAME_END_REQUEST | GAME_CONTINUE_REQUEST | GAME_FREE_START_REQUEST
         | GAME_FREE_END_REQUEST => {
+            if matches!(command, GAME_END_REQUEST | GAME_FREE_END_REQUEST) {
+                crate::rfid::take_off();
+            }
             send(pipe, GAME_STATUS_REPLY, &[])
         }
         // Groove Coaster 2: its card server (groovecoaster_server.rs)
@@ -539,6 +593,13 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
                 log!("nesys: card select {:?} type {} param {:?}", String::from_utf8_lossy(&data[..16.min(data.len())]), u32_at(data, 16), String::from_utf8_lossy(param));
             }
             let mut card = std::fs::read(&file).unwrap_or_default();
+            // Puzzle & Dragons Battle Tournament reads type 0 and writes type 1: its JSON save
+            if card.is_empty() && u32_at(data, 16) == 0 {
+                let json = std::fs::read(card_file(data, 1)).unwrap_or_default();
+                if json.first() == Some(&b'{') {
+                    card = json;
+                }
+            }
             if card.is_empty()
                 && let Some(new) = new_card(data, u32_at(data, 16))
             {
@@ -582,11 +643,19 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             // dataSize; data }, a card server XML write of the new card's fields: saved as the
             // answer of the card read (type 259)
             let size = (u32_at(data, 28) as usize).min(data.len().saturating_sub(32));
+            let card = &data[32.min(data.len())..32 + size];
             if u32_at(data, 16) == 1
-                && let Some((read_type, answer)) = xml_card_write(&data[32.min(data.len())..32 + size], CARD_XML_READS[0].0 + 512)
+                && let Some((read_type, answer)) = xml_card_write(card, CARD_XML_READS[0].0 + 512)
             {
                 let file = card_file(data, read_type);
                 if let Err(e) = std::fs::write(&file, answer) {
+                    log!("nesys: cannot save {file}: {e}");
+                }
+            } else if card.first() == Some(&b'{') {
+                // Puzzle & Dragons Battle Tournament: the new player's JSON save, the answer of
+                // the card read of its type
+                let file = card_file(data, u32_at(data, 16));
+                if let Err(e) = std::fs::write(&file, card) {
                     log!("nesys: cannot save {file}: {e}");
                 }
             }
@@ -677,6 +746,7 @@ fn handle(pipe: &Pipe, command: u32, data: &[u8]) {
             send(pipe, ADAPTER_INFO_REPLY, &reply.0);
         }
         HTTPACCESS_GET_REQUEST | HTTPACCESS_POST_REQUEST => http_access(pipe, data),
+        HTTPSACCESS_GET_REQUEST | HTTPSACCESS_REQUEST => https_access(pipe, data),
         _ => log!("nesys: unhandled command {command:#x}"),
     }
 }

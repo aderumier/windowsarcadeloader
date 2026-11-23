@@ -18,7 +18,8 @@
 //! `WAL_NESICA_RFID_KEY_FILE`: another key file, Groove Coaster 2's `C:\TypeXZEROTemp.dat`). Their
 //! reader's commands differ too (same option): `32` drives its lamp (a report only), `26` is the
 //! card presence (one byte), `61` reads the card (8 header bytes, the 16-character id); with
-//! `WAL_NESICA_CARD_AUTO=1` the card is always on the reader (no card input needed).
+//! `WAL_NESICA_CARD_AUTO=1` the card is always on the reader (no card input needed), or with
+//! `WAL_NESICA_CARD_TAKE_OFF=<n>` from a button press until the end of the credit.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -38,7 +39,40 @@ static TYPEX3: AtomicBool = AtomicBool::new(false);
 static ALWAYS: AtomicBool = AtomicBool::new(false);
 
 fn inserted() -> bool {
-    ALWAYS.load(Ordering::Relaxed) || INSERTED.load(Ordering::Relaxed)
+    (ALWAYS.load(Ordering::Relaxed) && auto_present()) || INSERTED.load(Ordering::Relaxed)
+}
+
+/// When the automatic card was taken off the reader ([`take_off`]).
+static TAKEN: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+/// The automatic card is on the reader (`WAL_NESICA_CARD_TAKE_OFF`).
+static PRESENT: AtomicBool = AtomicBool::new(false);
+
+/// The automatic card on the Type X3 reader: always, or with `WAL_NESICA_CARD_TAKE_OFF=<n>` from
+/// a press of any button (a touch) until the end of the credit ([`take_off`]), then off for at
+/// least `n` seconds (Puzzle & Dragons Battle Tournament: its title reads a card on the reader by
+/// itself, a credit ends when the card leaves, its last screen waits until the card is off).
+fn auto_present() -> bool {
+    static SECONDS: OnceLock<Option<u64>> = OnceLock::new();
+    let Some(seconds) = *SECONDS.get_or_init(|| std::env::var("WAL_NESICA_CARD_TAKE_OFF").ok().and_then(|v| v.trim().parse().ok())) else {
+        return true;
+    };
+    if !PRESENT.load(Ordering::Relaxed)
+        && !TAKEN.lock().unwrap().is_some_and(|t| t.elapsed() < Duration::from_secs(seconds))
+        && (0..wal_protocol::MAX_PLAYERS).any(|p| wal_payload_common::input(p).buttons != 0)
+    {
+        PRESENT.store(true, Ordering::Relaxed);
+        log!("rfid: the automatic card put on the reader");
+    }
+    PRESENT.load(Ordering::Relaxed)
+}
+
+/// The end of a credit (NESYS game end; Puzzle & Dragons Battle Tournament's card unlock): with
+/// `WAL_NESICA_CARD_TAKE_OFF` the automatic card leaves the reader until the next press.
+pub(crate) fn take_off() {
+    if std::env::var("WAL_NESICA_CARD_TAKE_OFF").is_ok() && ALWAYS.load(Ordering::Relaxed) && PRESENT.swap(false, Ordering::Relaxed) {
+        *TAKEN.lock().unwrap() = Some(std::time::Instant::now());
+        log!("rfid: the automatic card taken off the reader");
+    }
 }
 static CARD: OnceLock<[u8; 0x18]> = OnceLock::new();
 
