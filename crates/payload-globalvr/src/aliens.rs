@@ -108,6 +108,52 @@ pub(crate) fn init() {
     map();
     let ok = redirect(GUN, gun as *const () as usize) && call(KEY_CALL, key_state as *const () as usize);
     log!("aliens: {}", if ok { "guns and panel from the virtual sticks" } else { "not this build, left alone" });
+    if ok {
+        outputs();
+    }
+}
+
+/// The network outputs (`WAL_OUTPUTS`), read as DemulShooter does (its `Game_GvrAliens.cs`, the
+/// same build): the guns' recoil bits (+0x4E7AEA4 / +0x4E7AEA5 bit 2), the ammo LEDs'
+/// digits (+0x4E7AEA0..A3), and its code cave as a stub: where the game sets its output bits
+/// (+0x48D6C, `mov [0x50909E0], ecx`, eax the bits added: 5 player 1, 0x0A player 2) a
+/// recoil each (`P1_CtmRecoil`); in a game (+0x47C960 4), a player playing (status 4): life
+/// (float, × 100), ammo (float), a hit when the life goes down, the start lamp off (else
+/// blinking, 500 ms); the credits (+0x46D748 + +0x46D7C0).
+fn outputs() {
+    use wal_payload_common::outputs::{Falling, mem, poll, set};
+    if !wal_payload_common::outputs::enabled() {
+        return;
+    }
+    let b = mem::base();
+    // pushfd; or [slots], eax; popfd
+    let shots = unsafe { wal_payload_common::outputs::hook::stub(b + 0x48D6C, &[0x89, 0x0D, 0xE0, 0x09, 0x09, 0x05], |slots| [&[0x9C, 0x09, 0x05][..], &(slots as u32).to_le_bytes(), &[0x9D]].concat()) };
+    if shots.is_none() {
+        log!("aliens: outputs: another build, no recoil");
+    }
+    let mut damage: [Falling; 2] = Default::default();
+    poll("aliens extermination", 16, move || {
+        let blink = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() / 500 % 2) as i32;
+        let bits = shots.map_or(0, |s| unsafe { std::ptr::replace(s.0 as *mut u32, 0) });
+        let in_game = mem::u8(b + 0x47C960) == 4;
+        for (p, (status, life, ammo, led)) in [(0x556C844, 0x556C884, 0x556CB08, 0x4E7AEA0), (0x556CBD8, 0x556CC18, 0x556CE9C, 0x4E7AEA2)].into_iter().enumerate() {
+            let n = |f: &str| format!("P{}_{f}", p + 1);
+            set(&n("GunRecoil"), (mem::u8(b + 0x4E7AEA4 + p) >> 2 & 1) as i32);
+            if bits >> p & 1 != 0 {
+                set(&n("CtmRecoil"), 1);
+            }
+            set(&n("LedAmmo1"), mem::u8(b + led + 1) as i32);
+            set(&n("LedAmmo2"), mem::u8(b + led) as i32);
+            let playing = in_game && mem::u8(b + status) == 4;
+            let l = playing.then(|| (mem::f32(b + life) * 100.0) as i64);
+            damage[p].update(l, ["P1_Damaged", "P2_Damaged"][p]);
+            set(&n("Life"), l.unwrap_or(0) as i32);
+            set(&n("Ammo"), if playing { mem::f32(b + ammo) as i32 } else { 0 });
+            set(&n("Clip"), (!(playing && mem::u8(b + led) == 0x0A && mem::u8(b + led + 1) == 0x0A)) as i32);
+            set(&n("CtmLmpStart"), if playing { 0 } else { blink });
+        }
+        set("Credits", mem::u8(b + 0x46D748) as i32 + mem::u8(b + 0x46D7C0) as i32);
+    });
 }
 
 /// Replaces the function at `site` by `mov eax, target; jmp eax`, if its bytes are the expected ones.

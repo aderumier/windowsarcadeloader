@@ -9264,6 +9264,11 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Aliens Extermination (`aliens.rs`, the dump's `aliens.exe`: DemulShooter's dehasped build
+  with a few bytes patched, its addresses): the guns' recoil bits, the ammo LEDs; its cave as
+  a stub where the game sets its output bits (a recoil each, the custom recoil); in a game the
+  players' life (a hit when it goes down) and ammo, the start lamps blinking until playing; the
+  credits.
 * Mobile Suit Gundam Spirits of Zeon (typex `gun_outputs.rs`, the patched I/O 1.01 build both
   dumps run): start lamps and gun motors in its output bytes; DemulShooter's caves as stubs:
   the gun rumble calls (the player their first argument) of the shots (recoil) and of a hit
@@ -9375,7 +9380,8 @@ else the profile's file name (`sega-racing-classic`).
   Galaxy Rangers (about 100 recoil pulses, damage, life, credits); Happy Water Sprite II (its
   game LED, start LEDs, pump, water gun); Hot Shots Fire Rescue (blinking start lamps, gun
   lamps, seat shake, big gun, a hit, credits); Gundam Spirits of Zeon (17 recoil pulses, ammo,
-  life, gun motor);
+  life, gun motor); Aliens Extermination (28 recoil pulses, ammo and its LEDs, life, 9 hits,
+  start lamps);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the
