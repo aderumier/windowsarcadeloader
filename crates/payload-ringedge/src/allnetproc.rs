@@ -43,6 +43,12 @@
 //! +0x8A4, each with three counters echoed (+0x00 the slot's +0x02, +0x02 its +0x08, +0x04 its
 //! +0x0E: FUN_005e6ed0, FUN_005e6f50, FUN_005e6e40; the player's login waits for all three, else
 //! the player is not saved).
+//!
+//! maimai PLUS's helper (`WAL_RINGEDGE_ALLNETPROC_LAYOUT=plus`, ALLNetProc.exe of SBXL 1.10, the
+//! game's App2Proc 0x450 bytes, Proc2App 0xA14): PiNK's layout, two players' accounting slots,
+//! their acknowledgements 8 bytes each at +0x8A4 (ALLNetProc's FUN_00408f70: +0x00 the slot's
+//! +0x02 echoed once its item account is sent, +0x02 that call's result, +0x04 the slot's +0x0A
+//! once its general id is sent, +0x06 that result).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -73,16 +79,35 @@ struct Layout {
     place: usize,
     /// subtracted from FiNALE's offsets of the fields after AuthResp
     shift: usize,
-    /// the players' accounting acknowledgements (10 bytes each)
+    /// the players' accounting acknowledgements (10 bytes each, PLUS's 8)
     acks: usize,
+    acks_style: Acks,
+    /// the players' accounting slots in App2Proc
+    players: usize,
 }
 
-const FINALE: Layout = Layout { encrypted: true, auth_resp: 0x058, auth_size: 0x800, name: (0x00C, 256), uri: 0x434, address: 0x634, region: 0x640, region_names: 0x644, place: 0x744, shift: 0, acks: 0xCB0 };
-const PINK: Layout = Layout { encrypted: false, auth_resp: 0x050, auth_size: 0x400, name: (0x00C, 40), uri: 0x0D4, address: 0x2D4, region: 0x2E0, region_names: 0x2E4, place: 0x3E4, shift: 0x408, acks: 0x8A4 };
+/// How the players' accounting acknowledgements echo their slots' sequence numbers.
+#[derive(Clone, Copy, PartialEq)]
+enum Acks {
+    /// +2 the slot's +8, +4 its +0xE
+    Finale,
+    /// FiNALE's, and +0 the slot's +2
+    Pink,
+    /// 8 bytes each: +0 the slot's +2, +4 its +0xA (the results at +2 / +6 zero)
+    Plus,
+}
+
+const FINALE: Layout = Layout { encrypted: true, auth_resp: 0x058, auth_size: 0x800, name: (0x00C, 256), uri: 0x434, address: 0x634, region: 0x640, region_names: 0x644, place: 0x744, shift: 0, acks: 0xCB0, acks_style: Acks::Finale, players: 4 };
+const PINK: Layout = Layout { encrypted: false, auth_resp: 0x050, auth_size: 0x400, name: (0x00C, 40), uri: 0x0D4, address: 0x2D4, region: 0x2E0, region_names: 0x2E4, place: 0x3E4, shift: 0x408, acks: 0x8A4, acks_style: Acks::Pink, players: 4 };
+const PLUS: Layout = Layout { acks_style: Acks::Plus, players: 2, ..PINK };
 
 fn layout() -> &'static Layout {
-    static PINK_LAYOUT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    if *PINK_LAYOUT.get_or_init(|| std::env::var("WAL_RINGEDGE_ALLNETPROC_LAYOUT").is_ok_and(|v| v.trim().eq_ignore_ascii_case("pink"))) { &PINK } else { &FINALE }
+    static LAYOUT: std::sync::OnceLock<&'static Layout> = std::sync::OnceLock::new();
+    LAYOUT.get_or_init(|| match std::env::var("WAL_RINGEDGE_ALLNETPROC_LAYOUT").unwrap_or_default().trim().to_ascii_lowercase().as_str() {
+        "pink" => &PINK,
+        "plus" => &PLUS,
+        _ => &FINALE,
+    })
 }
 
 /// The title server's URI (the power-on's `uri`): `WAL_ALLS_TITLE_URI`, else
@@ -219,16 +244,25 @@ fn run() {
         let shift = layout().shift;
         if mode >= 2 {
             unsafe { p2a.add(0xC5D - shift).write_volatile(accounting_enabled()) };
-            for i in 0..4 {
+            let l = layout();
+            for i in 0..l.players {
                 let slot = unsafe { (a2p as *const u8).add(0x10 + i * 0x220) };
-                let ack = unsafe { p2a.add(layout().acks + i * 10) };
-                unsafe {
-                    // maimai PiNK's third counter: +0 echoes the slot's +2 (FUN_005e6ed0)
-                    if layout().acks != FINALE.acks {
-                        (ack as *mut u16).write_volatile((slot.add(2) as *const u16).read_volatile());
+                let echo = |at: usize, from: usize| unsafe { (p2a.add(at) as *mut u16).write_volatile((slot.add(from) as *const u16).read_volatile()) };
+                match l.acks_style {
+                    Acks::Plus => {
+                        let ack = l.acks + i * 8;
+                        echo(ack, 2);
+                        echo(ack + 4, 0xA);
                     }
-                    (ack.add(2) as *mut u16).write_volatile((slot.add(8) as *const u16).read_volatile());
-                    (ack.add(4) as *mut u16).write_volatile((slot.add(0xE) as *const u16).read_volatile());
+                    // maimai PiNK's third counter: +0 echoes the slot's +2 (FUN_005e6ed0)
+                    style => {
+                        let ack = l.acks + i * 10;
+                        if style == Acks::Pink {
+                            echo(ack, 2);
+                        }
+                        echo(ack + 2, 8);
+                        echo(ack + 4, 0xE);
+                    }
                 }
             }
         }

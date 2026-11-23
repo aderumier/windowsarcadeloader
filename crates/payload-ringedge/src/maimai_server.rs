@@ -656,11 +656,14 @@ pub(crate) fn title(path: &str, body: &[u8]) -> Vec<u8> {
     pack(&answer.to_string())
 }
 
-/// maimai PiNK's title server (the protocol before `MaimaiServlet`): `<uri>/<command>/...`.
+/// maimai PiNK's and PLUS's title server (the protocol before `MaimaiServlet`):
+/// `<uri>/<command>/<place>/<keychip>/...` (PiNK under the URI's path `/SDCQ/160/`, PLUS at the
+/// server's root: only its host taken).
 fn old_title(path: &str, body: &[u8]) -> Vec<u8> {
-    let rest = path.split_once("/SDCQ/").map_or(path, |(_, r)| r);
-    let parts: Vec<&str> = rest.split(['/', '?']).filter(|p| !p.is_empty()).collect();
-    let command = parts.get(1).copied().unwrap_or("");
+    let all: Vec<&str> = path.split(['/', '?']).filter(|p| !p.is_empty()).collect();
+    let at = all.iter().position(|p| ["gameconfig", "shopconfig", "logincheck", "login", "logout", "userdata"].contains(p)).unwrap_or(all.len().saturating_sub(1));
+    let parts = &all[at..];
+    let command = parts.first().copied().unwrap_or("");
     log!("maimai old server: {path} ({} bytes: {})", body.len(), String::from_utf8_lossy(&body[..body.len().min(400)]).replace(['\r', '\n'], " "));
     let json = |text: String| text.into_bytes();
     match command {
@@ -673,7 +676,7 @@ fn old_title(path: &str, body: &[u8]) -> Vec<u8> {
         // (`player_session`), the user id answered; `logout/...` carries the player's records
         // (multipart: `old_upload`)
         "login" | "logout" => {
-            let user = parts.get(4).copied().unwrap_or("");
+            let user = parts.get(3).copied().unwrap_or("");
             session(user, command == "login");
             if body.starts_with(b"--") {
                 old_upload(body);
