@@ -6322,16 +6322,29 @@ StepMania 3.95 fork, OpenGL, 32-bit; the songs of ITG 1, 2 and 3, the `arcade` t
   `SetProperty(DIPROP_BUFFERSIZE)` returns `DI_POLLEDDEVICE` (2): the fake keyboard does with
   `WAL_DINPUT_KEYBOARD_POLLED=1`, so the game polls its `GetDeviceState`.
 - **Preferences.** `Data\StepMania.ini` (read at start, `Data\Static.ini` over it, written
-  back): the payload sets `CoinMode` (the common `WAL_FREEPLAY`, on by default: 2 free play,
-  off 1 pay at the operator's coins per credit, 4 in the dump) and, `WAL_ITG_WINDOWED=1`,
-  `Windowed=1` with `DisplayWidth` / `DisplayHeight` the profile's `WAL_GL_SIZE` (640x480).
+  back): the payload sets `InputDrivers=DirectInput` (the default `DirectInput,Pump,Para`
+  took Wine's virtual HID mouse, 845E:0001, for a Pump It Up pad), `CoinMode` (the common
+  `WAL_FREEPLAY`, on by default: 2 free play, off 1 pay at the operator's coins per credit, 4
+  in the dump) and, `WAL_ITG_WINDOWED=1`, `Windowed=1` with `DisplayWidth` / `DisplayHeight`
+  the profile's `WAL_GL_SIZE` (640x480).
+- **Code** (2026-11-22; the image's build, "OpenITG PC beta 3 DEV" of 2010-10-19, its bytes
+  checked first, another build left alone):
+  - SELF-CHECK (`ScreenArcadeStart`) waited 15 s for the memory card USB hub ("The memory card
+    hub is not connected", libusb0's device list read every frame) unless START was pressed:
+    `DiagnosticsUtil::HubIsConnected` (0x4e25b0) returns true, the screen goes on in 1 s.
+  - The polled keyboard's 256 keys a poll exceed `InputHandler::ButtonPressed`'s 100 updates
+    without `UpdateTimer`: its warning (0x56a6bf, `jl` made `jmp`) was logged ~150 times a
+    frame (145 MB `log.txt` and 70 MB `info.txt` in two minutes, 25-45 fps in the attract).
+- **Dongle.** `GetSerialNumber()` / `GetAESKey()` look for the iButton on COM1: the common
+  serial hooks (`serial::install_none`) make every COM port absent (Batocera's COM1 is a real
+  /dev/ttyS0). Under Wine the build fails before opening it anyway ("failed to acquire
+  port", no `CreateFile`).
 - **Window.** A borderless screen-sized window (`WAL_WINDOW_SIZE=screen`; one of the 4:3
   rectangle was kept under GNOME's top bar), the game's 640x480 viewports scaled to its
   centered 4:3 rectangle (`WAL_GL_SIZE`, `WAL_D3D9_ASPECT=4:3`: drawn at the screen's
   resolution, black bars). The game creates its window at 0x0 (the common popup creation
   leaves it), then sets its captioned style: `itg.rs` hooks its `SetWindowLongA` and keeps
   it a popup.
-- The memory card hub (USB profiles) is absent: its warning dismisses itself at boot.
 - Verified headless (2026-11-12): attract, start, PICK A GAME / STYLE (player 2 joined: 2
   PLAYERS), a song, modifiers, gameplay (both players' steps judged), coins in pay mode
   (CREDIT(S) 1/4), the operator menu (SERVICE OPTIONS, moved with the arrows).

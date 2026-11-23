@@ -130,6 +130,16 @@ pub fn install_streaming_in(port: &str, handler: Handler, idle: Idle, modules: &
     install_device(device, modules);
 }
 
+/// No device: only the hooks, every COM port the game opens absent (In The Groove 2's iButton
+/// dongle probe on COM1, else the machine's /dev/ttyS0 on Batocera).
+pub fn install_none() {
+    if !HOOKED.swap(true, Ordering::Relaxed) {
+        trace_files();
+        pending_reads();
+    }
+    hook_modules(&[unsafe { GetModuleHandleW(std::ptr::null()) } as usize]);
+}
+
 fn install_device(device: Device, modules: &[usize]) {
     let device = Box::leak(Box::new(device));
     DEVICES.lock().unwrap().push(device);

@@ -13,11 +13,26 @@
 //! refused (`WAL_DINPUT_KEYBOARD_POLLED`: it then polls the key states).
 //!
 //! **Preferences.** The game reads `Data\StepMania.ini` (then `Data\Static.ini` over it) when it
-//! starts, and writes it back. The payload sets there, before: `CoinMode` (the common
-//! `WAL_FREEPLAY`: 2 free play, 1 pay), and the window (`WAL_ITG_WINDOWED=1`, the default):
+//! starts, and writes it back. The payload sets there, before: `InputDrivers=DirectInput` (its
+//! default `DirectInput,Pump,Para` took Wine's virtual HID mouse for a Pump It Up pad, a device
+//! the launcher's inputs never reach), `CoinMode` (the common `WAL_FREEPLAY`: 2 free play,
+//! 1 pay), and the window (`WAL_ITG_WINDOWED=1`, the default):
 //! `Windowed=1`, `DisplayWidth` / `DisplayHeight` the size its viewport is scaled from
 //! (`WAL_GL_SIZE`: the common viewport scaling fits it to the screen-sized window, 4:3, black
 //! bars), else 4:3 at the screen's height.
+//!
+//! **Code** (the OpenITG beta 3 DEV build, 2010-10-19, its bytes checked first, another build
+//! left as it is):
+//! - `ScreenArcadeStart` (SELF-CHECK) waited 15 s for the memory card USB hub ("The memory card
+//!   hub is not connected", libusb0's device list read every frame) unless START was pressed:
+//!   `DiagnosticsUtil::HubIsConnected` (0x4e25b0) returns true, the screen goes on at once.
+//! - The polled keyboard's 256 keys a poll passed `InputHandler::ButtonPressed`'s 100 updates
+//!   without `UpdateTimer`: its warning (0x56a6bf) was logged 150 times a frame, a 145 MB
+//!   `log.txt` in two minutes, the frame rate down to 25-45. Never logged.
+//!
+//! **Dongle.** `GetAESKey()` and `GetSerialNumber()` look for the cabinet's iButton on COM1:
+//! every COM port is absent ([`serial::install_none`]), as on a PC without serial ports (on
+//! Batocera Wine's COM1 is the machine's /dev/ttyS0, where nothing answers).
 //!
 //! **Window.** The game creates its window without a size (0x0: the common popup creation
 //! leaves it alone), then sets its captioned style (`SetWindowLongA(GWL_STYLE)`) and its size:
@@ -31,7 +46,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use wal_payload_common::mapping::ButtonMap;
-use wal_payload_common::{dinput, iat, input, log};
+use wal_payload_common::{dinput, iat, input, log, serial};
 use windows_sys::Win32::Foundation::HWND;
 use windows_sys::Win32::System::LibraryLoader::{GetModuleFileNameW, GetModuleHandleW};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -157,7 +172,8 @@ fn set_options(text: &str, values: &[(&str, String)]) -> String {
 }
 
 fn write_prefs() {
-    let mut values = Vec::new();
+    // DirectInput only: no Pump pads (Wine's HID mouse), no parallel port pads
+    let mut values = vec![("InputDrivers", "DirectInput".to_string())];
     let free = wal_payload_common::free_play("WAL_ARCADEPC_FREEPLAY");
     if let Some(free) = free {
         values.push(("CoinMode", if free { "2" } else { "1" }.to_string()));
@@ -184,6 +200,26 @@ fn write_prefs() {
     }
 }
 
+/// Code patches of the OpenITG beta 3 DEV build (2010-10-19): address, the bytes there, the
+/// patch, what it does.
+const PATCHES: &[(usize, &[u8], &str, &str)] = &[
+    // DiagnosticsUtil::HubIsConnected's SEH frame -> mov al, 1; ret
+    (0x4e25b0, &[0x64, 0xA1, 0x00, 0x00, 0x00, 0x00, 0x6A, 0xFF, 0x68, 0xC8, 0xDE, 0x79, 0x00], "B001C3", "memory card hub reported connected (self-check skipped)"),
+    // InputHandler::ButtonPressed: cmp [esi+0x50], 100; jl -> jmp
+    (0x56a6bb, &[0x83, 0x7E, 0x50, 0x64, 0x7C, 0x16], "837E5064EB", "\"updates without calling UpdateTimer\" warning off"),
+];
+
+fn patch_code() {
+    for &(at, bytes, patch, what) in PATCHES {
+        if !wal_payload_common::crash::readable(at, bytes.len()) || unsafe { std::slice::from_raw_parts(at as *const u8, bytes.len()) } != bytes {
+            log!("itg: another build, {at:#x} left as it is");
+            continue;
+        }
+        wal_payload_common::patches::apply_list(&format!("{:#x}:{}", at - 0x400000, patch));
+        log!("itg: {what}");
+    }
+}
+
 static ORIG_SET_WINDOW_LONG: AtomicUsize = AtomicUsize::new(0);
 
 /// The executable's `SetWindowLongA`: its top-level window's style without caption or frame.
@@ -202,6 +238,8 @@ unsafe extern "system" fn set_window_long(hwnd: HWND, index: i32, value: i32) ->
 pub fn init() {
     dinput::set_keyboard(keyboard);
     write_prefs();
+    patch_code();
+    serial::install_none();
     if std::env::var("WAL_WINDOW_POPUP").is_ok_and(|v| v.trim() == "1") {
         let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
         if let Some(o) = unsafe { iat::hook_module(exe, "user32.dll", "SetWindowLongA", set_window_long as *const () as usize) } {
