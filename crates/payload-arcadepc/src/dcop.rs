@@ -186,9 +186,15 @@ fn plugin_thread(port: u16) {
             continue;
         }
         log!("dcop: the plugin hides the game's cursor");
-        // its outputs (lamps, recoil), dropped, until it closes the connection
-        let mut buf = [0u8; 512];
-        while matches!(s.read(&mut buf), Ok(n) if n > 0) {}
+        // its outputs (lamps, recoil, life, ammo: the network outputs) until it closes the
+        // connection
+        let (mut buf, mut received) = ([0u8; 512], Vec::new());
+        while let Ok(n) = s.read(&mut buf)
+            && n > 0
+        {
+            received.extend_from_slice(&buf[..n]);
+            crate::demul::outputs(&mut received);
+        }
         log!("dcop: the plugin closed the connection");
         return;
     }

@@ -61,6 +61,8 @@ OUTPUTS = {
     "transformers-human-alliance": "lamps, recoil, gun motors, damage, life",
     "transformers-shadows-rising": "lamps, recoil, damage",
     "top-gun-arcade": "lamps, recoil, prize doors, tickets",
+    "quick-shot-arcade": "lamps, recoil, ammo, prize doors, tickets",
+    "dcop": "lamps, recoil, gun light, life, ammo",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",

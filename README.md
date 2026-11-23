@@ -338,7 +338,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `thrill-drive-4` | Thrill Drive 4: Crazy Streets | konami | works (user: 100%) |  |  | not in the test |  |
 | `chase-chase-jokers` | Chase Chase Jokers | konami | works (user: 100%) |  |  | not in the test |  |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns |  |  | not in the test |  |
-| `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun |  |  | not in the test |  |
+| `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun |  | lamps, recoil, ammo, prize doors, tickets | not in the test |  |
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun |  | lamps, recoil, prize doors, tickets | not in the test |  |
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns |  |  | not in the test |  |
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns |  |  | not in the test |  |
@@ -394,7 +394,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `come-on-baby-2` | Come On Baby! 2 Winter Championship | arcadepc | user 100% (2026-11-09), 2 players (stick, 2 buttons, start) |  |  | not in the test |  |
 | `robin-hood` | Robin Hood | arcadepc | user 100% (2026-11-09), 1 gun |  | recoil | not in the test |  |
 | `akuma-mortis-immortal` | Akuma Mortis Immortal | arcadepc | user 100% (2026-11-09), 2 guns |  | lamps, recoil, damage, life | not in the test |  |
-| `dcop` | DCOP | arcadepc | user 100% (2026-11-09), 1 gun |  |  | not in the test |  |
+| `dcop` | DCOP | arcadepc | user 100% (2026-11-09), 1 gun |  | lamps, recoil, gun light, life, ammo | not in the test |  |
 | `ballistics` | Ballistics | arcadepc | user 100% (2026-11-09), 1 player (steering, throttle, buttons) |  |  | not in the test |  |
 | `bug-busters` | Bug Busters | arcadepc | user 100% (2026-11-09), 2 guns |  | lamps, air blowers, recoil, damage, life, ammo | not in the test |  |
 | `arctic-thunder` | Arctic Thunder | arcadepc | user 100% (2026-11-09), 1 player (handlebar, throttle, attack) |  |  | not in the test |  |

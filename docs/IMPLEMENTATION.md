@@ -9200,6 +9200,12 @@ else the profile's file name (`sega-racing-classic`).
   plugins' patches of the game's I/O class: Top Gun's SY Fire board (`topgun.rs`: 10 the screen
   side light's mode, 12 the key lights, 13 the gift light, 8 the prize doors, 5 tickets; the
   shot the board reports, the game's `OnFire`, `P1_CtmRecoil`).
+* The dumps carrying DemulShooter's own BepInEx plugin (Quick Shot, DCOP): its output packets
+  (`u32` length, header 2, the payload) decoded by `demul.rs` (`dcop.rs`'s plugin client too),
+  the game told by the payload's size: 13 bytes Top Gun's plugin (`ToByteArray`: playing,
+  recoil, ammo, credits, prize doors, key / screen side / gift lights, ticket motor), 9 bytes
+  DCOP's (its fields by name: direct hit, green test light, gun light, recoil, ammo, life,
+  police light bar, red light, white strobe).
 * Games read in memory (DemulShooter's outputs, `outputs::mem` / `poll` / `Falling`): only for
   the builds DemulShooter knows (its `_KnownMd5Prints`, compared with the dumps' executables);
   its `Ctm` outputs are computed from the game's state (`P1_CtmRecoil` when the ammo goes down,
@@ -9270,7 +9276,8 @@ else the profile's file name (`sega-racing-classic`).
   Gunman (114 recoil pulses, ammo), SEGA Golden Gun (259 recoil, ammo, damage, life);
   Transformers: Human Alliance (recoil a shot of its machine gun, gun motor, lamps, damage, life),
   Transformers: Shadows Rising (recoil, damage, start and gun lamps); Top Gun (a recoil a shot,
-  screen side and key lights).
+  screen side and key lights); Quick Shot (recoil, ammo, credits, the lights, doors) and DCOP
+  (recoil, gun light, ammo, life, red light) from their plugins' packets.
 
 ## 7. Adding a system
 

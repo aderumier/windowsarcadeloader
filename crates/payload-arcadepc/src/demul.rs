@@ -8,7 +8,14 @@
 //! client pixels, `y` from the bottom as Unity's `Input.mousePosition`), then bit masks of the
 //! players' trigger, reload, action and weapon change, then flags (bit 0 hide the crosshairs,
 //! bit 7 inputs from the packets instead of the mouse). The plugin answers with output packets
-//! (`u32` length, header 2, the game's lamps and recoil): read and dropped.
+//! (`u32` length counting the header, header 2, the payload): to the network outputs
+//! ([`outputs`]), the game told by the payload's size:
+//! * 13 bytes, Top Gun's (`TcpOutputData.ToByteArray`): byte 0 playing bit 0, recoil bit 4
+//!   (`P1_CtmRecoil`, set for the packet after a shot), the ammo and credits (u32), the prize
+//!   doors' bits, the right / centre / left key lights and the screen side light (a nibble
+//!   each), the gift light and the ticket motor;
+//! * 9 bytes, DCOP's (its fields by name, a byte each): DirectHit, GreenTestLight, GunLight,
+//!   GunRecoil, P1_Ammo, P1_Life, Police_LightBar, RedLight, WhiteStrobe.
 //!
 //! `WAL_DEMUL_PORT=<port>` (the game profile): the payload is that client, from the virtual
 //! sticks. The gun position (`lx`, `ly` over the screen) is mapped onto the game window. A shot
@@ -340,6 +347,7 @@ pub fn start(port: u16) {
         let mut last = (Vec::new(), Instant::now());
         let mut next_connect = Instant::now();
         let mut last_area = None;
+        let mut received: Vec<u8> = Vec::new();
         loop {
             std::thread::sleep(Duration::from_millis(4));
             let hwnd = find_window();
@@ -358,12 +366,15 @@ pub fn start(port: u16) {
                 }
             }
             let Some(s) = stream.as_mut() else { continue };
-            // the plugin's outputs, dropped (its socket closed: reconnect)
+            // the plugin's outputs (its socket closed: reconnect)
             let mut buf = [0u8; 512];
             let closed = loop {
                 match s.read(&mut buf) {
                     Ok(0) => break true,
-                    Ok(_) => continue,
+                    Ok(n) => {
+                        received.extend_from_slice(&buf[..n]);
+                        outputs(&mut received);
+                    }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => break false,
                     Err(_) => break true,
                 }
@@ -389,4 +400,58 @@ pub fn start(port: u16) {
             next_connect = Instant::now() + Duration::from_millis(500);
         }
     });
+}
+
+/// The plugin's output packets in `received` (the whole ones taken), to the network outputs.
+pub(crate) fn outputs(received: &mut Vec<u8>) {
+    use wal_payload_common::outputs::{pulse, set};
+    while received.len() >= 5 {
+        let len = u32::from_le_bytes(received[..4].try_into().unwrap()) as usize;
+        if len == 0 || len > 4096 {
+            received.clear();
+            return;
+        }
+        if received.len() < 4 + len {
+            return;
+        }
+        let packet: Vec<u8> = received.drain(..4 + len).collect();
+        let (header, d) = (packet[4], &packet[5..]);
+        if header != 2 || !wal_payload_common::outputs::enabled() {
+            continue;
+        }
+        match d.len() {
+            13 => {
+                if d[0] >> 4 & 1 != 0 {
+                    pulse("P1_CtmRecoil", 50);
+                }
+                set("P1_Ammo", u32::from_le_bytes(d[1..5].try_into().unwrap()) as i32);
+                set("Credits", u32::from_le_bytes(d[5..9].try_into().unwrap()) as i32);
+                set("GiftDoor", (d[9] & 0x0F) as i32);
+                set("LmpRightKey", (d[10] & 0x0F) as i32);
+                set("LmpCenterKey", (d[10] >> 4) as i32);
+                set("LmpLeftKey", (d[11] & 0x0F) as i32);
+                set("LmpScreenSide", (d[11] >> 4) as i32);
+                set("LmpGift", (d[12] & 0x0F) as i32);
+                set("TicketDrive", (d[12] >> 4 & 1) as i32);
+            }
+            9 => {
+                set("Lmp_DirectHit", d[0] as i32);
+                set("Lmp_GreenTestLight", d[1] as i32);
+                set("P1_LmpGun", d[2] as i32);
+                set("P1_GunRecoil", d[3] as i32);
+                set("P1_CtmRecoil", d[3] as i32);
+                set("P1_Ammo", d[4] as i32);
+                set("P1_Life", d[5] as i32);
+                set("Lmp_PoliceBar", d[6] as i32);
+                set("Lmp_RedLight", d[7] as i32);
+                set("Lmp_WhiteStrobe", d[8] as i32);
+            }
+            n => {
+                static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+                if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                    log!("demul: output packet of {n} bytes: unknown plugin, not read");
+                }
+            }
+        }
+    }
 }
