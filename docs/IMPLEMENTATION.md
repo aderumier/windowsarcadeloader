@@ -9264,6 +9264,10 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Hot Shots Fire Rescue (`uaf.rs`): DemulShooter's code caves in the same `GameAssembly.dll`
+  as stubs: `UAF_ControlManager.OpenLight` / `CloseLight` the lamps (2 blinking, 100 ms),
+  the seat and cannon shakers, the water mist, `SgPlayer.PlayEffectHitted` the hits (while
+  playing), the managers' instances: the coins, the water pumps (big and small guns).
 * Skull of Shadow (`boys.rs`): the PC's HID reports (a report id, then the `TopUart.ini`
   `Write` places): bytes 12..15 each gun's shaker motor (`MotorShakeGun<n>`: `P1_GunMotor`,
   `P1_CtmRecoil` while it runs).
@@ -9365,7 +9369,8 @@ else the profile's file name (`sega-racing-classic`).
   motor pulse a shot, the start lights); Point Blank X (139 recoil pulses, start and gun LEDs);
   Raccoon Rampage (its recoils); Wild West Shoot Out (43 recoil pulses, damage, life, credits);
   Galaxy Rangers (about 100 recoil pulses, damage, life, credits); Happy Water Sprite II (its
-  game LED, start LEDs, pump, water gun);
+  game LED, start LEDs, pump, water gun); Hot Shots Fire Rescue (blinking start lamps, gun
+  lamps, seat shake, big gun, a hit, credits);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the

@@ -345,7 +345,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons |  | lamps, water guns, gun motors, chair shaker, pump | not in the test |  |
 | `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns |  |  | not in the test |  |
 | `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | user 100%, 1 gun |  |  | not in the test |  |
-| `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons |  |  | not in the test |  |
+| `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons |  | lamps, water guns, seat and gun motors, mist, damage, credits | not in the test |  |
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) |  |  | not in the test |  |
 | `hog-wild` | Hog Wild | arcadepc | user 100% (2026-11-05) |  |  | not in the test |  |
 | `space-warp-66` | Space Warp 66 | arcadepc | user 100% (2026-11-06), 1 spinner, bezel |  |  | not in the test |  |

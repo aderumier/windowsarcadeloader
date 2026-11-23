@@ -20,11 +20,21 @@
 //!   target is the cannon's place on the picture in the game's centered pixels (x -960..960,
 //!   y -540..540 up).
 //!
+//! - **Network outputs** (`WAL_OUTPUTS`), DemulShooter's code caves in the same build as stubs
+//!   (`outputs::hook`) writing [`OUT`]: `UAF_ControlManager.OpenLight` / `CloseLight` (player,
+//!   lamp, state: 1 on, 2 blinking) the players' lamps (1 `P1_LmpStart`, 2 `P1_LmpGun`),
+//!   `StartSeatShake` / `CloseSeatShake` the seats (`P1_ChairShake`), `StartShakeApparatusOut` /
+//!   `CloseShake` the cannons' motors (`P1_GunMotor`), `WaterMistControl` the mist
+//!   (`SmokeSwitch`), `SgPlayer.PlayEffectHitted` a hit (player, -1 all: `P1_Damaged` while
+//!   playing), the managers' `Update` their instances: the game manager's coins (+0x40,
+//!   `P1_Credits`) and players playing (+0x5C), the control manager's water pumps (+0x1E8, a
+//!   [player, 2] byte array: the big gun, the small one: `P1_BigGun`, `P1_WaterFire`).
+//!
 //! Natives: `trigger start coin` (each player), `test service repair` (the operator's).
 
 use std::ffi::c_void;
 use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::time::Duration;
 
 use wal_payload_common::mapping::ButtonMap;
@@ -216,8 +226,128 @@ fn replace_move_gun() {
     }
 }
 
+// The network outputs
+
+/// What the stubs write: the lamps (`[player * 4 + lamp]`, bytes 0..16), the seats' (16..20) and
+/// the cannons' motors (20..24), the hits (24..28), the mist (dword 7), the game manager (dword
+/// 8), the control manager (dword 9).
+static OUT: [AtomicU32; 10] = [const { AtomicU32::new(0) }; 10];
+
+#[cfg(target_arch = "x86")]
+fn outputs(base: usize) {
+    use wal_payload_common::outputs::hook::stub;
+    use wal_payload_common::outputs::{mem, poll, set};
+    let out = OUT.as_ptr() as u32;
+    let a = |o: u32| (out + o).to_le_bytes();
+    // pushfd; push eax; push ecx; mov ecx, [ebp+0C] (player); cmp ecx, 3; ja; mov eax, [ebp+10]
+    // (lamp); cmp eax, 3; ja; lea ecx, [eax+ecx*4]; mov eax, [ebp+14] (state) or xor eax, eax;
+    // mov [ecx+lamps], al; pop ecx; pop eax; popfd
+    let light = |on: bool| {
+        let mut c = vec![0x9C, 0x50, 0x51, 0x8B, 0x4D, 0x0C, 0x83, 0xF9, 0x03, 0x77, if on { 20 } else { 19 }];
+        c.extend_from_slice(&[0x8B, 0x45, 0x10, 0x83, 0xF8, 0x03, 0x77, if on { 12 } else { 11 }, 0x8D, 0x0C, 0x88]);
+        c.extend_from_slice(if on { &[0x8B, 0x45, 0x14][..] } else { &[0x31, 0xC0][..] });
+        c.extend_from_slice(&[0x88, 0x81]);
+        c.extend_from_slice(&a(0));
+        c.extend_from_slice(&[0x59, 0x58, 0x9D]);
+        c
+    };
+    // pushfd; push eax; mov eax, [ebp+0C] (player); cmp eax, 3; ja; mov byte [eax+motors], on;
+    // pop eax; popfd
+    let motor = |first: u32, on: u8| {
+        let mut c = vec![0x9C, 0x50, 0x8B, 0x45, 0x0C, 0x83, 0xF8, 0x03, 0x77, 0x07, 0xC6, 0x80];
+        c.extend_from_slice(&a(first));
+        c.extend_from_slice(&[on, 0x58, 0x9D]);
+        c
+    };
+    // pushfd; push eax; mov eax, [ebp+disp]; mov [dword], eax; pop eax; popfd
+    let store = |disp: u8, dword: u32| {
+        let mut c = vec![0x9C, 0x50, 0x8B, 0x45, disp, 0xA3];
+        c.extend_from_slice(&a(dword * 4));
+        c.extend_from_slice(&[0x58, 0x9D]);
+        c
+    };
+    // pushfd; push eax; mov eax, [ebp+10] (player); cmp eax, -1; jne; mov dword [hits],
+    // 0x01010101; jmp; cmp eax, 3; ja; mov byte [eax+hits], 1; pop eax; popfd
+    let hit = {
+        let mut c = vec![0x9C, 0x50, 0x8B, 0x45, 0x10, 0x83, 0xF8, 0xFF, 0x75, 0x0C, 0xC7, 0x05];
+        c.extend_from_slice(&a(24));
+        c.extend_from_slice(&[1, 1, 1, 1, 0xEB, 0x0C, 0x83, 0xF8, 0x03, 0x77, 0x07, 0xC6, 0x80]);
+        c.extend_from_slice(&a(24));
+        c.extend_from_slice(&[1, 0x58, 0x9D]);
+        c
+    };
+    let sites: [(usize, &[u8], Vec<u8>); 10] = [
+        (0x428844, &[0x8B, 0x40, 0x08, 0x8B, 0x75, 0x10], light(true)),
+        (0x428A34, &[0x8B, 0x40, 0x08, 0x8B, 0x7D, 0x10], light(false)),
+        (0x430CB8, &[0x8B, 0x87, 0x0C, 0x02, 0x00, 0x00], motor(16, 1)),
+        (0x430E48, &[0x8B, 0x87, 0x0C, 0x02, 0x00, 0x00], motor(16, 0)),
+        (0x430A48, &[0x8B, 0x87, 0x08, 0x02, 0x00, 0x00], motor(20, 1)),
+        (0x430978, &[0x8B, 0x87, 0x08, 0x02, 0x00, 0x00], motor(20, 0)),
+        (0x42FA03, &[0x83, 0xE4, 0xF0, 0x83, 0xEC, 0x38], store(0x0C, 7)),
+        (0x3BD333, &[0x83, 0xE4, 0xF0, 0x83, 0xEC, 0x28], hit),
+        (0x43A14A, &[0x8B, 0x7D, 0x08, 0x83, 0xC4, 0x04], store(0x08, 8)),
+        (0x428DB2, &[0x8B, 0x75, 0x08, 0x33, 0xD2], store(0x08, 9)),
+    ];
+    for (rva, original, code) in sites {
+        if unsafe { stub(base + rva, original, |_| code) }.is_none() {
+            log!("uaf: outputs: unknown code at {rva:#x}, no outputs");
+            return;
+        }
+    }
+    log!("uaf: outputs");
+    let byte = |i: usize| unsafe { *(OUT.as_ptr() as *const u8).add(i) };
+    poll("hot shots fire rescue", 16, move || {
+        // a lamp's state 2: blinking, 100 ms on, 100 ms off (DemulShooter's)
+        let blink = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() / 100 % 2) as i32;
+        let lamp = |v: u8| if v == 2 { 1 - blink } else { v as i32 };
+        let game = OUT[8].load(Ordering::Relaxed) as usize;
+        let (coins, gaming) = if game != 0 { (mem::u32(game + 0x40) as usize, mem::u32(game + 0x5C) as usize) } else { (0, 0) };
+        let pumps = OUT[9].load(Ordering::Relaxed) as usize;
+        let pumps = if pumps != 0 { mem::u32(pumps + 0x1E8) as usize } else { 0 };
+        // the pumps' [player, 2] array: its bounds (+8) the lengths
+        let (rows, row) = if pumps != 0 { let b = mem::u32(pumps + 8) as usize; if b != 0 { (mem::u32(b) as usize, mem::u32(b + 8) as usize) } else { (0, 0) } } else { (0, 0) };
+        for p in 0..PLAYERS {
+            let n = |f: &str| format!("P{}_{f}", p + 1);
+            set(&n("LmpStart"), lamp(byte(p * 4 + 1)));
+            set(&n("LmpGun"), lamp(byte(p * 4 + 2)));
+            set(&n("ChairShake"), byte(16 + p) as i32);
+            set(&n("GunMotor"), byte(20 + p) as i32);
+            let (big, small) = if p < rows.min(PLAYERS) { (mem::u8(pumps + 0x10 + row * p), mem::u8(pumps + 0x10 + row * p + 1)) } else { (0, 0) };
+            set(&n("BigGun"), big as i32);
+            set(&n("WaterFire"), small as i32);
+            let playing = gaming != 0 && p < mem::u32(gaming + 0xC) as usize && mem::u8(gaming + 0x10 + p) == 1;
+            if byte(24 + p) == 1 && playing {
+                set(&n("Damaged"), 1);
+            }
+            if byte(24 + p) == 1 {
+                unsafe { *(OUT.as_ptr() as *mut u8).add(24 + p) = 0 };
+            }
+            let credits = if coins != 0 && p < mem::u32(coins + 0xC) as usize { mem::u32(coins + 0x10 + 4 * p) as i32 } else { 0 };
+            set(&n("Credits"), credits);
+        }
+        set("SmokeSwitch", OUT[7].load(Ordering::Relaxed) as i32);
+    });
+}
+
+/// The outputs' stubs, once `GameAssembly.dll` is loaded.
+fn start_outputs() {
+    if !wal_payload_common::outputs::enabled() {
+        return;
+    }
+    for _ in 0..20000 {
+        let base = unsafe { GetModuleHandleW(windows_sys::w!("GameAssembly.dll")) } as usize;
+        if base != 0 {
+            #[cfg(target_arch = "x86")]
+            outputs(base);
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+}
+
 pub fn init() {
     mono_imports::hook(resolve);
     std::thread::spawn(replace_move_gun);
+    std::thread::spawn(start_outputs);
     log!("uaf: IO board, SuperDog, aim");
 }
