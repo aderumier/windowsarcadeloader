@@ -255,6 +255,7 @@ pub(crate) fn stage_select_time() {
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
     };
+    recoil(m, image);
     let Some(il) = m.il_code(m.method(m.class(image, "", "UISelectScreen"), "Update", 0)) else {
         log!("mib: UISelectScreen.Update not found");
         return;
@@ -268,6 +269,45 @@ pub(crate) fn stage_select_time() {
         }
         _ => log!("mib: UISelectScreen.Update: {} times of 1.2 s, unchanged", at.len()),
     }
+}
+
+/// `PlayerGunBase.Pid`'s field (its backing field).
+static PID: AtomicUsize = AtomicUsize::new(0);
+
+/// Mission: Impossible's recoil, to the network outputs: each `PlayerGunBase.Shoot` (a prefix,
+/// the U-Shoot plugin's), its gun's player (`Pid`: 0 one, 1 two) `P1_GunRecoil` /
+/// `P1_CtmRecoil` pulsed.
+fn recoil(m: &'static mono::Mono, image: mono::P) {
+    if !wal_payload_common::outputs::enabled() {
+        return;
+    }
+    extern "C" fn shoot(gun: mono::P) {
+        let pid = PID.load(Ordering::Relaxed);
+        if gun.is_null() || pid == 0 {
+            return;
+        }
+        match unsafe { mono::read::<i32>(gun as *const u8, pid) } {
+            0 => {
+                wal_payload_common::outputs::pulse("P1_GunRecoil", 50);
+                wal_payload_common::outputs::pulse("P1_CtmRecoil", 50);
+            }
+            1 => {
+                wal_payload_common::outputs::pulse("P2_GunRecoil", 50);
+                wal_payload_common::outputs::pulse("P2_CtmRecoil", 50);
+            }
+            _ => {}
+        }
+    }
+    let gun = m.class(image, "", "PlayerGunBase");
+    PID.store(m.offset(m.field(gun, "<Pid>k__BackingField")), Ordering::Relaxed);
+    #[cfg(target_arch = "x86_64")]
+    let hooked = m.prefix(m.method(gun, "Shoot", 0), shoot);
+    #[cfg(not(target_arch = "x86_64"))]
+    let hooked = {
+        let _ = shoot;
+        false
+    };
+    log!("mib: PlayerGunBase.Shoot {} (Pid +{:#x})", if hooked { "hooked: the recoil" } else { "not hooked" }, PID.load(Ordering::Relaxed));
 }
 
 /// Mission: Impossible's shots (`CameraBufferManager.ViewportPointToRay`: the guns, the laser

@@ -337,6 +337,66 @@ impl Mono {
         true
     }
 
+    /// Calls `hook(first argument)` (the instance of an instance method) at each call of
+    /// `method`, before its own code, which then runs (Harmony's prefix): the compiled method's
+    /// first instructions (Mono's prologue: `push`, `mov rbp, rsp`, `sub rsp`, register saves to
+    /// the stack, 14 bytes at least) moved to a trampoline, its arguments' registers (rcx, rdx,
+    /// r8, r9, xmm0..3) kept. `false` (the method unchanged) for a prologue of other
+    /// instructions (their bytes logged).
+    #[cfg(target_arch = "x86_64")]
+    pub fn prefix(&self, method: P, hook: extern "C" fn(P)) -> bool {
+        if method.is_null() {
+            return false;
+        }
+        let code = unsafe { (self.compile_method)(method) } as *mut u8;
+        if code.is_null() || !crate::crash::readable(code as usize, 32) {
+            return false;
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(code, 32) };
+        let Some(len) = prologue_length(bytes, 14) else {
+            crate::log!("mono: prefix: unknown prologue {:02x?}", &bytes[..16]);
+            return false;
+        };
+        use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAlloc};
+        let t = unsafe { VirtualAlloc(std::ptr::null(), 256, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) } as *mut u8;
+        if t.is_null() {
+            return false;
+        }
+        let mut c: Vec<u8> = vec![0x51, 0x52, 0x41, 0x50, 0x41, 0x51, 0x48, 0x83, 0xEC, 0x68];
+        // movdqu [rsp + 0x20..0x50], xmm0..3
+        for (i, m) in [0x44u8, 0x4C, 0x54, 0x5C].iter().enumerate() {
+            c.extend_from_slice(&[0xF3, 0x0F, 0x7F, *m, 0x24, 0x20 + 0x10 * i as u8]);
+        }
+        c.extend_from_slice(&[0x48, 0xB8]);
+        c.extend_from_slice(&(hook as usize as u64).to_le_bytes());
+        c.extend_from_slice(&[0xFF, 0xD0]);
+        for (i, m) in [0x44u8, 0x4C, 0x54, 0x5C].iter().enumerate() {
+            c.extend_from_slice(&[0xF3, 0x0F, 0x6F, *m, 0x24, 0x20 + 0x10 * i as u8]);
+        }
+        c.extend_from_slice(&[0x48, 0x83, 0xC4, 0x68, 0x41, 0x59, 0x41, 0x58, 0x5A, 0x59]);
+        c.extend_from_slice(&bytes[..len]);
+        // jmp [rip + 0]; the rest of the method
+        c.extend_from_slice(&[0xFF, 0x25, 0, 0, 0, 0]);
+        c.extend_from_slice(&(code as u64 + len as u64).to_le_bytes());
+        let mut jump = vec![0x90u8; len];
+        jump[..6].copy_from_slice(&[0xFF, 0x25, 0, 0, 0, 0]);
+        jump[6..14].copy_from_slice(&(t as u64).to_le_bytes());
+        use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
+        use windows_sys::Win32::System::Memory::VirtualProtect;
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        let mut old = 0;
+        unsafe {
+            std::ptr::copy_nonoverlapping(c.as_ptr(), t, c.len());
+            if VirtualProtect(code.cast(), len, PAGE_EXECUTE_READWRITE, &mut old) == 0 {
+                return false;
+            }
+            std::ptr::copy_nonoverlapping(jump.as_ptr(), code, len);
+            VirtualProtect(code.cast(), len, old, &mut old);
+            FlushInstructionCache(GetCurrentProcess(), code.cast(), len);
+        }
+        true
+    }
+
     /// A new `byte[len]`.
     pub fn byte_array(&self, len: usize) -> P {
         unsafe { (self.array_new)(self.domain(), (self.get_byte_class)(), len) }
@@ -356,6 +416,40 @@ impl Mono {
 ///
 /// # Safety
 /// `base + offset` must hold a `T`.
+/// The length of the whole instructions at the start of `code` covering `at_least` bytes, when
+/// each is one of Mono's x86-64 prologue instructions (position independent): push reg, mov rbp,
+/// rsp, sub rsp imm8 / imm32, mov [rsp (+ disp8 / disp32)], reg, mov reg, reg, mov [rbp +
+/// disp8], reg / imm32; `None` otherwise.
+#[cfg(target_arch = "x86_64")]
+fn prologue_length(code: &[u8], at_least: usize) -> Option<usize> {
+    let mut i = 0;
+    while i < at_least {
+        let c = &code[i..];
+        let n = match c {
+            [0x50..=0x57, ..] => 1,
+            [0x41, 0x50..=0x57, ..] => 2,
+            [0x48, 0x8B, 0xEC, ..] | [0x48, 0x89, 0xE5, ..] => 3,
+            [0x48, 0x83, 0xEC, _, ..] => 4,
+            [0x48, 0x81, 0xEC, ..] => 7,
+            // mov [rsp + ..], reg (rex.w, r: 0x48 / 0x4C), sib 0x24
+            [0x48 | 0x4C, 0x89, modrm, 0x24, ..] if modrm & 7 == 4 => match modrm >> 6 {
+                0 => 4,
+                1 => 5,
+                2 => 8,
+                _ => return None,
+            },
+            // mov reg, reg (rex.w)
+            [0x48 | 0x49 | 0x4C | 0x4D, 0x89 | 0x8B, modrm, ..] if modrm >> 6 == 3 => 3,
+            // mov [rbp + disp8], reg; mov qword [rbp + disp8], imm32
+            [0x48 | 0x4C, 0x89, modrm, _, ..] if modrm >> 6 == 1 && modrm & 7 == 5 => 4,
+            [0x48, 0xC7, modrm, _, ..] if modrm >> 6 == 1 && modrm & 7 == 5 => 8,
+            _ => return None,
+        };
+        i += n;
+    }
+    (i + 8 <= code.len()).then_some(i)
+}
+
 /// A managed array's elements (its object references): the length after the object header and
 /// the bounds pointer, the elements after it; empty for a null array.
 ///
