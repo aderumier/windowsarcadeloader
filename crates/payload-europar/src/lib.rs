@@ -35,6 +35,7 @@ mod grid;
 mod happ;
 mod inpwrapper;
 mod mib;
+mod mig;
 mod settings;
 mod shell;
 mod shell_mib;

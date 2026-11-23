@@ -3107,7 +3107,8 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
     Batocera's serial ports and Sinden guns untouched).
 - **Mission: Impossible Arcade (2020).** `Sega/MissionImpossible/MissionImpossible.exe`, Unity
   2018.4 Mono, 64-bit, two players, each gun with two triggers: the same payload as Men In Black
-  (`WAL_EUROPAR_BOARD=mig`, `mib.rs`, `shell_mib.rs`'s `MIG` protocol).
+  (`WAL_EUROPAR_BOARD=mig`: `mib.rs`'s Unity input functions, `mig.rs` its keys, guns, unlock and
+  shots, `shell_mib.rs`'s `MIG` protocol).
   - *Shell.* `ShellManager` connects to 127.0.0.1:18888 and quits without it: header `"MIG"`,
     the operation, the length, the sequence number always 0, nothing acknowledged. Game ->
     shell: 1 launched, 2 assets loaded, 3 attract, 6 start pressed (the player; a continue too),
@@ -3126,6 +3127,10 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
     top (-1..1 to 0..4096, then the calibration, unclamped). The wrapper's `GetKeyInt` /
     `GetKeyDownInt` / `GetKeyUpInt` answer those key codes (no keyboard key), `GetAxis` the
     guns (`2 * x - 1`, kept while off screen). The game draws its own crosshairs.
+  - *Screen size.* `GunAdjust` and the sights use `Screen.width` / `height`, the shots
+    (`CameraBufferManager.ViewportPointToRay`) a fixed 1920x1080: in another size the payload
+    sets those two constants of its IL to the screen's (at the first `GetAxis`), so the shots hit
+    the sights without gamescope.
   - *Two guns a player.* The two triggers are the player's two guns (`PlayerGunL` /
     `PlayerGunR`, one aim). The launcher tells the payload how many real lightguns are plugged
     (`WAL_GUN_COUNT`: tagged guns, else untagged absolute pointers; never mice nor touchpads,
