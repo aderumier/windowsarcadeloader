@@ -28,6 +28,8 @@ controls:
   b4: Change
 
 env:
+  # the JVS outputs' meaning, for the network outputs (DemulShooter's)
+  WAL_OUTPUTS_LAMPS: "0:P1_LmpStart,1:P1_GunRecoil,2:LmpBillboard,3:P2_LmpStart,4:P2_GunRecoil"
   # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
   WAL_RINGEDGE_PLATFORM: AAM
   WAL_TYPEX_JVS_OUTPUTS: "20"

@@ -9286,6 +9286,12 @@ else the profile's file name (`sega-racing-classic`).
   `WAL_OUTPUTS_RECOIL_ON` ms on (10) and `WAL_OUTPUTS_RECOIL_OFF` ms of pause (30), a hit
   `WAL_OUTPUTS_DAMAGED` ms on (200) and 100 ms of pause: DemulShooter's settings and defaults,
   the GUI's Common options beside the network outputs'.
+* Named JVS outputs: a profile's `WAL_OUTPUTS_LAMPS` (`"0:P1_LmpStart,1:P1_GunRecoil,..."`,
+  several names joined by `+`) sends `lamp<n>` by the cabinet's name too (DemulShooter's), a
+  `P<n>_GunRecoil` also as `P<n>_CtmRecoil`: Operation G.H.O.S.T. and Target Bravo (start
+  lamps, recoil, billboard), Let's Go Island 3D (its gun motors, running on each shot, as the
+  custom recoil; the seat's air blowers). Verified headless: Target Bravo 165 recoil pulses,
+  Let's Go Island 3D 102.
 * Names: `RawLamps`, `RawLamps1`... (a JVS board's general purpose output bytes) and `lamp0`,
   `lamp1`... (output n + 1, bit 7 - n % 8 of byte n / 8); `RawDrive` (each byte to a Sega drive
   board); the games' own (U-Shoot's names: `P1_GunRecoil`, `P1_LmpStart`...).

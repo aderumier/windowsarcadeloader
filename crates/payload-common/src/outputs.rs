@@ -138,8 +138,33 @@ pub fn gpo(index: usize, byte: u8) {
     set(&raw, byte as i32);
     let changed = old.map_or(0xFF, |o| o ^ byte);
     for bit in (0..8).rev().filter(|b| changed & (1 << b) != 0) {
-        set(&format!("lamp{}", index * 8 + 7 - bit), (byte >> bit & 1) as i32);
+        let (n, v) = (index * 8 + 7 - bit, (byte >> bit & 1) as i32);
+        set(&format!("lamp{n}"), v);
+        // the profile's name of that output (`WAL_OUTPUTS_LAMPS`)
+        for (_, name) in lamp_names().iter().filter(|(i, _)| *i == n) {
+            set(name, v);
+            // a gun's recoil solenoid: DemulShooter's custom recoil too
+            if let Some(player) = name.strip_suffix("_GunRecoil") {
+                set(&format!("{player}_CtmRecoil"), v);
+            }
+        }
     }
+}
+
+/// The names a game profile gives its lamps (`WAL_OUTPUTS_LAMPS="0:P1_LmpStart,1:P1_GunRecoil,
+/// ..."`: `lamp<n>` also sent by that name, several joined by `+`), the cabinet's meaning of
+/// each JVS output.
+fn lamp_names() -> &'static [(usize, String)] {
+    static NAMES: OnceLock<Vec<(usize, String)>> = OnceLock::new();
+    NAMES.get_or_init(|| {
+        std::env::var("WAL_OUTPUTS_LAMPS")
+            .unwrap_or_default()
+            .split(',')
+            .filter_map(|e| e.split_once(':'))
+            .filter_map(|(n, names)| Some((n.trim().parse::<usize>().ok()?, names)))
+            .flat_map(|(n, names)| names.split('+').map(move |name| (n, name.trim().to_string())))
+            .collect()
+    })
 }
 
 /// A JVS board's general purpose output bytes, from byte 0 (a `32` command's data).
