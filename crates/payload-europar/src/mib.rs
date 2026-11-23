@@ -143,7 +143,12 @@ unsafe extern "C" fn get_axis(name: P) -> f32 {
         SHOTS.call_once(mig::shots_in_screen);
     }
     let player = axis / 2;
-    if let Some((x, y)) = mig::aim(player) {
+    // Men In Black: a gun a player (Mission: Impossible's can have two)
+    let aim = match board() {
+        Board::Mib => wal_payload_common::gun::gun_of_player_in_picture(player),
+        Board::Mig => mig::aim(player),
+    };
+    if let Some((x, y)) = aim {
         AIM[player * 2].store(x.to_bits(), Ordering::Relaxed);
         AIM[player * 2 + 1].store(y.to_bits(), Ordering::Relaxed);
     }
