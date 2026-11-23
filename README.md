@@ -250,12 +250,12 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `dead-or-alive-5-ultimate-arcade` | Dead or Alive 5 Ultimate Arcade | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `under-defeat-hd-plus` | Under Defeat HD+ | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `lets-go-island-3d` | Let's Go Island 3D: Lost on the Island of Tropics | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
-| `lets-go-island-ringwide` | Let's Go Island: Lost on the Island of Tropics (RingWide) | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
-| `sega-golden-gun` | SEGA Golden Gun | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
-| `dream-raiders` | Dream Raiders | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
+| `lets-go-island-ringwide` | Let's Go Island: Lost on the Island of Tropics (RingWide) | ringedge | works (user: 100%) |  | lamps, recoil, gun motors, damage, life | not in the test |  |
+| `sega-golden-gun` | SEGA Golden Gun | ringedge | works (user: 100%) |  | lamps, recoil, damage, life, ammo | not in the test |  |
+| `dream-raiders` | Dream Raiders | ringedge | works (user: 100%) |  | lamps, gun motors, blower, damage, life | not in the test |  |
 | `operation-ghost` | Operation G.H.O.S.T. | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `target-bravo-operation-ghost` | Target Bravo: Operation G.H.O.S.T. | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
-| `medal-no-gunman` | Medal no Gunman | ringedge | works (user: mouse) |  | lamps (JVS) | not in the test |  |
+| `medal-no-gunman` | Medal no Gunman | ringedge | works (user: mouse) |  | lamps (JVS), recoil, ammo | not in the test |  |
 | `super-monkey-ball-ticket-blitz` | Super Monkey Ball Ticket Blitz | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `lets-go-safari` | Let's Go Safari | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `lady-luck` | Lady Luck | ringedge | works (user: 100%) |  | lamps (JVS) | not in the test |  |

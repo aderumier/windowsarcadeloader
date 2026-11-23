@@ -9203,7 +9203,10 @@ else the profile's file name (`sega-racing-classic`).
   (`payload-arcadepc` `gun_outputs.rs`: Akuma Mortis Immortal, Bug Busters, The House of the
   Dead 3, Robin Hood, Plants vs Zombies, Mad Bullets and The House of the Dead: Overkill with
   their shot / hit code caves as player flags) the same way. Each poller starts only when the
-  executable's link time (`outputs::mem::timestamp`, `poll_build`) is the build's.
+  executable's link time (`outputs::mem::timestamp`, `poll_build`) is the build's. The RingWide
+  ones (`payload-ringedge` `gun_outputs.rs`, the game told by that link time: Dream Raiders,
+  Let's Go Island, Medal no Gunman, SEGA Golden Gun): their output bytes by name (the guns'
+  recoil / motor bits as `P1_CtmRecoil`), life, ammo, credits.
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
   `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;
@@ -9214,7 +9217,9 @@ else the profile's file name (`sega-racing-classic`).
   9, Silent Hill (`GUN_reaction`), Akuma Mortis Immortal, Bug Busters, The House of the Dead 3,
   Robin Hood, Plants vs Zombies, Mad Bullets: recoil a shot, their lamps / damage / life / ammo;
   Castlevania its lamps, life, damage. Not seen headless: Wartran Troopers (a black screen after
-  its configuration file), The House of the Dead: Overkill (its menus).
+  its configuration file), The House of the Dead: Overkill (its menus). RingWide: Dream Raiders
+  (lamps, gun motors, blower), Let's Go Island (lamps, gun motors, damage, life), Medal no
+  Gunman (114 recoil pulses, ammo), SEGA Golden Gun (259 recoil, ammo, damage, life).
 
 ## 7. Adding a system
 
