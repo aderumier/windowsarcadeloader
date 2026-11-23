@@ -525,10 +525,12 @@ mod touch {
     }
 }
 
-/// The game server (unfinished, `WAL_JOJO_ONLINE=1`): the card login works and the game goes
-/// online, but the sync server's protocol is not known yet (the game leaves every ~26 s,
-/// "disconnected from the game server", even in training); off, the game plays offline as a
-/// guest.
+/// The card login (unfinished, `WAL_JOJO_ONLINE=1`): it works and the game goes online, but
+/// the sync server's protocol is not known yet (the game leaves every ~26 s, "disconnected
+/// from the game server", even in training); off, the game plays as a guest. The game server
+/// itself always runs: without its `sys/serveralive` the game counts its offline time (the
+/// saved `OfflineDate`) and stops at the system check once it is out ("Offline operating time
+/// error", 5-52).
 fn online() -> bool {
     std::env::var("WAL_JOJO_ONLINE").is_ok_and(|v| v == "1")
 }
@@ -638,10 +640,10 @@ pub(crate) fn attach(base: usize) {
     // the store network the game sets up (netsh): its gateway is the content router, which
     // the game wants apart from the shop's router (else "No Content Router", 5-1)
     crate::amcus::set_cabinet_network(["192.168.0.1", "192.168.171.1", "192.168.171.2", "255.255.255.0", "192.168.171.1", "192.168.171.1"]);
+    no_peer_verification();
+    let verbose = std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1");
+    wal_namcoes3srv::jojo::start(&crate::amcus::game_server(), "F:\\jojosrv", |line| log!("{line}"), verbose);
     if online() {
-        no_peer_verification();
-        let verbose = std::env::var("WAL_NAMCOES3_SERVER_LOG").is_ok_and(|v| v == "1");
-        wal_namcoes3srv::jojo::start(&crate::amcus::game_server(), "F:\\jojosrv", |line| log!("{line}"), verbose);
         wal_namcoes3srv::jojo::start_sync("127.0.0.1:9003");
     }
     let winusio = module("winusio.dll");
