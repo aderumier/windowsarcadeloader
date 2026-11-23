@@ -9200,6 +9200,13 @@ else the profile's file name (`sega-racing-classic`).
   plugins' patches of the game's I/O class: Top Gun's SY Fire board (`topgun.rs`: 10 the screen
   side light's mode, 12 the key lights, 13 the gift light, 8 the prize doors, 5 tickets; the
   shot the board reports, the game's `OnFire`, `P1_CtmRecoil`).
+* The JX board games (`jxboard.rs`): the PC's command 1 (`PortManager.SendControlCmdInfo`: 24
+  output bits, four blink pairs, four motor speeds), named after the game's PortManager callers
+  and the U-Shoot plugins: Mech Dinosaur (0-3 the water guns, 10-13 the bonus weapon lamps, 14
+  the seat shaker, 16-18 the bonus / water level / waterfall lamps, the motors its ball guns:
+  `P1_BallShooter`), Wisdom Zombies (0-3 / 4-6 the small / big water guns, 10-13 the gun
+  motors), Top Gun 2 (11 the cabinet lamp, 17 / 18 the guns' lamps); a blinking pair a start
+  lamp.
 * The dumps carrying DemulShooter's own BepInEx plugin (Quick Shot, DCOP): its output packets
   (`u32` length, header 2, the payload) decoded by `demul.rs` (`dcop.rs`'s plugin client too),
   the game told by the payload's size: 13 bytes Top Gun's plugin (`ToByteArray`: playing,
@@ -9277,7 +9284,9 @@ else the profile's file name (`sega-racing-classic`).
   Transformers: Human Alliance (recoil a shot of its machine gun, gun motor, lamps, damage, life),
   Transformers: Shadows Rising (recoil, damage, start and gun lamps); Top Gun (a recoil a shot,
   screen side and key lights); Quick Shot (recoil, ammo, credits, the lights, doors) and DCOP
-  (recoil, gun light, ammo, life, red light) from their plugins' packets.
+  (recoil, gun light, ammo, life, red light) from their plugins' packets; Mech Dinosaur (its
+  ball gun motor while shooting, bonus weapon lamps, seat shaker). Not seen: Wisdom Zombies
+  (only its bonus lamp in the attract), Top Gun 2 (its board never opened in the headless run).
 
 ## 7. Adding a system
 

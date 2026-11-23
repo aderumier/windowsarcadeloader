@@ -11,7 +11,10 @@
 //! the operator's menu, OK, up and down; Wisdom Zombies swaps up and down: its profile's
 //! `native_map`), the guns' 8 axes (x, y per player, big endian, 0..4094: 2047 the screen's
 //! middle, y up), the tickets left to pay (0) and the coins inserted since the last frame. The
-//! PC's frames (lamps, motors, tickets to pay) are ignored.
+//! PC's frames: command 1, the outputs (`PortManager.SendControlCmdInfo`: 24 output bits, four
+//! blink on / off pairs, four motor speeds), to the network outputs ([`outputs`], named after
+//! the game's PortManager callers and the U-Shoot plugins); the tickets to pay (command 2)
+//! ignored.
 //!
 //! Top Gun 2 (`WAL_ARCADEPC_BOARD=jxcamera`, two players) reads the keys at other bits (player
 //! 1: trigger 0, left 1, right 2, weapon change 3, start 4; player 2: start 5, trigger 6, left 7,
@@ -176,8 +179,60 @@ fn idle() -> Vec<u8> {
 }
 
 /// The PC's frames: outputs, nothing to answer.
-fn handler(_packet: &[u8]) -> Vec<u8> {
+fn handler(packet: &[u8]) -> Vec<u8> {
+    if let Some(at) = packet.iter().position(|b| *b == 0x3A)
+        && let Some(&len) = packet.get(at + 1)
+        && let Some(data) = packet.get(at + 2..at + 2 + len as usize)
+    {
+        outputs(data);
+    }
     Vec::new()
+}
+
+/// Command 1's outputs (`data`: 1, the 24 output bits, the blink pairs, the motor speeds), by
+/// the game: Top Gun 2 (11 the cabinet lamp, 17 / 18 the guns' lamps; blink pairs 0 / 2 the
+/// start lamps), Mech Dinosaur (0-3 each player's water gun, 10-13 the bonus weapon lamps, 14
+/// the seat shaker, 16 the bonus lamp, 17 the water level lamp, 18 the waterfall lamp; the
+/// motors the ball guns), Wisdom Zombies (0-3 the small water guns, 4-6 the big ones, 10-13 the
+/// gun motors, 14 the seat shaker, 16 the bonus lamp, 17 the water level lamp); a blinking pair
+/// (2 / 2) a start lamp.
+fn outputs(data: &[u8]) {
+    use wal_payload_common::outputs::{enabled, set};
+    if data.len() < 16 || data[0] != 1 || !enabled() {
+        return;
+    }
+    let on = |id: usize| ((data[1 + id / 8] >> (id % 8)) & 1) as i32;
+    let blinking = |pair: usize| (data[4 + 2 * pair] == 2 && data[5 + 2 * pair] == 2) as i32;
+    let p = ["P1", "P2", "P3", "P4"];
+    if CAMERA.load(Ordering::Relaxed) {
+        set("LmpPanel", on(11));
+        set("P1_LmpGun", on(17));
+        set("P2_LmpGun", on(18));
+        set("P1_LmpStart", blinking(0));
+        set("P2_LmpStart", blinking(2));
+        return;
+    }
+    let zombies = wal_payload_common::patches::exe_name().to_ascii_lowercase().contains("wisdom");
+    for i in 0..4 {
+        set(&format!("{}_LmpStart", p[i]), blinking(i));
+        if zombies {
+            set(&format!("{}_WaterFire", p[i]), on(i));
+            set(&format!("{}_GunMotor", p[i]), on(10 + i));
+            if i < 3 {
+                set(&format!("{}_BigGun", p[i]), on(4 + i));
+            }
+        } else {
+            set(&format!("{}_WaterFire", p[i]), on(i));
+            set(&format!("{}_LmpBonusWeapon", p[i]), on(10 + i));
+            set(&format!("{}_BallShooter", p[i]), data[12 + i] as i32);
+        }
+    }
+    set("VibrationSeat", on(14));
+    set("BonusWeaponLamp", on(16));
+    set("WaterLevelLamp", on(17));
+    if !zombies {
+        set("WaterFallLamp", on(18));
+    }
 }
 
 fn resolve(name: &str, module: &str) -> Option<usize> {
