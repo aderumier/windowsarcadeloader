@@ -1,4 +1,4 @@
-//! Zombie Crisis (SpiderZSoft, Unreal Engine 4.25, 64-bit): its I/O DLL `GamePort.dll`
+//! Zombie Crisis (Unreal Engine 4.25, 64-bit): its I/O DLL `GamePort.dll`
 //! (`WAL_ARCADEPC_BOARD=zombiecrisis`), the payload installed under that name.
 //!
 //! The game (`ADllActorGameport`) loads `GamePort.dll`, calls its `GetInstance` and uses the
@@ -9,7 +9,8 @@
 //! the reload, a shot off the screen; player 4 has only `Frie1`), the aim in the screen's
 //! pixels (1920x1080; the game maps it through its own calibration, the service menu's), the
 //! operator's setting, left and right keys, `init` 1; the rest (lamps, ticket printers, motors,
-//! the camera) 0.
+//! the camera) 0. Outputs watched in a game (slots 25 / 26 the start lamps, 45 / 46 the guns'
+//! recoil): the network outputs.
 //!
 //! Presses are latched until the game reads them: a short tap between two of its polls is not
 //! lost. The slots' map comes from the original DLL's vtable.
@@ -148,6 +149,23 @@ extern "C" fn zero(_: This) -> i64 {
     0
 }
 
+/// The outputs' slots watched in a game, to the network outputs: 25 / 26 the players' start
+/// lamps (0 off, else on), 45 / 46 their guns' recoil (1 on each shot, 0 after it).
+macro_rules! output_slots {
+    ($(($f:ident, $name:literal, $recoil:literal)),*) => {$(
+        extern "C" fn $f(_: This, value: i32) -> i64 {
+            use wal_payload_common::outputs::{set, value as last};
+            // the slot is called each frame: a recoil as it turns on
+            if $recoil && value != 0 && last($name).unwrap_or(0) == 0 {
+                set(&$name.replace("GunRecoil", "CtmRecoil"), 1);
+            }
+            set($name, (value != 0) as i32);
+            0
+        }
+    )*};
+}
+output_slots!((start1, "P1_LmpStart", false), (start2, "P2_LmpStart", false), (recoil1, "P1_GunRecoil", true), (recoil2, "P2_GunRecoil", true));
+
 extern "C" fn init(_: This) -> i64 {
     log!("zombiecrisis: init");
     1
@@ -233,6 +251,10 @@ fn vtable() -> &'static [usize; SLOTS] {
         v[100] = left as *const () as usize;
         v[101] = right as *const () as usize;
         v[105] = init as *const () as usize;
+        v[25] = start1 as *const () as usize;
+        v[26] = start2 as *const () as usize;
+        v[45] = recoil1 as *const () as usize;
+        v[46] = recoil2 as *const () as usize;
         v
     })
 }

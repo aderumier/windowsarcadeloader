@@ -343,7 +343,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns |  | lamps, water guns, big guns, pump, tickets | not in the test |  |
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns |  | lamps, water guns, motors, shaker, pump | not in the test |  |
 | `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons |  | lamps, water guns, gun motors, chair shaker, pump | not in the test |  |
-| `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns |  |  | not in the test |  |
+| `zombie-crisis` | Zombie Crisis | arcadepc | user 100% (2026-10-26), 2 guns |  | lamps, recoil | not in the test |  |
 | `bullseye-crack-shot` | Bullseye Crack Shot | arcadepc | user 100%, 1 gun |  |  | not in the test |  |
 | `hot-shots-fire-rescue` | Hot Shots Fire Rescue | arcadepc | user 100% (2026-10-26), 4 water cannons |  | lamps, water guns, seat and gun motors, mist, damage, credits | not in the test |  |
 | `frenzy-express` | Frenzy Express | arcadepc | user 100% (2026-11-02) |  |  | not in the test |  |
