@@ -18,6 +18,9 @@
 //! * Elevator Action Death Parade: outputs at +0x204EBB/BC/BE, recoil at +0x3ED23 (the call of
 //!   `0xC56E0`), damage at +0x6E29A, the player in edx; ammo and life in the players' records.
 //! * Music GunGun! 2 (1.01): outputs at +0x2BC311/12.
+//! * Block King Ball Shooter (1.05): the lamps' bytes +0x546B43 (start P1), +0x546B49 (start
+//!   P2), +0x546B45 (the cannon's button), +0x546B4B / 47 / 4D (the cannon's red, green, blue);
+//!   the credits [+0x5469E0] + 4.
 //! * Mobile Suit Gundam Spirits of Zeon (1.01, the patched I/O build): start lamps +0x26FA49 /
 //!   +0x26FA4B bit 7, gun motors +0x26FB1C / +0x26FB20; the gun rumble calls (`0xD0B40`, the
 //!   player its first argument) of a gun's and a cannon's shot (+0xA60FF, +0xA7649: recoil), of
@@ -172,6 +175,15 @@ pub(crate) fn init(game: &str) {
                 set("LmpMBtn", bit(o1, 6));
                 set("LmpRBtn", bit(o1, 4));
                 set("Credits", mem::u8(mem::u32(b + 0x2DBE08) as usize + 0x18) as i32);
+            });
+        }
+        "block-king-ball-shooter" => {
+            poll_build("block king ball shooter", 0x4FCD7334, 16, move || {
+                for (name, at) in [("P1_LmpStart", 0x546B43), ("P2_LmpStart", 0x546B49), ("LmpCannonBtn", 0x546B45), ("LmpCannon_R", 0x546B4B), ("LmpCannon_G", 0x546B47), ("LmpCannon_B", 0x546B4D)] {
+                    set(name, mem::u8(b + at) as i32);
+                }
+                let credits = mem::u32(b + 0x5469E0) as usize;
+                set("Credits", if credits != 0 { mem::u8(credits + 4) as i32 } else { 0 });
             });
         }
         "gundam-spirits-of-zeon" | "gundam-spirits-of-zeon-2p" => {

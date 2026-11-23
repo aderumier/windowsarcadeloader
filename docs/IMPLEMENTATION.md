@@ -9272,6 +9272,9 @@ else the profile's file name (`sega-racing-classic`).
   a stub where the game sets its output bits (a recoil each, the custom recoil); in a game the
   players' life (a hit when it goes down) and ammo, the start lamps blinking until playing; the
   credits.
+* Block King Ball Shooter (typex `gun_outputs.rs`, 1.05: DemulShooter's addresses hold in this
+  build too): the lamps' bytes (start lamps and the cannon's button, dimmed: their brightness;
+  the cannon's red, green, blue), the credits.
 * Mobile Suit Gundam Spirits of Zeon (typex `gun_outputs.rs`, the patched I/O 1.01 build both
   dumps run): start lamps and gun motors in its output bytes; DemulShooter's caves as stubs:
   the gun rumble calls (the player their first argument) of the shots (recoil) and of a hit
@@ -9384,7 +9387,8 @@ else the profile's file name (`sega-racing-classic`).
   game LED, start LEDs, pump, water gun); Hot Shots Fire Rescue (blinking start lamps, gun
   lamps, seat shake, big gun, a hit, credits); Gundam Spirits of Zeon (17 recoil pulses, ammo,
   life, gun motor); Aliens Extermination (28 recoil pulses, ammo and its LEDs, life, 9 hits,
-  start lamps); Friction (9 recoil pulses, 6 hits, ammo, life, start lamps);
+  start lamps); Friction (9 recoil pulses, 6 hits, ammo, life, start lamps); Block King Ball
+  Shooter (its dimmed lamps, the cannon's colours, credits);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the

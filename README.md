@@ -147,7 +147,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `cyber-diver` | Cyber Diver | typex | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `half-life-2-survivor` | Half-Life 2: Survivor | typex | user 100% (2026-11-22, desktop): WASD, mouse aim, fire; headless: NESYS card registration, returning card, matches, test menu |  | lamps (JVS) | not in the test |  |
 | `sonic-blast-heroes` | Sonic Blast Heroes | typex | works (user: 100%) |  | lamps (JVS) | not in the test |  |
-| `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) |  | lamps (JVS) | not in the test |  |
+| `block-king-ball-shooter` | Block King Ball Shooter | typex | works (user: touch, coins, start, test menu; 4-player co-op as DemulShooter) |  | lamps (dimmed), cannon RGB, credits | not in the test |  |
 | `blazblue-calamity-trigger` | BlazBlue Calamity Trigger | typex | in fight (user) |  | lamps (JVS) | not in the test |  |
 | `blazblue-continuum-shift` | BlazBlue Continuum Shift | typex | works (user: 100%) |  | lamps (JVS) | not in the test |  |
 | `chase-hq-2` | Chase H.Q. 2 | typex | works (user: 100%, wheel/pedals, switches, Nancy videos); cabinet link across PCs | cabinet link | lamps (JVS) | not in the test |  |
