@@ -33,6 +33,7 @@ PROFILES = ROOT / "systemprofiles"
 # seen": wired, not seen working in a test
 GUN = "lamps, recoil, damage, life, ammo"
 OUTPUTS = {
+    "elevator-action-invasion": "lamps, recoil, light patterns, floor shaker",
     "drakon-realm-keepers": "recoil, gun motors, damage",
     "zombie-crisis": "lamps, recoil",
     "dream-hunting": "recoil",
@@ -100,7 +101,6 @@ OUTPUTS = {
     "hot-shots-fire-rescue": "lamps, water guns, seat and gun motors, mist, damage, credits",
     "dino-invasion": "recoil, ammo",
     "mission-impossible-arcade": "recoil",
-    "elevator-action-invasion": "recoil, gun shakers (not seen)",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",

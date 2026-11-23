@@ -361,7 +361,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `raccoon-rampage` | Raccoon Rampage | unis | user 100% (2026-11-05), 4 guns |  | recoil, gun shakers | not in the test |  |
 | `crazy-ride` | Crazy Ride | unis | user 100% (2026-11-05), wheel, force feedback | cabinet link | lights | not in the test |  |
 | `crazy-speed-arcade` | Crazy Speed Arcade | unis | user 100% (2026-11-05), wheel |  |  | not in the test |  |
-| `elevator-action-invasion` | Elevator Action Invasion | unis | user 100% (2026-11-05), 2 guns, virtual elevator doors and bezel, every level unlocked |  | recoil, gun shakers (not seen) | not in the test |  |
+| `elevator-action-invasion` | Elevator Action Invasion | unis | user 100% (2026-11-05), 2 guns, virtual elevator doors and bezel, every level unlocked |  | lamps, recoil, light patterns, floor shaker | not in the test |  |
 | `wicked-tuna` | Wicked Tuna | unis | user 100% (2026-11-05), 4 rods on light guns or pads |  | lamps, rod and reel resistance, rod shakers, tickets, cabinet shake | not in the test |  |
 | `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players |  |  | not in the test |  |
 | `mighty-moto` | Mighty Moto | unis | user 100% (2026-11-05) |  |  | not in the test |  |

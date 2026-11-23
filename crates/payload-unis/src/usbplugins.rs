@@ -74,6 +74,8 @@
 //!   the triggers (bit 1 1P, 0 2P).
 //! - **Guns.** `BIND_GetGunData(player, FPACKET*)`: the gun's place on the 1080x1920 picture,
 //!   its trigger and buttons, `iUSB` 1, a calibration. `BIND_SetDoorData`: the doors.
+//! - **Outputs.** The start lamps, the cabinet lights' pattern, the floor shaker, a recoil at
+//!   each trigger pull (the guns' own): the network outputs ([`eai_output`]).
 //!
 //! Natives: `trigger p1start coin gunmiddle gunright gunup gundown gunleft gunright2` (each gun),
 //! `test down enter` (the operator's).
@@ -423,6 +425,13 @@ unsafe extern "C" fn get_gun_data(player: i32, packet: *mut u8) -> i32 {
         Native::GunButton(at) => buttons[at as usize] = true,
         _ => {}
     });
+    // the cabinet's gun recoils at its own trigger pull: the network outputs' recoil
+    static PULLED: [AtomicBool; 2] = [const { AtomicBool::new(false) }; 2];
+    if trigger && !PULLED[p].swap(true, Ordering::Relaxed) {
+        wal_payload_common::outputs::set(["P1_CtmRecoil", "P2_CtmRecoil"][p], 1);
+    } else if !trigger {
+        PULLED[p].store(false, Ordering::Relaxed);
+    }
     let write_i32 = |at: usize, v: i32| unsafe { packet.add(at).cast::<i32>().write_unaligned(v) };
     write_i32(0, player);
     write_i32(4, x);
@@ -607,6 +616,12 @@ unsafe extern "system" fn get_proc_address(module: HMODULE, name: *const u8) -> 
         {
             return f;
         }
+        if game() == Game::ElevatorActionInvasion
+            && wal_payload_common::outputs::enabled()
+            && let Some(f) = unsafe { eai_output(module, n, real) }
+        {
+            return f;
+        }
     }
     unsafe { real(module, name) }
 }
@@ -644,6 +659,41 @@ unsafe fn gun_output(module: HMODULE, name: &[u8], real: unsafe extern "system" 
         unsafe { f(player, level) }
     }
     Some(if i == 0 { shock as *const () as usize } else { shake as *const () as usize })
+}
+
+/// Elevator Action Invasion's cabinet outputs (watched in a game), to the network outputs and
+/// then the DLL's own function: `BIND_SetLightVal(p1, p2)` the start lamps (`P1_LmpStart`: lit
+/// until the player plays), `BIND_SetGameLightVal(pattern, colours)` the cabinet lights'
+/// pattern (`GameLight`: 0, 2, 3, 5 seen), `BIND_SetShakeFloorVal(level)` the floor shaker
+/// (`FloorShake`: 6, 2 in a game, -1 off: 0). Its guns' recoil is theirs (the game never asks:
+/// `BIND_SetGunShakeVal` stays 0): [`get_gun_data`]'s trigger presses.
+static REAL_EAI: [AtomicUsize; 3] = [const { AtomicUsize::new(0) }; 3];
+
+unsafe fn eai_output(module: HMODULE, name: &[u8], real: unsafe extern "system" fn(HMODULE, *const u8) -> usize) -> Option<usize> {
+    let i = [&b"BIND_SetLightVal"[..], b"BIND_SetGameLightVal", b"BIND_SetShakeFloorVal"].iter().position(|n| *n == name)?;
+    let f = unsafe { real(module, name.iter().copied().chain([0]).collect::<Vec<u8>>().as_ptr()) };
+    if f == 0 {
+        return None;
+    }
+    REAL_EAI[i].store(f, Ordering::Relaxed);
+    type Real = unsafe extern "C" fn(i64, i64, i64, i64) -> i64;
+    fn real_eai(i: usize) -> Real {
+        unsafe { std::mem::transmute(REAL_EAI[i].load(Ordering::Relaxed)) }
+    }
+    unsafe extern "C" fn light(p1: i64, p2: i64, c: i64, d: i64) -> i64 {
+        wal_payload_common::outputs::set("P1_LmpStart", (p1 as i32 != 0) as i32);
+        wal_payload_common::outputs::set("P2_LmpStart", (p2 as i32 != 0) as i32);
+        unsafe { real_eai(0)(p1, p2, c, d) }
+    }
+    unsafe extern "C" fn game_light(pattern: i64, b: i64, c: i64, d: i64) -> i64 {
+        wal_payload_common::outputs::set("GameLight", pattern as i32);
+        unsafe { real_eai(1)(pattern, b, c, d) }
+    }
+    unsafe extern "C" fn floor(level: i64, b: i64, c: i64, d: i64) -> i64 {
+        wal_payload_common::outputs::set("FloorShake", (level as i32).max(0));
+        unsafe { real_eai(2)(level, b, c, d) }
+    }
+    Some([light as *const () as usize, game_light as *const () as usize, floor as *const () as usize][i])
 }
 
 /// Crazy Ride's cabinet lights (`UsbPluginsDll_R.dll`), to the network outputs and then the
