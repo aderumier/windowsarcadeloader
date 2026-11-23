@@ -9153,12 +9153,21 @@ else the profile's file name (`sega-racing-classic`).
   `P1_Damaged` when the life does; Bishi Bashi Channel's
   BMPU start LEDs (`P1_LmpStart`, `P2_LmpStart`), Gashaaaan's `iob_f24_set_lamp_status` /
   `set_black_light_status` (`lamp<n>`, `blacklight<n>`), the PJEI board's lamps (Otomedius,
-  Winning Eleven 2008: `lamp0`-`lamp7`).
+  Winning Eleven 2008: `lamp0`-`lamp7`); the Type X gun games (`payload-typex`
+  `gun_outputs.rs`: Haunted Museum 1 / 2, Gaia Attack 4, Elevator Action Death Parade, Music
+  GunGun! 2): their I/O output bytes (start lamps, the players' RGB lamps, gun motors; Haunted
+  Museum 2's own recoil bit `P1_GunRecoil`), life, ammo, credits, and DemulShooter's code caves
+  as `outputs::hook::player_flag` (a 5-byte site's jump to a stub setting a player's flag, the
+  player in a register, the site's call relocated): `P1_CtmRecoil` at the gun reaction call of
+  a shot, `P1_Damaged` of a hit. Haunted Museum 2's outputs are at +0x2B140B4 in this build
+  (found as the JVS output bytes, reversed), not DemulShooter's +0x29AE434.
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
   `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;
   Crazy Ride's speed / stop / brake / game state lights; Night Hunter 2 in a mission, a recoil
-  pulse a shot (`P1_GunRecoil` 2), the air jets and the wind.
+  pulse a shot (`P1_GunRecoil` 2), the air jets and the wind; Lethal Enforcers 3, Haunted
+  Museum, Gaia Attack 4, Elevator Action Death Parade in a game: a recoil pulse a shot, damage,
+  life, ammo, lamps; Haunted Museum 2, Music GunGun! 2 their lamps (and recoil bit).
 
 ## 7. Adding a system
 

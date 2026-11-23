@@ -53,6 +53,11 @@ pub fn set(name: &str, value: i32) {
     send(name, value);
 }
 
+/// Output `name`'s last value, when set.
+pub fn value(name: &str) -> Option<i32> {
+    VALUES.lock().unwrap().iter().find(|(n, _)| n == name).map(|(_, v)| *v)
+}
+
 /// Output `name` at 1 for `ms` milliseconds, then 0 (a gun's recoil solenoid, a short flash):
 /// a pulse still on is not restarted.
 pub fn pulse(name: &'static str, ms: u64) {
@@ -193,5 +198,74 @@ impl Falling {
             pulse(name, 50);
         }
         self.last = value;
+    }
+}
+
+/// A player flag set by the game's own code (DemulShooter's code caves, 32-bit games): at a
+/// 5-byte site, a jump to a stub that sets dword `flags[player]` to 1, the player being the
+/// value of register `reg` (0 eax, 1 ecx, 2 edx, 3 ebx), when `skip_unless_zero` is `None` or
+/// the dword at `[reg * 8 + that address]` is 0, then runs the site's own instruction (a
+/// `call` relocated, any other position independent bytes as they are) and jumps back.
+/// [`take`] reads and clears a flag. `None` when the site's bytes are not `original` (another
+/// build: left as it is).
+#[cfg(all(windows, target_arch = "x86"))]
+pub mod hook {
+    use windows_sys::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, VirtualAlloc, VirtualProtect};
+
+    /// The flags of a hook: one dword a player (4).
+    #[derive(Clone, Copy)]
+    pub struct Flags(usize);
+
+    impl Flags {
+        /// Player `p`'s flag was set since the last call (cleared).
+        pub fn take(self, p: usize) -> bool {
+            let f = (self.0 + 4 * p) as *mut u32;
+            p < 4 && unsafe { std::ptr::replace(f, 0) } != 0
+        }
+    }
+
+    /// # Safety
+    /// `site` must be the start of the instruction(s) of `original` in the game's code.
+    pub unsafe fn player_flag(site: usize, original: &[u8; 5], reg: u8, skip_unless_zero: Option<usize>) -> Option<Flags> {
+        if reg > 3 || !crate::crash::readable(site, 5) || unsafe { std::slice::from_raw_parts(site as *const u8, 5) } != original {
+            return None;
+        }
+        let block = unsafe { VirtualAlloc(std::ptr::null(), 0x100, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) } as usize;
+        if block == 0 {
+            return None;
+        }
+        let (flags, stub) = (block, block + 0x10);
+        let mut c: Vec<u8> = Vec::new();
+        if let Some(addr) = skip_unless_zero {
+            // cmp dword [reg * 8 + addr], 0; jne original (the flag's 17 bytes)
+            c.extend_from_slice(&[0x83, 0x3C, 0xC5 | reg << 3]);
+            c.extend_from_slice(&(addr as u32).to_le_bytes());
+            c.extend_from_slice(&[0x00, 0x0F, 0x85, 17, 0, 0, 0]);
+        }
+        // push reg; shl reg, 2; add reg, flags; mov dword [reg], 1; pop reg
+        c.extend_from_slice(&[0x50 + reg, 0xC1, 0xE0 + reg, 0x02, 0x81, 0xC0 + reg]);
+        c.extend_from_slice(&(flags as u32).to_le_bytes());
+        c.extend_from_slice(&[0xC7, reg, 1, 0, 0, 0, 0x58 + reg]);
+        let rel = |c: &Vec<u8>, target: usize| target.wrapping_sub(stub + c.len() + 4) as u32;
+        if original[0] == 0xE8 {
+            let target = (site + 5).wrapping_add(i32::from_le_bytes(original[1..5].try_into().unwrap()) as usize);
+            c.push(0xE8);
+            let r = rel(&c, target);
+            c.extend_from_slice(&r.to_le_bytes());
+        } else {
+            c.extend_from_slice(original);
+        }
+        c.push(0xE9);
+        let r = rel(&c, site + 5);
+        c.extend_from_slice(&r.to_le_bytes());
+        unsafe {
+            std::ptr::copy_nonoverlapping(c.as_ptr(), stub as *mut u8, c.len());
+            let mut old = 0;
+            VirtualProtect(site as *const _, 5, PAGE_EXECUTE_READWRITE, &mut old);
+            *(site as *mut u8) = 0xE9;
+            std::ptr::write_unaligned((site + 1) as *mut u32, stub.wrapping_sub(site + 5) as u32);
+            VirtualProtect(site as *const _, 5, old, &mut old);
+        }
+        Some(Flags(flags))
     }
 }

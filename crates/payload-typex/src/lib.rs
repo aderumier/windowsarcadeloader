@@ -39,6 +39,7 @@ mod chq2link;
 mod d1gplink;
 mod doors;
 mod ffb;
+mod gun_outputs;
 mod guns;
 mod hl2ac;
 mod hl2nesys;

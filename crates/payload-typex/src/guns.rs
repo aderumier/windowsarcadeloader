@@ -293,6 +293,7 @@ pub(crate) fn init() {
         log!("guns: {} bytes patched at +{rva:#x}", bytes.len());
     }
     log!("guns: {} ({} players)", game.name, game.guns.len());
+    crate::gun_outputs::init(game.name);
     std::thread::spawn(move || run(game));
 }
 
