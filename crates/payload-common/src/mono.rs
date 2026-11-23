@@ -356,6 +356,20 @@ impl Mono {
 ///
 /// # Safety
 /// `base + offset` must hold a `T`.
+/// A managed array's elements (its object references): the length after the object header and
+/// the bounds pointer, the elements after it; empty for a null array.
+///
+/// # Safety
+/// `array` must be a managed array of references, or null.
+pub unsafe fn array_items(array: *const u8) -> Vec<*const u8> {
+    if array.is_null() {
+        return Vec::new();
+    }
+    let ptr = size_of::<usize>();
+    let len = unsafe { read::<usize>(array, 3 * ptr) }.min(64);
+    (0..len).map(|i| unsafe { read::<*const u8>(array, 4 * ptr + i * ptr) }).collect()
+}
+
 pub unsafe fn read<T: Copy>(base: *const u8, offset: usize) -> T {
     unsafe { (base.add(offset) as *const T).read_unaligned() }
 }

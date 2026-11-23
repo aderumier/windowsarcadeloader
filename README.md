@@ -401,7 +401,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `ultimate-arctic-thunder` | Ultimate Arctic Thunder | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, attack) |  |  | not in the test |  |
 | `hydro-thunder` | Hydro Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, throttle, boost, 3 views) |  |  | not in the test |  |
 | `offroad-thunder` | Offroad Thunder | arcadepc | user 100% with VCThunder 0.5 (2026-11-10), 1 player (wheel, pedals, nitro, 3 cameras, shifter) |  |  | not in the test |  |
-| `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | user 100% (2026-11-10), 2 guns |  |  | not in the test |  |
+| `wild-west-shoot-out` | Wild West Shoot Out | arcadepc | user 100% (2026-11-10), 2 guns |  | recoil, damage, life | not in the test |  |
 | `mars-sortie` | Mars Sortie | arcadepc | user 100% (2026-11-10), 4 guns |  | start lamps, recoil, flashlight, lasers | not in the test |  |
 | `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | user 100% (2026-11-10), 1 trackball |  |  | not in the test |  |
 | `bounty-hunter` | Bounty Hunter | arcadepc | user 100% (2026-11-10), 1 player (8 pads) |  |  | not in the test |  |

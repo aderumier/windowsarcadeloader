@@ -293,4 +293,40 @@ fn patch_game() {
         FRAME_DATA.load(Ordering::Relaxed),
         POINT.load(Ordering::Relaxed)
     );
+    outputs(m, image);
+}
+
+/// The players' outputs, read in the game (the U-Shoot plugin's): `GameData.playerData` (static,
+/// a `PlayerData` each): while `playing`, a recoil each shot (`shootNum` up: `P1_CtmRecoil`),
+/// `P1_Damaged` when `life` goes down, `P1_Life`, the coins (`Credits`, player 1's).
+fn outputs(m: &'static wal_payload_common::mono::Mono, image: wal_payload_common::mono::P) {
+    use wal_payload_common::mono::{array_items, read};
+    use wal_payload_common::outputs::{Falling, poll, set};
+    if !wal_payload_common::outputs::enabled() {
+        return;
+    }
+    let (game_data, player) = (m.class(image, "", "GameData"), m.class(image, "", "PlayerData"));
+    let slot = m.static_addr(game_data, m.field(game_data, "playerData")) as usize;
+    let off = |name: &str| m.offset(m.field(player, name));
+    let (playing, life, shots, coins) = (off("playing"), off("life"), off("shootNum"), off("_coins"));
+    if slot == 0 || shots == 0 || life == 0 {
+        log!("wws: GameData.playerData not found, no outputs");
+        return;
+    }
+    let mut recoil: [Falling; 4] = Default::default();
+    let mut damage: [Falling; 4] = Default::default();
+    poll("wild west shoot out", 16, move || {
+        let players = unsafe { array_items(read::<*const u8>(slot as *const u8, 0)) };
+        for (p, d) in players.iter().take(4).enumerate() {
+            let on = !d.is_null() && unsafe { read::<u8>(*d, playing) } != 0;
+            // the shot count going up: negated, a fall
+            recoil[p].update(on.then(|| -(unsafe { read::<i32>(*d, shots) } as i64)), ["P1_CtmRecoil", "P2_CtmRecoil", "P3_CtmRecoil", "P4_CtmRecoil"][p]);
+            let l = on.then(|| unsafe { read::<i32>(*d, life) } as i64);
+            damage[p].update(l, ["P1_Damaged", "P2_Damaged", "P3_Damaged", "P4_Damaged"][p]);
+            set(["P1_Life", "P2_Life", "P3_Life", "P4_Life"][p], l.unwrap_or(0) as i32);
+            if p == 0 && !d.is_null() {
+                set("Credits", unsafe { read::<i32>(*d, coins) });
+            }
+        }
+    });
 }
