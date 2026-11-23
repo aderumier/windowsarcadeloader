@@ -4698,8 +4698,8 @@ the payload.
   object used through its 113 virtual functions (`this` first). The payload (installed as
   `zombie/Binaries/Win64/gameport.dll`, loaded by the game) answers `init` 1, the coins
   buffered per player (got, subtracted, cleared), the start keys, the guns' `Frie1` (the
-  reload; a shot off the screen) and `Frie2` (the trigger; player 4's trigger is its
-  `Frie1`, slot 77), the aim in the screen's pixels (1920x1080, top left 0), the operator's
+  trigger: the level select's cards fill as they are shot; player 4's is slot 77) and `Frie2`
+  (the reload; a shot off the screen), the aim in the screen's pixels (1920x1080, top left 0), the operator's
   setting / left / right keys; every other slot (lamps, tickets, motors, the camera) 0.
   Presses are latched until the game reads them.
 - **Calibration.** The game maps the aim through six points per gun (the service menu's

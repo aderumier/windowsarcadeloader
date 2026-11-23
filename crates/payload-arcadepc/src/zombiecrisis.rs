@@ -5,10 +5,11 @@
 //! returned C++ object through its virtual functions only (113 slots, `this` first; the
 //! original, MFC and OpenCV, reads a serial board and the guns' camera tracker): coins buffered
 //! per player (got, subtracted when credited, cleared), the start keys, the guns' first button
-//! (`Frie1`: the reload, a shot off the screen) and second (`Frie2`: the trigger; player 4 has
-//! only `Frie1`, its trigger), the aim in the screen's pixels (1920x1080; the game maps it
-//! through its own calibration, the service menu's), the operator's setting, left and right
-//! keys, `init` 1; the rest (lamps, ticket printers, motors, the camera) 0.
+//! (`Frie1`: the trigger; the level select's cards and the game's shots) and second (`Frie2`:
+//! the reload, a shot off the screen; player 4 has only `Frie1`), the aim in the screen's
+//! pixels (1920x1080; the game maps it through its own calibration, the service menu's), the
+//! operator's setting, left and right keys, `init` 1; the rest (lamps, ticket printers, motors,
+//! the camera) 0.
 //!
 //! Presses are latched until the game reads them: a short tap between two of its polls is not
 //! lost. The slots' map comes from the original DLL's vtable.
@@ -217,10 +218,10 @@ fn vtable() -> &'static [usize; SLOTS] {
             // start keys 67..70
             v[67 + player] = p[player][3];
         }
-        // Frie1 (the reload) 71..73, Frie2 (the trigger) 74..76; player 4: Frie1 77, its trigger
+        // Frie1 (the trigger) 71..73, Frie2 (the reload) 74..76; player 4: Frie1 77
         for player in 0..3 {
-            v[71 + player] = p[player][4];
-            v[74 + player] = p[player][5];
+            v[71 + player] = p[player][5];
+            v[74 + player] = p[player][4];
         }
         v[77] = p[3][5];
         // aim: P1 x 88 y 91, P2 x 89 y 92, P3 x 94 y 95, P4 x 96 y 97

@@ -7,9 +7,18 @@ name: Zombie Crisis
 
 # the board's DLL, loaded by the game itself: the payload
 payload_install: [zombie/Binaries/Win64/gameport.dll]
+# also loaded at the executable's entry point: the desktop below before Unreal's window
+payload_loader: true
 
 env:
   WAL_ARCADEPC_BOARD: zombiecrisis
+  # Unreal's full screen window on a 1920x1080 desktop fitted onto the screen (aspect kept;
+  # stretched over a 4:3 screen with WAL_KEEP_ASPECT_RATIO "0", Batocera ES's KEEP ASPECT RATIO
+  # off): on a 1920x1200 screen its interface went off the picture and the aim (the screen's
+  # pixels, 1920x1080) missed
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
 
 input:
   # each player's gun (or mouse) aims, its trigger shoots; a shot off the screen reloads
