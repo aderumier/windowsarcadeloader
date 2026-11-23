@@ -9196,6 +9196,10 @@ else the profile's file name (`sega-racing-classic`).
   on `RawDrive` (80 00 01, 81 7F 7F, 83 7F 00 once, then 84 the torque: 0x80 - force × 127,
   the checksum the three bytes' sum & 0x7F; no torque at the end), unless the game sends a
   drive board's own bytes.
+* Unity games through the board the payload emulates, the commands named after the U-Shoot
+  plugins' patches of the game's I/O class: Top Gun's SY Fire board (`topgun.rs`: 10 the screen
+  side light's mode, 12 the key lights, 13 the gift light, 8 the prize doors, 5 tickets; the
+  shot the board reports, the game's `OnFire`, `P1_CtmRecoil`).
 * Games read in memory (DemulShooter's outputs, `outputs::mem` / `poll` / `Falling`): only for
   the builds DemulShooter knows (its `_KnownMd5Prints`, compared with the dumps' executables);
   its `Ctm` outputs are computed from the game's state (`P1_CtmRecoil` when the ammo goes down,
@@ -9265,7 +9269,8 @@ else the profile's file name (`sega-racing-classic`).
   (lamps, gun motors, blower), Let's Go Island (lamps, gun motors, damage, life), Medal no
   Gunman (114 recoil pulses, ammo), SEGA Golden Gun (259 recoil, ammo, damage, life);
   Transformers: Human Alliance (recoil a shot of its machine gun, gun motor, lamps, damage, life),
-  Transformers: Shadows Rising (recoil, damage, start and gun lamps).
+  Transformers: Shadows Rising (recoil, damage, start and gun lamps); Top Gun (a recoil a shot,
+  screen side and key lights).
 
 ## 7. Adding a system
 

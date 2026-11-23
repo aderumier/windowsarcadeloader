@@ -25,7 +25,7 @@ emulating each cabinet's I/O, dongle and network services in the game process.
 * Documentation: [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md) (implementation),
   [DESIGN.md](DESIGN.md) (research notes)
 
-## Games (414)
+## Games (415)
 
 Status: as verified by hand (docs/IMPLEMENTATION.md). Regression test: the game's latest
 automated run (started, still running, a window, a picture, sound; attract mode, coin and start
@@ -339,7 +339,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `chase-chase-jokers` | Chase Chase Jokers | konami | works (user: 100%) |  |  | not in the test |  |
 | `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns |  |  | not in the test |  |
 | `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun |  |  | not in the test |  |
-| `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun |  |  | not in the test |  |
+| `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun |  | lamps, recoil, prize doors, tickets | not in the test |  |
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns |  |  | not in the test |  |
 | `mech-tornado` | Mech Tornado | arcadepc | user 100% (2026-10-26: laser mode, 4 players), 4 guns |  |  | not in the test |  |
 | `fire-hero` | Fire Hero | arcadepc | user 100% (2026-10-26), 2 water cannons |  |  | not in the test |  |
@@ -430,6 +430,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns |  | recoil, damage, life, ammo (not seen) | not in the test |  |
 | `left-4-dead-survivors` | Left 4 Dead: Survivors | nesica | user 100% (2026-11-16), NESiCA card (new player, CPU play), mouse and pad |  |  | not in the test |  |
 | `groove-coaster-2` | Groove Coaster 2: Heavenly Festival | nesica | user 100% (2026-11-16), boosters, NESiCA card (registration, saves), free play |  |  | not in the test |  |
+| `puzzle-and-dragons-battle-tournament` | Puzzle & Dragons Battle Tournament | nesica | headless (2026-11-23): offline play (story battle), free play, test menu |  |  | not in the test |  |
 | `gunslinger-stratos-2` | Gunslinger Stratos 2 | nesica | user 100% (2026-11-17), G devices, two lightguns, free play, intro and attract movies; NESiCA play unavailable (no game server) |  |  | not in the test |  |
 | `gunslinger-stratos-3` | Gunslinger Stratos 3 | nesica | works (headless tests: first boot G device setup, test menu, attract with its movies, free play, guest play into a mission); NESiCA play and voice chat unavailable (no game servers) |  |  | not in the test |  |
 | `love-live-school-idol-festival-after-school-activity-next-stage` | Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage | nesica | works (headless tests: test menu and I/O tests, free play, guest play, NESiCA play with the payload's title server: registration, a credit of two songs saved, returning card) |  |  | not in the test |  |

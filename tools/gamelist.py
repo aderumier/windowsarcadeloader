@@ -60,6 +60,7 @@ OUTPUTS = {
     "sega-golden-gun": "lamps, recoil, damage, life, ammo",
     "transformers-human-alliance": "lamps, recoil, gun motors, damage, life",
     "transformers-shadows-rising": "lamps, recoil, damage",
+    "top-gun-arcade": "lamps, recoil, prize doors, tickets",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",

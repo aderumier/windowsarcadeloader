@@ -13,6 +13,13 @@
 //!   `A3 A9 len cmd data.. sum` (lamps, cmd 5 tickets to pay out, prize motors, the board's
 //!   state), each answered `4F 4B cmd` ("OK"); tickets are reported paid at once.
 //!
+//! Network outputs (`WAL_OUTPUTS`), the game's commands (`SyFireComm`): 10 the screen side
+//! light's mode (`LmpScreenSide`: 0 game start, 1 game over, 2 default, 3 bullseye, 4 rankings,
+//! 5 miss, 51-56 the countdown), 12 the keys' lights (key 0 all, 1 left, 2 centre, 3 right; 0
+//! off, 1 on, 2 flash, 3 flash 20 s, 4 on 20 s: `LmpLeftKey`, `LmpCenterKey`, `LmpRightKey`), 13
+//! the gift light (`LmpGift`), 8 the prize doors (`GiftDoor`, a bit each), 5 tickets
+//! (`TicketDrive` pulsed); each shot the board reports (the game's `OnFire`): `P1_CtmRecoil`.
+//!
 //! Mono's `DllImport`s (`mono_imports.rs`): the dongle functions and `SerialPort`'s kernel32
 //! functions (`payload-common`'s `serial`) are ours.
 //!
@@ -115,6 +122,10 @@ fn idle() -> Vec<u8> {
     if is(Native::Trigger) && !was(Native::Trigger) {
         let (x, y) = shot_position(is(Native::Offscreen));
         out.extend(packet(17, &[0, x as u8, (x >> 8) as u8, y as u8, (y >> 8) as u8]));
+        // a shot on the screen: the game fires (FireFlowGaming.OnFire), the gun recoils
+        if (x, y) != (0, 0) {
+            wal_payload_common::outputs::pulse("P1_CtmRecoil", 50);
+        }
     }
     *last = now;
     out
@@ -137,6 +148,25 @@ fn shot_position(offscreen: bool) -> (u16, u16) {
     }
 }
 
+/// The game's lights, doors and tickets, to the network outputs.
+fn outputs(p: &[u8]) {
+    use wal_payload_common::outputs::{pulse, set};
+    match p {
+        [_, _, _, 10, _, mode, ..] => set("LmpScreenSide", *mode as i32),
+        [_, _, _, 12, key, state, ..] => {
+            for (k, name) in [(1, "LmpLeftKey"), (2, "LmpCenterKey"), (3, "LmpRightKey")] {
+                if *key == 0 || *key == k {
+                    set(name, *state as i32);
+                }
+            }
+        }
+        [_, _, _, 13, _, state, ..] => set("LmpGift", *state as i32),
+        [_, _, _, 8, _, doors, ..] => set("GiftDoor", *doors as i32),
+        [_, _, _, 5, _, count, ..] if *count > 0 => pulse("TicketDrive", 100),
+        _ => {}
+    }
+}
+
 /// The board's answer to a packet from the game: "OK" and its command.
 fn handler(p: &[u8]) -> Vec<u8> {
     match p {
@@ -145,6 +175,7 @@ fn handler(p: &[u8]) -> Vec<u8> {
             if LOGGED.fetch_or(1 << (*cmd as u32 % 32), Ordering::Relaxed) & 1 << (*cmd as u32 % 32) == 0 {
                 log!("syfire: first command {cmd} {p:02x?}");
             }
+            outputs(p);
             let mut reply = vec![0x4F, 0x4B, *cmd];
             // tickets to pay out (player, count): all paid at once (no dispenser to wait for,
             // else the game shows a ticket error)
