@@ -23,6 +23,10 @@
 //! driver either (0: the game keeps its data in files).
 //!
 //! Steering motor (`UsbIO_SetSteeringStatu`), road and car state: force feedback, `ffb.rs`.
+//!
+//! Lights, to the network outputs (`WAL_OUTPUTS`): `UsbIO_SetLedLightStatu(&rec)` the 6 lamps
+//! in byte 6 (bit n `lampn`), `UsbIO_SetPWMLightStatu(&rec)` 6 PWM lights, a byte each (`pwm0`
+//! .. `pwm5`, 0 off .. 255).
 
 use std::sync::{Mutex, OnceLock};
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering};
@@ -298,7 +302,26 @@ pub extern "C" fn usbio_one() -> i32 {
     1
 }
 
-/// Outputs not emulated (lamps, seat, road effects): ignored.
+/// `UsbIO_SetLedLightStatu`: the 6 lamps, byte 6 of the record.
+#[unsafe(no_mangle)]
+pub extern "C" fn usbio_led(rec: *const u8) {
+    if !rec.is_null() {
+        wal_payload_common::outputs::lamps(unsafe { *rec.add(6) } as u64, 6);
+    }
+}
+
+/// `UsbIO_SetPWMLightStatu`: 6 PWM lights, a byte each.
+#[unsafe(no_mangle)]
+pub extern "C" fn usbio_pwm(rec: *const u8) {
+    if rec.is_null() || !wal_payload_common::outputs::enabled() {
+        return;
+    }
+    for i in 0..6 {
+        wal_payload_common::outputs::set(&format!("pwm{i}"), unsafe { *rec.add(i) } as i32);
+    }
+}
+
+/// Outputs not emulated (seat, road effects): ignored.
 #[unsafe(no_mangle)]
 pub extern "C" fn usbio_ignore() {}
 

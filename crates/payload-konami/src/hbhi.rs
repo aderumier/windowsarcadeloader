@@ -287,7 +287,10 @@ pub extern "C" fn ac_io_hbhi_get_systemid(out: *mut c_char) -> bool {
     plug_id(out, [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef])
 }
 
-// Coin counters, coin blockers and lamps: outputs without a device here.
+// Coin counters and coin blockers: outputs without a device here. The 8 lamps (a bit each in
+// the masks) go to the network outputs: `lamp0`..`lamp7` (on / off, kept only out of the
+// brightness mode `lamp_mode(1)`; off puts the brightness to 0 too), `bright0`..`bright7`
+// (`lamp_bright`, 0..31, more counts as 0).
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_hbhi_lock_coincounter(_slot: u32) -> bool {
@@ -310,22 +313,46 @@ pub extern "C" fn ac_io_hbhi_control_coin_blocker_close(_slot: u32) -> bool {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_hbhi_control_lamp_on(_lamp: u32) -> bool {
+pub extern "C" fn ac_io_hbhi_control_lamp_on(lamp: u32) -> bool {
+    if LAMP_BRIGHT_MODE.load(Ordering::Relaxed) == 0 {
+        let mask = LAMPS.fetch_or(lamp & 0xFF, Ordering::Relaxed) | (lamp & 0xFF);
+        wal_payload_common::outputs::lamps(mask as u64, 8);
+    }
+    true
+}
+
+static LAMPS: AtomicU32 = AtomicU32::new(0);
+static LAMP_BRIGHT_MODE: AtomicU32 = AtomicU32::new(0);
+
+fn lamp_levels(mask: u32, level: u8) {
+    if wal_payload_common::outputs::enabled() {
+        for i in (0..8).filter(|i| mask >> i & 1 != 0) {
+            wal_payload_common::outputs::set(&format!("bright{i}"), level as i32);
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn ac_io_hbhi_control_lamp_off(lamp: u32) -> bool {
+    if LAMP_BRIGHT_MODE.load(Ordering::Relaxed) == 0 {
+        let mask = LAMPS.fetch_and(!lamp & 0xFF, Ordering::Relaxed) & !lamp & 0xFF;
+        wal_payload_common::outputs::lamps(mask as u64, 8);
+    }
+    lamp_levels(lamp, 0);
     true
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_hbhi_control_lamp_off(_lamp: u32) -> bool {
+pub extern "C" fn ac_io_hbhi_control_lamp_bright(lamps: u32, value: u8) -> bool {
+    lamp_levels(lamps, if value > 31 { 0 } else { value });
     true
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_hbhi_control_lamp_bright(_lamps: u32, _value: u8) -> bool {
-    true
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn ac_io_hbhi_control_lamp_mode(_mode: u32) -> bool {
+pub extern "C" fn ac_io_hbhi_control_lamp_mode(mode: u32) -> bool {
+    if mode <= 1 {
+        LAMP_BRIGHT_MODE.store(mode, Ordering::Relaxed);
+    }
     true
 }
 

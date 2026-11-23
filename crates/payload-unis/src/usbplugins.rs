@@ -52,6 +52,8 @@
 //!   full force per level.
 //! - **Coins.** `BIND_GetInternalCoins()`: the credits; `BIND_DecCoins(count)`,
 //!   `BIND_AddKeyboardCoins(count)`. The dump's pay setting is free play.
+//! - **Lights** (network outputs on, `WAL_OUTPUTS`): the DLL's `BIND_Set*Light` functions
+//!   wrapped, their values sent by name first (`crazy_ride_light`).
 //!
 //! - **Cabinets on other PCs** (`WAL_LINK`, payload-common `link.rs`): the matching screen
 //!   (Matching2, shown only when `Setting_System`'s `bEnableOnline` is true: false when the file
@@ -596,8 +598,63 @@ unsafe extern "system" fn get_proc_address(module: HMODULE, name: *const u8) -> 
         if let Some(f) = f {
             return f;
         }
+        if game() == Game::CrazyRide && wal_payload_common::outputs::enabled() && let Some(f) = unsafe { crazy_ride_light(module, n, real) } {
+            return f;
+        }
     }
     unsafe { real(module, name) }
+}
+
+/// Crazy Ride's cabinet lights (`UsbPluginsDll_R.dll`), to the network outputs and then the
+/// DLL's own function: `Set<Box|Edge|Side|MachineSide>Light(r, g, b)` (`BoxLight_r`, `_g`,
+/// `_b`, 0 or 1), `Set<Speed|Stop|Brake>Light(level)` (0 to 3), `SetGameStateLight(state)`,
+/// `SetStartLightState(on)` (`StartLight`).
+const RGB_LIGHTS: [&str; 4] = ["BoxLight", "EdgeLight", "SideLight", "MachineSideLight"];
+const ONE_LIGHTS: [&str; 5] = ["SpeedLight", "StopLight", "BrakeLight", "GameStateLight", "StartLight"];
+static REAL_LIGHTS: [AtomicUsize; 9] = [const { AtomicUsize::new(0) }; 9];
+
+unsafe fn crazy_ride_light(module: HMODULE, name: &[u8], real: unsafe extern "system" fn(HMODULE, *const u8) -> usize) -> Option<usize> {
+    let light = std::str::from_utf8(name).ok()?.strip_prefix("BIND_Set")?;
+    let light = light.strip_suffix("State").unwrap_or(light);
+    let i = RGB_LIGHTS.iter().chain(&ONE_LIGHTS).position(|l| *l == light)?;
+    let f = unsafe { real(module, name.iter().copied().chain([0]).collect::<Vec<u8>>().as_ptr()) };
+    if f == 0 {
+        return None;
+    }
+    REAL_LIGHTS[i].store(f, Ordering::Relaxed);
+    macro_rules! rgb {
+        ($i:literal) => {{
+            unsafe extern "C" fn light(r: i32, g: i32, b: i32) -> i32 {
+                for (c, v) in ["r", "g", "b"].iter().zip([r, g, b]) {
+                    wal_payload_common::outputs::set(&format!("{}_{c}", RGB_LIGHTS[$i]), v);
+                }
+                let f: unsafe extern "C" fn(i32, i32, i32) -> i32 = unsafe { std::mem::transmute(REAL_LIGHTS[$i].load(Ordering::Relaxed)) };
+                unsafe { f(r, g, b) }
+            }
+            light as *const () as usize
+        }};
+    }
+    macro_rules! one {
+        ($i:literal) => {{
+            unsafe extern "C" fn light(v: i32) -> i32 {
+                wal_payload_common::outputs::set(ONE_LIGHTS[$i - 4], if $i == 8 { (v & 0xFF != 0) as i32 } else { v });
+                let f: unsafe extern "C" fn(i32) -> i32 = unsafe { std::mem::transmute(REAL_LIGHTS[$i].load(Ordering::Relaxed)) };
+                unsafe { f(v) }
+            }
+            light as *const () as usize
+        }};
+    }
+    Some(match i {
+        0 => rgb!(0),
+        1 => rgb!(1),
+        2 => rgb!(2),
+        3 => rgb!(3),
+        4 => one!(4),
+        5 => one!(5),
+        6 => one!(6),
+        7 => one!(7),
+        _ => one!(8),
+    })
 }
 
 static REAL_READ_INI: AtomicUsize = AtomicUsize::new(0);

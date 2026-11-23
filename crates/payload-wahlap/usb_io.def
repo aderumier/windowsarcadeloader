@@ -38,12 +38,12 @@ EXPORTS
     "?UsbIO_SetCollisionData@@YAXAAUUsbIOBoardCollisionData_s@@@Z" = usbio_ignore
     "?UsbIO_SetDrifting@@YAXM@Z" = usbio_ignore
     "?UsbIO_SetGamePlayStatu@@YAX_N@Z" = usbio_ignore
-    "?UsbIO_SetLedLightStatu@@YAXAAUUsbIOBoardLEDLightStatu_s@@@Z" = usbio_ignore
+    "?UsbIO_SetLedLightStatu@@YAXAAUUsbIOBoardLEDLightStatu_s@@@Z" = usbio_led
     "?UsbIO_SetLightState@@YAHAAUUsbIOBoardLightState_s@@@Z" = usbio_zero
     "?UsbIO_SetMenuGear@@YAX_N@Z" = usbio_ignore
     "?UsbIO_SetMoterVolt@@YAXH@Z" = usbio_set_motor_volt
     "?UsbIO_SetOutputdata@@YAHAAUUsbIOBoardOutputData_s@@@Z" = usbio_one
-    "?UsbIO_SetPWMLightStatu@@YAXAAUUsbIOBoardPWMLightStatu_s@@@Z" = usbio_ignore
+    "?UsbIO_SetPWMLightStatu@@YAXAAUUsbIOBoardPWMLightStatu_s@@@Z" = usbio_pwm
     "?UsbIO_SetPowerFactor@@YAXM@Z" = usbio_ignore
     "?UsbIO_SetPowerPause@@YAXXZ" = usbio_ignore
     "?UsbIO_SetRoadBasicStatu@@YAXAAUUsbIOBoardSetRoadData_s@@@Z" = usbio_ignore

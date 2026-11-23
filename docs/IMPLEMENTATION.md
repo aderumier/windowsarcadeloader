@@ -9121,10 +9121,18 @@ else the profile's file name (`sega-racing-classic`).
 * Sources: the common JVS board (`jvs_board.rs`, command `32`: every Type X, RingEdge, Nu and
   ALLS JVS game), ALLS's IO4 board (general outputs, report 10 command 04), Wasteland Racers
   2071's SDC2 `SetDigitalOut` (16 lamps), the RingEdge drive board's packets (`WAL_RINGEDGE_FFB`,
-  Initial D, SEGA Racing Classic's Model 2 command byte), SiN's gun solenoid (`P1_GunRecoil`).
+  Initial D, SEGA Racing Classic's Model 2 command byte), SiN's gun solenoid (`P1_GunRecoil`);
+  Storm Racer G / Storm Rider's USB board (`UsbIO_SetLedLightStatu`: `lamp0`-`lamp5`;
+  `UsbIO_SetPWMLightStatu`: `pwm0`-`pwm5`, 0-255), Crazy Ride's lights (UsbPluginsDll_R.dll's
+  `BIND_Set*Light` wrapped: `BoxLight_r` / `_g` / `_b`, `EdgeLight_`..., `SideLight_`...,
+  `MachineSideLight_`... 0/1, `SpeedLight`, `StopLight`, `BrakeLight` 0-3, `GameStateLight`,
+  `StartLight`), GTI Club 3's HBHI lamps (`lamp0`-`lamp7`, brightness `bright0`-`bright7`
+  0-31), the Namco JVS LED commands 0x78-0x7A (Mario Kart Arcade GP DX: `led0_r`..`led26_b`,
+  0-15; not sent by 1.18 in its attract, unverified).
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
-  `RawDrive` the Model 2 drive commands.
+  `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;
+  Crazy Ride's speed / stop / brake / game state lights.
 
 ## 7. Adding a system
 
