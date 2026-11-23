@@ -405,7 +405,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `mars-sortie` | Mars Sortie | arcadepc | user 100% (2026-11-10), 4 guns |  | start lamps, recoil, flashlight, lasers | not in the test |  |
 | `family-guy-bowling-arcade` | Family Guy Bowling Arcade | arcadepc | user 100% (2026-11-10), 1 trackball |  |  | not in the test |  |
 | `bounty-hunter` | Bounty Hunter | arcadepc | user 100% (2026-11-10), 1 player (8 pads) |  |  | not in the test |  |
-| `friction` | Friction | arcadepc | user 100% (2026-11-10), 2 guns |  |  | not in the test |  |
+| `friction` | Friction | arcadepc | user 100% (2026-11-10), 2 guns |  | lamps, recoil, damage, ammo, life | not in the test |  |
 | `house-of-the-dead-2-remake` | The House of the Dead 2: Remake | arcadepc | user 100% (2026-11-10), 2 guns |  |  | not in the test |  |
 | `mad-bullets` | Mad Bullets | arcadepc | user 100% (2026-11-10), 1 gun |  | recoil, damage, life, ammo | not in the test |  |
 | `pull-the-trigger` | Pull The Trigger | arcadepc | user 100% (2026-11-10), 1 gun |  |  | not in the test |  |

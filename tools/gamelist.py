@@ -33,6 +33,7 @@ PROFILES = ROOT / "systemprofiles"
 # seen": wired, not seen working in a test
 GUN = "lamps, recoil, damage, life, ammo"
 OUTPUTS = {
+    "friction": "lamps, recoil, damage, ammo, life",
     "aliens-extermination": "lamps, recoil, ammo LEDs, damage, ammo, life, credits",
     "gundam-spirits-of-zeon": "lamps, recoil, gun motors, damage, ammo, life",
     "gundam-spirits-of-zeon-2p": "lamps, recoil, gun motors, damage, ammo, life",

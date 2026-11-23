@@ -338,7 +338,39 @@ pub fn init() {
             FREE_PLAY.store(false, Ordering::Relaxed);
         }
     }
-    log!("vsioboard: vsIOBoard.dll, free play {}", if FREE_PLAY.load(Ordering::Relaxed) { "on" } else { "off" });
+    log!("vsioboard: vsIOBoard.dll, free play {}", if FREE_PLAY.load(Ordering::Relaxed) { "on" } else { "off" });    outputs();
+}
+
+/// The network outputs (`WAL_OUTPUTS`), read as DemulShooter does: the game's data
+/// [+0x145088] + 0x28: each gun's player (+0x45C / +0x460, 0xFF none), playing (+0x439 + gun),
+/// its life (+0x44C + 4 × gun) and ammo ([+0x560 + 4 × gun] + 8): a recoil each time the ammo
+/// goes down, a hit when the life does, the start lamp blinking (500 ms) until playing.
+fn outputs() {
+    use wal_payload_common::outputs::{Falling, mem, poll, set};
+    let b = mem::base();
+    let (mut recoil, mut damage): ([Falling; 2], [Falling; 2]) = Default::default();
+    poll("friction", 16, move || {
+        let blink = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis() / 500 % 2) as i32;
+        let data = mem::u32(b + 0x145088) as usize;
+        let mut state = [None; 2];
+        for gun in 0..2 {
+            let g = data + 0x28;
+            let player = if data != 0 { mem::u8(g + 0x45C + 4 * gun) as usize } else { 0xFF };
+            if player < 2 && mem::u8(g + 0x439 + gun) == 1 {
+                let ammo = mem::u32(g + 0x560 + 4 * gun) as usize;
+                state[player] = Some((mem::u8(g + 0x44C + 4 * gun) as i64, if ammo != 0 { mem::u8(ammo + 8) as i64 } else { 0 }));
+            }
+        }
+        for (p, s) in state.iter().enumerate() {
+            let n = |f: &str| format!("P{}_{f}", p + 1);
+            recoil[p].update(s.map(|s| s.1), ["P1_CtmRecoil", "P2_CtmRecoil"][p]);
+            damage[p].update(s.map(|s| s.0), ["P1_Damaged", "P2_Damaged"][p]);
+            set(&n("Life"), s.map_or(0, |s| s.0) as i32);
+            set(&n("Ammo"), s.map_or(0, |s| s.1) as i32);
+            set(&n("Clip"), s.is_some_and(|s| s.1 > 0) as i32);
+            set(&n("CtmLmpStart"), if s.is_some() { 0 } else { blink });
+        }
+    });
 }
 
 #[cfg(test)]
