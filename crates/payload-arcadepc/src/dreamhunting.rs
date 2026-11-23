@@ -276,6 +276,8 @@ fn idle() -> Vec<u8> {
             let r = raw(a);
             log!("dreamhunting: shot at ({:.3}, {:.3}), raw {r:?}", a.0, a.1);
             b.queue.push_back(gun_message(r));
+            // a shot the game fires (a bullet spent): the network outputs' recoil
+            wal_payload_common::outputs::set("P1_CtmRecoil", 1);
             b.shot = true;
         }
     }

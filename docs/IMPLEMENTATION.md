@@ -9264,6 +9264,9 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Dream Hunting (`dreamhunting.rs`): the board only talks, the game sends it nothing: a recoil
+  (`P1_CtmRecoil`) with each shot's position the payload sends (a bullet the game spends; the
+  title's and menus' selections too).
 * Polar Wars (`unrealio.rs`): the PC's 32 output bits (bytes 13..16, the game's `GameOutput`s):
   the start lamps, each gun's vibration low / high (the custom recoil as it starts), its water
   pressure low / high, the water spray.

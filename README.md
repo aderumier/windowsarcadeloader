@@ -425,7 +425,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `omatsuri-yasan-kingyo-sukui` | Omatsuri Yasan Kingyo Sukui | arcadepc | user 100% (2026-11-15), 1 player |  |  | not in the test |  |
 | `omatsuri-yasan-ganso-takoyaki` | Omatsuri Yasan Ganso Takoyaki | arcadepc | user 100% (2026-11-15), 1 player |  |  | not in the test |  |
 | `quake-arcade-tournament-edition` | Quake: Arcade Tournament Edition | arcadepc | user 100% (2026-11-15), 1 player |  |  | not in the test |  |
-| `dream-hunting` | Dream Hunting | arcadepc | user 100% (2026-11-12), 1 gun |  |  | not in the test |  |
+| `dream-hunting` | Dream Hunting | arcadepc | user 100% (2026-11-12), 1 gun |  | recoil | not in the test |  |
 | `photo-finish-racing` | Photo Finish Racing | arcadepc | user 100% (2026-11-12), 3 players |  |  | not in the test |  |
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns |  | recoil, damage, life, ammo (not seen) | not in the test |  |
 | `left-4-dead-survivors` | Left 4 Dead: Survivors | nesica | user 100% (2026-11-16), NESiCA card (new player, CPU play), mouse and pad |  |  | not in the test |  |
