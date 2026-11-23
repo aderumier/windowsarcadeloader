@@ -387,7 +387,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `flappy-tickets` | Flappy Tickets | adrenaline | user 100% (2026-11-03), 2 buttons, portrait, stretched bezel |  |  | not in the test |  |
 | `mech-dinosaur` | Mech Dinosaur | arcadepc | user 100% (2026-10-26, all maps open), 4 guns |  | lamps, ball / water guns, seat shaker | not in the test |  |
 | `wisdom-zombies` | Wisdom Zombies | arcadepc | user 100% (2026-10-26, all maps open), 4 water guns |  | lamps, water guns, gun motors, seat shaker (not seen) | not in the test |  |
-| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape; 2026-11-22: aim at any screen size), 2 camera guns, landscape option |  | lamps (not seen) | not in the test |  |
+| `top-gun-2` | Top Gun 2 | arcadepc | works (headless tests 2026-11-04: coins, start, aim and shots scoring, operator menu; user: display, crosshairs; 2026-11-05 user: levels full screen in landscape; 2026-11-22: aim at any screen size), 2 camera guns, landscape option |  | lamps, recoil | not in the test |  |
 | `galaxian-3` | Galaxian 3 | arcadepc | user 100% (2026-11-09), 4 guns (of the cabinet's 6) |  |  | not in the test |  |
 | `burning-striker` | Burning Striker | arcadepc | user 100% (2026-11-09), 2 players (stick, 3 buttons) |  |  | not in the test |  |
 | `come-on-baby` | Come on Baby! | arcadepc | user 100% (2026-11-14), 2 players (stick, 2 buttons, start) |  |  | not in the test |  |

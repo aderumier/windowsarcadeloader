@@ -83,7 +83,9 @@ fn replace() {
     for _ in 0..3000 {
         std::thread::sleep(Duration::from_millis(100));
         let Some(m) = mono() else { continue };
-        if !m.attach() {
+        // the game's assembly loaded first: a thread attached while Mono still starts aborts
+        // the game (Unity's crash dialog over it, the guns never replaced)
+        if m.image("Assembly-CSharp").is_null() || !m.attach() {
             continue;
         }
         let class = m.class(m.image("Assembly-CSharp"), "OpenCVForUnityExample", "WebCamTextureToMatHelperExample");
@@ -104,10 +106,48 @@ fn replace() {
         let src = m.replace(m.method(class, "GetSrcPos", 1), get_src_pos as *const () as usize);
         let h = m.replace(m.method(class, "GetHPos", 1), get_h_pos as *const () as usize);
         log!("jxcamera: the camera's gun positions are the payload's (GetSrcPos {src}, GetHPos {h}), the camera off ({camera:?})");
+        recoil(m);
         return;
     }
     log!("jxcamera: the camera tracker not found");
 }
+
+// The network outputs' recoil (`WAL_OUTPUTS`): `BlasterWeapon.Fire` (a shot of the gun's
+// weapon, the U-Shoot plugin's), a prefix: its `_PlayerID`'s `P1_CtmRecoil` while `_isEnabled`.
+
+/// `BlasterWeapon`'s `_PlayerID` and `_isEnabled` offsets.
+#[cfg(target_arch = "x86_64")]
+static FIRE_FIELDS: [std::sync::atomic::AtomicUsize; 2] = [const { std::sync::atomic::AtomicUsize::new(0) }; 2];
+
+#[cfg(target_arch = "x86_64")]
+extern "C" fn fire(weapon: wal_payload_common::mono::P) {
+    let (player, enabled) = (FIRE_FIELDS[0].load(Ordering::Relaxed), FIRE_FIELDS[1].load(Ordering::Relaxed));
+    if weapon.is_null() || unsafe { *(weapon as *const u8).add(enabled) } == 0 {
+        return;
+    }
+    let id = unsafe { ((weapon as *const u8).add(player) as *const i32).read_unaligned() };
+    if let Some(name) = ["P1_CtmRecoil", "P2_CtmRecoil"].get(id as usize) {
+        wal_payload_common::outputs::set(name, 1);
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+fn recoil(m: &wal_payload_common::mono::Mono) {
+    if !wal_payload_common::outputs::enabled() {
+        return;
+    }
+    let class = m.class(m.image("Assembly-CSharp"), "Assets.Scripts.BlasterWeapon", "BlasterWeapon");
+    let (player, enabled) = (m.field(class, "_PlayerID"), m.field(class, "_isEnabled"));
+    if class.is_null() || player.is_null() || enabled.is_null() {
+        return log!("jxcamera: BlasterWeapon not found: no recoil output");
+    }
+    FIRE_FIELDS[0].store(m.offset(player), Ordering::Relaxed);
+    FIRE_FIELDS[1].store(m.offset(enabled), Ordering::Relaxed);
+    log!("jxcamera: recoil output (BlasterWeapon.Fire hooked: {})", m.prefix(m.method(class, "Fire", 2), fire));
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+fn recoil(_m: &wal_payload_common::mono::Mono) {}
 
 // Landscape (`WAL_UNITY_LANDSCAPE=1`): the bezel hidden in the levels
 

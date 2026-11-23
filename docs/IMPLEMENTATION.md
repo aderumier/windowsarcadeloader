@@ -9274,6 +9274,10 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Top Gun 2 (`jxcamera.rs`): `BlasterWeapon.Fire` (the U-Shoot plugin's) a Mono prefix: a
+  recoil for the weapon's `_PlayerID` while `_isEnabled` (its lamps: the JX board's frames).
+  The camera thread attaches to Mono once the game's assembly is loaded: attached while Mono
+  still started, it aborted the game (Unity's crash dialog, the camera guns never replaced).
 * Elevator Action Invasion (`usbplugins.rs`, the DLL's functions wrapped, watched in a game):
   `BIND_SetLightVal(p1, p2)` the start lamps, `BIND_SetGameLightVal(pattern, ..)` the cabinet
   lights' pattern (`GameLight`), `BIND_SetShakeFloorVal(level)` the floor shaker
