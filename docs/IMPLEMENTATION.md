@@ -6734,7 +6734,8 @@ is the `.windowsloader`. Board `quakearcade` (`quakearcade.rs`), loaded at the e
   when it changes and keeps it in the back buffers, cleared by the scaling (the HUD only showed
   when shooting); with it the bar is drawn each frame. A larger mode (`-width 1440 -height
   1080`) stops at a 1080-texel texture ("GL_LoadTexture: too big"); `-window` mode errors at start.
-- **Free play** (the common `WAL_FREEPLAY`, on by default): the operator's free time
+- **Free play** (the common `WAL_FREEPLAY`, off in the profile since 2026-11-23: the attract's
+  movies): the operator's free time
   (`a_freetime`, a toggle, 0x47e718: "Free Play" in place of the credits), added to the
   command line; the attract then skips its movies. `a_freeplay` (the other operator key) only
   adds a credit. Off: the operator's pricing (one coin a credit, three lives).
