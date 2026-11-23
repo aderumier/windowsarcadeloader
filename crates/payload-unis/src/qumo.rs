@@ -18,6 +18,8 @@
 //! - **Aim.** 12 bits, 0..4095 across the picture from its bottom left (y up); the game maps it through
 //!   its calibration (`Assets/config/game/excel_data/jiaoqiang.csv`: the profile's, 0..4095,
 //!   the aim unchanged). The game draws its own gun marks.
+//! - **Outputs** (the PC's report): the guns' recoil and lights, the air jets, the wind and the
+//!   emergency stop's light, to the network outputs ([`outputs`]).
 //! - **Dongle.** `Sense4`: every call succeeds (Dino Invasion's, `shunxiang.rs`).
 //!
 //! - **Free play.** `WAL_UNIS_FREEPLAY`: the operator's setting in the game's saved settings.
@@ -267,13 +269,38 @@ extern "system" fn read_file(handle: usize, buf: *mut u8, len: u32, read: *mut u
     1
 }
 
-/// The PC's report (recoil, lights): accepted.
+/// The PC's report (`hid_for_qumo`'s 16 bytes after the report id: `55`, ..., checksum), to the
+/// network outputs: byte 3 each gun's recoil level (P1 bits 6-7, P2 4-5: `P1_GunRecoil`,
+/// `P2_GunRecoil` 0-3), the emergency stop's light (bit 1, `LmpEstop`) and the wind fan (bit 0,
+/// `Blower_Level`); bytes 4-7 the air jets (left front, right front, right back, left back:
+/// `P1_AirFront`, `P2_AirFront`, `P2_AirRear`, `P1_AirRear`); byte 8 each gun's light (P1 high
+/// nibble, P2 low: 1 red, 2 blue: `P1_Lmp_R` / `P1_Lmp_B`...).
+fn outputs(report: &[u8]) {
+    use wal_payload_common::outputs::set;
+    let Some(b) = report.get(1..17).filter(|b| b[0] == 0x55 && wal_payload_common::outputs::enabled()) else {
+        return;
+    };
+    set("P1_GunRecoil", (b[3] >> 6 & 3) as i32);
+    set("P2_GunRecoil", (b[3] >> 4 & 3) as i32);
+    set("LmpEstop", (b[3] >> 1 & 1) as i32);
+    set("Blower_Level", (b[3] & 1) as i32);
+    for (name, v) in ["P1_AirFront", "P2_AirFront", "P2_AirRear", "P1_AirRear"].iter().zip(&b[4..8]) {
+        set(name, *v as i32);
+    }
+    for (p, light) in [(1, b[8] >> 4), (2, b[8] & 0x0F)] {
+        set(&format!("P{p}_Lmp_R"), (light == 1) as i32);
+        set(&format!("P{p}_Lmp_B"), (light == 2) as i32);
+    }
+}
+
+/// The PC's report (recoil, lights): accepted, its outputs sent.
 extern "system" fn write_file(handle: usize, buf: *const u8, len: u32, written: *mut u32, overlapped: *mut Overlapped) -> i32 {
     if !ours(handle) {
         let f = real!("kernel32.dll", "WriteFile", unsafe extern "system" fn(usize, *const u8, u32, *mut u32, *mut Overlapped) -> i32);
         return unsafe { f(handle, buf, len, written, overlapped) };
     }
     *WRITES.lock().unwrap() += 1;
+    outputs(unsafe { std::slice::from_raw_parts(buf, len as usize) });
     WRITTEN.notify_all();
     if !written.is_null() {
         unsafe { *written = len };

@@ -9132,11 +9132,15 @@ else the profile's file name (`sega-racing-classic`).
   `MachineSideLight_`... 0/1, `SpeedLight`, `StopLight`, `BrakeLight` 0-3, `GameStateLight`,
   `StartLight`), GTI Club 3's HBHI lamps (`lamp0`-`lamp7`, brightness `bright0`-`bright7`
   0-31), the Namco JVS LED commands 0x78-0x7A (Mario Kart Arcade GP DX: `led0_r`..`led26_b`,
-  0-15; not sent by 1.18 in its attract, unverified).
+  0-15; not sent by 1.18 in its attract, unverified); Night Hunter: After Dark Chapter II's
+  qumo board report (`qumo.rs`, the game's `hid_for_qumo` layout: `P1_GunRecoil` /
+  `P2_GunRecoil` 0-3, `P1_AirFront`, `P2_AirFront`, `P1_AirRear`, `P2_AirRear`, `Blower_Level`,
+  `LmpEstop`, `P1_Lmp_R` / `_B`, `P2_Lmp_R` / `_B`).
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
   `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;
-  Crazy Ride's speed / stop / brake / game state lights.
+  Crazy Ride's speed / stop / brake / game state lights; Night Hunter 2 in a mission, a recoil
+  pulse a shot (`P1_GunRecoil` 2), the air jets and the wind.
 
 ## 7. Adding a system
 
