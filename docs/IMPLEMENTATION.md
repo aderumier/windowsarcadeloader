@@ -73,7 +73,7 @@ games/, wine-runners/, wine-prefix/   local data (git-ignored)
   for future 64-bit games.
 * `./build.sh` (env `PROFILE=dev` for debug builds) produces `dist/arcade-launcher` and
   `dist/payloads/wal_nesica.dll`. A new payload must be added to `build.sh`.
-* Wine runner: the default runner is `GE-Proton11-12-x86_64` (`wine-runners/`); **all game
+* Wine runner: the default runner is `GE-Proton11-14-x86_64` (`wine-runners/`); **all game
   tests must run on it**. When rebuilding a wine DLL (e.g. `quartz.dll` hotfixes), build from
   the GE-Proton source tree (local clone `~/code/protonge`, GE patch set applied) — never from
   plain upstream wine: the GE video stack (`quartz` + `winedmo`/`msdmo`, GStreamer-backed) only
@@ -362,7 +362,12 @@ game that cannot share the prefix sets its own `prefix` (and `prefix_tricks`).
 Runner hotfixes: `tools/runner-hotfixes.py [runner...]` patches known bugs of runner builds in
 place (exact byte match, `<file>.orig` backup, idempotent), until the fix ships in a release.
 
-GE-Proton11-12 (default runner since 2026-11-08) is the GitHub release (`GE-Proton11-12-x86_64.tar.gz`,
+GE-Proton11-14 (default runner since 2026-11-23) is the plain GitHub release
+(`GE-Proton11-14-x86_64.tar.gz`, sha512 checked) plus `bin/winetricks`: every runner fix sent to
+GE-Proton so far is merged in it (the 11-12 DLL rebuilds below, the qasf / quartz / wmvcore /
+winedmo / win32u / kernel32 fixes up to GE patch 0130), no DLL rebuilt or hotfixed.
+
+GE-Proton11-12 (default runner 2026-11-08 to 2026-11-23) was the GitHub release (`GE-Proton11-12-x86_64.tar.gz`,
 sha512 checked) plus `bin/winetricks`, with the PE DLLs `winedmo`, `quartz`, `mfreadwrite`,
 `mfsrcsnk`, `mfasfsrcsnk`, `mfmp4srcsnk` (i386 and x86_64) rebuilt from the GE-Proton11-12 tree
 (`~/code/wal-wine-build-1112`: the wine section of the tag's `protonprep-valve-staging.sh`, the
