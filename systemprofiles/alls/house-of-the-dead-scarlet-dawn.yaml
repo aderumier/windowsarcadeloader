@@ -33,6 +33,9 @@ drives:
   y: AppData
 
 env:
+  # the IO4 outputs' meaning, for the network outputs (watched: blinking with credits until
+  # the player plays)
+  WAL_OUTPUTS_LAMPS: "1:P1_LmpStart,4:P2_LmpStart"
   WAL_ALLS_GAME_ID: SDET
   WAL_ALLS_PLATFORM_ID: ACA1
   WAL_ALLS_BOARD: hotd

@@ -9329,7 +9329,9 @@ else the profile's file name (`sega-racing-classic`).
   lamps, recoil, billboard), Let's Go Island 3D (its gun motors, running on each shot, as the
   custom recoil; the seat's air blowers). Verified headless: Target Bravo 165 recoil pulses,
   Let's Go Island 3D 102. Lost Land Adventure (namcoes3): lamps 0 / 1 the guns' recoil
-  (three pulses a pull), 2 / 3 the start lamps, watched with player 1 and with player 2.
+  (three pulses a pull), 2 / 3 the start lamps, watched with player 1 and with player 2. House
+  of the Dead: Scarlet Dawn (IO4): 1 / 4 the start lamps; its guns' vibration (the game's
+  `GunVibrationOffOnP1` setting) never showed on the IO4 outputs in a game.
 * Names: `RawLamps`, `RawLamps1`... (a JVS board's general purpose output bytes) and `lamp0`,
   `lamp1`... (output n + 1, bit 7 - n % 8 of byte n / 8); `RawDrive` (each byte to a Sega drive
   board); the games' own (U-Shoot's names: `P1_GunRecoil`, `P1_LmpStart`...).
