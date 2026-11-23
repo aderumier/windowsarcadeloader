@@ -67,6 +67,8 @@ fn shell_data() -> &'static str {
 static UNITY_GET_PROC_ADDRESS: AtomicUsize = AtomicUsize::new(0);
 static ADD_INTERNAL_CALL: AtomicUsize = AtomicUsize::new(0);
 static FRAME_COUNT: AtomicUsize = AtomicUsize::new(0);
+static SCREEN_WIDTH: AtomicUsize = AtomicUsize::new(0);
+static SCREEN_HEIGHT: AtomicUsize = AtomicUsize::new(0);
 static JOYSTICK_NAMES: AtomicUsize = AtomicUsize::new(0);
 static FREE_PLAY: AtomicBool = AtomicBool::new(false);
 static UNLOCK: AtomicBool = AtomicBool::new(false);
@@ -144,6 +146,10 @@ unsafe extern "C" fn get_axis(name: P) -> f32 {
     let Some(axis) = names.iter().position(|&a| a == name) else { return 0.0 };
     if UNLOCK.load(Ordering::Relaxed) {
         unlock();
+    }
+    if board() == Board::Mig {
+        static SHOTS: std::sync::Once = std::sync::Once::new();
+        SHOTS.call_once(shots_in_screen);
     }
     let player = axis / 2;
     if let Some((x, y)) = aim(player) {
@@ -457,6 +463,37 @@ fn stage_select_time() {
     }
 }
 
+/// Mission: Impossible's shots (`CameraBufferManager.ViewportPointToRay`: the guns, the laser
+/// sight, the mini-games) read the aim in 1920x1080 pixels (`x / 1920f`, `y / 1080f`), its sights
+/// and `GunAdjust` in the screen's (`Screen.width` / `height`): in another window size the shots
+/// missed the sights. Its two constants made the screen's, in its IL before the game compiles it
+/// (the first `GetAxis`, on the game's thread, before a shot).
+fn shots_in_screen() {
+    let size = |call: &AtomicUsize| match call.load(Ordering::Relaxed) {
+        0 => 0,
+        f => unsafe { std::mem::transmute::<usize, unsafe extern "C" fn() -> i32>(f)() },
+    };
+    let (w, h) = (size(&SCREEN_WIDTH), size(&SCREEN_HEIGHT));
+    if w <= 0 || h <= 0 || (w, h) == (1920, 1080) {
+        log!("mib: screen {w}x{h}: the shots' 1920x1080 kept");
+        return;
+    }
+    let Some(m) = mono::mono() else { return };
+    let class = m.class(m.image("Assembly-CSharp"), "", "CameraBufferManager");
+    let Some(il) = m.il_code(m.method(class, "ViewportPointToRay", 1)) else {
+        log!("mib: CameraBufferManager.ViewportPointToRay not found");
+        return;
+    };
+    for (from, to) in [(1920f32, w), (1080f32, h)] {
+        let ldc = [[0x22u8].as_slice(), &from.to_le_bytes()].concat();
+        match (0..il.len().saturating_sub(4)).find(|&i| il[i..i + 5] == ldc[..]) {
+            Some(i) => il[i + 1..i + 5].copy_from_slice(&(to as f32).to_le_bytes()),
+            None => log!("mib: ViewportPointToRay: no {from}"),
+        }
+    }
+    log!("mib: the shots in the screen's {w}x{h}");
+}
+
 unsafe extern "C" fn get_button_down(name: P) -> u8 {
     edge(named(name), true)
 }
@@ -526,8 +563,11 @@ unsafe extern "C" fn add_internal_call(name: *const c_char, method: P) {
             Some(get_joystick_names as *const () as usize)
         }
         _ => {
-            if call == b"UnityEngine.Time::get_frameCount" {
-                FRAME_COUNT.store(method as usize, Ordering::Relaxed);
+            match call {
+                b"UnityEngine.Time::get_frameCount" => FRAME_COUNT.store(method as usize, Ordering::Relaxed),
+                b"UnityEngine.Screen::get_width" => SCREEN_WIDTH.store(method as usize, Ordering::Relaxed),
+                b"UnityEngine.Screen::get_height" => SCREEN_HEIGHT.store(method as usize, Ordering::Relaxed),
+                _ => {}
             }
             None
         }
