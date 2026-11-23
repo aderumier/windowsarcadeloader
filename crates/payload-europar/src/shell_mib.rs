@@ -57,6 +57,8 @@ pub(crate) struct Protocol {
     start_pressed: u16,
     /// Frequent messages, not logged: keepalives, shots, recoil, hits.
     quiet: &'static [u16],
+    /// The gun recoil message (`P<n>_GunRecoil` of the network outputs), when known.
+    recoil: Option<u16>,
     /// The stage select entered, its stage chosen ([`STAGE_SELECT`]).
     stage_select: Option<(u16, u16)>,
 }
@@ -81,6 +83,7 @@ pub(crate) const MIB: Protocol = Protocol {
     ready: 101,
     start_pressed: 301,
     quiet: &[0, 1, 504, 505, 506, 508, 511, 513],
+    recoil: Some(511),
     stage_select: None,
 };
 
@@ -94,6 +97,7 @@ pub(crate) const MIG: Protocol = Protocol {
     ready: 3,
     start_pressed: 6,
     quiet: &[0, 11, 12, 13, 14, 15, 29, 38],
+    recoil: None,
     stage_select: Some((33, 34)),
 };
 
@@ -248,6 +252,10 @@ fn serve(mut game: TcpStream) {
                 let entered = p.stage_select.is_some_and(|(e, _)| op == e);
                 STAGE_SELECT.store(if entered { now_ms() } else { 0 }, Ordering::Relaxed);
                 log!("shell: stage select {}", if entered { "entered".to_string() } else { format!("chose {data:02x?}") });
+            }
+            // the gun's recoil (MIB 511: player from 1, 0, on / off, 0): to the network outputs
+            _ if p.recoil == Some(op) && data.len() >= 3 && (1..=4).contains(&data[0]) => {
+                wal_payload_common::outputs::set(&format!("P{}_GunRecoil", data[0]), data[2] as i32);
             }
             _ if p.quiet.contains(&op) => {}
             _ => log!("shell: game operation {op} {data:02x?}"),

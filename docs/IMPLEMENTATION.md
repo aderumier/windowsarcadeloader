@@ -9136,7 +9136,8 @@ else the profile's file name (`sega-racing-classic`).
   0-15; not sent by 1.18 in its attract, unverified); Night Hunter: After Dark Chapter II's
   qumo board report (`qumo.rs`, the game's `hid_for_qumo` layout: `P1_GunRecoil` /
   `P2_GunRecoil` 0-3, `P1_AirFront`, `P2_AirFront`, `P1_AirRear`, `P2_AirRear`, `Blower_Level`,
-  `LmpEstop`, `P1_Lmp_R` / `_B`, `P2_Lmp_R` / `_B`).
+  `LmpEstop`, `P1_Lmp_R` / `_B`, `P2_Lmp_R` / `_B`); Men In Black's shell message 511
+  (`shell_mib.rs`: player from 1, 0, on / off, 0: `P1_GunRecoil`...).
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
   `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;
