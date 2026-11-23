@@ -18,6 +18,9 @@
 //! * 23..26: 32 key bits (0, 1 the start keys, 2, 3 the triggers, 4, 5 the ball out sensors,
 //!   16..23 the ball motors' faults, 24, 25 the coin switches, 30, 31 the water level).
 //!
+//! The PC's output bits (bytes 13..16: the start lamps, the guns' vibration, the water): the
+//! network outputs ([`outputs`]).
+//!
 //! Aim: 0..4080 over the picture, y from the top. The game maps the readings through 11 points
 //! per gun (`Save/CorrectionData<n>P.txt`, at 10 %, 30 %, 50 %, 70 % and 90 % of the screen):
 //! the profile's files put them at those fractions of 4080, a linear map.
@@ -340,7 +343,32 @@ extern "C" fn write(_com: *const u8, buffer: *const u8, length: u8) {
     let data = unsafe { std::slice::from_raw_parts(buffer, LEN) };
     if data[0] == 0xF5 && sum(&data[..LEN - 1]) == data[LEN - 1] {
         BOARD.lock().unwrap().pc.copy_from_slice(data);
+        outputs(u32::from_le_bytes([data[13], data[14], data[15], data[16]]));
     }
+}
+
+/// The PC's 32 output bits (bytes 13..16, `CommLogicMain.SetOutput(index)`: bit `index`), the
+/// game's `GameOutput`s, to the network outputs: 0 / 1 the start lamps (`P1_LmpStart`), 16 / 17
+/// player 1's gun vibration low / high (20 / 21 player 2's: `P1_GunMotor` 1 / 2, a custom
+/// recoil as it starts), 24 / 25 player 1's water pressure low / high (26 / 27 player 2's:
+/// `P1_WaterFire` 1 / 2), 28 the water spray (`WaterSpray`).
+fn outputs(bits: u32) {
+    use wal_payload_common::outputs::{enabled, set, value};
+    if !enabled() {
+        return;
+    }
+    let level = |low: u32| if bits >> (low + 1) & 1 != 0 { 2 } else { (bits >> low & 1) as i32 };
+    for (p, vibration, water) in [(0, 16, 24), (1, 20, 26)] {
+        let n = |f: &str| format!("P{}_{f}", p + 1);
+        set(&n("LmpStart"), (bits >> p & 1) as i32);
+        let v = level(vibration);
+        if v != 0 && value(&n("GunMotor")).unwrap_or(0) == 0 {
+            set(&n("CtmRecoil"), 1);
+        }
+        set(&n("GunMotor"), v);
+        set(&n("WaterFire"), level(water));
+    }
+    set("WaterSpray", (bits >> 28 & 1) as i32);
 }
 
 /// 0 when `buffer` holds the board's frame; the updater's bootloader frames (64 bytes) fail.

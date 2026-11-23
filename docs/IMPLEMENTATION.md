@@ -9264,6 +9264,9 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Polar Wars (`unrealio.rs`): the PC's 32 output bits (bytes 13..16, the game's `GameOutput`s):
+  the start lamps, each gun's vibration low / high (the custom recoil as it starts), its water
+  pressure low / high, the water spray.
 * Luigi's Mansion Arcade (`lmaio.rs`): the game's packet's `SW:` (the start lamps), `MO:` (the
   vacuum guns' motors: 1 while sucking, 5 at an event; the custom recoil as one starts), `SO:`
   (the solenoids, never set in the game seen).
@@ -9413,7 +9416,8 @@ else the profile's file name (`sega-racing-classic`).
   pulses, 30 hits, life, kill digits); Wicked Tuna (rod shaker, rod and reel resistance, hook
   button lamp, cabinet shake); After Dark 2.3 (65 gun vibrations and recoils, start lamps);
   Action Deka (the hands' LEDs and vibration, start lamps); Luigi's Mansion (61 vacuum motor
-  changes, 57 recoils, start lamps);
+  changes, 57 recoils, start lamps); Polar Wars (192 vibrations and recoils, water, start
+  lamps);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the
