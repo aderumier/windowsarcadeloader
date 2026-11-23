@@ -9227,6 +9227,9 @@ else the profile's file name (`sega-racing-classic`).
 * The gameport board games (`gameport.rs`: Mech Tornado, Fire Hero): its `Set<name>(dll,
   value)` outputs, each to a name (start and player lamps, light belts, gun motors, chair
   shakers, water guns and rotating motors, pump, atomizers).
+* Mars Sortie (`marssortie.rs`): `MRCQ.Hardware.SetOutputKey(name, on)` / `GetOutputKey(name)`
+  replaced (the state kept by the payload: the absent board's bytes were all it fed): `fire01`..
+  `fire04` each station's recoil, `start01`..`04` its start lamp, `flashLight`, the rest by name.
 * The dumps carrying DemulShooter's own BepInEx plugin (Quick Shot, DCOP): its output packets
   (`u32` length, header 2, the payload) decoded by `demul.rs` (`dcop.rs`'s plugin client too),
   the game told by the payload's size: 13 bytes Top Gun's plugin (`ToByteArray`: playing,
@@ -9306,7 +9309,8 @@ else the profile's file name (`sega-racing-classic`).
   screen side and key lights); Quick Shot (recoil, ammo, credits, the lights, doors) and DCOP
   (recoil, gun light, ammo, life, red light) from their plugins' packets; Mech Dinosaur (its
   ball gun motor while shooting, bonus weapon lamps, seat shaker); Mech Tornado and Fire Hero
-  (water guns, motors, shakers, lamps, pump). Not seen: Wisdom Zombies
+  (water guns, motors, shakers, lamps, pump); Mars Sortie (213 recoil pulses, start lamps,
+  lasers). Not seen: Wisdom Zombies
   (only its bonus lamp in the attract), Top Gun 2 (its board never opened in the headless run).
 
 ## 7. Adding a system

@@ -13,6 +13,12 @@
 //! the SuperDog dongle's check (`SuperDogManager.DoCheckKey`) is true (their IL). The operator's
 //! keys are the game's too (space, the arrows). The game is in English (its language getter).
 //!
+//! The board's outputs: `Hardware.SetOutputKey(name, on)` and `GetOutputKey(name)` are the
+//! payload's (the state kept here; the absent board's bytes were all they fed), to the network
+//! outputs: `fire01`..`fire04` each station's gun recoil (`P1_GunRecoil`, `P1_CtmRecoil`),
+//! `start01`..`start04` its start lamp (`P1_LmpStart`), `flashlight` (`Flashlight`), the others
+//! (coin / ticket outputs, their key lights) by their own name.
+//!
 //! Getters of the game's settings return constants: their IL patched before their first call
 //! (`nop`s, `ldc.i4.<n>`, `ret`; callers inlining them compile the patched body), the operator's
 //! values kept in the records:
@@ -57,6 +63,50 @@ fn input_thread() {
             AIM[2 * p + 1].store((s.y / rh).clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
         }
     }
+}
+
+/// A managed string's characters.
+fn managed_string(s: *const u8) -> String {
+    if s.is_null() {
+        return String::new();
+    }
+    // its length (i32) after the object header, then its UTF-16 characters
+    let len = unsafe { mono::read::<i32>(s, 2 * size_of::<usize>()) }.clamp(0, 64) as usize;
+    let chars: Vec<u16> = (0..len).map(|i| unsafe { mono::read::<u16>(s, 2 * size_of::<usize>() + 4 + 2 * i) }).collect();
+    String::from_utf16_lossy(&chars)
+}
+
+/// The board's output keys set by the game.
+static OUTPUT_KEYS: std::sync::Mutex<Vec<(String, bool)>> = std::sync::Mutex::new(Vec::new());
+
+/// `Hardware.SetOutputKey(string keyName, bool keyStatus)`: kept, and to the network outputs.
+extern "C" fn set_output_key(name: *const u8, status: u32) {
+    let (name, on) = (managed_string(name), status & 0xFF != 0);
+    {
+        let mut keys = OUTPUT_KEYS.lock().unwrap();
+        match keys.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, v)) => *v = on,
+            None => keys.push((name.clone(), on)),
+        }
+    }
+    let station = name.get(name.len().saturating_sub(2)..).and_then(|n| n.parse::<usize>().ok()).filter(|n| (1..=STATIONS).contains(n));
+    let v = on as i32;
+    use wal_payload_common::outputs::set;
+    match (name.strip_suffix(|c: char| c.is_ascii_digit()).map(|n| n.trim_end_matches(|c: char| c.is_ascii_digit())), station) {
+        (Some("fire"), Some(n)) => {
+            set(&format!("P{n}_GunRecoil"), v);
+            set(&format!("P{n}_CtmRecoil"), v);
+        }
+        (Some("start"), Some(n)) => set(&format!("P{n}_LmpStart"), v),
+        _ if name.eq_ignore_ascii_case("flashlight") => set("Flashlight", v),
+        _ => set(&name, v),
+    }
+}
+
+/// `Hardware.GetOutputKey(string keyName)`: the state the game set.
+extern "C" fn get_output_key(name: *const u8) -> u32 {
+    let name = managed_string(name);
+    OUTPUT_KEYS.lock().unwrap().iter().any(|(n, v)| *n == name && *v) as u32
 }
 
 /// `Hardware.GetInputAxis(string axisName)`: the guns' places ("x01".."y04").
@@ -106,6 +156,10 @@ fn hardware(m: &'static mono::Mono, image: P) {
     let hardware = m.class(image, "MRCQ", "Hardware");
     let replaced = m.replace(m.method(hardware, "GetInputAxis", 1), get_input_axis as *const () as usize);
     log!("marssortie: Hardware.GetInputAxis {}", if replaced { "replaced: the guns" } else { "not replaced" });
+    // the board's outputs (the 2-argument SetOutputKey, which the station overload calls)
+    let set = m.replace(m.method(hardware, "SetOutputKey", 2), set_output_key as *const () as usize);
+    let get = m.replace(m.method(hardware, "GetOutputKey", 1), get_output_key as *const () as usize);
+    log!("marssortie: Hardware.SetOutputKey / GetOutputKey {}", if set && get { "replaced: the outputs" } else { "not replaced" });
 }
 
 /// The game's `DllImport`s answered by the payload.
