@@ -48,6 +48,23 @@ pub(crate) fn init(board: &str) {
     if !wal_payload_common::outputs::enabled() {
         return;
     }
+    // Galaxy Rangers (WXR.exe, no board of its own: the community assembly's pads)
+    if wal_payload_common::patches::exe_name().eq_ignore_ascii_case("WXR.exe") {
+        std::thread::spawn(|| {
+            use wal_payload_common::mono::mono;
+            for _ in 0..6000 {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                let Some(m) = mono() else { continue };
+                let image = m.image("Assembly-CSharp");
+                if image.is_null() || m.domain().is_null() || !m.attach() {
+                    continue;
+                }
+                game_data_players(m, image, "galaxy rangers", true);
+                return;
+            }
+        });
+        return;
+    }
     match board {
         "ngun" => {
             // the shot count goes up: negated, a fall
@@ -194,4 +211,39 @@ fn flags(shot: Option<wal_payload_common::outputs::hook::Flags>, hit: Option<wal
     if hit.is_some_and(|f| f.take(0)) && playing {
         wal_payload_common::outputs::pulse("P1_Damaged", 50);
     }
+}
+
+/// The players' outputs of the games of Wild West Shoot Out's engine (Wild West Shoot Out,
+/// Galaxy Rangers), read in their managed state (the U-Shoot plugins' root): `GameData.playerData`
+/// (static, a `PlayerData` each): while `playing`, a recoil each `shootNum` increase
+/// (`P1_CtmRecoil`), `P1_Damaged` when `life` goes down (an int, or a float: `life_float`),
+/// `P1_Life`, player 1's coins (`Credits`).
+pub(crate) fn game_data_players(m: &'static wal_payload_common::mono::Mono, image: wal_payload_common::mono::P, name: &'static str, life_float: bool) {
+    use wal_payload_common::log;
+    use wal_payload_common::mono::{array_items, read};
+    use wal_payload_common::outputs::poll;
+    let (game_data, player) = (m.class(image, "", "GameData"), m.class(image, "", "PlayerData"));
+    let slot = m.static_addr(game_data, m.field(game_data, "playerData")) as usize;
+    let off = |n: &str| m.offset(m.field(player, n));
+    let (playing, life, shots, coins) = (off("playing"), off("life"), off("shootNum"), off("_coins"));
+    if slot == 0 || shots == 0 || life == 0 {
+        log!("gun outputs: {name}: GameData.playerData not found, no outputs");
+        return;
+    }
+    let mut recoil: [Falling; 4] = Default::default();
+    let mut damage: [Falling; 4] = Default::default();
+    poll(name, 16, move || {
+        let players = unsafe { array_items(read::<*const u8>(slot as *const u8, 0)) };
+        for (p, d) in players.iter().take(4).enumerate() {
+            let on = !d.is_null() && unsafe { read::<u8>(*d, playing) } != 0;
+            // the shot count going up: negated, a fall
+            recoil[p].update(on.then(|| -(unsafe { read::<i32>(*d, shots) } as i64)), ["P1_CtmRecoil", "P2_CtmRecoil", "P3_CtmRecoil", "P4_CtmRecoil"][p]);
+            let l = on.then(|| if life_float { (unsafe { read::<f32>(*d, life) } * 100.0) as i64 } else { (unsafe { read::<i32>(*d, life) }) as i64 });
+            damage[p].update(l, ["P1_Damaged", "P2_Damaged", "P3_Damaged", "P4_Damaged"][p]);
+            set(["P1_Life", "P2_Life", "P3_Life", "P4_Life"][p], l.unwrap_or(0) as i32);
+            if p == 0 && !d.is_null() {
+                set("Credits", unsafe { read::<i32>(*d, coins) });
+            }
+        }
+    });
 }

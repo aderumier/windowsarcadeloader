@@ -337,7 +337,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `hyper-sports-2011-remake` | Hyper Sports 2011 Remake | konami | works (user: 100%) |  |  | not in the test |  |
 | `thrill-drive-4` | Thrill Drive 4: Crazy Streets | konami | works (user: 100%) |  |  | not in the test |  |
 | `chase-chase-jokers` | Chase Chase Jokers | konami | works (user: 100%) |  |  | not in the test |  |
-| `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns |  |  | not in the test |  |
+| `galaxy-rangers` | Galaxy Rangers | arcadepc | works (headless tests: coins, start, level select, aim and shots, settings menu), 4 guns |  | recoil, damage, life | not in the test |  |
 | `quick-shot-arcade` | Quick Shot Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, logo, bezel), 1 gun |  | lamps, recoil, ammo, prize doors, tickets | not in the test |  |
 | `top-gun-arcade` | Top Gun Arcade | arcadepc | user 100% (2026-10-26: display, crosshair, settings menu, bezel), 1 gun |  | lamps, recoil, prize doors, tickets | not in the test |  |
 | `happy-water-sprite-2` | Happy Water Sprite II | arcadepc | user 100% (2026-10-26), 2 water guns |  |  | not in the test |  |

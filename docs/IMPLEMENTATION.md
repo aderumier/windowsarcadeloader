@@ -9241,8 +9241,9 @@ else the profile's file name (`sega-racing-classic`).
   motor `P1_GunRecoil`, 4..7 its small one `P1_GunMotor`, either `P1_CtmRecoil`, for its
   duration), `Set` / `ClrPlayerButtonLight` (the start lights' bit mask: `P1_LmpStart`...).
 * Unity games read in their managed state (`mono::array_items`, the static roots the U-Shoot
-  plugins read): Wild West Shoot Out (`wws.rs`: `GameData.playerData`, while `playing` a recoil
-  each `shootNum` increase, `P1_Damaged` when `life` goes down, the coins), Dino Invasion
+  plugins read): Wild West Shoot Out and Galaxy Rangers, the same engine (`gun_outputs.rs`'s
+  `game_data_players`: `GameData.playerData`, while `playing` a recoil each `shootNum`
+  increase, `P1_Damaged` when `life` goes down (Galaxy Rangers' a float), the coins), Dino Invasion
   (`shunxiang.rs`: `game_players.my_static_game_players.mysubs`, an `ArrayList` of
   `game_player`: while `my_is_user` a recoil each time `mybullet_count` goes down, the coins),
   Mission: Impossible (`mig.rs`: a prefix of `PlayerGunBase.Shoot`, `Mono::prefix`: the
@@ -9354,6 +9355,7 @@ else the profile's file name (`sega-racing-classic`).
   lasers); Skull of Shadow (its gun motor a shot, 89); Tomb Raider and Rabbids Hollywood (a gun
   motor pulse a shot, the start lights); Point Blank X (139 recoil pulses, start and gun LEDs);
   Raccoon Rampage (its recoils); Wild West Shoot Out (43 recoil pulses, damage, life, credits);
+  Galaxy Rangers (about 100 recoil pulses, damage, life, credits);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the

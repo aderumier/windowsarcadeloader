@@ -75,6 +75,7 @@ OUTPUTS = {
     "point-blank-x": "start and gun LEDs, recoil",
     "raccoon-rampage": "recoil, gun shakers",
     "wild-west-shoot-out": "recoil, damage, life",
+    "galaxy-rangers": "recoil, damage, life",
     "dino-invasion": "recoil, ammo",
     "mission-impossible-arcade": "recoil",
     "elevator-action-invasion": "recoil, gun shakers (not seen)",
