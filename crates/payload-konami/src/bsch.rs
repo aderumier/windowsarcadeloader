@@ -266,21 +266,25 @@ pub extern "C" fn ac_io_bmpu_control_coin_blocker_close() -> bool {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_bmpu_control_1p_start_led_on() -> bool {
+    wal_payload_common::outputs::set("P1_LmpStart", 1);
     true
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_bmpu_control_1p_start_led_off() -> bool {
+    wal_payload_common::outputs::set("P1_LmpStart", 0);
     true
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_bmpu_control_2p_start_led_on() -> bool {
+    wal_payload_common::outputs::set("P2_LmpStart", 1);
     true
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_bmpu_control_2p_start_led_off() -> bool {
+    wal_payload_common::outputs::set("P2_LmpStart", 0);
     true
 }
 

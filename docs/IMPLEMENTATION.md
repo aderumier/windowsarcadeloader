@@ -9142,7 +9142,10 @@ else the profile's file name (`sega-racing-classic`).
   `iob.dll` (`le3.rs`): `iob_put_start_lamp(bits)` (`P1_LmpStart` bit 0, `P2_LmpStart` bit 1),
   `iob_set_gun_reaction(gun)` (the game's recoil request, `0x51def0`, asked again until it
   returns 0) and each trigger pull after `iob_auto_gun_reaction_on(gun)` pulse
-  `P<gun + 1>_GunRecoil` (recoil not seen headless: no game started).
+  `P<gun + 1>_GunRecoil` (recoil not seen headless: no game started); Bishi Bashi Channel's
+  BMPU start LEDs (`P1_LmpStart`, `P2_LmpStart`), Gashaaaan's `iob_f24_set_lamp_status` /
+  `set_black_light_status` (`lamp<n>`, `blacklight<n>`), the PJEI board's lamps (Otomedius,
+  Winning Eleven 2008: `lamp0`-`lamp7`).
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
   `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;

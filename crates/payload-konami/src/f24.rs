@@ -291,10 +291,22 @@ pub extern "C" fn f24_iob_nr_coin(slot: i32, max: *mut i32) -> i32 {
 pub extern "C" fn f24_iob_add_coin_counter(_slot: i32, _count: i32) {}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn f24_iob_set_lamp_status(_lamp: i32, _on: u8) {}
+pub extern "C" fn f24_iob_set_lamp_status(lamp: i32, on: u8) {
+    // to the network outputs: lamp<n>
+    if (0..64).contains(&lamp) && wal_payload_common::outputs::enabled() {
+        wal_payload_common::outputs::set(&format!("lamp{lamp}"), (on != 0) as i32);
+    }
+}
 
 #[unsafe(no_mangle)]
-pub extern "C" fn f24_iob_set_black_light_status(_lights: u8, _on: u8) {}
+pub extern "C" fn f24_iob_set_black_light_status(lights: u8, on: u8) {
+    // to the network outputs: blacklight<n>, each bit of the mask
+    if wal_payload_common::outputs::enabled() {
+        for i in (0..8).filter(|i| lights >> i & 1 != 0) {
+            wal_payload_common::outputs::set(&format!("blacklight{i}"), (on != 0) as i32);
+        }
+    }
+}
 
 #[unsafe(no_mangle)]
 pub extern "C" fn f24_iob_set_coinblocker_status(_slot: i32, _open: u8) {}

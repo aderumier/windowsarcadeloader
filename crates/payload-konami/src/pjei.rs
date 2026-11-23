@@ -288,14 +288,21 @@ pub extern "C" fn ac_io_pjei_control_lamp_mode(_mode: u32) -> bool {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_pjei_control_lamp_on(_lamps: u8) -> bool {
+pub extern "C" fn ac_io_pjei_control_lamp_on(lamps: u8) -> bool {
+    // to the network outputs: lamp0..lamp7, a bit each
+    let on = PJEI_LAMPS.fetch_or(lamps, std::sync::atomic::Ordering::Relaxed) | lamps;
+    wal_payload_common::outputs::lamps(on as u64, 8);
     true
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn ac_io_pjei_control_lamp_off(_lamps: u8) -> bool {
+pub extern "C" fn ac_io_pjei_control_lamp_off(lamps: u8) -> bool {
+    let on = PJEI_LAMPS.fetch_and(!lamps, std::sync::atomic::Ordering::Relaxed) & !lamps;
+    wal_payload_common::outputs::lamps(on as u64, 8);
     true
 }
+
+static PJEI_LAMPS: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_pjei_control_parallel_on(_bits: u8) -> bool {
