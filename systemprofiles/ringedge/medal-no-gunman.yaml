@@ -24,6 +24,8 @@ controls:
   start: Payout
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "mng"
   # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
   WAL_RINGEDGE_PLATFORM: AAM
   WAL_RINGEDGE_PCP: keychip.appboot.gameid=SBTF;keychip.appboot.platformid=AAM

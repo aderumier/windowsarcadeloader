@@ -9,6 +9,8 @@ name: "Silent Hill: The Arcade"
 payload_install: [libbms.dll]
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "sha"
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen
   WAL_HIDE_CURSOR: "1"

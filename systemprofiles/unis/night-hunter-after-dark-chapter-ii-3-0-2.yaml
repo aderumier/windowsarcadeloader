@@ -23,6 +23,8 @@ files:
   config/config_game_run_type.txt: systemprofiles/unis/files/night-hunter-after-dark-chapter-ii-3-0-2/config_game_run_type.txt
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "nha2"
   WAL_UNIS_BOARD: qumo
   # the fourth mission's island on the mission select (the game's select shows three; the
   # config above opens the fourth from the start)

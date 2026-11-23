@@ -31,6 +31,8 @@ native_map:
   right: none
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "eadp"
   WAL_TYPEX_GUNS: elevator-action-death-parade
   WAL_TYPEX_JVS_LAYOUT: elevator-action
   # The master volume is the cabinet's volume knob, a JVS analog input (0: silent): maximum.

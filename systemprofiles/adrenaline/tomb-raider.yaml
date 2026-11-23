@@ -17,6 +17,8 @@ dll_overrides:
 args: [-screen-fullscreen, "1", -screen-width, "{WAL_RESOLUTION.width}", -screen-height, "{WAL_RESOLUTION.height}"]
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "tra"
   WAL_RESOLUTION: 1280x720
   # Wine's full screen mode emulation scales a lower mode to the screen with AMD FSR 1
   WINE_FULLSCREEN_FSR: "1"

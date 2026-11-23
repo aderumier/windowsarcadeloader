@@ -14,6 +14,8 @@ drives:
   f: F
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "hcv"
   WAL_ANSI_CODEPAGE: "932"
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: screen

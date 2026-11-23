@@ -17,6 +17,8 @@ drives:
   d: D
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "hwspr2"
   WAL_ARCADEPC_BOARD: commking
 
 # the game shows where each water gun points (Direct3D 9: no common crosshair)

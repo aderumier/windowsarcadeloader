@@ -25,6 +25,8 @@ dll_overrides:
   winhttp: "b"
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "wws"
   WAL_ARCADEPC_BOARD: wws
   # the guns aim over Unity's picture (the resolution of args), centered in its window; the
   # crosshairs placed for it (their canvas is 1920 units wide: wws.rs)

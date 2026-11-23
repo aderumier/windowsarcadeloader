@@ -12,6 +12,8 @@ payload_install: [VSIOBOARD.dll]
 hide: [d3d9.dll]
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "friction"
   WAL_ARCADEPC_BOARD: vsioboard
   # The community library's game patches (its RebootDisable / DInputDisable options): the
   # reboot skipped (0x44c000), the game's own DirectInput mouse and keyboard reading skipped

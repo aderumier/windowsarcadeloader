@@ -17,6 +17,8 @@ files:
   Assets/config/game/excel_data/jiaoqiang.csv: systemprofiles/unis/files/night-hunter-after-dark-chapter-ii/jiaoqiang.csv
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "nha2"
   WAL_UNIS_BOARD: qumo
   # the game draws its own gun marks
   WAL_CROSSHAIR: "0"

@@ -28,6 +28,8 @@ controls:
   service: Service (test menu, next item)
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "tsr"
   # the I/O board: CSAEBoard::Update replaced by the payload's
   WAL_SEGASHELL_BOARD: "0x17a5f0"
   # CSAEBoard::IsActive returns true (the lever buttons are only read on an active board);

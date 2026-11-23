@@ -19,6 +19,8 @@ files:
 hide: [winhttp.dll, doorstop_config.ini]
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "pblankx"
   # the game's own crosshairs (off on the cabinet): the common crosshair option's default
   WAL_CROSSHAIR: "1"
 

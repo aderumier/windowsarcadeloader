@@ -25,6 +25,8 @@ files:
   ShellData/GameSettings.ini: systemprofiles/europar/files/men-in-black/GameSettings.ini
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "mib"
   WAL_EUROPAR_BOARD: mib
 
 input:

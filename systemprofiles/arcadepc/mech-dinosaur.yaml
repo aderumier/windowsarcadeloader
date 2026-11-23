@@ -18,6 +18,8 @@ drives:
   d: D
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "mechd"
   WAL_ARCADEPC_BOARD: jxboard
   # where each gun points (no cursor in play): the common crosshair option's default
   WAL_CROSSHAIR: "1"

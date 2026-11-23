@@ -12,6 +12,8 @@ drives:
   f: F
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "le3"
   # two monitors: the game creates a device per adapter, the payload presents both into one
   # borderless screen-sized window
   WAL_KONAMI_PLAYERS: "2"

@@ -18,6 +18,8 @@ input:
   stick_as_dpad: false
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "gsoz2p"
   WAL_TYPEX_GUNS: gundam-spirits-of-zeon-2p
   WAL_PATCHES: "0xD135B:9090909090,0xD12C8:85,0xD0C60:C3,0xD0E30:C3,0xD02F0:C3,0xD0320:C3,0xD0350:C3,0xD06E7:E93901000090909090"
   WAL_WINDOW_POPUP: "1"

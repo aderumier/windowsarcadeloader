@@ -20,6 +20,8 @@ files:
   IG2/exec_root/setting.tbl: systemprofiles/konami/files/gashaaaan-refill/setting.tbl
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "gashn2"
   # Japanese text (error and test menu messages) in Shift-JIS
   WAL_ANSI_CODEPAGE: "932"
   WAL_WINDOW_POPUP: "1"

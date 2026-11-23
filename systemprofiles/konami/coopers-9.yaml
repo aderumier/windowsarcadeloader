@@ -15,6 +15,8 @@ drives:
   e: SAVE
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "coop9"
   WAL_KONAMI_SAVE_DRIVE: E
   # the 1280x512 picture (fullscreen mode on the cabinet) in a screen-sized borderless window
   WAL_D3D9_WINDOWED_SIZE: 1280x512

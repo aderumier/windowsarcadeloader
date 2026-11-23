@@ -16,6 +16,8 @@ files:
   MUSEUM.ini: systemprofiles/typex/files/haunted-museum/MUSEUM.ini
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "hmuseum"
   WAL_TYPEX_GUNS: haunted-museum
   # Gun board on COM1 (silent, the guns are in memory); no COM3 (open fails): a silent COM3
   # made its gun library read junk (random positions for ~1 s in the gun test).

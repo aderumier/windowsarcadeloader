@@ -20,6 +20,8 @@ dll_overrides:
   msvcp71: "n,b"
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "farcry"
   # The executable is the original one, from the game's install disc (the payload answers its
   # HASP4 dongle checks).
   # The game wants to run from W: (the cabinet's RunMe.bat does `subst W: .`) and stops on a

@@ -32,6 +32,8 @@ initial_files:
   WindowsLoader/HM21.CRC: systemprofiles/typex/files/haunted-museum-2/HM21.CRC
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "hmuseum2"
   WAL_TYPEX_GUNS: haunted-museum-2
   # Gun board on COM1 (silent, its handle opens the game's gun library); no COM3.
   WAL_TYPEX_GUN_PORT: COM1,!COM3

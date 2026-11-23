@@ -13,6 +13,8 @@ dll_overrides:
   xinput1_3: "n,b"
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "rhood"
   WAL_ARCADEPC_BOARD: robinhood
   # The HASP HL API linked in the executable: hasp_login (0x57a9e0) logs in (handle 1, status
   # 0), hasp_read (0x57b350) returns the memory's GWRH tag, hasp_logout (0x57aa50) succeeds.

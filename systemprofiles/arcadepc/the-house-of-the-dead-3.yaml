@@ -15,6 +15,8 @@ dll_overrides:
   xinput1_3: "n,b"
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "hod3pc"
   WAL_ARCADEPC_BOARD: hotd3
   # the payload's DirectInput: no real keyboard, mouse or joystick reaches the game
   WAL_DINPUT_DISABLE: "1"

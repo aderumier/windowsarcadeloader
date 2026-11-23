@@ -15,6 +15,8 @@ drives:
   e: E
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "wartran"
   # the two monitors side by side in one borderless screen-sized window (the payload fits the
   # 1280x480 picture in it)
   WAL_WINDOW_POPUP: "1"

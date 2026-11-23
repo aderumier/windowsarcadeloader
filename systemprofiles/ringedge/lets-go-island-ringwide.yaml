@@ -23,6 +23,8 @@ files:
   data/Fraw/fwDataDB/fwDataDB_Application.txt: systemprofiles/ringedge/files/lets-go-island-ringwide/fwDataDB_Application.txt
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "lgi"
   # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
   WAL_RINGEDGE_PLATFORM: AAM
   # the I/O board's 20 general purpose outputs and its analog channels (the guns: 1/2 player 1

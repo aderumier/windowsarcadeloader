@@ -21,6 +21,8 @@ files:
   Sega/ShellData/ShellData.ini: systemprofiles/europar/files/mission-impossible-arcade/ShellData.ini
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "mia"
   WAL_EUROPAR_BOARD: mig
   # every mission and stage selectable (else mission 3 after a mission cleared, the stages in order)
   WAL_EUROPAR_UNLOCK: "1"

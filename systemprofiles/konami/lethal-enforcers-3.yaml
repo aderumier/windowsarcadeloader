@@ -14,6 +14,8 @@ drives:
   f: F
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "le3"
   # the game gets its two monitors (one per player; with one, a lone player's CPU rival crashes
   # it): player 1's alone is shown, player 2 cannot join
   WAL_KONAMI_PLAYERS: "1"

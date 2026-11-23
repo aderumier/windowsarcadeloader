@@ -22,6 +22,8 @@ dll_overrides:
   winhttp: "b"
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "marss"
   # the guns and the stations' buttons, free play (the price's getters made 0), the crosshairs
   # (WAL_CROSSHAIR: the playing stations'), the operator menus' keypad keys; the players' photos
   # the game's (its webcam when present)

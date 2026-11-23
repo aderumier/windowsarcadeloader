@@ -17,6 +17,8 @@ dll_overrides:
 tricks: [openal]
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "madbul"
   WAL_ARCADEPC_BOARD: madbullets
   WAL_CROSSHAIR: "1"
 

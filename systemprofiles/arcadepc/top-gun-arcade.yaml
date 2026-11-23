@@ -19,6 +19,8 @@ drives:
   d: NVRAM
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "topgun"
   WAL_ARCADEPC_BOARD: syfire
   # the cabinet's portrait monitor: the game renders 1080x1920 full screen, fitted to the screen
   WAL_DESKTOP_SIZE: 1080x1920

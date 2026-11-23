@@ -12,6 +12,8 @@ dll_overrides:
   xinput1_3: "n,b"
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "akuma"
   WAL_ARCADEPC_BOARD: ngun
   # The Dinkey dongle (DK2win32.dll): the boot's check (0x40147e, ordinal 4) is true (mov eax,1),
   # the dongle's read at start (0x406e50) and its two periodic checks (0x406da0, 0x406a90: they

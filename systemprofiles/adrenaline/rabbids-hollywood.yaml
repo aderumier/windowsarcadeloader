@@ -30,3 +30,7 @@ controls:
   service: Select (operator)
   up: Previous (operator)
   down: Next (operator)
+
+env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "rha"

@@ -22,6 +22,8 @@ files:
   MINIGUN.INI: systemprofiles/typex/files/gaia-attack-4/MINIGUN.INI
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "gattack4"
   WAL_TYPEX_GUNS: gaia-attack-4
   # Gun board on COM1 (silent, its handle opens the game's gun library); no COM3.
   WAL_TYPEX_GUN_PORT: COM1,!COM3

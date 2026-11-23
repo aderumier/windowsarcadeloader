@@ -20,6 +20,8 @@ controls:
   b1: Trigger
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "lgi3d"
   # the I/O board's 20 general purpose outputs and its analog channels (the guns: 1/2 player 1
   # Y/X, 3/4 player 2 Y/X, high values up / left): without them, Error 6402 "JVS I/O board
   # does not fulfill the game spec"

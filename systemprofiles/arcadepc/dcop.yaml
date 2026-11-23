@@ -18,6 +18,8 @@ dll_overrides:
   winhttp: "n,b"
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "dcop"
   WAL_ARCADEPC_BOARD: dcop
   # the plugin's TCP port: the payload asks it to hide the game's cursor (the real pointer's)
   WAL_DEMUL_PORT: "33610"

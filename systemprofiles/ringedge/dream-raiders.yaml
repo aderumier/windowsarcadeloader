@@ -24,6 +24,8 @@ files:
   /Game.ini: systemprofiles/ringedge/files/dream-raiders/Game.ini
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "sdr"
   # the main board's monitor resolution (DIP switches 5-7, the manual's setting for the game):
   # 1280x720, switch 7 on, 5 and 6 off
   WAL_RINGEDGE_DIPSW: CF

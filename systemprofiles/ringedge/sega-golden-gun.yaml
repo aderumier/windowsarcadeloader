@@ -20,6 +20,8 @@ controls:
   b1: Trigger
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "sgg"
   # RingWide: amLib's platform id AAM (the RingEdge payload, a RingWide board)
   WAL_RINGEDGE_PLATFORM: AAM
   WAL_TYPEX_JVS_OUTPUTS: "20"

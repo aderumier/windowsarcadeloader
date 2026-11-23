@@ -308,7 +308,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `daytona-championship-usa` | Daytona Championship USA | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic); cabinet link across PCs | cabinet link |  | not in the test |  |
 | `daytona-championship-usa-new-season-edition` | Daytona Championship USA New Season Edition | europar | works (user: 100%); the manual gearbox not engaged (the race in automatic); cabinet link across PCs | cabinet link |  | not in the test |  |
 | `men-in-black` | Men In Black | europar | works (headless test: attract, coins and free play, both players, guns aimed and shooting; user played on the desktop) |  | recoil | not in the test |  |
-| `mission-impossible-arcade` | Mission: Impossible Arcade | europar | works (headless test: attract, coins and free play, both players, guns aimed, both triggers shooting in a mission, mission 3 and a later stage chosen) |  |  | not in the test |  |
+| `mission-impossible-arcade` | Mission: Impossible Arcade | europar | works (headless test: attract, coins and free play, both players, guns aimed, both triggers shooting in a mission, mission 3 and a later stage chosen) |  | recoil | not in the test |  |
 | `nobiteke-byon-byon` | Nobiteke! Byon Byon Daisakusen | konami | works (user: 100%) |  |  | not in the test |  |
 | `gashaaaan` | Gashaaaan | konami | works (headless test) |  | lamps (not seen) | not in the test |  |
 | `gashaaaan-refill` | Gashaaaan Refill! | konami | works (user: 100%) |  |  | not in the test |  |

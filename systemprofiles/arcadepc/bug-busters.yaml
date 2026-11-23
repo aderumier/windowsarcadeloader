@@ -17,6 +17,8 @@ dll_overrides:
 graphics: wine
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "bugbust"
   WAL_ARCADEPC_BOARD: bugbusters
   # The CD-ROM check (0x409f32: a drive with the game's CD volume label, else a message box
   # asking for it) returns 1 (mov eax, 1; ret); the dump's BBPC.exe already skips it (the

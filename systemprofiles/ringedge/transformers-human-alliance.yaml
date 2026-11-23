@@ -28,6 +28,8 @@ controls:
   b2: Gun side button
 
 env:
+  # the network outputs' game name (DemulShooter's / U-Shoot's, their MAMEHooker .ini)
+  WAL_OUTPUTS_NAME: "tha"
   # crashes in game without
   WINE_LARGE_ADDRESS_AWARE: "1"
   # the 20 general purpose outputs of the Sega I/O board (lamps, recoil): without them, Error
