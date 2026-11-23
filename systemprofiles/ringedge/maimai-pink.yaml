@@ -1,0 +1,216 @@
+# maimai PiNK (Sega RingEdge 2, Direct3D 9), game id SDCQ, 1.60 (Japan): a rhythm game played on
+# 8 buttons around a round touch screen, two players side by side.
+# amLib is linked in (no amdaemon): the RingEdge payload emulates the system (keychip, SMBus
+# EEPROM, the JVS I/O board, the amAuth/amMaster services) in the game's process, plus the
+# game's touch sensors, LED boards and Aime readers (WAL_RINGEDGE_MAIMAI,
+# crates/payload-ringedge/src/maimai.rs).
+# Override values in userprofiles/ringedge/maimai-pink.yaml.
+system: ringedge
+name: maimai PiNK
+
+# two RingEdge games can't run at once (amLib binds the fixed pcp ports 40100-40191 on
+# 127.0.0.1): the other maimai's prefix, unpacked from the shared prefix's archive
+prefix: wine-prefix/maimai-test
+prefix_archive: wine-prefix/full
+
+# the game's settings, read at start:
+# - SystemConfig.txt: the dump's, WINDOW 2160x1920 (the cabinet's two portrait 1080x1920
+#   monitors side by side), windowed, stereo
+# - DebugConfig.txt (the development switches): the dump's with ROTATE 1, the picture upright,
+#   NO_DELIVER (no update from the shop's server), SET_CLOSE_HOUR / SET_CLOSE_MINUTE 0: no
+#   closing time
+files:
+  SystemConfig.txt: systemprofiles/ringedge/files/maimai-pink/SystemConfig.txt
+  DebugConfig.txt: systemprofiles/ringedge/files/maimai-pink/DebugConfig.txt
+
+env:
+  # platform id AAL2: amBackup's RingEdge 2 SRAM layout
+  WAL_RINGEDGE_BOARD: ringedge2
+  # the keychip's game id and the DS28CN01 challenge file amDongle checks against (shipped in
+  # the dump)
+  WAL_RINGEDGE_PCP: keychip.appboot.gameid=SDCQ
+  WAL_RINGEDGE_DS_FILE: data/SDCQ_Table.dat
+  # the test menu: on the test switch the game leaves, the cabinet starting maimai.exe gametest
+  # (gametest.bat), and the test menu leaves when exited: started again with those arguments
+  # (maimai.rs)
+  WAL_RINGEDGE_MAIMAI_TEST_ARGS: gametest
+  # the extend packs' check at start (+0x1f4410): the packs' drives W: and V: (the SSD's extra
+  # partitions, EXTEND_VER.txt / EXTEND2_VER.txt "1.60") skipped, the dump holding the packs'
+  # data in its own folder (the attract's "some movie data is broken" warning else)
+  WAL_PATCHES: "0x1f4410:C3"
+  WAL_PATCHES_EXE: maimai.exe
+  # the JVS I/O board's features the game requires: at least 4 switches, 6 analog channels
+  # (unused) and 6 general purpose outputs (its button lamps)
+  WAL_TYPEX_JVS_ANALOG_INPUTS: ","
+  WAL_TYPEX_JVS_OUTPUTS: "32"
+  # the main board's COM1 in the SetupDi enumeration (the LED control lists the main board's
+  # ports at start)
+  WAL_COMPORTS: COM1
+
+  # free play (the common option): the system menu's FREE PLAY, in the EEPROM's credit record
+  # (devices.rs): "FREE PLAY" shown, games started without coins
+  WAL_RINGEDGE_FREEPLAY_EEPROM: "1"
+
+  # maimai's devices (maimai.rs): the LED boards on COM5-COM8, the touch sensors on COM3, the
+  # touch controller streaming from the start
+  WAL_RINGEDGE_MAIMAI: "1"
+  WAL_RINGEDGE_MAIMAI_TOUCH_RUN: "1"
+  # the Aime readers on COM2 (segatools' generation 1, TN32MSEC003S): player 1's, and player
+  # 2's beside it (address 1)
+  WAL_AIME_READER: tn32
+  WAL_AIME_READER_2P: "1"
+  # after a player's entry button (button 5), the player's card touched by itself when the
+  # game asks for it (player 1's card 50000000000000000001, player 2's ...02)
+  WAL_RINGEDGE_AUTO_CARD: "1"
+
+  # the network: ALL.Net and the accounting are the network process ALLNetProc.exe's, which
+  # the cabinet's system starts (not the game): emulated in the game's process (allnetproc.rs:
+  # the shared blocks found through the game's singleton +0x7566CC, maimai PiNK's layout of
+  # them); the title server (maimai_server.rs, the protocol before MaimaiServlet: gameconfig,
+  # logincheck, userdata, login, logout with the player's records, players in sv\maimai) and
+  # the AimeDB in the payload's ALL.Net server
+  WAL_RINGEDGE_ALLNET: maimai
+  WAL_RINGEDGE_ALLNETPROC: 7566cc
+  WAL_RINGEDGE_ALLNETPROC_LAYOUT: pink
+  WAL_ALLS_TITLE_URI: "http://{router}/SDCQ/160/"
+
+  # the screens shown: p1, player 1's alone, centered (maimai.rs: the back buffer's left half,
+  # touches all player 1's), WAL_RINGEDGE_MAIMAI_BEZEL's PNG image around it (a path from the
+  # game's maimai folder; black when empty), or both (side by side)
+  WAL_RINGEDGE_MAIMAI_SCREEN: p1
+  WAL_RINGEDGE_MAIMAI_BEZEL: ""
+
+  # full screen: the game's 2160x1920 picture (two portrait screens) scaled to the screen,
+  # aspect kept, in a borderless window
+  WAL_D3D9_WINDOWED_SIZE: 2160x1920
+  WAL_D3D9_ASPECT: "9:8"
+  WAL_WINDOW_SIZE: screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins. Off: the coins and credits of the system test menu.
+  - title: Screens
+    options:
+      - key: WAL_RINGEDGE_MAIMAI_SCREEN
+        label: Screens shown
+        kind: choice
+        choices: [both, p1]
+        description: >-
+          both: the cabinet's two screens side by side (two players). p1: player 1's screen
+          alone, centered and larger, the bezel image around it.
+      - key: WAL_RINGEDGE_MAIMAI_BEZEL
+        label: Bezel image (player 1 screen alone)
+        kind: text
+        description: >-
+          A PNG image drawn around player 1's screen when it is shown alone (a path from the
+          game's maimai folder, or absolute). Empty: black.
+  - title: Aime card
+    options:
+      - key: WAL_RINGEDGE_AUTO_CARD
+        label: Touch the card automatically
+        kind: bool
+        description: >-
+          After a player's entry button, the player's Aime card is touched by itself when the
+          game asks for it (the player's name, scores and progress kept on the card; player 2
+          has a card of their own). Off: touch it with the card button.
+
+# the 8 buttons around each screen: the JVS board's switches (maimai.rs inverts them, active low)
+native_map:
+  b1: right
+  b2: left
+  b3: btn2
+  b4: btn3
+  b5: btn4
+  b6: btn5
+  b7: btn6
+  b8: btn7
+  up: none
+  down: none
+  left: none
+  right: none
+  start: none
+
+# the touch screens: a touchpad or touchscreen (the fingers), the mouse (its position, the left
+# button) or the left stick with kp0, on either player's screen. Buttons 1-8 clockwise from the
+# top right of the circle.
+input:
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: kp0
+  # the right half of the ring on R1 Y B A (1-4), the left half on d-pad down / left / up and L1
+  # (5-8); R2 the touch, X the player's Aime card (player 2 joining once the entry screen is
+  # open: its button 5 there is the guest play)
+  gamepad:
+    r1: b1
+    y: b2
+    b: b3
+    a: b4
+    dpdown: b5
+    dpleft: b6
+    dpup: b7
+    l1: b8
+    r2: kp0
+    x: card
+  # the keyboard (segatools' maimai keys): W E D C X Z A Q player 1's buttons 1-8, the keypad's
+  # 8 9 6 3 2 1 4 7 player 2's (keypad Enter its card); 5 coin, F1 service, F2 test, F4 player 1's
+  # card (the defaults)
+  keyboard:
+    p1:
+      KEY_W: b1
+      KEY_E: b2
+      KEY_D: b3
+      KEY_C: b4
+      KEY_X: b5
+      KEY_Z: b6
+      KEY_A: b7
+      KEY_Q: b8
+      KEY_V: none
+    p2:
+      KEY_R: none
+      KEY_F: none
+      KEY_D: none
+      KEY_G: none
+      KEY_A: none
+      KEY_S: none
+      KEY_Q: none
+      KEY_W: none
+      KEY_KP8: b1
+      KEY_KP9: b2
+      KEY_KP6: b3
+      KEY_KP3: b4
+      KEY_KP2: b5
+      KEY_KP1: b6
+      KEY_KP4: b7
+      KEY_KP7: b8
+      KEY_KPENTER: card
+    p4:
+      KEY_KP8: none
+      KEY_KP2: none
+      KEY_KP4: none
+      KEY_KP6: none
+
+controls:
+  b1: Button 1 (top right)
+  b2: Button 2
+  b3: Button 3
+  b4: Button 4
+  b5: Button 5 (bottom left)
+  b6: Button 6
+  b7: Button 7
+  b8: Button 8
+  lx: Touch position
+  ly: Touch position
+  kp0: Touch
+  card: Aime card
+  coin: Coin
+  service: Service
+  test: Test

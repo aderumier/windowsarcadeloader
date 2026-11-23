@@ -32,6 +32,17 @@
 //! and +0x22 (16 characters each: the main board's and the keychip's serials).
 //! The AimeDB the game reaches itself (`aime.naominet.jp`, port 22345: the payload's, see
 //! `crate::diva::allnet`).
+//!
+//! maimai PiNK's helper (`WAL_RINGEDGE_ALLNETPROC_LAYOUT=pink`, ALLNetProc.exe 1.60: its
+//! FUN_0040a200 and FUN_00409f40 fill these): Proc2App is 0x12D4 bytes, nothing encrypted; its
+//! AuthResp is 0x400 bytes at +0x050 (the same fields, shorter texts: +0x000 the place id as hex
+//! text, +0x008 the country, +0x00C the shop's name, 40 characters, +0x0D4 the title server's URI,
+//! +0x2D4 the server's address, +0x2E0 the region id, +0x2E4 the four region names, +0x3E4 the
+//! place id), and every field after it 0x408 bytes lower than FiNALE's (+0x854 AuthResp valid,
+//! +0x855 accounting, +0x858 the accounting state...), but the accounting acknowledgements at
+//! +0x8A4, each with three counters echoed (+0x00 the slot's +0x02, +0x02 its +0x08, +0x04 its
+//! +0x0E: FUN_005e6ed0, FUN_005e6f50, FUN_005e6e40; the player's login waits for all three, else
+//! the player is not saved).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -44,8 +55,38 @@ const BOARD_INFO_KEY: [u8; 16] = [0xbf, 0xc8, 0x62, 0xe8, 0xaf, 0x77, 0x64, 0x62
 const AUTH_RESP_KEY: [u8; 16] = [0x51, 0x3c, 0xea, 0x81, 0xde, 0x5f, 0xf9, 0xaa, 0x72, 0x3c, 0xb4, 0x38, 0x41, 0x11, 0x7d, 0xec];
 const IV: [u8; 16] = [0; 16];
 
+/// Where the helper's records and status sit in Proc2App: FiNALE's, or maimai PiNK's
+/// (`WAL_RINGEDGE_ALLNETPROC_LAYOUT=pink`).
+struct Layout {
+    /// BoardInfo and AuthResp AES encrypted (the IV at +0x16E0)
+    encrypted: bool,
+    /// AuthResp's offset and size
+    auth_resp: usize,
+    auth_size: usize,
+    /// AuthResp: the shop's name and its size, the title server's URI, the server's address, the
+    /// region id, the region names, the place id
+    name: (usize, usize),
+    uri: usize,
+    address: usize,
+    region: usize,
+    region_names: usize,
+    place: usize,
+    /// subtracted from FiNALE's offsets of the fields after AuthResp
+    shift: usize,
+    /// the players' accounting acknowledgements (10 bytes each)
+    acks: usize,
+}
+
+const FINALE: Layout = Layout { encrypted: true, auth_resp: 0x058, auth_size: 0x800, name: (0x00C, 256), uri: 0x434, address: 0x634, region: 0x640, region_names: 0x644, place: 0x744, shift: 0, acks: 0xCB0 };
+const PINK: Layout = Layout { encrypted: false, auth_resp: 0x050, auth_size: 0x400, name: (0x00C, 40), uri: 0x0D4, address: 0x2D4, region: 0x2E0, region_names: 0x2E4, place: 0x3E4, shift: 0x408, acks: 0x8A4 };
+
+fn layout() -> &'static Layout {
+    static PINK_LAYOUT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *PINK_LAYOUT.get_or_init(|| std::env::var("WAL_RINGEDGE_ALLNETPROC_LAYOUT").is_ok_and(|v| v.trim().eq_ignore_ascii_case("pink"))) { &PINK } else { &FINALE }
+}
+
 /// The title server's URI (the power-on's `uri`): `WAL_ALLS_TITLE_URI`, else
-/// `http://<router>/SDEY/197/`.
+/// `http://<router>/SDEY/197/` (FiNALE's).
 pub(crate) fn title_uri() -> String {
     wal_payload_common::allnet::title_uri("SDEY/197")
 }
@@ -81,16 +122,20 @@ fn router() -> [u8; 4] {
 }
 
 fn auth_resp() -> Vec<u8> {
-    let mut r = vec![0u8; 0x800];
-    put(&mut r, 0x008, "JPN", 4);
-    put(&mut r, 0x00C, "WindowsArcadeLoader", 256);
-    put(&mut r, 0x434, &title_uri(), 256);
-    r[0x634..0x638].copy_from_slice(&router());
-    r[0x640..0x644].copy_from_slice(&1u32.to_le_bytes());
-    for (i, name) in ["W", "X", "Y", "Z"].iter().enumerate() {
-        put(&mut r, 0x644 + i * 64, name, 64);
+    let l = layout();
+    let mut r = vec![0u8; l.auth_size];
+    if !l.encrypted {
+        put(&mut r, 0x000, "123", 8);
     }
-    r[0x744..0x748].copy_from_slice(&0x123u32.to_le_bytes());
+    put(&mut r, 0x008, "JPN", 4);
+    put(&mut r, l.name.0, "WindowsArcadeLoader", l.name.1);
+    put(&mut r, l.uri, &title_uri(), 256);
+    r[l.address..l.address + 4].copy_from_slice(&router());
+    r[l.region..l.region + 4].copy_from_slice(&1u32.to_le_bytes());
+    for (i, name) in ["W", "X", "Y", "Z"].iter().enumerate() {
+        put(&mut r, l.region_names + i * 64, name, 64);
+    }
+    r[l.place..l.place + 4].copy_from_slice(&0x123u32.to_le_bytes());
     r
 }
 
@@ -105,10 +150,18 @@ fn board_info() -> Vec<u8> {
 
 /// Writes the helper's status into Proc2App (`p2a`), for the game's mode `mode`.
 unsafe fn publish(p2a: *mut u8, mode: u32) {
-    let set = |at: usize, bytes: &[u8]| unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), p2a.add(at), bytes.len()) };
-    set(0x010, &encrypt(&BOARD_INFO_KEY, &board_info()));
-    set(0x058, &encrypt(&AUTH_RESP_KEY, &auth_resp()));
-    set(0x16E0, &IV);
+    let l = layout();
+    let set_at = |at: usize, bytes: &[u8]| unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), p2a.add(at), bytes.len()) };
+    if l.encrypted {
+        set_at(0x010, &encrypt(&BOARD_INFO_KEY, &board_info()));
+        set_at(l.auth_resp, &encrypt(&AUTH_RESP_KEY, &auth_resp()));
+        set_at(0x16E0, &IV);
+    } else {
+        set_at(0x010, &board_info());
+        set_at(l.auth_resp, &auth_resp());
+    }
+    // the fields after AuthResp, at FiNALE's offsets
+    let set = |at: usize, bytes: &[u8]| set_at(at - l.shift, bytes);
     set(0x858, &0u32.to_le_bytes());
     set(0xC5D, &[accounting_enabled()]);
     set(0xC5F, &[0]);
@@ -123,7 +176,7 @@ unsafe fn publish(p2a: *mut u8, mode: u32) {
     // the records valid, then the helper ready
     set(0xC63, &[1]);
     set(0xC5C, &[1]);
-    set(0x000, &mode.to_le_bytes());
+    set_at(0x000, &mode.to_le_bytes());
 }
 
 /// The accounting enabled (Proc2App +0xC5D) once the boot's game settings came from the title
@@ -158,17 +211,22 @@ fn run() {
         }
         let mode = unsafe { a2p.read_volatile() };
         let state = unsafe { (p2a as *const u32).read_volatile() };
-        let valid = unsafe { p2a.add(0xC5C).read_volatile() };
+        let valid = unsafe { p2a.add(0xC5C - layout().shift).read_volatile() };
         // the players' accounting requests (App2Proc +0x10 + i * 0x220: +0x08 / +0x0E their
         // sequence numbers) acknowledged at once (Proc2App +0xCB0 + i * 10: +2 / +4): the game
         // sends one only once the previous is (a player's play report, else after 5 s the
         // player plays as a guest)
+        let shift = layout().shift;
         if mode >= 2 {
-            unsafe { p2a.add(0xC5D).write_volatile(accounting_enabled()) };
+            unsafe { p2a.add(0xC5D - shift).write_volatile(accounting_enabled()) };
             for i in 0..4 {
                 let slot = unsafe { (a2p as *const u8).add(0x10 + i * 0x220) };
-                let ack = unsafe { p2a.add(0xCB0 + i * 10) };
+                let ack = unsafe { p2a.add(layout().acks + i * 10) };
                 unsafe {
+                    // maimai PiNK's third counter: +0 echoes the slot's +2 (FUN_005e6ed0)
+                    if layout().acks != FINALE.acks {
+                        (ack as *mut u16).write_volatile((slot.add(2) as *const u16).read_volatile());
+                    }
                     (ack.add(2) as *mut u16).write_volatile((slot.add(8) as *const u16).read_volatile());
                     (ack.add(4) as *mut u16).write_volatile((slot.add(0xE) as *const u16).read_volatile());
                 }

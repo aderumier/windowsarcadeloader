@@ -18,6 +18,13 @@
 //! its own table (`data\tables\mmEvent.bin`: AES-128-CBC, the game's table key, then gzip and
 //! UTF-16 text, ARTEMiS's `read.py`), every one open; no tickets, presents or tournaments (ARTEMiS's
 //! tables filled by hand).
+//!
+//! maimai PiNK (SDCQ 1.60) speaks the protocol before `MaimaiServlet` ([`old_title`], read from
+//! its executable: ARTEMiS lists the version but serves only `MaimaiServlet`): plain JSON GETs
+//! `<uri>/<command>/<place>/<keychip>/...` (`gameconfig` {"GameConfig"}, `shopconfig`,
+//! `logincheck` {"loginStatus": "OK"}, `userdata` the player's {"UserData"} or 404 for a new
+//! one, `login` {"login": {"userId"}}), the credit's end a multipart `logout` (UserID,
+//! UserData.z: the player's {"UserData"} zlib packed, PlayData.z), kept as `<user id>.userdata`.
 
 use std::sync::Mutex;
 
@@ -198,9 +205,16 @@ fn event_ids() -> &'static [i64] {
     })
 }
 
-/// A table of `data\tables`, decrypted and unpacked.
+/// A table of `data\tables`, decrypted and unpacked; the earlier versions' plain UTF-16 text
+/// (maimai PiNK's `.tbl`) when there.
 fn read_table(name: &str) -> Option<String> {
     use aes::cipher::{BlockDecrypt, KeyInit, generic_array::GenericArray};
+    if let Ok(data) = std::fs::read(format!("data\\tables\\{}", name.replace(".bin", ".tbl")))
+        && data.starts_with(&[0xff, 0xfe])
+    {
+        let utf16: Vec<u16> = data[2..].chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        return Some(String::from_utf16_lossy(&utf16));
+    }
     let data = std::fs::read(format!("data\\tables\\{name}")).ok()?;
     let key_hex = std::env::var("WAL_RINGEDGE_MAIMAI_TABLE_KEY").unwrap_or_else(|_| TABLE_KEY.into());
     let key: Vec<u8> = (0..key_hex.trim().len() / 2).filter_map(|i| u8::from_str_radix(key_hex.trim().get(i * 2..i * 2 + 2)?, 16).ok()).collect();
@@ -602,6 +616,9 @@ fn answer(api: &str, req: &Json) -> Json {
 
 /// A request to `.../MaimaiServlet/...`: its zlib packed answer.
 pub(crate) fn title(path: &str, body: &[u8]) -> Vec<u8> {
+    if !path.contains("MaimaiServlet/") {
+        return old_title(path, body);
+    }
     let rest = path.split_once("MaimaiServlet/").map_or("", |(_, r)| r).split('?').next().unwrap_or("");
     let pack = |text: &str| miniz_oxide::deflate::compress_to_vec_zlib(text.as_bytes(), 6);
     if rest.starts_with("old/") {
@@ -629,7 +646,7 @@ pub(crate) fn title(path: &str, body: &[u8]) -> Vec<u8> {
     let text = match miniz_oxide::inflate::decompress_to_vec_zlib(body) {
         Ok(t) => String::from_utf8_lossy(&t).into_owned(),
         Err(_) => {
-            log!("maimai server: {api}: request not zlib packed");
+            log!("maimai server: {path}: request not zlib packed ({:02x?})", &body[..body.len().min(32)]);
             return pack(r#"{"stat": "0"}"#);
         }
     };
@@ -637,4 +654,80 @@ pub(crate) fn title(path: &str, body: &[u8]) -> Vec<u8> {
     let answer = answer(api, &req);
     log!("maimai server: {api} {} -> {}", text.chars().take(600).collect::<String>(), answer.to_string().chars().take(300).collect::<String>());
     pack(&answer.to_string())
+}
+
+/// maimai PiNK's title server (the protocol before `MaimaiServlet`): `<uri>/<command>/...`.
+fn old_title(path: &str, body: &[u8]) -> Vec<u8> {
+    let rest = path.split_once("/SDCQ/").map_or(path, |(_, r)| r);
+    let parts: Vec<&str> = rest.split(['/', '?']).filter(|p| !p.is_empty()).collect();
+    let command = parts.get(1).copied().unwrap_or("");
+    log!("maimai old server: {path} ({} bytes: {})", body.len(), String::from_utf8_lossy(&body[..body.len().min(400)]).replace(['\r', '\n'], " "));
+    let json = |text: String| text.into_bytes();
+    match command {
+        "gameconfig" => {
+            GAME_SETTING_SENT.store(true, std::sync::atomic::Ordering::Relaxed);
+            json(r#"{"GameConfig":{"UpdateInterval":60,"Maintenance":false,"UploadLimit":0,"OpenOnlineMusic":true,"AllowMovie":false,"AllowDemoPlay":true,"AllowMovieForNew":false,"NeedReboot":false,"RebootBegin":[4,0],"RebootEnd":[5,0],"DeliverVersion":0,"MovieServer":"","DeliverServer":""}}"#.into())
+        }
+        "logincheck" => json(r#"{"loginStatus":"OK"}"#.into()),
+        // `login/<place>/<keychip>/<user id>?serial=<play serial>`: the player's session
+        // (`player_session`), the user id answered; `logout/...` carries the player's records
+        // (multipart: `old_upload`)
+        "login" | "logout" => {
+            let user = parts.get(4).copied().unwrap_or("");
+            session(user, command == "login");
+            if body.starts_with(b"--") {
+                old_upload(body);
+            }
+            if command == "login" { json(format!(r#"{{"login":{{"userId":{}}}}}"#, num(Some(&Json::Str(user.into()))))) } else { json("{}".into()) }
+        }
+        "userdata" => {
+            let user = parts.last().copied().unwrap_or("");
+            match std::fs::read(dir().join(format!("{user}.userdata"))) {
+                Ok(data) => data,
+                Err(_) => b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(),
+            }
+        }
+        _ if body.starts_with(b"--") => {
+            old_upload(body);
+            json("{}".into())
+        }
+        _ => json("{}".into()),
+    }
+}
+
+/// A multipart/form-data body's parts: (name, content).
+fn form_parts(body: &[u8]) -> Vec<(String, Vec<u8>)> {
+    let Some(eol) = body.windows(2).position(|w| w == b"\r\n") else { return Vec::new() };
+    let boundary = [b"\r\n".as_slice(), &body[..eol]].concat();
+    let mut parts = Vec::new();
+    let mut at = eol + 2;
+    while at < body.len() {
+        let end = body[at..].windows(boundary.len()).position(|w| w == boundary.as_slice()).map_or(body.len(), |i| at + i);
+        let part = &body[at..end];
+        if let Some(h) = part.windows(4).position(|w| w == b"\r\n\r\n") {
+            let head = String::from_utf8_lossy(&part[..h]);
+            let name = head.split("name=\"").nth(1).and_then(|r| r.split('"').next()).unwrap_or("").to_string();
+            parts.push((name, part[h + 4..].to_vec()));
+        }
+        at = end + boundary.len() + 2;
+    }
+    parts
+}
+
+/// The player's records uploaded at the end of a credit (`UserID`, `UserData` or `UserData.z`:
+/// the game's JSON, zlib packed for `.z`), kept as `<user id>.userdata` for `userdata`.
+fn old_upload(body: &[u8]) {
+    let parts = form_parts(body);
+    let field = |name: &str| parts.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_slice());
+    let user = String::from_utf8_lossy(field("UserID").unwrap_or_default()).trim().to_string();
+    let data = match (field("UserData.z"), field("UserData")) {
+        (Some(z), _) => miniz_oxide::inflate::decompress_to_vec_zlib(z).ok(),
+        (None, Some(d)) => Some(d.to_vec()),
+        _ => None,
+    };
+    log!("maimai old server: upload, parts {:?}, user {user}, user data {} bytes", parts.iter().map(|(n, v)| (n.as_str(), v.len())).collect::<Vec<_>>(), data.as_ref().map_or(0, |d| d.len()));
+    if let Some(data) = data.filter(|_| user.parse::<u64>().is_ok()) {
+        let _ = std::fs::create_dir_all(dir());
+        let _ = std::fs::write(dir().join(format!("{user}.userdata")), &data);
+    }
 }
