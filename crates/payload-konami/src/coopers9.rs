@@ -749,6 +749,7 @@ pub extern "system" fn coopers9_out32(port: i16, value: i16) {
 }
 
 pub fn init(resolved: usize, missing: &[String]) {
+    crate::gun_outputs::coopers9();
     log!("coopers9: {resolved} imports resolved");
     for m in missing {
         log!("coopers9: import {m} not found");

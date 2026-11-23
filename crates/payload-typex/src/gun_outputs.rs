@@ -21,7 +21,7 @@
 
 use wal_payload_common::log;
 use wal_payload_common::outputs::hook::{Flags, player_flag};
-use wal_payload_common::outputs::{mem, poll, pulse, set};
+use wal_payload_common::outputs::{mem, poll_build, pulse, set};
 
 /// Bit `bit` of the byte at `addr`.
 fn bit(addr: usize, bit: u8) -> i32 {
@@ -29,8 +29,8 @@ fn bit(addr: usize, bit: u8) -> i32 {
 }
 
 /// A hook of the game's code, logged when the build differs.
-fn flag(name: &str, site: usize, original: &[u8; 5], reg: u8, skip_unless_zero: Option<usize>) -> Option<Flags> {
-    let f = unsafe { player_flag(site, original, reg, skip_unless_zero) };
+fn flag(name: &str, site: usize, original: &[u8], reg: u8, skip_unless_zero: Option<usize>) -> Option<Flags> {
+    let f = unsafe { player_flag(site, original, Some(reg), skip_unless_zero) };
     if f.is_none() {
         log!("gun outputs: {name} at {site:#x}: another build, not hooked");
     }
@@ -60,7 +60,7 @@ pub(crate) fn init(game: &str) {
             let recoil = [flag("recoil", b + 0x6FDCA, &[0xE8, 0xF1, 0x04, 0x00, 0x00], 1, Some(b + 0x975E54))];
             let damage = [flag("damage", b + 0x72798, &[0xE8, 0x23, 0xDB, 0xFF, 0xFF], 1, Some(b + 0x975E54))];
             let (r, d) = (names("CtmRecoil", 2), names("Damaged", 2));
-            poll("haunted museum", 16, move || {
+            poll_build("haunted museum", 0x4CC0F7DD, 16, move || {
                 let (o1, o2) = (b + 0x1E27021, b + 0x1E27022);
                 rgb_start_motor(o1, o2);
                 pulses(&recoil, &r);
@@ -73,7 +73,7 @@ pub(crate) fn init(game: &str) {
             });
         }
         "haunted-museum-2" => {
-            poll("haunted museum 2", 16, move || {
+            poll_build("haunted museum 2", 0x4DA2BCC2, 16, move || {
                 let o = b + 0x2B140B4;
                 rgb_start_motor(o + 1, o + 2);
                 for (p, recoil, rumble) in [(0, 5, 2), (1, 4, 1)] {
@@ -92,7 +92,7 @@ pub(crate) fn init(game: &str) {
                 flag("damage", b + 0x764A0, &[0xE8, 0x5B, 0xDD, 0xFF, 0xFF], 1, cond),
             ];
             let (r, d) = (names("CtmRecoil", 4), names("Damaged", 4));
-            poll("gaia attack 4", 16, move || {
+            poll_build("gaia attack 4", 0x4BF5DF71, 16, move || {
                 let (o0, o1, o2) = (b + 0x1FE7200, b + 0x1FE7201, b + 0x1FE7202);
                 rgb_start_motor(o1, o2);
                 set("P3_LmpStart", bit(o0, 5));
@@ -112,7 +112,7 @@ pub(crate) fn init(game: &str) {
             let recoil = [flag("recoil", b + 0x3ED23, &[0xE8, 0xB8, 0x69, 0x08, 0x00], 2, None)];
             let damage = [flag("damage", b + 0x6E29A, &[0x6A, 0x14, 0x6A, 0x01, 0x52], 2, None)];
             let (r, d) = (names("CtmRecoil", 2), names("Damaged", 2));
-            poll("elevator action death parade", 16, move || {
+            poll_build("elevator action death parade", 0x4AC2B99E, 16, move || {
                 let (o1, o2, o3) = (b + 0x204EBC, b + 0x204EBE, b + 0x204EBB);
                 set("LmpSide_R", bit(o2, 6));
                 set("LmpSide_G", bit(o2, 5));
@@ -135,7 +135,7 @@ pub(crate) fn init(game: &str) {
             });
         }
         "music-gungun-2" => {
-            poll("music gungun 2", 16, move || {
+            poll_build("music gungun 2", 0x4CE0EA4F, 16, move || {
                 let (o1, o2) = (b + 0x2BC311, b + 0x2BC312);
                 set("P1_LmpStart", bit(o2, 7));
                 set("P2_LmpStart", bit(o2, 6));

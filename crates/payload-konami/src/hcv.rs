@@ -353,6 +353,7 @@ unsafe fn patch(what: &str, at: usize, expected: &[u8], new: &[u8]) {
 }
 
 pub fn init() {
+    crate::gun_outputs::castlevania();
     WHIP_SHOT.store(std::env::var("WAL_KONAMI_WHIP_SHOT").map_or(true, |v| v != "0"), Ordering::Relaxed);
     log!("hcv: whip {}", if WHIP_SHOT.load(Ordering::Relaxed) { "swung by the attack control" } else { "swung by drags with the attack control held" });
     let call = (sensor_update as *const () as usize).wrapping_sub(SENSOR_CALL + 5) as u32;

@@ -556,6 +556,6 @@ pub fn init() {
         crate::two_screens::init_first_only("le3");
     }
     log!("le3: {players} player(s), {screens} screen(s) shown");
-    wal_payload_common::outputs::poll("le3", 16, outputs());
+    wal_payload_common::outputs::poll_build("le3", 0x425F263D, 16, outputs());
     log!("le3: I/O board and gun boards emulated (Lethal Enforcers 3)");
 }

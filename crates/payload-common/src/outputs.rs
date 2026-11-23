@@ -142,6 +142,12 @@ pub mod mem {
         unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) as usize }
     }
 
+    /// The game executable's link time (its PE header's TimeDateStamp): which build runs.
+    pub fn timestamp() -> u32 {
+        let b = base();
+        u32(b + 8 + u32(b + 0x3C) as usize)
+    }
+
     pub fn u8(addr: usize) -> u8 {
         if crate::crash::readable(addr, 1) { unsafe { std::ptr::read_volatile(addr as *const u8) } } else { 0 }
     }
@@ -183,6 +189,21 @@ pub fn poll(name: &'static str, ms: u64, mut step: impl FnMut() + Send + 'static
     });
 }
 
+/// [`poll`], when the game executable is the build whose addresses `step` reads (its link time,
+/// [`mem::timestamp`]); else logged, nothing read.
+#[cfg(windows)]
+pub fn poll_build(name: &'static str, timestamp: u32, ms: u64, step: impl FnMut() + Send + 'static) {
+    if !enabled() {
+        return;
+    }
+    let found = mem::timestamp();
+    if found != timestamp {
+        log!("outputs: {name}: another build (link time {found:#x}, not {timestamp:#x}), its outputs not read");
+        return;
+    }
+    poll(name, ms, step);
+}
+
 /// A value that pulses an output when it goes down (DemulShooter's custom recoil on the ammo
 /// count, damage on the life): `update` with the new value, `None` while it is not followed.
 #[derive(Default)]
@@ -202,10 +223,11 @@ impl Falling {
 }
 
 /// A player flag set by the game's own code (DemulShooter's code caves, 32-bit games): at a
-/// 5-byte site, a jump to a stub that sets dword `flags[player]` to 1, the player being the
-/// value of register `reg` (0 eax, 1 ecx, 2 edx, 3 ebx), when `skip_unless_zero` is `None` or
-/// the dword at `[reg * 8 + that address]` is 0, then runs the site's own instruction (a
-/// `call` relocated, any other position independent bytes as they are) and jumps back.
+/// site of whole instructions (5 bytes at least), a jump to a stub that sets dword
+/// `flags[player]` to 1, the player being the value of register `reg` (0 eax, 1 ecx, 2 edx, 3
+/// ebx; `None`: player 0), when `skip_unless_zero` is `None` or the dword at `[reg * 8 + that
+/// address]` is 0, then runs the site's own instructions (a 5-byte `call` relocated, any other
+/// position independent bytes as they are) and jumps back.
 /// [`take`] reads and clears a flag. `None` when the site's bytes are not `original` (another
 /// build: left as it is).
 #[cfg(all(windows, target_arch = "x86"))]
@@ -226,8 +248,9 @@ pub mod hook {
 
     /// # Safety
     /// `site` must be the start of the instruction(s) of `original` in the game's code.
-    pub unsafe fn player_flag(site: usize, original: &[u8; 5], reg: u8, skip_unless_zero: Option<usize>) -> Option<Flags> {
-        if reg > 3 || !crate::crash::readable(site, 5) || unsafe { std::slice::from_raw_parts(site as *const u8, 5) } != original {
+    pub unsafe fn player_flag(site: usize, original: &[u8], reg: Option<u8>, skip_unless_zero: Option<usize>) -> Option<Flags> {
+        let len = original.len();
+        if len < 5 || reg.is_some_and(|r| r > 3) || !crate::crash::readable(site, len) || unsafe { std::slice::from_raw_parts(site as *const u8, len) } != original {
             return None;
         }
         let block = unsafe { VirtualAlloc(std::ptr::null(), 0x100, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) } as usize;
@@ -236,18 +259,28 @@ pub mod hook {
         }
         let (flags, stub) = (block, block + 0x10);
         let mut c: Vec<u8> = Vec::new();
-        if let Some(addr) = skip_unless_zero {
-            // cmp dword [reg * 8 + addr], 0; jne original (the flag's 17 bytes)
-            c.extend_from_slice(&[0x83, 0x3C, 0xC5 | reg << 3]);
-            c.extend_from_slice(&(addr as u32).to_le_bytes());
-            c.extend_from_slice(&[0x00, 0x0F, 0x85, 17, 0, 0, 0]);
+        match reg {
+            Some(reg) => {
+                if let Some(addr) = skip_unless_zero {
+                    // cmp dword [reg * 8 + addr], 0; jne original (the flag's 17 bytes)
+                    c.extend_from_slice(&[0x83, 0x3C, 0xC5 | reg << 3]);
+                    c.extend_from_slice(&(addr as u32).to_le_bytes());
+                    c.extend_from_slice(&[0x00, 0x0F, 0x85, 17, 0, 0, 0]);
+                }
+                // push reg; shl reg, 2; add reg, flags; mov dword [reg], 1; pop reg
+                c.extend_from_slice(&[0x50 + reg, 0xC1, 0xE0 + reg, 0x02, 0x81, 0xC0 + reg]);
+                c.extend_from_slice(&(flags as u32).to_le_bytes());
+                c.extend_from_slice(&[0xC7, reg, 1, 0, 0, 0, 0x58 + reg]);
+            }
+            None => {
+                // mov dword [flags], 1
+                c.extend_from_slice(&[0xC7, 0x05]);
+                c.extend_from_slice(&(flags as u32).to_le_bytes());
+                c.extend_from_slice(&[1, 0, 0, 0]);
+            }
         }
-        // push reg; shl reg, 2; add reg, flags; mov dword [reg], 1; pop reg
-        c.extend_from_slice(&[0x50 + reg, 0xC1, 0xE0 + reg, 0x02, 0x81, 0xC0 + reg]);
-        c.extend_from_slice(&(flags as u32).to_le_bytes());
-        c.extend_from_slice(&[0xC7, reg, 1, 0, 0, 0, 0x58 + reg]);
         let rel = |c: &Vec<u8>, target: usize| target.wrapping_sub(stub + c.len() + 4) as u32;
-        if original[0] == 0xE8 {
+        if original[0] == 0xE8 && len == 5 {
             let target = (site + 5).wrapping_add(i32::from_le_bytes(original[1..5].try_into().unwrap()) as usize);
             c.push(0xE8);
             let r = rel(&c, target);
@@ -256,15 +289,16 @@ pub mod hook {
             c.extend_from_slice(original);
         }
         c.push(0xE9);
-        let r = rel(&c, site + 5);
+        let r = rel(&c, site + len);
         c.extend_from_slice(&r.to_le_bytes());
         unsafe {
             std::ptr::copy_nonoverlapping(c.as_ptr(), stub as *mut u8, c.len());
             let mut old = 0;
-            VirtualProtect(site as *const _, 5, PAGE_EXECUTE_READWRITE, &mut old);
-            *(site as *mut u8) = 0xE9;
+            VirtualProtect(site as *const _, len, PAGE_EXECUTE_READWRITE, &mut old);
+            std::ptr::write_bytes((site + 5) as *mut u8, 0x90, len - 5);
             std::ptr::write_unaligned((site + 1) as *mut u32, stub.wrapping_sub(site + 5) as u32);
-            VirtualProtect(site as *const _, 5, old, &mut old);
+            *(site as *mut u8) = 0xE9;
+            VirtualProtect(site as *const _, len, old, &mut old);
         }
         Some(Flags(flags))
     }

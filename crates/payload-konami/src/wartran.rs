@@ -252,6 +252,7 @@ pub fn detected(module: windows_sys::Win32::Foundation::HINSTANCE) -> bool {
 }
 
 pub fn init() {
+    crate::gun_outputs::wartran();
     let id = std::env::var("WAL_KONAMI_PLUG").unwrap_or_else(|_| "GKD00UA".into());
     log!("wartran: game plug {id}");
     let _ = PLUG_ID.set(id);

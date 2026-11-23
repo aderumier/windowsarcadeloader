@@ -88,6 +88,7 @@ mod acio;
 mod ark;
 #[cfg(target_arch = "x86")]
 mod avs;
+mod gun_outputs;
 #[cfg(target_arch = "x86")]
 mod bms;
 #[cfg(target_arch = "x86")]

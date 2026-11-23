@@ -209,6 +209,7 @@
 
 #[cfg(target_arch = "x86")]
 mod arcticthunder;
+mod gun_outputs;
 #[cfg(target_arch = "x86")]
 mod ballistics;
 #[cfg(target_arch = "x86")]
@@ -343,6 +344,7 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
             bugbusters::prepare();
         }
         wal_payload_common::start("arcadepc");
+        gun_outputs::init(board.trim());
         xmlset::init();
         // Mars Sortie: free play (its guns are the DemulShooter plugin's, below)
         if board.trim() == "marssortie" {

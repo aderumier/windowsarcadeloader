@@ -256,6 +256,15 @@ extern "C" fn mother_board() -> *const c_char {
     c"OK".as_ptr()
 }
 
+/// `shaiolib_GUN_reaction(player)`: the gun's recoil, to the network outputs.
+extern "C" fn gun_reaction(player: i32) -> i32 {
+    if let Some(n) = [("P1_GunRecoil", "P1_CtmRecoil"), ("P2_GunRecoil", "P2_CtmRecoil")].get(player as usize) {
+        wal_payload_common::outputs::pulse(n.0, 50);
+        wal_payload_common::outputs::pulse(n.1, 50);
+    }
+    1
+}
+
 fn overrides() -> Vec<(&'static CStr, usize)> {
     let yes = yes as *const () as usize;
     let no = no as *const () as usize;
@@ -277,7 +286,7 @@ fn overrides() -> Vec<(&'static CStr, usize)> {
         (c"shaiolib_GUN_disable", yes),
         (c"shaiolib_GUN_flash_on", yes),
         (c"shaiolib_GUN_flash_off", yes),
-        (c"shaiolib_GUN_reaction", yes),
+        (c"shaiolib_GUN_reaction", gun_reaction as *const () as usize),
         (c"shaiolib_GUN_set_reaction_pattern", yes),
         (c"shaiolib_LED_change", yes),
         (c"shaiolib_COIN_count", coin_count as *const () as usize),
@@ -335,6 +344,7 @@ pub fn detected(module: windows_sys::Win32::Foundation::HINSTANCE) -> bool {
 }
 
 pub fn init() {
+    crate::gun_outputs::silent_hill();
     let region = std::env::var("WAL_KONAMI_REGION").unwrap_or_default().trim().to_ascii_uppercase();
     let index = PLUGS.iter().position(|(r, _)| *r == region).unwrap_or(2);
     REGION.store(index, Ordering::Relaxed);

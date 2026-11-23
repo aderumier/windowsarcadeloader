@@ -9197,14 +9197,24 @@ else the profile's file name (`sega-racing-classic`).
   as `outputs::hook::player_flag` (a 5-byte site's jump to a stub setting a player's flag, the
   player in a register, the site's call relocated): `P1_CtmRecoil` at the gun reaction call of
   a shot, `P1_Damaged` of a hit. Haunted Museum 2's outputs are at +0x2B140B4 in this build
-  (found as the JVS output bytes, reversed), not DemulShooter's +0x29AE434.
+  (found as the JVS output bytes, reversed), not DemulShooter's +0x29AE434. The Konami ones
+  (`payload-konami` `gun_outputs.rs`: Castlevania, Cooper's 9, Wartran Troopers, Silent Hill;
+  Silent Hill's recoil its `shaiolib_GUN_reaction(player)`) and the arcade PC ones
+  (`payload-arcadepc` `gun_outputs.rs`: Akuma Mortis Immortal, Bug Busters, The House of the
+  Dead 3, Robin Hood, Plants vs Zombies, Mad Bullets and The House of the Dead: Overkill with
+  their shot / hit code caves as player flags) the same way. Each poller starts only when the
+  executable's link time (`outputs::mem::timestamp`, `poll_build`) is the build's.
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
   `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;
   Crazy Ride's speed / stop / brake / game state lights; Night Hunter 2 in a mission, a recoil
   pulse a shot (`P1_GunRecoil` 2), the air jets and the wind; Lethal Enforcers 3, Haunted
   Museum, Gaia Attack 4, Elevator Action Death Parade in a game: a recoil pulse a shot, damage,
-  life, ammo, lamps; Haunted Museum 2, Music GunGun! 2 their lamps (and recoil bit).
+  life, ammo, lamps; Haunted Museum 2, Music GunGun! 2 their lamps (and recoil bit); Cooper's
+  9, Silent Hill (`GUN_reaction`), Akuma Mortis Immortal, Bug Busters, The House of the Dead 3,
+  Robin Hood, Plants vs Zombies, Mad Bullets: recoil a shot, their lamps / damage / life / ammo;
+  Castlevania its lamps, life, damage. Not seen headless: Wartran Troopers (a black screen after
+  its configuration file), The House of the Dead: Overkill (its menus).
 
 ## 7. Adding a system
 
