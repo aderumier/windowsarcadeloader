@@ -44,8 +44,9 @@ struct Config {
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
 
-fn letter() -> u8 {
-    CONFIG.get().map_or(b'D', |c| c.letter)
+/// The redirected drive of [`init_letter`] (none with [`init_drives`] alone).
+fn letter() -> Option<u8> {
+    CONFIG.get().map(|c| c.letter)
 }
 
 fn target() -> &'static Target {
@@ -74,7 +75,7 @@ fn target() -> &'static Target {
             ansi.extend_from_slice(folder.as_bytes());
             wide.extend(folder.encode_utf16());
         }
-        log!("drive: {}:\\ redirected to {}", letter() as char, String::from_utf16_lossy(&wide));
+        log!("drive: {}:\\ redirected to {}", letter().unwrap_or(b'D') as char, String::from_utf16_lossy(&wide));
         Target { ansi, wide }
     })
 }
@@ -122,19 +123,92 @@ fn skip<T: Copy + Into<u32>>(mut r: Redirected<T>, target_len: usize) -> Redirec
 }
 
 fn ansi(p: *const u8) -> Redirected<u8> {
-    let r = skip(unsafe { rewrite_drive(p, letter(), &target().ansi) }, target().ansi.len());
-    match game_drive() {
-        Some(g) if !r.is_replaced() => unsafe { rewrite_drive(p, g.letter, &g.ansi) },
-        _ => r,
+    if let Some(letter) = letter() {
+        let r = skip(unsafe { rewrite_drive(p, letter, &target().ansi) }, target().ansi.len());
+        if r.is_replaced() {
+            return r;
+        }
     }
+    if let Some(g) = game_drive() {
+        let r = unsafe { rewrite_drive(p, g.letter, &g.ansi) };
+        if r.is_replaced() {
+            return r;
+        }
+    }
+    for d in mapped() {
+        let r = unsafe { rewrite_drive(p, d.letter, &d.ansi) };
+        if r.is_replaced() {
+            return r;
+        }
+    }
+    Redirected { original: p, replaced: None }
 }
 
 fn wide(p: *const u16) -> Redirected<u16> {
-    let r = skip(unsafe { rewrite_drive(p, letter(), &target().wide) }, target().wide.len());
-    match game_drive() {
-        Some(g) if !r.is_replaced() => unsafe { rewrite_drive(p, g.letter, &g.wide) },
-        _ => r,
+    if let Some(letter) = letter() {
+        let r = skip(unsafe { rewrite_drive(p, letter, &target().wide) }, target().wide.len());
+        if r.is_replaced() {
+            return r;
+        }
     }
+    if let Some(g) = game_drive() {
+        let r = unsafe { rewrite_drive(p, g.letter, &g.wide) };
+        if r.is_replaced() {
+            return r;
+        }
+    }
+    for d in mapped() {
+        let r = unsafe { rewrite_drive(p, d.letter, &d.wide) };
+        if r.is_replaced() {
+            return r;
+        }
+    }
+    Redirected { original: p, replaced: None }
+}
+
+/// A drive of the launcher's `WAL_DRIVES` (the profile's cabinet drives): its folder.
+struct MappedDrive {
+    letter: u8,
+    ansi: Vec<u8>,
+    wide: Vec<u16>,
+}
+
+/// `WAL_DRIVES=<letter>=<Windows path>|...`: the profile's cabinet drives (E:, Y:...),
+/// redirected to their folders whatever Wine's drive letters are (its mount manager gives a
+/// letter to each disk it finds and replaces the launcher's link of that letter: a USB disk
+/// took E:, Initial D ARCADE STAGE Zero's AMFS drive, amdaemon error 4105).
+fn mapped() -> &'static [MappedDrive] {
+    static DRIVES: OnceLock<Vec<MappedDrive>> = OnceLock::new();
+    DRIVES.get_or_init(|| {
+        let Ok(spec) = std::env::var(wal_protocol::env::DRIVES) else { return Vec::new() };
+        spec.split('|')
+            .filter_map(|entry| {
+                let (letter, path) = entry.split_once('=')?;
+                let letter = letter.trim().bytes().next()?.to_ascii_uppercase();
+                if !letter.is_ascii_uppercase() || path.is_empty() {
+                    return None;
+                }
+                let path = path.trim_end_matches('\\');
+                log!("drive: {}:\\ redirected to {path}", letter as char);
+                Some(MappedDrive { letter, ansi: ansi_path(path), wide: path.encode_utf16().collect() })
+            })
+            .collect()
+    })
+}
+
+/// `path` in the ANSI code page (the narrow file functions' paths).
+fn ansi_path(path: &str) -> Vec<u8> {
+    use windows_sys::Win32::Globalization::{CP_ACP, WideCharToMultiByte};
+    if path.is_ascii() {
+        return path.as_bytes().to_vec();
+    }
+    let wide: Vec<u16> = path.encode_utf16().collect();
+    let mut out = vec![0u8; wide.len() * 4];
+    let n = unsafe {
+        WideCharToMultiByte(CP_ACP, 0, wide.as_ptr(), wide.len() as i32, out.as_mut_ptr(), out.len() as i32, std::ptr::null(), std::ptr::null_mut())
+    };
+    out.truncate(n.max(0) as usize);
+    out
 }
 
 /// `WAL_GAME_DRIVE=<letter>`: the game runs from the root of that drive, as on the cabinet
@@ -173,9 +247,15 @@ fn game_drive() -> Option<&'static GameDrive> {
 }
 
 fn drive_bits() -> u32 {
-    let mut bits = 1 << 2 | 1 << (letter() - b'A');
+    let mut bits = 1 << 2;
+    if let Some(letter) = letter() {
+        bits |= 1 << (letter - b'A');
+    }
     if let Some(g) = game_drive() {
         bits |= 1 << (g.letter - b'A');
+    }
+    for d in mapped() {
+        bits |= 1 << (d.letter - b'A');
     }
     bits
 }
@@ -323,9 +403,12 @@ fn init_game_drive() {
     if let Some(o) = unsafe { iat::hook("ole32.dll", "CoCreateInstance", CoCreateInstance as *const () as usize) } {
         GRAPH_ORIG[0].store(o, Ordering::Relaxed);
     }
-    if game_drive().is_none() {
+    if game_drive().is_none() && mapped().is_empty() {
         return;
     }
+    // the current directory is the game drive's root: with the cabinet drives alone, it is
+    // left to Wine
+    let count = if game_drive().is_some() { 5 } else { 3 };
     let hooks: [(&str, usize); 5] = [
         ("GetLogicalDrives", GetLogicalDrives as *const () as usize),
         ("GetDriveTypeA", GetDriveTypeA as *const () as usize),
@@ -333,7 +416,7 @@ fn init_game_drive() {
         ("GetCurrentDirectoryA", GetCurrentDirectoryA as *const () as usize),
         ("GetCurrentDirectoryW", GetCurrentDirectoryW as *const () as usize),
     ];
-    for (i, (name, f)) in hooks.into_iter().enumerate() {
+    for (i, (name, f)) in hooks.into_iter().take(count).enumerate() {
         if let Some(o) = unsafe { iat::hook("kernel32.dll", name, f) } {
             GAME_DRIVE_ORIG[i].store(o, Ordering::Relaxed);
         }
@@ -444,22 +527,62 @@ macro_rules! hooks {
         pub fn init_letter(letter: u8, var: &str, default: &str) {
             let _ = CONFIG.set(Config { letter: letter.to_ascii_uppercase(), var: var.to_string(), default: default.to_string() });
             prepare_data_dir();
-            init_game_drive();
-            init_mmio(None);
+            install();
+        }
+
+        /// Installs the redirection of the launcher's cabinet drives (`WAL_DRIVES`), in every
+        /// program the payload runs in; a system's own [`init_letter`] adds its drive to it.
+        pub fn init_drives() {
+            if !mapped().is_empty() {
+                install();
+            }
+        }
+
+        /// The hooks, once (a second IAT hook would take the first one as the original).
+        fn install() {
+            static ONCE: std::sync::Once = std::sync::Once::new();
+            ONCE.call_once(|| {
+                init_game_drive();
+                init_mmio(None);
+                $(
+                    if let Some(o) = unsafe { iat::hook("kernel32.dll", stringify!($name), $name as *const () as usize) } {
+                        ORIG[$idx].store(o, Ordering::Relaxed);
+                    }
+                )*
+                for crt in CRT_MODULES {
+                    redirect_module(crt);
+                }
+                // the payload's own files on the cabinet drives (the AMEX board's Y:\amex, the
+                // image information E:\ICF1)
+                if !mapped().is_empty() {
+                    redirect_self();
+                }
+                if std::env::var("WAL_DRIVE_LATE_DLLS").is_ok_and(|v| v == "1") {
+                    $(
+                        crate::late_hooks::hook("kernel32.dll", stringify!($name), $name as *const () as usize, &ORIG[$idx]);
+                    )*
+                    log!("drive: redirect in the game's later DLLs too");
+                }
+            });
+        }
+
+        /// The payload DLL's own file functions (the Rust standard library's kernel32 imports).
+        fn redirect_self() {
+            use windows_sys::Win32::System::LibraryLoader::{
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, GetModuleHandleExW,
+            };
+            let mut module = std::ptr::null_mut();
+            let flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+            if unsafe { GetModuleHandleExW(flags, redirect_self as *const () as *const u16, &mut module) } == 0 || module.is_null() {
+                log!("drive: the payload's own module not found");
+                return;
+            }
+            let base = module as usize;
             $(
-                if let Some(o) = unsafe { iat::hook("kernel32.dll", stringify!($name), $name as *const () as usize) } {
-                    ORIG[$idx].store(o, Ordering::Relaxed);
+                if let Some(o) = unsafe { iat::hook_module(base, "kernel32.dll", stringify!($name), $name as *const () as usize) } {
+                    let _ = ORIG[$idx].compare_exchange(0, o, Ordering::Relaxed, Ordering::Relaxed);
                 }
             )*
-            for crt in CRT_MODULES {
-                redirect_module(crt);
-            }
-            if std::env::var("WAL_DRIVE_LATE_DLLS").is_ok_and(|v| v == "1") {
-                $(
-                    crate::late_hooks::hook("kernel32.dll", stringify!($name), $name as *const () as usize, &ORIG[$idx]);
-                )*
-                log!("drive: redirect in the game's later DLLs too");
-            }
         }
 
         /// Redirects the file functions of another loaded module (a game DLL opening data

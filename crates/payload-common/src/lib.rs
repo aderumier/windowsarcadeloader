@@ -238,6 +238,8 @@ pub fn start(name: &'static str) {
             crash::init();
             // this program's own options, before any is read
             exe_env::apply();
+            // the profile's cabinet drives, before the system's own code opens files on them
+            drive::init_drives();
             // before the X11 driver starts (its first window or screen query)
             desktop::unmanaged();
             crash::dump_threads_at();

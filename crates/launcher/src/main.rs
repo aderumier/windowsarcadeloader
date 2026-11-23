@@ -573,6 +573,10 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
     wine.set_env(env::PORT, &profile.port.to_string());
     wine.set_env(env::GAME_ID, profile.id.rsplit('/').next().unwrap_or(&profile.id));
     wine.set_env(env::LOG, &wine.windows_path(&run_dir.join(format!("wal-{}.log", system.name()))));
+    let drives = wine.drive_redirects(&profile.drives, game_root, &profile.run_drives, &run_dir);
+    if !drives.is_empty() {
+        wine.set_env(env::DRIVES, &drives);
+    }
     if !profile.native_map.is_empty() {
         let map: Vec<String> = profile.native_map.iter().map(|(k, v)| format!("{k}={v}")).collect();
         wine.set_env(env::MAP, &map.join(","));

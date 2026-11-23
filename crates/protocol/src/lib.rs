@@ -34,6 +34,9 @@ pub mod env {
     pub const RELAUNCH: &str = "WAL_RELAUNCH";
     /// The game's id (its profile's file name): the linked cabinets' masters told apart.
     pub const GAME_ID: &str = "WAL_GAME_ID";
+    /// The profile's cabinet drives, `<letter>=<Windows path>` separated by `|`: the payload
+    /// redirects their paths itself (Wine's mount manager can take their letters for a disk).
+    pub const DRIVES: &str = "WAL_DRIVES";
 }
 
 /// Digital inputs of the virtual stick, as bits of [`StickState::buttons`].

@@ -239,6 +239,24 @@ impl Wine {
         Ok(())
     }
 
+    /// The cabinet drives ([`Self::map_game_drives`], [`Self::map_run_drives`]) for the payload's
+    /// own redirect (`WAL_DRIVES`: `<letter>=<Windows path>|...`): Wine's mount manager gives
+    /// a letter to each disk it finds and replaces a drive link of that letter (a USB disk took
+    /// E:, the AMFS drive of Initial D ARCADE STAGE Zero: amdaemon error 4105).
+    pub fn drive_redirects(&self, drives: &std::collections::BTreeMap<String, PathBuf>, game_root: &Path,
+        run_drives: &std::collections::BTreeMap<String, PathBuf>, run_dir: &Path) -> String
+    {
+        let game = drives.iter().map(|(l, d)| (l, game_root.join(d)));
+        let run = run_drives.iter().map(|(l, d)| (l, if d.as_os_str() == "." { run_dir.to_path_buf() } else { run_dir.join(d) }));
+        game.chain(run)
+            .map(|(letter, target)| {
+                let target = target.canonicalize().unwrap_or(target);
+                format!("{}={}", letter.trim_end_matches(':').to_ascii_uppercase(), self.windows_path(&target))
+            })
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+
     /// Links folders of drive C: a game reaches by absolute paths (`C:\Gvr`) to folders of its
     /// run directory (one game runs at a time: the links follow the game launched). A folder the
     /// dump does not have yet (a save folder, Tekken 7's `C:\perforce\...\Saved`) is made in the
