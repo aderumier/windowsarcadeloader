@@ -9264,6 +9264,13 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* After Dark 1.1 / 2.3 (`afterdark.rs`): the PC's serial frames' byte 2: bit 0 / 1 the guns'
+  vibration on each shot (`P1_GunMotor`, the custom recoil as it starts), 0x04 / 0x08 the
+  start lamps; the byte as `RawLamps` (0x20, 0x40 unknown).
+* Wicked Tuna (`wickedtuna.rs`, `exIO_SendCmd`'s 26 bytes as `IOBoardControler` builds them):
+  byte 2 the ground and border lights and each rod's hook button lamp; per rod the reel's and
+  rod's resistance, the rod shaker and its sound shake, the tickets to pay; byte 23 the
+  cabinet's sound shake.
 * Far Cry Paradise Lost (`farcry.rs`, DemulShooter's caves in the same build as stubs): the
   players joining and leaving (start lamps blinking until then), the life (a hit when it goes
   down), the guns' kill LEDs, the guns' rumble (each shot and grenade: the gun motor and the
@@ -9393,7 +9400,8 @@ else the profile's file name (`sega-racing-classic`).
   life, gun motor); Aliens Extermination (28 recoil pulses, ammo and its LEDs, life, 9 hits,
   start lamps); Friction (9 recoil pulses, 6 hits, ammo, life, start lamps); Block King Ball
   Shooter (its dimmed lamps, the cannon's colours, credits); Far Cry Paradise Lost (413 recoil
-  pulses, 30 hits, life, kill digits);
+  pulses, 30 hits, life, kill digits); Wicked Tuna (rod shaker, rod and reel resistance, hook
+  button lamp, cabinet shake); After Dark 2.3 (65 gun vibrations and recoils, start lamps);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the

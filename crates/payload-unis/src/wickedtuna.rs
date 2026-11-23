@@ -152,7 +152,35 @@ unsafe extern "C" fn read_data(out: *mut u8, len: i32) {
     unsafe { std::ptr::copy_nonoverlapping(d.as_ptr(), out, n) };
 }
 
-unsafe extern "C" fn send_cmd(_data: *const u8, _len: i32) {}
+/// The game's commands to the board (`IOBoardControler`'s 26 bytes), to the network outputs:
+/// byte 2 the lights (the ground's, bits 6..7: `LmpGround`; the border's, 4..5: `LmpBorder`;
+/// each rod's hook button, bits 3..0: `P1_LmpHookBtn`); each rod's five bytes from 3 + 5 ×
+/// rod: the reel's and the rod's resistance (`P1_ReelResistance`, `P1_RodResistance`), the
+/// shaker's and its sound shake (`P1_RodShake`, `P1_RodShakeSnd`), the tickets to pay (16 bits:
+/// `P1_TicketFeeder` while some); byte 23 the cabinet's sound shake (`SoundShake`).
+unsafe extern "C" fn send_cmd(data: *const u8, len: i32) {
+    use wal_payload_common::outputs::{enabled, set};
+    if !enabled() || data.is_null() || len < 26 {
+        return;
+    }
+    let d = unsafe { std::slice::from_raw_parts(data, 26) };
+    if d[0] != 0x55 {
+        return;
+    }
+    set("LmpGround", (d[2] >> 6) as i32);
+    set("LmpBorder", (d[2] >> 4 & 3) as i32);
+    for rod in 0..4 {
+        let n = |f: &str| format!("P{}_{f}", rod + 1);
+        let r = &d[3 + 5 * rod..8 + 5 * rod];
+        set(&n("LmpHookBtn"), (d[2] >> (3 - rod) & 1) as i32);
+        set(&n("ReelResistance"), (r[0] >> 4) as i32);
+        set(&n("RodResistance"), (r[0] & 0xF) as i32);
+        set(&n("RodShake"), (r[1] >> 4) as i32);
+        set(&n("RodShakeSnd"), (r[1] & 0xF) as i32);
+        set(&n("TicketFeeder"), (u16::from_be_bytes([r[2], r[3]]) > 0) as i32);
+    }
+    set("SoundShake", d[23] as i32);
+}
 
 unsafe extern "C" fn nothing() {}
 

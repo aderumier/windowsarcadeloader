@@ -10,8 +10,8 @@
 //!   0x10 / 0x20 its + / -, 0x80 a coin, counted once per 100 ms held), their X and Y (bytes
 //!   7..14, big endian, 12 bits: 0..4095 across the screen from its bottom left, which the
 //!   game maps through its calibration, `coin.ini`'s `Gun1xMin` ... `Gun2yMax`, set in the operator menu's gun
-//!   settings), `0D` and the XOR of the 25 bytes before. The PC's frames (vibration)
-//!   are ignored.
+//!   settings), `0D` and the XOR of the 25 bytes before. The PC's frames (the guns'
+//!   vibration, the start lamps): the network outputs ([`handler`]).
 //! - **HID board.** Its driver (in the executable) speaks an encrypted protocol to the board;
 //!   the payload replaces the driver's device object instead: the init that enumerates the
 //!   boards (`0x415CA0`) puts ours in the board table. The dongle block writes 8 bytes (command
@@ -186,8 +186,28 @@ fn idle() -> Vec<u8> {
     frame(&data)
 }
 
-/// The PC's frames: the vibration, nothing to answer.
-fn handler(_packet: &[u8]) -> Vec<u8> {
+/// The PC's frames (`40 80 b 00 00 00 00 0D xor`), nothing to answer: their byte `b` to the
+/// network outputs (`RawLamps`): bit 0 gun A's vibration, on with each of its shots
+/// (`P1_GunMotor`, a custom recoil as it starts), bit 1 gun B's (by the frame's symmetry), 0x04
+/// / 0x08 the start lamps (lit with credits, until the player plays); 0x20, 0x40 (on while
+/// player 1 plays) unknown.
+fn handler(packet: &[u8]) -> Vec<u8> {
+    use wal_payload_common::outputs::{enabled, set};
+    if let [0x40, 0x80, b, ..] = packet
+        && packet.len() >= 9
+        && enabled()
+    {
+        set("RawLamps", *b as i32);
+        for p in 0..2 {
+            let on = (b >> p & 1) as i32;
+            let n = |f: &str| format!("P{}_{f}", p + 1);
+            if on == 1 && wal_payload_common::outputs::value(&n("GunMotor")) != Some(1) {
+                set(&n("CtmRecoil"), 1);
+            }
+            set(&n("GunMotor"), on);
+            set(&n("LmpStart"), (b >> (2 + p) & 1) as i32);
+        }
+    }
     Vec::new()
 }
 
