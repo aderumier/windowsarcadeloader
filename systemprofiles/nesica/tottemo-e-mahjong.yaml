@@ -14,11 +14,13 @@ hide: [dinput8.dll]
 # Buttons 1-4 = b1-b4 (default mapping).
 
 env:
-  # HD mode wants a 1280x768 fullscreen mode, not in Wine's list: it then creates no device and
-  # crashes. Ask 1280x800 instead (mov [height],0x300 -> 0x320).
-  WAL_PATCHES: "0x9231:2003"
-  # only in game2.exe (TestMode.exe, the test menu, loads the payload too)
-  WAL_PATCHES_EXE: game2.exe
+  # HD mode wants a 1280x768 fullscreen mode: on a screen without it (Xorg only offers the
+  # output's real modes: none at 1280x720) it creates no device and crashes. Its device is made
+  # windowed 1280x768 (the mode listed), stretched to a borderless window over the whole screen:
+  # any screen size.
+  WAL_D3D9_WINDOWED_SIZE: 1280x768
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
 
 # Control names (the GUI's mapping rows).
 controls:
