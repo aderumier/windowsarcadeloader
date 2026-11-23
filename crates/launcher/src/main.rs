@@ -13,6 +13,7 @@ mod guns;
 mod gui;
 mod input;
 mod mapping;
+mod net_outputs;
 mod eamuse_card;
 mod nesica_card;
 mod players;
@@ -717,6 +718,12 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
 
     let stop = stop_flag()?;
     let server = server::Server::start(profile.port)?;
+    // network outputs (MAMEHooker, BackForceFeeder): the game's lamps, recoil and force
+    let net_outputs = profile.env.get(net_outputs::ENV).is_some_and(|v| matches!(v.trim(), "1" | "true" | "on")).then(|| {
+        let port = profile.env.get(net_outputs::PORT_ENV).and_then(|p| p.trim().parse().ok()).unwrap_or(8000);
+        let name = profile.env.get(net_outputs::NAME_ENV).map(|n| n.trim().to_string()).filter(|n| !n.is_empty()).unwrap_or_else(|| profile.slug());
+        net_outputs::NetOutputs::start(&name, port)
+    }).flatten();
     let mut hub = input::Hub::new(profile)?;
     hub.border = border.map(|b| (b, [screen.0, screen.1]));
     for helper in &profile.pre_launch {
@@ -787,7 +794,15 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         }
         // force feedback outputs of the game, to the players' devices
         for o in server.outputs() {
+            if let Some(n) = &net_outputs {
+                n.output(&o);
+            }
             hub.output(o);
+        }
+        for (name, value) in server.named_outputs() {
+            if let Some(n) = &net_outputs {
+                n.set(&name, value);
+            }
         }
         // on change, plus a periodic refresh
         if frame != last || last_sent.elapsed() > Duration::from_millis(100) {
@@ -866,6 +881,9 @@ fn run(profile: &Profile, opts: &RunOptions, script: Option<script::Script>) -> 
         }
     };
     eprintln!("launcher: game exited ({status})");
+    if let Some(n) = &net_outputs {
+        n.stop();
+    }
     // leftover processes of the game (helpers, services)
     let _ = wine.wineserver("-k");
     let _ = Command::new("kill").args(["-KILL", "--", &format!("-{}", child.id())]).stderr(std::process::Stdio::null()).status();

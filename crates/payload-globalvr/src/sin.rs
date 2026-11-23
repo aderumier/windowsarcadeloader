@@ -191,18 +191,21 @@ unsafe extern "C" fn init_tracker() -> i32 {
 
 unsafe extern "C" fn close_tracker() {}
 
-/// The gun's solenoid on / off (the library's recoil pulses): the pad's rumble.
+/// The gun's solenoid on / off (the library's recoil pulses): the pad's rumble, and
+/// `P1_GunRecoil` of the network outputs.
 static KICK: AtomicI32 = AtomicI32::new(0);
 
 unsafe extern "C" fn kick_on() {
     if KICK.swap(1, Ordering::Relaxed) == 0 {
         wal_payload_common::send_output(0, output::FFB_VIBRATION, output::FFB_MAX / 2);
+        wal_payload_common::outputs::set("P1_GunRecoil", 1);
     }
 }
 
 unsafe extern "C" fn kick_off() {
     if KICK.swap(0, Ordering::Relaxed) == 1 {
         wal_payload_common::send_output(0, output::FFB_VIBRATION, 0);
+        wal_payload_common::outputs::set("P1_GunRecoil", 0);
     }
 }
 

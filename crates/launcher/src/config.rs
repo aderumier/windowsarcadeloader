@@ -462,6 +462,21 @@ impl Profile {
                 ..option(VOLUME_ENV, "Volume", "The game's sound level in percent (all its sounds, music and videos).")
             });
         }
+        if !declared(crate::net_outputs::ENV) {
+            common.push(option(
+                crate::net_outputs::ENV,
+                "Network outputs",
+                "The cabinet's lamps, gun recoil and drive board sent on the network as MAME does, for \
+                 MAMEHooker, BackForceFeeder or any tool reading MAME's network outputs (TCP port below; \
+                 the game's name in mame_start).",
+            ));
+            common.push(GameOption {
+                kind: OptionKind::Number,
+                min: Some(1024),
+                max: Some(65535),
+                ..option(crate::net_outputs::PORT_ENV, "Outputs port", "The network outputs' TCP port (MAME's: 8000).")
+            });
+        }
         if self.input.guns_enabled {
             for (key, label, kind, choices, description) in [
                 ("WAL_SINDEN_BORDER", "Sinden border", OptionKind::Choice, vec!["auto", "1", "0"], "Auto: enabled when a Sinden is plugged in. 1: always on. 0: off."),
@@ -758,9 +773,12 @@ options:
         let mut v: Value = serde_yaml_ng::from_str(DEFAULTS).expect("valid defaults.yaml");
         merge(&mut v, serde_yaml_ng::from_str("system: test\n").unwrap());
         let p = Profile::from_value(v, Path::new("/x"), "test/game", vec![]).unwrap();
-        assert_eq!(common_keys(&p), [VOLUME_ENV]);
+        assert_eq!(common_keys(&p), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
         assert_eq!(p.env.get(VOLUME_ENV).map(String::as_str), Some("100"));
     }
+
+    const OUTPUTS: &str = crate::net_outputs::ENV;
+    const OUTPUTS_PORT: &str = crate::net_outputs::PORT_ENV;
 
     /// The keys of the profile's Common group (first).
     fn common_keys(p: &Profile) -> Vec<&str> {
@@ -793,10 +811,10 @@ options:
         // declared by the game itself (its own label): not added again
         let p = load("system: test\nenv: {WAL_CROSSHAIR: \"1\"}\noptions: [{options: [{key: WAL_CROSSHAIR, label: Pointer, kind: bool}]}]\n");
         assert_eq!(p.options.len(), 2);
-        assert_eq!(common_keys(&p), [VOLUME_ENV]);
+        assert_eq!(common_keys(&p), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
         assert_eq!(p.options[1].options[0].label.as_deref(), Some("Pointer"));
         // a game without crosshairs: the volume alone
-        assert_eq!(common_keys(&load("system: test\n")), [VOLUME_ENV]);
+        assert_eq!(common_keys(&load("system: test\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
     }
 
     #[test]
@@ -811,9 +829,9 @@ options:
         assert_eq!(p.env.get(FREEPLAY_ENV).map(String::as_str), Some("1"));
         assert_eq!(p.options.len(), 1);
         let keys: Vec<&str> = p.options[0].options.iter().map(|o| o.key.as_str()).collect();
-        assert_eq!(keys, [CROSSHAIR_ENV, FREEPLAY_ENV, VOLUME_ENV]);
+        assert_eq!(keys, [CROSSHAIR_ENV, FREEPLAY_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
         // another system: not shown
-        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV]);
+        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
     }
 
     #[test]
@@ -825,14 +843,14 @@ options:
         };
         // a game able to link: off by default, its number found, the master found on the network
         let p = load("system: typex\nenv: {WAL_LINK: \"0\"}\n");
-        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_MASTER_ENV, VOLUME_ENV]);
+        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_MASTER_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
         assert_eq!(p.env.get(CABINET_ENV).map(String::as_str), Some("auto"));
         assert_eq!(p.env.get(LINK_MASTER_ENV).map(String::as_str), Some(""));
         // another game: not shown
-        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV]);
+        assert_eq!(common_keys(&load("system: typex\n")), [VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
         // a game reading the cabinets' count at its start: shown too
         let p = load("system: ringedge\nenv: {WAL_LINK: \"0\", WAL_LINK_CABINETS: \"2\"}\n");
-        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_CABINETS_ENV, LINK_MASTER_ENV, VOLUME_ENV]);
+        assert_eq!(common_keys(&p), [LINK_ENV, CABINET_ENV, LINK_CABINETS_ENV, LINK_MASTER_ENV, VOLUME_ENV, OUTPUTS, OUTPUTS_PORT]);
     }
 
     #[test]

@@ -12,6 +12,7 @@ pub struct Server {
     clients: Arc<Mutex<Vec<TcpStream>>>,
     last: Arc<Mutex<InputFrame>>,
     outputs: Receiver<Output>,
+    named: Receiver<(String, i32)>,
     relaunch: Arc<Mutex<Option<String>>>,
 }
 
@@ -22,6 +23,7 @@ impl Server {
         let last: Arc<Mutex<InputFrame>> = Arc::default();
         let (c, l) = (clients.clone(), last.clone());
         let (tx, outputs) = channel();
+        let (named_tx, named) = channel();
         let relaunch: Arc<Mutex<Option<String>>> = Arc::default();
         let r = relaunch.clone();
         std::thread::spawn(move || {
@@ -35,12 +37,12 @@ impl Server {
                 let frame = Message::Input(*l.lock().unwrap());
                 if writer.write_all(&[hello.encode(), frame.encode()].concat()).is_ok() {
                     c.lock().unwrap().push(writer);
-                    let (tx, r) = (tx.clone(), r.clone());
-                    std::thread::spawn(move || read_client(stream, tx, r));
+                    let (tx, named_tx, r) = (tx.clone(), named_tx.clone(), r.clone());
+                    std::thread::spawn(move || read_client(stream, tx, named_tx, r));
                 }
             }
         });
-        Ok(Server { clients, last, outputs, relaunch })
+        Ok(Server { clients, last, outputs, named, relaunch })
     }
 
     pub fn broadcast(&self, frame: &InputFrame) {
@@ -60,6 +62,11 @@ impl Server {
         self.outputs.try_iter().collect()
     }
 
+    /// Named outputs (MAME's names) received from the game since the last call.
+    pub fn named_outputs(&self) -> Vec<(String, i32)> {
+        self.named.try_iter().collect()
+    }
+
     /// The game's latest relaunch request (arguments added to the profile's), cleared.
     pub fn take_relaunch(&self) -> Option<String> {
         self.relaunch.lock().unwrap().take()
@@ -71,7 +78,7 @@ impl Server {
     }
 }
 
-fn read_client(mut stream: TcpStream, outputs: Sender<Output>, relaunch: Arc<Mutex<Option<String>>>) {
+fn read_client(mut stream: TcpStream, outputs: Sender<Output>, named: Sender<(String, i32)>, relaunch: Arc<Mutex<Option<String>>>) {
     while let Ok(msg) = Message::read_from(&mut stream) {
         match msg {
             Message::Hello { version, name } => eprintln!("server: payload '{name}' connected (protocol v{version})"),
@@ -81,6 +88,9 @@ fn read_client(mut stream: TcpStream, outputs: Sender<Output>, relaunch: Arc<Mut
             Message::Relaunch { args } => {
                 eprintln!("server: relaunch requested: {args}");
                 *relaunch.lock().unwrap() = Some(args);
+            }
+            Message::Named { name, value } => {
+                let _ = named.send((name, value));
             }
             Message::Input(_) | Message::Touch(_) => {}
         }

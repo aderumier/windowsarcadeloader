@@ -163,6 +163,10 @@ env:
   # master's address (empty: found by its announcements). The GUI's Common options.
   WAL_CABINET: "auto"
   WAL_LINK_MASTER: ""
+  # Network outputs, MAME's protocol (MAMEHooker, BackForceFeeder): the game's lamps, recoil
+  # and drive board on a TCP port ("0": off). The GUI's Common options.
+  WAL_OUTPUTS: "0"
+  WAL_OUTPUTS_PORT: "8000"
 # The game's own options, for the GUI's Options tab (only games declaring any show it):
 # its environment variables with a label, a control (text, a bool 1/0 checkbox, a number
 # (slider when min and max are set), a choice among the values), a range and a hover

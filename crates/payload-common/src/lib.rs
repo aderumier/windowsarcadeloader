@@ -119,6 +119,8 @@ pub mod jvs_board;
 pub mod link;
 pub mod log;
 pub mod mapping;
+// cabinet outputs by their MAME names, for the launcher's network outputs
+pub mod outputs;
 // Unity games' managed code (Mono's embedding API)
 #[cfg(windows)]
 pub mod mono;
@@ -279,6 +281,7 @@ fn connection_loop(name: &str, port: u16) {
                     log!("connected to launcher");
                     *WRITER.lock().unwrap() = stream.try_clone().ok();
                     CONNECTED.store(true, Ordering::Release);
+                    outputs::resend();
                     read_loop(&mut stream);
                     CONNECTED.store(false, Ordering::Release);
                     *WRITER.lock().unwrap() = None;
@@ -302,7 +305,7 @@ fn read_loop(stream: &mut TcpStream) {
             }
             Message::Hello { version, name } => log!("launcher hello: {name} v{version}"),
             Message::Touch(points) => *TOUCHES.lock().unwrap() = points,
-            Message::Output(_) | Message::Relaunch { .. } => {}
+            Message::Output(_) | Message::Relaunch { .. } | Message::Named { .. } => {}
         }
     }
 }

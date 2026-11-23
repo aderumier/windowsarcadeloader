@@ -117,6 +117,8 @@ Frame: `[u8 kind][u8 0][u16 LE payload_len][payload]`.
 | 2 Input | launcher → game | 4 × (u32 buttons + 6 × i16 axes) = 64 bytes |
 | 3 Output | game → launcher | u8 player, u16 id, i32 value |
 | 4 Relaunch | game → launcher | UTF-8 arguments, may be empty |
+| 5 Touch | launcher → game | up to 10 × (u16 x, u16 y) |
+| 6 Named | game → launcher | i32 value, UTF-8 MAME output name (§6.9) |
 
 Relaunch: when the game exits, the launcher starts it again (same run directory, input server
 kept) with the profile's arguments plus these (split on spaces), `WAL_RELAUNCH=1` in its
@@ -128,7 +130,8 @@ is up to date immediately; unknown kinds are skipped (forward compatible). Bump 
 incompatible change. Output ids (`protocol::output`): force feedback states for `player` (0..3),
 sent on change (and refreshed every second by the payload): `FFB_CONSTANT` (1,
 -10000 pushed left ..= 10000 pushed right), `FFB_SPRING` (2, centering, 0..=10000),
-`FFB_VIBRATION` (3, 0..=10000). Lamps and recoil are TODO.
+`FFB_VIBRATION` (3, 0..=10000). Lamps, recoil and the drive board's bytes are Named outputs
+(kind 6, §6.9).
 
 ### 4.3 Environment contract (launcher → payload)
 
@@ -9092,6 +9095,36 @@ that reads the cabinets' count at its start, before the others have joined, also
 * Two instances of one SquashFS image on a PC share its mount point
   (`/run/user/<uid>/wal-squashfs/<image name>`): the second one breaks the first. A test links
   two names of the image (symbolic links), each with its own `prefix:` and `squashfs_saves:`.
+
+### 6.9 Network outputs (`WAL_OUTPUTS`, payload-common `outputs.rs`, launcher `net_outputs.rs`)
+
+The cabinet's outputs for MAMEHooker, BackForceFeeder or any tool reading MAME's network outputs,
+without a plugin in the game (the protocol of njz3's windowsloader, linuxloader and U-Shoot:
+MAME's). As with force feedback the payload only reports values; the launcher, a Linux program,
+is the server. Common options (every game, `defaults.yaml`): `WAL_OUTPUTS` (`0`: off),
+`WAL_OUTPUTS_PORT` (`8000`); `WAL_OUTPUTS_NAME` (a profile's own) the game's name for the tools,
+else the profile's file name (`sega-racing-classic`).
+
+* Payload (`outputs::set` / `pulse` / `gpo` / `lamps` / `drive`): each value sent to the launcher
+  by its MAME name when it changes (protocol kind 6), every known one again when the payload
+  (re)connects; nothing kept or sent with the option off.
+* Launcher: a TCP server on `0.0.0.0:WAL_OUTPUTS_PORT` sends each client `name = value\r` lines,
+  `mame_start = <game>\r` and every known value when it connects, `mame_stop = 1\r` when the
+  game ends; one UDP datagram `mame_start = <game>\rtcp = <port>\r` to 127.0.0.1:8001 at the
+  start. Player 1's constant force (`FFB_CONSTANT`) also goes out as a Sega servo board's frames
+  on `RawDrive` (80 00 01, 81 7F 7F, 83 7F 00 once, then 84 the torque: 0x80 - force × 127,
+  the checksum the three bytes' sum & 0x7F; no torque at the end), unless the game sends a
+  drive board's own bytes.
+* Names: `RawLamps`, `RawLamps1`... (a JVS board's general purpose output bytes) and `lamp0`,
+  `lamp1`... (output n + 1, bit 7 - n % 8 of byte n / 8); `RawDrive` (each byte to a Sega drive
+  board); the games' own (U-Shoot's names: `P1_GunRecoil`, `P1_LmpStart`...).
+* Sources: the common JVS board (`jvs_board.rs`, command `32`: every Type X, RingEdge, Nu and
+  ALLS JVS game), ALLS's IO4 board (general outputs, report 10 command 04), Wasteland Racers
+  2071's SDC2 `SetDigitalOut` (16 lamps), the RingEdge drive board's packets (`WAL_RINGEDGE_FFB`,
+  Initial D, SEGA Racing Classic's Model 2 command byte), SiN's gun solenoid (`P1_GunRecoil`).
+* Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
+  sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
+  `RawDrive` the Model 2 drive commands.
 
 ## 7. Adding a system
 

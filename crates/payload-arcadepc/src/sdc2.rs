@@ -17,7 +17,9 @@
 //!   button adds one; free play's buttons set it to a game's price, the start takes it);
 //! * `SetForce(force)`, `SetSteeringPos(position)`: the wheel's motor, a position servo (its
 //!   strength, the position it holds the wheel at), played as a constant force toward that
-//!   position; `SetDGain`, `SetDigitalOut` (lamps): ignored.
+//!   position; `SetDGain`: ignored.
+//! * `SetDigitalOut(bits)`: the cabinet's lamps, bit n lamp n (16), to the network outputs
+//!   (`lamp0`...).
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -139,6 +141,13 @@ pub extern "C" fn sdc2_none() -> i32 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn sdc2_none1(_a: i32) -> i32 {
+    0
+}
+
+/// `SetDigitalOut`: the lamps, bit n lamp n.
+#[unsafe(no_mangle)]
+pub extern "C" fn sdc2_digital_out(bits: i32) -> i32 {
+    wal_payload_common::outputs::lamps(bits as u16 as u64, 16);
     0
 }
 

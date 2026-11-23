@@ -89,6 +89,8 @@ fn reply(data: &[u8]) -> Vec<u8> {
         if LOG.load(Ordering::Relaxed) {
             log!("ffb: {p:02X?}");
         }
+        // the drive board's bytes, as the game sent them, to the network outputs (RawDrive)
+        wal_payload_common::outputs::drive(&p);
         out.push(packet(&mut board, p));
     }
     out
@@ -151,8 +153,12 @@ fn model2(address: usize) {
         std::thread::sleep(std::time::Duration::from_millis(16));
         // the game's .data, mapped for the process lifetime
         let command = unsafe { std::ptr::read_volatile(address as *const u8) };
-        if LOG.load(Ordering::Relaxed) && last != Some(command) {
-            log!("ffb: {command:02X}");
+        if last != Some(command) {
+            if LOG.load(Ordering::Relaxed) {
+                log!("ffb: {command:02X}");
+            }
+            // the Model 2 drive board's command byte, to the network outputs (RawDrive)
+            wal_payload_common::outputs::drive(&[command]);
         }
         last = Some(command);
         // 8 levels, the lowest command the strongest

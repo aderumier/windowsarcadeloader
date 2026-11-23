@@ -4,7 +4,7 @@
     Shutdown = sdc2_none
     GetAxisData = sdc2_axis
     GetDigitalIn = sdc2_digital_in
-    SetDigitalOut = sdc2_none1
+    SetDigitalOut = sdc2_digital_out
     SetForce = sdc2_set_force
     SetSteeringPos = sdc2_set_steering_pos
     SetDGain = sdc2_none1

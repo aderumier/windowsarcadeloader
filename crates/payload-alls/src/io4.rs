@@ -305,9 +305,11 @@ pub(crate) fn write(data: &[u8]) {
         0x01 | 0x02 => SYSTEM_STATUS.store(0x30, Ordering::Relaxed),
         0x03 => SYSTEM_STATUS.store(0x00, Ordering::Relaxed),
         0x04 => {
-            // the general outputs (the lamps, the coin blocker): their changes logged
+            // the general outputs (the lamps, the coin blocker): their changes logged, and to
+            // the network outputs as a JVS board's (RawLamps..., lamp0...)
             static LAST: Mutex<Vec<u8>> = Mutex::new(Vec::new());
             let outputs = data[2..data.len().min(6)].to_vec();
+            wal_payload_common::outputs::gpo_bytes(&outputs);
             let mut last = LAST.lock().unwrap();
             if *last != outputs {
                 log!("io4: general outputs {outputs:02x?}");

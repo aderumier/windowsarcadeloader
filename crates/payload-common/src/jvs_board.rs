@@ -1036,6 +1036,8 @@ fn process(packet: &[u8]) -> Vec<u8> {
                 (4, vec![])
             }
             0x32 => {
+                // the lamps, to the network outputs (RawLamps..., lamp0...)
+                crate::outputs::gpo_bytes(cmds.get(i + 2..(i + 2 + arg(1) as usize).min(cmds.len())).unwrap_or(&[]));
                 if let Some(t) = &mut board.tickets {
                     t.output(cmds.get(i + 2..(i + 2 + arg(1) as usize).min(cmds.len())).unwrap_or(&[]));
                 }
