@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Game list of README.md: the status table of docs/IMPLEMENTATION.md (one row per game id)
-with each game's latest regression test result (tools/regression/results/*/results.json).
+with each game's latest regression test result (tools/regression/results/*/results.json), its
+network play (the cabinet link: the profile sets WAL_LINK) and its network outputs (MAME's,
+WAL_OUTPUTS: the games' own in OUTPUTS, the boards every game of a system goes through in
+SYSTEM_OUTPUTS, a RingEdge drive board from WAL_RINGEDGE_FFB).
 
 Only plain runs of this tree count: runs marked `experiment` (regression.py --profile, or by
 hand for a run with an uncommitted change), with an extra profile layer or another tree (--root)
@@ -24,6 +27,54 @@ README = ROOT / "README.md"
 RESULTS = ROOT / "tools/regression/results"
 ROMS_INDEX = ROOT / "tools/regression/roms-index.json"
 CHECKS = ["started", "running", "window", "picture", "audio"]
+PROFILES = ROOT / "systemprofiles"
+
+# The network outputs of the games that have their own (docs/IMPLEMENTATION.md §6.9); "not
+# seen": wired, not seen working in a test
+GUN = "lamps, recoil, damage, life, ammo"
+OUTPUTS = {
+    "lethal-enforcers-3": GUN,
+    "lethal-enforcers-3-2p": GUN,
+    "haunted-museum": GUN.replace(", ammo", ""),
+    "haunted-museum-2": "lamps, recoil",
+    "gaia-attack-4": GUN.replace(", ammo", ""),
+    "elevator-action-death-parade": GUN,
+    "music-gungun-2": "lamps",
+    "castlevania-the-arcade": "lamps, damage, life, ammo",
+    "coopers-9": GUN,
+    "wartran-troopers": GUN + " (not seen)",
+    "silent-hill-the-arcade": "lamps, recoil",
+    "akuma-mortis-immortal": "lamps, recoil, damage, life",
+    "bug-busters": "lamps, air blowers, recoil, damage, life, ammo",
+    "the-house-of-the-dead-3": "start lamps, recoil, damage, life, ammo",
+    "robin-hood": "recoil",
+    "plants-vs-zombies-the-last-stand": "lamps, recoil, ticket motor",
+    "mad-bullets": "recoil, damage, life, ammo",
+    "house-of-the-dead-overkill": "recoil, damage, life, ammo (not seen)",
+    "night-hunter-after-dark-chapter-ii": "recoil, gun lights, air jets, wind",
+    "night-hunter-after-dark-chapter-ii-3-0-2": "recoil, gun lights, air jets, wind",
+    "men-in-black": "recoil",
+    "sin": "recoil",
+    "storm-racer-g": "lamps, PWM lights",
+    "storm-rider": "lamps, PWM lights",
+    "crazy-ride": "lights",
+    "gti-club-supermini-festa": "lamps, brightness (not seen)",
+    "wasteland-racers-2071": "lamps",
+    "mario-kart-arcade-gp-dx": "lamps, LEDs (not seen)",
+    "bishi-bashi-channel": "start lamps",
+    "gashaaaan": "lamps (not seen)",
+    "otomedius": "lamps (not seen)",
+    "winning-eleven-2008": "lamps (not seen)",
+}
+# The outputs of the I/O boards every game of a system goes through
+SYSTEM_OUTPUTS = {
+    "typex": "lamps (JVS)",
+    "ringedge": "lamps (JVS)",
+    "ringedge2": "lamps (JVS)",
+    "seganu": "lamps (JVS)",
+    "namcoes3": "lamps (JVS)",
+    "alls": "lamps (IO4)",
+}
 BEGIN, END = "<!-- GAMELIST BEGIN (tools/gamelist.py) -->", "<!-- GAMELIST END -->"
 
 
@@ -94,6 +145,29 @@ def latest_results() -> dict[str, tuple[str, dict]]:
     return latest
 
 
+def profile(gid: str, system: str) -> str:
+    """The game's system profile, its text ("" without one)."""
+    path = next(PROFILES.glob(f"*/{gid}.yaml"), None)
+    return path.read_text() if path else ""
+
+
+def network_cell(text: str) -> str:
+    return "cabinet link" if re.search(r"^\s+WAL_LINK:", text, re.M) else ""
+
+
+def outputs_cell(gid: str, system: str, text: str) -> str:
+    parts = []
+    own = OUTPUTS.get(gid)
+    generic = SYSTEM_OUTPUTS.get(system)
+    if generic and not (own and own.startswith("lamps")):
+        parts.append(generic)
+    if own:
+        parts.append(own)
+    if re.search(r"^\s+WAL_RINGEDGE_FFB:", text, re.M):
+        parts.append("drive board")
+    return ", ".join(parts)
+
+
 def result_cell(res: dict) -> str:
     failed = [c for c in CHECKS if res.get(c) is False]
     if not failed:
@@ -103,12 +177,15 @@ def result_cell(res: dict) -> str:
 
 def table() -> str:
     latest = latest_results()
-    lines = ["| Game id | Game | System | Status | Regression test | Run |", "|---|---|---|---|---|---|"]
+    lines = ["| Game id | Game | System | Status | Network play | Outputs | Regression test | Run |",
+             "|---|---|---|---|---|---|---|---|"]
     for g in doc_games():
         date, res = latest.get(g["id"], (None, None))
         test = result_cell(res) if res else "not in the test"
         run = f"{date[:4]}-{date[4:6]}-{date[6:]}" if date else ""
-        lines.append(f"| `{g['id']}` | {g['game']} | {g['system']} | {g['result']} | {test} | {run} |")
+        text = profile(g["id"], g["system"])
+        net, out = network_cell(text), outputs_cell(g["id"], g["system"], text)
+        lines.append(f"| `{g['id']}` | {g['game']} | {g['system']} | {g['result']} | {net} | {out} | {test} | {run} |")
     return "\n".join(lines)
 
 
