@@ -7,8 +7,9 @@
 system: europar
 name: "Mission: Impossible Arcade"
 
-# Unity's own log beside the game
-args: [-logFile, Player.log]
+# Unity's own log beside the game; its 1920x1080 full screen window (the cabinet's), whatever
+# size the prefix's Unity settings kept (1600x1080 after a 1600x1200 screen)
+args: [-logFile, Player.log, -screen-fullscreen, "1", -screen-width, "1920", -screen-height, "1080"]
 
 # loaded at the entry point (64-bit: wal-loader64): Unity's input functions wrapped before Mono
 # registers them
@@ -26,6 +27,15 @@ env:
   WAL_EUROPAR_BOARD: mig
   # every mission and stage selectable (else mission 3 after a mission cleared, the stages in order)
   WAL_EUROPAR_UNLOCK: "1"
+  # Its interface is laid out for 16:9: Unity at the screen's size (1600x1200) or at a size
+  # other than its window's cut it on the right. A 1920x1080 desktop for the game, fitted onto
+  # the screen, the swap chain windowed (stretched to the window: dxgi_size.rs); stretched over
+  # a 4:3 screen (a gun game, no bars; ES's KEEP ASPECT RATIO on keeps 16:9), the guns' aim in
+  # its picture
+  WAL_DESKTOP_SIZE: 1920x1080
+  WAL_WINDOW_POPUP: "1"
+  WAL_DESKTOP_STRETCH: "1"
+  WAL_KEEP_ASPECT_RATIO: "0"
 
 options:
   - title: Game

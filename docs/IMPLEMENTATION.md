@@ -3130,7 +3130,11 @@ System `europar` (also `segaeuropa-r`), payload `wal_europar.dll` installed as `
   - *Screen size.* `GunAdjust` and the sights use `Screen.width` / `height`, the shots
     (`CameraBufferManager.ViewportPointToRay`) a fixed 1920x1080: in another size the payload
     sets those two constants of its IL to the screen's (at the first `GetAxis`), so the shots hit
-    the sights without gamescope.
+    the sights without gamescope. Its interface is laid out for 16:9: Unity at a 4:3 screen's
+    size, or at a size other than its window's (the prefix's Unity settings kept 1600x1080 after
+    a 1600x1200 screen), cut it on the right. The profile gives the game a 1920x1080 desktop
+    (`WAL_DESKTOP_SIZE`, stretched over a 4:3 screen) and Unity `-screen-width 1920
+    -screen-height 1080`.
   - *Two guns a player.* The two triggers are the player's two guns (`PlayerGunL` /
     `PlayerGunR`, one aim). The launcher tells the payload how many real lightguns are plugged
     (`WAL_GUN_COUNT`: tagged guns, else untagged absolute pointers; never mice nor touchpads,
