@@ -33,6 +33,7 @@ PROFILES = ROOT / "systemprofiles"
 # seen": wired, not seen working in a test
 GUN = "lamps, recoil, damage, life, ammo"
 OUTPUTS = {
+    "drakon-realm-keepers": "recoil, gun motors, damage",
     "zombie-crisis": "lamps, recoil",
     "dream-hunting": "recoil",
     "polar-wars": "lamps, recoil, gun motors, water",

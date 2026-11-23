@@ -234,6 +234,11 @@ pub mod mem {
         if crate::crash::readable(addr, 4) { unsafe { std::ptr::read_unaligned(addr as *const u32) } } else { 0 }
     }
 
+    /// A pointer (the process's width: a 64-bit game's are 8 bytes).
+    pub fn ptr(addr: usize) -> usize {
+        if crate::crash::readable(addr, size_of::<usize>()) { unsafe { std::ptr::read_unaligned(addr as *const usize) } } else { 0 }
+    }
+
     pub fn f32(addr: usize) -> f32 {
         f32::from_bits(u32(addr))
     }

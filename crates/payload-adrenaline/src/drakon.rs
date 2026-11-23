@@ -110,6 +110,81 @@ unsafe extern "system" fn wlan_free(_memory: P) {}
 
 /// The game's methods replaced, once (nothing for another game: no IL2CPP or no Drakon's
 /// `InputsManager`).
+// The network outputs (`WAL_OUTPUTS`), from the game's code as U-Shoot's plugin reads it:
+// `Turret.FireBullet` a bullet (its turret's player: the custom recoil), the turrets' fire
+// breath (the flamethrower: the gun motor, the static flags `get_FireBreathEnabled` reads),
+// `HudWindow.OnPlayerHitByEnemy(_, player)` a hit.
+
+/// Offsets: the turret's player (`arcadePlayer`), the player's `id`.
+static TURRET_PLAYER: AtomicUsize = AtomicUsize::new(0);
+static PLAYER_ID: AtomicUsize = AtomicUsize::new(0);
+
+/// A turret's player (0, 1).
+fn turret_player(turret: P) -> Option<usize> {
+    let read = |at: usize| unsafe { (at as *const usize).read_unaligned() };
+    let player = read(turret as usize + TURRET_PLAYER.load(Ordering::Relaxed));
+    if player == 0 {
+        return None;
+    }
+    let id = unsafe { ((player + PLAYER_ID.load(Ordering::Relaxed)) as *const i32).read_unaligned() };
+    usize::try_from(id).ok().filter(|p| *p < 2)
+}
+
+/// `Turret.FireBullet(this, hitScreenPos)`'s prefix: a bullet.
+extern "C" fn fire_bullet(turret: P) {
+    if let Some(p) = turret_player(turret) {
+        wal_payload_common::outputs::set(["P1_CtmRecoil", "P2_CtmRecoil"][p], 1);
+    }
+}
+
+/// `HudWindow.OnPlayerHitByEnemy(this, typeProvider, player)`'s prefix: a hit.
+extern "C" fn player_hit(_this: P, _provider: P, player: i32) {
+    if let Some(name) = ["P1_Damaged", "P2_Damaged"].get(player as usize) {
+        wal_payload_common::outputs::set(name, 1);
+    }
+}
+
+fn outputs(i: &il2cpp::Il2Cpp, game: P) {
+    if !wal_payload_common::outputs::enabled() {
+        return;
+    }
+    let turret = i.class(game, "SBK.Skyride.Turret", "Turret");
+    let player = i.class(i.image("SBK.ArcadePlayer"), "SBK.ArcadePlayer", "Player");
+    let field = |class: P, names: &[&str]| names.iter().find_map(|n| i.offset(class, n));
+    let (Some(turret_player), Some(id)) = (field(turret, &["arcadePlayer", "<arcadePlayer>k__BackingField", "_arcadePlayer", "m_arcadePlayer"]), field(player, &["id"])) else {
+        log!("drakon: outputs: the turret's player not found");
+        return;
+    };
+    TURRET_PLAYER.store(turret_player, Ordering::Relaxed);
+    PLAYER_ID.store(id, Ordering::Relaxed);
+    // the getter: `cmp dword [rbx + 0x18], 0` (the turret's index), `mov rax, [rip + d]` (a
+    // class), `mov rcx, [rax + 0xB8]` (its static fields), then byte 0 (index 0) or 1: two
+    // static flags, one per turret (player)
+    let getter = i.method(turret, "get_FireBreathEnabled", 0);
+    let code = if getter != 0 && wal_payload_common::crash::readable(getter, 64) { unsafe { std::slice::from_raw_parts(getter as *const u8, 64) } } else { &[][..] };
+    let class_slot = code.windows(7).position(|w| w[..3] == [0x48, 0x8B, 0x05]).map(|at| getter + at + 7 + i32::from_le_bytes(code[at + 3..at + 7].try_into().unwrap()) as isize as usize);
+    let statics = code.windows(7).find_map(|w| (w[..3] == [0x48, 0x8B, 0x88]).then(|| u32::from_le_bytes(w[3..7].try_into().unwrap()) as usize));
+    let breath = class_slot.zip(statics).filter(|_| code.windows(3).any(|w| w == [0x0F, 0xB6, 0x01]));
+    if breath.is_none() {
+        log!("drakon: outputs: get_FireBreathEnabled not understood: {:02x?}", code);
+    }
+    let hud = i.class(game, "", "HudWindow");
+    let fire = wal_payload_common::mono::prefix_at(i.method(turret, "FireBullet", 1) as *mut u8, fire_bullet as *const () as usize);
+    let hit = wal_payload_common::mono::prefix_at(i.method(hud, "OnPlayerHitByEnemy", 2) as *mut u8, player_hit as *const () as usize);
+    log!("drakon: outputs: shots {fire}, hits {hit}, fire breath {}", breath.is_some());
+    if let Some((class_slot, statics)) = breath {
+        use wal_payload_common::outputs::mem;
+        wal_payload_common::outputs::poll("drakon", 16, move || {
+            let class = mem::ptr(class_slot);
+            let fields = if class != 0 { mem::ptr(class + statics) } else { 0 };
+            for p in 0..2 {
+                let on = fields != 0 && mem::u8(fields + p) != 0;
+                wal_payload_common::outputs::set(["P1_GunMotor", "P2_GunMotor"][p], on as i32);
+            }
+        });
+    }
+}
+
 pub fn init() {
     static DONE: AtomicBool = AtomicBool::new(false);
     if DONE.swap(true, Ordering::SeqCst) {
@@ -132,6 +207,7 @@ pub fn init() {
     } else {
         log!("drakon: InputsManager not found, no guns");
     }
+    outputs(i, game);
     FRAME_COUNT.store(i.icall("UnityEngine.Time::get_frameCount()"), Ordering::Relaxed);
     let input = i.class(i.image("UnityEngine.InputLegacyModule"), "UnityEngine", "Input");
     let keys = [

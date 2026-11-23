@@ -9264,6 +9264,11 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Drakon: Realm Keepers (`drakon.rs`, IL2CPP: U-Shoot's plugin's hooks as prefixes,
+  `mono::prefix_at` on the methods' native code, MSVC prologues): `Turret.FireBullet` a bullet
+  (the turret's `arcadePlayer.id`: `P1_CtmRecoil`), `HudWindow.OnPlayerHitByEnemy(_, player)` a
+  hit; the turrets' fire breath (the flamethrower: `P1_GunMotor`), the two static flags
+  `get_FireBreathEnabled` reads (found in its code).
 * Zombie Crisis (`zombiecrisis.rs`, the `GamePort` object's slots watched in a game): 25 / 26
   the start lamps, 45 / 46 the guns' recoil (called each frame: the custom recoil as one
   turns on).
