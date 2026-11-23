@@ -16,6 +16,10 @@
 //!   player's 640x480 screen: replaced by the pointer (`gun_read`), off screen (-1: the player
 //!   takes cover and reloads) outside the screen or with the `cover` control.
 //!
+//! - Network outputs (`WAL_OUTPUTS`): `iob_set_gun_reaction(gun)` (a recoil) pulses
+//!   `P<gun + 1>_GunRecoil`, as each trigger pull does after `iob_auto_gun_reaction_on(gun)`, `iob_put_start_lamp(bits)` the start lamps (`P1_LmpStart` bit 0,
+//!   `P2_LmpStart` bit 1).
+//!
 //! Native inputs for `native_map`: `test service coin start trigger option cover`.
 
 use std::ffi::{c_char, c_void};
@@ -135,7 +139,49 @@ pub extern "C" fn le3_iob_zero() -> i32 {
     0
 }
 
-/// The functions without a result (lamps, LEDs, bass shakers, coin counter, gun reactions).
+/// `iob_put_start_lamp(bits)`: the players' start lamps.
+#[unsafe(no_mangle)]
+pub extern "C" fn le3_iob_start_lamp(bits: u8) {
+    static LOGGED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    if LOGGED.fetch_or(1 << (bits & 31), std::sync::atomic::Ordering::Relaxed) & 1 << (bits & 31) == 0 {
+        log!("le3: iob_put_start_lamp({bits:#04x})");
+    }
+    wal_payload_common::outputs::set("P1_LmpStart", (bits & 1) as i32);
+    wal_payload_common::outputs::set("P2_LmpStart", (bits >> 1 & 1) as i32);
+}
+
+/// Guns whose board recoils on each trigger pull (bit n gun n).
+static AUTO_REACTION: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// `iob_auto_gun_reaction_on(gun)` / `_off(gun)`: the board recoils on each trigger pull.
+#[unsafe(no_mangle)]
+pub extern "C" fn le3_iob_auto_reaction_on(gun: i32) {
+    log!("le3: iob_auto_gun_reaction_on({gun})");
+    AUTO_REACTION.fetch_or(1 << (gun & 31), std::sync::atomic::Ordering::Relaxed);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn le3_iob_auto_reaction_off(gun: i32) {
+    log!("le3: iob_auto_gun_reaction_off({gun})");
+    AUTO_REACTION.fetch_and(!(1 << (gun & 31)), std::sync::atomic::Ordering::Relaxed);
+}
+
+/// `iob_set_gun_reaction(gun)`: a recoil of that gun; 0 done (the game asks again while not).
+#[unsafe(no_mangle)]
+pub extern "C" fn le3_iob_gun_reaction(gun: i32) -> i32 {
+    static LOGGED: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    if LOGGED.fetch_or(1 << (gun & 31), std::sync::atomic::Ordering::Relaxed) & 1 << (gun & 31) == 0 {
+        log!("le3: iob_set_gun_reaction({gun})");
+    }
+    match gun {
+        0 => wal_payload_common::outputs::pulse("P1_GunRecoil", 50),
+        1 => wal_payload_common::outputs::pulse("P2_GunRecoil", 50),
+        _ => {}
+    }
+    0
+}
+
+/// The functions without a result (LEDs, bass shakers, coin counter, automatic gun reactions).
 #[unsafe(no_mangle)]
 pub extern "C" fn le3_iob_nothing() {}
 
@@ -198,6 +244,10 @@ pub unsafe extern "C" fn le3_iob_get_digital_in(out: *mut DigitalIn) -> i32 {
             for (i, on) in now.into_iter().enumerate() {
                 if on && !io.held[player][i] {
                     io.counts[player][i] = io.counts[player][i].wrapping_add(1);
+                    // the board's automatic recoil on each trigger pull (`iob_auto_gun_reaction_on`)
+                    if i == 1 && AUTO_REACTION.load(std::sync::atomic::Ordering::Relaxed) >> player & 1 != 0 {
+                        le3_iob_gun_reaction(player as i32);
+                    }
                 }
             }
             io.held[player] = now;

@@ -71,8 +71,8 @@ EXPORTS
     ; iob.dll's (Lethal Enforcers 3, le3.rs)
     "?iob_auto_ex_in_out_check_off@@YAXXZ" = le3_iob_nothing
     "?iob_auto_ex_in_out_check_on@@YAXXZ" = le3_iob_nothing
-    "?iob_auto_gun_reaction_off@@YAXH@Z" = le3_iob_nothing
-    "?iob_auto_gun_reaction_on@@YAXH@Z" = le3_iob_nothing
+    "?iob_auto_gun_reaction_off@@YAXH@Z" = le3_iob_auto_reaction_off
+    "?iob_auto_gun_reaction_on@@YAXH@Z" = le3_iob_auto_reaction_on
     "?iob_boot_wait@@YAHXZ" = le3_iob_one
     "?iob_check_coinctr_enable@@YAHXZ" = le3_iob_one
     "?iob_check_error@@YAIXZ" = le3_iob_zero
@@ -94,7 +94,7 @@ EXPORTS
     "?iob_modify_gun_reaction_init@@YAXXZ" = le3_iob_nothing
     "?iob_put_ckl@@YAXE@Z" = le3_iob_nothing
     "?iob_put_ex_led@@YAXE@Z" = le3_iob_nothing
-    "?iob_put_start_lamp@@YAXE@Z" = le3_iob_nothing
+    "?iob_put_start_lamp@@YAXE@Z" = le3_iob_start_lamp
     "?iob_reset_now_gaming@@YAXXZ" = le3_iob_nothing
     "?iob_set_1p_bass_shaker@@YAHEEEE@Z" = le3_iob_one
     "?iob_set_1p_bass_shaker_init@@YAXXZ" = le3_iob_nothing
@@ -107,7 +107,7 @@ EXPORTS
     "?iob_set_frled@@YAHEEEE@Z" = le3_iob_one
     "?iob_set_frled_init@@YAXXZ" = le3_iob_nothing
     "?iob_set_game_continue_start@@YAXXZ" = le3_iob_nothing
-    "?iob_set_gun_reaction@@YAHH@Z" = le3_iob_one
+    "?iob_set_gun_reaction@@YAHH@Z" = le3_iob_gun_reaction
     "?iob_set_gun_reaction_init@@YAXH@Z" = le3_iob_nothing
     "?iob_set_light@@YAHEE@Z" = le3_iob_one
     "?iob_set_light_init@@YAXXZ" = le3_iob_nothing

@@ -9138,7 +9138,11 @@ else the profile's file name (`sega-racing-classic`).
   qumo board report (`qumo.rs`, the game's `hid_for_qumo` layout: `P1_GunRecoil` /
   `P2_GunRecoil` 0-3, `P1_AirFront`, `P2_AirFront`, `P1_AirRear`, `P2_AirRear`, `Blower_Level`,
   `LmpEstop`, `P1_Lmp_R` / `_B`, `P2_Lmp_R` / `_B`); Men In Black's shell message 511
-  (`shell_mib.rs`: player from 1, 0, on / off, 0: `P1_GunRecoil`...).
+  (`shell_mib.rs`: player from 1, 0, on / off, 0: `P1_GunRecoil`...); Lethal Enforcers 3's
+  `iob.dll` (`le3.rs`): `iob_put_start_lamp(bits)` (`P1_LmpStart` bit 0, `P2_LmpStart` bit 1),
+  `iob_set_gun_reaction(gun)` (the game's recoil request, `0x51def0`, asked again until it
+  returns 0) and each trigger pull after `iob_auto_gun_reaction_on(gun)` pulse
+  `P<gun + 1>_GunRecoil` (recoil not seen headless: no game started).
 * Verified headless: SEGA Racing Classic, a client on port 8000: `mame_start =
   sega-racing-classic`, its 24 JVS outputs (the start lamp `lamp2` blinking in the attract),
   `RawDrive` the Model 2 drive commands; Storm Racer G's PWM lights and lamps in its attract;
