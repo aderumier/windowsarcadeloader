@@ -72,6 +72,7 @@ OUTPUTS = {
     "skull-of-shadow": "gun motors (recoil)",
     "tomb-raider": "start lamps, recoil motors",
     "rabbids-hollywood": "start lamps, recoil motors",
+    "point-blank-x": "start and gun LEDs, recoil",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",

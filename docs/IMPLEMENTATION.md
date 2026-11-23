@@ -9231,6 +9231,9 @@ else the profile's file name (`sega-racing-classic`).
   Rampage, Spider-Man): `SetMotorPwmDutyCycle(motor, duty, ms)` (0..3 each player's big gun
   motor `P1_GunRecoil`, 4..7 its small one `P1_GunMotor`, either `P1_CtmRecoil`, for its
   duration), `Set` / `ClrPlayerButtonLight` (the start lights' bit mask: `P1_LmpStart`...).
+* Point Blank X (`payload-namcoes3x` `bnusio.rs`, its USIO): `usio_SetGout` 15 / 16 the start
+  LEDs, 9 / 10 the guns' LEDs, 5 / 6 the old guns' recoil; `gun_StrikeOnce(player)` the new
+  guns' recoil (`P1_GunRecoil`, `P1_CtmRecoil`).
 * Skull of Shadow (`boys.rs`): the PC's HID reports (a report id, then the `TopUart.ini`
   `Write` places): bytes 12..15 each gun's shaker motor (`MotorShakeGun<n>`: `P1_GunMotor`,
   `P1_CtmRecoil` while it runs).
@@ -9318,7 +9321,7 @@ else the profile's file name (`sega-racing-classic`).
   ball gun motor while shooting, bonus weapon lamps, seat shaker); Mech Tornado and Fire Hero
   (water guns, motors, shakers, lamps, pump); Mars Sortie (213 recoil pulses, start lamps,
   lasers); Skull of Shadow (its gun motor a shot, 89); Tomb Raider and Rabbids Hollywood (a gun
-  motor pulse a shot, the start lights). Not seen: Wisdom Zombies
+  motor pulse a shot, the start lights); Point Blank X (139 recoil pulses, start and gun LEDs). Not seen: Wisdom Zombies
   (only its bonus lamp in the attract), Top Gun 2 (its board never opened in the headless run).
 
 ## 7. Adding a system

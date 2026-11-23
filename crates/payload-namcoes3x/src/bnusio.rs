@@ -158,6 +158,26 @@ fn gun_axis(v: i16, flip: bool) -> u16 {
     ((f * 1023.0).round().clamp(1.0, 1023.0) as u16) << 6
 }
 
+/// Point Blank X's general outputs (`BNUsioController`), to the network outputs: 15 / 16 the
+/// start LEDs (`P1_LmpStart`), 9 / 10 the guns' LEDs (`P1_LmpGun`), 5 / 6 the old guns' recoil
+/// (`P1_GunRecoil`, `P1_CtmRecoil`); the new guns' recoil is `gun_StrikeOnce`.
+fn gout_output(channel: u8, value: u8) {
+    use wal_payload_common::outputs::set;
+    let on = (value != 0) as i32;
+    match channel {
+        15 => set("P1_LmpStart", on),
+        16 => set("P2_LmpStart", on),
+        9 => set("P1_LmpGun", on),
+        10 => set("P2_LmpGun", on),
+        5 | 6 => {
+            let p = (channel - 5) as usize;
+            set(["P1_GunRecoil", "P2_GunRecoil"][p], on);
+            set(["P1_CtmRecoil", "P2_CtmRecoil"][p], on);
+        }
+        _ => {}
+    }
+}
+
 /// Samples the virtual sticks: once per game frame (`usio_Communication`).
 fn update(board: &mut Board) {
     let toggle = flag("WAL_NAMCOES3_TEST_TOGGLE", true);
@@ -295,6 +315,7 @@ export! {
                 *g = value;
             }
         });
+        gout_output(channel, value);
         0
     }
     fn usio_GetGout(channel: u8) -> u8 { with_board(|b| b.gout.get(channel as usize).copied().unwrap_or(0)) }
@@ -336,5 +357,12 @@ export! {
     fn gun_IsInRange(player: i32) -> i32 { gun(player).in_range as i32 }
     fn gun_IsLedChecked(player: i32, led: i32) -> i32 { 1 }
     fn gun_GetLed(player: i32) -> u16 { 0 }
-    fn gun_StrikeOnce(player: i32, kind: u8) -> i32 { 0 }
+    fn gun_StrikeOnce(player: i32, kind: u8) -> i32 {
+        // a new gun's recoil (player from 1)
+        if let Some(n) = [("P1_GunRecoil", "P1_CtmRecoil"), ("P2_GunRecoil", "P2_CtmRecoil")].get((player - 1) as usize) {
+            wal_payload_common::outputs::pulse(n.0, 50);
+            wal_payload_common::outputs::pulse(n.1, 50);
+        }
+        0
+    }
 }
