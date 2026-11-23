@@ -601,8 +601,49 @@ unsafe extern "system" fn get_proc_address(module: HMODULE, name: *const u8) -> 
         if game() == Game::CrazyRide && wal_payload_common::outputs::enabled() && let Some(f) = unsafe { crazy_ride_light(module, n, real) } {
             return f;
         }
+        if matches!(game(), Game::RaccoonRampage | Game::ElevatorActionInvasion)
+            && wal_payload_common::outputs::enabled()
+            && let Some(f) = unsafe { gun_output(module, n, real) }
+        {
+            return f;
+        }
     }
     unsafe { real(module, name) }
+}
+
+/// The guns' outputs of the gun cabinets (`UsbPluginsDll.dll`: Raccoon Rampage, Elevator Action
+/// Invasion), to the network outputs and then the DLL's own function: `BIND_SetGunShock(player,
+/// on)` the recoil (`P1_GunRecoil`, `P1_CtmRecoil`), `BIND_SetGunShakeVal(player, level)` the
+/// gun's shaker (`P1_GunMotor`).
+static REAL_GUN: [AtomicUsize; 2] = [const { AtomicUsize::new(0) }; 2];
+
+unsafe fn gun_output(module: HMODULE, name: &[u8], real: unsafe extern "system" fn(HMODULE, *const u8) -> usize) -> Option<usize> {
+    let i = match name {
+        b"BIND_SetGunShock" => 0,
+        b"BIND_SetGunShakeVal" => 1,
+        _ => return None,
+    };
+    let f = unsafe { real(module, name.iter().copied().chain([0]).collect::<Vec<u8>>().as_ptr()) };
+    if f == 0 {
+        return None;
+    }
+    REAL_GUN[i].store(f, Ordering::Relaxed);
+    unsafe extern "C" fn shock(player: i32, on: i32) -> i32 {
+        if let Some(p) = usize::try_from(player).ok().filter(|p| *p < 4) {
+            wal_payload_common::outputs::set(["P1_GunRecoil", "P2_GunRecoil", "P3_GunRecoil", "P4_GunRecoil"][p], (on != 0) as i32);
+            wal_payload_common::outputs::set(["P1_CtmRecoil", "P2_CtmRecoil", "P3_CtmRecoil", "P4_CtmRecoil"][p], (on != 0) as i32);
+        }
+        let f: unsafe extern "C" fn(i32, i32) -> i32 = unsafe { std::mem::transmute(REAL_GUN[0].load(Ordering::Relaxed)) };
+        unsafe { f(player, on) }
+    }
+    unsafe extern "C" fn shake(player: i32, level: i32) -> i32 {
+        if let Some(p) = usize::try_from(player).ok().filter(|p| *p < 4) {
+            wal_payload_common::outputs::set(["P1_GunMotor", "P2_GunMotor", "P3_GunMotor", "P4_GunMotor"][p], level);
+        }
+        let f: unsafe extern "C" fn(i32, i32) -> i32 = unsafe { std::mem::transmute(REAL_GUN[1].load(Ordering::Relaxed)) };
+        unsafe { f(player, level) }
+    }
+    Some(if i == 0 { shock as *const () as usize } else { shake as *const () as usize })
 }
 
 /// Crazy Ride's cabinet lights (`UsbPluginsDll_R.dll`), to the network outputs and then the

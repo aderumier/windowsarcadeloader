@@ -73,6 +73,8 @@ OUTPUTS = {
     "tomb-raider": "start lamps, recoil motors",
     "rabbids-hollywood": "start lamps, recoil motors",
     "point-blank-x": "start and gun LEDs, recoil",
+    "raccoon-rampage": "recoil, gun shakers",
+    "elevator-action-invasion": "recoil, gun shakers (not seen)",
     "sin": "recoil",
     "storm-racer-g": "lamps, PWM lights",
     "storm-rider": "lamps, PWM lights",

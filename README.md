@@ -358,10 +358,10 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `after-dark-2-3` | After Dark (2.3) | unis | user ok (2026-11-03), 2 guns; 2026-11-07 user: operator menu, sound without saturation |  |  | not in the test |  |
 | `night-hunter-after-dark-chapter-ii` | Night Hunter: After Dark Chapter II | unis | user 100% (2026-11-03), 2 guns |  | recoil, gun lights, air jets, wind | not in the test |  |
 | `night-hunter-after-dark-chapter-ii-3-0-2` | Night Hunter: After Dark Chapter II (3.0.2) | unis | user 100% (2026-11-03), 2 guns, 4 missions selectable (Lost Trails) |  | recoil, gun lights, air jets, wind | not in the test |  |
-| `raccoon-rampage` | Raccoon Rampage | unis | user 100% (2026-11-05), 4 guns |  |  | not in the test |  |
+| `raccoon-rampage` | Raccoon Rampage | unis | user 100% (2026-11-05), 4 guns |  | recoil, gun shakers | not in the test |  |
 | `crazy-ride` | Crazy Ride | unis | user 100% (2026-11-05), wheel, force feedback | cabinet link | lights | not in the test |  |
 | `crazy-speed-arcade` | Crazy Speed Arcade | unis | user 100% (2026-11-05), wheel |  |  | not in the test |  |
-| `elevator-action-invasion` | Elevator Action Invasion | unis | user 100% (2026-11-05), 2 guns, virtual elevator doors and bezel, every level unlocked |  |  | not in the test |  |
+| `elevator-action-invasion` | Elevator Action Invasion | unis | user 100% (2026-11-05), 2 guns, virtual elevator doors and bezel, every level unlocked |  | recoil, gun shakers (not seen) | not in the test |  |
 | `wicked-tuna` | Wicked Tuna | unis | user 100% (2026-11-05), 4 rods on light guns or pads |  |  | not in the test |  |
 | `fantasy-soccer` | Fantasy Soccer | unis | user 100% (2026-11-05), 4 players |  |  | not in the test |  |
 | `mighty-moto` | Mighty Moto | unis | user 100% (2026-11-05) |  |  | not in the test |  |

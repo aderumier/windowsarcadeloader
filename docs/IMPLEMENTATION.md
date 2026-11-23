@@ -9231,6 +9231,10 @@ else the profile's file name (`sega-racing-classic`).
   Rampage, Spider-Man): `SetMotorPwmDutyCycle(motor, duty, ms)` (0..3 each player's big gun
   motor `P1_GunRecoil`, 4..7 its small one `P1_GunMotor`, either `P1_CtmRecoil`, for its
   duration), `Set` / `ClrPlayerButtonLight` (the start lights' bit mask: `P1_LmpStart`...).
+* The UNIS gun cabinets (`usbplugins.rs`: Raccoon Rampage, Elevator Action Invasion):
+  `UsbPluginsDll.dll`'s `BIND_SetGunShock(player, on)` (player from 0: `P1_GunRecoil`,
+  `P1_CtmRecoil`) and `BIND_SetGunShakeVal(player, level)` (`P1_GunMotor`) wrapped, sent, then
+  the DLL's own.
 * Point Blank X (`payload-namcoes3x` `bnusio.rs`, its USIO): `usio_SetGout` 15 / 16 the start
   LEDs, 9 / 10 the guns' LEDs, 5 / 6 the old guns' recoil; `gun_StrikeOnce(player)` the new
   guns' recoil (`P1_GunRecoil`, `P1_CtmRecoil`).
@@ -9321,7 +9325,9 @@ else the profile's file name (`sega-racing-classic`).
   ball gun motor while shooting, bonus weapon lamps, seat shaker); Mech Tornado and Fire Hero
   (water guns, motors, shakers, lamps, pump); Mars Sortie (213 recoil pulses, start lamps,
   lasers); Skull of Shadow (its gun motor a shot, 89); Tomb Raider and Rabbids Hollywood (a gun
-  motor pulse a shot, the start lights); Point Blank X (139 recoil pulses, start and gun LEDs). Not seen: Wisdom Zombies
+  motor pulse a shot, the start lights); Point Blank X (139 recoil pulses, start and gun LEDs);
+  Raccoon Rampage (its recoils). Not seen: Elevator Action Invasion (its shakers at 0 in the
+  attract). Not seen: Wisdom Zombies
   (only its bonus lamp in the attract), Top Gun 2 (its board never opened in the headless run).
 
 ## 7. Adding a system
