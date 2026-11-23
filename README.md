@@ -42,7 +42,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `mario-kart-arcade-gp-dx` | Mario Kart Arcade GP DX (Namco ES3) | namcoes3 | works (user: 100%); Namcam and Banapass card reader not implemented; cabinet link across PCs | cabinet link | lamps, LEDs (not seen) | not in the test |  |
 | `point-blank-x` | Point Blank X | namcoes3 | works (headless tests: coins, start, aim and shots, operator menu), 2 guns |  | lamps (JVS), start and gun LEDs, recoil | not in the test |  |
 | `mach-storm` | Mach Storm | namcoes3 | works (user: 100%) |  | lamps (JVS) | not in the test |  |
-| `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab |  | lamps (JVS) | not in the test |  |
+| `lost-land-adventure` | Lost Land Adventure | namcoes3 | works (user: 100%), 2 guns; test menu behind the game: alt-tab |  | lamps, recoil | not in the test |  |
 | `time-crisis-5` | Time Crisis 5 | namcoes3 | works (headless tests: coins, pedals, aim and shots, tutorial, operator menu), 1 gun |  | lamps (JVS) | not in the test |  |
 | `tekken-7` | Tekken 7 | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet |  | lamps (JVS) | not in the test |  |
 | `tekken-7-fated-retribution` | Tekken 7 Fated Retribution | namcoes3 | works (user: 100%, online with Banapass cards), 1 player per cabinet |  | lamps (JVS) | not in the test |  |

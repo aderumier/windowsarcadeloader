@@ -14,6 +14,9 @@ drives:
   g: G
 
 env:
+  # the JVS outputs' meaning, for the network outputs (watched in a game: the guns' recoil
+  # pulsing with the shots, the start lamps lit with credits until the player plays)
+  WAL_OUTPUTS_LAMPS: "0:P1_GunRecoil,1:P2_GunRecoil,2:P1_LmpStart,3:P2_LmpStart"
   # The game's language (the operator menu's otherwise): JPN, ENG, CHN, ITA, SPA, RUS, POR, IND,
   # THA. JPN: the English patch's dumps carry the English texts and textures in the JPN
   # files (the launcher adds -voicelanguage=English(US)); ENG: the original international
