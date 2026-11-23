@@ -127,3 +127,71 @@ pub(crate) fn resend() {
         send(&name, value);
     }
 }
+
+/// Reading the game's memory for its outputs (the values DemulShooter reads, at the known
+/// builds' addresses): every read checked first, 0 when the address is not readable.
+#[cfg(windows)]
+pub mod mem {
+    /// The game executable's image base.
+    pub fn base() -> usize {
+        unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(std::ptr::null()) as usize }
+    }
+
+    pub fn u8(addr: usize) -> u8 {
+        if crate::crash::readable(addr, 1) { unsafe { std::ptr::read_volatile(addr as *const u8) } } else { 0 }
+    }
+
+    pub fn u32(addr: usize) -> u32 {
+        if crate::crash::readable(addr, 4) { unsafe { std::ptr::read_unaligned(addr as *const u32) } } else { 0 }
+    }
+
+    pub fn f32(addr: usize) -> f32 {
+        f32::from_bits(u32(addr))
+    }
+
+    /// The pointer at `addr`, then the pointer at each `+ offset` in turn (DemulShooter's
+    /// `ReadPtrChain`); 0 at the first null pointer.
+    pub fn chain(addr: usize, offsets: &[usize]) -> u32 {
+        let mut p = u32(addr);
+        for o in offsets {
+            if p == 0 {
+                return 0;
+            }
+            p = u32(p as usize + o);
+        }
+        p
+    }
+}
+
+/// Runs `step` every `ms` milliseconds on a thread of its own while the outputs are on (the
+/// games whose outputs are read from their memory).
+pub fn poll(name: &'static str, ms: u64, mut step: impl FnMut() + Send + 'static) {
+    if !enabled() {
+        return;
+    }
+    log!("outputs: {name} read every {ms} ms");
+    std::thread::spawn(move || {
+        loop {
+            step();
+            std::thread::sleep(Duration::from_millis(ms));
+        }
+    });
+}
+
+/// A value that pulses an output when it goes down (DemulShooter's custom recoil on the ammo
+/// count, damage on the life): `update` with the new value, `None` while it is not followed.
+#[derive(Default)]
+pub struct Falling {
+    last: Option<i64>,
+}
+
+impl Falling {
+    pub fn update(&mut self, value: Option<i64>, name: &'static str) {
+        if let (Some(v), Some(last)) = (value, self.last)
+            && v < last
+        {
+            pulse(name, 50);
+        }
+        self.last = value;
+    }
+}

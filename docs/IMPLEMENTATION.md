@@ -9120,6 +9120,11 @@ else the profile's file name (`sega-racing-classic`).
   on `RawDrive` (80 00 01, 81 7F 7F, 83 7F 00 once, then 84 the torque: 0x80 - force × 127,
   the checksum the three bytes' sum & 0x7F; no torque at the end), unless the game sends a
   drive board's own bytes.
+* Games read in memory (DemulShooter's outputs, `outputs::mem` / `poll` / `Falling`): only for
+  the builds DemulShooter knows (its `_KnownMd5Prints`, compared with the dumps' executables);
+  its `Ctm` outputs are computed from the game's state (`P1_CtmRecoil` when the ammo goes down,
+  `P1_Damaged` when the life does), its plugin based games (Unity: Mech Tornado, Wild West
+  Shoot Out, Point Blank X) not ported.
 * Names: `RawLamps`, `RawLamps1`... (a JVS board's general purpose output bytes) and `lamp0`,
   `lamp1`... (output n + 1, bit 7 - n % 8 of byte n / 8); `RawDrive` (each byte to a Sega drive
   board); the games' own (U-Shoot's names: `P1_GunRecoil`, `P1_LmpStart`...).
@@ -9142,7 +9147,10 @@ else the profile's file name (`sega-racing-classic`).
   `iob.dll` (`le3.rs`): `iob_put_start_lamp(bits)` (`P1_LmpStart` bit 0, `P2_LmpStart` bit 1),
   `iob_set_gun_reaction(gun)` (the game's recoil request, `0x51def0`, asked again until it
   returns 0) and each trigger pull after `iob_auto_gun_reaction_on(gun)` pulse
-  `P<gun + 1>_GunRecoil` (recoil not seen headless: no game started); Bishi Bashi Channel's
+  `P<gun + 1>_GunRecoil` (not called by this build's settings), and read from the game every
+  16 ms (DemulShooter's addresses for game.exe 2005-04-15): head / foot / front lamps, each
+  player's `P1_Ammo`, `P1_Life`, `P1_Clip`, `P1_CtmRecoil` when the ammo goes down,
+  `P1_Damaged` when the life does; Bishi Bashi Channel's
   BMPU start LEDs (`P1_LmpStart`, `P2_LmpStart`), Gashaaaan's `iob_f24_set_lamp_status` /
   `set_black_light_status` (`lamp<n>`, `blacklight<n>`), the PJEI board's lamps (Otomedius,
   Winning Eleven 2008: `lamp0`-`lamp7`).

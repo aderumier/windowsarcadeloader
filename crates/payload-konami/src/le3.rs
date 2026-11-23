@@ -146,8 +146,8 @@ pub extern "C" fn le3_iob_start_lamp(bits: u8) {
     if LOGGED.fetch_or(1 << (bits & 31), std::sync::atomic::Ordering::Relaxed) & 1 << (bits & 31) == 0 {
         log!("le3: iob_put_start_lamp({bits:#04x})");
     }
-    wal_payload_common::outputs::set("P1_LmpStart", (bits & 1) as i32);
-    wal_payload_common::outputs::set("P2_LmpStart", (bits >> 1 & 1) as i32);
+    wal_payload_common::outputs::set("P1_LmpStart", (bits >> 1 & 1) as i32);
+    wal_payload_common::outputs::set("P2_LmpStart", (bits & 1) as i32);
 }
 
 /// Guns whose board recoils on each trigger pull (bit n gun n).
@@ -446,6 +446,52 @@ fn patch(at: usize, expected: &[u8], new: &[u8], what: &str) {
     }
 }
 
+/// The outputs read from the game (game.exe 2005-04-15, DemulShooter's addresses): the output
+/// state at [+0x294150] + 0xE4BC (start lamps bits 1 / 0, head lamps, +2 / +3 foot, +12 / +13
+/// front), the scene (+0x294234, 17 in a game), the players playing (+0x2945D0 / D4) and their
+/// records ([+0x29423C + 0x38C / 0x390]: the weapon [+0x40]+0x15C → +0x24, its ammo → +4 ×
+/// weapon → +0xE8, the life +0x6C).
+fn outputs() -> impl FnMut() + Send {
+    use wal_payload_common::outputs::{Falling, mem, set};
+    let mut ammo: [Falling; 2] = Default::default();
+    let mut life: [Falling; 2] = Default::default();
+    let mut weapon = [0u32; 2];
+    move || {
+        let base = mem::base();
+        let out = mem::u32(base + 0x294150) as usize;
+        if out != 0 {
+            let o = out + 0xE4BC;
+            set("P1_LmpHead", (mem::u8(o + 1) >> 1 & 1) as i32);
+            set("P2_LmpHead", (mem::u8(o + 1) & 1) as i32);
+            set("P1_LmpFoot", mem::u8(o + 2) as i32);
+            set("P2_LmpFoot", mem::u8(o + 3) as i32);
+            set("P1_LmpFront", mem::u8(o + 12) as i32);
+            set("P2_LmpFront", mem::u8(o + 13) as i32);
+        }
+        let in_game = mem::u8(base + 0x294234) == 17;
+        for p in 0..2 {
+            let n = p + 1;
+            let playing = in_game && mem::u8(base + 0x2945D0 + 4 * p) == 1;
+            let info = if playing { mem::u32(base + 0x29423C + 0x38C + 4 * p) as usize } else { 0 };
+            let (mut a, mut l) = (None, None);
+            if info != 0 {
+                let w = mem::chain(info + 0x40, &[0x15C, 0x24]);
+                // the ammo of the weapon held since the last read (a change of weapon is no shot)
+                if w == weapon[p] {
+                    a = Some(mem::chain(info + 0x40, &[0x15C, 4 * w as usize, 0xE8]) as i32 as i64);
+                }
+                weapon[p] = w;
+                l = Some(mem::u32(info + 0x6C) as i32 as i64);
+            }
+            ammo[p].update(a, ["P1_CtmRecoil", "P2_CtmRecoil"][p]);
+            life[p].update(l, ["P1_Damaged", "P2_Damaged"][p]);
+            set(&format!("P{n}_Ammo"), a.unwrap_or(0) as i32);
+            set(&format!("P{n}_Clip"), (a.unwrap_or(0) > 0) as i32);
+            set(&format!("P{n}_Life"), l.unwrap_or(0) as i32);
+        }
+    }
+}
+
 /// This payload is the game's iob.dll, beside gunio.dll.
 pub fn detected(module: windows_sys::Win32::Foundation::HINSTANCE) -> bool {
     crate::file_name(module).eq_ignore_ascii_case("iob.dll") && unsafe { !GetModuleHandleA(c"gunio.dll".as_ptr().cast()).is_null() }
@@ -510,5 +556,6 @@ pub fn init() {
         crate::two_screens::init_first_only("le3");
     }
     log!("le3: {players} player(s), {screens} screen(s) shown");
+    wal_payload_common::outputs::poll("le3", 16, outputs());
     log!("le3: I/O board and gun boards emulated (Lethal Enforcers 3)");
 }
