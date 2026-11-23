@@ -14,6 +14,9 @@
 //!   0x4: test), `ST:<a>,<b>,<c>` the vacuum guns' board status (not 0: error 3002)
 //! - `:V,<version>` the firmware's version
 //!
+//! The game's `SW:`, `MO:`, `SO:` lines: its lamps, motors, solenoids, to the network outputs
+//! ([`outputs`]).
+//!
 //! The game maps a reading to its 1920x1080 picture with the guns' calibration, in its board
 //! object (`[[exe + WAL_SEGANU_LMAIO_OBJECT]]`): `+0x5c` x min, `+0x60` y min, `+0x64` x max,
 //! `+0x68` y max: x = (a - 256 - min) / (max - min) * 1920, y = (1535 - b - 256 - min) /
@@ -71,6 +74,7 @@ pub(crate) fn init() {
 /// The game's packet: the coins it took, then the board's state.
 fn packet(data: &[u8]) -> Vec<u8> {
     let text = String::from_utf8_lossy(data);
+    outputs(&text);
     match text.split("CO:T,").nth(1).and_then(|s| s.split(|c: char| !c.is_ascii_digit()).next()).and_then(|n| n.parse::<u32>().ok()) {
         Some(n) => {
             if !TAKING.swap(true, Ordering::Relaxed) {
@@ -81,6 +85,34 @@ fn packet(data: &[u8]) -> Vec<u8> {
         None => {}
     }
     state()
+}
+
+/// The game's outputs in its packet, to the network outputs: `SW:<p1>,<p2>` the start
+/// buttons' lamps (blinking with credits: `P1_LmpStart`), `MO:<p1>,<p2>` the vacuum guns'
+/// motors (1 while sucking, 5 at an event: `P1_GunMotor`, a custom recoil as it starts),
+/// `SO:<p1>,<p2>` the solenoids (`P1_Solenoid`, never set in a game seen).
+fn outputs(text: &str) {
+    use wal_payload_common::outputs::{enabled, set, value};
+    if !enabled() {
+        return;
+    }
+    for line in text.lines() {
+        let Some((key, values)) = line.split_once(':') else { continue };
+        let v: Vec<i32> = values.split(',').map(|v| i32::from_str_radix(v.trim(), 16).unwrap_or(0)).collect();
+        let name = match key {
+            "SW" => "LmpStart",
+            "MO" => "GunMotor",
+            "SO" => "Solenoid",
+            _ => continue,
+        };
+        for (p, v) in v.iter().take(2).enumerate() {
+            let n = format!("P{}_{name}", p + 1);
+            if key == "MO" && *v != 0 && value(&n).unwrap_or(0) == 0 {
+                set(&format!("P{}_CtmRecoil", p + 1), 1);
+            }
+            set(&n, *v);
+        }
+    }
 }
 
 /// The guns' calibration set to the readings' span.
