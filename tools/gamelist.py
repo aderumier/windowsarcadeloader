@@ -76,6 +76,7 @@ OUTPUTS = {
     "raccoon-rampage": "recoil, gun shakers",
     "wild-west-shoot-out": "recoil, damage, life",
     "galaxy-rangers": "recoil, damage, life",
+    "happy-water-sprite-2": "lamps, water guns, big guns, pump, tickets",
     "dino-invasion": "recoil, ammo",
     "mission-impossible-arcade": "recoil",
     "elevator-action-invasion": "recoil, gun shakers (not seen)",

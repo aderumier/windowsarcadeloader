@@ -9261,6 +9261,9 @@ else the profile's file name (`sega-racing-classic`).
 * Point Blank X (`payload-namcoes3x` `bnusio.rs`, its USIO): `usio_SetGout` 15 / 16 the start
   LEDs, 9 / 10 the guns' LEDs, 5 / 6 the old guns' recoil; `gun_StrikeOnce(player)` the new
   guns' recoil (`P1_GunRecoil`, `P1_CtmRecoil`).
+* Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
+  a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
+  start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
 * Skull of Shadow (`boys.rs`): the PC's HID reports (a report id, then the `TopUart.ini`
   `Write` places): bytes 12..15 each gun's shaker motor (`MotorShakeGun<n>`: `P1_GunMotor`,
   `P1_CtmRecoil` while it runs).
@@ -9355,7 +9358,8 @@ else the profile's file name (`sega-racing-classic`).
   lasers); Skull of Shadow (its gun motor a shot, 89); Tomb Raider and Rabbids Hollywood (a gun
   motor pulse a shot, the start lights); Point Blank X (139 recoil pulses, start and gun LEDs);
   Raccoon Rampage (its recoils); Wild West Shoot Out (43 recoil pulses, damage, life, credits);
-  Galaxy Rangers (about 100 recoil pulses, damage, life, credits);
+  Galaxy Rangers (about 100 recoil pulses, damage, life, credits); Happy Water Sprite II (its
+  game LED, start LEDs, pump, water gun);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the

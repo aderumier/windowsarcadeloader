@@ -97,6 +97,45 @@ fn frame(cmd: u8, data: &[u8]) -> Vec<u8> {
 /// Players paying out tickets (cmd 4 on).
 static TICKETS: [AtomicBool; 2] = [AtomicBool::new(false), AtomicBool::new(false)];
 
+/// The game's outputs (its `CommCMD` classes: `data[0]` the F0 / F1 byte, then the values), to
+/// the network outputs, U-Shoot's names: 8 a player's water gun (`P1_WaterFire`), 16 its big gun
+/// (`P1_BigGun`), 9 the pump (`WaterPump`), 4 its ticket feeder (`P1_TicketFeeder`), 13 a key's
+/// LED (key 0 / 1 the start buttons: `P1_LmpStart`, the mode), 17 the game LED
+/// (`LmpUpperCtrlPanel`), 12 the effect LED (`LmpPanel`), 33 the seat's vibration
+/// (`VibrationSeat`).
+fn outputs(cmd: u8, data: &[u8]) {
+    use wal_payload_common::outputs::set;
+    let v = |i: usize| data.get(i).copied().unwrap_or(0) as i32;
+    let player = |i: usize| data.get(i).map(|p| *p as usize).filter(|p| *p < 2);
+    match cmd {
+        8 => {
+            if let Some(p) = player(1) {
+                set(["P1_WaterFire", "P2_WaterFire"][p], v(2));
+            }
+        }
+        16 => {
+            if let Some(p) = player(1) {
+                set(["P1_BigGun", "P2_BigGun"][p], v(2));
+            }
+        }
+        4 => {
+            if let Some(p) = player(1) {
+                set(["P1_TicketFeeder", "P2_TicketFeeder"][p], v(2));
+            }
+        }
+        9 => set("WaterPump", v(1)),
+        13 => match (v(1) << 8) | v(2) {
+            0 => set("P1_LmpStart", v(3)),
+            1 => set("P2_LmpStart", v(3)),
+            _ => {}
+        },
+        17 => set("LmpUpperCtrlPanel", v(1)),
+        12 => set("LmpPanel", v(1)),
+        33 => set("VibrationSeat", v(1)),
+        _ => {}
+    }
+}
+
 /// The board's answers to the frames the game writes.
 fn handler(packet: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
@@ -111,6 +150,7 @@ fn handler(packet: &[u8]) -> Vec<u8> {
         let (f, next) = rest.split_at(total);
         rest = next;
         let (cmd, data) = (f[2], &f[3..total - 2]);
+        outputs(cmd, data);
         match cmd {
             // online, the board's ID
             1 => out.extend(frame(1, &[0xF1])),
