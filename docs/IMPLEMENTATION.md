@@ -186,6 +186,13 @@ bookkeeping and other cabinet data. Without the mappings its temporary save file
 open, so operator settings revert on every launch. The game creates timestamped settings
 files itself; saves do not require a cabinet shutdown.
 
+SQLite (a Unity game's `Mono.Data.Sqlite`: Wisdom Zombies' and Mech Dinosaur's
+`D:/SettingData.db`) calls kernel32 through pointers it copied at its load, before any import
+hook: its `sqlite3_open` / `_v2` / `16` (resolved through `mono_imports`) rewrite the path as
+the file functions do (`drive.rs`). Without it the database opened on Wine's own `d:`, which
+its mount manager gives to another disk (`/mnt/test`): another game's settings, the game's
+init failed (no coins counted).
+
 Mario Kart's 32-bit payload identifies v1.10.22 and v1.18.16 by their PE timestamp and
 image size before applying dongle patches; each patch also checks its original bytes.
 The v1.18.16 dongle persistence helper uses `ret 4`, unlike v1.10.22's `ret`.

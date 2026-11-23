@@ -306,6 +306,60 @@ unsafe extern "system" fn GetCurrentDirectoryW(size: u32, buffer: *mut u16) -> u
     unsafe { current_dir(size, buffer) }
 }
 
+/// SQLite's open functions (`sqlite3.dll`, a Unity game's `Mono.Data.Sqlite`): its file calls
+/// go through kernel32 pointers it copied at its load, before any import hook, so a database on
+/// a redirected drive (`D:/SettingData.db`) would open on Wine's own letter (whatever its mount
+/// manager gave it: another disk). The path rewritten here as the file functions' are.
+static SQLITE_ORIG: [AtomicUsize; 3] = [const { AtomicUsize::new(0) }; 3];
+
+/// A UTF-8 path rewritten (through its UTF-16 form), `None` when not on a redirected drive.
+fn utf8_redirected(p: *const u8) -> Option<Vec<u8>> {
+    if p.is_null() {
+        return None;
+    }
+    let text = unsafe { std::ffi::CStr::from_ptr(p.cast()) }.to_str().ok()?;
+    let wide_path: Vec<u16> = text.encode_utf16().chain([0]).collect();
+    let r = wide(wide_path.as_ptr());
+    let new = r.replaced.as_ref()?;
+    let new = String::from_utf16_lossy(&new[..new.len() - 1]);
+    log!("drive: sqlite {text} -> {new}");
+    Some(new.into_bytes().into_iter().chain([0]).collect())
+}
+
+unsafe extern "C" fn sqlite3_open(path: *const u8, db: P) -> i32 {
+    let original: unsafe extern "C" fn(*const u8, P) -> i32 = unsafe { std::mem::transmute(SQLITE_ORIG[0].load(Ordering::Relaxed)) };
+    let new = utf8_redirected(path);
+    unsafe { original(new.as_ref().map_or(path, |v| v.as_ptr()), db) }
+}
+
+unsafe extern "C" fn sqlite3_open_v2(path: *const u8, db: P, flags: i32, vfs: *const u8) -> i32 {
+    let original: unsafe extern "C" fn(*const u8, P, i32, *const u8) -> i32 = unsafe { std::mem::transmute(SQLITE_ORIG[1].load(Ordering::Relaxed)) };
+    let new = utf8_redirected(path);
+    unsafe { original(new.as_ref().map_or(path, |v| v.as_ptr()), db, flags, vfs) }
+}
+
+unsafe extern "C" fn sqlite3_open16(path: *const u16, db: P) -> i32 {
+    let original: unsafe extern "C" fn(*const u16, P) -> i32 = unsafe { std::mem::transmute(SQLITE_ORIG[2].load(Ordering::Relaxed)) };
+    let p = wide(path);
+    unsafe { original(p.ptr(), db) }
+}
+
+/// The payload's stand-in for SQLite's open function `name` (`real` its own), for the
+/// `DllImport`s resolved by `mono_imports`; `None` for another function or without a redirect.
+pub fn sqlite_import(name: &str, real: usize) -> Option<usize> {
+    if real == 0 || (letter().is_none() && game_drive().is_none() && mapped().is_empty()) {
+        return None;
+    }
+    let (i, f) = match name {
+        "sqlite3_open" => (0, sqlite3_open as *const () as usize),
+        "sqlite3_open_v2" => (1, sqlite3_open_v2 as *const () as usize),
+        "sqlite3_open16" => (2, sqlite3_open16 as *const () as usize),
+        _ => return None,
+    };
+    SQLITE_ORIG[i].store(real, Ordering::Relaxed);
+    Some(f)
+}
+
 static MMIO_ORIG: [AtomicUsize; 2] = [const { AtomicUsize::new(0) }; 2];
 
 /// `winmm!mmioOpenA/W`: RIFF files opened by path (Battle Gear 4's music, `E:\data\Sound\Bgm`).

@@ -124,6 +124,11 @@ unsafe extern "system" fn get_proc_address(module: *mut c_void, name: *const c_c
             log!("mono: {module_name}!{wanted} not emulated");
             0
         }
+        // SQLite's databases on a redirected drive (`drive.rs`)
+        None if module_name == "sqlite3.dll" => {
+            let real = unsafe { orig(module, name) };
+            crate::drive::sqlite_import(wanted, real).unwrap_or(real)
+        }
         None => unsafe { orig(module, name) },
     }
 }
