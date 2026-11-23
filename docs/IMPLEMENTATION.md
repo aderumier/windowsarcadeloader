@@ -922,6 +922,45 @@ Verified headless: boot, attract, test menu and I/O test, free play, guest play 
 song select, songs), a new card (registration, name entry), a full credit with the card (song
 records and settings saved) and the returning card.
 
+#### Puzzle & Dragons Battle Tournament (Type X3)
+
+GungHo / Taito, 2016 (Champions of Lazuli), `game.exe` 2.130.003 JPN (32-bit; the dump's
+`game.exe` is the decrypted build, `game.exe.orig` the encrypted one, `d_game.exe` a
+development build). Profile `nesica/puzzle-and-dragons-battle-tournament`,
+`WAL_NESICA_GAME=puzzledragons` (`puzzledragons.rs`, `wmtouch.rs`):
+
+* **Touch screen** (the cabinet's only control). The touch device (+0x22460) wants
+  `GetSystemMetrics(SM_DIGITIZER)` to report a ready integrated multi-touch digitizer (0xC1) and
+  `RegisterTouchWindow` to succeed, else "touch monitor error" (checked again every frame,
+  +0x22580); it reads `WM_TOUCH` with `GetTouchInputInfo` (+0x226F0, 40-byte `TOUCHINPUT`, the
+  contacts by id). `wmtouch.rs` (shared with Tetote X Connect) answers these and posts the
+  fingers' presses, moves and releases every 8 ms: the mouse or player 1's gun while `b1` is held
+  (the orbs dragged with it), the touchpad's or touchscreen's fingers (`WAL_TOUCH_SURFACE`
+  `pad` / `screen`). The real keyboard and mouse are filtered (`input_filter`), its DirectInput
+  faked (`WAL_DINPUT_DISABLE`). The test menu also takes touches. The game shows no pointer: a
+  red dot where player 1's mouse or gun touches (`WAL_CROSSHAIR`, `pointer_d3d11.rs`: its
+  Direct3D 10 is DXVK's, on Direct3D 11).
+* **Operator buttons** (FastIO 0x4120): ENTER is start (0x10), SERVICE 0x04, SELECT 0x08 (the
+  FastIO native `ext4`, player 2's service bit elsewhere: `WAL_MAP=b3=ext4`). Coins are counters
+  (`WAL_FASTIO_COIN=counter`, 0x4140); the game writes other values to 0x41C0 / 0x41C4 every
+  frame, which are coin counters only with a second board (`WAL_FASTIO_BOARDS=2`, Dariusburst).
+* **NESiCA reader** (COM2): the Type X3 reader with its security, key `C:\TypeX3Temp.dat`; the
+  test menu's NESiCA test reads the card.
+* **Free play** (the common option): the settings manager loads the play settings (`cost2`,
+  `COS2`, 0x218 bytes: the bytes free play and free play tickets, then the continues and costs)
+  with one call (+0x3EEDF); the payload takes its destination there and keeps its free play byte
+  at 1 (the test menu's play settings show ON). Off: the game's own setting.
+* **Title server**: online, the game sends its own HTTPS API (`/puzzle/game/registTenpo`,
+  `reportError`, `getSystemParams`, `lockCard`, `savePlayHistory`, `/puzzle/helper/*`...: form
+  posts `data={json}`) through NESYS command 0x27 (URL, port 443, headers, body), to the
+  certificate's game server; unanswered, the title stays black after a touch. No server is
+  emulated yet: `WAL_NESICA_NESYS_OFFLINE=1`, the network reported down, offline play (story,
+  in-store versus, tutorial; national battle, gacha, NESiCA saves and continues unavailable).
+
+Verified headless: boot, attract, test menu (switch test, NESiCA test, play settings), free
+play and coins, character / team / puzzle side / mode / story / helper selection by touch, a
+story battle (orbs dragged, attacks, enemy turns).
+
 #### Gunslinger Stratos 2 (Type X3, 64-bit)
 
 Square Enix / Taito, 2015, `game.exe` 2.11 JPN (64-bit, Direct3D 11, the dump patched for
@@ -9750,6 +9789,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `house-of-the-dead-overkill` | The House of the Dead: Overkill | arcadepc | user 100% (2026-11-10), 2 guns | The Typing of the Dead: Overkill's Steam build (BlitzTech, Direct3D 9, 32-bit, §6.3i, board `hotdo`), with gbe_fork's `steam_api.dll` and `steam_settings\` (the game's interface versions): Overkill's menu opened at start (the Typing of the Dead's menu clicked behind a black screen); player 1's gun is the mouse (`GetCursorPos`, DirectInput's system mouse and keyboard); player 2 is a fake online player inside the same game (`hotdo_peer.rs`: Multi Player, Search for online player, Ready), the host running its score, health, reload and weapons; d-pad weapon switch, gun shop cash kept, every level and game mode unlocked (Director's Cut) |
 | `left-4-dead-survivors` | Left 4 Dead: Survivors | nesica | user 100% (2026-11-16), NESiCA card (new player, CPU play), mouse and pad | Type X3 Source engine (§6.2): `bin\inputsystem.dll` loads the payload; Type X3 reader security and commands, FastIO hub/universal board registers, HID mouse and winmm grip emulated, the gun's mouse from the sticks or the mouse (menus point and click), `+arcade_NESiCA_Accept 1`, getCardInfo record for a new card, lobby server answered with no rooms |
 | `groove-coaster-2` | Groove Coaster 2: Heavenly Festival | nesica | user 100% (2026-11-16), boosters, NESiCA card (registration, saves), free play | Type X3 portrait rhythm game (§6.2): windowed 9:16 with black bezel, GetAdaptersInfo MAC for the LAN link, update downloader answered (NESYS thread deadlock under Wine), Type X3 reader with C:\TypeXZEROTemp.dat, the boosters on FastIO, free play patch, Groove Coaster card server (registration, player, song records, settings) |
+| `puzzle-and-dragons-battle-tournament` | Puzzle & Dragons Battle Tournament | nesica | headless (2026-11-23): offline play (story battle), free play, test menu | Type X3 touch puzzle game (§6.2): Windows touches (`wmtouch.rs`: digitizer, WM_TOUCH from the mouse / gun / touchpad), SELECT on FastIO 0x08, coin counters, Type X3 reader, free play byte of the play settings kept on; no title server (NESYS offline) |
 | `gunslinger-stratos-2` | Gunslinger Stratos 2 | nesica | user 100% (2026-11-17), G devices, two lightguns, free play, intro and attract movies; NESiCA play unavailable (no game server) | Type X3 64-bit twin-gun game (§6.2): x86_64 iDmacDrv64.dll, the two 2D sensor boards on COM1/COM3 (aim, triggers), levers and buttons on FastIO, two lightguns, reader bus reset fix, time mode kept off for free play, movies through GE quartz/msrle32 fixes (0123-0125) |
 | `gunslinger-stratos-3` | Gunslinger Stratos 3 | nesica | works (headless tests: first boot G device setup, test menu, attract with its movies, free play, guest play into a mission); NESiCA play and voice chat unavailable (no game servers) | Gunslinger Stratos 2's cabinet (§6.2): the same G devices and FastIO, the headset amplifier on COM4 emulated, the sound engine's "スピーカー" device name match patched (sound device error 10000008), the voice chat HUD skipped (no server: red box), free play in its settings object (+0x100) |
 | `love-live-school-idol-festival-after-school-activity-next-stage` | Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage | nesica | works (headless tests: test menu and I/O tests, free play, guest play, NESiCA play with the payload's title server: registration, a credit of two songs saved, returning card) | the WinUSB I/O board (buttons, coins, NESiCA reader), the watchdog on COM2, free play in its settings block, the title server (LLServer port: RSA basicinfo with the game's key replaced, AES /game), NESYS card select 16-byte id (§6.2) |

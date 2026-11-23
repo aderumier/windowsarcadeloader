@@ -43,6 +43,8 @@ const NATIVES: &[(&str, Native)] = &[
     ("ext1", Native::Ext(1)),
     ("ext2", Native::Ext(2)),
     ("ext3", Native::Ext(3)),
+    // 0x08 (player 2's service on most boards): Puzzle & Dragons Battle Tournament's SELECT
+    ("ext4", Native::Ext(4)),
 ];
 
 /// Virtual stick -> FastIO. Games override it with `WAL_MAP` (e.g. Arcana Heart 2: `b5=btn6`).
@@ -112,12 +114,14 @@ pub(crate) fn init() {
     let _ = REGS.set(regs);
 }
 
+/// The coin counter of a register. The second board's (0x41C0, 0x41C4) only with two boards:
+/// with one, Puzzle & Dragons Battle Tournament writes other values there every frame.
 fn coin_slot(command: u32) -> Option<usize> {
     match command {
         0x4140 => Some(0),
         0x4144 => Some(1),
-        0x41C0 => Some(2),
-        0x41C4 => Some(3),
+        0x41C0 if TWO_BOARDS.load(Ordering::Relaxed) => Some(2),
+        0x41C4 if TWO_BOARDS.load(Ordering::Relaxed) => Some(3),
         _ => None,
     }
 }
@@ -156,6 +160,7 @@ fn native_state() -> [u8; 16] {
                 Native::Test => (0, 0x40),
                 Native::Ext(1) => (0, 0x01),
                 Native::Ext(2) => (0, 0x02),
+                Native::Ext(4) => (0, 0x08),
                 Native::Ext(_) => (0, 0x80),
                 Native::Up => (1, 0x01),
                 Native::Down => (1, 0x04),

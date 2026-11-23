@@ -26,6 +26,8 @@
 //! Love Live! School Idol Festival ~after school ACTIVITY~ Next Stage (`WAL_NESICA_GAME=lovelive`,
 //! 64-bit, loaded at its executable's entry point): `lovelive.rs`.
 //!
+//! Puzzle & Dragons Battle Tournament (`WAL_NESICA_GAME=puzzledragons`): `puzzledragons.rs`.
+//!
 //! Tetote X Connect (Unity) is loaded at its executable's entry point; its native plugins'
 //! functions are the payload's (`tetote.rs`).
 
@@ -59,6 +61,8 @@ mod mouse;
 mod nesys;
 mod nesystrace;
 mod nxl2;
+#[cfg(target_pointer_width = "32")]
+mod puzzledragons;
 mod rfid;
 // 64-bit only (Street Fighter V Type Arcade)
 #[cfg(target_pointer_width = "64")]
@@ -70,6 +74,7 @@ mod theatrhythm_player;
 mod theatrhythm_server;
 mod tetote;
 mod tetote_server;
+mod wmtouch;
 
 use std::ffi::c_void;
 use wal_payload_common::{log, patches};
@@ -128,6 +133,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         }
         if lovelive::detected() {
             lovelive::init();
+        }
+        #[cfg(target_pointer_width = "32")]
+        if puzzledragons::detected() {
+            puzzledragons::init();
         }
         log!("nesica: initialized");
     }

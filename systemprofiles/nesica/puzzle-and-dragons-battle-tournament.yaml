@@ -1,0 +1,75 @@
+# Puzzle & Dragons Battle Tournament (GungHo / Taito, NESiCAxLive, Type X3, 2016) - template,
+# override values in userprofiles/nesica/puzzle-and-dragons-battle-tournament.yaml.
+# game.exe (32-bit; the dump's game.exe is the decrypted build, game.exe.orig the encrypted
+# one, d_game.exe a development build): a puzzle battle game on the cabinet's touch screen
+# (puzzledragons.rs).
+system: nesica
+name: "Puzzle & Dragons Battle Tournament"
+
+env:
+  WAL_NESICA_GAME: puzzledragons
+  # Type X3 NESiCA reader (COM2): security challenges answered with the key the game reads from
+  # C:\TypeX3Temp.dat (created with zeros when missing)
+  WAL_NESICA_RFID_SECURITY: "1"
+  WAL_NESICA_RFID_KEY_FILE: C:\TypeX3Temp.dat
+  # the coin registers are coin counters (the game writes the coins it took)
+  WAL_FASTIO_COIN: counter
+  # the test menu's SELECT switch is bit 0x08 (ENTER is start)
+  WAL_MAP: "b3=ext4"
+  # no title server (its HTTPS API through NESYS): the network down, offline play (story,
+  # in-store versus, tutorial; NESiCA and continues unavailable)
+  WAL_NESICA_NESYS_OFFLINE: "1"
+  # its DirectInput (debug keyboard / pads): no input there, the touches and FastIO only
+  WAL_DINPUT_DISABLE: "1"
+  # a dot where player 1 touches (the game shows no pointer): its size in percent of the screen
+  # height
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_SIZE: "1.5"
+  # the touch surface's fingers: pad (the whole touchpad is the game's picture) or screen (a
+  # touchscreen: the fingers where the picture shows)
+  WAL_TOUCH_SURFACE: pad
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Games start without coins (the test menu's play settings). Off: the game's own
+          setting.
+  - title: Controls
+    options:
+      - key: WAL_TOUCH_SURFACE
+        label: Touch surface
+        kind: choice
+        choices: [pad, screen]
+        description: >-
+          pad: the whole touchpad is the game's picture (several fingers). screen: a
+          touchscreen, the fingers touch where the picture shows.
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: >-
+          A small red dot where the mouse or player 1's gun touches.
+
+# The touch screen: a touchpad or touchscreen (all its fingers), the mouse or player 1's gun
+# (button 1 touches); a pad's left stick points (R1 touches).
+input:
+  touch: true
+  guns_enabled: true
+  stick_as_dpad: false
+  gun:
+    BTN_LEFT: b1
+  gamepad:
+    r1: b1
+
+controls:
+  lx: Touch position (x)
+  ly: Touch position (y)
+  b1: Touch the screen
+  b3: Select (test menu)
+  start: Enter (test menu)
+  coin: Coin
+  service: Service
+  test: Test
