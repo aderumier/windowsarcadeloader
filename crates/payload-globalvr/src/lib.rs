@@ -48,6 +48,7 @@
 
 mod aklog;
 mod aliens;
+mod farcry;
 mod amovie;
 mod beachhead;
 mod beachhead_io;
@@ -138,6 +139,7 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         carbon_shell::init();
         smartcard::init();
         aliens::init();
+        farcry::init();
         hasp::init();
         keyboard::init();
         gamelog::init();

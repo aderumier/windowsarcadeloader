@@ -9264,6 +9264,10 @@ else the profile's file name (`sega-racing-classic`).
 * Happy Water Sprite II (`commking.rs`): the game's board commands (its `CommCMD` classes): 8
   a water gun, 16 a big gun, 9 the pump, 4 a ticket feeder, 13 the key LEDs (keys 0 / 1 the
   start buttons), 17 the game LED, 12 the effect LED, 33 the seat's vibration.
+* Far Cry Paradise Lost (`farcry.rs`, DemulShooter's caves in the same build as stubs): the
+  players joining and leaving (start lamps blinking until then), the life (a hit when it goes
+  down), the guns' kill LEDs, the guns' rumble (each shot and grenade: the gun motor and the
+  custom recoil).
 * Friction (`vsioboard.rs`): the game's data [+0x145088] + 0x28 as DemulShooter reads it: each
   gun's player, playing, life and ammo (a recoil when it goes down, a hit when the life does),
   the start lamps blinking until playing.
@@ -9388,7 +9392,8 @@ else the profile's file name (`sega-racing-classic`).
   lamps, seat shake, big gun, a hit, credits); Gundam Spirits of Zeon (17 recoil pulses, ammo,
   life, gun motor); Aliens Extermination (28 recoil pulses, ammo and its LEDs, life, 9 hits,
   start lamps); Friction (9 recoil pulses, 6 hits, ammo, life, start lamps); Block King Ball
-  Shooter (its dimmed lamps, the cannon's colours, credits);
+  Shooter (its dimmed lamps, the cannon's colours, credits); Far Cry Paradise Lost (413 recoil
+  pulses, 30 hits, life, kill digits);
   Dino Invasion (a recoil a shot, its ammo); Mission: Impossible (its Shoot hooked, a recoil
   seen).
   Not seen: Elevator Action Invasion (its shakers at 0 in the

@@ -33,6 +33,7 @@ PROFILES = ROOT / "systemprofiles"
 # seen": wired, not seen working in a test
 GUN = "lamps, recoil, damage, life, ammo"
 OUTPUTS = {
+    "farcry-paradise-lost": "lamps, recoil, gun motors, kill LEDs, damage, life",
     "block-king-ball-shooter": "lamps (dimmed), cannon RGB, credits",
     "friction": "lamps, recoil, damage, ammo, life",
     "aliens-extermination": "lamps, recoil, ammo LEDs, damage, ammo, life, credits",

@@ -56,7 +56,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `wangan-midnight-maximum-tune-6` | Wangan Midnight Maximum Tune 6 | namcoes3 | works (user: 100%), cards and game server | cabinet link | lamps (JVS) | not in the test |  |
 | `wangan-midnight-maximum-tune-6r` | Wangan Midnight Maximum Tune 6R | namcoes3 | works (user: 100%) | cabinet link | lamps (JVS) | not in the test |  |
 | `wangan-midnight-maximum-tune-6rr` | Wangan Midnight Maximum Tune 6RR | namcoes3 | works (user: 100%) | cabinet link | lamps (JVS) | not in the test |  |
-| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) |  |  | not in the test |  |
+| `farcry-paradise-lost` | Far Cry Paradise Lost | globalvr | works (user: 100%) |  | lamps, recoil, gun motors, kill LEDs, damage, life | not in the test |  |
 | `aliens-extermination` | Aliens Extermination | globalvr | works (user: 100%), 2 guns (trigger also starts), movies |  | lamps, recoil, ammo LEDs, damage, ammo, life, credits | not in the test |  |
 | `the-swarm` | The Swarm | globalvr | works (user: 100%), 2 guns (fire, grenade, shield); stage changes: the game started again with the next map (Relaunch message), works (user: 100%); new high scores not saved |  |  | not in the test |  |
 | `need-for-speed` | Need for Speed | globalvr | works (user: 100%) |  |  | not in the test |  |
