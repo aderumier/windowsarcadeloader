@@ -6289,7 +6289,9 @@ retail game (its `Run.exe`, menus, a save): not used.
   picture). Start with credits (or free play): 0x25c = 3 (2 when `System.ini` `GameStatus` bit 1),
   0x24 = 3. Game over (the game's 0x24 = 5): its picture until the game clears 0x25c (3 s), then
   0x24 = 0. Continue screen (0x1c8 = 1): start with credits answers 2. Race start (the game's
-  0x1ae = 1): the seat is home at once (2). 0x1cf holds credits + 1, 0x1d0 the coins; credits
+  0x1ae = 1, on a restart): the seat is home at once (2); at a game's start it is 2 too (the
+  race intro's timer only counts while 0x1ae is 2: at 0 the boat stays held at the start line).
+  0x1cf holds credits + 1, 0x1d0 the coins; credits
   per game / continue from `..\OpMenu\GameInfo.db` (`CoinPlay`, `CoinCtu`), free play from
   `WAL_FREEPLAY` (the game has none of its own: the interface program had it). The motion data
   the game writes (0x0c, 0x1e..0x23) and its lamps (0x1de, 0x1df) are not used.
@@ -6299,6 +6301,9 @@ retail game (its `Run.exe`, menus, a save): not used.
   (EBX) past the unit count, the loop ends after unit 66 and the others never initialize (an
   access violation at 0x5d2c3e, reading the fonts of `Engine.ini`). The payload patches them to
   32-bit `pusha` / `popa`; it is loaded at the executable's entry point (`payload_loader`).
+- **Focus.** `Engine.ini` `PauseNonActive=1`: the game pauses when its window loses the focus
+  (its deactivation handler, 0x5ef61c); on a desktop the loading screen stayed still behind
+  another window. The payload never pauses it (`je` -> `jmp` at 0x5ef626).
 - **Save.** `Game\Profiles.xml` holds the cabinet's pilots (without one the game asks for a new
   profile with the keyboard). It is signed (`Integrity`): the dump's was edited by hand and ends
   with a second XML declaration (MSXML: EDOMParseError at boot). The payload removes the text
