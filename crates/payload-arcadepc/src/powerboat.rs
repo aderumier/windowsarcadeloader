@@ -340,9 +340,10 @@ unsafe fn fix_cpu_check() {
     }
     log!("powerboat: CPU check pushaw / popaw -> pusha / popa");
     // Engine.ini PauseNonActive=1: the game pauses when its window loses the focus (its
-    // deactivation handler, 0x5ef61c), the loading screen stays still behind another window on
-    // a desktop; a cabinet never loses it: never paused
-    if unsafe { patch(0x5ef626, &[0x74, 0x5f], &[0xeb, 0x5f]) } {
+    // deactivation handler, 0x5ef570; 0x5ef61c resumes it on activation), the loading screen
+    // stays still behind another window on a desktop; a cabinet never loses it: never paused
+    // (the PauseNonActive test of the deactivation handler only, the resume stays)
+    if unsafe { patch(0x5ef599, &[0x74, 0x7f], &[0xeb, 0x7f]) } {
         log!("powerboat: no pause when the window loses the focus");
     }
 }

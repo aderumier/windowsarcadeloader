@@ -6302,8 +6302,9 @@ retail game (its `Run.exe`, menus, a save): not used.
   access violation at 0x5d2c3e, reading the fonts of `Engine.ini`). The payload patches them to
   32-bit `pusha` / `popa`; it is loaded at the executable's entry point (`payload_loader`).
 - **Focus.** `Engine.ini` `PauseNonActive=1`: the game pauses when its window loses the focus
-  (its deactivation handler, 0x5ef61c); on a desktop the loading screen stayed still behind
-  another window. The payload never pauses it (`je` -> `jmp` at 0x5ef626).
+  (its deactivation handler, 0x5ef570; 0x5ef61c resumes it on activation); on a desktop the
+  loading screen stayed still behind another window. The payload never pauses it (`je` -> `jmp`
+  at 0x5ef599, the deactivation handler's PauseNonActive test).
 - **Save.** `Game\Profiles.xml` holds the cabinet's pilots (without one the game asks for a new
   profile with the keyboard). It is signed (`Integrity`): the dump's was edited by hand and ends
   with a second XML declaration (MSXML: EDOMParseError at boot). The payload removes the text
