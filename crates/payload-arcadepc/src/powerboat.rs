@@ -16,7 +16,8 @@
 //!   game's 0x24 = 5 (game over) is shown until it clears 0x25c (3 s), then 0x24 = 0 (attract), its continue screen (0x1c8 = 1)
 //!   continues on start with credits (0x1c8 = 2). 0x1cf holds credits + 1, 0x1d0 the coins.
 //! - **Motion seat.** Ready at once (0x24 and 0x25c 0: attract; any other pair shows the
-//!   game's waiting picture); the game's race start request (0x1ae = 1) is answered at once (2: the
+//!   game's waiting picture), home at a game's start (0x1ae = 2: the race intro's timer only
+//!   counts then, at 0 the boat stays held at the start line); the game's race start request (0x1ae = 1) is answered at once (2: the
 //!   seat is home); the seatbelt (0x1c9) and sensor (0x1e0) warnings stay off.
 //!
 //! - **Videos.** The boat selection AVIs are MS-MPEG4 v2 (`MP42`, written by ffdshow), played
@@ -164,7 +165,8 @@ fn wheel(on: &[bool]) -> u32 {
     (0x8000 + v).clamp(0, 0xffff) as u32
 }
 
-/// The throttle: 0x8000 at rest, lower forward, higher back (the interface's 1000..65535).
+/// The throttle lever: 0x8000 at rest, lower forward, higher back (the interface's
+/// 1000..65535; the game's throttle is (0x8000 - raw) / 32768, positive forward).
 fn throttle(on: &[bool]) -> u32 {
     let stick = input(0);
     let accel = if on[Native::Accel as usize] { 32767 } else { stick.axis(Axis::Accel).max(0) as i32 };
@@ -206,6 +208,9 @@ fn update() {
             }
             set(SEAT, s.seat);
             set(STATE, 3);
+            // the seat is home: the first race's intro runs (its timer only counts while 0x1ae
+            // is 2; at 0 the boat is held at the start)
+            set(RACE_START, 2);
             log!("powerboat: start, credits {}", i.credits);
         }
     }
@@ -334,6 +339,12 @@ unsafe fn fix_cpu_check() {
         patch(0x5f57b7, &[0x66, 0x61], &[0x61, 0x90]);
     }
     log!("powerboat: CPU check pushaw / popaw -> pusha / popa");
+    // Engine.ini PauseNonActive=1: the game pauses when its window loses the focus (its
+    // deactivation handler, 0x5ef61c), the loading screen stays still behind another window on
+    // a desktop; a cabinet never loses it: never paused
+    if unsafe { patch(0x5ef626, &[0x74, 0x5f], &[0xeb, 0x5f]) } {
+        log!("powerboat: no pause when the window loses the focus");
+    }
 }
 
 /// Writes `bytes` at `at` when it holds `old` (this build); whether it did.
