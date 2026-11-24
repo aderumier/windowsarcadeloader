@@ -2,7 +2,8 @@
 # "FOCAL" test shell, OpenGL, 32-bit) - template, override values in
 # userprofiles/arcadepc/fix-it-felix-jr.yaml.
 # A portrait (3:4) game read from the keyboard: the payload posts its keys from the virtual
-# sticks (the real keyboard and mouse filtered), fits its window's zoom to the screen's height
+# sticks (the real keyboard and mouse filtered), fits its window's zoom to the screen's height,
+# shows the dump's bezel around it
 # and sets free play (docs §6.3i).
 system: arcadepc
 name: Fix-It Felix Jr.
@@ -14,11 +15,13 @@ dll_overrides:
 
 env:
   WAL_ARCADEPC_BOARD: felix
-  # the shell's window without its frame and menus, 3:4 at the screen's height, black sides
+  # the shell's window without its frame and menus, 3:4 at the screen's height
   WAL_WINDOW_POPUP: "1"
   WAL_WINDOW_SIZE: aspect
   WAL_D3D9_ASPECT: "3:4"
-  WAL_BEZEL: black
+  # the dump's art around it (bezel.png, 16:9), its opening fitted to the game's window
+  WAL_BEZEL: bezel.png
+  WAL_BEZEL_FIT: "1"
   WAL_HIDE_CURSOR: "1"
 
 options:
