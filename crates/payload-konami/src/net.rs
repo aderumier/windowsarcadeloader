@@ -4,7 +4,10 @@
 //! host's network left as it is.
 //!
 //! Winning Eleven 2008 reads the adapters into a fixed buffer: `GetAdaptersInfo` gives it those
-//! that fit.
+//! that fit. Bishi Bashi Channel's AVS2 (`avs2-core.dll`) gets 4 at most ([`adapters_cap`]).
+
+// the cabinet address setup and the adapter fit: 32-bit games only
+#![cfg_attr(not(target_arch = "x86"), allow(dead_code))]
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -50,6 +53,8 @@ pub fn init() {
 }
 
 static ORIG_GET_ADAPTERS_INFO: AtomicUsize = AtomicUsize::new(0);
+/// The most adapters reported (0: as many as fit).
+static CAP: AtomicUsize = AtomicUsize::new(0);
 
 type GetAdaptersInfo = unsafe extern "system" fn(*mut IP_ADAPTER_INFO, *mut u32) -> u32;
 
@@ -78,7 +83,11 @@ unsafe extern "system" fn get_adapters_info(out: *mut IP_ADAPTER_INFO, size: *mu
     }
     // adapters without an address (0.0.0.0) last
     list.sort_by_key(|a| a.IpAddressList.IpAddress.String[0] == b'0' as _);
-    let fit = (unsafe { *size } as usize / size_of::<IP_ADAPTER_INFO>()).min(list.len());
+    let cap = match CAP.load(Ordering::Relaxed) {
+        0 => usize::MAX,
+        n => n,
+    };
+    let fit = (unsafe { *size } as usize / size_of::<IP_ADAPTER_INFO>()).min(list.len()).min(cap);
     if fit == 0 {
         unsafe { *size = size_of::<IP_ADAPTER_INFO>() as u32 };
         return ERROR_BUFFER_OVERFLOW;
@@ -104,7 +113,7 @@ unsafe extern "system" fn get_adapters_info(out: *mut IP_ADAPTER_INFO, size: *mu
         unsafe { to.write(a) };
     }
     if fit < list.len() {
-        log!("net: {} of {} network adapters reported (the game's buffer)", fit, list.len());
+        log!("net: {} of {} network adapters reported", fit, list.len());
     }
     0
 }
@@ -114,6 +123,20 @@ pub fn adapters_fit() {
     let ours = get_adapters_info as *const () as usize;
     match unsafe { iat::hook("iphlpapi.dll", "GetAdaptersInfo", ours) } {
         Some(o) => ORIG_GET_ADAPTERS_INFO.store(o, Ordering::Relaxed),
+        None => log!("net: GetAdaptersInfo import not found"),
+    }
+}
+
+/// Reports `max` adapters at most to `module`'s `GetAdaptersInfo` import (those with an address
+/// first). Bishi Bashi Channel: AVS2's network interface list (28 bytes each) goes into ess.dll's
+/// 112-byte buffer; a PC with 5 adapters (Wi-Fi, VPN, containers) made each query fail ("ctrl:
+/// sz_buf(112) < 140"), ess.dll retried in a new thread until its pool was full and AVS aborted.
+pub fn adapters_cap(module: usize, max: usize) {
+    CAP.store(max, Ordering::Relaxed);
+    let ours = get_adapters_info as *const () as usize;
+    match unsafe { iat::hook_module(module, "iphlpapi.dll", "GetAdaptersInfo", ours) } {
+        Some(o) if o != ours => ORIG_GET_ADAPTERS_INFO.store(o, Ordering::Relaxed),
+        Some(_) => {}
         None => log!("net: GetAdaptersInfo import not found"),
     }
 }

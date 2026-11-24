@@ -4076,6 +4076,12 @@ players, each a red, a green and a blue button and a disk (a dial). The payload 
   wait" after the first demo. `WAL_WASAPI_SHARED=1` (payload-common `wasapi.rs`): shared mode,
   `AUTOCONVERTPCM`, one device period reported as the buffer, the game's full-buffer writes
   queued and given to the device as it has room.
+- **Network interfaces.** AVS2 lists the PC's adapters (28 bytes each, `GetAdaptersInfo`,
+  counted once and cached) into ess.dll's 112-byte buffer: with 5 adapters (Wi-Fi, VPN,
+  containers) each query failed (`ctrl: sz_buf(112) < 140`), ess.dll retried in a new thread
+  until its pool was full (`thread_pool_thread_create(): thread full failed`) and AVS stopped the
+  game 15-30 s after boot. `avs2-core.dll`'s `GetAdaptersInfo` reports 4 at most (those with an
+  address first, `net::adapters_cap`), a count it cached already lowered (rva 0xfa28c).
 - **Controls.** Blue starts a game and joins it (the attract's prompt); the disks from the left
   stick (or left / right). The entry screen's language choice is the card reader's keypad (not
   mapped).

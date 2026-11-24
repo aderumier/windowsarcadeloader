@@ -135,7 +135,6 @@ mod ig2;
 mod le3;
 #[cfg(target_arch = "x86")]
 mod mga;
-#[cfg(target_arch = "x86")]
 mod net;
 #[cfg(target_arch = "x86")]
 mod otomedius;

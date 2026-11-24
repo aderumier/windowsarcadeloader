@@ -106,6 +106,7 @@ pub(crate) fn init(module: crate::HINSTANCE) {
         }
     }
     wal_payload_common::serial::install_in("COM1", lcd, &[game_module()]);
+    avs_adapters_cap();
     if !std::env::var("WAL_KONAMI_EAMUSEMENT").is_ok_and(|v| v.trim() == "1") {
         eamusement_off();
     }
@@ -442,3 +443,27 @@ pub extern "C" fn ac_io_pix_rvol_req_volume_control(_a: u8, _b: u8, _c: u8, _d: 
 #[unsafe(no_mangle)]
 pub extern "C" fn ac_io_pix_rvol_watchdog_off() {}
 
+
+/// AVS2's network interfaces: 4 at most (ess.dll's buffer; `net::adapters_cap`). The list is
+/// read once and its count cached (`avs2-core.dll` 2.17.3, rva 0xfa28c, -1 until then): a
+/// count already above 4 is lowered too.
+fn avs_adapters_cap() {
+    const MAX: usize = 4;
+    let name: Vec<u16> = "avs2-core.dll".encode_utf16().chain(std::iter::once(0)).collect();
+    let core = unsafe { windows_sys::Win32::System::LibraryLoader::GetModuleHandleW(name.as_ptr()) } as usize;
+    if core == 0 {
+        return;
+    }
+    crate::net::adapters_cap(core, MAX);
+    // the build: its PE time stamp (2018-01-24)
+    let stamp = unsafe { ((core + ((core + 0x3c) as *const u32).read_unaligned() as usize + 8) as *const u32).read_unaligned() };
+    if stamp != 0x5a6825b4 {
+        return;
+    }
+    let count = (core + 0xfa28c) as *mut i32;
+    let n = unsafe { count.read_volatile() };
+    if n > MAX as i32 && n <= 8 {
+        unsafe { count.write_volatile(MAX as i32) };
+        log!("bsch: AVS network interfaces {n} -> {MAX}");
+    }
+}
