@@ -415,6 +415,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `plants-vs-zombies-the-last-stand` | Plants vs. Zombies: The Last Stand | arcadepc | user 100% (2026-11-10), 1 gun |  | lamps, recoil, ticket motor | not in the test |  |
 | `savage-quest` | Savage Quest | arcadepc | user 100% (2026-11-10), 1 player |  |  | not in the test |  |
 | `pop-moto` | Pop Moto | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, item) |  |  | not in the test |  |
+| `powerboat-gt` | Powerboat GT | arcadepc | works (headless 2026-11-24), 1 player (wheel, throttle, nitro) |  | motion seat, lamps | not in the test |  |
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) |  |  | not in the test |  |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player |  |  | not in the test |  |
 | `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player |  |  | not in the test |  |

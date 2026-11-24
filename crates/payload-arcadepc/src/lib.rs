@@ -81,6 +81,10 @@
 //! Pop Moto (`WAL_ARCADEPC_BOARD=popmoto`, x86 build): `popmoto.rs` is its `USB_board.dll` (the
 //! handlebar, throttle lever, keys, coins) and patches its engine's scripts as the community one.
 //!
+//! Powerboat GT (`WAL_ARCADEPC_BOARD=powerboat`, x86 build): `powerboat.rs` is its
+//! `MemAPI32.dll` (the shared memory its cabinet interface and motion seat programs wrote: the
+//! wheel, throttle, buttons, credits, the start / continue / race start handshakes).
+//!
 //! Senninha GP (`WAL_ARCADEPC_BOARD=senninha`, x86 build): `senninha.rs` is its `s_input.dll`
 //! (the wheel, pedals, switches) in each of its engine programs.
 //!
@@ -278,6 +282,8 @@ mod pads;
 mod photofinish;
 #[cfg(target_arch = "x86")]
 mod popmoto;
+#[cfg(target_arch = "x86")]
+mod powerboat;
 #[cfg(target_arch = "x86")]
 mod pullthetrigger;
 #[cfg(target_arch = "x86")]
@@ -628,6 +634,13 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
                 let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
                 wal_payload_common::input_filter::init(exe, |_| false);
                 popmoto::init();
+            }
+            #[cfg(target_arch = "x86")]
+            _ if board.trim() == "powerboat" => {
+                pads::disconnect();
+                let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
+                wal_payload_common::input_filter::init(exe, |_| false);
+                powerboat::init();
             }
             #[cfg(target_arch = "x86")]
             _ if board.trim() == "senninha" => {

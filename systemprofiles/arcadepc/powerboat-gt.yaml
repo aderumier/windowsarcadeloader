@@ -1,0 +1,60 @@
+# Powerboat GT (Injoy Motion, Aquadelic GT engine, Run-ENG-V1.7.exe, Delphi, OpenGL, 32-bit) -
+# template, override values in userprofiles/arcadepc/powerboat-gt.yaml.
+# A motion seat boat racing game: a wheel, a throttle lever, start, nitro and a second button.
+# The payload is the cabinet's shared memory library (MemAPI32.dll, WAL_ARCADEPC_BOARD=powerboat,
+# docs §6.3i): it answers for the cabinet's interface program (wheel, throttle, buttons, coins,
+# credits) and its motion seat program (race start), which are not run. The dump's
+# Aquadelic_GT_Patch.rar (the PC retail game) is not used.
+system: arcadepc
+name: Powerboat GT
+
+# the game's shared memory library: the payload, in place of the dump's
+payload_install: [AquadelicGT/MemAPI32.dll]
+# loaded at the executable's entry point: one of the game's unit initializations needs a fix
+# before it runs (its CPU check, powerboat.rs)
+payload_loader: true
+
+env:
+  WAL_ARCADEPC_BOARD: powerboat
+  WAL_FREEPLAY: "1"
+  # the boat videos (MS-MPEG4 v2 AVIs, Video for Windows): the runner's MPEG-4 codec
+  WAL_VFW_CODECS: vidc.MP42=mpg4c32.dll
+
+input:
+  stick_as_dpad: false
+  # the pads' triggers: the throttle lever (forward, back)
+  gamepad:
+    r2: accel
+    l2: brake
+  # keyboard wheel and throttle: full in 0.3 s
+  keyboard_ramp_ms: 300
+  keyboard:
+    p1:
+      KEY_LEFT: -lx
+      KEY_RIGHT: lx
+      KEY_UP: accel
+      KEY_DOWN: brake
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          Start and continue without coins. Off: the operator settings' coins
+          (OpMenu/GameInfo.db: CoinPlay per game, CoinCtu per continue).
+
+controls:
+  lx: Wheel
+  accel: Throttle forward
+  brake: Throttle back
+  b1: Throttle (full)
+  b2: Throttle back (full)
+  b3: Nitro
+  b4: Second button
+  b5: Camera view
+  left: Wheel full left
+  right: Wheel full right
+  start: Start / OK
+  coin: Coin

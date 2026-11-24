@@ -6269,6 +6269,51 @@ dump's is a community one, with its source in `src/`): the payload is installed 
   User 100% on the desktop (2026-11-10). There a program ending after its hand-off may crash in
   Wine's native code (SIGSEGV, core dump): the launcher starts the next program all the same.
 
+#### Powerboat GT
+
+Injoy Motion's motion seat boat racing game (2008, the Aquadelic GT engine, Delphi, OpenGL,
+32-bit, 1024x768). `.windowsloader`: `AquadelicGT\Run-ENG-V1.7.exe`. On the cabinet Batchrun
+started the Z360 motion seat program, the interface program (`PBZ360-GAMEINTERFACE`: the A823
+I/O board, wheel, throttle, buttons, coins) and the game, which share `MemAPI32.dll`'s memory
+("IOIMAGE2", `IoImage.tab`). The game loads `Memapi32.dll` by name and only uses `GDEGetBit` /
+`GDESetBit` on register 0x30 (one dword per index): the payload is that library
+(`payload_install: [AquadelicGT/MemAPI32.dll]`, board `powerboat`, `powerboat.rs`, exports
+`memapi32.def`) and answers for both programs. The dump's `Aquadelic_GT_Patch.rar` is the PC
+retail game (its `Run.exe`, menus, a save): not used.
+
+- **Inputs.** 0x1c0 the wheel (0x8000 centred, higher right; the game's ±10000 dead zone is
+  skipped so a pad steers at once), 0x1c1 the throttle (0x8000 at rest, lower forward, the
+  interface's 1000..65535), 0x1c4 start / OK, 0x1c5 a second button, 0x1c6 nitro, 0x1c7 the
+  camera index (stepped by the view button).
+- **Handshakes.** Attract is 0x24 = 0 with 0x25c = 0 (any other pair shows the game's waiting
+  picture). Start with credits (or free play): 0x25c = 3 (2 when `System.ini` `GameStatus` bit 1),
+  0x24 = 3. Game over (the game's 0x24 = 5): its picture until the game clears 0x25c (3 s), then
+  0x24 = 0. Continue screen (0x1c8 = 1): start with credits answers 2. Race start (the game's
+  0x1ae = 1): the seat is home at once (2). 0x1cf holds credits + 1, 0x1d0 the coins; credits
+  per game / continue from `..\OpMenu\GameInfo.db` (`CoinPlay`, `CoinCtu`), free play from
+  `WAL_FREEPLAY` (the game has none of its own: the interface program had it). The motion data
+  the game writes (0x0c, 0x1e..0x23) and its lamps (0x1de, 0x1df) are not used.
+- **CPU check.** A unit initialization (0x5f5788, run before the others) brackets `cpuid` with
+  16-bit `pushaw` / `popaw`: the registers' high words keep `cpuid`'s values. A CPU whose leaf
+  0x80000001 returns EBX bits above 15 (a Ryzen's package type) leaves the unit loop's counter
+  (EBX) past the unit count, the loop ends after unit 66 and the others never initialize (an
+  access violation at 0x5d2c3e, reading the fonts of `Engine.ini`). The payload patches them to
+  32-bit `pusha` / `popa`; it is loaded at the executable's entry point (`payload_loader`).
+- **Save.** `Game\Profiles.xml` holds the cabinet's pilots (without one the game asks for a new
+  profile with the keyboard). It is signed (`Integrity`): the dump's was edited by hand and ends
+  with a second XML declaration (MSXML: EDOMParseError at boot). The payload removes the text
+  after `</Profiles>` (once) and makes the signature check pass (`jne` -> `jmp` at 0x536293).
+- **Videos.** The boat selection AVIs are MS-MPEG4 v2 (`MP42`, stream handler `ffds`), played
+  through Video for Windows by `DirectorAVI.dll` (`AVIStreamGetFrame`): the runner's
+  `mpg4c32.dll` (GE-Proton patches `0135-winedmo-output-bottom-up-rgb-for-a-negative-default-
+  stride`, `0136-mpg4c32-add-a-microsoft-mpeg-4-video-for-windows-decoder`, branch
+  `vfw-mpg4c32-decoder`) decodes them through the WMVideo decoder MFT; the profile registers it
+  (`WAL_VFW_CODECS=vidc.MP42=mpg4c32.dll`) for prefixes made before. Without a codec the game
+  crashes at the boat selection (a NULL frame).
+- Verified headless (2026-11-24, a new prefix): attract, start (free play), pilot and mode
+  select, boat select videos, a race (throttle, steering, nitro), results, continue screen,
+  name entry.
+
 #### Subway Surfers Arcade
 
 An arcade conversion of Kiloo / SYBO's Subway Surfers (`SubwaySurfers.exe`, Unity 2022.3, Mono
@@ -10000,6 +10045,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `plants-vs-zombies-the-last-stand` | Plants vs. Zombies: The Last Stand | arcadepc | user 100% (2026-11-10), 1 gun | Hollywood Gaming's redemption game (Shell Direct3D 9 + Unity 4.3, 32-bit, §6.3i, board `pvz`): the Shell patched as the community did, the game started with the payload, the gun plays its mouse (no BepInEx plugin), the Shell's START button and coin meter from the sticks (the trigger is start too), portrait 1080x1920 fitted with the dump's bezel |
 | `savage-quest` | Savage Quest | arcadepc | user 100% (2026-11-10), 1 player | Immersia's DOS game (DOS4GW, Glide, §6.3i, board `savagequest`) in the community `winsavage.exe` loader with the dump's dgVoodoo: the payload is its XInput pad (stick axes swapped, bite, roar, run, start), the real keyboard filtered; free play from the dump's settings, no coins / operator menu (Gandalf serial board not emulated) |
 | `pop-moto` | Pop Moto | arcadepc | user 100% (2026-11-10), 1 player (handlebar, throttle, item) | Tecway's motorbike racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `USB_board.dll` (handlebar, throttle lever, keys, coins) and patches the engine's scripts as the community library, no server, free play as the game's free mode |
+| `powerboat-gt` | Powerboat GT | arcadepc | works (headless 2026-11-24: start, race, continue, name entry), 1 player (wheel, throttle, nitro) | Injoy Motion's motion seat boat racing game (Aquadelic GT engine, OpenGL, 32-bit, §6.3i): the payload is its `MemAPI32.dll` (the interface and motion seat programs' shared memory: wheel, throttle, buttons, credits, handshakes), fixes its CPU check (16-bit `pushaw` around `cpuid`) and its hand-edited save; MP42 videos through the runner's `mpg4c32.dll` (GE patch 0136) |
 | `senninha-gp` | Senninha GP | arcadepc | user 100% (2026-11-10), 1 player (wheel, pedals, boost, item, camera) | DiverBras' kart racing game (3D GameStudio, Direct3D 9, 32-bit, §6.3i): the payload is its `bin\s_input.dll` in each of its engine programs (menus, races, operator menu), their hand-offs started by the launcher (relaunch), the record photo (webcam) skipped, free play as the game's own (JOGO LIVRE) |
 | `subway-surfers-arcade` | Subway Surfers Arcade | arcadepc | user 100% (2026-11-10), 1 player | An arcade conversion of Kiloo / SYBO's game (Unity 2022.3, 64-bit, §6.3i): the dump's BepInEx stub disabled, the payload posts the cabinet's keys (arrows, 1 start, 5 coin) and the hoverboard's double tap, the left stick presses the arrows once per tilt, free play as a coin before the start, COM5 (the lamps' Arduino) a silent port |
 | `extreme-off-road` | Extreme Off Road | arcadepc | user 100% (2026-11-12), 1 player | LuckSheng's off-road racing cabinet (Unity 2020.3, IL2CPP, 64-bit, §6.3i): the repack's launcher stub renamed to the product name, its BepInEx plugin disabled, the payload is the COM1 board's `cncommwrapper.dll` (wheel, pedals, switches, coins), silent for 0.5 s after open (the game's receive thread race), free play as `GameData.ini`'s `Coin_Rate` |

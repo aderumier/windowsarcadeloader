@@ -1,0 +1,10 @@
+; MemAPI32.dll exports (Powerboat GT, powerboat.rs; x86 build only): the MSVC names of the
+; shared memory library's functions the game looks up with GetProcAddress.
+    "?InitializeVRAM@@YAHXZ" = pb_initialize_vram
+    "?CloseVRAM@@YAHXZ" = pb_close_vram
+    "?GDEGetBit@@YAKEKPAK@Z" = pb_get_bit
+    "?GDESetBit@@YAKEKK@Z" = pb_set_bit
+    "?GDEGetBitEx@@YAKDKPAK@Z" = pb_get_bit_ex
+    "?GDESetBitEx@@YAKDKK@Z" = pb_set_bit_ex
+    "?GDEGetConfig@@YAKEEPAK@Z" = pb_get_config
+    "?GDEGetPointer@@YAPAEE@Z" = pb_get_pointer
