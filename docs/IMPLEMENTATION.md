@@ -4083,7 +4083,10 @@ players, each a red, a green and a blue button and a disk (a dial). The payload 
 #### The Bishi Bashi (IBB)
 
 The Bishi Bashi (2009, game code IBB, Direct3D 9, 1360x768) is `launcher.exe` (the dump's name;
-its "All Avatars (Chinese)" copy differs by two data bytes). Up to three players, each a red, a
+its "All Avatars (Chinese)" copy differs by two data bytes), or the 2010-01-14 build
+`BISHIBASHI.exe` (more mini game demos, `kacbookkeeping.dll`): the same code but for its
+import table, so `ibb.rs` knows each build by its HBHI status read (`launcher.exe` rva
+0x6a0f9, `BISHIBASHI.exe` 0x72279) and has each one's clock check. Up to three players, each a red, a
 green, a blue and a yellow button (yellow: start, join, and the mini games' "finish button").
 It is built on Action Deka's framework: `libacio.dll` (HBHI board, card reader) is the payload,
 the game's `libbms.dll` imports (BM-System) are pointed at the payload's functions of the same
@@ -4096,7 +4099,7 @@ names (`ibb.rs`; the UDP link between cabinets fails to open, the cabinet runs a
   scale); then test (byte 1 0x20), service (0x10), coin mech (0x04, coins through the coin
   stock).
 - **Clock check.** The boot stops on 5-2503-0000 "The clock is un-setting up" until the
-  operator sets the clock (setting 0x1d): its `jne` (rva 0x2f940) becomes `jmp`, as Action
+  operator sets the clock (setting 0x1d): its `jne` (rva 0x2f940, `BISHIBASHI.exe` 0x30ad0) becomes `jmp`, as Action
   Deka's.
 - **Input.** The game's DirectInput keyboard (`data/xml/IBBconf.xml`'s debug keys) gets no
   device (`WAL_DINPUT_DISABLE=1`).

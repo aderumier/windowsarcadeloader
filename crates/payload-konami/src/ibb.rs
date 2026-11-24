@@ -3,7 +3,7 @@
 //! (the BM-System client, `bms.rs`), pointed at this DLL's functions of the same names.
 //!
 //! Three players, each a red, a green, a blue and a yellow button. The game reads 15 switches
-//! from the HBHI status (rva 0x6a0ff): switch `n` = player * 4 + color (red, green, blue,
+//! from the HBHI status (launcher.exe rva 0x6a0ff, BISHIBASHI.exe 0x7227f): switch `n` = player * 4 + color (red, green, blue,
 //! yellow), the game's button `color * 3 + player` (table 0x49ae30). Switches 0-7 (players 1
 //! and 2) are packet byte 8's bits 0-7; switches 8-11 (player 3) analog channels 0-3, pressed
 //! below half way (`<= 0x7fc0`); then test (byte 1 0x20), service (0x10), coin mech (0x04).
@@ -19,16 +19,34 @@ use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 
 static ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// The HBHI status read (`call [ac_io_hbhi_get_control_status_buffer]`, rva 0x6a0f9).
-const STATUS_READ: usize = 0x6a0f9;
+/// A build of the game: its HBHI status read (`call [ac_io_hbhi_get_control_status_buffer]`)
+/// and the boot's clock check (`jne`).
+struct Build {
+    status_read: usize,
+    call: [u8; 6],
+    clock_check: usize,
+}
 
-/// The game's code (launcher.exe, also its "All Avatars" edit).
-pub fn detected() -> bool {
+const BUILDS: &[Build] = &[
+    // launcher.exe (2009-09-29), also its "All Avatars" edit
+    Build { status_read: 0x6a0f9, call: [0xff, 0x15, 0x8c, 0x83, 0x48, 0x00], clock_check: 0x2f940 },
+    // BISHIBASHI.exe (2010-01-14)
+    Build { status_read: 0x72279, call: [0xff, 0x15, 0x98, 0x13, 0x49, 0x00], clock_check: 0x30ad0 },
+];
+
+/// The running build, if the executable is the game.
+fn build() -> Option<&'static Build> {
     let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
     // SizeOfImage: another game's smaller executable is not read past its end
     let size = unsafe { ((exe + ((exe + 0x3c) as *const u32).read_unaligned() as usize + 0x50) as *const u32).read_unaligned() } as usize;
-    size > STATUS_READ + 6
-        && unsafe { std::slice::from_raw_parts((exe + STATUS_READ) as *const u8, 6) } == [0xff, 0x15, 0x8c, 0x83, 0x48, 0x00]
+    BUILDS.iter().find(|b| {
+        size > b.status_read + 6 && unsafe { std::slice::from_raw_parts((exe + b.status_read) as *const u8, 6) } == b.call
+    })
+}
+
+/// The game's code.
+pub fn detected() -> bool {
+    build().is_some()
 }
 
 pub(crate) fn active() -> bool {
@@ -119,10 +137,9 @@ pub(crate) fn packet() -> [u8; 15] {
     raw
 }
 
-/// The boot's clock check: the operator set the clock (setting 0x1d; error 0x16, 5-2503-0000
-/// "The clock is un-setting up" otherwise): the PC's clock is the host's. Its `jne` (set)
-/// becomes `jmp`.
-const CLOCK_CHECK: usize = 0x2f940;
+// The boot's clock check: the operator set the clock (setting 0x1d; error 0x16, 5-2503-0000
+// "The clock is un-setting up" otherwise): the PC's clock is the host's. Its `jne` (set)
+// becomes `jmp` (`Build::clock_check`).
 
 /// Writes `new` at `at` when the code there is `expected`.
 fn patch(at: usize, expected: &[u8], new: &[u8], what: &str) {
@@ -150,6 +167,7 @@ pub fn init(module: *mut std::ffi::c_void) {
     }
     log!("ibb: {hooked} libbms imports answered by the payload");
     let exe = unsafe { GetModuleHandleW(std::ptr::null()) } as usize;
-    patch(exe + CLOCK_CHECK, &[0x75, 0x11], &[0xeb, 0x11], "the clock check");
+    let Some(build) = build() else { return };
+    patch(exe + build.clock_check, &[0x75, 0x11], &[0xeb, 0x11], "the clock check");
     crate::avs::init();
 }
