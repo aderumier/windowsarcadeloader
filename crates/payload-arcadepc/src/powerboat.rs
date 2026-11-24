@@ -20,6 +20,9 @@
 //!   counts then, at 0 the boat stays held at the start line); the game's race start request (0x1ae = 1) is answered at once (2: the
 //!   seat is home); the seatbelt (0x1c9) and sensor (0x1e0) warnings stay off.
 //!
+//! - **Loading.** `System.Trunc` (x87 control word switches, called for every coefficient of the
+//!   textures' JPEG decoding) replaced by SSE3 `fisttp`: start-up loading 11 s instead of 45-75 s.
+//!   The seat update the render loop called on every frame (with its `Sleep(5)`) is skipped.
 //! - **Videos.** The boat selection AVIs are MS-MPEG4 v2 (`MP42`, written by ffdshow), played
 //!   through Video for Windows (`DirectorAVI.dll`): the runner's `mpg4c32.dll` (GE-Proton patch
 //!   `0136-mpg4c32-add-a-microsoft-mpeg-4-video-for-windows-decoder`) decodes them, registered by
@@ -345,6 +348,26 @@ unsafe fn fix_cpu_check() {
     // (the PauseNonActive test of the deactivation handler only, the resume stays)
     if unsafe { patch(0x5ef599, &[0x74, 0x7f], &[0xeb, 0x7f]) } {
         log!("powerboat: no pause when the window loses the focus");
+    }
+    // System.Trunc (0x403328): x87 control word switched to truncation around a fistp and back
+    // (fldcw stalls the FPU), called for each coefficient of the textures' JPEG decoding
+    // (0x46ae..): most of the 45 s+ start-up loading. SSE3 fisttp truncates without the control
+    // word, the same result (int64 in edx:eax): sub esp, 8; fisttp qword [esp]; pop eax; pop
+    // edx; ret
+    if unsafe {
+        patch(
+            0x403328,
+            &[0x83, 0xec, 0x0c, 0xd9, 0x3c, 0x24, 0xd9, 0x7c, 0x24, 0x02],
+            &[0x83, 0xec, 0x08, 0xdd, 0x0c, 0x24, 0x58, 0x5a, 0xc3, 0x90],
+        )
+    } {
+        log!("powerboat: Trunc -> fisttp (start-up loading)");
+    }
+    // the motion seat update (0x595c8c: its registers 0x18e / 0x18f / 0x191 through MemAPI, then
+    // Sleep(5)), called on every frame by the render loop (0x594e54): no seat, skipped (the
+    // jne over its call -> jmp)
+    if unsafe { patch(0x594e5e, &[0x75, 0x07], &[0xeb, 0x07]) } {
+        log!("powerboat: motion seat polling skipped");
     }
 }
 

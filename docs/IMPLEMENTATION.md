@@ -6305,6 +6305,13 @@ retail game (its `Run.exe`, menus, a save): not used.
   (its deactivation handler, 0x5ef570; 0x5ef61c resumes it on activation); on a desktop the
   loading screen stayed still behind another window. The payload never pauses it (`je` -> `jmp`
   at 0x5ef599, the deactivation handler's PauseNonActive test).
+- **Loading.** The start-up loading took 45-75 s: the textures' JPEG decoding converts each
+  coefficient with `System.Trunc` (0x403328), which switches the x87 control word to truncation
+  around a `fistp` and back (`fldcw` stalls). The payload replaces its body with SSE3 `fisttp`
+  (the same truncation without the control word): attract after about 11 s.
+- **Motion seat polling.** The render loop (0x594e54) called the seat update (0x595c8c: its
+  registers through MemAPI, then `Sleep(5)`) on every frame: skipped (`jne` -> `jmp` at
+  0x594e5e).
 - **Save.** `Game\Profiles.xml` holds the cabinet's pilots (without one the game asks for a new
   profile with the keyboard). It is signed (`Integrity`): the dump's was edited by hand and ends
   with a second XML declaration (MSXML: EDOMParseError at boot). The payload removes the text
