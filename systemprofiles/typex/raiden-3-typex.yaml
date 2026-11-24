@@ -20,6 +20,13 @@ files:
   # (CenterLocked_ratio) before rotating it: the whole buffer otherwise, a square picture.
   ArcCabView/Presets/ArcCabView.ini: systemprofiles/typex/files/raiden/ArcCabView.ini
 
+env:
+  # The attract movies (DirectShow) draw through Wine's ddraw, wined3d on OpenGL by default:
+  # the dumps' ReShade 4.5.4 hooks opengl32 and its wglCreateContext / wglCreateLayerContext
+  # call each other until it throws (C++ system_error from quartz.dll, the game gone ~11 s in).
+  # wined3d's Vulkan backend never creates a GL context.
+  WINE_D3D_CONFIG: "renderer=vulkan"
+
 # Buttons Shoot, Bomb = b1, b2 (default mapping).
 
 # Control names (the GUI's mapping rows).
