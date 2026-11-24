@@ -138,6 +138,7 @@
 //! Jokers: `test service coin dash skill attack jump slide headphone up down left
 //! right touch`; Bishi Bashi Channel: `test service coin red green blue disk_left disk_right`
 //! (players 1-4); The Bishi Bashi: `test service coin red green blue yellow` (players 1-3);
+//! Bishi Bashi Champ Online: `test service coin start red green blue` (players 1-3);
 //! Hello! Pop'n Music: `test service coin start button1 button2 button3 button4` (players 1
 //! and 2); Metal Gear Arcade: `test service coin start trigger top front_top front_bottom
 //! side_left side_right side_lever switch up down left right`; Steel Chronicle Victroopers:

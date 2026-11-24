@@ -318,6 +318,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `winning-eleven-2012` | Winning Eleven 2012 | konami | works (user: 100%); e-Amusement cards (login, new player, match; save at a game's end not verified yet) |  |  | not in the test |  |
 | `bishi-bashi-channel` | Bishi Bashi Channel | konami | works (headless: attract, a 1P game) |  | start lamps | not in the test |  |
 | `the-bishi-bashi` | The Bishi Bashi | konami | works (user: 100%; the 2010 build `BISHIBASHI.exe`: headless, attract, coin, name, character and mode select) |  |  | not in the test |  |
+| `bishi-bashi-champ-online` | Bishi Bashi Champ Online | konami | works (headless: attract, coins, start, a game against the computer), 3 players |  | lamps | not in the test |  |
 | `dance-dance-revolution-2013` | Dance Dance Revolution 2013 | konami | works (user: 100%), e-Amusement cards (loader's server) |  |  | not in the test |  |
 | `yugioh-duel-terminal-6` | Yu-Gi-Oh! 5D's Duel Terminal 6 | konami | works (user: 100%) |  |  | not in the test |  |
 | `hello-popn-music` | Hello! Pop'n Music | konami | works (user: 100%), e-Amusement cards for both players (loader's server) |  |  | not in the test |  |

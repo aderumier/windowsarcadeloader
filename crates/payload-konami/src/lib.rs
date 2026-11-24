@@ -53,6 +53,9 @@
 //! Hello! Pop'n Music (`hpm.rs`) is `popn.dll`, run by `wal-avs-boot.exe`: its `libacio.dll`
 //! (the HBHI board: two players' start and four buttons).
 //!
+//! Bishi Bashi Champ Online loads it as `ezusb.dll` (`e99.rs`: its EZ-USB I/O board and security
+//! plug).
+//!
 //! The Bishi Bashi loads it as `libacio.dll` (`ibb.rs`: its HBHI board, three players' four
 //! buttons), its libbms imports pointed at the payload.
 //!
@@ -101,6 +104,7 @@ mod eamuse;
 mod ddr;
 #[cfg(target_arch = "x86")]
 mod deka;
+mod e99;
 #[cfg(target_arch = "x86")]
 mod f24;
 #[cfg(target_arch = "x86")]
@@ -303,6 +307,10 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         if file_name(module).eq_ignore_ascii_case("libbms.dll") {
             ig2::init();
             wal_payload_common::crosshair::init();
+            return TRUE;
+        }
+        if e99::detected(module) {
+            e99::init();
             return TRUE;
         }
         if deka::detected() {

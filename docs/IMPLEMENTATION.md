@@ -4104,6 +4104,32 @@ names (`ibb.rs`; the UDP link between cabinets fails to open, the cabinet runs a
 - **Input.** The game's DirectInput keyboard (`data/xml/IBBconf.xml`'s debug keys) gets no
   device (`WAL_DINPUT_DISABLE=1`).
 
+#### Bishi Bashi Champ Online (E99)
+
+Bishi Bashi Champ Online (2005 build `E99:J:A:C`, Direct3D 8, 640x480) is
+`E99/bin/game.exe` (the dump's `.windowsloader`; the cabinet's `select.exe` copied updates and
+started it). Three players, each a start and a red, a green and a blue button. Its I/O board is
+an EZ-USB one behind `ezusb.dll`: the payload is installed as that DLL (`e99.rs`) and answers
+its `usb*` calls (cdecl).
+
+- **Boot.** `usbStart`, `usbFirmResult` (0: firmware loaded), `usbCheckAlive` (true), the
+  security and watchdog calls, `usbGetPCBID` (12 bytes) succeed. The security plug:
+  `usbBootSecurity("GQE99")` 0 and `usbGetKEYID` failing (its success is error 0x3c),
+  `usbCheckSecurity("GQE99JAA")` 0.
+- **Input.** `usbPadRead(&u32)`, active high: DIP switches SW1-SW4 0x800000-0x100000, test
+  0x40000 (held at boot: backup clear), service 0x80000; players' start 0x200 / 0x400 / 0x800,
+  buttons 1 2 4 / 8 0x10 0x20 / 0x40 0x80 0x100. Coins: `usbCoinGet` returns the count so far.
+  `usbLamp`'s mask goes to the network outputs (`lamp0`...).
+- **Settings.** The dump's `game.exe` has its built-in `IS_FULLSCREEN`, `IS_USE_NETWORK`,
+  `IS_USE_USBIO` and `IS_USE_CAMERA` set to "0" (`game_original.exe`: "1"); without the board
+  it reads no input: `IS_USE_USBIO` (defaults table, rva 0x1859a0, value at +0x20) is set back
+  to "1" (a `config.txt` would override the table; the dump has none).
+- **ROM check.** `rom_check_thread` hashes every file `D:\romcheck.qsv` lists, `ezusb.dll`
+  among them: the payload failed it ("the files are broken", error 7). The per-file check's
+  call (rva 0xc1501) answers true.
+- **Drive D:.** `D:/E99/data`, `D:/E99/save`, `D:\romcheck.*`: redirected to the dump root
+  (`WAL_KONAMI_DDRIVE`, default `..\..` from `E99/bin`).
+
 #### Dance Dance Revolution 2013 (MDX)
 
 Dance Dance Revolution (2013, game code MDX, `MDX:J:A:A:2014032700`, Direct3D 9, 1280x720) is
