@@ -6305,6 +6305,11 @@ retail game (its `Run.exe`, menus, a save): not used.
   (its deactivation handler, 0x5ef570; 0x5ef61c resumes it on activation); on a desktop the
   loading screen stayed still behind another window. The payload never pauses it (`je` -> `jmp`
   at 0x5ef599, the deactivation handler's PauseNonActive test).
+- **Idle screen.** The game has no attract of its own (the cabinet's front end had it): its
+  idle screen shows `IdleLoading.jpg` ("Loading...") while 0x24 and 0x25c are both 0 (the
+  interface program still booting) and `IdleWaiting.jpg` ("Waiting...") for any other pair
+  (0x52c118). The payload answered 0 / 0 in attract: "Loading..." stayed until a start, as if
+  the boot hung. Attract is 0x24 = 1 now (after a game over too).
 - **Loading.** The start-up loading took 45-75 s: the textures' JPEG decoding converts each
   coefficient with `System.Trunc` (0x403328), which switches the x87 control word to truncation
   around a `fistp` and back (`fldcw` stalls). The payload replaces its body with SSE3 `fisttp`

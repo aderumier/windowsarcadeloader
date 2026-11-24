@@ -13,10 +13,12 @@
 //!   nitro, 0x1c7 the camera (an index the game follows, stepped by the view button).
 //! - **Interface.** Credits from the coins (`..\OpMenu\GameInfo.db`: `CoinPlay`, `CoinCtu`)
 //!   or free play: start with credits sets 0x25c = 3 and 0x24 = 3 (the game starts), the
-//!   game's 0x24 = 5 (game over) is shown until it clears 0x25c (3 s), then 0x24 = 0 (attract), its continue screen (0x1c8 = 1)
-//!   continues on start with credits (0x1c8 = 2). 0x1cf holds credits + 1, 0x1d0 the coins.
-//! - **Motion seat.** Ready at once (0x24 and 0x25c 0: attract; any other pair shows the
-//!   game's waiting picture), home at a game's start (0x1ae = 2: the race intro's timer only
+//!   game's 0x24 = 5 (game over) is shown until it clears 0x25c (3 s), then 0x24 = 1 (attract),
+//!   its continue screen (0x1c8 = 1) continues on start with credits (0x1c8 = 2). 0x1cf holds
+//!   credits + 1, 0x1d0 the coins. The game has no attract of its own (the cabinet's front end
+//!   had it): its idle screen shows "Waiting..." while 0x24 = 1 (0x24 = 0 with 0x25c = 0 is the
+//!   interface program still booting: "Loading...", which stayed until a start).
+//! - **Motion seat.** Ready at once, home at a game's start (0x1ae = 2: the race intro's timer only
 //!   counts then, at 0 the boat stays held at the start line); the game's race start request (0x1ae = 1) is answered at once (2: the
 //!   seat is home); the seatbelt (0x1c9) and sensor (0x1e0) warnings stay off.
 //!
@@ -89,6 +91,10 @@ fn held() -> [bool; NATIVES.len()] {
 
 // register 0x30 indexes
 const STATE: usize = 0x24;
+/// 0x24 in attract: the interface program up, no game (the game's idle screen shows
+/// `IdleWaiting.jpg`; 0x24 = 0 with 0x25c = 0 is the interface still booting:
+/// `IdleLoading.jpg`, "Loading..." until a start)
+const IDLE: u32 = 1;
 const START_DONE: usize = 0x18e;
 const RACE_START: usize = 0x1ae;
 const WHEEL: usize = 0x1c0;
@@ -200,11 +206,14 @@ fn update() {
 
     // a game over: its picture until the game clears the seat (3 s), then attract
     if get(STATE) == 5 && get(SEAT) == 0 {
-        set(STATE, 0);
+        set(STATE, IDLE);
         log!("powerboat: game over");
     }
+    if get(STATE) == 0 {
+        set(STATE, IDLE);
+    }
     // start in attract
-    if pressed && get(STATE) == 0 && get(SEAT) == 0 {
+    if pressed && get(STATE) == IDLE && get(SEAT) == 0 {
         if s.free_play || i.credits >= s.coin_play {
             if !s.free_play {
                 i.credits -= s.coin_play;
@@ -252,6 +261,7 @@ static INIT: AtomicBool = AtomicBool::new(false);
 pub extern "C" fn pb_initialize_vram() -> i32 {
     if !INIT.swap(true, Ordering::Relaxed) {
         log!("powerboat: InitializeVRAM");
+        set(STATE, IDLE);
         for idx in [WHEEL, THROTTLE, AXIS2] {
             set(idx, 0x8000);
         }
