@@ -18,6 +18,8 @@
 //!   credits + 1, 0x1d0 the coins. The game has no attract of its own (the cabinet's front end
 //!   had it): its idle screen shows "Waiting..." while 0x24 = 1 (0x24 = 0 with 0x25c = 0 is the
 //!   interface program still booting: "Loading...", which stayed until a start).
+//!   A game starts by itself there, with credits (free play: always), at boot and after a game
+//!   over.
 //! - **Motion seat.** Ready at once, home at a game's start (0x1ae = 2: the race intro's timer only
 //!   counts then, at 0 the boat stays held at the start line); the game's race start request (0x1ae = 1) is answered at once (2: the
 //!   seat is home); the seatbelt (0x1c9) and sensor (0x1e0) warnings stay off.
@@ -212,8 +214,9 @@ fn update() {
     if get(STATE) == 0 {
         set(STATE, IDLE);
     }
-    // start in attract
-    if pressed && get(STATE) == IDLE && get(SEAT) == 0 {
+    // start in attract: by itself (the game has no attract, the cabinet's front end started it),
+    // with credits
+    if get(STATE) == IDLE && get(SEAT) == 0 {
         if s.free_play || i.credits >= s.coin_play {
             if !s.free_play {
                 i.credits -= s.coin_play;
