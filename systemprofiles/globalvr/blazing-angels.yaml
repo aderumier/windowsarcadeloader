@@ -42,6 +42,8 @@ env:
 registry: [systemprofiles/globalvr/files/blazing-angels/settings.reg]
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   # the flight stick must not press the d-pad (service up / down in the test menu)
   stick_as_dpad: false
   # Left stick flight stick, right stick up / down throttle, R2 / X machine guns, R1 / Y

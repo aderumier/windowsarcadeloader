@@ -21,6 +21,7 @@ use crate::config::Profile;
 use crate::ffb;
 use crate::guns::{self, PointerEvent};
 use crate::mapping::{self, DeviceState, Mapping, RawKey, Source};
+use crate::pad_layout;
 use crate::players;
 use crate::wheels::{self, Calibration, Wheels};
 
@@ -48,6 +49,9 @@ struct Rumble {
 pub struct Hub<'a> {
     config: &'a Profile,
     gamepad_map: Mapping,
+    /// The gamepad table before the button layout, and the machine's layouts (per controller).
+    gamepad_table: crate::config::MapTable,
+    layouts: pad_layout::Settings,
     /// Calibrated wheels' mapping: `input.wheel` over `input.gamepad`.
     wheel_map: Mapping,
     /// Wheel calibrations (`userprofiles/wheels.yaml`).
@@ -82,7 +86,19 @@ impl<'a> Hub<'a> {
         // the left stick on the d-pad's directions when it drives nothing else
         let mut gamepad = config.input.gamepad.clone();
         gamepad.extend(mapping::stick_dpad(&gamepad, |t| config.uses(t)));
-        let gamepad_map = mapping::compile(&gamepad, mapping::parse_pad_source).context("input.gamepad")?;
+        // the machine's button layout (modern, classic, custom) over the tables' reference one
+        let layouts = if config.input.pad_layout {
+            pad_layout::load(&config.root).unwrap_or_else(|e| {
+                eprintln!("input: {e:#}");
+                pad_layout::Settings::default()
+            })
+        } else {
+            // the game's buttons are physical choices: the reference layout, as written
+            eprintln!("input: gamepad button layout off for this game (input.pad_layout: false)");
+            pad_layout::Settings::reference()
+        };
+        let gamepad_map = mapping::compile(&layouts.all.apply(&gamepad), mapping::parse_pad_source).context("input.gamepad")?;
+        let gamepad_table = gamepad;
         let mut wheel = mapping::wheel_table(&config.input.gamepad, &config.input.wheel);
         wheel.extend(mapping::stick_dpad(&wheel, |t| config.uses(t)));
         let wheel_map = mapping::compile(&wheel, mapping::parse_pad_source).context("input.wheel")?;
@@ -161,6 +177,8 @@ impl<'a> Hub<'a> {
         let mut hub = Hub {
             config,
             gamepad_map,
+            gamepad_table,
+            layouts,
             wheel_map,
             calibrations,
             exit_sources,
@@ -388,7 +406,15 @@ impl<'a> Hub<'a> {
                 Ok(p) => p,
                 Err(e) => return eprintln!("input: cannot open gamepad {name}: {e}"),
             };
-            let mut mapping = self.gamepad_map.clone();
+            let layout = self.layouts.for_device(&name);
+            let mut mapping = if layout.applies(&self.gamepad_table) {
+                let slots = layout.slots();
+                let whose = self.layouts.device_entry(&name).map_or("every controller's".to_string(), |m| format!("'{m}'"));
+                eprintln!("input: {name}: {whose} button layout {:?}: top {} / bottom {}", layout.layout, slots[..4].join(" "), slots[4..].join(" "));
+                mapping::compile(&layout.apply(&self.gamepad_table), mapping::parse_pad_source).unwrap_or_else(|_| self.gamepad_map.clone())
+            } else {
+                mapping::compile(&self.gamepad_table, mapping::parse_pad_source).unwrap_or_else(|_| self.gamepad_map.clone())
+            };
             if let Some(d) = dev_cfg {
                 match mapping::compile(&d.map, mapping::parse_pad_source) {
                     Ok(extra) => mapping.extend(extra),

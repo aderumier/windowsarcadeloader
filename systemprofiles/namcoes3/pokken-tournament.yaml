@@ -66,6 +66,8 @@ options:
           (F\banapass.txt).
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   # The cabinet controller's buttons on the pad's (A B X Y, L / R, ZL / ZR on the triggers).
   gamepad:
     x: b1

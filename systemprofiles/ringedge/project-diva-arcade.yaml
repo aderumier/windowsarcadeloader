@@ -110,6 +110,8 @@ options:
 # the touch screen: a touchpad or touchscreen (the finger), the mouse (its position, the left
 # button) or the left stick with button 8. The 4 hit buttons are the JVS buttons.
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   touch: true
   guns_enabled: true
   stick_as_dpad: false

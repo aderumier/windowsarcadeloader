@@ -56,6 +56,8 @@ env:
   WAL_ULTRAPIN_ROTATE: "1"
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   # the keyboard's plunger pulled back over a second, as a hand pulls the real one
   keyboard_ramp_ms: 1000
   # Gamepad: L1 / L2 left flipper, R1 / R2 right flipper (A / B too).

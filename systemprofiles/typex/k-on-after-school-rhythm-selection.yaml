@@ -41,6 +41,8 @@ native_map:
 # The Xbox face colors match the cabinet's buttons: X blue, A green, B red; the card picker on
 # Y (scan) and the shoulders. Keyboard: Z / X / C blue, green, red (the arrows too).
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   gamepad:
     x: left
     a: down

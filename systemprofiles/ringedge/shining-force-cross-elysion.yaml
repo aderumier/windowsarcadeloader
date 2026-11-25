@@ -94,6 +94,8 @@ drives:
 # The analog stick moves the character; the touch screen (the mouse, or the right stick with
 # button 8) picks the menus, the targets and the skills.
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   stick_as_dpad: false
   guns_enabled: true
   gun:

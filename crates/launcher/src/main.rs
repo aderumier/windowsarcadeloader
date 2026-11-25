@@ -16,6 +16,7 @@ mod mapping;
 mod net_outputs;
 mod eamuse_card;
 mod nesica_card;
+mod pad_layout;
 mod players;
 mod rundir;
 mod script;

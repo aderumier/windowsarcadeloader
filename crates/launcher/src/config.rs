@@ -139,6 +139,9 @@ pub struct GamescopeConfig {
 pub struct InputConfig {
     pub deadzone: i16,
     pub stick_as_dpad: bool,
+    /// The machine's gamepad button layout moves the 8 panel buttons (false: the table's
+    /// buttons are physical choices, a trigger to fire).
+    pub pad_layout: bool,
     pub exit_combo: Vec<String>,
     pub exit_keys: Vec<String>,
     pub gamepad: MapTable,

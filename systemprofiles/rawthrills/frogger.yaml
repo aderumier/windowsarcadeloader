@@ -18,6 +18,8 @@ env:
 native_map: {}
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   exit_keys: [KEY_ESC]
   gamepad:
     a: start

@@ -90,6 +90,8 @@ options:
 # The touch screen: a touchpad or touchscreen (all its fingers), the mouse or player 1's gun
 # (button 1 touches), player 2's gun a second finger; a pad's left stick points (R1 touches).
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   touch: true
   guns_enabled: true
   stick_as_dpad: false

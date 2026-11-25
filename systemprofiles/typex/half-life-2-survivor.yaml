@@ -75,6 +75,8 @@ env:
   WAL_TYPEX_JVS_ANALOG_INPUTS: ",,,-ly,-lx"
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   stick_as_dpad: false
   # a pad: R1 fire, L1 alt fire, A jump, B duck, X reload
   gamepad:

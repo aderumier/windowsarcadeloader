@@ -218,6 +218,9 @@ input:
   deadzone: 12000
   # The left stick also drives the d-pad.
   stick_as_dpad: true
+  # The machine's gamepad button layout (see gamepad: below) applies to this game: false when
+  # its gamepad table picks physical buttons (fire on a trigger), not panel positions.
+  pad_layout: true
   # Physical gamepad buttons held together to quit the game.
   exit_combo: [back, start]
   # Keyboard keys (evdev names) quitting the game, whatever window has the focus (wine
@@ -231,7 +234,12 @@ input:
   #   axes:    leftx lefty rightx righty l2 r2, +leftx/-leftx for one half
   # Virtual stick: b1-b8, up down left right, start coin service test, card (toggle),
   #   lx ly rx ry accel brake (axes, -ly inverts), none
-  # Layout: top row b1 b2 b3 b4 = X Y R1 L1, bottom row b5 b6 b7 b8 = A B R2 L2.
+  # Reference layout of every gamepad table (defaults, profiles): top row b1 b2 b3 b4 = X Y R1 L1,
+  # bottom row b5 b6 b7 b8 = A B R2 L2. The machine's button layout (GUI "Button layout",
+  # userprofiles/pad-layout.yaml: modern by default, classic, custom; for every controller or
+  # per controller name) moves these 8 sources to
+  # its buttons at the same positions when the game starts (pad_layout.rs): modern = top
+  # X Y R1 R2, bottom A B L1 L2. A table using one of them as an axis (r2: accel) is kept.
   gamepad:
     x: b1
     y: b2

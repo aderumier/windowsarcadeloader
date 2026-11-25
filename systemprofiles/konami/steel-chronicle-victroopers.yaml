@@ -75,6 +75,8 @@ options:
           The dot's size, in percent of the screen height.
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   # left stick and right stick: the two flight sticks; the touch screen: a gun or the mouse
   # points (accel, brake: the pointer across the screen), its trigger touches (start)
   guns_enabled: true

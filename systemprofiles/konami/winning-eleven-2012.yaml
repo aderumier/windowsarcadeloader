@@ -58,6 +58,8 @@ options:
           The dot's size, in percent of the screen height.
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   # Keyboard: the numpad types the card's PIN (when none is configured)
   keyboard:
     p1:

@@ -100,6 +100,8 @@ options:
 # button) or the left stick with button 8. The 4 hit buttons are the JVS buttons; the slider's
 # hands slide by themselves while their input is held (diva.rs).
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   touch: true
   guns_enabled: true
   stick_as_dpad: false

@@ -39,6 +39,8 @@ env:
   WAL_WINDOW_SIZE: screen
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   # The left stick chooses as the d-pad (green / blue); the right stick moves the play mat's
   # picked card.
   stick_as_dpad: true

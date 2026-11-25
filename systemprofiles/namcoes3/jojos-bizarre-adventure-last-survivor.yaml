@@ -28,6 +28,8 @@ env:
   WAL_HIDE_CURSOR: "1"
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   # the analog sticks are the cabinet's (movement, camera): no d-pad from the left stick
   stick_as_dpad: false
   # the mouse (or a gun) is the touch panel: its left button touches, where the cursor is

@@ -23,6 +23,7 @@ use crate::squashfs::{self, DumpFile};
 use crate::mapping::RawKey;
 use crate::eamuse_card;
 use crate::nesica_card::{self, Card};
+use crate::pad_layout::{self, Kind as LayoutKind, Layout, Settings as LayoutSettings};
 use crate::players::{self, Priority};
 use crate::wheels::{self, Calibration, Wheels};
 use bindings::{Captured, Device, Row, RowKind};
@@ -234,6 +235,16 @@ struct App {
     show_players: bool,
     priority: Priority,
     priority_selected: Option<usize>,
+    /// The button layout window (`pad_layout.rs`): the machine's gamepad layouts, the
+    /// controller edited (None: every controller's layout).
+    show_layout: bool,
+    pad_layout: LayoutSettings,
+    layout_target: Option<String>,
+    /// The gamepad of the last captured input (its own layout).
+    last_pad: Option<u32>,
+    /// The panel position waiting for its gamepad button, and the panel button held.
+    layout_pick: Option<usize>,
+    layout_pressed: Option<&'static str>,
 }
 
 impl App {
@@ -275,6 +286,10 @@ impl App {
             status = format!("{e:#}");
             Priority::new()
         });
+        let pad_layout = pad_layout::load(&root).unwrap_or_else(|e| {
+            status = format!("{e:#}");
+            LayoutSettings::default()
+        });
         let eamuse = eamuse_saved.clone().unwrap_or_else(|| eamuse_card::Card { card_id: eamuse_card::DEFAULT_ID.into(), ..Default::default() });
         App {
             root,
@@ -312,6 +327,12 @@ impl App {
             show_players: false,
             priority,
             priority_selected: None,
+            show_layout: false,
+            pad_layout,
+            layout_target: None,
+            last_pad: None,
+            layout_pick: None,
+            layout_pressed: None,
         }
     }
 
@@ -346,6 +367,20 @@ impl App {
             Device::Joystick => vec!["input".into(), "devices".into(), self.joystick.clone()?, "map".into()],
             Device::Gun => vec!["input".into(), "gun".into()],
         })
+    }
+
+    /// The button layout moving the gamepad table's buttons (None: the table as written, a
+    /// trigger as a pedal or the reference layout).
+    fn layout_view(&self, device: Device) -> Option<Layout> {
+        self.layout_view_for(device, None)
+    }
+
+    /// The same for a gamepad's input (its own layout, if any).
+    fn layout_view_for(&self, device: Device, pad: Option<u32>) -> Option<Layout> {
+        let name = pad.and_then(|id| self.devices.get(&id)).map(|d| d.name.as_str());
+        let layout = name.map_or(&self.pad_layout.all, |n| self.pad_layout.for_device(n));
+        let on = self.game.as_ref().is_some_and(|s| s.profile.input.pad_layout);
+        (device == Device::Gamepad && on && layout.applies(&self.table(device))).then(|| layout.clone())
     }
 
     /// The table in use (all the layers merged).
@@ -489,6 +524,14 @@ impl App {
                     caught = caught.or_else(|| pad.iter().find_map(|p| self.capture.as_ref().and_then(|c| self.captured(c, p))));
                 }
             }
+            if caught.is_some() {
+                if let InputEvent::PadButton { id, .. } | InputEvent::PadAxis { id, .. } = &ev {
+                    self.last_pad = Some(*id);
+                }
+            }
+            if !taken && self.show_layout && self.capture.is_none() {
+                self.layout_input(&ev);
+            }
             match ev {
                 InputEvent::Keyboards(n) => self.keyboards = Some(n),
                 InputEvent::Added { id, name, guid, path, is_pad, is_wheel, axes } => {
@@ -588,8 +631,19 @@ impl App {
             return;
         };
         let cap = self.capture.take().expect("capture");
+        let shown = bindings::source_label(cap.device, &src);
+        let src = match self.layout_view_for(cap.device, self.last_pad) {
+            // the button pressed is the layout's: the table gets the reference one at its place
+            Some(layout) => {
+                let reference = layout.to_reference(&src);
+                let mut trial = self.table(cap.device);
+                bindings::assign(&mut trial, cap.device, &cap.row, &reference, &dst, cap.replace);
+                if layout.applies(&trial) { reference } else { src }
+            }
+            None => src,
+        };
         self.edit(cap.device, |t| bindings::assign(t, cap.device, &cap.row, &src, &dst, cap.replace));
-        self.status = format!("{}: {}  ({})", cap.row.label, bindings::source_label(cap.device, &src), self.status);
+        self.status = format!("{}: {}  ({})", cap.row.label, shown, self.status);
     }
 
     // ---- dumps and launch ----
@@ -1042,6 +1096,19 @@ impl App {
                 } else {
                     format!("Every gamepad (players in connection order): {}", pads.join(", "))
                 });
+                let note = if self.layout_view(Device::Gamepad).is_some() {
+                    let own = if self.pad_layout.devices.is_empty() { "" } else { " (controllers with their own layout differ)" };
+                    format!("Buttons shown in every controller's {} layout{own} (🎮 Button layout).", layout_name(&self.pad_layout.all))
+                } else if !self.game.as_ref().is_some_and(|s| s.profile.input.pad_layout) {
+                    "This game's buttons are physical choices: the button layout does not apply to it.".to_string()
+                } else if self.pad_layout.all.slots() != pad_layout::REFERENCE {
+                    "The triggers are pedals here: the button layout does not apply to this game.".to_string()
+                } else {
+                    String::new()
+                };
+                if !note.is_empty() {
+                    ui.weak(note);
+                }
             }
             Tab::Wheel => {
                 let wheels: Vec<&str> = self
@@ -1285,6 +1352,9 @@ impl App {
         let Some(sel) = &self.game else { return };
         let rows = bindings::rows(&sel.profile, device);
         let table = self.table(device);
+        // gamepad: the physical buttons of the machine's layout
+        let view = self.layout_view(device);
+        let label = |src: &str| bindings::source_label(device, &view.as_ref().map_or_else(|| src.to_string(), |l| l.to_physical(src)));
         // gamepad: the left stick on the d-pad's directions (as the launcher adds it)
         let auto: MapTable = match device {
             Device::Gamepad | Device::Wheel => crate::mapping::stick_dpad(&table, |t| sel.profile.uses(t)).into_iter().collect(),
@@ -1302,7 +1372,7 @@ impl App {
                             ui.weak("—");
                         }
                         for (src, _) in automatic {
-                            let text = format!("{} (auto)", bindings::source_label(device, &src));
+                            let text = format!("{} (auto)", label(&src));
                             ui.add_enabled(
                                 false,
                                 egui::Button::new(egui::RichText::new(text).size(15.0))
@@ -1315,7 +1385,7 @@ impl App {
                             );
                         }
                         for (src, inverted) in bound {
-                            let mut text = bindings::source_label(device, &src);
+                            let mut text = label(&src);
                             if inverted && row.kind == RowKind::Analog {
                                 text += " (inverted)";
                             }
@@ -1387,6 +1457,244 @@ impl App {
                 }
             }
             None => {}
+        }
+    }
+}
+
+// ---- button layout ----
+
+fn layout_name(layout: &Layout) -> &'static str {
+    match layout.layout {
+        LayoutKind::Modern => "modern",
+        LayoutKind::Classic => "classic",
+        LayoutKind::Custom => "custom",
+    }
+}
+
+/// A panel button's colors (Xbox face colors): fill, text.
+fn panel_colors(button: &str) -> Option<(egui::Color32, egui::Color32)> {
+    use egui::Color32;
+    Some(match button {
+        "a" => (Color32::from_rgb(0x3c, 0xa0, 0x3c), Color32::WHITE),
+        "b" => (Color32::from_rgb(0xc8, 0x32, 0x32), Color32::WHITE),
+        "x" => (Color32::from_rgb(0x2d, 0x6e, 0xd2), Color32::WHITE),
+        "y" => (Color32::from_rgb(0xe6, 0xbe, 0x28), Color32::BLACK),
+        _ => return None,
+    })
+}
+
+impl App {
+    fn layout_window(&mut self, ctx: &egui::Context) {
+        if !self.show_layout {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("🎮 Button layout").open(&mut open).default_width(560.0).show(ctx, |ui| self.layout_ui(ui));
+        if !open {
+            self.show_layout = false;
+            self.layout_pick = None;
+        }
+    }
+
+    fn save_layout(&mut self) {
+        let whose = self.layout_target.as_ref().map_or("every controller's".to_string(), |n| format!("'{n}'"));
+        let name = self.target_layout().map_or("", layout_name);
+        self.status = match pad_layout::save(&self.root, &self.pad_layout) {
+            Ok(()) => format!("saved {whose} button layout {name}"),
+            Err(e) => format!("{e:#}"),
+        };
+    }
+
+    /// The layout the window edits: every controller's, or the chosen controller's own (None:
+    /// that controller has none).
+    fn target_layout(&self) -> Option<&Layout> {
+        match &self.layout_target {
+            None => Some(&self.pad_layout.all),
+            Some(n) => self.pad_layout.devices.get(n),
+        }
+    }
+
+    fn target_layout_mut(&mut self) -> Option<&mut Layout> {
+        match &self.layout_target {
+            None => Some(&mut self.pad_layout.all),
+            Some(n) => self.pad_layout.devices.get_mut(n),
+        }
+    }
+
+    /// A gamepad press while the window is open: shown on the panel, and given to the position
+    /// waiting for one (from the chosen controller only, when one is chosen).
+    fn layout_input(&mut self, ev: &InputEvent) {
+        let (id, name, down) = match ev {
+            InputEvent::PadButton { id, name, down } => (*id, *name, *down),
+            InputEvent::PadAxis { id, name: name @ ("l2" | "r2"), value } => (*id, *name, *value > 16000),
+            _ => return,
+        };
+        if self.calibration(id).is_some() {
+            return;
+        }
+        if let Some(target) = &self.layout_target {
+            let pad = self.devices.get(&id).map(|d| d.name.to_ascii_lowercase()).unwrap_or_default();
+            if !pad.contains(&target.to_ascii_lowercase()) {
+                return;
+            }
+        }
+        let Some(button) = pad_layout::canonical(name) else { return };
+        if down {
+            self.layout_pressed = Some(button);
+            if let Some(i) = self.layout_pick {
+                if let Some(layout) = self.target_layout_mut() {
+                    layout.assign(i, button);
+                    self.layout_pick = None;
+                    self.save_layout();
+                }
+            }
+        } else if self.layout_pressed == Some(button) {
+            self.layout_pressed = None;
+        }
+    }
+
+    fn layout_ui(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            "The gamepad buttons playing the arcade panel's 8 buttons, in every game. The games' mappings \
+             are made for the panel's positions (button 1 top left, button 5 bottom left): they follow \
+             the layout. A game using the triggers as pedals keeps them as pedals.",
+        );
+        ui.add_space(6.0);
+
+        // the controller: every one, or one with its own layout
+        let connected: Vec<String> = self
+            .devices
+            .values()
+            .filter(|d| d.is_pad && !d.is_wheel && wheels::find(&self.calibrations, &d.name).is_none())
+            .filter(|d| self.pad_layout.device_entry(&d.name).is_none())
+            .map(|d| d.name.clone())
+            .collect();
+        let shown = self.layout_target.clone().unwrap_or_else(|| "All controllers".into());
+        let before_target = self.layout_target.clone();
+        ui.horizontal(|ui| {
+            ui.label("Controller:");
+            egui::ComboBox::from_id_salt("layout_target").selected_text(shown).width(320.0).show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.layout_target, None, "All controllers");
+                for name in self.pad_layout.devices.keys() {
+                    ui.selectable_value(&mut self.layout_target, Some(name.clone()), format!("{name} (own layout)"));
+                }
+                for name in &connected {
+                    ui.selectable_value(&mut self.layout_target, Some(name.clone()), format!("{name} (connected)"));
+                }
+            });
+        });
+        if self.layout_target != before_target {
+            self.layout_pick = None;
+        }
+        match self.layout_target.clone() {
+            None => {
+                let own = self.pad_layout.devices.len();
+                ui.weak(if own == 0 {
+                    "Every controller uses this layout.".to_string()
+                } else {
+                    format!("Every controller uses this layout, except the {own} with their own.")
+                });
+            }
+            Some(name) if self.pad_layout.devices.contains_key(&name) => {
+                ui.horizontal(|ui| {
+                    ui.weak(format!("Controllers whose name contains \"{name}\" use this layout."));
+                    if ui.button("Remove").on_hover_text("this controller uses every controller's layout again").clicked() {
+                        self.pad_layout.devices.remove(&name);
+                        self.layout_target = None;
+                        self.layout_pick = None;
+                        self.save_layout();
+                    }
+                });
+            }
+            Some(name) => {
+                ui.horizontal(|ui| {
+                    ui.weak("This controller uses every controller's layout.");
+                    if ui.button("Give it its own layout").clicked() {
+                        self.pad_layout.devices.insert(name.clone(), self.pad_layout.all.clone());
+                        self.save_layout();
+                    }
+                });
+            }
+        }
+        ui.add_space(6.0);
+
+        // the layout: editable when the target has one, else every controller's shown
+        let editable = self.target_layout().is_some();
+        let mut layout = self.target_layout().unwrap_or(&self.pad_layout.all).clone();
+        let original = layout.clone();
+        let mut pick = self.layout_pick.filter(|_| editable);
+        ui.add_enabled_ui(editable, |ui| {
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut layout.layout, LayoutKind::Modern, "Modern").on_hover_text("top X Y R1 R2, bottom A B L1 L2");
+                ui.radio_value(&mut layout.layout, LayoutKind::Classic, "Classic")
+                    .on_hover_text("top X Y L1 L2, bottom A B R1 R2 (Batocera's MAME layout)");
+                ui.radio_value(&mut layout.layout, LayoutKind::Custom, "Custom")
+                    .on_hover_text("your own: click a panel button, then press the gamepad button or choose it below");
+            });
+            if layout.layout != original.layout {
+                pick = None;
+            }
+            ui.add_space(10.0);
+            let slots = layout.slots();
+            let mut clicked = None;
+            for (row, title) in [(0, "Top row"), (1, "Bottom row")] {
+                ui.horizontal(|ui| {
+                    ui.add_sized([90.0, 64.0], egui::Label::new(title));
+                    for col in 0..4 {
+                        let i = row * 4 + col;
+                        let button = slots[i];
+                        ui.vertical(|ui| {
+                            let mut text = egui::RichText::new(pad_layout::label(button)).size(22.0).strong();
+                            let fill = panel_colors(button);
+                            if let Some((_, fg)) = fill {
+                                text = text.color(fg);
+                            }
+                            let mut b = egui::Button::new(text).min_size(egui::vec2(60.0, 60.0)).corner_radius(30.0);
+                            if let Some((bg, _)) = fill {
+                                b = b.fill(bg);
+                            }
+                            if pick == Some(i) {
+                                b = b.stroke(egui::Stroke::new(4.0, ui.visuals().warn_fg_color));
+                            } else if self.layout_pressed == Some(button) {
+                                b = b.stroke(egui::Stroke::new(4.0, ui.visuals().selection.stroke.color));
+                            }
+                            let hover = format!("panel button {}: choose its gamepad button", i + 1);
+                            if ui.add(b).on_hover_text(hover).clicked() {
+                                clicked = Some(i);
+                            }
+                            ui.add_sized([60.0, 14.0], egui::Label::new(egui::RichText::new(format!("{}", i + 1)).weak()));
+                        });
+                        ui.add_space(6.0);
+                    }
+                });
+            }
+            if let Some(i) = clicked {
+                pick = if pick == Some(i) { None } else { Some(i) };
+            }
+            ui.add_space(8.0);
+            if let Some(i) = pick {
+                ui.colored_label(ui.visuals().warn_fg_color, format!("Panel button {}: press a gamepad button, or choose:", i + 1));
+                ui.horizontal(|ui| {
+                    for b in pad_layout::REFERENCE {
+                        if ui.selectable_label(slots[i] == b, egui::RichText::new(pad_layout::label(b)).size(16.0)).clicked() {
+                            layout.assign(i, b);
+                            pick = None;
+                        }
+                    }
+                    if ui.small_button("Cancel").clicked() {
+                        pick = None;
+                    }
+                });
+            } else {
+                ui.weak("Click a panel button to change its gamepad button (a custom layout is made from this one).");
+            }
+        });
+        self.layout_pick = pick;
+        if layout != original {
+            if let Some(slot) = self.target_layout_mut() {
+                *slot = layout;
+            }
+            self.save_layout();
         }
     }
 }
@@ -1882,7 +2190,7 @@ impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.poll_inputs();
         self.poll_running(ctx);
-        if self.capture.is_some() {
+        if self.capture.is_some() || self.show_layout {
             ctx.request_repaint_after(Duration::from_millis(250));
         }
     }
@@ -1900,6 +2208,8 @@ impl eframe::App for App {
                 ui.toggle_value(&mut self.show_log, "📄 Game log");
                 ui.toggle_value(&mut self.show_wheels, "🚗 Wheel calibration")
                     .on_hover_text("calibrate a wheel and its pedals: then read as a gamepad in every game");
+                ui.toggle_value(&mut self.show_layout, "🎮 Button layout")
+                    .on_hover_text("the gamepad's 8 arcade buttons: modern, classic or your own layout, in every game");
                 ui.toggle_value(&mut self.show_players, "🎮 Players")
                     .on_hover_text("which gamepad is player 1, 2...: a priority list over the frontend's order");
                 ui.toggle_value(&mut self.show_card, "🎫 NESiCA card")
@@ -1935,6 +2245,7 @@ impl eframe::App for App {
         }
         self.wheels_window(ui.ctx());
         self.players_window(ui.ctx());
+        self.layout_window(ui.ctx());
         self.card_window(ui.ctx());
         self.eamuse_window(ui.ctx());
         egui::Panel::left("games").resizable(true).default_size(320.0).show(ui, |ui| self.game_list(ui));

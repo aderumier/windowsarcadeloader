@@ -87,6 +87,8 @@ native_map:
 # button) or the left stick with kp0, on either player's screen. Buttons 1-8 clockwise from the
 # top right of the circle.
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   touch: true
   guns_enabled: true
   stick_as_dpad: false

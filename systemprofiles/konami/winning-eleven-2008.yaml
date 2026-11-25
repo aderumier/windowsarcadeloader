@@ -51,6 +51,8 @@ options:
           the loader's own. Empty: the loader's server (when on).
 
 input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
   # the arcade stick's buttons where a soccer game has them on a pad: cross short pass, circle
   # long pass, square shoot, R1 dash dribble, L1 switch player
   gamepad:
