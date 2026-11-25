@@ -71,6 +71,8 @@ fn known_decrypt(value: &str) -> Option<String> {
 
 /// The bytes the next connection to the keychip's data channel receives.
 static KEYCHIP_DATA: std::sync::Mutex<Option<Vec<u8>>> = std::sync::Mutex::new(None);
+/// The data channel's uploads received (a count the request's channel waits for).
+static UPLOADS: (std::sync::Mutex<u32>, std::sync::Condvar) = (std::sync::Mutex::new(0), std::sync::Condvar::new());
 /// `place.info`'s binary record (shop information), sent on the auth data channel: empty.
 const PLACE_INFO_SIZE: usize = 0xCE;
 
@@ -93,6 +95,9 @@ const DEFAULTS: &[(&str, &str)] = &[
     ("auth.serial.main", "AAVE-01A00000001"),
     ("mxmaster.develop", "0"),
 ];
+
+/// The keychip values the game set (`keychip.billing.*`).
+static SET_VALUES: std::sync::LazyLock<std::sync::Mutex<HashMap<String, String>>> = std::sync::LazyLock::new(Default::default);
 
 fn values() -> &'static HashMap<String, String> {
     static VALUES: OnceLock<HashMap<String, String>> = OnceLock::new();
@@ -190,14 +195,22 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
             log!("pcp: {name}: acknowledged {:02X?}, closed", &ack[..n]);
             return;
         }
-        // data channel of the keychip's encrypt/decrypt requests: logged only
+        // data the client sends (the billing's new play limit signature after
+        // `keychip.billing.playlimit=<hex>` and its answer): logged, acknowledged with `$` and
+        // closed, as the keychip's own transfers end; the request's channel acknowledges it too
         let mut buf = [0u8; 512];
         while let Ok(n) = stream.read(&mut buf) {
             if n == 0 {
                 break;
             }
             log!("pcp: {name}: {n} bytes {:02X?}", &buf[..n.min(64)]);
+            // the rest of the transfer, if any, follows at once
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(300)));
         }
+        let _ = stream.write_all(b"$");
+        log!("pcp: {name}: acknowledged, closed");
+        *UPLOADS.0.lock().unwrap() += 1;
+        UPLOADS.1.notify_all();
         return;
     }
     if stream.write_all(b">").is_err() {
@@ -220,9 +233,27 @@ fn serve(mut stream: TcpStream, name: &str, binary: bool) {
                 "mxnetwork" => network_answer(&request),
                 _ => service_answer(&request),
             };
+            let uploads = *UPLOADS.0.lock().unwrap();
             log!("pcp: {name}: {request} -> {reply}");
             if stream.write_all(format!("{reply}\r\n>").as_bytes()).is_err() {
                 return;
+            }
+            // a billing value with its signature (keychip.billing.playlimit=<hex>): the client
+            // sends the signature on the data channel after this answer, then pcppSendBinary
+            // waits for `$` here (else its request times out: Shining Force Cross 2009's ERROR
+            // 0008 Keychip Access Failed)
+            if name == "mxkeychip" && request.starts_with("keychip.billing.") && !request.contains("=?") && !request.starts_with("keychip.billing.playcount=") {
+                let (count, _) = UPLOADS
+                    .1
+                    .wait_timeout_while(UPLOADS.0.lock().unwrap(), std::time::Duration::from_secs(3), |n| *n == uploads)
+                    .unwrap();
+                if *count != uploads {
+                    drop(count);
+                    log!("pcp: {name}: signature received, acknowledged here");
+                    if stream.write_all(b"$").is_err() {
+                        return;
+                    }
+                }
             }
         }
     }
@@ -337,8 +368,17 @@ fn answer(request: &str) -> String {
         return format!("{key}=0&size={}&port={MXKEYCHIP_DATA}", data.len());
     }
     if value != "?" {
+        // the billing's counters the game sets (keychip.billing.playcount after a play,
+        // .playlimit after the billing server's answer): kept, read back as set (amDongle
+        // reads the new play limit back after its upload)
+        if key.starts_with("keychip.billing.") {
+            SET_VALUES.lock().unwrap().insert(key.to_string(), value.to_string());
+        }
         // a command (mxmaster.foreground.next=..., keychip.tracedata.put=...): acknowledged
         return format!("{key}={value}");
+    }
+    if let Some(v) = SET_VALUES.lock().unwrap().get(key) {
+        return format!("{key}={v}");
     }
     match values().get(key) {
         Some(v) => format!("{key}={v}"),

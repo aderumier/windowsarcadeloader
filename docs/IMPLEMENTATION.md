@@ -2727,7 +2727,11 @@ game's amLib (its own error strings name every function):
   `0x9C40200C` (0x48 = 0x2D) and written with `0x9C40A010`; most games go on without it
   (amHm "not found"), Transformers: Human Alliance stops on a missing status object. Blank SRAM and EEPROM are formatted by amLib itself.
 - **PCP services (`pcp.rs`).** mxmaster on TCP 40100, mxkeychip on 40106 (its binary channel
-  40107 unused so far); for test menus also mxinstaller 40102, mxgdeliver 40108, mxgcatcher
+  40107: the billing keys sent, acknowledged by the client with `$`; data the client sends,
+  the billing's new play limit signature after `keychip.billing.playlimit=<hex>` and its
+  answer, acknowledged with `$` on the data channel, closed, and with `$` on the request's
+  channel, which pcppSendBinary waits for (else ERROR 0008 Keychip Access Failed); the
+  `keychip.billing.*` values the game sets are read back as set); for test menus also mxinstaller 40102, mxgdeliver 40108, mxgcatcher
   40110 and mxstorage 40114 (its binary channel 40115; Let's Go Safari's amStorage waits a
   minute on a missing one, then error 1001 "Invalid number of storages for oneself"), answering `request=<name>` with `response=<name>&result=success`
   (with no service, amLib waits for the connection forever); the installer's
@@ -2795,6 +2799,25 @@ game's amLib (its own error strings name every function):
   `192.168.68.0` (rewritten to the machine's network). Free play: the credit object's
   `is_freeplay` answers yes (Elysion: its vtable slot 0x14; slot 0x10 is `jvs_is_error`,
   error 6401 when it answers yes). Ticket / GP purchase then costs nothing.
+- **Shining Force Cross** (2009, the series' first game, SBRT 1.03, profile
+  `shining-force-cross`): the same engine, devices and title server with its own protocol
+  (`0x65D9ABBB`, 12 commands): bodies not packed, 23 byte request header, 44 byte
+  `card_key`, 6328 byte `card_body`, 12 byte answer header; `regist_request` is a new card's
+  first game, its answer the card id the game writes on the card (0: the card stays new). The
+  card format is a date, `FormatVersion(y, m, d, n)` = `((y * 12 + m - 1) * 31 + d - 1) * 10
+  + n` (`ver2009082600` = `0x7212BC`; Raid `ver2011021400`, Elysion 2012-11-05): a new card is
+  its `iccard.txt` only, the game makes its own blank key when `iccard.bin` is missing and
+  writes the card after registering it (`WAL_RINGEDGE_SFC_NEW_CARD` size 0). Its card task asks
+  the keys just pressed (the keyboard's bits at +0x24, the `WAL_RINGEDGE_SFC_CARD` fourth
+  field). The shop network string has 3 NUL bytes of padding: room for `192.168.178.0`. Its
+  amDongle uploads the billing's new play limit signature at boot (the keychip's data
+  channel, `$` on both channels). Free play: CreditMngArcade's vtable slot 0x10. The
+  automatic card press comes 3 s after the first start (the top menu up: without a coin, the
+  first start's menu transition took it). Open: after a game's end (`end_response`, the
+  billing's play count set, a trace record put) ALPB stays in state 6 (`EndCredit`, its
+  trace log check never issues the free log count query `keychip.tracedata.put=?`), the
+  next `alpbExStartCredit` fails (ALPB's stderr: "FAILED,6"), ERROR 8103 ALL.Net System
+  Error (TIMEOUT); the card is written at a game's start, not at its end.
 
 ### 6.3e Sega Amusements Shell (`crates/payload-segashell`)
 
@@ -10102,6 +10125,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `border-break-scramble` | Border Break Scramble | ringedge2 | user (2026-11-15): "working 100% excluding online mode" | RingEdge 2 NRS engine (§6.3d), SBVA 4.5.0, OpenGL: its NV_gpu_program4 shaders translated, JVS left grip and move stick, raw input aim mouse listed, the mouse or stick as touch pointer (red dot), free play, the extended image's markers |
 | `shining-force-cross-raid` | Shining Force Cross Raid | ringedge | headless tests (2026-11-19): IC card in files, free play tickets, a scenario quest to its end (card saved), input test; user: works on the desktop (2026-11-19) | RingEdge (§6.3d), SBVB 1.05, Project DIVA Arcade's engine (OpenGL, NVIDIA programs translated): its title server (`sfcserver.rs`, binary structures zlib packed, the card's data handed back), the development IC card in files (card input = its Delete key, a blank card created), CTR-251500 touch panel and pointer, JVS stick and buttons, ALL.Net and billing, free play, open all day |
 | `shining-force-cross-elysion` | Shining Force Cross Elysion | ringedge | headless tests (2026-11-19): IC card in files, free play GP, a scenario quest to its end (card saved); user: works on the desktop (2026-11-19) | Raid's profile and title server (§6.3d), Ver.C 2.06: its own protocol (22 commands), card format and addresses |
+| `shining-force-cross` | Shining Force Cross | ringedge | headless tests (2026-11-25): boot, free play, new IC card registered, card read and written at a game's start, scenario quest to its end; open: ERROR 8103 after a game's end (ALPB's end credit never finalized), no save at the end | Raid's profile and title server (§6.3d), SBRT 1.03 (2009): its own protocol (12 commands, not packed), card format (`0x7212BC`, the game's own blank card) and addresses, keychip play limit upload |
 | `maimai-green` | maimai GreeN | ringedge | headless tests (2026-11-20): offline, guest play, test menu; user test pending | Chinese edition SBYC 1.01.00, `maimai_dump_.exe` (unpacked), amLib in the game: system, JVS, touch sensors (COM3) and LED boards emulated in the game's process (`WAL_RINGEDGE_MAIMAI`), the two portrait screens side by side (2160x1920) |
 | `maimai-finale` | maimai FiNALE | ringedge | user: perfect (2026-11-22, desktop); online (ARTEMiS), both players' Aime cards | SDEY 1.99B, `maimai_dump_.exe` (unpacked), as `maimai-green` plus the touch controller streaming from the start, player 2's Aime reader on COM2 (`WAL_AIME_READER_2P`), the card touched after the entry button |
 | `kancolle-arcade` | KanColle Arcade | seganu | user 100% (2026-11-15): guest and Aime card play | Sega Nu (§6.3m), SDBZ 7.40, 64-bit: NVIDIA-only OpenGL translated (`WAL_NVGL`: unified memory, command lists, bindless), WGL_NV_DX_interop for its movies, ALL.Net, billing, ICF, AimeDB, Aime COM10, 3M touch COM1, its title server (admirals, sorties, drops, progress per Aime card) |

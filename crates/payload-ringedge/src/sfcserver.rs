@@ -4,8 +4,9 @@
 //! The game's HTTP client (`RINGEDGE-PRJF/1.0`, `NrsHttp`) posts each request as a fixed size
 //! big-endian structure, zlib packed (`allnet::set_title_rd2`), and reads the answer the same
 //! way (`NetData*Response::Binary2Class`: exactly the structure's size, else refused). Each
-//! structure starts with the protocol version (`0xC93D8B0E` Raid 1.05, `0xDDBC372D` Elysion
-//! Ver.C: the answers' sizes per game, [`PROTOCOLS`]) and its command: a request's even, its
+//! structure starts with the protocol version (`0x65D9ABBB` Shining Force Cross 2009,
+//! `0xC93D8B0E` Raid 1.05, `0xDDBC372D` Elysion Ver.C: the answers' sizes and the structures'
+//! layouts per game, [`PROTOCOLS`]) and its command: a request's even, its
 //! answer's the next odd one. The player's data is the card's: `start_response` hands back the
 //! `card_body` the request read from the card, the game writes the card itself.
 //!
@@ -17,16 +18,17 @@
 //! string `192.168.68.0`, compared on 3 bytes: else NETWORK(SYS) NG) becomes the machine's
 //! (its CRI matching library binds the machine's real address: a made-up one fails).
 //!
-//! `WAL_RINGEDGE_SFC_CARD=<key query rva>:<keyboard rva>:<card task's call rva>`: the IC card. The game's card manager
+//! `WAL_RINGEDGE_SFC_CARD=<key query rva>:<keyboard rva>:<card task's call rva>[:<bits>]`: the IC card. The game's card manager
 //! also holds a development card device (`iccd::usb::DeviceUSB`): a card in files, `iccard.txt`
 //! (its 20 digit id) and `iccard.bin` (its data) at the root of the first drive C: to M: or Z:
 //! holding them, the profile's card drive; the profile patches the manager to hand it out
 //! instead of the Maxell reader's. Its task inserts or ejects that card on the development
 //! keyboard's Delete key (0x2E, the keyboard object's pressed query): player 1's card input is
 //! that key press for the card task's call (its return address), through [`key_pressed`] in
-//! place of the query.
+//! place of the query. `<bits>`: the queried key bits' offset in the keyboard (4, the held
+//! keys, by default; Shining Force Cross 2009's card task asks the keys just pressed, 0x24).
 //!
-//! `WAL_RINGEDGE_SFC_CARD_AUTO=1`: the card put in on player 1's first start (the card input
+//! `WAL_RINGEDGE_SFC_CARD_AUTO=1`: the card put in 3 s after player 1's first start (the card input
 //! still ejects it).
 //!
 //! `WAL_RINGEDGE_SFC_NEW_CARD=<drive>:<format version>:<size>:<offset>=<byte>,...`: a new card
@@ -35,7 +37,8 @@
 //! its key record twice (31 bytes at 0 and 0x1F: the format version, the card id 0, the launch
 //! code 0x1FE2000054F1, then the low 16 bits of the CRC-32 of its first 29 bytes, big endian),
 //! then the body up to the last 2 bytes (zero but for the listed bytes, the game's blank card)
-//! and the low 16 bits of its CRC-32.
+//! and the low 16 bits of its CRC-32. Size 0: `iccard.txt` only, a card never written (the
+//! game's own blank card).
 
 use wal_payload_common::log;
 use windows_sys::Win32::System::Memory::{PAGE_EXECUTE_READWRITE, VirtualProtect};
@@ -88,13 +91,17 @@ fn network() {
     let Some(ip) = crate::pcp::local_address() else { return };
     let at = wal_payload_common::iat::game_module() + rva;
     let o = ip.octets();
-    // the original's room (`192.168.68.0`, 12 characters): a shorter one, NUL padded
+    // the original's room: `192.168.68.0` and the NUL padding after it (to the next string,
+    // 4 byte aligned: 15 characters), a shorter one NUL padded
+    let original = unsafe { std::slice::from_raw_parts(at as *const u8, 32) };
+    let len = original.iter().position(|&b| b == 0).unwrap_or(12);
+    let room = len + original[len..].iter().take_while(|&&b| b == 0).count();
     let mut text = format!("{}.{}.{}.0", o[0], o[1], o[2]).into_bytes();
-    if text.len() > 12 {
+    if text.len() >= room {
         log!("sfc: network {} longer than the game's string", String::from_utf8_lossy(&text));
         return;
     }
-    text.resize(13, 0);
+    text.resize(len.max(text.len()) + 1, 0);
     unsafe { write(at, &text) };
     log!("sfc: shop network {}.{}.{}.0", o[0], o[1], o[2]);
 }
@@ -116,6 +123,8 @@ fn uncompress_call() {
 static KEYBOARD: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static CARD_CALLER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 static CARD_PRESS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// The queried key bits' offset in the keyboard object.
+static KEY_BITS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(4);
 
 // The keyboard object's pressed query (thiscall: ecx the keyboard, the key on the stack, `ret 4`)
 // to [`key_pressed`] with its caller's return address.
@@ -136,7 +145,7 @@ unsafe extern "C" {
     fn key_query_stub();
 }
 
-/// The keyboard's pressed query (`this + 4`: a bit per key, 0x67 keys); the card task's query of
+/// The keyboard's pressed query (`this + KEY_BITS`: a bit per key, 0x67 keys); the card task's query of
 /// Delete on keyboard 0 also answered by a pending card press (once).
 extern "C" fn key_pressed(this: usize, caller: usize, key: u32) -> u32 {
     use std::sync::atomic::Ordering;
@@ -147,7 +156,7 @@ extern "C" fn key_pressed(this: usize, caller: usize, key: u32) -> u32 {
     if key >= 0x67 {
         return 0;
     }
-    let bits = (this + 4) as *const u32;
+    let bits = (this + KEY_BITS.load(Ordering::Relaxed)) as *const u32;
     unsafe { (*bits.add((key >> 5) as usize) & (1 << (key & 31)) != 0) as u32 }
 }
 
@@ -198,13 +207,16 @@ fn new_card() {
         .collect();
     let root = std::path::PathBuf::from(format!("{}:\\", drive.trim()));
     let (id_path, data_path) = (root.join("iccard.txt"), root.join("iccard.bin"));
-    if id_path.exists() && data_path.exists() || size < 64 {
+    // size 0: the id only, a card never written (Shining Force Cross 2009 makes its blank
+    // key itself and writes the card after its first game)
+    if id_path.exists() && (size == 0 || data_path.exists()) || size != 0 && size < 64 {
         return;
     }
     // 20 digits from the time (a card per machine is enough)
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
     let id = format!("{:020}", nanos % 100_000_000_000_000_000_000);
-    match std::fs::write(&id_path, &id).and_then(|_| std::fs::write(&data_path, blank_card(version, size, &bytes))) {
+    let written = std::fs::write(&id_path, &id).and_then(|_| if size == 0 { Ok(()) } else { std::fs::write(&data_path, blank_card(version, size, &bytes)) });
+    match written {
         Ok(()) => log!("sfc: new card {id} in {}", root.display()),
         Err(e) => log!("sfc: no new card in {}: {e}", root.display()),
     }
@@ -215,9 +227,16 @@ fn card() {
     new_card();
     let Ok(value) = std::env::var("WAL_RINGEDGE_SFC_CARD") else { return };
     let rvas: Vec<usize> = value.split(':').filter_map(|v| usize::from_str_radix(v.trim().trim_start_matches("0x"), 16).ok()).collect();
-    let [query, keyboard, caller] = rvas[..] else {
-        log!("sfc: WAL_RINGEDGE_SFC_CARD wants <query>:<keyboard>:<caller> rvas");
-        return;
+    let (query, keyboard, caller) = match rvas[..] {
+        [query, keyboard, caller] => (query, keyboard, caller),
+        [query, keyboard, caller, bits] => {
+            KEY_BITS.store(bits, Ordering::Relaxed);
+            (query, keyboard, caller)
+        }
+        _ => {
+            log!("sfc: WAL_RINGEDGE_SFC_CARD wants <query>:<keyboard>:<caller>[:<bits>] rvas");
+            return;
+        }
     };
     let base = wal_payload_common::iat::game_module();
     KEYBOARD.store(base + keyboard, Ordering::Relaxed);
@@ -226,18 +245,25 @@ fn card() {
     let mut jump = [0xE9u8, 0, 0, 0, 0];
     jump[1..].copy_from_slice(&((key_query_stub as *const () as usize).wrapping_sub(at + 5) as i32).to_le_bytes());
     unsafe { write(at, &jump) };
-    // the card put in on player 1's first start (a press at boot is lost: the card scene
-    // waits for its own insertion)
+    // the card put in 3 s after player 1's first start, once the menu asking for it is up (a
+    // press at boot is lost: the card scene waits for its own insertion; Shining Force Cross
+    // 2009's first start in the attract only opens its title screen, which takes the press)
     let mut auto = std::env::var("WAL_RINGEDGE_SFC_CARD_AUTO").is_ok_and(|v| v.trim() == "1");
     std::thread::spawn(move || {
         let (mut held, mut start_held) = (false, false);
+        let mut auto_at: Option<std::time::Instant> = None;
         loop {
             let input = wal_payload_common::input(0);
             let pressed = input.pressed(wal_protocol::button::CARD);
             let start = input.pressed(wal_protocol::button::START);
-            if pressed && !held || auto && start && !start_held {
-                CARD_PRESS.store(true, Ordering::Relaxed);
+            if auto && start && !start_held {
+                auto_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
                 auto = false;
+            }
+            let due = auto_at.is_some_and(|t| std::time::Instant::now() >= t);
+            if pressed && !held || due {
+                CARD_PRESS.store(true, Ordering::Relaxed);
+                auto_at = None;
             }
             (held, start_held) = (pressed, start);
             std::thread::sleep(std::time::Duration::from_millis(30));
@@ -250,17 +276,54 @@ fn card() {
 /// (request command, name, answer size: the `NetData*Response` classes' sizes, vtable + 0x30).
 struct Protocol {
     version: u32,
+    /// the requests' common part (the protocol, the command, the machine's fields): a
+    /// request's own fields after it
+    request_fields: usize,
+    /// `card_key`'s size
+    card_key: usize,
+    /// the answers' common part (the protocol, the command, `status`, ...)
+    header: usize,
     /// `card_body`'s size (after `card_key` in `start_request`, after the header in
     /// `start_response`)
     card_body: usize,
+    /// `init_response`'s `vs_ip[32]` (the matching server), if any
+    vs_ip: Option<usize>,
     commands: &'static [(u32, &'static str, usize)],
 }
 
 const PROTOCOLS: &[Protocol] = &[
+    // Shining Force Cross (2009-11-04): no packing, 12 byte answer header (`status` only),
+    // 23 byte request header, 44 byte `card_key`; `regist` a new card's first play
+    Protocol {
+        version: 0x65D9_ABBB,
+        request_fields: 23,
+        card_key: 44,
+        header: 12,
+        card_body: 6328,
+        vs_ip: Some(16),
+        commands: &[
+            (0x00, "init", 0x30),
+            (0x02, "ping", 0x10),
+            (0x04, "regist", 0x14),
+            (0x06, "start", 0x1b5f),
+            (0x08, "end", 0xc),
+            (0x0a, "item", 0x18c4),
+            (0x0c, "recognize", 0x54),
+            (0x0e, "passcode_result", 0xc),
+            (0x10, "shop", 0x41c),
+            (0x12, "game_conf", 0x1bc),
+            (0x14, "fnet_regist", 0xc),
+            (0x16, "fnet_unregist", 0xc),
+        ],
+    },
     // Raid 1.05
     Protocol {
         version: 0xC93D_8B0E,
+        request_fields: 66,
+        card_key: 56,
+        header: 16,
         card_body: 6604,
+        vs_ip: Some(144),
         commands: &[
             (0x00, "init", 0xc8),
             (0x02, "ping", 0x684),
@@ -284,7 +347,11 @@ const PROTOCOLS: &[Protocol] = &[
     // Elysion Ver.C
     Protocol {
         version: 0xDDBC_372D,
+        request_fields: 66,
+        card_key: 56,
+        header: 16,
         card_body: 8342,
+        vs_ip: Some(144),
         commands: &[
             (0x00, "init", 0x1b8),
             (0x02, "ping", 0x7a0),
@@ -333,22 +400,20 @@ pub(crate) fn answer(_path: &str, body: &[u8]) -> Vec<u8> {
     out[4..8].copy_from_slice(&(command + 1).to_be_bytes());
     // then status (0: ok) and eco_flag, each answer's own fields
     match name {
-        "init" => init_answer(&mut out),
-        "recognize" => recognize(body, &mut out),
-        "start" | "item" => card_body_back(body, &mut out, protocol.card_body),
+        "init" => init_answer(protocol, &mut out),
+        "recognize" => recognize(protocol, body, &mut out),
+        "regist" => regist(protocol, body, &mut out),
+        "start" | "item" => card_body_back(protocol, body, &mut out),
         _ => {}
     }
     out
 }
 
-/// The requests' common part (`keychip_serial`, `board_serial`, `place_id`, `rom_version`,
-/// `mdata_revision_*`, `client_conf`), after the protocol and the command: a request's own
-/// fields start here.
-const REQUEST_FIELDS: usize = 66;
-
-/// `card_key` (56 bytes): `fmt_ver`, `card_id`, `access_code[20]`, `launch_code` (u64),
-/// `play_count`, `commit_count`, `has_data`, `use_count`, `develop`.
-const CARD_KEY: usize = 56;
+// The requests' common part (Raid: `keychip_serial`, `board_serial`, `place_id`,
+// `rom_version`, `mdata_revision_*`, `client_conf`, 66 bytes with the protocol and the command):
+// a request's own fields start after it. `card_key` (Raid 56 bytes): `fmt_ver`, `card_id`,
+// `access_code[20]`, `launch_code` (u64), `play_count`, `commit_count`, `has_data`,
+// `use_count`, `develop`.
 
 /// The card's id on the server: its access code's CRC-32 (31 bits, never 0).
 fn card_id(key: &[u8]) -> u32 {
@@ -364,18 +429,29 @@ fn card_id(key: &[u8]) -> u32 {
 
 /// `recognize_response`: the request's `card_key` back, with its card id, then `passcode`
 /// (`code[8]`, `limit_timestamp`, `fail_timestamp`, `is_enable`): none.
-fn recognize(body: &[u8], out: &mut [u8]) {
-    let Some(key) = body.get(REQUEST_FIELDS..REQUEST_FIELDS + CARD_KEY) else { return };
-    out[16..16 + CARD_KEY].copy_from_slice(key);
-    out[20..24].copy_from_slice(&card_id(key).to_be_bytes());
+fn recognize(p: &Protocol, body: &[u8], out: &mut [u8]) {
+    let Some(key) = body.get(p.request_fields..p.request_fields + p.card_key) else { return };
+    let h = p.header;
+    out[h..h + p.card_key].copy_from_slice(key);
+    out[h + 4..h + 8].copy_from_slice(&card_id(key).to_be_bytes());
+}
+
+/// `regist_response` (Shining Force Cross 2009, a new card's first game): `card_id` (the
+/// recognized one: the game writes it on the card, a card left at 0 stays new and is
+/// registered again) and `session_id`.
+fn regist(p: &Protocol, body: &[u8], out: &mut [u8]) {
+    let Some(key) = body.get(p.request_fields..p.request_fields + p.card_key) else { return };
+    let h = p.header;
+    out[h..h + 4].copy_from_slice(&card_id(key).to_be_bytes());
+    out[h + 4..h + 8].copy_from_slice(&1u32.to_be_bytes());
 }
 
 /// `start_response` / `item_response`: the request's `card_body` (the card's data) back, the
 /// player's data on the server; the rest (`user_game_info`, the counters, `event_result`) zero.
-fn card_body_back(body: &[u8], out: &mut [u8], card_body: usize) {
-    let at = REQUEST_FIELDS + CARD_KEY;
-    match body.get(at..at + card_body) {
-        Some(data) if out.len() >= 16 + card_body => out[16..16 + card_body].copy_from_slice(data),
+fn card_body_back(p: &Protocol, body: &[u8], out: &mut [u8]) {
+    let (at, h, n) = (p.request_fields + p.card_key, p.header, p.card_body);
+    match body.get(at..at + n) {
+        Some(data) if out.len() >= h + n => out[h..h + n].copy_from_slice(data),
         _ => log!("sfc: request without its card body ({} bytes)", body.len()),
     }
 }
@@ -389,7 +465,8 @@ fn put_str(out: &mut [u8], at: usize, len: usize, s: &str) {
 
 /// `init_response`'s `sys_conf`: `mdata_order_uri[128]`, `vs_ip[32]` (the matching server, the
 /// router), `vs_game_class`, `coin_conf` (`permit_flag`, `open_date`, `end_date`).
-fn init_answer(out: &mut [u8]) {
+fn init_answer(p: &Protocol, out: &mut [u8]) {
+    let Some(at) = p.vs_ip else { return };
     let r = wal_payload_common::dns::router();
-    put_str(out, 144, 32, &format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]));
+    put_str(out, at, 32, &format!("{}.{}.{}.{}", r[0], r[1], r[2], r[3]));
 }

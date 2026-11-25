@@ -452,6 +452,7 @@ frames (`RawDrive`); "not seen": wired, not seen working in a test.
 | `border-break-scramble` | Border Break Scramble | ringedge2 | user (2026-11-15): "working 100% excluding online mode" |  | lamps (JVS) | not in the test |  |
 | `shining-force-cross-raid` | Shining Force Cross Raid | ringedge | headless tests (2026-11-19): IC card in files, free play tickets, a scenario quest to its end (card saved), input test; user: works on the desktop (2026-11-19) |  | lamps (JVS) | not in the test |  |
 | `shining-force-cross-elysion` | Shining Force Cross Elysion | ringedge | headless tests (2026-11-19): IC card in files, free play GP, a scenario quest to its end (card saved); user: works on the desktop (2026-11-19) |  | lamps (JVS) | not in the test |  |
+| `shining-force-cross` | Shining Force Cross | ringedge | headless tests (2026-11-25): boot, free play, new IC card registered, card read and written at a game's start, scenario quest to its end; open: ERROR 8103 after a game's end (ALPB's end credit never finalized), no save at the end |  | lamps (JVS) | not in the test |  |
 | `maimai-green` | maimai GreeN | ringedge | headless tests (2026-11-20): offline, guest play, test menu; user test pending |  | lamps (JVS) | not in the test |  |
 | `maimai-finale` | maimai FiNALE | ringedge | user: perfect (2026-11-22, desktop); online (ARTEMiS), both players' Aime cards |  | lamps (JVS) | not in the test |  |
 | `kancolle-arcade` | KanColle Arcade | seganu | user 100% (2026-11-15): guest and Aime card play |  | lamps (JVS) | not in the test |  |
