@@ -9,6 +9,11 @@ name: Super Street Fighter IV Arcade Edition (export, standalone)
 # showed it in the top left corner): a windowed 1280x720 device, its window borderless over
 # the screen, the picture scaled up and kept 16:9.
 env:
+  # The game asks the switches of (declared switches / 8 + 1) bytes per player but reads
+  # them 2 bytes per player: with the default 16 switches (3 bytes asked) player 2 read
+  # player 1's third byte and its own first one (P2 START was BUTTON3, the rest lost). A
+  # board of 8 switches per player: 2 bytes asked, as read (input test: all of P2's inputs).
+  WAL_TYPEX_JVS_SWITCHES: 2x8
   WAL_D3D9_WINDOWED_SIZE: 1280x720
   WAL_D3D9_ASPECT: "16:9"
   WAL_WINDOW_POPUP: "1"
