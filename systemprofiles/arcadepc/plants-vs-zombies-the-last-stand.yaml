@@ -8,9 +8,15 @@
 system: arcadepc
 name: Plants vs. Zombies The Last Stand
 
-# The Shell's paths are c:\sega\Shell, c:\sega\ShellData, c:\sega\pvz...: the dump root.
+# The Shell's paths are c:\sega\Shell, c:\sega\ShellData, c:\sega\pvz...: the dump's folders,
+# each linked in C:\Sega (not C:\sega -> the dump root: other games' C:\Sega folders, Men In
+# Black's Sega/ShellData and its GameData, share that folder of the prefix).
 c_folders:
-  sega: .
+  Sega/Launcher: Launcher
+  Sega/Shell: Shell
+  Sega/ShellData: ShellData
+  Sega/backup: backup
+  Sega/pvz: pvz
 # The community's shell folder (Shell 1.4.4i, its Game.ini's mouse controller and checks off),
 # the dump's executable; the cabinet's own Shell folder (1.0.0, its update refused: "UPDATE
 # FAILED") is left out by the run directory (the same name for Wine). The game's backup

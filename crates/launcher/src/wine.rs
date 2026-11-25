@@ -289,6 +289,13 @@ impl Wine {
             for part in parts {
                 let existing = fs::read_dir(&parent)?.flatten().find(|e| e.file_name().to_string_lossy().eq_ignore_ascii_case(&part));
                 parent = match existing {
+                    // another game's link of this whole folder (C:\sega -> its dump): replaced by
+                    // a folder of the prefix, this game's links never made inside another dump
+                    Some(entry) if entry.path().is_symlink() => {
+                        fs::remove_file(entry.path())?;
+                        fs::create_dir(entry.path())?;
+                        entry.path()
+                    }
                     Some(entry) => entry.path(),
                     None => {
                         fs::create_dir(parent.join(&part))?;
@@ -838,6 +845,42 @@ mod tests {
             assert!(wine.map_game_drives(&[(letter.into(), PathBuf::from("F"))].into(), &game).is_err());
         }
         assert!(wine.map_game_drives(&[("f".into(), PathBuf::from("../outside"))].into(), &game).is_err());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn c_folders_share_a_parent_with_other_games() {
+        let root = std::env::temp_dir().join(format!("wal-c-folders-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let prefix = root.join("prefix");
+        let drive_c = prefix.join("drive_c");
+        let (pvz, mib) = (root.join("pvz"), root.join("mib"));
+        for dir in ["Shell", "ShellData", "pvz", "backup", "Launcher"] {
+            fs::create_dir_all(pvz.join(dir)).unwrap();
+        }
+        fs::create_dir_all(mib.join("ShellData")).unwrap();
+        fs::create_dir_all(&drive_c).unwrap();
+        // the box's prefix: an older PvZ profile's C:\sega -> its whole dump
+        std::os::unix::fs::symlink(&pvz, drive_c.join("sega")).unwrap();
+        let wine = Wine { runner: PathBuf::new(), dxvk_runner: None, prefix: prefix.clone(), archive: prefix, dry_run: false, env: vec![], overrides: vec![] };
+        // Men In Black: the link replaced by a folder, PvZ's dump left alone
+        wine.map_c_folders(&[("Sega/ShellData".into(), PathBuf::from("ShellData"))].into(), &mib, &mib).unwrap();
+        assert!(!drive_c.join("sega").is_symlink() && drive_c.join("sega").is_dir());
+        assert_eq!(fs::read_link(drive_c.join("sega/ShellData")).unwrap(), mib.join("ShellData"));
+        assert!(pvz.join("ShellData").is_dir() && !pvz.join("ShellData").is_symlink());
+        // the game writes its own folder in C:\Sega
+        fs::create_dir(drive_c.join("sega/GameData")).unwrap();
+        // PvZ: its folders linked beside Men In Black's
+        let pvz_folders = ["Launcher", "Shell", "ShellData", "backup", "pvz"]
+            .map(|d| (format!("Sega/{d}"), PathBuf::from(d))).into();
+        wine.map_c_folders(&pvz_folders, &pvz, &pvz).unwrap();
+        for d in ["Launcher", "Shell", "ShellData", "backup", "pvz"] {
+            assert_eq!(fs::read_link(drive_c.join("sega").join(d)).unwrap(), pvz.join(d));
+        }
+        assert!(drive_c.join("sega/GameData").is_dir());
+        // and back to Men In Black
+        wine.map_c_folders(&[("Sega/ShellData".into(), PathBuf::from("ShellData"))].into(), &mib, &mib).unwrap();
+        assert_eq!(fs::read_link(drive_c.join("sega/ShellData")).unwrap(), mib.join("ShellData"));
         fs::remove_dir_all(root).unwrap();
     }
 }
