@@ -19,6 +19,7 @@ mod ipc;
 mod machstorm;
 mod netlog;
 mod profile;
+mod sdbh;
 use windows_sys::Win32::Foundation::{HINSTANCE, TRUE};
 use windows_sys::Win32::System::Diagnostics::Debug::ReadProcessMemory;
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -511,6 +512,8 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         bnusio::init();
     } else if reason == DLL_PROCESS_ATTACH && machstorm::is_machstorm() {
         machstorm::init();
+    } else if reason == DLL_PROCESS_ATTACH && sdbh::is_sdbh() {
+        sdbh::init();
     } else if reason == DLL_PROCESS_ATTACH {
         thread_input();
         wal_payload_common::log!("namcoes3: 32-bit Banapass and DirectInput adapter loaded");

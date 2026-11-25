@@ -611,6 +611,7 @@ macro_rules! hooks {
                 if !mapped().is_empty() {
                     redirect_self();
                 }
+                profile_hooks();
                 if std::env::var("WAL_DRIVE_LATE_DLLS").is_ok_and(|v| v == "1") {
                     $(
                         crate::late_hooks::hook("kernel32.dll", stringify!($name), $name as *const () as usize, &ORIG[$idx]);
@@ -690,4 +691,102 @@ hooks! {
     23 MoveFileExW [wide; from: *const u16, to: *const u16] (flags: u32) -> i32;
     24 CopyFileA [ansi; from: *const u8, to: *const u8] (fail_if_exists: i32) -> i32;
     25 CopyFileW [wide; from: *const u16, to: *const u16] (fail_if_exists: i32) -> i32;
+}
+
+// ── INI files: the profile functions take their file name last ─────────────────────────────
+
+static ORIG_PROFILE: [AtomicUsize; 10] = [const { AtomicUsize::new(0) }; 10];
+
+unsafe fn profile_orig<F: Copy>(i: usize) -> F {
+    let f = ORIG_PROFILE[i].load(Ordering::Relaxed);
+    unsafe { std::mem::transmute_copy(&f) }
+}
+
+unsafe extern "system" fn GetPrivateProfileStringA(app: *const u8, key: *const u8, def: *const u8, out: *mut u8, size: u32, file: *const u8) -> u32 {
+    let file = ansi(file);
+    let f: unsafe extern "system" fn(*const u8, *const u8, *const u8, *mut u8, u32, *const u8) -> u32 = unsafe { profile_orig(0) };
+    let r = unsafe { f(app, key, def, out, size, file.ptr()) };
+    if file_trace() {
+        let s = |p: *const u8| if p.is_null() { String::new() } else { unsafe { std::ffi::CStr::from_ptr(p.cast()) }.to_string_lossy().into_owned() };
+        log!("drive: GetPrivateProfileStringA([{}] {} in {}) -> {:?}", s(app), s(key), s(file.ptr()), s(out));
+    }
+    r
+}
+unsafe extern "system" fn GetPrivateProfileStringW(app: *const u16, key: *const u16, def: *const u16, out: *mut u16, size: u32, file: *const u16) -> u32 {
+    let file = wide(file);
+    let f: unsafe extern "system" fn(*const u16, *const u16, *const u16, *mut u16, u32, *const u16) -> u32 = unsafe { profile_orig(1) };
+    unsafe { f(app, key, def, out, size, file.ptr()) }
+}
+unsafe extern "system" fn GetPrivateProfileIntA(app: *const u8, key: *const u8, def: i32, file: *const u8) -> u32 {
+    let file = ansi(file);
+    let f: unsafe extern "system" fn(*const u8, *const u8, i32, *const u8) -> u32 = unsafe { profile_orig(2) };
+    unsafe { f(app, key, def, file.ptr()) }
+}
+unsafe extern "system" fn GetPrivateProfileIntW(app: *const u16, key: *const u16, def: i32, file: *const u16) -> u32 {
+    let file = wide(file);
+    let f: unsafe extern "system" fn(*const u16, *const u16, i32, *const u16) -> u32 = unsafe { profile_orig(3) };
+    unsafe { f(app, key, def, file.ptr()) }
+}
+unsafe extern "system" fn WritePrivateProfileStringA(app: *const u8, key: *const u8, value: *const u8, file: *const u8) -> i32 {
+    let file = ansi(file);
+    let f: unsafe extern "system" fn(*const u8, *const u8, *const u8, *const u8) -> i32 = unsafe { profile_orig(4) };
+    unsafe { f(app, key, value, file.ptr()) }
+}
+unsafe extern "system" fn WritePrivateProfileStringW(app: *const u16, key: *const u16, value: *const u16, file: *const u16) -> i32 {
+    let file = wide(file);
+    let f: unsafe extern "system" fn(*const u16, *const u16, *const u16, *const u16) -> i32 = unsafe { profile_orig(5) };
+    unsafe { f(app, key, value, file.ptr()) }
+}
+unsafe extern "system" fn GetPrivateProfileSectionA(app: *const u8, out: *mut u8, size: u32, file: *const u8) -> u32 {
+    let file = ansi(file);
+    let f: unsafe extern "system" fn(*const u8, *mut u8, u32, *const u8) -> u32 = unsafe { profile_orig(6) };
+    unsafe { f(app, out, size, file.ptr()) }
+}
+unsafe extern "system" fn GetPrivateProfileSectionW(app: *const u16, out: *mut u16, size: u32, file: *const u16) -> u32 {
+    let file = wide(file);
+    let f: unsafe extern "system" fn(*const u16, *mut u16, u32, *const u16) -> u32 = unsafe { profile_orig(7) };
+    unsafe { f(app, out, size, file.ptr()) }
+}
+unsafe extern "system" fn GetPrivateProfileSectionNamesA(out: *mut u8, size: u32, file: *const u8) -> u32 {
+    let file = ansi(file);
+    let f: unsafe extern "system" fn(*mut u8, u32, *const u8) -> u32 = unsafe { profile_orig(8) };
+    unsafe { f(out, size, file.ptr()) }
+}
+unsafe extern "system" fn GetPrivateProfileSectionNamesW(out: *mut u16, size: u32, file: *const u16) -> u32 {
+    let file = wide(file);
+    let f: unsafe extern "system" fn(*mut u16, u32, *const u16) -> u32 = unsafe { profile_orig(9) };
+    unsafe { f(out, size, file.ptr()) }
+}
+
+/// The INI profile functions redirected too (Super Dragon Ball Heroes' network library reads
+/// its settings profiles on X:), in the game and, with `WAL_DRIVE_LATE_DLLS=1`, its DLLs.
+fn profile_hooks() {
+    let hooks: [(&'static str, usize); 10] = [
+        ("GetPrivateProfileStringA", GetPrivateProfileStringA as *const () as usize),
+        ("GetPrivateProfileStringW", GetPrivateProfileStringW as *const () as usize),
+        ("GetPrivateProfileIntA", GetPrivateProfileIntA as *const () as usize),
+        ("GetPrivateProfileIntW", GetPrivateProfileIntW as *const () as usize),
+        ("WritePrivateProfileStringA", WritePrivateProfileStringA as *const () as usize),
+        ("WritePrivateProfileStringW", WritePrivateProfileStringW as *const () as usize),
+        ("GetPrivateProfileSectionA", GetPrivateProfileSectionA as *const () as usize),
+        ("GetPrivateProfileSectionW", GetPrivateProfileSectionW as *const () as usize),
+        ("GetPrivateProfileSectionNamesA", GetPrivateProfileSectionNamesA as *const () as usize),
+        ("GetPrivateProfileSectionNamesW", GetPrivateProfileSectionNamesW as *const () as usize),
+    ];
+    let late = std::env::var("WAL_DRIVE_LATE_DLLS").is_ok_and(|v| v == "1");
+    for (i, (name, f)) in hooks.into_iter().enumerate() {
+        if late {
+            crate::late_hooks::hook("kernel32.dll", name, f, &ORIG_PROFILE[i]);
+        } else if let Some(o) = unsafe { iat::hook("kernel32.dll", name, f) } {
+            ORIG_PROFILE[i].store(o, Ordering::Relaxed);
+        }
+        if ORIG_PROFILE[i].load(Ordering::Relaxed) == 0 {
+            // not imported by the game: the real function for later hooks
+            let n = format!("{name}\0");
+            let k = unsafe { GetModuleHandleA(c"kernel32.dll".as_ptr().cast()) };
+            if let Some(real) = unsafe { windows_sys::Win32::System::LibraryLoader::GetProcAddress(k, n.as_ptr()) } {
+                ORIG_PROFILE[i].store(real as usize, Ordering::Relaxed);
+            }
+        }
+    }
 }

@@ -263,6 +263,15 @@ pub fn set_switches_hook(hook: fn(&mut [Switches])) {
     let _ = SWITCHES_HOOK.set(hook);
 }
 
+static COMMAND_HOOK: std::sync::OnceLock<fn(&[u8]) -> Option<(usize, Vec<u8>)>> = std::sync::OnceLock::new();
+
+/// A board's own commands (Namco's `70` on Super Dragon Ball Heroes' NeoJV): the packet's
+/// commands from this one -> the bytes it takes and its reply (with its report byte), or
+/// `None` (unknown).
+pub fn set_command_hook(hook: fn(&[u8]) -> Option<(usize, Vec<u8>)>) {
+    let _ = COMMAND_HOOK.set(hook);
+}
+
 static ANALOG_HOOK: std::sync::OnceLock<fn(usize, u16) -> u16> = std::sync::OnceLock::new();
 
 /// A game's own analog channel values over the board's (KanColle Arcade's telegraph), set at
@@ -1094,10 +1103,13 @@ fn process(packet: &[u8]) -> Vec<u8> {
             // commands after it (coins, analogs) are answered; Elevator Action Death Parade
             // polls `7D 00` the same way
             0x67 | 0x7D => (2, vec![]),
-            other => {
-                log!("jvs: unknown command {other:#04x}");
-                (cmds.len() - i, vec![])
-            }
+            other => match COMMAND_HOOK.get().and_then(|hook| hook(&cmds[i..])) {
+                Some(reply) => reply,
+                None => {
+                    log!("jvs: unknown command {other:#04x}");
+                    (cmds.len() - i, vec![])
+                }
+            },
         };
         // commands with outputs/acks: data commands get a report
         // byte when they are not the first one

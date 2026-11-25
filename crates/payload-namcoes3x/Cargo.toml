@@ -12,6 +12,9 @@ crate-type = ["cdylib"]
 [dependencies]
 wal-protocol = { path = "../protocol" }
 wal-payload-common = { path = "../payload-common" }
+# Super Dragon Ball Heroes' card binder: the Cozette font, the card pack's pictures
+ab_glyph = "0.2"
+zune-jpeg = "0.5"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_Diagnostics_Debug",

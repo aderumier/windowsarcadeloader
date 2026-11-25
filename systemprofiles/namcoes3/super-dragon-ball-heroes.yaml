@@ -1,0 +1,101 @@
+# Super Dragon Ball Heroes (Bandai Namco, Chinese release, ROM 2.02, 32-bit Direct3D 9) -
+# template, override values in userprofiles/namcoes3/super-dragon-ball-heroes.yaml.
+#
+# The game reaches every cabinet device through the cabinet library app\neodcd.dll (settings,
+# backup files, credits, I/O board, card scanner, Hero License reader, network). The real
+# library runs; the payload (the 32-bit Namco ES3 module, loaded at the executable's entry
+# point) answers its devices: the I/O board, the play mat's card scanner (the deck laid on a
+# virtual mat, chosen in a card binder drawn over the game), the Hero License IC card and the
+# arcade server (the hero saved on this PC).
+system: namcoes3
+name: Super Dragon Ball Heroes
+
+# The cabinet starts the game from X:\app with "1" (2: back from the test mode).
+args: ["1"]
+
+# Cabinet data partitions: settings and backups (F:, G:: two copies), machine number (E:),
+# communication history (I:, J:), logs (K:), network work folder (L:), H: spare. X:, the
+# game's root on the cabinet, is the dump (the payload's redirect, read by the libraries).
+drives:
+  e: WindowsLoader/E
+  f: WindowsLoader/F
+  g: WindowsLoader/G
+  h: WindowsLoader/H
+  i: WindowsLoader/I
+  j: WindowsLoader/J
+  k: WindowsLoader/K
+  l: WindowsLoader/L
+
+# The cabinet font (its init script installs it before the game starts).
+fonts: [font/MYingHeiPRC-W5.ttf]
+
+# Another loader's files in the dump.
+hide: [TeknoParrot, app/teknoparrot.ini]
+
+env:
+  # the drives in the cabinet library and the DLLs it loads too
+  WAL_DRIVE_LATE_DLLS: "1"
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+
+input:
+  # The left stick chooses as the d-pad (green / blue); the right stick moves the play mat's
+  # picked card.
+  stick_as_dpad: true
+  gamepad:
+    # the cabinet's red (decide), green (left) and blue (right) buttons
+    a: b1
+    x: b2
+    b: b3
+    # the test menu's enter (the binder: empty the deck)
+    y: b4
+    # pick the play mat's card (the binder: its tabs)
+    l1: b7
+    r1: b8
+    # the Hero License on / off the reader, the card binder
+    l2: card
+    r2: b5
+    # the play mat panel's size; held with the right stick: turn the picked card
+    start: b6
+    back: coin
+  keyboard:
+    p1:
+      KEY_ENTER: b1
+      KEY_LEFTCTRL: b1
+      KEY_LEFTALT: b2
+      KEY_SPACE: b3
+      KEY_LEFTSHIFT: b4
+      KEY_Z: none
+      KEY_X: none
+      KEY_C: none
+      KEY_V: none
+      KEY_PAGEUP: b7
+      KEY_PAGEDOWN: b8
+      KEY_B: b5
+      KEY_M: b6
+      KEY_F3: card
+      KEY_F4: card
+      KEY_KP8: -ry
+      KEY_KP2: ry
+      KEY_KP4: -rx
+      KEY_KP6: rx
+
+controls:
+  b1: Red (decide)
+  b2: Green (left)
+  b3: Blue (right)
+  left: Green (choose left)
+  right: Blue (choose right)
+  up: Test menu up
+  down: Test menu down
+  b4: Test menu enter / binder empty deck
+  b5: Card binder (open / close)
+  b6: Play mat panel size, held turns the card
+  b7: Previous card / binder tab
+  b8: Next card / binder tab
+  rx: Move the picked card (shake)
+  ry: Move the picked card (attack / support)
+  card: Hero License
+  coin: Coin
+  service: Service
+  test: Test

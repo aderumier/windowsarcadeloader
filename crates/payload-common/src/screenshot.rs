@@ -146,6 +146,9 @@ const D3DLOCK_READONLY: u32 = 0x10;
 static ORIG_CREATE9: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_DEVICE: AtomicUsize = AtomicUsize::new(0);
 static ORIG_PRESENT: AtomicUsize = AtomicUsize::new(0);
+/// `IDirect3DSwapChain9::Present`: games presenting through the device's implicit swap chain
+/// (Super Dragon Ball Heroes' engine) instead of the device's `Present`.
+static ORIG_CHAIN_PRESENT: AtomicUsize = AtomicUsize::new(0);
 static ORIG_RESET: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE9EX: AtomicUsize = AtomicUsize::new(0);
 static ORIG_CREATE_DEVICE_EX: AtomicUsize = AtomicUsize::new(0);
@@ -236,6 +239,22 @@ unsafe fn present_overlay(dev: P, chain: P) -> HRESULT {
     let hr = unsafe { present(chain, std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), 0) };
     unsafe { border_end(dev, Some(chain), clean) };
     hr
+}
+
+/// [`PRESENTING`] set while a device `Present` runs.
+struct PresentingGuard(bool);
+
+impl PresentingGuard {
+    fn new() -> Self {
+        PresentingGuard(PRESENTING.with(|p| p.replace(true)))
+    }
+}
+
+impl Drop for PresentingGuard {
+    fn drop(&mut self) {
+        let before = self.0;
+        PRESENTING.with(|p| p.set(before));
+    }
 }
 
 unsafe fn overlay_reset(dev: P) {
@@ -381,6 +400,15 @@ unsafe fn wrap_device(dev: P) {
     unsafe {
         patch(dev, DEV_PRESENT, present as *const () as usize, &ORIG_PRESENT);
         patch(dev, DEV_RESET, reset as *const () as usize, &ORIG_RESET);
+        // the implicit swap chain's Present too (swap chains share their vtable)
+        const DEV_GET_SWAP_CHAIN: usize = 14;
+        const CHAIN_PRESENT: usize = 3;
+        let get: unsafe extern "system" fn(P, u32, *mut P) -> HRESULT = std::mem::transmute(method(dev, DEV_GET_SWAP_CHAIN));
+        let mut chain: P = std::ptr::null_mut();
+        if get(dev, 0, &mut chain) >= 0 && !chain.is_null() {
+            patch(chain, CHAIN_PRESENT, chain_present as *const () as usize, &ORIG_CHAIN_PRESENT);
+            release(chain);
+        }
         if TRACE.load(Ordering::Relaxed) || POW2.load(Ordering::Relaxed) {
             patch(dev, DEV_GET_DEVICE_CAPS, dev_caps as *const () as usize, &ORIG_DEV_CAPS);
         }
@@ -1039,7 +1067,42 @@ fn log_presents(window: P) {
     );
 }
 
+thread_local! {
+    /// Inside a device `Present` or the payload's own swap chain presents: a swap chain's
+    /// `Present` then is not the game's frame.
+    static PRESENTING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The game's frame presented through its device's swap chain: the overlay and screenshots.
+unsafe extern "system" fn chain_present(chain: P, src: P, dst: P, window: P, dirty: P, flags: u32) -> HRESULT {
+    let orig: unsafe extern "system" fn(P, P, P, P, P, u32) -> HRESULT = unsafe { std::mem::transmute(ORIG_CHAIN_PRESENT.load(Ordering::Relaxed)) };
+    if PRESENTING.with(|p| p.get()) {
+        return unsafe { orig(chain, src, dst, window, dirty, flags) };
+    }
+    const CHAIN_GET_DEVICE: usize = 8;
+    let get: unsafe extern "system" fn(P, *mut P) -> HRESULT = unsafe { std::mem::transmute(method(chain, CHAIN_GET_DEVICE)) };
+    let mut dev: P = std::ptr::null_mut();
+    if unsafe { get(chain, &mut dev) } < 0 || dev.is_null() {
+        return unsafe { orig(chain, src, dst, window, dirty, flags) };
+    }
+    PRESENTING.with(|p| p.set(true));
+    pace_present();
+    count_present();
+    let composed = unsafe { draw_overlay(dev, window) };
+    if composed.is_none() {
+        unsafe { maybe_capture(dev) };
+    }
+    let hr = match composed {
+        Some(own) => unsafe { present_overlay(dev, own) },
+        None => unsafe { orig(chain, src, dst, window, dirty, flags) },
+    };
+    PRESENTING.with(|p| p.set(false));
+    unsafe { release(dev) };
+    hr
+}
+
 unsafe extern "system" fn present(dev: P, src: P, dst: P, window: P, dirty: P) -> HRESULT {
+    let _presenting = PresentingGuard::new();
     if std::env::var_os("WAL_HANG_REPORT").is_some() {
         crate::crash::heartbeat();
     }
