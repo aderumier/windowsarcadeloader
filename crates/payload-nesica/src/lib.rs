@@ -69,6 +69,8 @@ mod rfid;
 // 64-bit only (Street Fighter V Type Arcade)
 #[cfg(target_pointer_width = "64")]
 mod sfv;
+#[cfg(target_pointer_width = "64")]
+mod sfv_english;
 mod theatrhythm;
 mod theatrhythm_mono;
 mod theatrhythm_nesys;

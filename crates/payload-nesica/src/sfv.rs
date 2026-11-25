@@ -95,6 +95,7 @@ pub(crate) fn init() {
     input_filter::init(exe, |_| false);
     title_pack();
     culture();
+    crate::sfv_english::init(exe);
     free_play(exe);
     log!("sfv: I/O board emulated");
 }
@@ -145,9 +146,10 @@ fn free_play(exe: usize) {
     log!("sfv: free play");
 }
 
-/// The cabinet's language, Japanese: the saved `Engine.ini`'s `[Internationalization]` culture
+/// The cabinet's culture, Japanese: the saved `Engine.ini`'s `[Internationalization]` culture
 /// (`-culture=` is not read). Scaleform's font library is `fonts_<culture>`: the US locale's
-/// English one has no Japanese glyph (the menus' texts were empty boxes).
+/// English one has no Japanese glyph (the menus' texts were empty boxes). The English texts are
+/// the Japanese culture's table replaced (`sfv_english.rs`).
 fn culture() {
     let Ok(local) = std::env::var("LOCALAPPDATA") else { return };
     let dir = format!("{local}\\StreetFighterV\\Saved\\Config\\WindowsNoEditor");

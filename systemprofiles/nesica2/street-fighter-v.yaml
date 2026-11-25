@@ -26,6 +26,20 @@ env:
   WAL_NESYS_REGISTER: "1"
   # Only the payload's input: no DirectInput pad.
   WAL_DINPUT_DISABLE: "1"
+  # The texts in English (the payload's table and literals), or the cabinet's Japanese.
+  WAL_SFV_LANGUAGE: english
+
+options:
+  - title: Game
+    options:
+      - key: WAL_SFV_LANGUAGE
+        label: Language
+        kind: choice
+        choices: [english, japanese]
+        description: >-
+          The game's texts. English: the console game's English texts, the arcade screens
+          (NESiCA card, matchmaking, later characters and stages) translated by the loader;
+          the texts drawn in pictures stay Japanese. Japanese: the cabinet's texts.
 
 # One player per cabinet (the versus is cabinet to cabinet: here against the computer).
 # Control names (the GUI's mapping rows).
