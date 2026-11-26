@@ -356,6 +356,11 @@ pub extern "system" fn DllMain(module: HINSTANCE, reason: u32, _reserved: *mut c
         screen::init();
         avs::init();
         eamuse::init();
+        // Nobiteke (byy.exe): its dev/nvram backup data survives a SquashFS image (whole
+        // seconds), else the boot stops on "application starting" (f24.rs: backup data)
+        if file_name(std::ptr::null_mut()).eq_ignore_ascii_case("byy.exe") {
+            f24::backup_times();
+        }
         log!("konami: ACIO board and card reader emulated (libacio.dll)");
     }
     TRUE

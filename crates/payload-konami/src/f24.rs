@@ -500,8 +500,8 @@ unsafe extern "system" fn find_first_file(name: *const c_char, data: *mut u8) ->
     find
 }
 
-/// AVS's file times rounded to the second (module docs: backup data).
-fn backup_times() {
+/// AVS's file times rounded to the second (module docs: backup data); also Nobiteke's.
+pub(crate) fn backup_times() {
     let avs = unsafe { GetModuleHandleA(c"libavs-win32.dll".as_ptr().cast()) } as usize;
     if avs == 0 {
         log!("f24: libavs-win32.dll not loaded, backup data times left alone");
