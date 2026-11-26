@@ -9,7 +9,9 @@
 //! * `spp`: Time Crisis 5 (`spp.net`).
 //! * `jojo`: JoJo's Bizarre Adventure: Last Survivor (JSON).
 //! * `sao`: Sword Art Online Arcade: Deep Explorer (ARTEMiS' `titles/sao`, Blowfish binary).
+//! * `exvs2`: Mobile Suit Gundam Extreme Vs. 2 (`nue.protocol.exvs`, plain HTTP).
 
+pub mod exvs2;
 pub mod graphene;
 mod jackal;
 pub mod jojo;

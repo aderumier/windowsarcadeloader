@@ -22,6 +22,10 @@
 //! byte 1 button 3 (left kick) 0x40, button 4 (right kick) 0x20 (0x80 is no switch of the
 //! operator menu's switch test). Both players' coins in slot 1.
 //!
+//! Mobile Suit Gundam Extreme Vs. 2 (`exvs2`): one player of 16 switches (EXVS2-POC's
+//! `JvsEmu.cpp`): byte 0 start 0x80, service 0x40, up 0x20, down 0x10, left 0x08, right 0x04,
+//! A (shoot) 0x02, B (melee) 0x01; byte 1 C (jump) 0x80, D (switch target) 0x40.
+//!
 //! Pokkén Tournament (`pokken`): the controls are the game's XInput pad (`pokken.rs`); the board
 //! has start, service and the coins, as Battle Pod's. Its test menu: up / down (or service)
 //! choose, enter (0x02) enters: start while the test switch is on.
@@ -166,6 +170,20 @@ const TEKKEN7_MAP: &[(&str, &str)] = &[
     ("b4", "btn4"),
 ];
 
+/// Mobile Suit Gundam Extreme Vs. 2's switches: native input, byte, bit.
+const EXVS2_SWITCHES: &[(Native, usize, u8)] = &[
+    (Native::Start, 0, 0x80),
+    (Native::Service, 0, 0x40),
+    (Native::Up, 0, 0x20),
+    (Native::Down, 0, 0x10),
+    (Native::Left, 0, 0x08),
+    (Native::Right, 0, 0x04),
+    (Native::Button1, 0, 0x02),
+    (Native::Button2, 0, 0x01),
+    (Native::Button3, 1, 0x80),
+    (Native::Button4, 1, 0x40),
+];
+
 /// Pokkén Tournament: the operator buttons and start (the controls are its pad's).
 const POKKEN_MAP: &[(&str, &str)] = &[("test", "test"), ("service", "service"), ("coin", "coin"), ("start", "start")];
 
@@ -211,6 +229,7 @@ enum Game {
     Wmmt5,
     Tekken7,
     Pokken,
+    Exvs2,
 }
 
 /// Per poll, how far the d-pad and the throttle buttons move the axes.
@@ -245,7 +264,9 @@ static BOARD: Mutex<Option<Board>> = Mutex::new(None);
 /// Installs the board on the serial calls of `modules`.
 pub(crate) fn init(modules: &[usize]) {
     let flag = |name: &str, default: bool| std::env::var(name).map_or(default, |v| v != "0");
-    let game = if crate::pokken::is_loaded() {
+    let game = if crate::exvs2::is_loaded() {
+        Game::Exvs2
+    } else if crate::pokken::is_loaded() {
         Game::Pokken
     } else if crate::tekken7::is_loaded() {
         Game::Tekken7
@@ -259,7 +280,7 @@ pub(crate) fn init(modules: &[usize]) {
     let defaults = match game {
         Game::Lla => LLA_MAP,
         Game::Wmmt5 => WMMT5_MAP,
-        Game::Tekken7 => TEKKEN7_MAP,
+        Game::Tekken7 | Game::Exvs2 => TEKKEN7_MAP,
         Game::Pokken => POKKEN_MAP,
         Game::BattlePod => DEFAULT_MAP,
     };
@@ -345,6 +366,19 @@ fn poll(board: &mut Board) -> Inputs {
     }
     if board.game == Game::Tekken7 {
         return tekken7(board, &n);
+    }
+    if board.game == Game::Exvs2 {
+        let mut sw = [0u8; 3];
+        // the live monitor beside the cabinet: no player
+        if crate::exvs2::is_live_monitor() {
+            return Inputs { test: false, sw, sw2: [0; 3], analog: [0x80; 8] };
+        }
+        for &(native, byte, bit) in EXVS2_SWITCHES {
+            if on(native) {
+                sw[byte] |= bit;
+            }
+        }
+        return Inputs { test: board.test_on, sw, sw2: [0; 3], analog: [0x80; 8] };
     }
     let mut sw = [0u8; 3];
     // Lost Land Adventure: the starts are in byte 1
@@ -534,9 +568,13 @@ fn packet_reply(board: &mut Board, p: &[u8]) -> Vec<u8> {
                 1
             }
             0x14 => {
-                // 1 player x 24 switches (Tekken 7: 2 x 16), 2 coin slots, 8 analogs (10
+                // 1 player x 24 switches (Tekken 7: 2 x 16, EXVS2: 1 x 16), 2 coin slots, 8 analogs (10
                 // bits), 18 outputs
-                let (players, switches) = if board.game == Game::Tekken7 { (2, 0x10) } else { (1, 0x18) };
+                let (players, switches) = match board.game {
+                    Game::Tekken7 => (2, 0x10),
+                    Game::Exvs2 => (1, 0x10),
+                    _ => (1, 0x18),
+                };
                 rep.extend_from_slice(&[0x01, players, switches, 0, 0x02, 2, 0, 0, 0x03, 8, 0x0A, 0, 0x12, 0x14, 0, 0, 0x00]);
                 1
             }

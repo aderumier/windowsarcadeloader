@@ -3922,6 +3922,7 @@ version = "0.1.0"
 dependencies = [
  "aes",
  "miniz_oxide 0.8.9",
+ "ring",
  "wal-namcoes3srv",
  "wal-payload-common",
  "wal-protocol",

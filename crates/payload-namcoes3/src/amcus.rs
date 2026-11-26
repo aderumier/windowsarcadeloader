@@ -53,6 +53,22 @@ pub(crate) fn set_identity(identity: Identity) {
     let _ = IDENTITY.set(identity);
 }
 
+/// The MUCHA (cacfg) version in `GetVersionInfo`, when it is not the game's (Mobile Suit
+/// Gundam Extreme Vs. 2: 4.00, cacfg 29.31).
+static CACFG_VER: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+
+pub(crate) fn set_cacfg_version(version: &'static str) {
+    let _ = CACFG_VER.set(version);
+}
+
+/// The ALL.Net answer's place id, when not `123` (Mobile Suit Gundam Extreme Vs. 2 reads 4
+/// characters: `JPN1`, else its network info is empty and it stops on an assertion).
+static PLACE_ID: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+
+pub(crate) fn set_place_id(id: &'static str) {
+    let _ = PLACE_ID.set(id);
+}
+
 /// The cabinet's network in `GetCabinetConfig` (newer IAuth): shop router, auth server,
 /// address, mask, gateway, DNS. Default: the loopback.
 static CABINET_NETWORK: std::sync::OnceLock<[&'static str; 6]> = std::sync::OnceLock::new();
@@ -178,7 +194,7 @@ unsafe extern "system" fn get_version_info(_this: P, out: *mut u8) -> i32 {
         let ver = format!("{}.{:02}", version.game_ver.0, version.game_ver.1);
         put_str(out, 28, 8, &ver);
         put_str(out, 36, 8, version.game_cd);
-        put_str(out, 44, 8, &ver);
+        put_str(out, 44, 8, CACFG_VER.get().copied().unwrap_or(&ver));
         put_str(out, 52, 4, "0");
         put_str(out, 56, 4, "PCB");
         put_str(out, 60, 256, "localhost");
@@ -207,7 +223,7 @@ unsafe extern "system" fn get_auth_server_resp(_this: P, out: *mut u8) -> i32 {
         for (i, name) in ["W", "X", "Y", "Z"].iter().enumerate() {
             put_str(out, 1042 + 256 * i, 256, name);
         }
-        put_str(out, 2066, 16, "123");
+        put_str(out, 2066, 16, PLACE_ID.get().copied().unwrap_or("123"));
         put_str(out, 2082, 16, "1");
         put_str(out, 2098, 16, "JPN");
         put_str(out, 2114, 32, "+0900");

@@ -719,6 +719,20 @@ impl Wine {
         }
         if use_dxvk {
             self.override_dll(&format!("{}=n", D3D_DLLS.join(",")));
+            // Direct3D 12 (Mobile Suit Gundam Extreme Vs. 2): the runner's vkd3d-proton, as Proton
+            // installs it (wine's own d3d12, on upstream vkd3d, creates no device for it)
+            let mut vkd3d = false;
+            for (arch, dir) in [("x86_64-windows", self.system32()), ("i386-windows", self.syswow64())] {
+                if let Some(src) = self.component_dir("vkd3d-proton", arch) {
+                    vkd3d = true;
+                    if !dry {
+                        link_all(&src, &dir, |name| name.eq_ignore_ascii_case("d3d12.dll") || name.eq_ignore_ascii_case("d3d12core.dll"))?;
+                    }
+                }
+            }
+            if vkd3d {
+                self.override_dll("d3d12,d3d12core=n");
+            }
         } else {
             let first = |d: &&str| game_first.iter().any(|f| f.eq_ignore_ascii_case(&format!("{d}.dll")));
             let (native, builtin): (Vec<&str>, Vec<&str>) = D3D_DLLS.iter().copied().partition(|d| first(&d));
@@ -726,6 +740,8 @@ impl Wine {
                 self.override_dll(&format!("{}=n,b", native.join(",")));
             }
             self.override_dll(&format!("{}=b", builtin.join(",")));
+            // a prefix's vkd3d-proton links of a DXVK game: wine's own d3d12 here
+            self.override_dll("d3d12,d3d12core=b");
         }
         Ok(())
     }

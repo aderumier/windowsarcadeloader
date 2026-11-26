@@ -1,0 +1,90 @@
+# Mobile Suit Gundam Extreme Vs. 2 (Bandai Namco, 2018, Direct3D 12, 64-bit), 4.00 (SBUZ,
+# GX21) - template, override values in
+# userprofiles/namcoes3/mobile-suit-gundam-extreme-vs-2.yaml.
+# The cabinet seat on the BNA1 platform: the payload reproduces bananatools' exvs2hook and
+# EXVS2-POC's client hook (USB dongle, NA-JV I/O board, Banapassport reader, AMCUS auth, the
+# boot patches) and runs a game server (the players in the dump's WindowsLoader\F\exvs2srv).
+system: namcoes3
+name: Mobile Suit Gundam Extreme Vs. 2
+
+# The game imports none of the cabinet libraries ours could take the place of: the payload is
+# loaded at the executable's entry point (wal-loader64).
+payload_loader: true
+payload_install: [wal_namcoes3.dll]
+
+# The cabinet's partitions: F: and G: the game's saves (bookkeeping, credits, replays, the
+# server's last game data) and the player's card (banapass.txt).
+drives:
+  f: WindowsLoader/F
+  g: WindowsLoader/G
+
+# The shop's live monitor (LM), the server PC the cabinet needs on its network (else error
+# 21-01 LIVEMONITOR DISCONNECT): the same game started beside it as the LM.
+background: ["exvs2_exe_Release.exe -wal-lm"]
+background_wait_ms: 3000
+
+# Another loader's files in the dump.
+hide: [TeknoParrot]
+
+env:
+  # the cabinet's picture: a borderless window of the screen's size (the game draws 1920x1080,
+  # stretched to it), the live monitor's window off the screen
+  WAL_WINDOW_POPUP: "1"
+  WAL_WINDOW_SIZE: screen
+  # the Banapassport card goes on the reader by itself after start
+  WAL_NAMCOES3_AUTO_CARD: "1"
+  # the card's 20-digit access code (empty: a card made once, WindowsLoader\F\banapass.txt)
+  WAL_NAMCOES3_ACCESS_CODE: ""
+  # a new card's player name
+  WAL_NAMCOES3_PROFILE_NAME: "PLAYER"
+
+options:
+  - title: Banapassport card
+    options:
+      - key: WAL_NAMCOES3_AUTO_CARD
+        label: Insert the card automatically
+        kind: bool
+        description: >-
+          The card is on the reader for 8 seconds, a second after start is pressed. Off: insert
+          it with the card button.
+      - key: WAL_NAMCOES3_PROFILE_NAME
+        label: Player name
+        kind: text
+        description: A new card's player name (12 characters at most).
+      - key: WAL_NAMCOES3_ACCESS_CODE
+        label: Access code
+        kind: text
+        description: >-
+          The card's 20-digit access code. Empty: a card made once for this dump
+          (WindowsLoader\F\banapass.txt).
+
+input:
+  # A shoot on X, B melee on Y, C jump on A, D switch target on B, the card on the guide button
+  gamepad:
+    x: b1
+    y: b2
+    a: b3
+    b: b4
+    start: start
+    back: coin
+    l3: service
+    r3: test
+    guide: card
+    dpup: up
+    dpdown: down
+    dpleft: left
+    dpright: right
+    leftx: lx
+    lefty: ly
+
+# Control names (the GUI's mapping rows).
+controls:
+  b1: A (shoot)
+  b2: B (melee)
+  b3: C (jump)
+  b4: D (switch target)
+  card: Banapassport card
+  start: Start / operator menu enter
+  coin: Coin
+  service: Service
+  test: Test

@@ -4,9 +4,15 @@
 //! The game polls for a card tap ([`wait_touch`]): with the player's card on the reader
 //! ([`insert`]) each request is answered with the card's record ([`TEMPLATE`]): chip id (+0x2c,
 //! 32 characters) and access code (+0x50, 20 digits).
+//!
+//! Mobile Suit Gundam Extreme Vs. 2 ([`init_callbacks`]) makes one tap request and waits for its
+//! callback: the card's record goes to the request's callback every 100 ms while the card is on
+//! the reader, until the next request (EXVS2-POC's `banapass.cpp`); its action requests (the
+//! reader's LED / sound sequences) are answered through their callback too.
 
 use std::ffi::c_void;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::{Duration, Instant};
 
 use wal_payload_common::{iat, log};
@@ -62,7 +68,47 @@ fn record(card: &crate::banapass::Card) -> [u8; 168] {
 const CONTEXT_STATUS: usize = 0x30;
 const CONTEXT_RECORD: usize = 0x38;
 
-unsafe extern "system" fn wait_touch(_reader: u32, _timeout: i32, _flags: u32, _callback: Option<TouchCallback>, context: *mut c_void) -> i32 {
+/// [`init_callbacks`]: the card goes to the requests' callbacks.
+static CALLBACK_MODE: AtomicBool = AtomicBool::new(false);
+/// The current tap request (callback mode): an older request's thread stops.
+static REQUEST: AtomicU32 = AtomicU32::new(0);
+
+/// A tap request in callback mode: the card's record to `callback` every 100 ms while the card is
+/// on the reader, until the next request.
+fn touch_thread(callback: TouchCallback, context: usize) {
+    let id = REQUEST.fetch_add(1, Ordering::SeqCst) + 1;
+    std::thread::spawn(move || {
+        while REQUEST.load(Ordering::SeqCst) == id {
+            std::thread::sleep(Duration::from_millis(100));
+            let card = CARD.lock().unwrap().filter(|(_, until)| Instant::now() < *until).map(|(c, _)| c);
+            let Some(card) = card else { continue };
+            if REQUEST.load(Ordering::SeqCst) != id {
+                break;
+            }
+            static LOGGED: Mutex<Option<Instant>> = Mutex::new(None);
+            {
+                let mut logged = LOGGED.lock().unwrap();
+                if logged.is_none_or(|t| t.elapsed() > Duration::from_secs(5)) {
+                    log!("bngrw: card {} on the reader", card.access_code);
+                    *logged = Some(Instant::now());
+                }
+            }
+            let mut record = record(card);
+            unsafe { callback(0, 0, record.as_mut_ptr().cast(), context as *mut c_void) };
+        }
+    });
+}
+
+unsafe extern "system" fn wait_touch(_reader: u32, _timeout: i32, _flags: u32, callback: Option<TouchCallback>, context: *mut c_void) -> i32 {
+    if CALLBACK_MODE.load(Ordering::Relaxed) {
+        if std::env::var("WAL_NAMCOES3_CARD_TRACE").is_ok_and(|v| v == "1") {
+            log!("bngrw: tap request (callback {})", callback.is_some());
+        }
+        if let Some(callback) = callback {
+            touch_thread(callback, context as usize);
+        }
+        return 1;
+    }
     let card = CARD.lock().unwrap().filter(|(_, until)| Instant::now() < *until).map(|(c, _)| c);
     let Some(card) = card else { return -1 };
     if context.is_null() {
@@ -114,6 +160,21 @@ unsafe extern "system" fn version() -> u32 {
     0x0001_0000
 }
 
+type ActionCallback = unsafe extern "C" fn(i32, i32, *mut c_void);
+
+/// `BngRwReqAction(reader, action, callback, context)` in callback mode: done, its callback
+/// called after a moment (1, or -1 for an action other than 0, as EXVS2-POC answers).
+unsafe extern "system" fn action(_reader: u32, which: u32, callback: Option<ActionCallback>, context: *mut c_void) -> i32 {
+    if let Some(callback) = callback {
+        let context = context as usize;
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(100));
+            unsafe { callback(0, 0, context as *mut c_void) };
+        });
+    }
+    if which == 0 { 1 } else { -1 }
+}
+
 /// The reader's LED, beeper, URL and action requests: done.
 unsafe extern "system" fn done(_a: usize, _b: usize, _c: usize, _d: usize) -> i32 {
     1
@@ -123,8 +184,16 @@ unsafe extern "system" fn idle(_cmd: u32) -> i32 {
     0
 }
 
+/// [`init`], the card and the action requests answered through their callbacks (Mobile Suit
+/// Gundam Extreme Vs. 2).
+pub(crate) fn init_callbacks(base: usize) {
+    CALLBACK_MODE.store(true, Ordering::Relaxed);
+    init(base);
+}
+
 /// Hooks the game's `bngrw.dll` imports.
 pub(crate) fn init(base: usize) {
+    let action_hook = if CALLBACK_MODE.load(Ordering::Relaxed) { action as *const () as usize } else { done as *const () as usize };
     let hooks: [(&str, usize); 11] = [
         ("BngRwInit", zero as *const () as usize),
         ("BngRwFin", zero as *const () as usize),
@@ -136,7 +205,7 @@ pub(crate) fn init(base: usize) {
         ("BngRwReqBeep", done as *const () as usize),
         ("BngRwReqLed", done as *const () as usize),
         ("BngRwReqSendUrlTo", done as *const () as usize),
-        ("BngRwReqAction", done as *const () as usize),
+        ("BngRwReqAction", action_hook),
     ];
     for (name, f) in hooks {
         if unsafe { iat::hook_module(base, "bngrw.dll", name, f) }.is_none() {

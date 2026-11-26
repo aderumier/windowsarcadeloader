@@ -77,18 +77,42 @@ pub unsafe fn detour(at: usize, prologue: &[u8], hook: usize) -> Option<usize> {
     if prologue.len() < 5 || !crate::crash::readable(at, prologue.len()) || unsafe { std::slice::from_raw_parts(at as *const u8, prologue.len()) } != prologue {
         return None;
     }
+    // the jump to the hook: rel32 when the hook is near, else (64-bit) an absolute jump, when
+    // the prologue has room for it (14 bytes)
+    let rel = (hook as i64).wrapping_sub(at as i64 + 5);
+    // (32-bit: rel32 reaches the whole address space, modulo 2^32)
+    let near = cfg!(target_pointer_width = "32") || i32::try_from(rel).is_ok();
+    if !near && prologue.len() < 14 {
+        log!("patches: hook {hook:#x} too far from {at:#x} for a {} byte prologue", prologue.len());
+        return None;
+    }
     unsafe {
-        let t = VirtualAlloc(std::ptr::null(), prologue.len() + 5, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) as *mut u8;
+        // the trampoline: the prologue, then an absolute jump back after it (the allocation may be
+        // more than 2 GB away from the code in a 64-bit process)
+        let t = VirtualAlloc(std::ptr::null(), prologue.len() + 14, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) as *mut u8;
         if t.is_null() {
             return None;
         }
         std::ptr::copy_nonoverlapping(prologue.as_ptr(), t, prologue.len());
         let back = t.add(prologue.len());
-        *back = 0xE9;
-        std::ptr::write_unaligned(back.add(1) as *mut i32, (at + prologue.len()).wrapping_sub(back as usize + 5) as i32);
+        let resume = at + prologue.len();
+        let back_rel = (resume as i64).wrapping_sub(back as i64 + 5);
+        if cfg!(target_pointer_width = "32") || i32::try_from(back_rel).is_ok() {
+            *back = 0xE9;
+            std::ptr::write_unaligned(back.add(1) as *mut i32, back_rel as i32);
+        } else {
+            // jmp [rip+0]; dq resume
+            std::ptr::copy_nonoverlapping([0xFFu8, 0x25, 0, 0, 0, 0].as_ptr(), back, 6);
+            std::ptr::write_unaligned(back.add(6) as *mut u64, resume as u64);
+        }
         let mut jump = vec![0x90u8; prologue.len()];
-        jump[0] = 0xE9;
-        jump[1..5].copy_from_slice(&(hook.wrapping_sub(at + 5) as i32).to_le_bytes());
+        if near {
+            jump[0] = 0xE9;
+            jump[1..5].copy_from_slice(&(rel as i32).to_le_bytes());
+        } else {
+            jump[..6].copy_from_slice(&[0xFF, 0x25, 0, 0, 0, 0]);
+            jump[6..14].copy_from_slice(&(hook as u64).to_le_bytes());
+        }
         write(at, &jump);
         Some(t as usize)
     }

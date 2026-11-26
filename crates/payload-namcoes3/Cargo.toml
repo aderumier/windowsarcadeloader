@@ -16,6 +16,8 @@ wal-namcoes3srv = { path = "../namcoes3srv" }
 miniz_oxide = "0.8"
 # Sword Art Online Arcade's test mode save files (AES-128-CBC)
 aes = "0.8"
+# Gundam Extreme Vs. 2's save files (svd1: SHA-1)
+ring = "0.17"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",

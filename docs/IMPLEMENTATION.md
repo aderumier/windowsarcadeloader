@@ -2730,6 +2730,64 @@ reproduced:
   (noted in `game.rs`): default skills placed, disposal paying the sale price, inverted card
   conditions, properties 3/4, the title id.
 
+#### Mobile Suit Gundam Extreme Vs. 2
+
+64-bit (`exvs2.rs`): Direct3D 12, 2018, `exvs2_exe_Release.exe` 4.00 (ALL.Net SBUZ, MUCHA GX21
+29.31, entry point 0x4dad54), the BNA1 cabinet. The game imports nothing of ours: `wal-loader64`
+loads the payload at the entry point (profile `payload_loader`, `payload_install:
+[wal_namcoes3.dll]`). bananatools' `exvs2hook` (public domain) and EXVS2-POC's client hook
+(asesidaa/EXVS2-POC: no license, read as a protocol reference only, nothing copied) reproduced:
+
+- **Direct3D 12.** The runner's vkd3d-proton (`d3d12.dll`, `d3d12core.dll`) is linked in the
+  prefix with DXVK (`wine.rs` `setup_d3d`, as Proton does): wine's own d3d12 (upstream vkd3d)
+  created no device for the game (a null device at its first `CreateCommittedResource`).
+- **Two programs.** The game is a shop's cabinet (client type 1) that needs the shop's live
+  monitor (LM, client type 2: the shop's server and display PC) on its network, else error
+  21-01 LIVEMONITOR DISCONNECT (TeknoParrot needs two PCs too). The profile's `background`
+  starts the same executable as the LM (`-wal-lm`), without player input, its window unactivated,
+  out of the taskbar and moved off the screen (GNOME keeps it at 0,0, behind the cabinet's). The
+  cabinet is the game played: a borderless screen-sized window (`WAL_WINDOW_POPUP`,
+  `WAL_WINDOW_SIZE: screen`; the LM's hooks call user32 itself, not these options), started once
+  the LM listens on its P2P port (127.0.0.2:30000 taken; its first boot builds its shader cache,
+  a cabinet looking for it earlier stops on 21-01). Each its identity: client
+  type patched (EXVS2-POC's `ClientTypePatcher`), dongle serial `28111401nnnn` / `28111101nnnn`
+  (`nbamUsbFinderGetSerialNumber`), PCB id `ABLN` + the serial's last 7 digits. Their network is
+  the link of instances on one PC (`link.rs`): the LM the master at 127.0.0.2, the cabinet
+  127.0.0.3; the game's P2P terminals' broadcasts (UDP 30000+) reach the other program. The LM's
+  check of the shop's cabinets 1 and 2 is off (developer option 27, EXVS2-POC's LM mode).
+- **Patches of 4.00** (EXVS2-POC's): content router check (`(ip & mask) == 192.168.85.0`, the
+  netenv subnet) true, network adapter check skipped, the opening's reminder skipped, developer
+  option 6 "server connection after 1 am JST" on (`patches::detour`: its trampoline's jump back
+  is absolute, the allocation more than 2 GB away from the code).
+- **I/O board.** NA-JV on COM3 through the game's `wajvio.dll` (`jvs.rs`, one player of 16
+  switches: start 0x80, service 0x40, up / down / left / right 0x20..0x04, A 0x02, B 0x01; byte
+  1 C 0x80, D 0x40).
+- **Banapassport.** The game's `bngrw.dll` imports (`bngrw.rs` callback mode): a tap request's
+  callback gets the card's record (chip id +0x2c, access code +0x50) every 100 ms while the card
+  is on the reader, until the next request; action requests answered through their callback. The
+  card (`WAL_NAMCOES3_ACCESS_CODE` or `F:\banapass.txt`): the card button, or start
+  (`WAL_NAMCOES3_AUTO_CARD`): the card is touched at the attract screen (start alone begins a
+  guest game), start held back from the game for 3 s.
+- **AMCUS.** `CoCreateInstance` of `IAuth` in-process (`amcus.rs`, bananatools' layout): game
+  version 4.00, cacfg 29.31, place id `JPN1` (the game reads 4 characters, else its network
+  information stays empty and an assertion stops it).
+- **Free play.** The common option writes the cabinet's test mode settings
+  (`testmode_pcb.json`, F: and its mirror G:): `.TestModeParam.coin.freePlay`, `.coin.remoteSetup`
+  0 (else the LM's coin settings). `nbamsavdat.dll`'s files: `svd1`, version 1, the data's size,
+  0, the SHA-1 of these 16 bytes and the data, then the data (JSON, `storage` of
+  `{type, value}` by key); a file of these keys alone keeps the game's defaults for the others.
+- **Game server** (`wal_namcoes3srv::exvs2`, EXVS2-POC's `Server-Vanilla` behaviour written
+  again): plain HTTP on the ALL.Net uri (`127.0.0.1:9002`), `nue.protocol.exvs` Request /
+  Response (proto2, read from the game's own `game_server_nue.proto` descriptor: the schema of
+  `graphene.rs`, extended with floats, fixed integers, nested enums and an enum's first value as a
+  required field's default), the matching server's ping and node id on `/match`
+  (`matchmaking_server_nue.proto`). The game data (every mobile suit and navigator, the 56
+  echelons, matching tables, Triad CPU courses); the players in `F:\exvs2srv\players`, each the
+  game's own messages (pre-load user and record, pilot data, customizations); battle results
+  (versus, Triad) update GP, echelon (downgraded at the threshold: EXVS2-POC's test is
+  inverted), navigators' familiarity, mobile suit use counts, the tag team's skill points, the
+  win / loss record or the Triad scores, ribbons and courses.
+
 ### 6.3d Sega RingEdge (`crates/payload-ringedge`)
 
 RingEdge games (Virtua Tennis 4; RingEdge 2: Guilty Gear XX Accent Core Plus R) link Sega's amLib statically and import no driver DLL: the
@@ -9768,6 +9826,7 @@ Games status, one row per game id (`<gameid>.windowsloader` in the dump; scripte
 | `pokken-tournament` | Pokkén Tournament | namcoes3 | user 100% (24.05 with Banapassport cards, 26.02 offline), 1 player per cabinet, English text | updates 24.05 and 26.02 (64-bit, §6.3c): the payload as the game's `xinput1_3.dll` (the cabinet controller as XInput pad 0, its USB id), Namco JVS on COM3 (`wajvio.dll`), dongle / cabinet serial, ping and subnet patches, Japanese locale, cards (AMCUS, COM4 reader, jackal server), GE patches 0110 / 0111 (movies), saves in the dump's `Win32\save_data`; no cabinet link |
 | `jojos-bizarre-adventure-last-survivor` | JoJo's Bizarre Adventure - Last Survivor | namcoes3 | works offline (headless tests: system check, coins, start, PP purchase, mode select, operator menu), touch with the mouse, English text; no game server: national / store battles off | update 28.02 (64-bit UE4, §6.3c): the payload as the game's `xinput1_3.dll`, cabinet serial and AMActivator, USIO board with sticks, Aime reader (COM1) and display (COM2) of `libamw.dll`, tablet touch panel, store network (netsh, adapters, ping), English `Game.locres` |
 | `sword-art-online-deep-explorer` | Sword Art Online Arcade - Deep Explorer | namcoes3 | works (user: 100%), online with the built-in game server and Aime cards; Japanese text | SAO134 (64-bit Unity, §6.3c): `wal-loader64`, bananatools' saohook (USIO, Aime reader and display, dongle, satellite, touch, IAuth), ARTEMiS' SAO server |
+| `mobile-suit-gundam-extreme-vs-2` | Mobile Suit Gundam Extreme Vs. 2 | namcoes3 | works (user: 100%), Banapassport cards, free play; Japanese text | 4.00 (64-bit Direct3D 12, §6.3c): `wal-loader64`, vkd3d-proton, LM + cabinet on the one-PC link, bananatools' exvs2hook / EXVS2-POC (dongle, NA-JV, bngrw, IAuth, patches), nue game server |
 | `star-wars-battle-pod` | Star Wars Battle Pod - The Force Awakens | namcoes3 | boots (2026-10-06), not user-verified | 64-bit payload as the launcher's and the game's `hasp_windows_x64_100610.dll` (by ordinal, §6.3c): HASP serial, NA-JV board on COM3 (flight stick, throttle, trigger/weapon/view), USB key enumeration, projector check skipped, flat screen |
 | `wangan-midnight-maximum-tune-5` | Wangan Midnight Maximum Tune 5 | namcoes3 | works (user: game works; headless: cards, new player, car, race, save) | cabinet link across PCs (§6.8); `hasp_windows_x64_109906.dll` payload (§6.3c), JVS on COM3, emulated terminal, Banapass cards on COM4, built-in game server (wm5srv) |
 | `wangan-midnight-maximum-tune-5dx` | Wangan Midnight Maximum Tune 5DX | namcoes3 | works (user), full screen; cards and game server | cabinet link across PCs (§6.8); as `wangan-midnight-maximum-tune-5` with the 5DX version table and server schema |

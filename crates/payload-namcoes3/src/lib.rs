@@ -10,7 +10,8 @@
 //! `hasp_windows_x64_98199.dll` 5DX and `hasp_windows_x64_106482.dll` 5DX+ (`wmn5r.exe`,
 //! `wmmt5.rs`), `hasp_windows_x64_105293.dll` Time Crisis 5 (`RSLauncher.exe`,
 //! `TC5\Binaries\Win64\TimeCrisisGame-Win64-Shipping.exe`, `tc5.rs`, USIO board `usio.rs`).
-//! Tekken 7 and Pokkén Tournament import no cabinet library: the payload is their
+//! Mobile Suit Gundam Extreme Vs. 2 (`exvs2.rs`) loads it at its entry point. Tekken 7 and
+//! Pokkén Tournament import no cabinet library: the payload is their
 //! `xinput1_3.dll` (`tekken7.rs`, `pokken.rs`).
 //!
 //! * `hasp.rs`: the HASP HL dongle API.
@@ -29,6 +30,7 @@ mod banapass;
 mod bngrw;
 mod bpreader;
 mod dinput;
+mod exvs2;
 mod hasp;
 mod jojo;
 mod jvs;
@@ -104,7 +106,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let exe = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()));
         let exe = exe.unwrap_or_default();
         let base = module_base();
-        if exe.eq_ignore_ascii_case(jojo::GAME) {
+        if exvs2::is_exvs2(&exe) {
+            exvs2::attach(base);
+        } else if exe.eq_ignore_ascii_case(jojo::GAME) {
             jojo::attach(base);
         } else if sao::is_sao(&exe) {
             sao::attach(base);

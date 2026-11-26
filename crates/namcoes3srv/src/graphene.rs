@@ -33,6 +33,15 @@ enum Kind {
     Bytes,
     /// A message, by its full name inside the package (`LoadUserResponseData.FighterInfo`).
     Message(String),
+    Float,
+    Double,
+    /// fixed32, sfixed32.
+    Fixed32,
+    /// fixed64, sfixed64.
+    Fixed64,
+    /// An enum, by its full name inside the package: a varint whose default is the enum's first
+    /// value (proto2: a value the enum lacks, 0 when it starts at 1, fails a required field).
+    Enum(String),
 }
 
 #[derive(Clone, Debug)]
@@ -48,7 +57,9 @@ struct Field {
 #[derive(Default)]
 pub struct Schema {
     messages: BTreeMap<String, Vec<Field>>,
-    types: BTreeMap<u64, String>,
+    pub(crate) types: BTreeMap<u64, String>,
+    /// Each enum's first value, by its full name inside the package.
+    enums: BTreeMap<String, u64>,
     /// The protocol's package (`graphene.protobuf`, `jackal.protobuf`).
     pub(crate) package: String,
 }
@@ -70,7 +81,7 @@ impl Schema {
         for (field, value) in &fields {
             match field {
                 4 => schema.message(value, "", &prefix),
-                5 => schema.enumeration(value),
+                5 => schema.enumeration(value, ""),
                 _ => {}
             }
         }
@@ -86,10 +97,16 @@ impl Schema {
             match f {
                 2 => {
                     let Some(fd) = Message::parse(b) else { continue };
+                    let type_name = || fd.string(6).unwrap_or_default().trim_start_matches(prefix).to_string();
                     let kind = match fd.uint(5).unwrap_or(0) {
                         9 | 12 => Kind::Bytes,
                         17 | 18 => Kind::SInt,
-                        11 => Kind::Message(fd.string(6).unwrap_or_default().trim_start_matches(prefix).to_string()),
+                        11 => Kind::Message(type_name()),
+                        14 => Kind::Enum(type_name()),
+                        1 => Kind::Double,
+                        2 => Kind::Float,
+                        6 | 16 => Kind::Fixed64,
+                        7 | 15 => Kind::Fixed32,
                         _ => Kind::Int,
                     };
                     let label = fd.uint(4).unwrap_or(1);
@@ -102,15 +119,23 @@ impl Schema {
                     });
                 }
                 3 => self.message(b, &format!("{name}."), prefix),
+                4 => self.enumeration(b, &format!("{name}.")),
                 _ => {}
             }
         }
         self.messages.insert(name, fields);
     }
 
-    fn enumeration(&mut self, data: &[u8]) {
+    fn enumeration(&mut self, data: &[u8], parent: &str) {
         let Some(e) = Message::parse(data) else { return };
-        if e.string(1).as_deref() != Some("MessageType") {
+        let name = e.string(1).unwrap_or_default();
+        if let Some(Value::Bytes(b)) = e.all(2).next()
+            && let Some(first) = Message::parse(b)
+        {
+            self.enums.insert(format!("{parent}{name}"), first.uint(2).unwrap_or(0) & 0xffff_ffff);
+        }
+        // the request types: Graphene's MessageType, nue's (Extreme Vs. 2) MethodType
+        if !parent.is_empty() || !(name == "MessageType" || name == "MethodType") {
             return;
         }
         for v in e.all(2) {
@@ -156,7 +181,23 @@ impl Schema {
                         w = w.sint(field.number, *v as i64);
                     }
                 }
-                (Some(V::U(v)), Kind::Int) => w = w.uint(field.number, *v),
+                (Some(V::Ints(items)), Kind::Enum(_)) => {
+                    for v in items {
+                        w = w.uint(field.number, *v);
+                    }
+                }
+                (Some(V::U(v)), Kind::Int | Kind::Enum(_)) => w = w.uint(field.number, *v),
+                (Some(V::I(v)), Kind::Enum(_)) => w = w.uint(field.number, *v as u64),
+                (Some(V::F(v)), Kind::Float) => w = w.float(field.number, *v as f32),
+                (Some(V::U(v)), Kind::Float) => w = w.float(field.number, *v as f32),
+                (Some(V::I(v)), Kind::Float) => w = w.float(field.number, *v as f32),
+                (Some(V::F(v)), Kind::Double) => w = w.double(field.number, *v),
+                (Some(V::U(v)), Kind::Double) => w = w.double(field.number, *v as f64),
+                (Some(V::I(v)), Kind::Double) => w = w.double(field.number, *v as f64),
+                (Some(V::U(v)), Kind::Fixed32) => w = w.fixed32(field.number, *v as u32),
+                (Some(V::I(v)), Kind::Fixed32) => w = w.fixed32(field.number, *v as u32),
+                (Some(V::U(v)), Kind::Fixed64) => w = w.fixed64(field.number, *v),
+                (Some(V::I(v)), Kind::Fixed64) => w = w.fixed64(field.number, *v as u64),
                 (Some(V::I(v)), Kind::Int) => w = w.uint(field.number, *v as u64),
                 (Some(V::I(v)), Kind::SInt) => w = w.sint(field.number, *v),
                 (Some(V::U(v)), Kind::SInt) => w = w.sint(field.number, *v as i64),
@@ -167,6 +208,11 @@ impl Schema {
                         Kind::SInt => w.sint(field.number, 0),
                         Kind::Bytes => w.bytes(field.number, b""),
                         Kind::Message(m) => w.bytes(field.number, &self.encode(m, &Vec::new())),
+                        Kind::Enum(e) => w.uint(field.number, self.enums.get(e).copied().unwrap_or(0)),
+                        Kind::Float => w.float(field.number, 0.0),
+                        Kind::Double => w.double(field.number, 0.0),
+                        Kind::Fixed32 => w.fixed32(field.number, 0),
+                        Kind::Fixed64 => w.fixed64(field.number, 0),
                     }
                 }
                 (None, _) => {}
@@ -189,6 +235,10 @@ impl Schema {
                 (Kind::Message(sub), Value::Bytes(b)) => V::M(self.decode(sub, b)),
                 (Kind::Bytes, Value::Bytes(b)) => V::S(String::from_utf8_lossy(b).into_owned()),
                 (Kind::SInt, Value::Varint(x)) => V::I(((*x >> 1) as i64) ^ -((*x & 1) as i64)),
+                (Kind::Float, Value::Fixed32(x)) => V::F(f32::from_bits(*x) as f64),
+                (Kind::Double, Value::Fixed64(x)) => V::F(f64::from_bits(*x)),
+                (_, Value::Fixed32(x)) => V::U(*x as u64),
+                (_, Value::Fixed64(x)) => V::U(*x),
                 (_, Value::Varint(x)) => V::U(*x),
                 _ => V::U(0),
             };
@@ -270,6 +320,8 @@ pub enum V {
     List(Vec<Obj>),
     /// A repeated number field.
     Ints(Vec<u64>),
+    /// float, double.
+    F(f64),
 }
 
 /// A message's fields by name.
@@ -728,6 +780,22 @@ mod tests {
         let back = schema.decode("Ping", &data);
         assert_eq!(uint(&back, "a"), 5);
         assert_eq!(string(&back, "b"), "");
+    }
+
+    #[test]
+    fn enum_default_and_float() {
+        // `Msg { required Kind k = 1; required float f = 2; enum Kind { A = 1; B = 2; } }`
+        let field = |name: &str, number: u64, ty: u64, type_name: &str| {
+            Writer::new().string(1, name).uint(3, number).uint(4, 2).uint(5, ty).string(6, type_name)
+        };
+        let kind = Writer::new().string(1, "Kind").message(2, Writer::new().string(1, "A").uint(2, 1)).message(2, Writer::new().string(1, "B").uint(2, 2));
+        let msg = Writer::new().string(1, "Msg").message(2, field("k", 1, 14, ".x.Msg.Kind")).message(2, field("f", 2, 2, "")).message(4, kind);
+        let schema = Schema::parse(&Writer::new().string(1, "x.proto").string(2, "x").message(4, msg).0);
+        // a required enum's default is its first value (1, not 0)
+        let m = Message::parse(&schema.encode("Msg", &Vec::new())).unwrap();
+        assert_eq!(m.uint(1), Some(1));
+        let back = schema.decode("Msg", &schema.encode("Msg", &vec![("f", V::F(1.5))]));
+        assert!(matches!(get(&back, "f"), Some(V::F(f)) if *f == 1.5));
     }
 
     #[test]

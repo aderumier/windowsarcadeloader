@@ -41,6 +41,24 @@ impl Writer {
         self
     }
 
+    pub fn double(self, field: u32, v: f64) -> Self {
+        self.fixed64(field, v.to_bits())
+    }
+
+    /// fixed32, sfixed32.
+    pub fn fixed32(mut self, field: u32, v: u32) -> Self {
+        varint(&mut self.0, (field << 3 | 5) as u64);
+        self.0.extend_from_slice(&v.to_le_bytes());
+        self
+    }
+
+    /// fixed64, sfixed64.
+    pub fn fixed64(mut self, field: u32, v: u64) -> Self {
+        varint(&mut self.0, (field << 3 | 1) as u64);
+        self.0.extend_from_slice(&v.to_le_bytes());
+        self
+    }
+
     pub fn bytes(mut self, field: u32, v: &[u8]) -> Self {
         varint(&mut self.0, (field << 3 | 2) as u64);
         varint(&mut self.0, v.len() as u64);
