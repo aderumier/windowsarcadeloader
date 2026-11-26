@@ -1,0 +1,2 @@
+// BeginnerMissionSeatConditionId,BeginnerMissionId,SeatNum,MissionSeatNum,DisplayContent,DisplayTips,ConditionType,ConditionParam1,ConditionParam2,ConditionParam3,RequiredAchievementNum
+11001,10000,1,10,"9つの初心者ミッションを<br>全てクリアしよう","それぞれのミッションに<br>表示されているTipsを参考に<br>初心者ミッションをクリアしていこう",1,"0","0","0",1

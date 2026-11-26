@@ -1,0 +1,2 @@
+// EpisodeAppendId,EpisodeAppendType,Name,FlavorText,SalePossibleFlag,SalePrice,EpisodeAppendIcon
+10001,1,"エピソードキー","旅の記録を閲覧出来るようにする<br>鍵型のアイテム。",False,100,"ITEM_10001"

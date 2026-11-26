@@ -1,0 +1,125 @@
+# Sword Art Online Arcade: Deep Explorer (Bandai Namco, 2019, Unity 2017.4 / Mono, 64-bit), ROM
+# SAO134-1-NA-MPR0-L11 - template, override values in
+# userprofiles/namcoes3/sword-art-online-deep-explorer.yaml.
+# The cabinet's game seat (satellite) on the BNA1 platform: the payload reproduces bananatools'
+# saohook (USIO board, Aime reader and its display, USB dongle, AMCUS auth, satellite check) and
+# runs ARTEMiS' SAO game server (the players' data in the dump's WindowsLoader\F\saosrv).
+system: namcoes3
+name: Sword Art Online Arcade - Deep Explorer
+
+# The game imports none of the cabinet libraries ours could take the place of (Mono loads them
+# later): the payload is loaded at the executable's entry point (wal-loader64).
+payload_loader: true
+payload_install: [game/wal_namcoes3.dll]
+
+# Unity's own log beside the game
+args: [-logFile, link.log]
+
+# The cabinet's partitions: E: the application's transition settings (AppTransition.ini), F:
+# its saves (first boot flag, test mode settings, power-cut return data, offline time) and the
+# player's Aime card (aime.txt), L: libamw's log volume (SEGA_AM_LOG).
+drives:
+  e: WindowsLoader/E
+  f: WindowsLoader/F
+  l: WindowsLoader/L
+
+# Another loader's files in the dump.
+hide: [game/TeknoParrot]
+
+env:
+  # the Aime card goes on the reader by itself after start
+  WAL_NAMCOES3_AUTO_CARD: "1"
+  # the card's 20-digit access code (empty: a card made once, WindowsLoader\F\aime.txt)
+  WAL_NAMCOES3_ACCESS_CODE: ""
+  # the touch pointer: a small red dot where the mouse or gun touches
+  WAL_CROSSHAIR: "1"
+  WAL_CROSSHAIR_SIZE: "1.5"
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Aime card
+    options:
+      - key: WAL_NAMCOES3_AUTO_CARD
+        label: Insert the card automatically
+        kind: bool
+        description: >-
+          The Aime card is on the reader for 20 seconds after start is pressed. Off: insert it
+          with the card button.
+      - key: WAL_NAMCOES3_ACCESS_CODE
+        label: Access code
+        kind: text
+        description: >-
+          The card's 20-digit access code. Empty: a card made once for this dump
+          (WindowsLoader\F\aime.txt).
+  - title: Touch panel
+    options:
+      - key: WAL_CROSSHAIR
+        label: Touch pointer
+        kind: bool
+        description: A small red dot where the mouse or gun touches (the menus are touched).
+      - key: WAL_CROSSHAIR_SIZE
+        label: Touch pointer size
+        kind: choice
+        choices: ["1", "1.5", "2", "3", "4", "6"]
+        description: The dot's size, in percent of the screen height.
+
+input:
+  # its gamepad buttons are physical choices, not panel positions: no button layout
+  pad_layout: false
+  # the stick is the cabinet's lever (analog): no d-pad from it
+  stick_as_dpad: false
+  # the mouse (or a gun) is the touch panel: its left button touches, where the cursor is
+  guns_enabled: true
+  gun:
+    x: none
+    y: none
+    BTN_LEFT: kp0
+    BTN_RIGHT: none
+    BTN_MIDDLE: none
+    BTN_1: none
+    BTN_2: none
+    BTN_5: none
+    BTN_6: none
+    BTN_7: none
+    BTN_8: none
+  # the three attack buttons (one per party member) on X / A / B, the lever's buttons (step,
+  # guard, the third) on the shoulders and Y, the card on the guide button
+  gamepad:
+    x: b1
+    a: b2
+    b: b3
+    l1: b4
+    r1: b5
+    y: b6
+    guide: card
+    start: start
+    back: coin
+    l3: service
+    r3: test
+    dpup: up
+    dpdown: down
+    dpleft: left
+    dpright: right
+    leftx: lx
+    lefty: ly
+
+# Control names (the GUI's mapping rows).
+controls:
+  lx: Lever (x)
+  ly: Lever (y)
+  up: Up / operator menu up
+  down: Down / operator menu down
+  left: Left
+  right: Right
+  b1: Attack (left member)
+  b2: Attack (middle member)
+  b3: Attack (right member)
+  b4: Step
+  b5: Guard
+  b6: Lever button 3
+  kp0: Touch (the mouse's left button)
+  card: Aime card
+  start: Start / operator menu enter
+  coin: Coin
+  service: Service
+  test: Test

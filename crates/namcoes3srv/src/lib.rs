@@ -8,6 +8,7 @@
 //!   on the same framework (`jackal.protobuf`, `jackal.rs`).
 //! * `spp`: Time Crisis 5 (`spp.net`).
 //! * `jojo`: JoJo's Bizarre Adventure: Last Survivor (JSON).
+//! * `sao`: Sword Art Online Arcade: Deep Explorer (ARTEMiS' `titles/sao`, Blowfish binary).
 
 pub mod graphene;
 mod jackal;
@@ -16,6 +17,7 @@ mod msgpack;
 pub mod pb;
 mod records;
 mod rpc;
+pub mod sao;
 pub mod spp;
 mod store;
 pub mod wmmt5;

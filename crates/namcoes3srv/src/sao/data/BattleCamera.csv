@@ -1,0 +1,4 @@
+// BattleCameraId,OffsetX,OffsetY,OffsetZ,RotH,RotV,Distance,Near,Far,Fov
+1,0,1.5,0,50,35,60,1,250,10
+2,0,1.5,0,50,35,80,1,250,10
+3,0,1.5,0,50,35,90,1,250,10

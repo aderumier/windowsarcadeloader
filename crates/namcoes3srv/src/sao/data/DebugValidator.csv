@@ -1,0 +1,14 @@
+// DebugValidatorId,ClassName,DataName,Condition,Param
+14,"StaticPropertyData",,0,
+15,,"value1_min",3,"0"
+16,,,7,
+17,,"value2_min",3,"0"
+18,,,7,
+19,"StaticPropertyTableData",,0,
+20,,"property_id",1,"100200"
+21,,"value1_min",4,"1"
+22,,,7,
+23,,"property_table_sub_id",1,"20074"
+24,,"property_id",6,"200000"
+25,,"property_id",4,"204000"
+26,,,7,

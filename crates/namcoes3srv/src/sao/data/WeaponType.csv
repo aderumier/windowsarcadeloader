@@ -1,0 +1,15 @@
+// WeaponTypeId,Name,ActionBehaviour,SoundBehaviour,PhysicsAttr,MainEquip,SubEquip1,SubEquip2
+1,"片手剣","OneHandBehaviour","OneHandSoundBehaviour",1,1,12,13
+2,"二刀流","NitoryuBehaviour","NitoryuSoundBehaviour",1,1,1,13
+3,"細剣","RapierBehaviour","RapierSoundBehaviour",3,3,12,13
+4,"短剣","DaggerBehaviour","DaggerSoundBehaviour",1,4,12,13
+5,"両手剣",,,1,5,0,13
+6,"刀","KatanaBehaviour","KatanaSoundBehaviour",1,6,0,13
+7,"槍",,,3,7,0,13
+8,"クロー","ClawBehaviour","ClawSoundBehaviour",2,8,0,13
+9,"両手斧","TwoHandAxBehaviour","TwoHandAxSoundBehaviour",1,9,0,13
+10,"片手棍","MaceBehaviour","MaceSoundBehaviour",2,10,12,13
+11,"弓","BowBehaviour","BowSoundBehaviour",3,11,0,13
+12,"盾",,,0,0,0,13
+13,"アクセサリ",,,0,0,0,13
+14,"狙撃銃","SniperRifleBehaviour","SniperRifleSoundBehaviour",3,14,0,13

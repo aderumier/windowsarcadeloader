@@ -1,0 +1,4 @@
+// DefragMatchAiPatternId,AppearanceStartDefragMatchId,AppearanceEndDefragMatchId,LimitTime,SkillLevel,CaptureBaseLength,CaptureOtherLength,PriorityItemLength,PriorityGreedLength,PrioritySupport
+1,1,999,150,4,20,2,9,9,3
+2,1,999,200,3,20,2,6,6,2
+3,1,999,300,2,20,2,3,3,1

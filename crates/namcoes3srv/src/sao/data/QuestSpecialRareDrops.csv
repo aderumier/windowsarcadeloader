@@ -1,0 +1,3 @@
+// QuestSpecialRareDropId,QuestSpecialRareDropSubId,UnitId,CommonRewardType,CommonRewardId,CommonRewardNum,StrengthMin,StrengthMax,PropertyTableSubId,DropRate
+1001,1000,10190200,1,101000140,1,0,0,10062,0.5
+1002,1000,10190200,3,210001,1,0,0,0,0.5

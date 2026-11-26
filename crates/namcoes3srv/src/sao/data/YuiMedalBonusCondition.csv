@@ -1,0 +1,6 @@
+// YuiMedalBonusConditionId,YuiMedalBonusId,TargetDays,GetNum,LoopFlag
+10000,100,1,1,False
+10001,100,2,0,True
+10100,101,1,1,True
+10200,102,1,1,False
+10201,102,2,0,True

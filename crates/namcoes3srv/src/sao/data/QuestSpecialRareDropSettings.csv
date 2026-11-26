@@ -1,0 +1,5 @@
+// QuestSpecialRareDropSettingId,TowerType,StartTrialTowerId,EndTrialTowerId,RareDropUpwardRate,QuestSpecialRareDropSubId,GenericCampaignPeriodId,StartDate,EndDate
+1001,1,1,20,1.5,1000,1001,"1899/12/31 12:00:00","1902/09/26"
+1002,1,21,40,2,1000,1002,"1900/01/01","1902/09/26"
+1003,1,41,60,1.5,1000,1003,"1899/12/31 12:00:00","1902/09/26"
+1004,1,61,80,2,1000,1004,"1900/01/01","1902/09/26"

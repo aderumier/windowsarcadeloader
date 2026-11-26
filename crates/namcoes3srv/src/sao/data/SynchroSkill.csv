@@ -1,0 +1,27 @@
+// SynchroSkillId,Name,NameInSkillCutin,SubState,CharaId,IconFilePath,InfoText,SeName,VoiceId,DelayTime
+1,"クロス・アクセル","クロス・〇〇〇〇アクセル","PlayerSkillCoolSpeed",1,"SSIcon_Kirito_00","効果発動中、全スキル<br>クールタイムが短縮される。","SE_CUTIN_SYNCHRO",,0
+2,"ヒーリング・ユナイト","ヒーリング・〇〇ユナイト","PlayerSkillHeal",2,"SSIcon_Asuna_00","全員のHPを全快、状態異常<br>及びデバフを解除する。","SE_CUTIN_SYNCHRO",,0
+3,"行動拡張《リミットオーバー》","行動拡張","PlayerSkillLimitHeal",3,"SSIcon_Leafa_00","パーティの活動限界値を<br>回復する。","SE_CUTIN_SYNCHRO",,0
+4,"スキル・アドバンス","スキル・〇〇〇〇アドバンス","PlayerSkillSkillLvUp",4,"SSIcon_Sinon_00","全プレイヤーの<br>スキルレベルを上昇する。","SE_CUTIN_SYNCHRO",,0
+5,"オール・エンハンサー","オール・〇〇〇〇エンハンサー","PlayerSkillBuff",5,"SSIcon_Lisbeth_00","全員の全てのステータスに<br>バフ効果を付与する。","SE_CUTIN_SYNCHRO",,0
+6,"イルード・ライン","イルード・〇〇〇ライン","PlayerSkillWarp",6,"SSIcon_Silica_00","パーティ全員をエスケープ<br>ポイントに転移する。","SE_CUTIN_SYNCHRO",,0
+7,"紅蓮一刀・劫火絢爛","紅蓮一刀・〇〇〇劫火絢爛","PlayerSkillDeath",7,"SSIcon_Klein_00","周囲のMobを一掃する。","SE_CUTIN_SYNCHRO",,0
+8,"ヘラクレス・ロウ","ヘラクレス・〇〇ロウ","PlayerSkillInvincible",8,"SSIcon_Agil_00","効果発動中、パーティ全員が<br>ダメージを受けなくなる。","SE_CUTIN_SYNCHRO",,0
+9,"スターダスト・ドライブ","スターダスト・〇ドライブ","PlayerSkillVolatilePower",9,"SSIcon_Yuuki_00","ダメージを受けるか<br>後衛に回るまで攻撃力上昇。","SE_CUTIN_SYNCHRO",,0
+10,"オーバー・シーカー","オーバー・〇〇〇シーカー","PlayerSkillSearchAndQuick",10,"SSIcon_Argo_00","一定時間、移動速度が上昇し<br>マップに全ての情報を表示。","SE_CUTIN_SYNCHRO",,0
+11,"旋花一嵐・はなしぐれ","旋花一嵐・〇〇〇はなしぐれ","PlayerSkillEnhanceAction",11,"SSIcon_Alice_00","一定時間、攻撃に金木犀の<br>花弁による追加攻撃が発生。","SE_CUTIN_SYNCHRO",,0
+12,"スプラウト・ブルーローズ","スプラウト・〇〇ブルーローズ","PlayerSkillEnchantBlueRose",12,"SSIcon_Eugeo_00","一定時間、攻撃時に敵を<br>氷咲状態にすることがある。","SE_CUTIN_SYNCHRO",,0
+18,"エース・イン・ザ・ホール","エース・イン・〇〇〇ザ・ホール","PlayerSkillForcedActivation",18,"SSIcon_Rain_00","一度だけ無条件に<br>攻撃スキルを発動できる。","SE_CUTIN_SYNCHRO",,0
+1001,"クロス・アクセル","クロス・〇〇〇〇アクセル","PlayerSkillCoolSpeed",1,"SSIcon_Kirito_00","効果発動中、全スキル<br>クールタイムが短縮される。","SE_CUTIN_SYNCHRO",,0
+1002,"ヒーリング・ユナイト","ヒーリング・〇〇ユナイト","PlayerSkillHeal",2,"SSIcon_Asuna_00","全員のHPを全快、状態異常<br>及びデバフを解除する。","SE_CUTIN_SYNCHRO",,0
+1003,"ボーダー・リーチ","ボーダー・〇〇〇リーチ","PlayerSkillPointGet",3,"SSIcon_Leafa_00","自身のボーダーの10％分<br>リーグポイントを獲得","SE_CUTIN_SYNCHRO",,0
+1004,"スキル・アドバンス","スキル・〇〇〇〇アドバンス","PlayerSkillSkillLvUp",4,"SSIcon_Sinon_00","自身の<br>スキルレベルを上昇する。","SE_CUTIN_SYNCHRO",,0
+1005,"オール・エンハンサー","オール・〇〇〇〇エンハンサー","PlayerSkillBuff",5,"SSIcon_Lisbeth_00","全員の全てのステータスに<br>バフ効果を付与する。","SE_CUTIN_SYNCHRO",,0
+1006,"イルード・ライン","イルード・〇〇〇ライン","PlayerSkillWarp",6,"SSIcon_Silica_00","パーティ全員をヒール<br>スポットに転移する。","SE_CUTIN_SYNCHRO",,0
+1007,"紅蓮一刀・劫火絢爛","紅蓮一刀・〇〇〇劫火絢爛","PlayerSkillDeath",7,"SSIcon_Klein_00","周囲のMobを一掃する。","SE_CUTIN_SYNCHRO",,0
+1008,"ヘラクレス・ロウ","ヘラクレス・〇〇ロウ","PlayerSkillInvincible",8,"SSIcon_Agil_00","効果発動中、パーティ全員が<br>ダメージを受けなくなる。","SE_CUTIN_SYNCHRO",,0
+1009,"スターダスト・ドライブ","スターダスト・〇ドライブ","PlayerSkillVolatilePower",9,"SSIcon_Yuuki_00","ダメージを受けるか<br>後衛に回るまで攻撃力上昇。","SE_CUTIN_SYNCHRO",,0
+1010,"オーバー・シーカー","オーバー・〇〇〇シーカー","PlayerSkillSearchAndQuick",10,"SSIcon_Argo_00","一定時間、移動速度が上昇し<br>マップに追加情報を表示。","SE_CUTIN_SYNCHRO",,0
+1011,"旋花一嵐・はなしぐれ","旋花一嵐・〇〇〇はなしぐれ","PlayerSkillEnhanceAction",11,"SSIcon_Alice_00","一定時間、攻撃に金木犀の<br>花弁による追加攻撃が発生。","SE_CUTIN_SYNCHRO",,0
+1012,"スプラウト・ブルーローズ","スプラウト・〇〇ブルーローズ","PlayerSkillEnchantBlueRose",12,"SSIcon_Eugeo_00","一定時間、攻撃時に敵を<br>氷咲状態にすることがある。","SE_CUTIN_SYNCHRO",,0
+1018,"エース・イン・ザ・ホール","エース・イン・〇〇〇ザ・ホール","PlayerSkillForcedActivation",18,"SSIcon_Rain_00","一度だけ無条件に<br>攻撃スキルを発動できる。","SE_CUTIN_SYNCHRO",,0

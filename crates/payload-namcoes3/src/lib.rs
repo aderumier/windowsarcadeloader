@@ -36,9 +36,11 @@ mod lla;
 mod patches;
 mod pokken;
 mod projector;
+mod sao;
 use wal_payload_common::sgreader;
 mod tc5;
 mod tekken7;
+mod touch;
 mod usio;
 mod vfd;
 mod wmmt5;
@@ -104,6 +106,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let base = module_base();
         if exe.eq_ignore_ascii_case(jojo::GAME) {
             jojo::attach(base);
+        } else if sao::is_sao(&exe) {
+            sao::attach(base);
         } else if exe.eq_ignore_ascii_case(pokken::GAME) {
             pokken::attach(base);
         } else if tekken7::is_tekken7(&exe) {
