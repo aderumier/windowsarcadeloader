@@ -9,6 +9,10 @@
 //! over its back buffer as a quad, opaque, in a device context state of its own (the game's
 //! pipeline state left untouched), with the touch screen's pointer when the payload gives one.
 //! The shaders are compiled at the first frame (`d3dcompiler_47.dll`).
+//!
+//! With a place for the main window's own picture (`Layout::target_rect`: Mobile Suit Gundam
+//! U.C. Card Builder's two screens side by side in one window), that picture is copied too, the
+//! back buffer cleared black, and both drawn at their places.
 
 use std::ffi::c_void;
 use std::sync::{Mutex, OnceLock};
@@ -33,6 +37,9 @@ pub struct Layout {
     pub target: usize,
     pub rect: [f32; 4],
     pub pointer: Option<(f32, f32)>,
+    /// The main window's own picture's place (fractions, as `rect`), its back buffer cleared
+    /// around; `None`: left as it is, the source's picture over it.
+    pub target_rect: Option<[f32; 4]>,
 }
 
 static LAYOUT: OnceLock<fn() -> Option<Layout>> = OnceLock::new();
@@ -101,8 +108,9 @@ struct Resources {
     ps: P,
     blend: P,
     sampler: P,
-    /// The copy: its description, texture, shader resource view.
-    copy: Option<(Texture2DDesc, P, P)>,
+    /// The copies (the source's picture, the target's own): description, texture, shader
+    /// resource view.
+    copy: [Option<(Texture2DDesc, P, P)>; 2],
     /// The pointer's colors: black, white (1x1 textures and their views).
     colors: [(P, P); 2],
 }
@@ -163,7 +171,7 @@ impl Resources {
             ps: std::ptr::null_mut(),
             blend: std::ptr::null_mut(),
             sampler: std::ptr::null_mut(),
-            copy: None,
+            copy: [None, None],
             colors: [(std::ptr::null_mut(), std::ptr::null_mut()); 2],
         };
         let mut device1: P = std::ptr::null_mut();
@@ -214,18 +222,23 @@ impl Resources {
     }
 
     fn drop_copy(&mut self) {
-        if let Some((_, tex, srv)) = self.copy.take() {
-            release(srv);
-            release(tex);
+        for copy in &mut self.copy {
+            if let Some((_, tex, srv)) = copy.take() {
+                release(srv);
+                release(tex);
+            }
         }
     }
 
     /// The source's back buffer copied (a texture of its size and format, made again when they
     /// change).
-    fn capture(&mut self, context: P, back: P, desc: &Texture2DDesc) {
+    fn capture(&mut self, index: usize, context: P, back: P, desc: &Texture2DDesc) {
         let want = Texture2DDesc { mip_levels: 1, array_size: 1, sample_count: 1, sample_quality: 0, usage: 0, bind_flags: 8, cpu_access: 0, misc: 0, ..*desc };
-        if self.copy.as_ref().is_none_or(|(d, _, _)| *d != want) {
-            self.drop_copy();
+        if self.copy[index].as_ref().is_none_or(|(d, _, _)| *d != want) {
+            if let Some((_, tex, srv)) = self.copy[index].take() {
+                release(srv);
+                release(tex);
+            }
             let (mut tex, mut srv): (P, P) = (std::ptr::null_mut(), std::ptr::null_mut());
             if com!(self.device, 5, fn(*const Texture2DDesc, P, *mut P) -> HRESULT, &want, std::ptr::null_mut(), &mut tex) < 0
                 || com!(self.device, 7, fn(P, P, *mut P) -> HRESULT, tex, std::ptr::null_mut(), &mut srv) < 0
@@ -235,10 +248,10 @@ impl Resources {
                 ONCE.call_once(|| log!("subwindow: no copy of the {}x{} picture (format {})", desc.width, desc.height, desc.format));
                 return;
             }
-            log!("subwindow: source picture {}x{} (format {})", desc.width, desc.height, desc.format);
-            self.copy = Some((want, tex, srv));
+            log!("subwindow: {} picture {}x{} (format {})", if index == 0 { "source" } else { "main" }, desc.width, desc.height, desc.format);
+            self.copy[index] = Some((want, tex, srv));
         }
-        if let Some((_, tex, _)) = self.copy {
+        if let Some((_, tex, _)) = self.copy[index] {
             if desc.sample_count > 1 {
                 // ResolveSubresource
                 com!(context, 57, fn(P, u32, P, u32, u32) -> (), tex, 0, back, 0, desc.format);
@@ -249,13 +262,17 @@ impl Resources {
         }
     }
 
-    fn draw(&self, context: P, back: P, (w, h): (f32, f32), rect: [f32; 4], pointer: Option<(f32, f32)>) {
-        let Some((_, _, srv)) = self.copy else { return };
+    fn draw(&self, index: usize, clear: bool, context: P, back: P, (w, h): (f32, f32), rect: [f32; 4], pointer: Option<(f32, f32)>) {
+        let Some((_, _, srv)) = self.copy[index] else { return };
         let mut rtv: P = std::ptr::null_mut();
         if com!(self.device, 9, fn(P, P, *mut P) -> HRESULT, back, std::ptr::null_mut(), &mut rtv) < 0 {
             static ONCE: std::sync::Once = std::sync::Once::new();
             ONCE.call_once(|| log!("subwindow: no render target view of the back buffer"));
             return;
+        }
+        if clear {
+            // ClearRenderTargetView: black
+            com!(context, 50, fn(P, *const f32) -> (), rtv, [0.0f32, 0.0, 0.0, 1.0].as_ptr());
         }
         let viewport = [rect[0] * w, rect[1] * h, rect[2] * w, rect[3] * h, 0.0, 1.0];
         let mut previous: P = std::ptr::null_mut();
@@ -333,10 +350,15 @@ fn presentation(swap: P) {
         }
     }
     if let Some(r) = guard.as_mut() {
+        let size = (desc.width as f32, desc.height as f32);
         if source {
-            r.capture(context, back, &desc);
+            r.capture(0, context, back, &desc);
+        } else if let Some(own) = layout.target_rect {
+            r.capture(1, context, back, &desc);
+            r.draw(1, true, context, back, size, own, None);
+            r.draw(0, false, context, back, size, layout.rect, layout.pointer);
         } else {
-            r.draw(context, back, (desc.width as f32, desc.height as f32), layout.rect, layout.pointer);
+            r.draw(0, false, context, back, size, layout.rect, layout.pointer);
         }
     }
     release(context);

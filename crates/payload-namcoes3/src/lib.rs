@@ -31,6 +31,9 @@ mod bngrw;
 mod bpreader;
 mod dinput;
 mod exvs2;
+mod gcb;
+mod gcb_screens;
+mod gcb_trace;
 mod hasp;
 mod jojo;
 mod jvs;
@@ -108,6 +111,8 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let base = module_base();
         if exvs2::is_exvs2(&exe) {
             exvs2::attach(base);
+        } else if gcb::is_gcb(&exe) {
+            gcb::attach(base);
         } else if exe.eq_ignore_ascii_case(jojo::GAME) {
             jojo::attach(base);
         } else if sao::is_sao(&exe) {

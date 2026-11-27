@@ -1,0 +1,52 @@
+# Mobile Suit Gundam U.C. Card Builder (Bandai Namco, 2016, Direct3D 11, 64-bit), build 13109
+# (ALL.Net SDBR, MUCHA GCB1 34.04) - template, override values in
+# userprofiles/namcoes3/mobile-suit-gundam-uc-card-builder.yaml.
+system: namcoes3
+name: Mobile Suit Gundam U.C. Card Builder
+
+# The game imports none of the cabinet libraries ours could take the place of: the payload is
+# loaded at the executable's entry point (wal-loader64).
+payload_loader: true
+payload_install: [wal_namcoes3.dll]
+
+# The shop's server, which the shop's terminal runs (TenpoServer: the shop's seats, downloads,
+# in-shop matching): the seat looks for it at boot (UDP broadcast, port 12010).
+background: ["WatchdogForServer_vc2012.exe -portNo 12001 -muchaVersion 34.04 -memoryName ServerWatchdogMem -noServerWindow true"]
+background_wait_ms: 2000
+
+env:
+  # the cabinet's two screens on borderless windows the payload places (left / right halves)
+  WAL_WINDOW_POPUP: "1"
+  WAL_NAMCOES3_GCB_SCREENS: split
+  WAL_NAMCOES3_GCB_KEEP_ASPECT: "1"
+
+options:
+  - title: Screens
+    options:
+      - key: WAL_NAMCOES3_GCB_SCREENS
+        label: Screen layout
+        kind: choice
+        choices: [split, swap, monitors]
+        description: >-
+          split: the main screen on the left half of the monitor, the sub screen on the right
+          half. swap: the sub screen on the left. monitors: each screen on its own monitor (the
+          main screen on the first, the sub screen on the second; with one monitor: split).
+      - key: WAL_NAMCOES3_GCB_KEEP_ASPECT
+        label: Keep the screens' 16:9 shape
+        kind: bool
+        description: Off stretches each screen over its half of the monitor.
+
+input:
+  gamepad:
+    a: b1
+    b: b2
+    x: b3
+    y: b4
+    start: start
+    back: coin
+    l3: service
+    r3: test
+    dpup: up
+    dpdown: down
+    dpleft: left
+    dpright: right

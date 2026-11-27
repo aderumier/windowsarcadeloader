@@ -248,7 +248,7 @@ mod windows {
         if source == 0 || target == 0 || HIDDEN.load(Ordering::Relaxed) {
             return None;
         }
-        Some(Layout { source, target, rect: rect()?, pointer: pointer() })
+        Some(Layout { source, target, rect: rect()?, pointer: pointer(), target_rect: None })
     }
 
     pub(super) fn init() {
