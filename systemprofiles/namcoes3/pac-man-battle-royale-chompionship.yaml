@@ -1,0 +1,42 @@
+# Pac-Man Battle Royale Chompionship (Bandai Namco Amusements America, 2023, software 0.5.12) -
+# template, override values in userprofiles/namcoes3/pac-man-battle-royale-chompionship.yaml.
+# The cabinet is a Raspberry Pi 4 running Linux; the dump's chomp.exe is a static recompilation
+# of it to 64-bit Windows (OpenGL, its 1280x720 picture on a borderless window the size of the
+# screen, 16:9). The game imports nothing of ours: the payload is loaded at the executable's
+# entry point. It feeds the cabinet's I/O hub (eight player stations, the operator buttons, the
+# TEST switch) from the virtual sticks: players 1 to 4 are the stations at the screen's corners
+# (yellow bottom left, pink bottom right, red top left, cyan top right). Its operator settings,
+# audits and high scores are eeprom.bin, created beside the executable (run directory).
+system: namcoes3
+name: Pac-Man Battle Royale Chompionship
+
+payload_loader: true
+payload_install: [wal_namcoes3.dll]
+
+env:
+  WAL_HIDE_CURSOR: "1"
+
+options:
+  - title: Game
+    options:
+      - key: WAL_FREEPLAY
+        label: Free play
+        kind: bool
+        description: >-
+          The operator menu's "credits to start" set to free play. Off: one credit to start
+          (or the coinage chosen in the operator menu).
+
+controls:
+  up: Up
+  down: Down
+  left: Left
+  right: Right
+  b1: Push (join / start)
+  b5: Push (join / start)
+  start: Push (join / start)
+  coin: Coin
+  service: Operator menu (select)
+  b3: Operator menu up
+  b4: Operator menu down
+  b2: Operator menu back
+  test: Test (hub diagnostics, held)

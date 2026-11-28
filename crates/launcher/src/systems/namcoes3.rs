@@ -5,6 +5,8 @@
 //! `hasp_windows_x64_106993.dll` (profile `payload_install`), Time Crisis 5 (64-bit) as its
 //! `hasp_windows_x64_105293.dll`. Tekken 7 and Pokkén Tournament (64-bit) import no cabinet
 //! library: the payload is their `xinput1_3.dll` (profile `payload_install`).
+//! Pac-Man Battle Royale Chompionship (a recompiled Raspberry Pi game, `chomp.exe`, 64-bit)
+//! loads the 64-bit payload at its executable's entry point.
 //!
 //! The dump's executable is the cabinet launcher `Launcher\RSLauncher.exe`, which starts
 //! `Binaries\Win64\SWArcGame-Win64-Shipping.exe`. Both import the HASP HL dongle library

@@ -12,7 +12,8 @@
 //! `TC5\Binaries\Win64\TimeCrisisGame-Win64-Shipping.exe`, `tc5.rs`, USIO board `usio.rs`).
 //! Mobile Suit Gundam Extreme Vs. 2 (`exvs2.rs`) loads it at its entry point. Tekken 7 and
 //! Pokkén Tournament import no cabinet library: the payload is their
-//! `xinput1_3.dll` (`tekken7.rs`, `pokken.rs`).
+//! `xinput1_3.dll` (`tekken7.rs`, `pokken.rs`). Pac-Man Battle Royale Chompionship's
+//! recompiled `chomp.exe` loads it at its entry point (`chomp.rs`).
 //!
 //! * `hasp.rs`: the HASP HL dongle API.
 //! * `jvs.rs`: the JVS I/O board, on the serial calls of the launcher and of the game's I/O
@@ -29,6 +30,7 @@ mod amcus;
 mod banapass;
 mod bngrw;
 mod bpreader;
+mod chomp;
 mod dinput;
 mod exvs2;
 mod gcb;
@@ -109,7 +111,9 @@ pub extern "system" fn DllMain(_module: HINSTANCE, reason: u32, _reserved: *mut 
         let exe = std::env::current_exe().ok().and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()));
         let exe = exe.unwrap_or_default();
         let base = module_base();
-        if exvs2::is_exvs2(&exe) {
+        if exe.eq_ignore_ascii_case(chomp::GAME) {
+            chomp::attach(base);
+        } else if exvs2::is_exvs2(&exe) {
             exvs2::attach(base);
         } else if gcb::is_gcb(&exe) {
             gcb::attach(base);
